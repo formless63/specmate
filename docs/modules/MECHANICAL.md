@@ -36,3 +36,45 @@ Use occurrence/transform fixtures and an independently dimensioned synthetic boa
 Check unit conversion, repeated nested selection, canonical placement preservation,
 missing-model limits, orthographic output and on-demand rendering. Remote high-memory/GPU
 jobs use the same manifests/authority, not a different engineering catalog.
+
+## Reusable native source declarations
+
+`mechanical_source.create`, `mechanical_source.update`, `mechanical_source.freeze`
+and `mechanical_source.read` manage reusable enclosure, part and hardware declarations
+through the shared operation envelope. The Mechanical sources tool pins existing Source
+bundle revisions, selected package-relative file hashes and rights. Original and derivative
+bundles keep their existing immutable bytes, manifests and ancestry; editing a declaration
+does not edit its native files. Use the Sources edit handoff and reviewed submission to
+create a derivative, then deliberately update the declaration to its exact new revision.
+
+Each target pins a frozen design revision and snapshot hash. PCB targets additionally pin
+the accepted interpretation hash, native source revision and manifest. A board population
+option and a native component UUID are explicit choices; reference labels never establish
+identity. An ordinary part/hardware target may pin its own reusable catalog revision.
+References may cross currently accessible projects without transferring ownership or granting
+new access. The owning project requires design edit/freeze authority while all referenced
+source/model/target closures require current read authority, including retained ancestors.
+
+Model declarations pin a catalog model representation, its exact represented revision and
+snapshot, selected source file, and an explicit local target. Their manufacturing, clearance
+or illustration purpose, units, frame, accuracy and correspondence basis remain declarations.
+An association does not establish verified feature correspondence, compatibility or fit.
+Missing units, frames, accuracy, population choices or geometry remain unknown. Invalid
+native component/option selections block freezing; unresolved geometry may be frozen with
+limitations. Capture records exact target and represented-model dependencies and preserves
+all source pins in immutable canonical state.
+
+Declared FreeCAD, build123d, CadQuery, STEP, B-rep, mesh and other formats are stored as
+inert preserved files. This source-management path does not parse CAD, import scripts,
+resolve host model paths, fetch remote models or execute tools. Unsupported content stays
+visible with unknown semantics. Extracted PCB outlines and their adapter/version/coverage
+can be inspected as retained inputs; absent outlines provide no clearance evidence. Native
+geometry validation, clearance, fit, manufacturability and physical qualification remain
+unevaluated. Native extraction/proposals need separately approved versioned tool stages.
+
+The read router offers bounded record/target lists and exact draft/revision/target views
+under `/api/v0/mechanical-sources`. It rechecks full current authority before returning
+labels, hashes, cursors or provenance. The browser preserves the original draft token on
+stale-save errors, hides retained and unsaved declarations after access denial, and requires
+an explicit refresh with current closure checks before showing them again. An identical
+save retried after a lost response uses the same reviewed idempotency key.

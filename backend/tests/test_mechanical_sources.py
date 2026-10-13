@@ -20,6 +20,15 @@ from specmate.operations import (
 from specmate.sources.models import SourceBundleRevision
 
 from .conftest import op
+from .test_firmware import component
+from .test_pcb import (  # noqa: F401
+    attempt,
+    intake,
+    recipe,
+    report_payload,
+    source,
+    successful_output,
+)
 from .test_sources import register
 
 
@@ -75,14 +84,38 @@ def mec_target(users, project):
     )
 
 
-def declaration(source, target):
+@pytest.fixture
+def mec_board(users, project, attempt):  # noqa: F811
+    # Simulated accepted output checks management; it establishes no native tool compatibility.
+    report = report_payload()
+    report["outline"] = [[[0, 0], [40, 0], [40, 25], [0, 25]]]
+    report["coverage"]["outline"] = "closed-line-polygons"
+    report["unsupported"][0] = "arc outlines unsupported"
+    cid = str(UUID(int=2))
+    report["components"] = [component(cid, "U1", "Synthetic controller", 10)]
+    successful_output(attempt, report)
+    accepted = op(users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
+    created = op(
+        users["editor"],
+        "pcb.population_create",
+        {"interpretation_id": accepted["interpretation_id"], "name": "Synthetic geometry input"},
+    )
+    return op(
+        users["owner"],
+        "pcb.population_freeze",
+        {"draft_id": created["draft_id"]},
+        expected_state=created["state"],
+    )
+
+
+def declaration(preserved, target):
     return {
         "item_role": "enclosure",
         "sources": [
             {
                 "local_id": "native",
-                "source_revision_id": source["revision_id"],
-                "source_manifest_sha256": source["manifest_sha256"],
+                "source_revision_id": preserved["revision_id"],
+                "source_manifest_sha256": preserved["manifest_sha256"],
                 "files": [
                     {
                         "path": "case.py",
@@ -329,3 +362,96 @@ def test_cross_project_reuse_then_live_and_retained_ancestor_denial(
         create(users["editor"], project, content, idempotency_key="retained")
     # Authorized viewer still sees its independent cross-project declaration.
     assert op(users["viewer"], "mechanical_source.read", {"draft_id": created["draft_id"]})["name"]
+
+
+def test_board_input_retains_exact_geometry_revision_and_component_identity(
+    users, project, mec_sources, mec_board
+):
+    from specmate.mechanical_sources.api import target_result
+    from specmate.queries import get_revision
+
+    frozen = mec_board
+    target = target_result(users["editor"], get_revision(users["editor"], frozen["revision_id"]))
+    content = declaration(mec_sources, frozen)
+    content["targets"] = [
+        {
+            "local_id": "controller",
+            "role": "board",
+            "revision_id": target["revision_id"],
+            "snapshot_sha256": target["snapshot_sha256"],
+            "basis": "Exact synthetic board input",
+            "board": {k: v for k, v in target["board"].items() if k != "options"}
+            | {"option_id": "default"},
+        }
+    ]
+    created = create(users["editor"], project, content)
+    read = op(users["viewer"], "mechanical_source.read", {"draft_id": created["draft_id"]})
+    geometry = read["evaluation"]["targets"][0]["board_geometry"]
+    assert geometry["units"] == "mm"
+    assert geometry["outline"] == [[[0, 0], [40, 0], [40, 25], [0, 25]]]
+    assert geometry["extractor"] == {"adapter": "kicad-intake-v1", "tool_version": "10.0.6"}
+    assert read["evaluation"]["fit"] == "not_evaluated"
+    content["targets"][0].update(
+        role="component", native_component_id=target["components"][0]["id"]
+    )
+    selected = create(users["editor"], project, content)
+    read = op(users["viewer"], "mechanical_source.read", {"draft_id": selected["draft_id"]})
+    assert read["evaluation"]["targets"][0]["component"]["reference"] == "U1"
+    content["targets"][0]["native_component_id"] = str(UUID(int=1))
+    invalid = create(users["editor"], project, content)
+    with pytest.raises(ValidationFailed):
+        op(
+            users["owner"],
+            "mechanical_source.freeze",
+            {"draft_id": invalid["draft_id"]},
+            expected_state=invalid["state"],
+        )
+    assert not Revision.objects.filter(definition_id=invalid["definition_id"]).exists()
+    content["targets"][0]["board"]["interpretation_sha256"] = "0" * 64
+    with pytest.raises(ValidationFailed):
+        create(users["editor"], project, content)
+
+
+def test_read_adapters_authorize_derivative_ancestry_before_disclosure(
+    users, project, mec_sources, mec_target
+):
+    from django.test import RequestFactory
+
+    from specmate.mechanical_sources.api import list_records, list_targets, read_draft, read_target
+    from specmate.sources.models import SourceBundle
+
+    derivative = op(
+        users["editor"],
+        "source.derive_bundle",
+        {"source_revision_id": mec_sources["revision_id"], "name": "Edited mechanical derivative"},
+    )
+    content = declaration(derivative, mec_target)
+    created = create(users["editor"], project, content, idempotency_key="derivative")
+    request = RequestFactory().get("/")
+    request.user = users["viewer"]
+    read = read_draft(request, UUID(created["draft_id"]))
+    assert read["evaluation"]["sources"][0]["role"] == "derivative"
+    assert read["evaluation"]["sources"][0]["derived_from"] == mec_sources["revision_id"]
+    assert mec_sources["revision_id"] in read["evaluation"]["sources"][0]["ancestry"]
+    assert (
+        list_records(request, UUID(project))["records"][0]["definition_id"]
+        == created["definition_id"]
+    )
+    assert list_targets(request, UUID(project))["targets"]
+    assert (
+        read_target(request, UUID(mec_target["revision_id"]))["snapshot_sha256"]
+        == mec_target["sha256"]
+    )
+    hidden = op(users["outsider"], "project.create", {"name": "Hidden retained source origin"})[
+        "project_id"
+    ]
+    # Simulate an operator changing origin authority without mutating immutable native bytes.
+    origin_bundle = SourceBundleRevision.objects.get(id=mec_sources["revision_id"]).bundle_id
+    SourceBundle.objects.filter(id=origin_bundle).update(project_id=hidden)
+    for query in (
+        lambda: read_draft(request, UUID(created["draft_id"])),
+        lambda: list_records(request, UUID(project)),
+        lambda: create(users["editor"], project, content, idempotency_key="derivative"),
+    ):
+        with pytest.raises(NotFound):
+            query()

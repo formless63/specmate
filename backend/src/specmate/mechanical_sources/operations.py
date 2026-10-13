@@ -252,8 +252,8 @@ def evaluate(user, definition, declaration):
             )
             # Geometry is retained extracted input, never promoted into a fit conclusion.
             row["board_geometry"] = {
-                "outline": report.outline,
-                "cutouts": report.cutouts,
+                "outline": report.model_dump(mode="json")["outline"],
+                "cutouts": report.model_dump(mode="json")["cutouts"],
                 "mounting_holes": [h.model_dump(mode="json") for h in report.mounting_holes],
                 "coverage": report.coverage.model_dump(mode="json"),
                 "unsupported": report.unsupported,
@@ -276,6 +276,24 @@ def evaluate(user, definition, declaration):
                         "population_option",
                         "invalid",
                         "Pinned population option is absent.",
+                        pin.local_id,
+                    )
+                )
+            if pin.role == "component" and pin.native_component_id is None:
+                findings.append(
+                    finding(
+                        "native_component",
+                        "unknown",
+                        "Native component identity is unresolved.",
+                        pin.local_id,
+                    )
+                )
+            if not report.outline:
+                findings.append(
+                    finding(
+                        "board_geometry",
+                        "unknown",
+                        "Board outline geometry is unavailable; clearance cannot be inferred.",
                         pin.local_id,
                     )
                 )
@@ -398,6 +416,7 @@ def _replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     draft = Draft.objects.select_related("definition").filter(id=draft_id).first()
     if draft is None or draft.definition.kind != KIND:
         raise NotFound("Mechanical source draft not found.")
+    authorize(ctx.user, draft.definition.project_id, Perm.PROJECT_READ)
     if "content" in stored:
         closure(ctx.user, draft.definition, stored["content"])
     if "revision_id" in stored:
