@@ -119,6 +119,10 @@ def list_candidates(user, revision_id, *, after=None, limit=25):
         raise ValidationFailed("Limit must be between 1 and 100.")
     query = MatchCandidate.objects.filter(source_revision_id=revision_id).order_by("id")
     if after:
+        cursor = query.filter(id=after).first()
+        if cursor is None:
+            raise NotFound("Match cursor not found.")
+        candidate_rows(user, cursor.id)
         query = query.filter(id__gt=after)
     visible = []
     for candidate in query.iterator(chunk_size=100):
@@ -150,6 +154,10 @@ def list_evidence_files(user, project_id, *, after=None, limit=50):
         .order_by("id")
     )
     if after:
+        cursor = query.filter(id=after).first()
+        if cursor is None:
+            raise NotFound("Evidence cursor not found.")
+        authorize_file(user, cursor)
         query = query.filter(id__gt=after)
     rows = list(query[: limit + 1])
     return {

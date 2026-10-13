@@ -8,7 +8,7 @@ from django.db import DatabaseError, close_old_connections, connection, transact
 
 from specmate.access.models import Membership
 from specmate.catalog_matching.models import MatchCandidate, MatchReview
-from specmate.catalog_matching.queries import get_candidate, list_candidates
+from specmate.catalog_matching.queries import get_candidate, list_candidates, list_evidence_files
 from specmate.design.models import Definition, Revision, Snapshot
 from specmate.operations import (
     Conflict,
@@ -351,6 +351,49 @@ def test_api_command_reads_and_visible_pagination(users, pair):
         ).status_code
         == 200
     )
+
+
+def test_candidate_cursor_belongs_to_source_and_rechecks_retained_authority(users, project, pair):
+    visible = op(users["editor"], "catalog.propose_match", proposal(pair))
+    other = op(users["owner"], "project.create", {"name": "Cursor evidence scope"})["project_id"]
+    Membership.objects.create(project_id=other, user=users["editor"], role="viewer")
+    evidence = source_evidence(users, other)
+    hidden = op(users["editor"], "catalog.propose_match", proposal(pair, evidence=evidence))
+    reversed_match = op(users["editor"], "catalog.propose_match", proposal((pair[1], pair[0])))
+    with pytest.raises(NotFound):
+        list_candidates(
+            users["editor"], pair[0]["revision_id"], after=reversed_match["candidate_id"]
+        )
+    Membership.objects.filter(project_id=other, user=users["editor"]).delete()
+    with pytest.raises(NotFound):
+        list_candidates(users["editor"], pair[0]["revision_id"], after=hidden["candidate_id"])
+    page = list_candidates(users["editor"], pair[0]["revision_id"], limit=1)
+    assert page["results"] == [visible] and page["next_after"] is None
+    assert (
+        list_candidates(users["editor"], pair[0]["revision_id"], after=visible["candidate_id"])[
+            "results"
+        ]
+        == []
+    )
+
+
+def test_evidence_file_cursor_scope_access_and_visible_pages(users, project):
+    source_evidence(users, project)
+    page = list_evidence_files(users["editor"], project, limit=1)
+    assert len(page["results"]) == 1 and page["next_after"] is None
+    cursor = page["results"][0]["file_id"]
+    assert list_evidence_files(users["editor"], project, after=cursor)["results"] == []
+    other = op(users["owner"], "project.create", {"name": "Separate evidence"})["project_id"]
+    Membership.objects.create(project_id=other, user=users["editor"], role="viewer")
+    source_evidence(users, other)
+    other_cursor = list_evidence_files(users["editor"], other)["results"][0]["file_id"]
+    with pytest.raises(NotFound):
+        list_evidence_files(users["editor"], project, after=other_cursor)
+    with pytest.raises(NotFound):
+        list_evidence_files(users["editor"], project, after=9999999)
+    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    with pytest.raises(NotFound):
+        list_evidence_files(users["editor"], project, after=cursor)
 
 
 @pytest.mark.parametrize(
