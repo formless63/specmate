@@ -3,6 +3,7 @@ import json
 import zipfile
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.db import DatabaseError, IntegrityError, transaction
 from django.test import Client, RequestFactory
 
@@ -12,9 +13,10 @@ from specmate.operations import (
     IdempotencyMismatch,
     NotFound,
     PermissionDenied,
+    Unauthenticated,
     ValidationFailed,
 )
-from specmate.sources import blobstore, editing, zip_intake
+from specmate.sources import api, blobstore, editing, zip_intake
 from specmate.sources.api import read_revision
 from specmate.sources.models import (
     SourceBlob,
@@ -32,6 +34,29 @@ ORIGINAL = {
     "board/notes.txt": b"synthetic notes\n",
     "scripts/run.py": b"raise SystemExit('inert synthetic script')\n",
 }
+
+
+@pytest.mark.parametrize(
+    "entry", ["export_handoff", "read_revision", "download_file", "list_revisions"]
+)
+def test_source_read_adapters_recheck_current_actor(users, project, entry):
+    user = users["owner"]
+    source = original(users, project)
+    request = RequestFactory().get("/")
+    request.user = user
+    args = (project,) if entry == "list_revisions" else (source["revision_id"],)
+    if entry == "download_file":
+        args += ("board/main.native",)
+    callback = getattr(api, entry)
+    result = callback(request, *args)
+    get_user_model().objects.filter(pk=user.pk).update(is_active=False)
+    assert user.is_active  # The adapter must not trust this retained actor object.
+    try:
+        with pytest.raises(Unauthenticated):
+            callback(request, *args)
+    finally:
+        if hasattr(result, "close"):
+            result.close()
 
 
 def hide_archive_member(users, revision_id):

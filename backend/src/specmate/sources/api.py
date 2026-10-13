@@ -8,6 +8,7 @@ from django.utils.http import content_disposition_header
 from ninja import Router
 
 from specmate.access.permissions import Perm, authorize
+from specmate.catalog_matching.queries import current_actor
 from specmate.operations import NotFound
 from specmate.sources import blobstore, editing
 from specmate.sources.authority import authorize_revision
@@ -18,7 +19,8 @@ router = Router(tags=["sources"])
 
 @router.get("/projects/{project_id}/revisions")
 def list_revisions(request, project_id: UUID, after: UUID | None = None):
-    authorize(request.user, project_id, Perm.PROJECT_READ)
+    user = current_actor(request.user)
+    authorize(user, project_id, Perm.PROJECT_READ)
     # Stable bounded pages fail closed before emitting any inaccessible cursor or name.
     rows = (
         SourceBundleRevision.objects.select_related("bundle")
@@ -30,7 +32,7 @@ def list_revisions(request, project_id: UUID, after: UUID | None = None):
     candidates = list(rows[:51])
     result = []
     for revision in candidates:
-        authorize_revision(request.user, revision)
+        authorize_revision(user, revision)
     for revision in candidates[:50]:
         result.append(
             {
@@ -53,10 +55,11 @@ def list_revisions(request, project_id: UUID, after: UUID | None = None):
 
 @router.get("/revisions/{revision_id}")
 def read_revision(request, revision_id: UUID):
+    user = current_actor(request.user)
     revision = SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
     if revision is None:
         raise NotFound("Source revision not found.")
-    authorize_revision(request.user, revision)
+    authorize_revision(user, revision)
     return {
         "revision_id": str(revision.id),
         "name": revision.bundle.name,
@@ -74,10 +77,11 @@ def read_revision(request, revision_id: UUID):
 
 @router.get("/revisions/{revision_id}/file")
 def download_file(request, revision_id: UUID, path: str):
+    user = current_actor(request.user)
     revision = SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
     if revision is None:
         raise NotFound("Source revision not found.")
-    authorize_revision(request.user, revision)
+    authorize_revision(user, revision)
     file = revision.files.select_related("blob").filter(path=path).first()
     if file is None:
         raise NotFound("Source file not found.")
@@ -92,10 +96,11 @@ def download_file(request, revision_id: UUID, path: str):
 @router.get("/revisions/{revision_id}/handoff")
 def export_handoff(request, revision_id: UUID):
     """Deterministic editing handoff ZIP of an exact revision; bytes stay inert."""
+    user = current_actor(request.user)
     revision = SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
     if revision is None:
         raise NotFound("Source revision not found.")
-    authorize_revision(request.user, revision)
+    authorize_revision(user, revision)
     data, filename = editing.export_handoff(revision)
     response = HttpResponse(data, content_type="application/zip")
     response["Content-Disposition"] = content_disposition_header(True, filename)
