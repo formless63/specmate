@@ -2,6 +2,7 @@
 
 import json
 from collections import deque
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -18,6 +19,7 @@ from specmate.operations import NotFound, ValidationFailed
 
 MAX_NODES = 5000
 MAX_REVISIONS = 2000
+_AUTHORIZING = ContextVar("assembly_authorizing_snapshots", default=frozenset())
 
 
 def parse_content(content, *, kind=None):
@@ -95,6 +97,29 @@ class Closure:
             pending.extend(self._references(assembly))
             # Non-assembly children can themselves pin restricted sources/designs.
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
+        self._authorize_typed_references()
+
+    def _authorize_typed_references(self):
+        from specmate.design.operations import authorize_design_content
+
+        # Design pins do not include every source-file reference. Let each owning
+        # module authorize its retained content before paths or diagnostics escape.
+        active = _AUTHORIZING.get()
+        token = _AUTHORIZING.set(active | {r.snapshot_id for r in self.revisions.values()})
+        try:
+            for revision in self.revisions.values():
+                if revision.snapshot_id in active:
+                    continue
+                content = json.loads(bytes(revision.snapshot.canonical))["content"]
+                # Assembly references are already covered by our iterative closure.
+                # Do not recursively re-enter it for documentary/historical pins.
+                authorize_design_content(
+                    self.user,
+                    revision.definition,
+                    {key: value for key, value in content.items() if key != "assembly"},
+                )
+        finally:
+            _AUTHORIZING.reset(token)
 
     @staticmethod
     def _references(assembly):
