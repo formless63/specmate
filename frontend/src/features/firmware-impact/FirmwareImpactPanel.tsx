@@ -21,6 +21,8 @@ function Workspace({ projectId }: { projectId: string }) {
   const [candidate, setCandidate] = useState('');
   const [baselineContext, setBaselineContext] = useState<Partial<FirmwareReference>>({});
   const [candidateContext, setCandidateContext] = useState<Partial<FirmwareReference>>({});
+  const [baselineContextPending, setBaselineContextPending] = useState(false);
+  const [candidateContextPending, setCandidateContextPending] = useState(false);
   const [assertions, setAssertions] = useState<string[]>([]);
   const [result, setResult] = useState<ImpactResult | null>(null);
   const [error, setError] = useState('');
@@ -29,12 +31,12 @@ function Workspace({ projectId }: { projectId: string }) {
   function clear() { generation.current++; setResult(null); setError(''); setBusy(false); }
   function deny(message: string) {
     clear(); setFirmware([]); setAssemblies([]); setBaseline(''); setCandidate(''); setBaselineMode('standalone'); setCandidateMode('standalone');
-    setBaselineContext({}); setCandidateContext({}); setAssertions([]); setPickerKey(key => key + 1); setError(message);
+    setBaselineContext({}); setCandidateContext({}); setBaselineContextPending(false); setCandidateContextPending(false); setAssertions([]); setPickerKey(key => key + 1); setError(message);
   }
   async function refresh() {
     const token = ++generation.current;
     setResult(null); setFirmware([]); setAssemblies([]); setError(''); setBusy(true);
-    setBaseline(''); setCandidate(''); setBaselineMode('standalone'); setCandidateMode('standalone'); setBaselineContext({}); setCandidateContext({}); setAssertions([]);
+    setBaseline(''); setCandidate(''); setBaselineMode('standalone'); setCandidateMode('standalone'); setBaselineContext({}); setCandidateContext({}); setBaselineContextPending(false); setCandidateContextPending(false); setAssertions([]);
     setPickerKey(key => key + 1);
     try {
       const [records, definitions] = await Promise.all([
@@ -72,14 +74,16 @@ function Workspace({ projectId }: { projectId: string }) {
       <Button disabled={busy} onClick={() => { void refresh(); }}>Refresh authorized impact inputs</Button>
       {error && <Alert color="red">{error}</Alert>}
       <Text>Standalone firmware belongs to this project. To inspect reused library firmware, choose a frozen assembly and its assigned board occurrence first. Exact library revision assertions are included; contextual, physical-unit and additional observations remain scoped to this project.</Text>
-      <NativeSelect label="Baseline input mode" value={baselineMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setBaselineMode(event.currentTarget.value); setBaseline(''); setBaselineContext({}); }} />
-      <NativeSelect label="Candidate input mode" value={candidateMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setCandidateMode(event.currentTarget.value); setCandidate(''); setCandidateContext({}); }} />
-      {baselineMode === 'standalone' && <NativeSelect label="Baseline firmware revision" value={baseline} data={options} onChange={event => { clear(); setBaseline(event.currentTarget.value); setBaselineContext({}); }} />}
-      {candidateMode === 'standalone' && <NativeSelect label="Candidate firmware revision" value={candidate} data={options} onChange={event => { clear(); setCandidate(event.currentTarget.value); setCandidateContext({}); }} />}
-      {(baseline || baselineMode === 'occurrence') && <ContextSelector key={`baseline:${pickerKey}:${baselineMode}:${baselineMode === 'standalone' ? baseline : ''}`} label="Baseline" firmwareId={baselineMode === 'standalone' ? baseline : undefined} assemblies={assemblies} onDenied={deny} onChange={context => { clear(); if (baselineMode === 'occurrence') setBaseline(context.firmware_revision_id || ''); setBaselineContext(context); }} />}
-      {(candidate || candidateMode === 'occurrence') && <ContextSelector key={`candidate:${pickerKey}:${candidateMode}:${candidateMode === 'standalone' ? candidate : ''}`} label="Candidate" firmwareId={candidateMode === 'standalone' ? candidate : undefined} assemblies={assemblies} onDenied={deny} onChange={context => { clear(); if (candidateMode === 'occurrence') setCandidate(context.firmware_revision_id || ''); setCandidateContext(context); }} />}
+      <NativeSelect label="Baseline input mode" value={baselineMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setBaselineMode(event.currentTarget.value); setBaseline(''); setBaselineContext({}); setBaselineContextPending(false); }} />
+      <NativeSelect label="Candidate input mode" value={candidateMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setCandidateMode(event.currentTarget.value); setCandidate(''); setCandidateContext({}); setCandidateContextPending(false); }} />
+      {baselineMode === 'standalone' && <NativeSelect label="Baseline firmware revision" value={baseline} data={options} onChange={event => { clear(); setBaseline(event.currentTarget.value); setBaselineContext({}); setBaselineContextPending(false); }} />}
+      {candidateMode === 'standalone' && <NativeSelect label="Candidate firmware revision" value={candidate} data={options} onChange={event => { clear(); setCandidate(event.currentTarget.value); setCandidateContext({}); setCandidateContextPending(false); }} />}
+      {(baseline || baselineMode === 'occurrence') && <ContextSelector key={`baseline:${pickerKey}:${baselineMode}:${baselineMode === 'standalone' ? baseline : ''}`} label="Baseline" firmwareId={baselineMode === 'standalone' ? baseline : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setBaselineContextPending(pending); if (baselineMode === 'occurrence') setBaseline(context.firmware_revision_id || ''); setBaselineContext(context); }} />}
+      {(candidate || candidateMode === 'occurrence') && <ContextSelector key={`candidate:${pickerKey}:${candidateMode}:${candidateMode === 'standalone' ? candidate : ''}`} label="Candidate" firmwareId={candidateMode === 'standalone' ? candidate : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setCandidateContextPending(pending); if (candidateMode === 'occurrence') setCandidate(context.firmware_revision_id || ''); setCandidateContext(context); }} />}
       <EvidenceSelector key={pickerKey} projectId={projectId} onChange={ids => { clear(); setAssertions(ids); }} onDenied={deny} />
-      <Button disabled={busy || !baseline || !candidate} onClick={() => { void inspect(); }}>Compare firmware impact</Button>
+      {baselineContextPending && <Text>Reading baseline assigned firmware…</Text>}
+      {candidateContextPending && <Text>Reading candidate assigned firmware…</Text>}
+      <Button disabled={busy || baselineContextPending || candidateContextPending || !baseline || !candidate} onClick={() => { void inspect(); }}>Compare firmware impact</Button>
       {result && <>
         <ImpactReview result={result} />
         <Group><Button disabled={busy || result.observation_offset === 0} onClick={() => { void inspect(Math.max(0, result.observation_offset - 100)); }}>Previous impact observations</Button><Button disabled={busy || !result.observations_has_more} onClick={() => { void inspect(result.observation_offset + 100); }}>Next impact observations</Button></Group>
@@ -88,7 +92,7 @@ function Workspace({ projectId }: { projectId: string }) {
   </Stack></Card>;
 }
 
-function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: { label: string; firmwareId?: string; assemblies: Definition[]; onDenied: (message: string) => void; onChange: (context: Partial<FirmwareReference>) => void }) {
+function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: { label: string; firmwareId?: string; assemblies: Definition[]; onDenied: (message: string) => void; onChange: (context: Partial<FirmwareReference>, pending?: boolean) => void }) {
   const generation = useRef(0);
   const [definition, setDefinition] = useState('');
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -119,7 +123,7 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
   }
   async function chooseOccurrence(value: string) {
     const token = ++generation.current;
-    setPath(value); setAssigned(null); setError(''); onChange({});
+    setPath(value); setAssigned(null); setError(''); onChange({}, !!value);
     if (!value || !inspection) return;
     const selected = inspection.occurrences.find(item => JSON.stringify(item.path) === value);
     if (!selected?.firmware_revision_id) return;

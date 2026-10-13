@@ -8,6 +8,8 @@ from django.db.models import Q
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import get_snapshot
 from specmate.catalog_matching.queries import current_actor
+from specmate.catalog_packs.authoring import authorize_origin
+from specmate.design.models import Snapshot
 from specmate.design.operations import canonical_bytes
 from specmate.facts.models import FactAssertion
 from specmate.facts.queries import (
@@ -24,6 +26,15 @@ from specmate.queries import get_bundle_revision, get_revision
 MAX_ASSERTIONS = 5000
 
 
+def authorize_snapshot_origin(user, snapshot_id):
+    # Closure covers child references; the root retains independent adoption provenance.
+    snapshot = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
+    if snapshot is None:
+        raise NotFound("Assembly snapshot unavailable.")
+    authorize(user, snapshot.definition.project_id, Perm.PROJECT_READ)
+    authorize_origin(user, snapshot.definition)
+
+
 def authorize_evidence(user, rows):
     """Fact inputs and source restrictions remain current, recursively, before diagnostics."""
     pending, visited, subjects, sources = list(rows), set(), set(), set()
@@ -36,6 +47,10 @@ def authorize_evidence(user, rows):
             raise ValidationFailed("Impact evidence exceeds the supported closure limit.")
         if row.subject_id not in subjects:
             authorize(user, row.subject.project_id, Perm.PROJECT_READ)
+            if row.subject.kind == "occurrence":
+                authorize_snapshot_origin(user, row.subject.snapshot_id)
+            elif row.subject.kind == "definition":
+                authorize_origin(user, row.subject.definition)
             resolve_target(user, subject_target(row.subject))
             subjects.add(row.subject_id)
         for link in row.source_links.select_related("source_file"):
@@ -55,6 +70,8 @@ def authorized_inputs(ctx, p):
     revisions, snapshots = [], []
     for ref in (p.baseline, p.candidate):
         revisions.append(get_revision(user, ref.firmware_revision_id))
+        if ref.assembly_snapshot_id:
+            authorize_snapshot_origin(user, ref.assembly_snapshot_id)
         snapshots.append(
             get_snapshot(user, ref.assembly_snapshot_id)[0] if ref.assembly_snapshot_id else None
         )

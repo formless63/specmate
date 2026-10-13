@@ -286,3 +286,39 @@ test('StrictMode focus replacement rejects delayed private fact rows from the de
   expect(screen.queryByText(/SYNTH-UNIT/)).toBeNull();
   view.unmount();
 });
+
+test('a selected optional occurrence cannot silently compare as standalone during its metadata read', async () => {
+  render(panel()); await select();
+  fireEvent.change(screen.getByLabelText('Baseline assembly context (optional)'), { target: { value: 'assembly-one' } });
+  fireEvent.change(await screen.findByLabelText('Baseline frozen assembly revision'), { target: { value: 'assembly-revision' } });
+  const occurrence = await screen.findByLabelText('Baseline exact board occurrence');
+  let finish!: (value: unknown) => void;
+  vi.mocked(read).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  fireEvent.change(occurrence, { target: { value: '["left","board"]' } });
+  const compare = screen.getByRole('button', { name: 'Compare firmware impact' });
+  expect((compare as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(compare);
+  expect(compareImpact).not.toHaveBeenCalled();
+  await act(async () => finish({ name: 'Synthetic firmware', revision_id: 'firmware-one', revision_number: 1, snapshot_sha256: 'exact-hash' }));
+  expect((compare as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(compare);
+  expect(compareImpact).toHaveBeenCalledWith(expect.objectContaining({ baseline: { firmware_revision_id: 'firmware-one', assembly_snapshot_id: 'assembly-snapshot', path: ['left', 'board'] } }));
+});
+
+test.each(['clear occurrence', 'replace firmware'])('pending optional metadata releases comparison on %s and ignores detached denial', async action => {
+  render(<StrictMode>{panel()}</StrictMode>); await select();
+  fireEvent.change(screen.getByLabelText('Baseline assembly context (optional)'), { target: { value: 'assembly-one' } });
+  fireEvent.change(await screen.findByLabelText('Baseline frozen assembly revision'), { target: { value: 'assembly-revision' } });
+  const occurrence = await screen.findByLabelText('Baseline exact board occurrence');
+  let fail!: (reason: Error) => void;
+  vi.mocked(read).mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+  fireEvent.change(occurrence, { target: { value: '["left","board"]' } });
+  expect((screen.getByRole('button', { name: 'Compare firmware impact' }) as HTMLButtonElement).disabled).toBe(true);
+  if (action === 'clear occurrence') fireEvent.change(occurrence, { target: { value: '' } });
+  else fireEvent.change(screen.getByLabelText('Baseline firmware revision'), { target: { value: 'firmware-two' } });
+  expect((screen.getByRole('button', { name: 'Compare firmware impact' }) as HTMLButtonElement).disabled).toBe(false);
+  await act(async () => fail(new Error('Detached firmware denial')));
+  expect(screen.queryByText('Detached firmware denial')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  expect(compareImpact).toHaveBeenCalledWith(expect.objectContaining({ baseline: { firmware_revision_id: action === 'clear occurrence' ? 'firmware-one' : 'firmware-two' } }));
+});

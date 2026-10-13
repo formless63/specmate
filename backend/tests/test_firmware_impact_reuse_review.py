@@ -1,0 +1,65 @@
+"""Independent retained-origin and evidence-isolation checks for contextual reuse."""
+
+import copy
+
+import pytest
+
+from specmate.access.models import Membership
+from specmate.catalog_packs.models import AdoptionEntry
+from specmate.operations import NotFound
+from specmate.queries import get_draft
+
+from .conftest import op
+from .test_assemblies import freeze, part
+from .test_catalog_packs import adopt, install, manifest, registered
+from .test_firmware import attempt, board, intake, recipe, source, sources  # noqa: F401
+from .test_firmware_impact import observation
+from .test_firmware_impact_crossproject import reused  # noqa: F401
+
+
+@pytest.mark.parametrize("origin_use", ["context", "occurrence_fact", "definition_fact"])
+def test_root_catalog_origin_revocation_precedes_path_diagnostics(users, reused, origin_use):  # noqa: F811
+    other = op(users["owner"], "project.create", {"name": "Retained pack dependency"})["project_id"]
+    for name in ("editor", "viewer"):
+        Membership.objects.create(project_id=other, user=users[name], role="viewer")
+    Membership.objects.create(project_id=reused["owner"], user=users["editor"], role="editor")
+    _, extra = part(users["owner"], other)
+    entries = manifest(reused["frozen"])["entries"] + [
+        {
+            "key": "other",
+            "label": "Other pack content",
+            "category": "content",
+            "revision_id": extra["revision_id"],
+            "revision_sha256": extra["sha256"],
+            "rights": "synthetic-original",
+        }
+    ]
+    version = registered(users, reused["owner"], reused["frozen"], entries=entries)
+    install(users, version)
+    adopt(users, version)
+    adopted = AdoptionEntry.objects.get()
+    frozen = freeze(users["owner"], get_draft(users["owner"], adopted.draft_id))
+    data = copy.deepcopy(reused["payload"])
+    if origin_use == "context":
+        for side in ("baseline", "candidate"):
+            data[side]["assembly_snapshot_id"] = frozen["snapshot_id"]
+    else:
+        target = (
+            {"kind": "occurrence", "snapshot_id": frozen["snapshot_id"], "path": ["left"]}
+            if origin_use == "occurrence_fact"
+            else {"kind": "definition", "definition_id": str(adopted.draft.definition_id)}
+        )
+        recorded = observation(users, target)
+        data["assertion_ids"] = [recorded["assertion_id"]]
+    before = op(users["viewer"], "firmware_impact.compare", data)
+    wrong = copy.deepcopy(data)
+    wrong["candidate"]["path"] = ["unresolved"]
+    with pytest.raises(NotFound, match="Exact frozen board occurrence unavailable"):
+        op(users["viewer"], "firmware_impact.compare", wrong)
+    Membership.objects.filter(project_id=other, user=users["viewer"]).delete()
+    with pytest.raises(NotFound, match=r"^Project not found\.$"):
+        op(users["viewer"], "firmware_impact.compare", wrong)
+    with pytest.raises(NotFound):
+        op(users["viewer"], "firmware_impact.compare", data)
+    Membership.objects.create(project_id=other, user=users["viewer"], role="viewer")
+    assert op(users["viewer"], "firmware_impact.compare", data) == before
