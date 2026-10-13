@@ -156,7 +156,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
     </Group>}
     {shown && <>
       <Text size="sm">Stock revision: {shown.stock_revision_id}. Unknown values remain unknown; shown lengths are illustration suggestions, not measured dimensions.</Text>
-      <WorkshopProfileProvenance profile={shown} />
+      <WorkshopProfileProvenance profile={shown} stateLabel={frozen ? `Frozen revision ${frozen.number}` : dirty ? 'Unsaved draft' : current ? 'Saved draft' : 'New profile'} />
       {!frozen && <>
       <Title order={3}>Author new suggestions</Title>
       <Text size="sm">The basis fields below apply only when you change a value. Recorded practice details above show what is already stored.</Text>

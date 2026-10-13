@@ -123,7 +123,7 @@ test('fresh selection shows frozen suggestion provenance instead of new-edit def
   expect(provenance.textContent).toContain('Illustration lay length: Unknown · Basis: unknown');
   expect(provenance.textContent).toContain('Omit occluded material: No · Basis: documented');
   expect(provenance.textContent).toContain(`bundle revision ${revision} · path “ instructions/occlusion.txt ”`);
-  expect(provenance.textContent).toContain(`SHA-256 ${'b'.repeat(64)} · rights  synthetic-test `);
+  expect(provenance.textContent).toContain(`SHA-256 ${'b'.repeat(64)} · rights “ synthetic-test ”`);
   expect(provenance.textContent).toContain('Locator: line 2');
   expect(provenance.textContent).toContain('Prepend cut: 3 mm · Basis: inferred');
   expect(provenance.textContent).toContain('Illustrated lead extent: 8 mm · Basis: preference');
@@ -155,5 +155,5 @@ test('keeps registered source path and rights exact when authoring a documented 
     path: ' instructions/strip.txt ', locator: '', sha256: 'a'.repeat(64), rights: ' synthetic-test ' });
   const provenance = screen.getByRole('region', { name: 'Recorded workshop practices' });
   expect(provenance.textContent).toContain('path “ instructions/strip.txt ”');
-  expect(provenance.textContent).toContain('rights  synthetic-test ');
+  expect(provenance.textContent).toContain('rights “ synthetic-test ”');
 });

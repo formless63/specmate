@@ -16,19 +16,19 @@ export function SuggestionProvenance<T>({ label, suggestion, unit }: {
     {suggestion.note && <Text size="sm" c="dimmed">Basis note: {suggestion.note}</Text>}
     {source?.kind === 'citation' && <Text size="sm" c="dimmed">Unverified citation: {source.citation}</Text>}
     {source?.kind === 'source_file' && <>
-      <Text size="sm" c="dimmed">Registered source file · bundle revision {source.bundle_revision_id} · path <code>“{source.path}”</code></Text>
-      <Text size="sm" c="dimmed">SHA-256 {source.sha256} · rights {source.rights}</Text>
+      <Text size="sm" c="dimmed">Registered source file · bundle revision {source.bundle_revision_id} · path <code style={{ whiteSpace: 'pre-wrap' }}>“{source.path}”</code></Text>
+      <Text size="sm" c="dimmed">SHA-256 {source.sha256} · rights <code style={{ whiteSpace: 'pre-wrap' }}>“{source.rights}”</code></Text>
       {source.locator && <Text size="sm" c="dimmed">Locator: {source.locator}</Text>}
     </>}
   </Stack>;
 }
 
 /** Read-only inspection of the exact suggestions in a draft or frozen profile. */
-export function WorkshopProfileProvenance({ profile }: { profile: WorkshopProfile }) {
+export function WorkshopProfileProvenance({ profile, stateLabel = 'Displayed profile' }: { profile: WorkshopProfile; stateLabel?: string }) {
   const rules = Object.entries(profile.element_rules).sort(([a], [b]) => a.localeCompare(b));
   return <Stack component="section" aria-label="Recorded workshop practices" gap="xs">
-    <Title order={3}>Recorded practice details</Title>
-    <Text size="sm">These values and sources belong to the displayed profile revision. They do not establish measured dimensions, ratings, or electrical bonds.</Text>
+    <Title order={3}>{stateLabel} practice details</Title>
+    <Text size="sm">These values and sources belong to the displayed profile state. They do not establish measured dimensions, ratings, or electrical bonds.</Text>
     <SuggestionProvenance label="Foil visibility" suggestion={profile.foil_visibility} />
     <SuggestionProvenance label="Illustration lay length" suggestion={profile.illustration_lay_length_mm} unit="mm" />
     <SuggestionProvenance label="Omit occluded material" suggestion={profile.omit_occluded} />
