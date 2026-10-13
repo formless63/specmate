@@ -10,10 +10,20 @@ from specmate.builds.models import BuildStage
 from specmate.builds.operations import RequestBuild, request_build
 from specmate.builds.recipes import Recipe, approved_recipe
 from specmate.contracts import check_package_path
-from specmate.design.operations import canonical_bytes
+from specmate.design.operations import (
+    CaptureDraft,
+    CreateDefinition,
+    UpdateDraft,
+    canonical_bytes,
+    create_definition,
+    freeze_draft,
+    scoped_draft,
+    update_draft,
+)
 from specmate.operations import Context, NotFound, Unsupported, ValidationFailed, operation
 from specmate.pcb.models import PcbExtractionAttempt, PcbIntake, PcbInterpretation
 from specmate.pcb.pack import MAX_REPORT_BYTES, REPORT_PATH, recipe_for
+from specmate.pcb.population import Population, closure, project_population, scoped_interpretation
 from specmate.pcb.report import Report
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBundleRevision
@@ -378,3 +388,178 @@ def pcb_scope(ctx, payload):
     else:
         raise Unsupported("PCB scope payload is unsupported.")
     return project_scope(ctx, intake.source_revision.bundle.project_id)
+
+
+class CreatePopulation(Payload):
+    interpretation_id: UUID
+    name: str = Field(min_length=1, max_length=200)
+
+
+class UpdatePopulation(Payload):
+    draft_id: UUID
+    population: Population
+
+
+class PopulationDraftRef(Payload):
+    draft_id: UUID
+
+
+class ReadPopulation(PopulationDraftRef):
+    option_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+
+
+def population_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+    draft = scoped_draft(ctx, draft_id, permission, lock=lock)
+    if draft.definition.kind != "pcb_population":
+        raise NotFound("PCB population draft not found.")
+    closure(ctx.user, draft.definition, draft.content)
+    return draft
+
+
+def population_scope(ctx, payload, permission=Perm.DESIGN_EDIT):
+    from specmate.operations.scope import project_scope
+
+    if isinstance(payload, CreatePopulation):
+        interpretation = (
+            PcbInterpretation.objects.select_related("attempt__intake__source_revision__bundle")
+            .filter(id=payload.interpretation_id)
+            .first()
+        )
+        if interpretation is None:
+            raise NotFound("PCB interpretation not found.")
+        project_id = interpretation.attempt.intake.source_revision.bundle.project_id
+        scoped_interpretation(ctx.user, project_id, payload.interpretation_id)
+    else:
+        project_id = population_draft(ctx, payload.draft_id, permission).definition.project_id
+    return project_scope(ctx, project_id, permission)
+
+
+def population_replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
+    population_scope(ctx, payload, permission)
+    if isinstance(payload, CreatePopulation):
+        from specmate.design.models import Draft
+
+        draft = Draft.objects.select_related("definition").filter(id=stored["draft_id"]).first()
+        if draft is None or draft.definition.kind != "pcb_population":
+            raise ValidationFailed("Saved PCB population draft is unavailable.")
+        if draft.content.get("pcb_population", {}).get("interpretation_id") != str(
+            payload.interpretation_id
+        ):
+            raise ValidationFailed("Saved PCB population interpretation changed.")
+        closure(ctx.user, draft.definition, draft.content)
+    else:
+        draft = population_draft(ctx, payload.draft_id, permission)
+        if isinstance(payload, UpdatePopulation):
+            closure(
+                ctx.user,
+                draft.definition,
+                {"pcb_population": payload.population.model_dump(mode="json")},
+            )
+    if "content" in stored and not isinstance(payload, CreatePopulation):
+        closure(ctx.user, draft.definition, stored["content"])
+    if "revision_id" in stored:
+        from specmate.queries import get_revision
+
+        get_revision(ctx.user, stored["revision_id"])
+
+
+@operation(
+    "pcb.population_create",
+    CreatePopulation,
+    summary="Create explicit PCB population options for an exact accepted interpretation.",
+    authorize_replay=population_replay,
+    idempotency_scope=population_scope,
+)
+def create_population(ctx: Context, p: CreatePopulation):
+    interpretation = (
+        PcbInterpretation.objects.select_related("attempt__intake__source_revision__bundle")
+        .filter(id=p.interpretation_id)
+        .first()
+    )
+    if interpretation is None:
+        raise NotFound("PCB interpretation not found.")
+    source = interpretation.attempt.intake.source_revision
+    scoped_interpretation(ctx.user, source.bundle.project_id, p.interpretation_id)
+    authorize(ctx.user, source.bundle.project_id, Perm.DESIGN_EDIT)
+    report = Report.model_validate_json(bytes(interpretation.canonical))
+    population = Population(
+        interpretation_id=interpretation.id,
+        interpretation_sha256=interpretation.sha256,
+        source_revision_id=source.id,
+        source_manifest_sha256=source.manifest_sha256,
+        options=[
+            {
+                "local_id": "default",
+                "name": "Default",
+                "decisions": [{"component_id": c.id} for c in report.components],
+            }
+        ],
+    )
+    return create_definition(
+        ctx,
+        CreateDefinition(
+            project_id=source.bundle.project_id,
+            kind="pcb_population",
+            name=p.name,
+            content={"pcb_population": population.model_dump(mode="json")},
+        ),
+    )
+
+
+@operation(
+    "pcb.population_update",
+    UpdatePopulation,
+    summary="Update reviewed PCB population decisions using the shared draft token.",
+    requires_expected_state=True,
+    authorize_replay=population_replay,
+    idempotency_scope=population_scope,
+)
+def update_population(ctx: Context, p: UpdatePopulation):
+    draft = population_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
+    current_id = draft.content["pcb_population"]["interpretation_id"]
+    if str(p.population.interpretation_id) != current_id:
+        raise ValidationFailed("A PCB population definition cannot change interpretation.")
+    content = {"pcb_population": p.population.model_dump(mode="json")}
+    closure(ctx.user, draft.definition, content)
+    return update_draft(ctx, UpdateDraft(draft_id=p.draft_id, changes=content))
+
+
+@operation(
+    "pcb.population_freeze",
+    PopulationDraftRef,
+    summary="Freeze exact population options and all reviewed candidate dependencies.",
+    requires_expected_state=True,
+    authorize_replay=lambda ctx, p, stored: population_replay(ctx, p, stored, Perm.DESIGN_FREEZE),
+    idempotency_scope=lambda ctx, p: population_scope(ctx, p, Perm.DESIGN_FREEZE),
+)
+def freeze_population(ctx: Context, p: PopulationDraftRef):
+    draft = population_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE, lock=True)
+    return freeze_draft(
+        ctx,
+        CaptureDraft(
+            draft_id=p.draft_id,
+            dependencies=closure(ctx.user, draft.definition, draft.content),
+        ),
+    )
+
+
+@operation(
+    "pcb.population_read",
+    ReadPopulation,
+    summary="Read one scoped population draft and its selected-option projection.",
+    supports_idempotency=False,
+)
+def read_population(ctx: Context, p: ReadPopulation):
+    draft = population_draft(ctx, p.draft_id)
+    population = Population.model_validate(draft.content["pcb_population"])
+    interpretation = scoped_interpretation(
+        ctx.user, draft.definition.project_id, population.interpretation_id
+    )
+    report = Report.model_validate_json(bytes(interpretation.canonical))
+    return {
+        "definition_id": str(draft.definition_id),
+        "draft_id": str(draft.id),
+        "state": draft.state_token,
+        "content": draft.content,
+        "projection": project_population(population, report, p.option_id) if p.option_id else None,
+    }

@@ -6,7 +6,7 @@ import io
 import json
 from pathlib import Path
 from unittest.mock import patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from django.db import DatabaseError, transaction
@@ -15,6 +15,7 @@ from django.test import Client
 from specmate.access.models import Membership
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageOutput
 from specmate.operations import (
+    Conflict,
     IdempotencyMismatch,
     NotFound,
     PermissionDenied,
@@ -455,3 +456,351 @@ def test_failed_native_diagnostic_is_scoped_and_never_an_accepted_interpretation
         op(users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
     with pytest.raises(NotFound):
         op(users["outsider"], "pcb.get", {"intake_id": intake["intake_id"]})
+
+
+@pytest.fixture
+def interpreted_parts(users, intake, attempt):
+    component_ids = [str(uuid4()), str(uuid4())]
+    pad_id = str(uuid4())
+    report = report_payload()
+    report["components"] = [
+        {
+            "id": component_ids[0],
+            "reference": "R1",
+            "value": "10k",
+            "footprint": "R_0805",
+            "position": [5, 5],
+            "rotation_deg": 0,
+            "side": "front",
+            "dnp": True,
+            "exclude_from_bom": False,
+        },
+        {
+            "id": component_ids[1],
+            "reference": "J1",
+            "value": "Conn_01x01",
+            "footprint": "PinHeader_1x01",
+            "position": [15, 5],
+            "rotation_deg": 0,
+            "side": "front",
+            "dnp": False,
+            "exclude_from_bom": False,
+        },
+    ]
+    report["pads"] = [
+        {
+            "id": pad_id,
+            "component_id": component_ids[1],
+            "number": "1",
+            "terminal": "J1.1",
+            "position": [15, 5],
+            "size": [1, 1],
+            "drill": [0, 0],
+            "rotation_deg": 0,
+            "type": "smd",
+            "shape": "rect",
+            "net": "",
+            "layers": ["F.Cu"],
+        }
+    ]
+    successful_output(attempt, report)
+    interpretation = op(
+        users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]}
+    )
+    return interpretation, component_ids, pad_id
+
+
+@pytest.fixture
+def population(users, interpreted_parts):
+    interpretation, component_ids, pad_id = interpreted_parts
+    created = op(
+        users["editor"],
+        "pcb.population_create",
+        {"interpretation_id": interpretation["interpretation_id"], "name": "Board fit options"},
+        idempotency_key="create-population",
+    )
+    return created, interpretation, component_ids, pad_id
+
+
+def test_population_options_exclude_omitted_part_without_promoting_native_dnp(users, population):
+    created, interpretation, component_ids, _ = population
+    assert created["content"]["pcb_population"]["interpretation_sha256"] == interpretation["sha256"]
+    original = op(
+        users["viewer"],
+        "pcb.population_read",
+        {
+            "draft_id": created["draft_id"],
+            "option_id": "default",
+        },
+    )
+    assert original["projection"]["unresolved_component_ids"] == component_ids
+    assert original["projection"]["components"][0]["native_dnp"] is True
+    assert original["projection"]["qualification"] == "not-assessed"
+    content = copy.deepcopy(created["content"]["pcb_population"])
+    content["options"][0]["decisions"] = [
+        {"component_id": component_ids[0], "status": "omit", "basis": "Assembly option omits R1."},
+        {"component_id": component_ids[1], "status": "populate", "basis": "Fit J1."},
+    ]
+    content["options"].append(
+        {
+            "local_id": "alternate",
+            "name": "Alternative",
+            "decisions": [
+                {"component_id": component_ids[0]},
+                {"component_id": component_ids[1]},
+            ],
+        }
+    )
+    updated = op(
+        users["editor"],
+        "pcb.population_update",
+        {
+            "draft_id": created["draft_id"],
+            "population": content,
+        },
+        expected_state=created["state"],
+        idempotency_key="population-edit",
+    )
+    projected = op(
+        users["viewer"],
+        "pcb.population_read",
+        {
+            "draft_id": created["draft_id"],
+            "option_id": "default",
+        },
+    )["projection"]
+    assert projected["included_component_ids"] == [component_ids[1]]
+    assert projected["omitted_component_ids"] == [component_ids[0]]
+    assert projected["unresolved_component_ids"] == []
+    assert projected["components"][0]["native_dnp"] is True
+    assert (
+        op(
+            users["editor"],
+            "pcb.population_update",
+            {
+                "draft_id": created["draft_id"],
+                "population": content,
+            },
+            expected_state=created["state"],
+            idempotency_key="population-edit",
+        )
+        == updated
+    )
+    with pytest.raises(Conflict):
+        op(
+            users["editor"],
+            "pcb.population_update",
+            {
+                "draft_id": created["draft_id"],
+                "population": content,
+            },
+            expected_state=created["state"],
+        )
+    with pytest.raises(PermissionDenied):
+        op(
+            users["viewer"],
+            "pcb.population_update",
+            {
+                "draft_id": created["draft_id"],
+                "population": content,
+            },
+            expected_state=updated["state"],
+        )
+
+
+def test_population_reviewed_associations_pin_every_target_and_evidence(
+    users, project, source, population
+):
+    from specmate.pcb.population import closure
+
+    created, _, component_ids, pad_id = population
+    body = op(
+        users["owner"],
+        "interface.create",
+        {
+            "project_id": project,
+            "name": "One contact body",
+            "interface": {"kind": "connector_body", "contacts": [{"contact_id": "1"}]},
+        },
+    )
+    body_revision = op(
+        users["owner"],
+        "interface.freeze",
+        {
+            "draft_id": body["draft_id"],
+        },
+        expected_state=body["state"],
+    )["revision_id"]
+    pinout = op(
+        users["owner"],
+        "interface.create",
+        {
+            "project_id": project,
+            "name": "One contact pinout",
+            "interface": {
+                "kind": "pinout",
+                "body_revision_id": body_revision,
+                "assignments": [{"contact_id": "1"}],
+            },
+        },
+    )
+    pinout_revision = op(
+        users["owner"],
+        "interface.freeze",
+        {
+            "draft_id": pinout["draft_id"],
+        },
+        expected_state=pinout["state"],
+    )["revision_id"]
+    part = op(
+        users["owner"],
+        "definition.create",
+        {
+            "project_id": project,
+            "kind": "part",
+            "name": "Synthetic component",
+        },
+    )
+    part_revision = op(
+        users["owner"],
+        "draft.freeze",
+        {
+            "draft_id": part["draft_id"],
+        },
+        expected_state=part["state"],
+    )["revision_id"]
+    model = op(
+        users["editor"],
+        "catalog.register_representation",
+        {
+            "revision_id": part_revision,
+            "kind": "model",
+            "label": "Candidate STEP",
+            "source_bundle_revision_id": source["revision_id"],
+            "source_path": "source.py",
+        },
+    )
+    content = copy.deepcopy(created["content"]["pcb_population"])
+    content["associations"] = [
+        {
+            "local_id": "port-j1",
+            "kind": "port",
+            "component_id": component_ids[1],
+            "pad_id": pad_id,
+            "target_revision_id": pinout_revision,
+            "target_contact_id": "1",
+            "review": "accepted",
+            "basis": "Reviewed pad/contact numbering.",
+            "evidence": {
+                "kind": "source_file",
+                "source_revision_id": source["revision_id"],
+                "path": "board.kicad_pcb",
+                "sha256": digest(BOARD),
+                "rights": RIGHTS,
+            },
+        },
+        {
+            "local_id": "model-r1",
+            "kind": "model",
+            "component_id": component_ids[0],
+            "representation_id": model["representation_id"],
+            "review": "candidate",
+        },
+        {
+            "local_id": "part-r1",
+            "kind": "library",
+            "component_id": component_ids[0],
+            "target_revision_id": part_revision,
+            "review": "rejected",
+            "basis": "Package differs from reviewed part.",
+            "evidence": {"kind": "citation", "citation": "Synthetic package review note."},
+        },
+    ]
+    updated = op(
+        users["editor"],
+        "pcb.population_update",
+        {
+            "draft_id": created["draft_id"],
+            "population": content,
+        },
+        expected_state=created["state"],
+    )
+    frozen = op(
+        users["owner"],
+        "pcb.population_freeze",
+        {
+            "draft_id": created["draft_id"],
+        },
+        expected_state=updated["state"],
+    )
+    assert frozen["revision_id"]
+    from specmate.design.models import Draft, SnapshotDependency
+
+    draft = Draft.objects.get(id=created["draft_id"])
+    assert set(closure(users["viewer"], draft.definition, draft.content)) == {
+        UUID(pinout_revision),
+        UUID(part_revision),
+    }
+    assert set(
+        SnapshotDependency.objects.filter(snapshot_id=frozen["snapshot_id"]).values_list(
+            "revision_id", flat=True
+        )
+    ) == {UUID(pinout_revision), UUID(part_revision)}
+    wrong = copy.deepcopy(content)
+    wrong["associations"][2]["target_revision_id"] = str(uuid4())
+    with pytest.raises(NotFound):
+        op(
+            users["editor"],
+            "pcb.population_update",
+            {
+                "draft_id": created["draft_id"],
+                "population": wrong,
+            },
+            expected_state=frozen["draft"]["state"],
+        )
+    wrong = copy.deepcopy(content)
+    wrong["associations"][0]["evidence"]["rights"] = "invented-license"
+    with pytest.raises(ValidationFailed):
+        op(
+            users["editor"],
+            "pcb.population_update",
+            {
+                "draft_id": created["draft_id"],
+                "population": wrong,
+            },
+            expected_state=frozen["draft"]["state"],
+        )
+
+
+def test_population_access_and_api_reads_recheck_scope(users, project, intake, population):
+    created, interpretation, _, _ = population
+    client = Client()
+    client.force_login(users["viewer"])
+    assert client.get(f"/api/v0/pcb/intakes/{intake['intake_id']}/populations").status_code == 200
+    assert client.get(f"/api/v0/pcb/projects/{project}/association-targets").status_code == 200
+    with pytest.raises(NotFound):
+        op(users["outsider"], "pcb.population_read", {"draft_id": created["draft_id"]})
+    with pytest.raises(NotFound):
+        op(
+            users["outsider"],
+            "pcb.population_create",
+            {
+                "interpretation_id": interpretation["interpretation_id"],
+                "name": "Hidden",
+            },
+            idempotency_key="outsider",
+        )
+    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    with pytest.raises(NotFound):
+        op(
+            users["editor"],
+            "pcb.population_create",
+            {
+                "interpretation_id": interpretation["interpretation_id"],
+                "name": "Board fit options",
+            },
+            idempotency_key="create-population",
+        )
+    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    assert client.get(f"/api/v0/pcb/intakes/{intake['intake_id']}/populations").status_code == 404
+    assert client.get(f"/api/v0/pcb/projects/{project}/association-targets").status_code == 404
