@@ -29,7 +29,9 @@ It extracts native component/pad UUIDs, references/values/footprint identifiers,
 basic pad/drill geometry, pad net memberships, absolute placements/rotation/side,
 native DNP/BOM exclusion flags, closed line polygon outlines/cutouts and nonplated
 pad-drill candidates. Hole roles require review. Arcs and other non-line outlines
-remain explicitly unsupported. Copper membership never follows the separately
+remain explicitly unsupported. The board outline can be designated as owned by its
+native file and reconciled from accepted reports; see [explicit property
+authority](SOURCES-AND-JOBS.md#explicit-property-authority). Copper membership never follows the separately
 labelled, unreviewed resistor reference/value candidate passages.
 
 Other KiCad versions, schematic parity, netlist/fabrication/BOM/placement-file parsing,

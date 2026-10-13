@@ -174,3 +174,47 @@ exported baseline requires deliberately omitting the handoff marker, and the rev
 shows exactly which of the winner's files the submission would replace. Each reviewed
 submission reuses one idempotency key, so retrying after a lost response replays rather
 than duplicating. Specmate never merges opaque native files.
+
+## Explicit property authority
+
+A governed native property has exactly one designated owner: an exact `.kicad_pcb`
+path in one source bundle. The first supported property is `pcb.board_outline`, the
+Edge.Cuts outline and cutouts extracted by `kicad-intake-v1`. Specmate stores no editable
+copy of an owned property. Its value is only a reconciled projection of an accepted
+extraction, and it is never edited as a table.
+
+- `source_property.declare` designates the owner from the bundle's current revision and
+  records an immutable owner change. Only one authority may exist for a property and path
+  within a source lineage: the original bundle and every bundle derived from it, by
+  derivation, expansion or reviewed edits. A fork or another file cannot become a second
+  owner. An original can own a property read-only; editing it needs a derived working copy.
+- An outline edit goes through the owner. Export its current revision, edit it natively,
+  and submit the reviewed edit as that derivative's next revision. Then extract the new
+  revision through the PCB intake, accept the successful report, and reconcile.
+- `source_property.reconcile` takes the authority state token (`authority-v<n>`) and pins
+  one accepted interpretation. It must be of the owner's current revision and exact file
+  bytes, produced by the declared adapter. It locks the owner bundle so the head cannot
+  move during reconciliation. An extraction of a fork or other bundle is refused and stays
+  listed as preserved, non-authoritative evidence. If accepted extractions of the current
+  revision disagree, nothing is chosen. Unsupported outline coverage becomes an explicit
+  unknown projection; a previous outline is never carried forward as current.
+- `source_property.transfer` moves ownership only to the current revision of another
+  bundle in the same lineage that contains the current owner's latest revision in its
+  exact manifest ancestry. A transfer leaves the projection stale until reconciled.
+- `source_property.read`, `GET /api/v0/pcb/projects/{id}/property-authorities` and
+  `GET /api/v0/pcb/property-authorities/{id}` report the owner, its current revision and
+  file hash. They also report the status (`unreconciled`, `current`, `stale` or
+  `conflicting`), the current projection with source revision, path, file hash, report
+  hash, interpretation, build, adapter and tool pins, and a summary of the change from
+  the previous projection. Accepted extractions of the head, preserved non-owner
+  evidence, immutable projection history and owner changes are listed too.
+
+Projections and owner changes are immutable; database triggers validate their owner and
+extraction provenance and allow an authority row to change only its owner and version.
+Every operation authorizes the owner's current source closure and every projected or
+previous owner revision before diagnostics; retained keyed outcomes are authorized before
+a changed-payload conflict. Direct reads refresh the current actor. The Sources panel
+loads property authorities on request, routes outline edits to the owner revision and
+its editing handoff, and offers deliberate reconciliation or transfer with a basis.
+Reconciliation is not native validation, fabrication approval or physical qualification.
+Other properties, other native formats and arcs or curved outlines remain unsupported.

@@ -2,6 +2,7 @@ import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Titl
 import { useEffect, useRef, useState } from 'react';
 import { command, preserve, request, SourceError, type RevisionDetail, type SourcePage } from './api';
 import { EditHandoff, EditProvenanceCard } from './EditHandoff';
+import { PropertyAuthorityPanel } from '../source-authority/PropertyAuthority';
 
 export function SourcesPanel(props: { projectId: string; permissions?: string[] }) {
   return <SourceWorkspace key={props.projectId} {...props} />;
@@ -107,5 +108,6 @@ function SourceWorkspace({ projectId, permissions }: { projectId: string; permis
       <EditHandoff key={detail.revision_id} projectId={projectId} detail={detail} canWrite={canWrite} busy={busy} setBusy={value => { if (alive.current) setBusy(value); }}
         onAuthorityFailure={failed} onSubmitted={async id => { if (alive.current && await refresh()) await inspect(id); }} />
     </Stack></Card>}
+    {!denied && <PropertyAuthorityPanel projectId={projectId} canWrite={canWrite} detail={detail} onOpenRevision={id => void inspect(id)} onAuthorityFailure={failed} />}
   </Stack>;
 }
