@@ -44,7 +44,9 @@ BEGIN
        SELECT 1 FROM sources_sourceeditsubmission e
        JOIN sources_sourcebundlerevision r ON r.id = e.revision_id
        JOIN sources_sourcebundlerevision base ON base.id = e.baseline_id
-       WHERE r.bundle_id = OLD.id OR base.bundle_id = OLD.id
+       LEFT JOIN sources_sourcebundlefile f ON f.id = e.archive_file_id
+       LEFT JOIN sources_sourcebundlerevision archive ON archive.id = f.revision_id
+       WHERE r.bundle_id = OLD.id OR base.bundle_id = OLD.id OR archive.bundle_id = OLD.id
      ) THEN
     RAISE EXCEPTION 'Edit provenance bundle identity is immutable';
   END IF;

@@ -19,6 +19,7 @@ from specmate.sources.api import read_revision
 from specmate.sources.models import (
     SourceBlob,
     SourceBundle,
+    SourceBundleFile,
     SourceBundleRevision,
     SourceEditSubmission,
 )
@@ -31,6 +32,22 @@ ORIGINAL = {
     "board/notes.txt": b"synthetic notes\n",
     "scripts/run.py": b"raise SystemExit('inert synthetic script')\n",
 }
+
+
+def hide_archive_member(users, revision_id):
+    """A retained source closure may become inaccessible independently of its owner."""
+    user = users["owner"]
+    project = op(user, "project.create", {"name": "Private retained source"})["project_id"]
+    content = b"synthetic private retained source"
+    register(user, project, content)
+    SourceBundleFile.objects.create(
+        revision_id=revision_id,
+        path="private-evidence.txt",
+        blob=SourceBlob.objects.get(project_id=project, sha256=sha(content)),
+        media_type="text/plain",
+        rights="unknown",
+    )
+    Membership.objects.filter(project_id=project, user=user).delete()
 
 
 def original(users, project, contents=ORIGINAL, rights="synthetic-original"):
@@ -498,3 +515,125 @@ def test_http_entry_points_use_shared_operations(users, project):
     created = post("source.submit_edit", body, expected_state=review["state"])
     assert created.status_code == 200, created.content
     assert created.json()["result"]["counts"]["modified"] == 1
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_retained_archive_authority_precedes_replacement_role_diagnostics(users, project, legacy):
+    from specmate.operations.models import IdempotencyRecord
+
+    user = users["owner"]
+    baseline = original(users, project)
+    archive = edited_zip(
+        users,
+        project,
+        baseline["revision_id"],
+        lambda entries: entries.__setitem__("board/main.native", b"synthetic edit"),
+    )
+    payload = {"baseline_revision_id": baseline["revision_id"], "archive": archive}
+    reviewed = preview(user, payload)
+    submit(user, payload, reviewed, idempotency_key="role-order")
+    if legacy:
+        IdempotencyRecord.objects.filter(
+            actor=user, operation="source.submit_edit", key="role-order"
+        ).update(scope="legacy")
+    replacement = preserve_zip(users, project, repack({"visible.native": b"visible"}))
+    derivative = op(
+        user,
+        "source.derive_bundle",
+        {
+            "source_revision_id": replacement["revision_id"],
+            "name": "Visible derivative",
+        },
+    )
+    changed = {
+        **payload,
+        "archive": {"revision_id": derivative["revision_id"], "path": "edited.zip"},
+    }
+    # Accessible outcomes still use the shared executor's mismatch semantics.
+    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+        submit(user, changed, reviewed, idempotency_key="role-order")
+    with pytest.raises(ValidationFailed, match="preserved as an original"):
+        preview(user, changed)
+    with pytest.raises(ValidationFailed, match="preserved as an original"):
+        submit(user, changed, reviewed)
+    hide_archive_member(users, archive["revision_id"])
+    for supplied in (payload, changed):
+        with pytest.raises(NotFound):
+            submit(user, supplied, reviewed, idempotency_key="role-order")
+
+
+def test_hidden_newer_head_precedes_preview_and_conflict_metadata(users, project):
+    user = users["owner"]
+    source = original(users, project)
+    derivative = op(
+        user,
+        "source.derive_bundle",
+        {
+            "source_revision_id": source["revision_id"],
+            "name": "Editable baseline",
+        },
+    )
+    archive = edited_zip(
+        users,
+        project,
+        derivative["revision_id"],
+        lambda entries: entries.__setitem__("board/main.native", b"new head edit"),
+    )
+    next_payload = {"baseline_revision_id": derivative["revision_id"], "archive": archive}
+    reviewed = preview(user, next_payload)
+    head = submit(user, next_payload, reviewed, target="next_revision")
+    register(user, project, b"separate pending edit")
+    older = {
+        "baseline_revision_id": derivative["revision_id"],
+        "files": [
+            {"path": "board/main.native", "sha256": sha(b"separate pending edit")},
+        ],
+    }
+    visible = preview(user, older)
+    assert visible["head_revision_id"] == head["revision_id"]
+    hide_archive_member(users, archive["revision_id"])
+    request = RequestFactory().get("/")
+    request.user = user
+    # The old baseline remains readable. Its inaccessible newer head is a separate closure.
+    assert (
+        read_revision(request, derivative["revision_id"])["revision_id"]
+        == derivative["revision_id"]
+    )
+    with pytest.raises(NotFound):
+        preview(user, older)
+    with pytest.raises(NotFound):
+        submit(user, older, {**visible, "state": reviewed["state"]})
+    with pytest.raises(NotFound):
+        submit(user, older, visible, target="next_revision")
+
+
+@pytest.mark.parametrize("change", ["project", "role", "parent"])
+def test_edit_archive_bundle_identity_is_immutable(users, project, change):
+    source = original(users, project)
+    archive = edited_zip(
+        users,
+        project,
+        source["revision_id"],
+        lambda entries: entries.__setitem__("board/main.native", b"reviewed edit"),
+    )
+    payload = {"baseline_revision_id": source["revision_id"], "archive": archive}
+    result = submit(users["owner"], payload, preview(users["owner"], payload))
+    archive_revision = SourceBundleRevision.objects.get(id=archive["revision_id"])
+    other = op(users["owner"], "project.create", {"name": "Different archive scope"})["project_id"]
+    updates = (
+        {"project_id": other}
+        if change == "project"
+        else {
+            "role": "derivative",
+            "derived_from_id": source["revision_id"],
+        }
+    )
+    if change == "parent":
+        # Change both fields to remain a structurally valid bundle; original bundles
+        # cannot carry ancestry, so their first parent also changes the role.
+        updates["derived_from_id"] = result["revision_id"]
+    with (
+        pytest.raises(DatabaseError, match="Edit provenance bundle identity"),
+        transaction.atomic(),
+    ):
+        SourceBundle.objects.filter(id=archive_revision.bundle_id).update(**updates)

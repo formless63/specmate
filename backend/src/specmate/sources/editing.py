@@ -186,7 +186,9 @@ def _baseline(ctx: Context, p: EditInput) -> SourceBundleRevision:
     return baseline
 
 
-def _archive(ctx: Context, p: EditInput, baseline) -> SourceBundleFile | None:
+def _archive(
+    ctx: Context, p: EditInput, baseline, *, authority_only: bool = False
+) -> SourceBundleFile | None:
     if p.archive is None:
         return None
     revision = (
@@ -206,18 +208,18 @@ def _archive(ctx: Context, p: EditInput, baseline) -> SourceBundleFile | None:
     )
     if file is None:
         raise NotFound("Preserved file not found.")
-    if revision.bundle.role != SourceBundle.Role.ORIGINAL:
+    if not authority_only and revision.bundle.role != SourceBundle.Role.ORIGINAL:
         raise ValidationFailed("An edited ZIP must first be preserved as an original bundle.")
     return file
 
 
-def _closure(ctx: Context, p: EditInput):
+def _closure(ctx: Context, p: EditInput, *, authority_only: bool = False):
     baseline = _baseline(ctx, p)
-    return baseline, _archive(ctx, p, baseline)
+    return baseline, _archive(ctx, p, baseline, authority_only=authority_only)
 
 
 def _replay_authority(ctx: Context, p: SubmitEdit, result) -> None:
-    _closure(ctx, p)
+    _closure(ctx, p, authority_only=True)
     produced = (
         SourceBundleRevision.objects.select_related("bundle")
         .filter(id=result["revision_id"])
@@ -232,7 +234,7 @@ def _submit_scope(ctx: Context, p: SubmitEdit) -> str:
     from specmate.operations.models import IdempotencyRecord
     from specmate.operations.scope import LEGACY_SCOPE
 
-    baseline, _ = _closure(ctx, p)
+    baseline, _ = _closure(ctx, p, authority_only=True)
     scope = f"project:{baseline.bundle.project_id}"
     # Check a retained outcome's complete closure before revealing even a mismatch.
     prior = IdempotencyRecord.objects.select_for_update().filter(
@@ -449,8 +451,9 @@ def _head(bundle: SourceBundle) -> SourceBundleRevision:
     return bundle.revisions.order_by("-number").first()
 
 
-def _head_state(baseline) -> dict:
+def _head_state(ctx: Context, baseline) -> dict:
     head = _head(baseline.bundle)
+    authorize_revision(ctx.user, head)
     return {
         "head_revision_id": str(head.id),
         "head_number": head.number,
@@ -475,7 +478,7 @@ def preview_edit(ctx: Context, p: EditInput) -> dict:
     result, _, staged = review(p, baseline, archive)
     for _, item in staged:
         blobstore.discard(item)
-    return {**result, **_head_state(baseline)}
+    return {**result, **_head_state(ctx, baseline)}
 
 
 @operation(
@@ -495,7 +498,7 @@ def submit_edit(ctx: Context, p: SubmitEdit) -> dict:
     if ctx.expected_state != current:
         raise Conflict(
             "The baseline's bundle changed since it was reviewed.",
-            details=_head_state(baseline),
+            details=_head_state(ctx, baseline),
         )
     if p.target == "next_revision" and (
         bundle.role != SourceBundle.Role.DERIVATIVE or latest != baseline.number
@@ -503,7 +506,7 @@ def submit_edit(ctx: Context, p: SubmitEdit) -> dict:
         raise Conflict(
             "Only the current head of a derivative bundle can receive the next revision. "
             "Submit a separate derivative instead; nothing is merged.",
-            details=_head_state(baseline),
+            details=_head_state(ctx, baseline),
         )
     result, entries, staged = review(p, baseline, archive)
     try:
