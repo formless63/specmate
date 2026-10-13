@@ -38,6 +38,43 @@ async function selectTarget() {
   fireEvent.change(screen.getByLabelText("Target exact revision"), { target: { value: "revision-target" } });
 }
 
+test("supplier suggestions fill exact proposal pins only after deliberate use and creation", async () => {
+  const submitted: { operation: string; payload: Record<string, unknown> }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path === "/api/v0/operations") {
+      submitted.push(JSON.parse(String(init?.body)));
+      return reply({ result: candidate });
+    }
+    const base = initial(path); if (base) return base;
+    if (path.includes("supplier-suggestions")) return reply({ results: [{
+      source_variant_id: "source-variant", target_variant_id: "target-variant",
+      manufacturer: "Synthetic maker", part_number: "SYN-PAIR", target: candidate.target,
+      source_association_basis: "Source catalog assertion", target_association_basis: "Target catalog assertion",
+      match_basis: "exact_manufacturer_and_part_number", review: "not_reviewed", compatibility: "not_evaluated",
+    }], next_after: null, inspection_truncated: false });
+    if (path.startsWith("/api/v0/catalog/revisions/")) return reply({ variants: [{ variant_id: "source-variant", manufacturer: "Synthetic maker", part_number: "SYN-PAIR", association_basis: "Source catalog assertion" }] });
+    if (path.startsWith("/api/v0/catalog-matching/revisions/")) return reply({ results: [], next_after: null });
+    throw new Error(`Unexpected path ${path}`);
+  }));
+  render(<MantineProvider><MatchingWorkspace projectId="p1" /></MantineProvider>);
+  await selectSource();
+  fireEvent.click(screen.getByRole("button", { name: "Load source supplier identities" }));
+  await screen.findByRole("option", { name: /Synthetic maker · SYN-PAIR/ });
+  fireEvent.change(screen.getByLabelText("Exact source supplier identity"), { target: { value: "source-variant" } });
+  fireEvent.click(screen.getByRole("button", { name: "Suggest exact identifier matches" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Use exact pins in proposal" }));
+  expect(submitted).toHaveLength(0);
+  expect(screen.getByText("Target proposal pin: revision-target · definition def-target")).toBeTruthy();
+  expect((screen.getByLabelText(/^Observed source identifier/) as HTMLInputElement).value).toBe("SYN-PAIR");
+  fireEvent.click(screen.getByRole("button", { name: "Create candidate" }));
+  await waitFor(() => expect(submitted).toHaveLength(1));
+  expect(submitted[0]).toMatchObject({ operation: "catalog.propose_match", payload: {
+    source_revision_id: "revision-source", target_revision_id: "revision-target",
+    association_kind: "supplier", observed_source_identifier: "SYN-PAIR", observed_target_identifier: "SYN-PAIR", evidence: { status: "unknown" },
+  } });
+  expect(String(submitted[0]!.payload.basis)).toContain("source association source-variant, target association target-variant");
+});
+
 test("proposes exact pins with registered evidence and appends reviewed correspondence history", async () => {
   let created = false;
   let current = candidate;

@@ -48,6 +48,20 @@ export type Candidate = {
 };
 export type CandidatePage = { source_revision_id: string; results: Candidate[]; next_after: string | null };
 export type EvidencePage = { results: EvidenceFile[]; next_after: number | null };
+export type SupplierSuggestion = {
+  source_variant_id: string; target_variant_id: string; manufacturer: string; part_number: string;
+  source_association_basis: string; target_association_basis: string; target: RevisionIdentity;
+  match_basis: "exact_manufacturer_and_part_number"; review: "not_reviewed"; compatibility: "not_evaluated";
+};
+export type SupplierSuggestionPage = {
+  source: RevisionIdentity; target_project_id: string; results: SupplierSuggestion[];
+  next_after: string | null; inspection_truncated: boolean; meaning: "identifier_suggestions_only";
+};
+export function supplierSuggestions(sourceRevision: string, sourceVariant: string, project: string, after?: string) {
+  const params = new URLSearchParams({ source_variant_id: sourceVariant, target_project_id: project, limit: "25" });
+  if (after) params.set("after", after);
+  return request<SupplierSuggestionPage>(`catalog-matching/revisions/${sourceRevision}/supplier-suggestions?${params}`);
+}
 
 export function candidates(revisionId: string, after?: string) {
   const params = new URLSearchParams({ limit: "25" });

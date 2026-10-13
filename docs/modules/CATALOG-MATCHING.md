@@ -52,7 +52,9 @@ of the source's own definition are excluded. The response retains both associati
 bases and exact revision identities. These are unreviewed catalog assertions, not
 verified supplier evidence, interchangeability, a model-fit result or a merged identity.
 Reading suggestions creates no candidate or review; a person must deliberately use the
-normal proposal command. Every disclosed target's complete current source closure is
+normal proposal command. The browser loads identities on request and offers an explicit action to fill
+the existing proposal form; creating the proposal remains a separate action. Suggestions
+do not upgrade unknown evidence to verified evidence. Every disclosed target's complete current source closure is
 checked, inaccessible rows are omitted, and continuation cursors belong to that same
 currently authorized query. Pages contain at most 50 rows, with a 2,000-association
 inspection bound and an explicit truncation flag rather than a completeness claim.

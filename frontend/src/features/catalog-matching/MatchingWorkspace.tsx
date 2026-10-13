@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Group, NativeSelect, Stack, Text, Textarea,
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { read, type Definition, type Identity } from "../identity/api";
 import { MatchingRequestError, candidateDetail, candidates, evidenceFiles, proposeMatch, reviewMatch, type Candidate, type CandidatePage, type Evidence, type EvidenceFile, type Project } from "./api";
+import { SupplierSuggestions } from "./SupplierSuggestions";
 
 type Pin = { revision_id: string; definition_id: string };
 const unknownEvidence: Evidence = { status: "unknown" };
@@ -113,6 +114,12 @@ function Workspace({ projectId }: { projectId: string }) {
     <RevisionPicker key={`source-${projectId}-${selectorEpoch}`} projectId={accessInvalid ? "" : projectId} label="Source" onChange={setSource} />
     <NativeSelect label="Target project" value={targetProject} onChange={(event) => { setTargetProject(event.currentTarget.value); setTarget(null); }} data={projects.map((p) => ({ value: p.project_id, label: p.name }))} />
     <RevisionPicker key={`target-${targetProject}-${selectorEpoch}`} projectId={accessInvalid ? "" : targetProject} label="Target" onChange={setTarget} />
+    {source && !accessInvalid && <SupplierSuggestions key={`${source.revision_id}-${targetProject}-${selectorEpoch}`} sourceRevisionId={source.revision_id} targetProjectId={targetProject} canEdit={canEdit} onDenied={invalidateAccess} onUse={(value) => {
+      setTarget({ revision_id: value.target.revision_id, definition_id: value.target.definition_id });
+      setKind("supplier"); setSourceIdentifier(value.part_number); setTargetIdentifier(value.part_number);
+      setBasis(`Exact asserted manufacturer/part pair ${value.manufacturer} / ${value.part_number}; source association ${value.source_variant_id}, target association ${value.target_variant_id}. Correspondence remains unreviewed.`);
+    }} />}
+    {target && <Text size="sm">Target proposal pin: {target.revision_id} · definition {target.definition_id}</Text>}
     <Card withBorder>
       <form onSubmit={(event) => void create(event)}><Stack>
         <Title order={3}>Propose correspondence</Title>
