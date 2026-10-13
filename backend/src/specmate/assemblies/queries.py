@@ -1,6 +1,7 @@
 """Permission-complete assembly closure and occurrence projection shared by adapters."""
 
 import json
+from collections import deque
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -52,14 +53,14 @@ class Node:
 class Closure:
     """Authorize every revision before returning any path, count or graph diagnostic."""
 
-    def __init__(self, user, content, kind=None):
+    def __init__(self, user, content, kind=None, dependencies=()):
         self.user = user
         self.revisions = {}
         self.nodes = {}
         self.relationships = []
         self.assignments = {}
         self.root = parse_content(content, kind=kind)
-        self._read_pending(content)
+        self._read_pending(content, dependencies)
         if self.root is not None:
             self._expand(self.root, (), frozenset())
             self._validate_graph()
@@ -81,9 +82,9 @@ class Closure:
         self.revisions[revision_id] = revision
         return revision
 
-    def _read_pending(self, content):
+    def _read_pending(self, content, dependencies):
         """Follow reference closure with a visited set; documentary cycles are legal."""
-        pending = self._references(parse_content(content))
+        pending = [*dependencies, *self._references(parse_content(content))]
         while pending:
             rid = pending.pop()
             if rid in self.revisions:
@@ -162,26 +163,43 @@ class Closure:
                 parent = (*prefix, *relationship.parent.path)
                 child = (*prefix, *relationship.child.path)
                 graph[parent].add(child)
-        active, complete = set(), set()
-
-        def visit(path):
-            if path in active:
-                raise ValidationFailed("Containment cycle.")
-            if path in complete:
-                return
-            active.add(path)
+        # Explicit containment chains can exceed Python's recursion limit even when
+        # the structural occurrence tree is shallow. Use an iterative topological check.
+        incoming = dict.fromkeys(graph, 0)
+        for children in graph.values():
+            for child in children:
+                incoming[child] += 1
+        ready = deque(path for path, count in incoming.items() if count == 0)
+        visited = 0
+        while ready:
+            path = ready.popleft()
+            visited += 1
             for child in graph[path]:
-                visit(child)
-            active.remove(path)
-            complete.add(path)
-
-        for path in graph:
-            visit(path)
+                incoming[child] -= 1
+                if incoming[child] == 0:
+                    ready.append(child)
+        if visited != len(graph):
+            raise ValidationFailed("Containment cycle.")
 
 
 def dependency_revisions(user, definition, content):
     """Design capture hook: exact recursively pinned closure, never live draft children."""
     return sorted(Closure(user, content, kind=definition.kind).revisions, key=str)
+
+
+def permitted_self_dependencies(user, definition, content):
+    """Only exact same-definition pins reached by a valid assembly closure.
+
+    Definition identity equality alone is not resolved physical recursion: a new
+    revision can contain an older, finite assembly or document its prior revision.
+    Arbitrary caller-added self pins never enter this set.
+    """
+    closure = Closure(user, content, kind=definition.kind)
+    return {
+        rid
+        for rid, revision in closure.revisions.items()
+        if revision.definition_id == definition.id
+    }
 
 
 def authorize_content(user, content):
@@ -194,15 +212,13 @@ def get_snapshot(user, snapshot_id):
         raise NotFound("Assembly unavailable.")
     authorize(user, snapshot.definition.project_id, Perm.PROJECT_READ)
     body = json.loads(bytes(snapshot.canonical))
-    closure = Closure(user, body["content"], kind=snapshot.definition.kind)
-    # Historical or manually supplied dependency pins must also remain readable.
-    pending = list(snapshot.dependencies.values_list("revision_id", flat=True))
-    while pending:
-        rid = pending.pop()
-        if rid in closure.revisions:
-            continue
-        revision = closure._revision(rid)
-        pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
+    # Historical or manually supplied pins are authorized before graph diagnostics too.
+    closure = Closure(
+        user,
+        body["content"],
+        kind=snapshot.definition.kind,
+        dependencies=snapshot.dependencies.values_list("revision_id", flat=True),
+    )
     if closure.root is None:
         raise ValidationFailed("Snapshot is not an assembly.")
     return snapshot, closure

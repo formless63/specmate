@@ -8,7 +8,11 @@ from django.db import close_old_connections
 from django.test import Client
 
 from specmate.access.models import Membership
-from specmate.assemblies.queries import read_assembly, resolve_occurrence
+from specmate.assemblies.queries import (
+    permitted_self_dependencies,
+    read_assembly,
+    resolve_occurrence,
+)
 from specmate.design.models import Definition, Draft, Snapshot
 from specmate.operations import (
     Conflict,
@@ -442,3 +446,73 @@ def test_invalid_paths_duplicate_ids_and_revision_owned_overrides_are_rejected(u
             project,
             [occ("a", board, assignments={"firmware_revision_id": board["revision_id"]})],
         )
+
+
+def test_definition_equality_is_not_an_actual_resolved_containment_cycle(users, project):
+    initial = create(users["owner"], project)
+    revision = freeze(users["owner"], initial)
+    definition = Definition.objects.get(id=initial["definition_id"])
+    documented = {
+        "assembly": {
+            "relationships": [
+                {
+                    "kind": "documentation",
+                    "local_id": "prior-design",
+                    "subject": endpoint([]),
+                    "document": {"kind": "revision", "revision_id": revision["revision_id"]},
+                }
+            ]
+        }
+    }
+    reused = {"assembly": {"occurrences": [occ("prior-finite-assembly", revision)]}}
+    for content in (documented, reused):
+        assert permitted_self_dependencies(users["owner"], definition, content) == {
+            UUID(revision["revision_id"])
+        }
+    assert permitted_self_dependencies(users["owner"], definition, {"assembly": {}}) == set()
+
+
+def test_long_containment_chain_is_iterative_and_cycles_remain_rejected(users, project):
+    _, board = part(users["owner"], project)
+    occurrences = [occ(f"item-{index}", board) for index in range(1000)]
+    edges = [
+        {
+            "kind": "containment",
+            "local_id": f"contains-{index}",
+            "parent": endpoint([f"item-{index}"]),
+            "child": endpoint([f"item-{index + 1}"]),
+        }
+        for index in range(999)
+    ]
+    assert create(users["owner"], project, occurrences, edges)["state"] == "draft-v1"
+    edges.append(
+        {
+            "kind": "containment",
+            "local_id": "back",
+            "parent": endpoint(["item-999"]),
+            "child": endpoint(["item-0"]),
+        }
+    )
+    with pytest.raises(ValidationFailed, match="Containment cycle"):
+        create(users["owner"], project, occurrences, edges)
+
+
+def test_api_mutation_uses_same_shared_operation(users, project):
+    client = Client()
+    client.force_login(users["editor"])
+    response = client.post(
+        "/api/v0/operations",
+        data=json.dumps(
+            {
+                "operation": "assembly.create",
+                "request_id": "assembly-api",
+                "idempotency_key": "api-create",
+                "payload": {"project_id": project, "name": "API assembly"},
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert Draft.objects.get(id=result["draft_id"]).definition.kind == "assembly"
+    assert result["content"]["assembly"]["occurrences"] == []
