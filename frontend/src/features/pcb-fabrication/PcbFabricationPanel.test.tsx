@@ -19,7 +19,9 @@ beforeEach(() => {
   vi.mocked(command).mockResolvedValue({ build_id: 'new-build' });
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
-const panel = (intakeId = 'intake-a', canExecute = false) => <MantineProvider env="test"><PcbFabricationPanel intakeId={intakeId} canExecute={canExecute} /></MantineProvider>;
+// Mantine env="test" skips transition styles but still schedules animation hooks.
+// Honor the test environment's reduced-motion preference for busy-button updates.
+const panel = (intakeId = 'intake-a', canExecute = false) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}><PcbFabricationPanel intakeId={intakeId} canExecute={canExecute} /></MantineProvider>;
 async function inspect() {
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect fabrication build build-a' }));
   await screen.findByText('Registered export evidence');
@@ -64,4 +66,18 @@ test('failed request hides previously reviewed output until explicit refresh', a
   fireEvent.click(screen.getByRole('button', { name: 'Request native fabrication outputs' }));
   await screen.findByText('Execution authority revoked.');
   expect(screen.queryByRole('link', { name: 'board-F_Cu.gbr' })).toBeNull();
+});
+
+test('busy-state updates do not leave decorative animation work in the DOM test harness', async () => {
+  const frames = vi.spyOn(window, 'requestAnimationFrame');
+  try {
+    const view = render(panel('intake-a', true));
+    await inspect();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh fabrication evidence' }));
+    await screen.findByText('Registered export evidence');
+    view.unmount();
+    expect(frames).not.toHaveBeenCalled();
+  } finally {
+    frames.mockRestore();
+  }
 });
