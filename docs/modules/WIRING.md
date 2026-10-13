@@ -134,3 +134,38 @@ concurrency-aware editing and frozen inspection. The inspection aligns each stab
 stock feature across both endpoints and shows pinned body/pinout roles and unknown
 ratings. HTTP reads are under `/api/v0/cables`; mutation and agent adapters use the
 same named operations. Existing stock section and geometry projections are unchanged.
+
+## Branched harnesses and explicit relationships
+
+The separate `harness` kind preserves the two-end `cable` contract. A physical
+section identifies one original retained stock piece pinned to an exact stock
+revision. Segments name spans or conductive feature subsets of those sections;
+several segments referencing one section do not create additional stock pieces.
+The quantity projection expands every explicit physical section once per requested
+harness and reports segment counts separately. Planned stock cuts require a basis;
+missing cuts or an unknown requested quantity propagate unknown totals. Route,
+finished and conductor-cut lengths are not inferred, including from a longest leg.
+
+Stable endpoint IDs pin exact body/pinout pairs. A joint declares a termination,
+splice or shield bond with exact segment-end/element-path or endpoint-contact
+members and a basis. A terminal belongs to at most one joint or breakout fate.
+Shield bonds accept shield, drain and shell features only; keying contacts cannot
+carry connections. Group placement, matching labels, shared sections, pigtails and
+screen appearance create no electrical relationships.
+
+A breakout identifies its trunk and leg ends. Every recorded fate identifies an
+uncut trunk-to-leg correspondence, an existing joint, or an explicitly unconnected
+terminal with a basis. Uncut correspondence requires the same section and conductive
+feature and is one-to-one at each participating end. A joint fate references its
+existing joint membership without adding another connection. Omitted fates remain
+unknown. Creating a true conductor branch requires an explicit splice or bond;
+repeating an uncut mapping cannot manufacture a branch.
+
+`harness.create`, `.update`, `.snapshot`, `.freeze`, `.read` and
+`.declared_relationships` share current authorization, concurrency and idempotency
+policies with other engineering operations. The declaration inspection returns only
+explicit relationships touching the selected terminal. It adds no longitudinal
+copper edges and is not a full electrical trace. Continuity, compatibility and
+physical qualification remain `not_evaluated`; electrical interpretation belongs to
+the topology capability. Reads and captures check the full owning source closure,
+and frozen revisions retain exact historical sections, endpoints and declarations.
