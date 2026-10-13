@@ -18,7 +18,7 @@ export function FirmwareEvaluation({ read }: { read: FirmwareRead }) {
   const { evaluation } = read;
   return <Stack gap="xs">
     <Group><Badge color={evaluation.readiness === 'blocked' ? 'red' : evaluation.readiness === 'declared' ? 'green' : 'yellow'}>{evaluation.readiness.replace(/_/g, ' ')}</Badge>
-      <Text size="sm">Toolchain support: declared, not verified · Compilation: not performed · Flashing: not performed · Device operation: not observed</Text></Group>
+      <Text size="sm">Declaration review: toolchain support and compilation require separate evidence · Flashing: not performed · Device operation: not observed</Text></Group>
     {evaluation.readiness === 'blocked' && <Alert color="red">Invalid target or pin assumptions block freezing. These declarations do not describe a working build.</Alert>}
     <Text size="sm">Target: {evaluation.target.population_name} revision {evaluation.target.population_number} · option {evaluation.target.option_name ?? `${evaluation.target.option_id} (missing)`} · {evaluation.target.component ? `${evaluation.target.component.reference} ${evaluation.target.component.value}` : 'component not in board'}{evaluation.target.declared_part ? ` · declared part label ${evaluation.target.declared_part} (not verified)` : ''}</Text>
     <Text size="xs" style={{ overflowWrap: 'anywhere' }}>Population snapshot {evaluation.target.population_snapshot_sha256} · interpretation {evaluation.target.interpretation_id} ({evaluation.target.interpretation_sha256}) · board source revision {evaluation.target.board_source_revision_id}</Text>

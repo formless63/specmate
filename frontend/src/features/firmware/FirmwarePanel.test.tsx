@@ -69,7 +69,7 @@ test('invalid target blocks freezing and is never described as a working build',
   fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
   expect(await screen.findByText(/do not describe a working build/)).toBeTruthy();
   expect(screen.getByText('The target component is omitted in the selected population option.')).toBeTruthy();
-  expect(screen.getByText(/Compilation: not performed · Flashing: not performed/)).toBeTruthy();
+  expect(screen.getByText(/toolchain support and compilation require separate evidence/)).toBeTruthy();
   expect((screen.getByRole('button', { name: 'Freeze firmware declarations' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
