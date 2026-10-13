@@ -1,6 +1,9 @@
 import type { Endpoint } from '../cables/api';
-export { command, read, type Definition, type Identity } from '../identity/api';
-export type Section = { local_id: string; stock_revision_id: string; planned_cut_length_mm: string | null; cut_basis: string | null };
+export { type Definition, type Identity } from '../identity/api';
+export { command } from '../cables/api';
+import { CableOperationError } from '../cables/api';
+export type PhysicalEnd = { local_id: string; label: string | null; segment_ends: SegmentEnd[]; endpoint_id: string | null; basis: string; review: 'unreviewed' | 'reviewed' };
+export type Section = { local_id: string; stock_revision_id: string; planned_cut_length_mm: string | null; cut_basis: string | null; physical_ends?: PhysicalEnd[] };
 export type Segment = { local_id: string; section_id: string; label: string | null; element_paths: string[] | null };
 export type SegmentEnd = { segment_id: string; end: 'a' | 'b' };
 export type SegmentTerminal = SegmentEnd & { kind: 'segment'; element_path: string };
@@ -15,3 +18,11 @@ export type Inspection = { revision_id: string; harness: Harness; terminals: { t
 export const initialHarness = (): Harness => ({ sections: [], segments: [], endpoints: [], joints: [], breakouts: [], review: 'unreviewed', review_basis: null });
 export const terminalLabel = (t: Terminal): string => t.kind === 'segment' ? `${t.segment_id} / ${t.end} / ${t.element_path}` : `${t.endpoint_id} / ${t.contact_id}`;
 export const terminalKey = (t: Terminal): string => JSON.stringify(t.kind === 'segment' ? [t.kind, t.segment_id, t.end, t.element_path] : [t.kind, t.endpoint_id, t.contact_id]);
+
+export async function read<T>(path: string, payload?: Harness): Promise<T> {
+  const csrf = decodeURIComponent(document.cookie.split('; ').find(c => c.startsWith('csrftoken='))?.slice(10) ?? '');
+  const response = await fetch(`/api/v0/${path}`, { credentials: 'same-origin', ...(payload ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify(payload) } : {}) });
+  const body = await response.json();
+  if (!response.ok) throw new CableOperationError(body.error?.message ?? `Harness request failed (${response.status})`, response.status);
+  return body as T;
+}

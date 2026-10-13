@@ -414,7 +414,38 @@ Application returns separate instructions and missing-rule lists for both ends,
 including their explicit dimensions, tolerances, source and review basis. It leaves
 stock construction, cable assignments, saved cuts, inventory and topology untouched.
 Physical preparation, actual bonds, measured outcomes and qualification are not
-evaluated. Harness application remains a separate application milestone: shared
-physical sections currently lack an explicit physical-end mapping, so segment names
-or multiple logical segment ends cannot stand in for physical section ends. This
-boundary does not remove generalized harness preparation from the product scope.
+evaluated.
+
+Harness sections may additionally declare `physical_ends`: section-scoped stable IDs,
+optional labels, explicit same-section segment-end references, an optional exact
+Harness endpoint association, a basis and a review decision. These are retained in
+normal Harness drafts and frozen revisions. A segment end cannot identify two physical
+ends of the same section. Endpoint association only supplies a body/pinout context;
+it creates no electrical connection, joint or bond. Neither repeated labels, displayed
+segment A/B directions, breakout fates nor shared-section segment counts establish a
+physical end. Existing Harness revisions without declarations keep their unknown ends.
+
+`end_preparation.apply_harness` and `/v0/end-preparation/apply-harness` accept an exact
+Harness revision, section ID, profile revision and deliberate profile A/B mappings to
+physical end IDs. The additive request has `schema_version: "0.1"`; the Cable request
+is unchanged. Both complete frozen closures precede mapping or feature diagnostics.
+The selected section must pin the profile's exact stock revision and counts once.
+Output retains Harness/profile/stock hashes, the physical declarations and associated
+body/pinout orientation when present. Contact-bond expectations without an explicit
+endpoint association remain incomplete; incompatible exact body pins are rejected.
+An unreviewed physical declaration keeps instruction intent unreviewed.
+
+Sections can retain up to 64 physical end declarations. A two-end profile cannot cover
+a section with zero, one or more than two declared ends: the application returns an
+unresolved explanation and no fabricated assignments. Missing mapping choices also
+remain unresolved. This limit belongs to the current two-end profile projection, not
+to Harness topology or accepted generalized preparation scope.
+
+The Harness editor authors these declarations structurally and frozen inspection
+shows them separately from electrical relationships. The per-end preparation panel
+lists exact Harness sections and declared end IDs from current authorized inspection.
+Denials hide retained preparation evidence across the panel; restoration preserves
+unsaved mapping fields. Harness draft reads do not replace unsaved declarations or
+their original compare-and-set token, and accepted saves advance only their own token.
+All applications remain read-only; material issuance, measured cuts, actual bonds and
+physical qualification are separate records and checks.

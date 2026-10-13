@@ -3,6 +3,7 @@ import { useQueries } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { StockElement, StockSpecification } from '../../../../packages/section-layout/src';
 import type { Interface } from '../interfaces/api';
+import { PhysicalEndsEditor } from './PhysicalEndsEditor';
 import { RevisionPicker } from './RevisionPicker';
 import { read, terminalKey, terminalLabel, type Breakout, type Definition, type Fate, type Harness, type Joint, type SegmentEnd, type SegmentTerminal, type Terminal } from './api';
 
@@ -12,9 +13,9 @@ function conductive(node: StockElement, prefix = ''): string[] {
   const path = prefix ? `${prefix}.${node.id}` : node.id;
   return node.kind === 'group' ? node.children.flatMap(c => conductive(c, path)) : ['conductor', 'shield', 'drain'].includes(node.kind) ? [path] : [];
 }
-export function HarnessEditor({ value, onChange, definitions, onAuthorityChange }: { value: Harness; onChange: (v: Harness) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
+export function HarnessEditor({ value, onChange, definitions, onAuthorityChange, onReferenceDenied }: { value: Harness; onChange: (v: Harness) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void; onReferenceDenied?: (path: string, reason: unknown) => void }) {
   const refs = [...new Set([...value.sections.map(s => s.stock_revision_id ? `revisions/${s.stock_revision_id}/snapshot` : ''), ...value.endpoints.flatMap(e => [e.body_revision_id, e.pinout_revision_id].map(id => id ? `interfaces/revisions/${id}` : ''))].filter(Boolean))];
-  const sources = useQueries({ queries: refs.map(path => ({ queryKey: ['harness-source', path], queryFn: () => read<Source>(path) })) });
+  const sources = useQueries({ queries: refs.map(path => ({ queryKey: ['harness-source', path], queryFn: async () => { try { return await read<Source>(path); } catch (reason) { onReferenceDenied?.(path, reason); throw reason; } } })) });
   const denied = sources.some(source => source.isError);
   useEffect(() => onAuthorityChange?.(denied), [denied, onAuthorityChange]);
   const source = (path: string) => { const result = sources[refs.indexOf(path)]; return !denied && !result?.isError ? result?.data : undefined; };
@@ -48,6 +49,7 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange 
       <RevisionPicker label={`Section ${section.local_id} stock`} kind="wire_stock" value={section.stock_revision_id} definitions={definitions} onChange={id => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, stock_revision_id: id } : s) })} />
       <TextInput label={`Section ${section.local_id} planned cut (mm); blank = unknown`} inputMode="decimal" value={section.planned_cut_length_mm ?? ''} onChange={e => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, planned_cut_length_mm: e.currentTarget.value || null } : s) })} />
       <TextInput label={`Section ${section.local_id} cut basis`} value={section.cut_basis ?? ''} onChange={e => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, cut_basis: e.currentTarget.value || null } : s) })} />
+      <PhysicalEndsEditor section={section} segments={value.segments} endpoints={value.endpoints} hidden={denied} onChange={physical_ends => onChange({ ...value, sections: value.sections.map((s, i) => i === index ? { ...s, physical_ends } : s) })} />
       <Button variant="subtle" onClick={() => onChange({ ...value, sections: value.sections.filter((_, i) => i !== index) })}>Remove section {section.local_id}</Button>
     </Stack></Card>)}
     <Group><TextInput label="New physical section ID" value={sectionId} onChange={e => setSectionId(e.currentTarget.value)} /><Button disabled={!sectionId || value.sections.some(s => s.local_id === sectionId)} onClick={() => { onChange({ ...value, sections: [...value.sections, { local_id: sectionId, stock_revision_id: '', planned_cut_length_mm: null, cut_basis: null }] }); setSectionId(''); }}>Add physical section</Button></Group>

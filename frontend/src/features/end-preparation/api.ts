@@ -40,3 +40,6 @@ async function request<T>(path: string, payload?: object): Promise<T> {
   return body as T;
 }
 export async function loadStock(revisionId: string): Promise<StockSpecification> { const result = await read<{ content: { stock: StockSpecification } }>(`revisions/${revisionId}/snapshot`); return result.content.stock; }
+
+export type HarnessRequest = { schema_version?: '0.1'; harness_revision_id: string; section_id: string; profile_revision_id: string; a_physical_end_id: string | null; b_physical_end_id: string | null; mapping_basis: string; mapping_review: Review };
+export type HarnessResult = Omit<Result, 'cable_revision_id' | 'cable_sha256' | 'ends'> & { harness_revision_id: string; harness_sha256: string; section_id: string; physical_piece_count: number; status: string; unresolved: string[]; declared_physical_ends: import('../harnesses/api').PhysicalEnd[]; ends: (Omit<Result['ends'][number], 'endpoint'> & { endpoint: Result['ends'][number]['endpoint'] | null; physical_end: import('../harnesses/api').PhysicalEnd })[] };

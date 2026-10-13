@@ -1,11 +1,12 @@
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { authorityDenied, command, emptyProfile, loadStock, postRead, read, stockFeatures, type Definition, type Draft, type Frozen, type Identity, type Profile, type Request } from './api';
+import { authorityDenied, command, emptyProfile, loadStock, postRead, read, stockFeatures, type Definition, type Draft, type Frozen, type Identity, type Profile, type Request, type HarnessRequest } from './api';
 import { EndInspection, ProfileEditor } from './ProfileEditor';
+import { ApplyHarnessPreparation } from './ApplyHarnessPreparation';
 import { ApplyPreparation } from './ApplyPreparation';
 
-type Denial = { profile?: Profile; application?: Request; revision?: string; draft?: string; definition?: string };
+type Denial = { profile?: Profile; application?: Request; harnessApplication?: HarnessRequest; revision?: string; draft?: string; definition?: string };
 export function EndPreparationPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
@@ -64,6 +65,8 @@ function Workspace({ projectId }: { projectId: string }) {
         if (dependency.draft) await read(`end-preparation/drafts/${dependency.draft}`);
         if (dependency.revision) await read(`end-preparation/revisions/${dependency.revision}`);
         if (dependency.definition) await read(`catalog/definitions/${dependency.definition}`);
+        if (dependency.harnessApplication?.harness_revision_id) await read(`harnesses/revisions/${dependency.harnessApplication.harness_revision_id}`);
+        if (dependency.harnessApplication?.profile_revision_id) await read(`end-preparation/revisions/${dependency.harnessApplication.profile_revision_id}`);
         if (dependency.application?.cable_revision_id) await read(`revisions/${dependency.application.cable_revision_id}/snapshot`);
         if (dependency.application?.profile_revision_id) await read(`end-preparation/revisions/${dependency.application.profile_revision_id}`);
       }
@@ -90,6 +93,7 @@ function Workspace({ projectId }: { projectId: string }) {
     </>}
     {hidden && <Text>Starting a new profile discards the retained unsaved editor and endpoint mapping.</Text>}
     <Button variant="subtle" onClick={() => { scope.current += 1; selection.current += 1; edits.current += 1; denied.current = []; setBlocked(false); setBusy(null); setError(null); setCurrent(null); setProfile(emptyProfile()); setName(''); setDefinition(null); setDraftId(null); setRevision(null); }}>New end preparation profile</Button>
+    <ApplyHarnessPreparation key={`harness-${scope.current}`} hidden={hidden} definitions={definitions.data ?? []} authorityScope={scope.current} onDenied={(harnessApplication, generation) => onDenied({ harnessApplication }, generation)} onReferenceDenied={(id, generation) => onDenied({ definition: id }, generation)} />
     <ApplyPreparation key={scope.current} hidden={hidden} definitions={definitions.data ?? []} authorityScope={scope.current} onDenied={(application, generation) => onDenied({ application }, generation)} onReferenceDenied={(id, generation) => onDenied({ definition: id }, generation)} />
   </Stack>;
 }
