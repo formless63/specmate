@@ -2,7 +2,7 @@ import { Button, Card, Checkbox, Group, NumberInput, Select, Stack, Text, Textar
 import type { DemandQuantity } from '../bom/api';
 import { unknownDemand } from '../bom/api';
 import { SourceEditor } from '../preparation/ProfileEditor';
-import { RevisionChoice } from '../preparation/RevisionChoice';
+import { ReferenceChoice, type ReferenceSelection, type ReferenceSelections } from './ReferenceChoice';
 import { emptyExtent, type Definition, type Extent, type Plan, type Reconciliation } from './api';
 
 function ExtentEditor({ label, value, onChange }: { label: string; value: Extent; onChange: (v: Extent) => void }) {
@@ -20,9 +20,10 @@ function ActualEditor({ label, value, unit, onChange }: { label: string; value: 
     <TextInput label={`${label} reconciliation basis`} value={value.basis} onChange={e => onChange({ ...value, basis: e.currentTarget.value })} /><SourceEditor label={`${label} reconciliation`} source={value.source} onChange={source => onChange({ ...value, source })} />
   </>}</Stack>;
 }
-export function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions: Definition[]; onChange: (v: Plan) => void }) {
+export function PlanEditor({ value, definitions, onChange, references, onReference, generation, onDenied }: { value: Plan; definitions: Definition[]; onChange: (v: Plan) => void; references: ReferenceSelections; onReference: (label: string, selection: ReferenceSelection) => void; generation: number; onDenied: () => void }) {
+  const referenceProps = (label: string) => ({ selection: references[label] ?? { definition: null, offset: 0 }, onSelection: (selection: ReferenceSelection) => onReference(label, selection), generation, onDenied });
   return <Stack>
-    <RevisionChoice label="Material subject" kinds={['cable', 'harness']} value={value.subject_revision_id} definitions={definitions} onChange={subject_revision_id => onChange({ ...value, subject_revision_id })} />
+    <ReferenceChoice {...referenceProps("Material subject")} label="Material subject" kinds={['cable', 'harness']} value={value.subject_revision_id} definitions={definitions} onChange={subject_revision_id => onChange({ ...value, subject_revision_id })} />
     <NumberInput label="Planned material subject quantity" description="Blank stays unknown. Whole subjects only." min={1} max={1000000} allowDecimal={false} value={value.quantity ?? ''} onChange={q => onChange({ ...value, quantity: typeof q === 'number' ? q : null })} />
     <Select label="Material make or buy decision" value={value.decision} data={['unknown', 'make', 'buy']} onChange={decision => onChange({ ...value, decision: decision as Plan['decision'] })} /><TextInput label="Material decision basis" value={value.decision_basis} onChange={e => onChange({ ...value, decision_basis: e.currentTarget.value })} />
     <Text>Bought subjects stop stock and consumable procurement. Physical harness sections are counted once even when several segments share them. Installed material is independent of route, finished and cut declarations.</Text>
@@ -30,7 +31,7 @@ export function PlanEditor({ value, definitions, onChange }: { value: Plan; defi
       <TextInput label={`${label} physical section ID`} description="Blank for a cable's one piece; exact retained section ID for a harness." value={piece.section_id ?? ''} onChange={e => update({ ...piece, section_id: e.currentTarget.value || null })} />
       <ExtentEditor label={`${label} installed material`} value={piece.installed} onChange={installed => update({ ...piece, installed })} />
       <Select label={`${label} cut basis`} value={piece.cut_basis} data={['declaration', 'preparation_suggestion']} onChange={cut_basis => update({ ...piece, cut_basis: cut_basis as typeof piece.cut_basis })} />
-      <RevisionChoice label={`${label} preparation profile`} kinds={['preparation_profile']} value={piece.profile_revision_id ?? ''} definitions={definitions} onChange={id => update({ ...piece, profile_revision_id: id || null })} />
+      <ReferenceChoice {...referenceProps(`${label} preparation profile`)} label={`${label} preparation profile`} kinds={['preparation_profile']} value={piece.profile_revision_id ?? ''} definitions={definitions} onChange={id => update({ ...piece, profile_revision_id: id || null })} />
       <Text>Cut already includes selected slack, end preparation and trim. Procurement adds only extra waste beyond the cut. Surplus inside the cut is not assumed to be scrap.</Text>
       <ExtentEditor label={`${label} extra waste beyond cut`} value={piece.extra_waste} onChange={extra_waste => update({ ...piece, extra_waste })} />
       <ActualEditor label={label} value={piece.reconciliation} unit="mm" onChange={reconciliation => update({ ...piece, reconciliation })} />

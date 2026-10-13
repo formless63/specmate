@@ -155,3 +155,60 @@ test('a later detached denial keeps recovery closed when an earlier refresh succ
   await waitFor(() => expect(recoveredIdentity).toBe(true));
   expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); expect(screen.getByText('Refresh material accounting access')).toBeTruthy();
 });
+
+test('reference-page denial hides retained material and recovery rechecks the selected page without a picked revision', async () => {
+  let blocked = true; const pages: string[] = [];
+  const references = { drafts: [], revisions: Array.from({ length: 50 }, (_, index) => ({ revision_id: `subject-${index}`, number: index + 1 })) };
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/material-accounting/authority')) return response({ authorized: true });
+    if (url.endsWith('/operations')) return response({ result: draft });
+    if (url.includes('catalog/definitions/subject-definition')) {
+      pages.push(url);
+      return url.endsWith('offset=50') && blocked ? response({ error: { message: 'Subject reference denied.' } }, 404) : response(references);
+    }
+    if (url.includes('catalog/definitions')) return response(identities);
+    if (url.includes('/drafts/')) return response(draft);
+    return response([{ definition_id: 'subject-definition', kind: 'cable', name: 'Exact subject identity' }]);
+  }));
+  render(wrap(<MaterialAccountingPanel projectId="project" />)); start();
+  fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
+  await select('Material subject definition', 'Exact subject identity');
+  fireEvent.click(await screen.findByText('Later Material subject revisions'));
+  await screen.findByText('Refresh material accounting access');
+  expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull();
+  const callsBefore = pages.length;
+  fireEvent.click(screen.getByText('Refresh material accounting access'));
+  await screen.findByText('Subject reference denied.');
+  expect(pages.length).toBeGreaterThan(callsBefore);
+  expect(pages.at(-1)).toContain('offset=50');
+  expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull();
+  blocked = false;
+  fireEvent.click(screen.getByText('Refresh material accounting access'));
+  await screen.findByLabelText('Material subject exact revision ID');
+  expect((screen.getByLabelText('Material subject exact revision ID') as HTMLInputElement).value).toBe('subject');
+  expect((screen.getByRole('combobox', { name: 'Material subject definition' }) as HTMLInputElement).value).toBe('Exact subject identity');
+  expect(pages.at(-1)).toContain('offset=50');
+});
+
+test.each([false, true])('detached reference denial is fenced only by genuine editor replacement=%s', async replacement => {
+  const pending = deferred<Response>(); let requested = false;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.includes('catalog/definitions/subject-definition')) { requested = true; return pending.promise; }
+    if (url.includes('catalog/definitions')) return response(identities);
+    return response([{ definition_id: 'subject-definition', kind: 'cable', name: 'Exact subject identity' }, { definition_id: 'definition', kind: 'material_plan', name: 'Unrelated history choice' }]);
+  }));
+  render(wrap(<MaterialAccountingPanel projectId="project" />)); start();
+  await select('Material subject definition', 'Exact subject identity');
+  await waitFor(() => expect(requested).toBe(true));
+  if (replacement) fireEvent.click(screen.getByText('Discard unsaved material values and start new'));
+  else await select('Existing material plan', 'Unrelated history choice');
+  await act(async () => { pending.resolve(response({ error: { message: 'Detached subject denied.' } }, 404)); });
+  if (replacement) {
+    expect((screen.getByLabelText('Material subject exact revision ID') as HTMLInputElement).value).toBe('');
+    expect((screen.getByRole('combobox', { name: 'Material subject definition' }) as HTMLInputElement).value).toBe('');
+    expect(screen.queryByText('Refresh material accounting access')).toBeNull();
+  } else {
+    await screen.findByText('Refresh material accounting access');
+    expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull();
+  }
+});

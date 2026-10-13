@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BuildSheet } from './BuildSheet';
 import { PlanEditor } from './PlanEditor';
+import { referenceKey, type ReferenceSelections } from './ReferenceChoice';
 import { authorityDenied, checkAuthority, command, emptyPlan, read, type Definition, type Draft, type Identity, type Plan } from './api';
 
 export function MaterialAccountingPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
@@ -11,6 +12,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const [name, setName] = useState(''); const [plan, setPlan] = useState<Plan>(emptyPlan);
   const [current, setCurrent] = useState<Draft | null>(null); const [definition, setDefinition] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null); const [revisionId, setRevisionId] = useState<string | null>(null);
+  const [references, setReferences] = useState<ReferenceSelections>({});
   const [offset, setOffset] = useState(0); const [blocked, setBlocked] = useState(false);
   const edits = useRef(0); const generation = useRef(0); const authorityEpoch = useRef(0);
   const denied = useCallback((version: number) => {
@@ -31,7 +33,7 @@ function Workspace({ projectId }: { projectId: string }) {
   }, enabled: !!definition && !blocked });
   const load = useMutation({ mutationFn: ({ id, version, edit }: { id: string; version: number; edit: number }) => read<Draft>(`material-accounting/drafts/${id}`).then(data => ({ data, version, edit })), onSuccess: ({ data, version, edit }) => {
     if (version !== generation.current || edit !== edits.current) return;
-    generation.current += 1; authorityEpoch.current += 1; setCurrent(data); setPlan(data.content.material_plan); setDefinition(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setBlocked(false);
+    generation.current += 1; authorityEpoch.current += 1; setCurrent(data); setPlan(data.content.material_plan); setDefinition(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setReferences({}); setBlocked(false);
     save.reset(); freeze.reset(); refresh.reset(); cache.removeQueries({ queryKey: ['material-sheet'] });
   }, onError: (error, input) => fail(error, input.version) });
   const save = useMutation({ mutationFn: ({ version, payload, draft }: { version: number; payload: Plan; draft: Draft | null }) => command<Draft>(draft ? 'material_plan.update' : 'material_plan.create', draft ? { draft_id: draft.draft_id, plan: payload } : { project_id: projectId, name, plan: payload }, draft?.state).then(data => ({ data, version })), onSuccess: ({ data, version }) => {
@@ -49,13 +51,15 @@ function Workspace({ projectId }: { projectId: string }) {
     if (current) await read<Draft>(`material-accounting/drafts/${current.draft_id}`);
     if (draftId && draftId !== current?.draft_id) await read<Draft>(`material-accounting/drafts/${draftId}`);
     if (revisionId) await read(`material-accounting/revisions/${revisionId}`);
+    const freshReferences = await Promise.all(Object.values(references).filter(reference => reference.definition).map(async reference => ({ reference, identity: await read<Identity>(`catalog/definitions/${reference.definition}?offset=${reference.offset}`) })));
     const freshIdentity = definition ? await read<Identity>(`catalog/definitions/${definition}?offset=${offset}`) : null;
     const freshDefinitions = await read<Definition[]>(`projects/${projectId}/definitions`);
-    return { version, epoch, freshIdentity, freshDefinitions };
-  }, onSuccess: ({ version, epoch, freshIdentity, freshDefinitions }) => {
+    return { version, epoch, freshIdentity, freshDefinitions, freshReferences };
+  }, onSuccess: ({ version, epoch, freshIdentity, freshDefinitions, freshReferences }) => {
     if (version !== generation.current || epoch !== authorityEpoch.current) return;
     cache.setQueryData(['material-definitions', projectId], freshDefinitions);
     if (freshIdentity) cache.setQueryData(['material-identity', definition, offset], freshIdentity);
+    for (const { reference, identity } of freshReferences) cache.setQueryData(referenceKey(reference, version), identity);
     setBlocked(false);
   }, onError: (error, input) => fail(error, input.version) });
   // Errors from read promises are fenced inside their query functions, including detached reads.
@@ -64,7 +68,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const sheetGeneration = generation.current;
   const discard = () => {
     generation.current += 1; authorityEpoch.current += 1; edits.current += 1;
-    setBlocked(false); setCurrent(null); setPlan(emptyPlan()); setName(''); setDefinition(null); setDraftId(null); setRevisionId(null); setOffset(0);
+    setBlocked(false); setCurrent(null); setPlan(emptyPlan()); setName(''); setDefinition(null); setDraftId(null); setRevisionId(null); setOffset(0); setReferences({});
     load.reset(); save.reset(); freeze.reset(); refresh.reset();
     cache.removeQueries({ queryKey: ['material-sheet'] }); cache.removeQueries({ queryKey: ['material-identity'] });
   };
@@ -72,7 +76,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Group><Button variant="subtle" onClick={discard}>Discard unsaved material values and start new</Button><Text size="sm">This clears the current editor and retained selections.</Text></Group>
     {blocked ? <Alert color="red"><Stack><Text>Material access must be refreshed before retained evidence is shown. Unsaved values and their original editing token are retained.</Text><Button loading={refresh.isPending} onClick={() => refresh.mutate({ version: generation.current, epoch: authorityEpoch.current })}>Refresh material accounting access</Button>{refresh.isError && <Text>{refresh.error.message}</Text>}</Stack></Alert> : <>
       <Card withBorder><Stack><Title order={3}>{current ? 'Edit material plan' : 'New material plan'}</Title>{current ? <Text>{current.draft_id} · {current.state}</Text> : <TextInput label="Material plan name" value={name} onChange={e => setName(e.currentTarget.value)} />}
-        <PlanEditor value={plan} definitions={definitions.isError ? [] : definitions.data ?? []} onChange={next => { edits.current += 1; setPlan(next); }} />
+        <PlanEditor references={references} onReference={(label, reference) => setReferences(previous => ({ ...previous, [label]: reference }))} generation={sheetGeneration} onDenied={() => denied(sheetGeneration)} value={plan} definitions={definitions.isError ? [] : definitions.data ?? []} onChange={next => { edits.current += 1; setPlan(next); }} />
         <Group><Button disabled={pending || !plan.subject_revision_id || (!current && !name.trim())} onClick={() => save.mutate({ version: generation.current, payload: plan, draft: current })}>Save material plan</Button><Button disabled={pending || !current} onClick={() => freeze.mutate({ draft: current!, version: generation.current })}>Freeze saved material plan</Button></Group><Text size="sm">Freeze captures the saved draft. Unsaved edits stay separate.</Text>
       </Stack></Card>
       <Select label="Existing material plan" value={definition} data={(definitions.isError ? [] : definitions.data ?? []).filter(d => d.kind === 'material_plan').map(d => ({ value: d.definition_id, label: d.name }))} onChange={id => { setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
