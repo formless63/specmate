@@ -13,7 +13,7 @@ from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import LEGACY_SCOPE, project_scope
 from specmate.shared_scene.drawing_contracts import CreateDrawing, ReadDrawing, ReadDrawingScene
-from specmate.shared_scene.drawing_render import LIMITATIONS, render_drawing
+from specmate.shared_scene.drawing_render import render_drawing
 from specmate.shared_scene.models import SceneDrawing
 from specmate.shared_scene.projection import read_scene
 
@@ -47,6 +47,9 @@ def drawing_record(user, drawing_id, project_id=None):
 
 
 def metadata(drawing):
+    # Historic guidance belongs to these retained bytes, not the current renderer.
+    # Callers obtain the row only after fresh authority and stored hash checks.
+    manifest = json.loads(bytes(drawing.manifest))
     return {
         "drawing_id": str(drawing.id),
         "project_id": str(drawing.project_id),
@@ -59,13 +62,8 @@ def metadata(drawing):
         "svg_bytes": len(drawing.svg),
         "manifest_bytes": len(drawing.manifest),
         "created_at": drawing.created_at.isoformat(),
-        "limitations": LIMITATIONS,
-        "qualification": {
-            "fit": "not_evaluated",
-            "clearance": "not_evaluated",
-            "manufacturing": "not_evaluated",
-            "physical": False,
-        },
+        "limitations": manifest["limitations"],
+        "qualification": manifest["qualification"],
     }
 
 
