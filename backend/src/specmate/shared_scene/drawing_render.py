@@ -122,7 +122,7 @@ def projected(value, view):
         return [x, -z]
     if view == "end":
         return [y, -z]
-    return [(x + y) / math.sqrt(2), -(-0.8 * x + 0.8 * y + 2 * z) / math.sqrt(5.28)]
+    return [(x + y) / math.sqrt(2), (x - y - 2 * z) / math.sqrt(6)]
 
 
 LIMITATIONS = [
@@ -137,6 +137,8 @@ LIMITATIONS = [
     "Section clipping is uncapped illustrative line clipping, not native cross-section geometry.",
     "SVG coordinates round to six decimals; exact canonical matrices/pins remain in the manifest.",
     "Screen-fit output has no calibrated physical print scale.",
+    "Drawings use their declared orthographic projection basis, not a viewport screenshot; "
+    "isometric uses viewing direction (1,-1,1), unlike the interactive camera preset.",
     "Renderer v1 supports finite display coordinates up to absolute 1e9 mm, "
     "20000 processed segments and 8 MiB per SVG/manifest; these are illustration bounds.",
 ]
@@ -238,6 +240,11 @@ def render_drawing(scene, options, version):
     margin = span * 0.05
     width = max(high[0] - low[0], span / 2) + margin * 2
     notes = [
+        f"Root revision: {scene['root']['revision_id']}",
+        f"Scene snapshot: {scene['snapshot_id']} / SHA-256 {scene['sha256']}",
+        f"Renderer: {version}; view: {options.view}; units: {scene['units']}; "
+        f"frame: {scene['frame']}",
+        f"Display options: {options.model_dump(mode='json')}",
         *LIMITATIONS,
         *(
             f"{'/'.join(node['address']['path'])}: {node['name']} ({node['kind']}); "
@@ -291,6 +298,15 @@ def render_drawing(scene, options, version):
         "units": scene["units"],
         "frame": scene["frame"],
         "matrix_convention": scene["matrix_convention"],
+        "projection_basis": {
+            "top": [[1, 0, 0], [0, -1, 0]],
+            "front": [[1, 0, 0], [0, 0, -1]],
+            "end": [[0, 1, 0], [0, 0, -1]],
+            "isometric": [
+                [1 / math.sqrt(2), 1 / math.sqrt(2), 0],
+                [1 / math.sqrt(6), -1 / math.sqrt(6), -2 / math.sqrt(6)],
+            ],
+        }[options.view],
         "relationships": scene["relationships"],
         "options": options.model_dump(mode="json"),
         "qualification": scene["qualification"],

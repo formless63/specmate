@@ -311,3 +311,51 @@ in immutable canonical state and never qualify them. Reads recheck the full curr
 source/model/target closure before returning assumptions or diagnostics. The Mechanical
 sources editor and read-only frozen view expose the same declarations and missing
 prerequisites; editing later assumptions leaves retained snapshots unchanged.
+
+## Retained scene inspection drawings
+
+An exact frozen assembly can produce an immutable internal inspection SVG and JSON
+manifest through `shared_scene.create_drawing`. A project reader may deliberately
+create this derived inspection record; it edits no definition, placement, source,
+inventory, physical unit or release state. The request requires an idempotency key
+scoped by actor and selected project; the request fingerprint pins the exact
+snapshot, renderer version and options.
+Historic receipts are reauthorized before replay or conflict disclosure. Current
+root, nested input, source ancestry, model and target authority is checked before
+labels, rendering, retained metadata and each byte download. A selected project
+must own the root snapshot; readable inputs in other projects remain valid members
+of its authorized closure.
+
+Renderer `scene-line-svg-v1` projects accepted planar PCB outlines and declared
+positive stock lengths as explicitly labelled stock axes. It provides top, front,
+end and isometric orthographic illustrations, chosen branch opening/explosion and
+uncapped line clipping. Each instance retains an exact occurrence or feature
+address. Unknown canonical world placement remains unknown and undrawn. Features
+with unknown independent frames never inherit a guessed occurrence frame. Native
+mechanical models, complete wire/coax sections, installed routes, board thickness
+and component envelopes remain unavailable in these outputs. Existing interactive
+stock/Three.js renderers are retained separately. No native parsing or execution,
+PNG output, fit, clearance, manufacturing approval or physical qualification is
+claimed.
+
+Canonical matrices, revision/snapshot hashes, contextual firmware and source/model
+pins, declared roles, rights and unresolved prerequisites remain in the manifest.
+SVG line coordinates round to six decimals; the fitted screen viewport has no
+calibrated print scale. Renderer v1 rejects nonfinite or absolute display coordinates
+above 1e9 mm, more than 20000 processed segments, or more than 8 MiB per SVG/manifest.
+These are illustration bounds, not constraints on the engineering model. The
+manifest declares the orthographic projection basis; true isometric views use
+(1,-1,1), independently of the interactive viewport camera preset. A drawing is
+not a byte-identical viewport screenshot. Restore
+rebuilds the default display request from unchanged canonical inputs.
+
+Stored SVG and manifest bytes share one database transaction with the operation
+receipt. Database guards prevent later mutation and reject mismatched snapshot,
+project, options and output hashes. The retained package contains `drawing.svg`
+and `manifest.json` with deterministic archive metadata. Restricted or unknown
+source rights stay explicit: internal inspection grants no blanket redistribution,
+publication consent or release authority. Labels are escaped in generated-only
+SVG tags, with no scripts, embedded external assets or imported SVG content.
+The panel keeps preview bytes transient, clears them on account/project/focus or
+visibility or host-tab activation changes, and freshly authorizes and checks hashes for every preview
+and download. It offers explicit same-key retry after a lost generation response.

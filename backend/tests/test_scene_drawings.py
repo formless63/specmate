@@ -20,7 +20,7 @@ from specmate.operations import IdempotencyMismatch, NotFound, Unauthenticated, 
 from specmate.operations.models import IdempotencyRecord
 from specmate.shared_scene import drawing_operations
 from specmate.shared_scene.drawing_contracts import DrawingOptions
-from specmate.shared_scene.drawing_render import render_drawing
+from specmate.shared_scene.drawing_render import projected, render_drawing
 from specmate.shared_scene.models import SceneDrawing
 
 from .conftest import op
@@ -113,6 +113,9 @@ def test_deterministic_geometry_nested_ids_provenance_hashes_replay_and_frozen_h
     assert manifest["outputs"][0]["sha256"] == first["svg_sha256"]
     svg = ET.fromstring(bytes(stored.svg))  # noqa: S314 -- only our generated synthetic SVG.
     assert len(svg.findall(".//{http://www.w3.org/2000/svg}line")) == 8
+    displayed = " ".join(svg.itertext())
+    assert frozen["revision_id"] in displayed and frozen["sha256"] in displayed
+    assert "scene-line-svg-v1" in displayed and "uncapped" in displayed
     second = drawing(users["viewer"], project, frozen, key="distinct-record")
     assert second["drawing_id"] != first["drawing_id"]
     assert (second["svg_sha256"], second["manifest_sha256"]) == (
@@ -510,3 +513,114 @@ def test_drawing_scene_read_requires_selected_root_project_before_any_labels(use
     path = f"/api/v0/shared-scenes/drawing-scenes/{second['snapshot_id']}?project_id={project}"
     result = client.get(path)
     assert result.status_code == 404 and "Separate root project" not in result.content.decode()
+
+
+def test_http_generation_and_mcp_read_match_trusted_jobs_with_current_denial(
+    users,
+    project,
+    sourced_child,  # noqa: F811
+):
+    from specmate.operations import Context, execute
+
+    module, revoke = sourced_child
+    frozen = freeze(users["owner"], create(users["owner"], project, [occ("module", module)]))
+    client = Client()
+    client.force_login(users["viewer"])
+    payload = {"project_id": project, "snapshot_id": frozen["snapshot_id"]}
+    body = {
+        "operation": "shared_scene.create_drawing",
+        "request_id": "http-drawing",
+        "idempotency_key": "shared-channel-intent",
+        "payload": payload,
+    }
+    response = client.post(
+        "/api/v0/operations", data=json.dumps(body), content_type="application/json"
+    )
+    assert response.status_code == 200
+    created = response.json()["result"]
+    assert drawing(users["viewer"], project, frozen, key="shared-channel-intent") == created
+    read_payload = {"drawing_id": created["drawing_id"], "project_id": project}
+    mcp = Context(user=users["viewer"], via="mcp", request_id="mcp-drawing")
+    assert execute("shared_scene.read_drawing", mcp, read_payload).result == read(
+        users["viewer"], created
+    )
+    revoke()
+    with pytest.raises(NotFound):
+        execute("shared_scene.read_drawing", mcp, read_payload)
+    assert (
+        client.post(
+            "/api/v0/operations", data=json.dumps(body), content_type="application/json"
+        ).status_code
+        == 404
+    )
+    client.logout()
+    assert (
+        client.get(f"/api/v0/shared-scenes/drawings/{created['drawing_id']}/svg").status_code == 401
+    )
+
+
+def test_manifest_retains_repeated_contextual_firmware_exact_pins(users, project):
+    owner = users["owner"]
+    _, board = part(owner, project)
+    _, first = part(owner, project, "firmware", "First program")
+    _, second = part(owner, project, "firmware", "Second program")
+    module = freeze(owner, create(owner, project, [occ("board", board)]))
+    frozen = freeze(
+        owner,
+        create(
+            owner,
+            project,
+            [occ("left", module), occ("right", module)],
+            assignments=[
+                {
+                    "path": ["left", "board"],
+                    "assignments": {"firmware_revision_id": first["revision_id"]},
+                },
+                {
+                    "path": ["right", "board"],
+                    "assignments": {"firmware_revision_id": second["revision_id"]},
+                },
+            ],
+        ),
+    )
+    manifest = read(users["viewer"], drawing(users["viewer"], project, frozen))["manifest"]
+    rows = {tuple(node["address"]["path"]): node for node in manifest["nodes"]}
+    assert rows[("left", "board")]["firmware"]["revision_id"] == first["revision_id"]
+    assert rows[("right", "board")]["firmware"]["snapshot_sha256"] == second["sha256"]
+    assert rows[("left", "board")]["firmware"]["declaration"]["sources"]
+    assert rows[("right", "board")]["firmware"]["declaration"]["target"]
+
+
+def test_orthographic_axes_and_isometric_equal_foreshortening_are_independent():
+    assert projected([7, 11, 13], "top") == [7, -11]
+    assert projected([7, 11, 13], "front") == [7, -13]
+    assert projected([7, 11, 13], "end") == [11, -13]
+    for axis in ([1, 0, 0], [0, 1, 0], [0, 0, 1]):
+        assert math.hypot(*projected(axis, "isometric")) == pytest.approx(math.sqrt(2 / 3))
+    # The chosen viewing direction projects to zero; it is not a physical model frame.
+    assert projected([1, -1, 1], "isometric") == [0, 0]
+
+
+def test_render_budgets_fail_atomically_even_when_every_segment_would_be_clipped(
+    users,
+    project,
+    mec_board,  # noqa: F811
+    monkeypatch,
+):
+    from specmate.shared_scene import drawing_render
+
+    _, frozen = repeated(users["owner"], project, mec_board)
+    before = IdempotencyRecord.objects.count()
+    monkeypatch.setattr(drawing_render, "MAX_SEGMENTS", 3)
+    with pytest.raises(ValidationFailed, match="segment limit"):
+        drawing(
+            users["viewer"],
+            project,
+            frozen,
+            options={"section": {"enabled": True, "axis": "x", "offset_mm": 1000}},
+        )
+    monkeypatch.setattr(drawing_render, "MAX_SEGMENTS", 20000)
+    monkeypatch.setattr(drawing_render, "MAX_BYTES", 1)
+    with pytest.raises(ValidationFailed, match="output byte limit"):
+        drawing(users["viewer"], project, frozen)
+    assert SceneDrawing.objects.count() == 0 and IdempotencyRecord.objects.count() == before
