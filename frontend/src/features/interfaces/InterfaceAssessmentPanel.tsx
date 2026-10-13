@@ -1,6 +1,6 @@
 import { Alert, Badge, Button, Card, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { randomUUID } from "../../lib/random-id";
 import type { Definition, Identity } from "../identity/api";
 import { command, initialAssessment, operating, read, unknownEvidence, type Assessment, type AssessmentDraft, type Bond, type Dimension, type Evidence, type Inspection, type Result, type Status } from "./assessment-api";
@@ -13,10 +13,10 @@ const dimensions: { id: Dimension; label: string }[] = [
 const choices = [{ value: "unknown", label: "Unknown" }, { value: "satisfied", label: "Declared satisfied" }, { value: "invalid", label: "Declared conflict" }];
 
 /** Mount in the interfaces workspace with the current principal and permissions. */
-export function InterfaceAssessmentPanel({ projectId, principalKey, canEdit, canFreeze }: { projectId: string; principalKey: string; canEdit: boolean; canFreeze: boolean }) {
-  return <Workspace key={`${projectId}:${principalKey}:${canEdit}:${canFreeze}`} projectId={projectId} canEdit={canEdit} canFreeze={canFreeze} />;
+export function InterfaceAssessmentPanel({ projectId, principalKey, canEdit, canFreeze, active = true }: { projectId: string; principalKey: string; canEdit: boolean; canFreeze: boolean; active?: boolean }) {
+  return <Workspace key={`${projectId}:${principalKey}:${canEdit}:${canFreeze}`} projectId={projectId} canEdit={canEdit} canFreeze={canFreeze} isActive={active} />;
 }
-function Workspace({ projectId, canEdit, canFreeze }: { projectId: string; canEdit: boolean; canFreeze: boolean }) {
+function Workspace({ projectId, canEdit, canFreeze, isActive }: { projectId: string; canEdit: boolean; canFreeze: boolean; isActive: boolean }) {
   const [scope] = useState(randomUUID);
   const cache = useQueryClient();
   const active = useRef(true);
@@ -25,25 +25,49 @@ function Workspace({ projectId, canEdit, canFreeze }: { projectId: string; canEd
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [offset, setOffset] = useState(0);
-  const refresh = () => cache.invalidateQueries({ queryKey: [scope] });
+  const [checkingMutation, setCheckingMutation] = useState(false);
+  const [checkingAuthority, setCheckingAuthority] = useState(false);
+  const authorityGeneration = useRef(0);
+  const refresh = useCallback(async () => {
+    const generation = ++authorityGeneration.current;
+    setCheckingAuthority(true);
+    try { await cache.invalidateQueries({ queryKey: [scope] }); }
+    finally { if (active.current && generation === authorityGeneration.current) setCheckingAuthority(false); }
+  }, [cache, scope]);
+  useEffect(() => {
+    if (isActive) void refresh();
+    else {
+      authorityGeneration.current += 1;
+      setCheckingAuthority(true);
+      void cache.cancelQueries({ queryKey: [scope] });
+    }
+  }, [cache, scope, isActive, refresh]);
+  const finishMutation = async () => {
+    if (!active.current) return;
+    try { await refresh(); }
+    finally { if (active.current) setCheckingMutation(false); }
+  };
+  useEffect(() => {
+    const focus = () => { if (isActive) void refresh(); };
+    window.addEventListener("focus", focus);
+    return () => { window.removeEventListener("focus", focus); };
+  }, [isActive, refresh]);
   useEffect(() => {
     active.current = true;
-    const focus = () => { void cache.invalidateQueries({ queryKey: [scope] }); };
-    window.addEventListener("focus", focus);
-    return () => { active.current = false; window.removeEventListener("focus", focus); void cache.cancelQueries({ queryKey: [scope] }); cache.removeQueries({ queryKey: [scope] }); };
+    return () => { active.current = false; authorityGeneration.current += 1; void cache.cancelQueries({ queryKey: [scope] }); cache.removeQueries({ queryKey: [scope] }); };
   }, [cache, scope]);
-  const options = { retry: false as const, staleTime: 0 };
+  const options = { retry: false as const, staleTime: 0, enabled: isActive };
   const definitions = useQuery({ ...options, queryKey: [scope, "definitions"], queryFn: ({ signal }) => read<Definition[]>(`projects/${projectId}/definitions`, { signal }) });
-  const identity = useQuery({ ...options, queryKey: [scope, "identity", definition, offset], queryFn: ({ signal }) => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`, { signal }), enabled: !!definition });
-  const draft = useQuery({ ...options, queryKey: [scope, "draft", draftId], queryFn: ({ signal }) => read<AssessmentDraft>(`interfaces/drafts/${draftId}`, { signal }), enabled: !!draftId });
-  const inspection = useQuery({ ...options, queryKey: [scope, "revision", revisionId], queryFn: ({ signal }) => read<Inspection>(`interfaces/revisions/${revisionId}`, { signal }), enabled: !!revisionId });
+  const identity = useQuery({ ...options, queryKey: [scope, "identity", definition, offset], queryFn: ({ signal }) => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`, { signal }), enabled: isActive && !!definition });
+  const draft = useQuery({ ...options, queryKey: [scope, "draft", draftId], queryFn: ({ signal }) => read<AssessmentDraft>(`interfaces/drafts/${draftId}`, { signal }), enabled: isActive && !!draftId });
+  const inspection = useQuery({ ...options, queryKey: [scope, "revision", revisionId], queryFn: ({ signal }) => read<Inspection>(`interfaces/revisions/${revisionId}`, { signal }), enabled: isActive && !!revisionId });
   const queries = [definitions, ...(definition ? [identity] : []), ...(draftId ? [draft] : []), ...(revisionId ? [inspection] : [])];
-  const ready = queries.every(q => !!q.data && !q.isFetching && !q.isError);
+  const ready = isActive && !checkingAuthority && !checkingMutation && queries.every(q => !!q.data && !q.isFetching && !q.isError);
   const error = queries.find(q => q.isError)?.error;
   return <Stack>
     <Title order={2}>Interface assessments</Title>
     <Text>Keep mating, pin correspondence, electrical limits, protocol, shielding, grounding and fit separate. Results describe declarations and explicit operating assumptions; they do not qualify a physical assembly.</Text>
-    <Button onClick={() => void refresh()}>Refresh assessment authority</Button>
+    <Button disabled={!isActive || checkingMutation} onClick={() => void refresh()}>Refresh assessment authority</Button>
     {error && <Alert color="red">{error.message}</Alert>}
     {!ready && !error && <Text>Checking current assessment authority…</Text>}
     <Select label="Saved assessment" searchable value={ready ? definition : null} data={ready ? (definitions.data ?? []).filter(d => d.kind === "interface_assessment").map(d => ({ value: d.definition_id, label: d.name })) : []} onChange={id => { setDefinition(id); setOffset(0); setDraftId(null); setRevisionId(null); setCreating(false); }} />
@@ -55,13 +79,13 @@ function Workspace({ projectId, canEdit, canFreeze }: { projectId: string; canEd
       <Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next assessment history</Button>
     </Group>}
     {canEdit && <Button disabled={!ready} onClick={() => { setCreating(true); setDraftId(null); setRevisionId(null); }}>New assessment</Button>}
-    {creating && <div hidden={!ready}><Author key="new" projectId={projectId} ready={ready} canFreeze={false} current={() => active.current} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); await refresh(); }} /></div>}
-    {canEdit && draft.data && <div hidden={!ready}><Author key={draft.data.draft_id} projectId={projectId} initial={draft.data} ready={ready} canFreeze={canFreeze} current={() => active.current} onSaved={async () => { if (active.current) await refresh(); }} onFrozen={id => { if (active.current) { setRevisionId(id); void refresh(); } }} /></div>}
+    {creating && <div hidden={!ready}><Author key="new" projectId={projectId} ready={ready} canFreeze={false} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); await refresh(); }} /></div>}
+    {canEdit && draft.data && <div hidden={!ready}><Author key={draft.data.draft_id} projectId={projectId} initial={draft.data} ready={ready} canFreeze={canFreeze} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async () => { if (active.current) await refresh(); }} onFrozen={id => { if (active.current) { setRevisionId(id); void refresh(); } }} /></div>}
     {ready && inspection.data && <><Text>Frozen revision {inspection.data.revision_id} · snapshot {inspection.data.snapshot_id} · SHA-256 {inspection.data.sha256}</Text><AssessmentResults result={inspection.data.assessment} /></>}
   </Stack>;
 }
 
-function Author({ projectId, initial, ready, canFreeze, current, onSaved, onFrozen }: { projectId: string; initial?: AssessmentDraft; ready: boolean; canFreeze: boolean; current: () => boolean; onSaved: (saved: AssessmentDraft) => Promise<void>; onFrozen?: (revision: string) => void }) {
+function Author({ projectId, initial, ready, canFreeze, current, onChecking, onChecked, onSaved, onFrozen }: { projectId: string; initial?: AssessmentDraft; ready: boolean; canFreeze: boolean; current: () => boolean; onChecking: () => void; onChecked: () => Promise<void>; onSaved: (saved: AssessmentDraft) => Promise<void>; onFrozen?: (revision: string) => void }) {
   const [value, setValue] = useState(initial?.content.interface ?? initialAssessment);
   const [state, setState] = useState(initial?.state);
   const [name, setName] = useState("");
@@ -69,7 +93,7 @@ function Author({ projectId, initial, ready, canFreeze, current, onSaved, onFroz
   const intent = useRef<{ fingerprint: string; key: string } | null>(null);
   const freezeIntent = useRef<{ state: string; key: string } | null>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
-  const save = useMutation({ mutationFn: () => {
+  const save = useMutation({ onMutate: onChecking, onSettled: onChecked, mutationFn: () => {
     const operation = initial ? "interface.update" : "interface.create";
     const payload = initial ? { draft_id: initial.draft_id, interface: value } : { project_id: projectId, name, interface: value };
     const fingerprint = JSON.stringify([operation, payload, state]);
@@ -78,7 +102,7 @@ function Author({ projectId, initial, ready, canFreeze, current, onSaved, onFroz
     if (initial) return command<Omit<AssessmentDraft, "definition_id">>(operation, payload, options).then(saved => ({ ...saved, definition_id: initial.definition_id }));
     return command<AssessmentDraft>(operation, payload, options);
   }, onSuccess: async saved => { if (!active.current || !current()) return; intent.current = null; setState(saved.state); setValue(saved.content.interface); await onSaved(saved); } });
-  const freeze = useMutation({ mutationFn: () => {
+  const freeze = useMutation({ onMutate: onChecking, onSettled: onChecked, mutationFn: () => {
     if (!freezeIntent.current || freezeIntent.current.state !== state) freezeIntent.current = { state: state!, key: randomUUID() };
     return command<{ revision_id: string; draft: Omit<AssessmentDraft, "definition_id"> }>("interface.freeze", { draft_id: initial!.draft_id }, { expectedState: state, idempotencyKey: freezeIntent.current.key });
   }, onSuccess: saved => { if (!active.current || !current()) return; freezeIntent.current = null; setState(saved.draft.state); onFrozen?.(saved.revision_id); } });

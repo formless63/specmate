@@ -36,10 +36,12 @@ function fixture() {
   let conflict = false;
   let held: Promise<Response> | undefined;
   let lost = false;
+  let commandResponse: Promise<Response> | undefined;
   const calls: { operation: string; payload: { interface?: ReturnType<typeof initialAssessment> }; expected_state?: string; idempotency_key: string }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
     if (options?.method === "POST") {
       const request = JSON.parse(String(options.body)); calls.push(request);
+      if (commandResponse) return (await commandResponse).clone();
       if (lost) { lost = false; throw new Error("Response unavailable"); }
       if (conflict) return new Response(JSON.stringify({ error: { message: "Draft changed" } }), { status: 409 });
       if (request.operation === "interface.update") draft = { ...draft, state: "draft-v3", content: { interface: request.payload.interface } };
@@ -53,7 +55,7 @@ function fixture() {
     if (url.includes("catalog/definitions/")) return new Response(JSON.stringify({ drafts: [{ draft_id: "draft", state: draft.state }], revisions: [{ revision_id: "frozen", number: 1 }] }));
     return new Response(JSON.stringify([{ definition_id: "assessment", name: "Original separated review", kind: "interface_assessment" }]));
   }));
-  return { calls, setDenied: (value: boolean) => { denied = value; }, setConflict: (value: boolean) => { conflict = value; }, setState: (value: string) => { draft = { ...draft, state: value }; }, hold: (value?: Promise<Response>) => { held = value; }, lose: () => { lost = true; } };
+  return { calls, commandResponse: (value?: Promise<Response>) => { commandResponse = value; }, setDenied: (value: boolean) => { denied = value; }, setConflict: (value: boolean) => { conflict = value; }, setState: (value: string) => { draft = { ...draft, state: value }; }, hold: (value?: Promise<Response>) => { held = value; }, lose: () => { lost = true; } };
 }
 async function editExisting() {
   await choose("Saved assessment", "Original separated review");
@@ -96,19 +98,20 @@ test("prepared fields and original CAS survive refresh and conflict; deliberate 
   expect(f.calls[2]!.payload.interface?.mating.basis).toBe("Prepared original basis");
 });
 
-test("held and denied current reads hide cached findings and prepared editor until exact recovery", async () => {
+test.each(["refresh", "focus"])("%s held and denied current reads hide cached findings and prepared editor until exact recovery", async trigger => {
   const f = fixture(); render(wrap(panel())); await editExisting();
   fireEvent.change(screen.getByLabelText("mating basis"), { target: { value: "Recover this prepared basis" } });
   await choose("Frozen assessment revision", "Revision 1");
   await screen.findByText("Declared mating pair with explicit basis");
   let release!: (response: Response) => void;
   f.hold(new Promise<Response>(resolve => { release = resolve; }));
-  fireEvent.click(screen.getByText("Refresh assessment authority"));
+  if (trigger === "focus") fireEvent(window, new Event("focus"));
+  else fireEvent.click(screen.getByText("Refresh assessment authority"));
   await waitFor(() => expect(screen.queryByText("Declared mating pair with explicit basis")).toBeNull());
   expect(screen.queryByRole("button", { name: "Save assessment draft" })).toBeNull();
   f.setDenied(true); f.hold();
   release(new Response(JSON.stringify({ error: { message: "Reference unavailable" } }), { status: 404 }));
-  await screen.findByText("Reference unavailable");
+  await screen.findAllByText("Reference unavailable");
   expect(screen.queryByRole("heading", { name: "Edit assessment" })).toBeNull();
   f.setDenied(false); fireEvent.click(screen.getByText("Refresh assessment authority"));
   await screen.findByText("Declared mating pair with explicit basis");
@@ -174,4 +177,60 @@ test("replacing a voltage with a negative value keeps the intermediate minus sig
   fireEvent.click(screen.getByRole("button", { name: "Save assessment draft" }));
   await waitFor(() => expect(f.calls.length).toBe(1));
   expect(f.calls[0]?.payload.interface?.pairs[0]?.operating).toMatchObject({ voltage_min_v: -1.25, voltage_max_v: -1, demand_a: null });
+});
+
+
+test("inactive tab return checks authority before restoring prepared edits and original CAS", async () => {
+  const f = fixture(); const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const node = (active: boolean) => wrap(<InterfaceAssessmentPanel projectId="project" principalKey="owner" canEdit canFreeze active={active} />, client);
+  const view = render(node(true)); await editExisting();
+  fireEvent.change(screen.getByLabelText("mating basis"), { target: { value: "Prepared across inactive tab" } });
+  await choose("Frozen assessment revision", "Revision 1");
+  await screen.findByText("Declared mating pair with explicit basis");
+  f.lose(); fireEvent.click(screen.getByRole("button", { name: "Save assessment draft" }));
+  await screen.findByText("Response unavailable");
+  await waitFor(() => expect((screen.getByRole("button", { name: "Save assessment draft" }) as HTMLButtonElement).disabled).toBe(false));
+  view.rerender(node(false));
+  expect(screen.queryByText("Declared mating pair with explicit basis")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Edit assessment" })).toBeNull();
+  f.setDenied(true); view.rerender(node(true));
+  await screen.findAllByText("Reference unavailable");
+  expect(screen.queryByText("Declared mating pair with explicit basis")).toBeNull();
+  f.setDenied(false); f.setState("draft-v2");
+  fireEvent.click(screen.getByText("Refresh assessment authority"));
+  await screen.findByText("Declared mating pair with explicit basis");
+  expect((screen.getByLabelText("mating basis") as HTMLInputElement).value).toBe("Prepared across inactive tab");
+  expect(screen.getByText("Editing basis draft-v1")).toBeTruthy();
+  fireEvent.click(screen.getByText("Save assessment draft"));
+  await waitFor(() => expect(f.calls).toHaveLength(2));
+  expect(f.calls[0]!.expected_state).toBe("draft-v1");
+  expect(f.calls[1]!.idempotency_key).toBe(f.calls[0]!.idempotency_key);
+});
+
+test.each(["Save assessment draft", "Freeze assessment revision"])("%s fences protected content during pending authority and denial, retaining retry identity", async action => {
+  const f = fixture(); render(wrap(panel())); await editExisting();
+  if (action.startsWith("Save")) fireEvent.change(screen.getByLabelText("mating basis"), { target: { value: "Recover denied prepared basis" } });
+  await choose("Frozen assessment revision", "Revision 1");
+  await screen.findByText("Declared mating pair with explicit basis");
+  let release!: (value: Response) => void;
+  f.commandResponse(new Promise(resolve => { release = resolve; }));
+  fireEvent.click(screen.getByRole("button", { name: action }));
+  await waitFor(() => expect(f.calls).toHaveLength(1));
+  expect(screen.queryByText("Declared mating pair with explicit basis")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Edit assessment" })).toBeNull();
+  f.setDenied(true);
+  release(new Response(JSON.stringify({ error: { message: "Reference unavailable" } }), { status: 404 }));
+  await screen.findAllByText("Reference unavailable");
+  expect(screen.queryByText("Declared mating pair with explicit basis")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Edit assessment" })).toBeNull();
+  await waitFor(() => expect((screen.getByRole("button", { name: "Refresh assessment authority" }) as HTMLButtonElement).disabled).toBe(false));
+  f.setDenied(false); f.commandResponse();
+  fireEvent.click(screen.getByText("Refresh assessment authority"));
+  await screen.findByText("Declared mating pair with explicit basis");
+  expect(screen.getByText("Editing basis draft-v1")).toBeTruthy();
+  if (action.startsWith("Save")) expect((screen.getByLabelText("mating basis") as HTMLInputElement).value).toBe("Recover denied prepared basis");
+  fireEvent.click(screen.getByRole("button", { name: action }));
+  await waitFor(() => expect(f.calls).toHaveLength(2));
+  expect(f.calls[1]).toMatchObject({ operation: f.calls[0]!.operation, payload: f.calls[0]!.payload,
+    expected_state: f.calls[0]!.expected_state, idempotency_key: f.calls[0]!.idempotency_key });
 });
