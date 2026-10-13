@@ -41,6 +41,7 @@ from specmate.physical_units.api import router as physical_units_router
 from specmate.preparation.api import router as preparation_router
 from specmate.revision_upgrades.api import router as upgrades_router
 from specmate.selected_packages.api import create_router as selected_packages_router
+from specmate.shared_scene.api import router as shared_scene_router
 from specmate.sources.api import router as sources_router
 from specmate.wire_stock.api import router as stock_router
 from specmate.workshop_profiles.api import router as workshop_profile_router
@@ -73,6 +74,7 @@ api.add_router("/v0/material-accounting", material_accounting_router)
 api.add_router("/v0/mechanical-sources", mechanical_sources_router)
 api.add_router("/v0/firmware-builds", firmware_builds_router)
 api.add_router("/v0/firmware-impact", firmware_impact_router)
+api.add_router("/v0/shared-scenes", shared_scene_router)
 api.add_router("/v0/selected-packages", selected_packages_router())
 api.add_router("/v0/preparation", preparation_router)
 api.add_router("/v0/end-preparation", end_preparation_router)
