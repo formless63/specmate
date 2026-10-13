@@ -12,6 +12,8 @@ from specmate.catalog_matching.queries import (
     evidence_result,
     revision_identity,
 )
+from specmate.design.models import Snapshot
+from specmate.design.operations import authorize_snapshot
 from specmate.interfaces.contracts import ConnectorBody, Pinout
 from specmate.interfaces.queries import read_revision
 from specmate.operations import NotFound, Unsupported, ValidationFailed
@@ -27,6 +29,10 @@ def references(
     # Complete authority before identity, owning-kind or path diagnostics.
     old = get_revision(user, old_revision_id)
     candidate = get_revision(user, candidate_revision_id)
+    owning = Snapshot.objects.select_related("definition").filter(id=owning_snapshot_id).first()
+    if owning is None:
+        raise NotFound("Upgrade owning snapshot unavailable.")
+    authorize_snapshot(user, owning)
     snapshot, closure = get_snapshot(user, owning_snapshot_id)
     if edit:
         authorize(user, snapshot.definition.project_id, Perm.DESIGN_EDIT)
@@ -169,6 +175,11 @@ def result(user, proposal_id):
     )
     baseline = json.loads(bytes(snapshot.canonical))["content"]
     latest = reviews[-1] if reviews else None
+    if latest and latest.decision == "accepted":
+        reviewed = reviewed_content(
+            user, snapshot, closure, old, candidate, proposal.paths, latest.features
+        )
+        replacement = Closure(user, reviewed, kind="assembly")
     return {
         "proposal_id": str(proposal.id),
         "owning_snapshot_id": str(snapshot.id),
@@ -184,7 +195,10 @@ def result(user, proposal_id):
         "compatibility": "not_evaluated",
         "validity": "not_evaluated",
         "qualification": "not_evaluated",
-        "affected_features": [{"path": ref.path, "feature_id": ref.feature_id} for ref in affected],
+        "affected_features": [
+            {"path": list(path), "feature_id": feature}
+            for path, feature in sorted({(tuple(ref.path), ref.feature_id) for ref in affected})
+        ],
         "occurrences": [
             {
                 "path": list(path),

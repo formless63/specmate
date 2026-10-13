@@ -106,6 +106,7 @@ def test_independent_selected_adoption_retains_relationships_unknowns_and_frozen
     assert proposal["affected_features"] == [{"path": ["left"], "feature_id": "pin-a"}]
     assert op(owner, "upgrade.propose", payload, idempotency_key="proposal") == proposal
     reviewed = accepted(owner, proposal)
+    assert reviewed["candidate_relationships"][0]["a"]["feature_id"] == "pin-b"
     result = op(
         owner,
         "upgrade.apply",
@@ -453,6 +454,7 @@ def test_unchanged_contact_labels_still_require_explicit_review(users, fixture):
         ],
     )
     assert reviewed["decision"] == "accepted"
+    assert reviewed["candidate_relationships"][0]["a"]["feature_id"] == "pin-a"
     assert reviewed["qualification"] == "not_evaluated"
 
 
@@ -503,7 +505,7 @@ def test_competing_reviews_serialize_under_exact_proposal_token(users, fixture):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Barrier
 
-    from django.db import close_old_connections
+    from django.db import close_old_connections, connections
 
     payload, _ = fixture
     owner = users["owner"]
@@ -518,9 +520,97 @@ def test_competing_reviews_serialize_under_exact_proposal_token(users, fixture):
         except Conflict:
             return "conflict"
         finally:
-            close_old_connections()
+            connections.close_all()
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         outcomes = list(pool.map(lambda _: append_review(), range(2)))
     assert sorted(outcomes) == ["conflict", "upgrade-v1"]
     assert UpgradeReview.objects.count() == 1
+
+
+def test_owning_pack_origin_source_revocation_precedes_paths_and_key_mismatch(
+    users, project, fixture
+):
+    from specmate.catalog_packs.models import AdoptionEntry
+    from specmate.sources.models import SourceBundleFile
+
+    from .test_catalog_packs import manifest
+
+    payload, owning = fixture
+    owner, editor = users["owner"], users["editor"]
+    source_project = op(owner, "project.create", {"name": "Controlled owning origin source"})[
+        "project_id"
+    ]
+    Membership.objects.create(project_id=source_project, user=editor, role="viewer")
+    evidence = source_evidence(users, source_project)
+    source = SourceBundleFile.objects.select_related("blob").get(
+        revision_id=evidence["source_bundle_revision_id"], path=evidence["source_path"]
+    )
+    declaration = manifest(owning)
+    declaration["entries"][0]["source"] = {
+        "source_bundle_revision_id": evidence["source_bundle_revision_id"],
+        "source_path": evidence["source_path"],
+        "sha256": source.blob.sha256,
+        "rights": source.rights,
+    }
+    version = op(editor, "catalog_pack.register", {"project_id": project, "manifest": declaration})
+    op(
+        editor,
+        "catalog_pack.install",
+        {
+            "pack_id": version["pack_id"],
+            "version_id": version["version_id"],
+            "basis": "Reviewed inert origin",
+        },
+        expected_state="pack-v0",
+    )
+    op(
+        editor,
+        "catalog_pack.adopt",
+        {
+            "pack_id": version["pack_id"],
+            "version_id": version["version_id"],
+            "entry_keys": ["part"],
+            "basis": "Independent owning assembly",
+        },
+        expected_state="pack-v1",
+    )
+    adopted = AdoptionEntry.objects.get()
+    capture = op(
+        owner, "assembly.freeze", {"draft_id": str(adopted.draft_id)}, expected_state="draft-v1"
+    )
+    supplied = {**payload, "owning_snapshot_id": capture["snapshot_id"]}
+    proposal = op(editor, "upgrade.propose", supplied, idempotency_key="origin-proposal")
+    Membership.objects.filter(project_id=source_project, user=editor).delete()
+    for changed in [
+        supplied,
+        {**supplied, "paths": [["missing"]]},
+        {**supplied, "candidate_revision_id": supplied["old_revision_id"]},
+    ]:
+        with pytest.raises(NotFound):
+            op(editor, "upgrade.propose", changed, idempotency_key="origin-proposal")
+    with pytest.raises(NotFound):
+        op(editor, "upgrade.read", {"proposal_id": proposal["proposal_id"]})
+
+
+def test_mcp_operation_context_uses_same_review_authority(users, fixture):
+    from specmate.operations import Context, execute
+
+    payload, _ = fixture
+    result = execute(
+        "upgrade.propose",
+        Context(user=users["editor"], via="mcp", request_id="mcp-proposal"),
+        payload,
+    ).result
+    read = execute(
+        "upgrade.read",
+        Context(user=users["viewer"], via="mcp", request_id="mcp-read"),
+        {"proposal_id": result["proposal_id"]},
+    ).result
+    assert read == result
+    with pytest.raises(PermissionDenied):
+        execute(
+            "upgrade.propose",
+            Context(user=users["viewer"], via="mcp", request_id="mcp-denied"),
+            payload,
+        )
