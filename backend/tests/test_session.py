@@ -22,6 +22,7 @@ def test_anonymous_session_bootstraps_csrf_without_private_projects():
     client = Client(enforce_csrf_checks=True)
     response = client.get("/api/v0/session")
     assert response.json() == {"user": None, "owner_setup_required": True}
+    assert "no-store" in response.headers["Cache-Control"]
     assert client.cookies["csrftoken"].value
     assert client.get("/api/v0/projects").status_code == 401
 
@@ -127,3 +128,31 @@ def test_owner_claim_preserves_setup_then_login_logout():
         ).status_code
         == 200
     )
+
+
+def test_login_rejects_cross_origin_even_with_matching_csrf():
+    user = get_user_model().objects.create_user(username="local-user", password=PASSWORD)
+    client = Client(enforce_csrf_checks=True)
+    client.get("/api/v0/session")
+    response = client.post(
+        "/api/v0/session/login",
+        {"request_id": "origin", "username": user.username, "password": PASSWORD},
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=client.cookies["csrftoken"].value,
+        HTTP_ORIGIN="https://untrusted.example",
+    )
+    assert response.status_code == 403
+    assert client.get("/api/v0/session").json()["user"] is None
+
+
+def test_dedicated_login_rejects_replay_keys_and_caller_identity():
+    client = Client(enforce_csrf_checks=True)
+    client.get("/api/v0/session")
+    for extra in ({"idempotency_key": "replay"}, {"user_id": "actor"}):
+        response = post(
+            client,
+            "/api/v0/session/login",
+            {"username": "local-user", "password": PASSWORD, **extra},
+        )
+        assert response.status_code == 422
+    assert not IdempotencyRecord.objects.exists()
