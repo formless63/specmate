@@ -86,8 +86,9 @@ The `specmate.selected-assembly-package` format, schema version `0.1`, contains:
 
 The ZIP uses fixed timestamps and sorted entries. The review operation returns a manifest
 hash; the download returns an archive digest. The manifest does not attempt to hash itself.
-The pure `verify_files` helper checks file inventory/hashes, canonical identities, exact
-required design pins, contextual firmware and source bytes without a database. It reports
+The standard-library-only `verify_files` helper checks file inventory/hashes, canonical
+identities, exact required design pins, contextual firmware and source bytes without an
+application installation or database. It reports
 missing required dependencies and declared limitations, including intentionally omitted
 files. A trusted separately retained manifest hash is needed to detect replacement of the
 manifest itself; this is byte integrity, not a digital signature or rights certification.
@@ -97,3 +98,65 @@ content. Inputs remain inert data; packaging never parses native sources or exec
 The browser component supplies structured revision/occurrence selection, rights review,
 explicit rereview after changes, and a freshly authorized POST download. Denial clears its
 retained package/projection until an explicit full authority refresh succeeds.
+
+
+### Verify an offline ZIP
+
+Obtain the verifier from a trusted Specmate source checkout, separately from the engineering
+package being checked. Retain the manifest SHA-256 returned by the authorized package review
+through an independent channel. A hash copied from the same untrusted package cannot identify
+that reviewed package: an attacker can replace both bytes and their declared hashes.
+
+With Python 3.11 or later and the trusted checkout, run:
+
+```bash
+python3 -I -S scripts/verify_selected_package.py selected.zip --manifest-sha256 <retained-manifest-sha256>
+```
+
+For a computer without the source checkout, copy the trusted
+`backend/src/specmate/selected_packages/verification.py` file separately, then run:
+
+```bash
+python3 -I -S verification.py selected.zip --manifest-sha256 <retained-manifest-sha256>
+```
+
+Both entry points use only Python's standard library. They require no Specmate, Django,
+server, network, native tool, database or third-party Python package. Never execute a
+verifier or source obtained from the engineering package under inspection. The verifier
+reads ZIP entries into bounded memory; it never extracts files or executes included data.
+
+The command prints one JSON result. Exit `0` means the retained manifest digest matches,
+all declared file bytes and supported identity/pin relationships agree, and no declared
+required limitation remains. Exit `2` with a JSON result means byte integrity agrees but
+required dependencies or supported semantics remain explicitly limited. Exit `1` means
+integrity, identity, format or safety verification failed; completeness is then unverified.
+Missing CLI arguments also return `2`, accompanied by usage text rather than a JSON result.
+`manifest_identity` reports whether the independently supplied digest matched. The internal
+`verify_files` compatibility helper still allows an omitted digest for consistency checks;
+that mode cannot identify a previously reviewed package.
+
+ZIP verification rejects duplicate or case-colliding paths, traversal, absolute/drive or
+unnormalized paths, file/directory collisions, symlinks and other special entries, directories,
+encryption, unsupported compression and malformed metadata. Only stored or deflated,
+single-disk ZIPs within 20 MiB compressed, 16 MiB uncompressed and 4,000 files are supported;
+ZIP64 and excessive JSON nesting are rejected. Hash/size checks cover the exact inventory,
+canonical snapshots, dependency closure, relative occurrences, recognized declarative source
+pins and source ancestry identities/digests. Missing source bytes remain visible even when
+intentionally omitted for rights. Included sources require attributable permitted declarations;
+this checks the declaration's consistency, not legal permission.
+
+Verification covers this versioned selected-package family. Context-external parent data is
+not reconstructed: retained root/context pins and assignment declarations are manifest
+provenance. An omitted root/context record cannot be reconstructed or authenticated offline;
+its retained identity and digest are pins only, relative to the independently retained
+manifest hash. Unknown geometry, boundary meaning, extension formats and unavailable native
+interpretation remain explicit. Passing verification authenticates no publisher, certifies
+no distribution rights, compiles or flashes no firmware, and provides no manufacturing,
+compatibility, continuity or physical qualification. General portable output and release
+qualification retain their accepted broader scope.
+
+The standalone adversarial and isolated-Python CLI tests can run without an application:
+
+```bash
+python3 -I -S tests/portable/test_verification.py
+```
