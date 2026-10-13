@@ -23,6 +23,43 @@ from .test_preparation_documents import configuration, files, retain
 from .test_shared_read_authority import adopt_with_remote_origin, restore, revoke
 from .test_sources import files as source_files
 from .test_sources import register, sha
+from .test_transports import api
+
+
+def test_mounted_document_routes_preserve_viewer_bytes_and_hide_outside_receipts(users, project):
+    _, root = cable(users["owner"], project)
+    _, saved = retain(users["owner"], configuration(root))
+    expected = files(users["viewer"], saved)
+    viewer = api(users["viewer"])
+    listing = viewer.get(f"/api/v0/preparation-documents/projects/{project}")
+    assert listing.status_code == 200
+    assert listing["Cache-Control"] == "private, no-store"
+    assert listing.json()["document_sets"] == [saved]
+    receipt_url = f"/api/v0/preparation-documents/sets/{saved['document_set_id']}"
+    response = viewer.get(receipt_url)
+    assert response.status_code == 200
+    assert response.json() == saved
+    assert response["Cache-Control"] == "private, no-store"
+    for filename, content in expected.items():
+        response = viewer.post(
+            "/api/v0/preparation-documents/download",
+            data=json.dumps({"document_set_id": saved["document_set_id"], "filename": filename}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.content == content
+        assert response["Cache-Control"] == "private, no-store"
+        assert response["X-Content-Type-Options"] == "nosniff"
+    outsider = api(users["outsider"])
+    assert outsider.get(receipt_url).status_code == 404
+    assert outsider.get(f"/api/v0/preparation-documents/projects/{project}").status_code == 404
+    response = outsider.post(
+        "/api/v0/preparation-documents/download",
+        data=json.dumps({"document_set_id": saved["document_set_id"], "filename": "schematic.svg"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 404
+    assert response.json()["error"]["details"] == {}
 
 
 def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users, project):
