@@ -1,13 +1,12 @@
 """Operator-approved, digest-pinned single-stage recipes. No client command strings."""
 
-from pathlib import PurePosixPath
 from typing import Literal
 
 from django.conf import settings
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
-from specmate.contracts import IDENT, check_package_path
+from specmate.contracts import IDENT, check_file_tree, check_package_path
 from specmate.operations import Unsupported, ValidationFailed
 
 # Current native-runner capability envelope. Source storage can support larger
@@ -15,19 +14,6 @@ from specmate.operations import Unsupported, ValidationFailed
 MAX_FILES = 512
 MAX_FILE_BYTES = 64 * 1024**2
 MAX_INPUT_BYTES = 256 * 1024**2
-
-
-def check_file_tree(paths: list[str], *, max_depth: int | None = None) -> None:
-    normalized = [check_package_path(path).casefold() for path in paths]
-    unique = set(normalized)
-    if len(unique) != len(normalized):
-        raise ValueError("file paths must be unique, ignoring case")
-    for path in unique:
-        pure = PurePosixPath(path)
-        if max_depth is not None and len(pure.parts) > max_depth:
-            raise ValueError("output paths exceed the runner's directory nesting limit")
-        if any(str(parent) in unique for parent in pure.parents):
-            raise ValueError("file paths contain a file/directory collision")
 
 
 class Limits(BaseModel):

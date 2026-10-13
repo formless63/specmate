@@ -45,3 +45,20 @@ def test_manifest_rejects_paths_differing_only_in_case():
     example["files"] = [entry, {**entry, "path": entry["path"].upper()}]
     with pytest.raises(ValidationError):
         SourceBundleManifest.model_validate(example)
+
+
+@pytest.mark.parametrize("paths", [("a", "a/b"), ("a/b", "a"), ("A", "a/b"), ("A/B/c", "a/b")])
+def test_manifest_rejects_file_directory_collisions(paths):
+    example = json.loads((CONTRACTS / "examples/source-bundle.json").read_text())
+    entry = example["files"][0]
+    example["files"] = [{**entry, "path": path} for path in paths]
+    with pytest.raises(ValidationError, match="file/directory collision"):
+        SourceBundleManifest.model_validate(example)
+
+
+def test_manifest_allows_shared_directories_and_similar_file_names():
+    example = json.loads((CONTRACTS / "examples/source-bundle.json").read_text())
+    entry = example["files"][0]
+    paths = ["a/b", "a/c", "ab", "ab.txt", "deep/tree/one", "deep/tree/two"]
+    example["files"] = [{**entry, "path": path} for path in paths]
+    assert len(SourceBundleManifest.model_validate(example).files) == len(paths)

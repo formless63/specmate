@@ -202,3 +202,64 @@ def test_bytes_registered_elsewhere_are_not_usable(users, project):
             "source.create_original_bundle",
             {"project_id": project, "name": "Bad", "files": files(EDITED)},
         )
+
+
+@pytest.mark.parametrize("paths", [("a", "a/b"), ("a/b", "a"), ("A", "a/b")])
+def test_colliding_bundle_intake_rolls_back_and_corrected_retry_succeeds(users, project, paths):
+    register(users["editor"], project, ORIGINAL)
+    payload = {
+        "project_id": project,
+        "name": "Synthetic tree",
+        "files": [files(ORIGINAL, path)[0] for path in paths],
+    }
+    with pytest.raises(ValidationFailed, match="Invalid bundle manifest"):
+        op(users["editor"], "source.create_original_bundle", payload, idempotency_key="tree-intake")
+    assert not SourceBundle.objects.exists()
+    payload["files"] = files(ORIGINAL, "a/b") + files(ORIGINAL, "a/c")
+    created = op(
+        users["editor"], "source.create_original_bundle", payload, idempotency_key="tree-intake"
+    )
+    assert created["number"] == 1
+    bundle = SourceBundle.objects.get(id=created["bundle_id"])
+    assert set(bundle.revisions.get(number=1).files.values_list("path", flat=True)) == {
+        "a/b",
+        "a/c",
+    }
+
+
+def test_colliding_revision_intake_retains_original_state_and_corrected_retry(users, project):
+    register(users["editor"], project, ORIGINAL)
+    created = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {
+            "project_id": project,
+            "name": "Synthetic original",
+            "files": files(ORIGINAL),
+        },
+    )
+    payload = {
+        "bundle_id": created["bundle_id"],
+        "files": files(ORIGINAL, "A") + files(ORIGINAL, "a/b"),
+    }
+    with pytest.raises(ValidationFailed, match="Invalid bundle manifest"):
+        op(
+            users["editor"],
+            "source.revise_bundle",
+            payload,
+            expected_state=created["state"],
+            idempotency_key="tree-revision",
+        )
+    bundle = SourceBundle.objects.get(id=created["bundle_id"])
+    assert bundle.revisions.count() == 1
+    assert bundle.revisions.get(number=1).manifest_sha256 == created["manifest_sha256"]
+    payload["files"] = files(ORIGINAL, "a/b") + files(ORIGINAL, "a/c")
+    revised = op(
+        users["editor"],
+        "source.revise_bundle",
+        payload,
+        expected_state=created["state"],
+        idempotency_key="tree-revision",
+    )
+    assert revised["number"] == 2
+    assert bundle.revisions.count() == 2

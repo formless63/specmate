@@ -45,6 +45,19 @@ def check_package_path(value: str) -> str:
     return value
 
 
+def check_file_tree(paths: list[str], *, max_depth: int | None = None) -> None:
+    normalized = [check_package_path(path).casefold() for path in paths]
+    unique = set(normalized)
+    if len(unique) != len(normalized):
+        raise ValueError("file paths must be unique, ignoring case")
+    for path in unique:
+        pure = PurePosixPath(path)
+        if max_depth is not None and len(pure.parts) > max_depth:
+            raise ValueError("output paths exceed the runner's directory nesting limit")
+        if any(str(parent) in unique for parent in pure.parents):
+            raise ValueError("file paths contain a file/directory collision")
+
+
 class SourceBundleFileEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -72,9 +85,7 @@ class SourceBundleManifest(BaseModel):
 
     @model_validator(mode="after")
     def unique_paths(self) -> SourceBundleManifest:
-        folded = [f.path.casefold() for f in self.files]
-        if len(set(folded)) != len(folded):
-            raise ValueError("file paths must be unique, ignoring case")
+        check_file_tree([file.path for file in self.files])
         return self
 
 

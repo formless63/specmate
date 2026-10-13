@@ -78,7 +78,12 @@ def bundle_state(bundle: SourceBundle, number: int) -> str:
 def _write_revision(
     ctx: Context, bundle: SourceBundle, files: list[FileRef], ancestry: list[str]
 ) -> SourceBundleRevision:
-    blobs = {b.sha256: b for b in SourceBlob.objects.filter(project=bundle.project)}
+    blobs = {
+        b.sha256: b
+        for b in SourceBlob.objects.filter(
+            project=bundle.project, sha256__in={file.sha256 for file in files}
+        )
+    }
     entries = []
     for f in files:
         blob = blobs.get(f.sha256)

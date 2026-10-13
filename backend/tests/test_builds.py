@@ -2,6 +2,7 @@
 
 import hashlib
 import io
+import json
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -27,7 +28,7 @@ from specmate.operations import (
     execute,
 )
 from specmate.sources import blobstore
-from specmate.sources.models import SourceBlob
+from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleRevision
 
 from .conftest import op
 
@@ -642,24 +643,58 @@ def test_build_rejects_oversized_or_colliding_source_bundles_before_outbox(
             registered_by=users["owner"],
         )
         hashes[size] = sha256
-    source = op(
-        users["owner"],
-        "source.create_original_bundle",
-        {
-            "project_id": project,
-            "name": "Unsupported execution input",
+    if paths == ["directory", "directory/source.bin"]:
+        # Deliberately invalid metadata retains build defense-in-depth coverage;
+        # normal source intake now rejects this tree before committing a revision.
+        bundle = SourceBundle.objects.create(
+            project_id=project,
+            name="Invalid metadata fixture",
+            role="original",
+            created_by=users["owner"],
+        )
+        manifest = {
             "files": [
                 {
                     "path": path,
                     "sha256": hashes[size],
+                    "bytes": size,
                     "media_type": "application/octet-stream",
                     "rights": RIGHTS,
                 }
                 for path, size in zip(paths, sizes, strict=True)
-            ],
-        },
+            ]
+        }
+        raw = json.dumps(manifest).encode()
+        revision = SourceBundleRevision.objects.create(
+            bundle=bundle,
+            number=1,
+            manifest=raw,
+            manifest_sha256=digest(raw),
+            created_by=users["owner"],
+        )
+        source = {"revision_id": str(revision.id)}
+    else:
+        source = op(
+            users["owner"],
+            "source.create_original_bundle",
+            {
+                "project_id": project,
+                "name": "Unsupported execution input",
+                "files": [
+                    {
+                        "path": path,
+                        "sha256": hashes[size],
+                        "media_type": "application/octet-stream",
+                        "rights": RIGHTS,
+                    }
+                    for path, size in zip(paths, sizes, strict=True)
+                ],
+            },
+        )
+    error = (
+        "path collision" if paths == ["directory", "directory/source.bin"] else "capability limits"
     )
-    with pytest.raises(ValidationFailed):
+    with pytest.raises(ValidationFailed, match=error):
         op(
             users["owner"],
             "build.request",

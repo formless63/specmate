@@ -50,3 +50,10 @@ Crash at commit/dispatch, lease/run, write/receipt and accept/cleanup boundaries
 actual tool failure and cancellation, not only test doubles. Restore the app/bytes/workflow
 boundary consistently and suspend external actions until authorized. No separate init or
 migration container is required to bootstrap the early deployment.
+
+
+Source manifests reject case-insensitive duplicates and file/directory collisions
+before committing an original or revised bundle. Shared directory prefixes remain
+valid. Blob lookup is bounded to the requested hashes within the owning project.
+Imported archive bytes remain inert: there is no automatic decompression or link
+reconstruction, and this does not establish hostile archive extraction safety.
