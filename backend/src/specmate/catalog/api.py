@@ -1,11 +1,22 @@
 from uuid import UUID
 
-from ninja import Router
+from ninja import Query, Router
 
 from specmate.catalog import queries
+from specmate.catalog.discovery import SearchCatalog, WhereUsed, search_catalog, where_used
 from specmate.operations import ValidationFailed
 
 router = Router(tags=["catalog"])
+
+
+@router.get("/search")
+def search(request, payload: Query[SearchCatalog]):
+    return search_catalog(request.user, payload)
+
+
+@router.get("/where-used")
+def uses(request, payload: Query[WhereUsed]):
+    return where_used(request.user, payload)
 
 
 def page(offset, limit):
