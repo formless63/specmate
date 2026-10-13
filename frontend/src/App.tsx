@@ -37,6 +37,7 @@ const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((
 
 const SelectedPackagesPanel = lazy(() => import("./features/selected-packages/SelectedPackagesPanel").then((module) => ({ default: module.SelectedPackagesPanel })));
 const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
+const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/FirmwareImpactPanel").then((module) => ({ default: module.FirmwareImpactPanel })));
 const MechanicalSourcesPanel = lazy(() => import("./features/mechanical-sources/MechanicalSourcesPanel").then((module) => ({ default: module.MechanicalSourcesPanel })));
 
 export function App() {
@@ -66,6 +67,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="end-preparation">End preparation</Tabs.Tab>
       <Tabs.Tab value="assemblies">Assemblies</Tabs.Tab>
       <Tabs.Tab value="occurrence-firmware">Board firmware</Tabs.Tab>
+      <Tabs.Tab value="firmware-impact">Firmware impact</Tabs.Tab>
       <Tabs.Tab value="mechanical-sources">Mechanical sources</Tabs.Tab>
       <Tabs.Tab value="selected-packages">Selected packages</Tabs.Tab>
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
@@ -95,6 +97,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="end-preparation">{visited.has("end-preparation") && <EndPreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="selected-packages">{visited.has("selected-packages") && <SelectedPackagesPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="occurrence-firmware">{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="firmware-impact">{visited.has("firmware-impact") && <FirmwareImpactPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="mechanical-sources">{visited.has("mechanical-sources") && <MechanicalSourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>

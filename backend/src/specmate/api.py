@@ -26,6 +26,7 @@ from specmate.copper.api import router as copper_router
 from specmate.end_preparation.api import router as end_preparation_router
 from specmate.facts.api import router as facts_router
 from specmate.firmware_builds.api import router as firmware_builds_router
+from specmate.firmware_impact.api import router as firmware_impact_router
 from specmate.harnesses.api import router as harnesses_router
 from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
@@ -71,6 +72,7 @@ api.add_router("/v0/pcb-fabrication", fabrication_router)
 api.add_router("/v0/material-accounting", material_accounting_router)
 api.add_router("/v0/mechanical-sources", mechanical_sources_router)
 api.add_router("/v0/firmware-builds", firmware_builds_router)
+api.add_router("/v0/firmware-impact", firmware_impact_router)
 api.add_router("/v0/selected-packages", selected_packages_router())
 api.add_router("/v0/preparation", preparation_router)
 api.add_router("/v0/end-preparation", end_preparation_router)

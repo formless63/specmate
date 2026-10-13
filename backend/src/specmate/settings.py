@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "specmate.selected_packages",
     "specmate.firmware_occurrences.apps.FirmwareOccurrencesConfig",
     "specmate.firmware_builds.apps.FirmwareBuildsConfig",
+    "specmate.firmware_impact.apps.FirmwareImpactConfig",
     "specmate.mechanical_sources.apps.MechanicalSourcesConfig",
     "specmate.preparation",
     "specmate.end_preparation",

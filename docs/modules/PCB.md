@@ -205,9 +205,10 @@ Reported net agreement is pad membership, not connectivity proof. References, va
 signal names and part labels never establish pad correspondence. Any invalid finding
 blocks freezing, so a wrong target or incompatible pin assignment cannot become a frozen
 declaration. Freezing pins the target population revision as a design dependency. Every
-result states that toolchain support is declared, not verified, and that compilation,
-flashing and device operation are not performed or observed. Compilation and handoff are
-FW-003; nothing here installs or runs a compiler or flashes hardware.
+declaration review states that toolchain support is declared, not verified. Reviewing or
+freezing a declaration performs no compilation, flashing or device operation. Inspect
+separate compiler evidence for recorded compile results; a declaration alone does not
+establish those results or a working device.
 
 `firmware.read` (a draft or a frozen revision) and HTTP reads under `/api/v0/pcb` list
 firmware, frozen population targets, drafts and revisions with current access checks and
@@ -253,6 +254,29 @@ rechecks and scope changes discard retained private evidence.
 This flow records engineering declarations. It does not compile, resolve a binary
 artifact, flash hardware or observe device operation; those remain separate capabilities
 and evidence. Sharing a board revision does not establish firmware compatibility.
+
+### Exact change and observation review
+
+`firmware_impact.compare` and the Firmware impact tool compare two exact frozen
+firmware declarations, optionally at separate frozen assembly occurrences. Choose
+authorized records by name and revision, then inspect their source, native target,
+configuration, toolchain and pin identities. The comparison reports changed, unchanged
+and unknown assumptions with reasons. Labels and matching reference text never establish
+hardware identity or compatibility.
+
+Historical fact assertions on the baseline firmware, population, contextual occurrence
+and physical units remain attached to their original subjects. Additional assertions may
+be selected deliberately. The review displays their original provenance and applicability;
+it never transfers a result to a candidate, modifies an observation or infers which
+firmware was installed on an actual unit. Compiler receipts are build evidence and are
+not assessed as device observations. Missing physical correspondence stays unknown.
+
+The read operation and `/api/v0/firmware-impact/compare` recheck the selected project,
+both frozen dependency/source closures, fact-input ancestry and actual-unit authority
+before returning comparison details. Observation pages contain at most 100 rows; scopes
+or evidence closures exceeding 5,000 assertions are rejected without a partial result.
+The browser clears stale results when inputs, context or current authority change.
+This review does not execute a compiler, flash a device or establish physical qualification.
 
 ## Firmware change and observation review
 
