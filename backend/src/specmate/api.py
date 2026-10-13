@@ -30,6 +30,7 @@ from specmate.firmware_impact.api import router as firmware_impact_router
 from specmate.harnesses.api import router as harnesses_router
 from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
+from specmate.knowledge.api import router as knowledge_router
 from specmate.material_accounting.api import router as material_accounting_router
 from specmate.mechanical_sources.api import router as mechanical_sources_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
@@ -53,6 +54,7 @@ api.add_router("/v0/sources", sources_router)
 api.add_router("/v0/catalog-matching", matching_router)
 api.add_router("/v0/catalog-packs", packs_router)
 api.add_router("/v0/facts", facts_router)
+api.add_router("/v0/knowledge", knowledge_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)
 api.add_router("/v0/physical-units", physical_units_router)

@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "specmate.copper",
     "specmate.revision_upgrades",
     "specmate.facts",
+    "specmate.knowledge.apps.KnowledgeConfig",
     "specmate.wire_stock",
     "specmate.workshop_profiles",
     "specmate.material_accounting",
