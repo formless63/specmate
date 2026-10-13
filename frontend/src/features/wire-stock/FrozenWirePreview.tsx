@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Group, NumberInput, Select, Stack, Text, Title } from '@mantine/core';
+import { Alert, Button, Group, NumberInput, Select, Stack, Table, Text, Title } from '@mantine/core';
 import { renderSectionSvg, sectionLayout } from '../../../../packages/section-layout/src';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
+import { WorkshopProfileProvenance } from '../workshop-profiles/PracticeProvenance';
 import { readProfileRevision } from '../workshop-profiles/api';
 import type { ProfileRevision } from '../workshop-profiles/api';
 import { adaptFrozenProfile } from './profile-adapter';
@@ -10,6 +11,8 @@ import type { RevisionChoice, ViewerDefinition } from './viewer-api';
 import { WirePreparationPreview } from './WirePreparationPreview';
 
 /** Own state, exact snapshots, no setters or command adapters for the current stock draft. */
+const dimension = (value: number | null): string => value === null ? 'Unknown' : `${value} mm`;
+
 export function FrozenWirePreview({ projectId }: { projectId: string }) {
   const [definitions, setDefinitions] = useState<ViewerDefinition[]>([]);
   const [definitionId, setDefinitionId] = useState<string | null>(null);
@@ -82,8 +85,25 @@ export function FrozenWirePreview({ projectId }: { projectId: string }) {
       <NumberInput label="Frozen preview length mm" min={1} value={length} onChange={value => typeof value === 'number' && value >= 1 && setLength(value)} />
       {profile && <Text>Frozen profile revision: {profile.revision_id}. Suggestions are read-only.</Text>}
       {(!profileId || profile) && <WirePreparationPreview key={`${revisionId}:${profile?.revision_id ?? 'local'}`} section={section} lengthMm={length} appliedProfile={applied} />}
-      <details><summary>Exact frozen construction</summary><pre style={{ overflow: 'auto' }}>{JSON.stringify(stock, null, 2)}</pre></details>
-      {profile && <details><summary>Exact frozen profile and suggestion sources</summary><pre style={{ overflow: 'auto' }}>{JSON.stringify(profile, null, 2)}</pre></details>}
+      <Title order={4}>Frozen construction materials</Title>
+      <Text size="sm">Construction: {stock.construction}. Viewed from: {stock.viewed_from}. Hidden material remains in this table.</Text>
+      <Table.ScrollContainer minWidth={650}><Table aria-label="Frozen construction materials">
+        <Table.Thead><Table.Tr><Table.Th>Element</Table.Th><Table.Th>Material / color</Table.Th><Table.Th>Dimensions</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>{section.rows.map(row => <Table.Tr key={row.path}>
+          <Table.Td>{row.label} ({row.kind})<br />{row.path}</Table.Td>
+          <Table.Td>Material: {row.material ?? 'Unknown'}<br />Color: {row.color ?? 'Unknown'}</Table.Td>
+          <Table.Td>{row.kind === 'web' ? <>Width: {dimension(row.widthMm)}<br />Height: {dimension(row.heightMm)}</> : <>Outer diameter: {dimension(row.outerDiameterMm)}<br />Inner diameter: {dimension(row.innerDiameterMm)}</>}</Table.Td>
+          <Table.Td>{row.source ?? 'Unknown'}</Table.Td>
+        </Table.Tr>)}</Table.Tbody>
+      </Table></Table.ScrollContainer>
+      {Object.keys(stock.facts).length > 0 && <Table aria-label="Frozen construction facts">
+        <Table.Thead><Table.Tr><Table.Th>Fact</Table.Th><Table.Th>Value</Table.Th><Table.Th>Status</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>{Object.entries(stock.facts).map(([name, fact]) => <Table.Tr key={name}>
+          <Table.Td>{name}</Table.Td><Table.Td>{fact.value === null ? 'Unknown' : `${fact.value}${fact.unit ? ` ${fact.unit}` : ''}`}</Table.Td>
+          <Table.Td>{fact.status}</Table.Td><Table.Td>{fact.source ?? 'Unknown'}</Table.Td>
+        </Table.Tr>)}</Table.Tbody>
+      </Table>}
+      {profile && <WorkshopProfileProvenance profile={profile.content.profile} />}
     </>}
   </Stack></section>;
 }

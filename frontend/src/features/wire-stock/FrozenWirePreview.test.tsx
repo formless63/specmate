@@ -16,7 +16,7 @@ const choose = async (label: string, text: RegExp) => {
   await waitFor(() => expect((select as HTMLInputElement).disabled).toBe(false));
   fireEvent.click(select); fireEvent.click(await screen.findByText(text));
 };
-function installApi(exactProfile = profileRevision()) {
+function installApi(exactProfile = profileRevision(), frozenStock = stockPresets.coax!) {
   const draft = structuredClone(stockPresets.coax!);
   const jacket = draft.structure.children[3]!;
   if (jacket.kind !== 'group' && jacket.kind !== 'web') jacket.outer_diameter_mm = 8;
@@ -27,7 +27,7 @@ function installApi(exactProfile = profileRevision()) {
       { definition_id: 'profile-definition', name: 'Synthetic profile', kind: 'workshop_profile' },
     ]));
     if (url.includes('/catalog/definitions/')) return new Response(JSON.stringify({ kind: 'wire_stock', revisions: [{ revision_id: 'stock-r1', number: 1 }, { revision_id: 'stock-r2', number: 2 }] }));
-    if (url.endsWith('/snapshot')) return new Response(JSON.stringify({ content: { stock: url.includes('stock-r1') ? stockPresets.coax : draft } }));
+    if (url.endsWith('/snapshot')) return new Response(JSON.stringify({ content: { stock: url.includes('stock-r1') ? frozenStock : draft } }));
     if (url.includes('/workshop-profile-definitions/')) return new Response(JSON.stringify([profileRevision(), profileRevision('stock-r2', 'profile-r2')]));
     if (url.includes('/workshop-profile-revisions/')) return new Response(JSON.stringify(exactProfile));
     throw new Error(`Unexpected URL ${url}`);
@@ -76,4 +76,50 @@ test('project changes clear selected snapshots and do not retain the prior froze
   await screen.findByText(/Frozen stock revision: stock-r1/);
   view.rerender(<MantineProvider><FrozenWirePreview projectId="project2" /></MantineProvider>);
   await waitFor(() => expect(screen.queryByText(/Frozen stock revision: stock-r1/)).toBeNull());
+});
+
+test('shows readable frozen material dimensions, unknowns and fact sources without raw JSON', async () => {
+  const stock = structuredClone(stockPresets.coax!);
+  const screenElement = stock.structure.children[2]!;
+  if (screenElement.kind !== 'group' && screenElement.kind !== 'web') screenElement.inner_diameter_mm = null;
+  installApi(profileRevision(), stock);
+  render(<MantineProvider><FrozenWirePreview projectId="project1" /></MantineProvider>);
+  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Revision 1/);
+  const table = await screen.findByRole('table', { name: 'Frozen construction materials' });
+  const rows = within(table).getAllByRole('row');
+  expect(rows).toHaveLength(5);
+  const jacket = rows.find(row => row.textContent?.includes('stock.jacket'))!;
+  expect(jacket.textContent).toContain('Outer diameter: 3 mm');
+  expect(jacket.textContent).toContain('Inner diameter: 2.4 mm');
+  expect(jacket.textContent).toContain('Original synthetic arithmetic fixture');
+  const shield = rows.find(row => row.textContent?.includes('stock.screen'))!;
+  expect(shield.textContent).toContain('Inner diameter: Unknown');
+  expect(shield.textContent).toContain('Material: Unknown');
+  expect(shield.textContent).toContain('Color: Unknown');
+  expect(screen.getByRole('table', { name: 'Frozen construction facts' }).textContent).toContain('Unknown');
+  expect(document.querySelector('pre')).toBeNull();
+});
+
+test('renders recorded frozen suggestion basis and registered source details directly', async () => {
+  const profile = profileRevision();
+  profile.content.profile.foil_visibility = {
+    value: 'show', basis: 'documented', note: 'Synthetic foil instruction', source: {
+      kind: 'source_file', bundle_revision_id: 'source-r1', path: 'synthetic/strip-guide.txt',
+      locator: 'Section 4', sha256: 'c'.repeat(64), rights: 'CC0-1.0',
+    },
+  };
+  installApi(profile);
+  render(<MantineProvider><FrozenWirePreview projectId="project1" /></MantineProvider>);
+  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Revision 1/);
+  await choose('Matching frozen profile', /profile-r1/);
+  const recorded = await screen.findByRole('region', { name: 'Recorded workshop practices' });
+  expect(recorded.textContent).toContain('Basis: documented');
+  expect(recorded.textContent).toContain('Synthetic foil instruction');
+  expect(recorded.textContent).toContain('source-r1');
+  expect(recorded.textContent).toContain('synthetic/strip-guide.txt');
+  expect(recorded.textContent).toContain('Section 4');
+  expect(recorded.textContent).toContain('c'.repeat(64));
+  expect(recorded.textContent).toContain('CC0-1.0');
+  expect(recorded.textContent).toContain('Unknown');
+  expect(document.querySelector('pre')).toBeNull();
 });
