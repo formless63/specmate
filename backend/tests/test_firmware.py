@@ -551,5 +551,10 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, sources
     assert http.status_code == 200 and len(http.json()["assignments"]) == 3
     listed = client.get(f"/api/v0/pcb/projects/{project}/firmware")
     assert {row["name"] for row in listed.json()["firmware"]} >= {"Synthetic controller firmware"}
+    targets = client.get(f"/api/v0/pcb/projects/{project}/firmware-targets").json()["targets"]
+    assert {t["revision_id"] for t in targets} == {
+        frozen_board["revision_id"],
+        second["revision_id"],
+    }
     detail = client.get(f"/api/v0/pcb/firmware-revisions/{firmware['revision_id']}")
     assert detail.status_code == 200 and detail.json()["evaluation"]["readiness"] == "declared"

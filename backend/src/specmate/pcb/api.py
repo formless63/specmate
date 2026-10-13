@@ -246,3 +246,11 @@ def read_firmware_assignment_review(request, snapshot_id: UUID):
     from specmate.pcb.firmware import assignment_review
 
     return assignment_review(current_actor(request.user), snapshot_id)
+
+
+@router.get("/projects/{project_id}/firmware-targets")
+def list_firmware_targets(request, project_id: UUID):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.pcb.firmware import list_targets
+
+    return {"targets": list_targets(current_actor(request.user), project_id)}

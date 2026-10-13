@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { command, getIntake, listIntakes, listPopulations, PcbRequestError, preserveFiles, type Intake, type IntakeSummary, type NativeReport, type PopulationDraft } from "./api";
 import { PopulationEditor } from "./PopulationEditor";
 import { PcbFabricationPanel } from "../pcb-fabrication/PcbFabricationPanel";
+import { FirmwarePanel } from "../firmware/FirmwarePanel";
 
 export type PcbPanelProps = { projectId: string; permissions?: string[] };
 
@@ -144,6 +145,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
         permissions={permissions} onChanged={() => selected && load(selected)} onAccessLost={failure}
       />}
     </Stack>}
+    {!accessLost && <FirmwarePanel projectId={projectId} permissions={permissions} />}
   </Stack>;
 }
 

@@ -822,3 +822,24 @@ def list_firmware(user, project_id) -> list[dict]:
             }
         )
     return rows
+
+
+def list_targets(user, project_id) -> list[dict]:
+    """Frozen population revisions that can be firmware targets, closure-authorized."""
+    authorize(user, project_id, Perm.PROJECT_READ)
+    rows = []
+    revisions = Revision.objects.select_related("definition", "snapshot").filter(
+        definition__project_id=project_id, definition__kind="pcb_population"
+    )
+    for revision in revisions.order_by("definition__name", "number")[:500]:
+        content = json.loads(bytes(revision.snapshot.canonical))["content"]
+        pcb_population.authorize_content(user, revision.definition, content)
+        rows.append(
+            {
+                "revision_id": str(revision.id),
+                "name": revision.definition.name,
+                "number": revision.number,
+                "snapshot_sha256": revision.snapshot.sha256,
+            }
+        )
+    return rows

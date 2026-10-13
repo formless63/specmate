@@ -164,6 +164,60 @@ board occurrence. Two identical board revisions can use distinct firmware. Hardw
 produce reviewable impact on firmware assumptions; firmware changes affect commissioning
 applicability. Preserve compile results and a separate handoff, with no automatic flashing.
 
+### Firmware dependencies and targets
+
+A firmware record is a design definition of kind `firmware` with typed `content.firmware`.
+It uses the shared draft, state token and immutable revision layer. It pins:
+
+- exact preserved source files: bundle revision, manifest hash and each file's path,
+  hash, declared rights and role (application, library, configuration, board support,
+  lockfile or other). At least one application file is required.
+- configuration entries that are known values, explicit unknowns or named secret
+  references. A secret reference never stores a value.
+- a declared toolchain family, name, optional version and framework, and a toolchain
+  board identifier label. A missing version stays unknown.
+- one target: a frozen `pcb_population` revision, a population option and one exact
+  native component UUID. An optional declared part label is informational only.
+- pin assumptions: a firmware signal, an exact native pad UUID or unknown, a function,
+  an optional peripheral instance, an optional expected reported net and an optional
+  exact peer pad.
+
+`firmware.create`, `firmware.update` and `firmware.freeze` use the shared operation layer.
+Before any diagnostic, they authorize the complete source closure of every pinned file and
+the target population's full closure (interpretation, source, targets and evidence).
+Retained keyed outcomes are authorized before a changed-payload conflict. Saving rejects
+source pins that do not match their exact revision manifest, file hash or rights, and
+a target that is not a frozen PCB population revision.
+
+Evaluation reports each check as valid, invalid, unknown or not evaluated:
+
+- **Invalid:** a missing option or target component, a target component omitted in
+  the selected option, a pad that is not an electrical pad of the target component, one
+  pad used by two signals, a duplicated exclusive peripheral role, a reported pad net
+  different from the expected net, or a peer that is missing or omitted or on another
+  reported net.
+- **Unknown:** an unresolved population decision, an unknown pad or peripheral
+  instance, a blank reported net, an unknown toolchain version and unknown configuration.
+- **Not evaluated:** pin function capability and whether a declared part or toolchain
+  board label matches the populated part.
+
+Reported net agreement is pad membership, not connectivity proof. References, values,
+signal names and part labels never establish pad correspondence. Any invalid finding
+blocks freezing, so a wrong target or incompatible pin assignment cannot become a frozen
+declaration. Freezing pins the target population revision as a design dependency. Every
+result states that toolchain support is declared, not verified, and that compilation,
+flashing and device operation are not performed or observed. Compilation and handoff are
+FW-003; nothing here installs or runs a compiler or flashes hardware.
+
+`firmware.read` (a draft or a frozen revision) and HTTP reads under `/api/v0/pcb` list
+firmware, frozen population targets, drafts and revisions with current access checks and
+actor refresh. `firmware.assignment_review` (also
+`GET /api/v0/pcb/assemblies/{snapshot}/firmware-review`) compares each contextual
+assembly firmware assignment with the firmware's exact target. The result is valid for
+the same population revision and invalid for a different one or an untyped placeholder.
+It is unknown when the occurrence is not a PCB population revision. The PCB panel offers
+structured authoring, evaluation, freezing and assignment review on request.
+
 ## Acceptance emphasis
 
 Create a small original synthetic native board fixture with independently specified net
