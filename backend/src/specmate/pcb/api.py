@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from django.http import FileResponse
@@ -109,12 +110,19 @@ def association_targets(request, project_id: UUID):
         if revision.definition.kind == "pcb_population":
             continue
         authorize_snapshot(request.user, revision.snapshot)
+        content = json.loads(bytes(revision.snapshot.canonical))["content"]
+        contacts = (
+            [row["contact_id"] for row in content.get("interface", {}).get("assignments", [])]
+            if revision.definition.kind == "pinout"
+            else []
+        )
         revisions.append(
             {
                 "revision_id": str(revision.id),
                 "kind": revision.definition.kind,
                 "name": revision.definition.name,
                 "number": revision.number,
+                "contacts": contacts,
             }
         )
     models = []

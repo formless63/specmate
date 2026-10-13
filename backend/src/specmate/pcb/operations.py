@@ -442,10 +442,6 @@ def population_replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
         draft = Draft.objects.select_related("definition").filter(id=stored["draft_id"]).first()
         if draft is None or draft.definition.kind != "pcb_population":
             raise ValidationFailed("Saved PCB population draft is unavailable.")
-        if draft.content.get("pcb_population", {}).get("interpretation_id") != str(
-            payload.interpretation_id
-        ):
-            raise ValidationFailed("Saved PCB population interpretation changed.")
         closure(ctx.user, draft.definition, draft.content)
     else:
         draft = population_draft(ctx, payload.draft_id, permission)
@@ -455,7 +451,7 @@ def population_replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
                 draft.definition,
                 {"pcb_population": payload.population.model_dump(mode="json")},
             )
-    if "content" in stored and not isinstance(payload, CreatePopulation):
+    if "content" in stored:
         closure(ctx.user, draft.definition, stored["content"])
     if "revision_id" in stored:
         from specmate.queries import get_revision
@@ -516,9 +512,6 @@ def create_population(ctx: Context, p: CreatePopulation):
 )
 def update_population(ctx: Context, p: UpdatePopulation):
     draft = population_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
-    current_id = draft.content["pcb_population"]["interpretation_id"]
-    if str(p.population.interpretation_id) != current_id:
-        raise ValidationFailed("A PCB population definition cannot change interpretation.")
     content = {"pcb_population": p.population.model_dump(mode="json")}
     closure(ctx.user, draft.definition, content)
     return update_draft(ctx, UpdateDraft(draft_id=p.draft_id, changes=content))

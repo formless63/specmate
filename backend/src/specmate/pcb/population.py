@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextvars import ContextVar
 from typing import Literal
 from uuid import UUID
 
@@ -24,6 +25,8 @@ class StrictRecord(BaseModel):
 
 class Evidence(StrictRecord):
     """Either an attributable statement or one exact, rights-bearing source file."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
     kind: Literal["citation", "source_file"]
     citation: str | None = Field(default=None, min_length=1, max_length=2000)
@@ -157,9 +160,9 @@ def scoped_interpretation(user, project_id, interpretation_id) -> PcbInterpretat
     return interpretation
 
 
-def _validate_evidence(user, project_id, evidence: Evidence):
+def _authorize_evidence(user, project_id, evidence: Evidence):
     if evidence.kind != "source_file":
-        return
+        return None
     file = (
         SourceBundleFile.objects.select_related("blob", "revision__bundle")
         .filter(revision_id=evidence.source_revision_id, path=evidence.path)
@@ -170,8 +173,10 @@ def _validate_evidence(user, project_id, evidence: Evidence):
     authorize(user, file.revision.bundle.project_id, Perm.PROJECT_READ)
     if file.revision.bundle.project_id != project_id:
         raise NotFound("Evidence source not found.")
-    if file.blob.sha256 != evidence.sha256 or file.rights != evidence.rights:
-        raise ValidationFailed("Evidence source hash or rights differ from the preserved file.")
+    return file
+
+
+_AUTHORIZING = ContextVar("pcb_authorizing_definitions", default=frozenset())
 
 
 def closure(user, definition, content) -> list[UUID]:
@@ -179,10 +184,77 @@ def closure(user, definition, content) -> list[UUID]:
     population = parse_content(content, definition.kind)
     if population is None:
         return []
+    active = _AUTHORIZING.get()
+    if definition.id in active or len(active) >= 32:
+        raise ValidationFailed("PCB population association cycle or depth limit exceeded.")
+    token = _AUTHORIZING.set(active | {definition.id})
+    try:
+        return _closure(user, definition, population)
+    finally:
+        _AUTHORIZING.reset(token)
+
+
+def _closure(user, definition, population: Population) -> list[UUID]:
     interpretation = scoped_interpretation(
         user, definition.project_id, population.interpretation_id
     )
     source = interpretation.attempt.intake.source_revision
+    # Authorize all references and their frozen source closures before diagnostics
+    # about the interpretation, a component, a target kind or evidence bytes.
+    references = []
+    for association in population.associations:
+        file = (
+            _authorize_evidence(user, definition.project_id, association.evidence)
+            if association.evidence
+            else None
+        )
+        representation = None
+        if association.representation_id:
+            representation = (
+                Representation.objects.select_related(
+                    "revision__definition",
+                    "revision__snapshot",
+                    "source_file__revision__bundle",
+                    "source_file__blob",
+                )
+                .filter(id=association.representation_id)
+                .first()
+            )
+            if representation is None:
+                raise NotFound("Model representation not found.")
+            authorize(user, representation.revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(
+                user, representation.source_file.revision.bundle.project_id, Perm.PROJECT_READ
+            )
+            target = representation.revision
+        else:
+            target = (
+                Revision.objects.select_related("definition", "snapshot")
+                .filter(id=association.target_revision_id)
+                .first()
+            )
+            if target is None:
+                raise NotFound("Association target not found.")
+            authorize(user, target.definition.project_id, Perm.PROJECT_READ)
+        if target.definition_id != definition.id:
+            authorize_snapshot(user, target.snapshot)
+        body = None
+        if association.kind == "port" and target.definition.kind == "pinout":
+            pinout = json.loads(bytes(target.snapshot.canonical))["content"].get("interface", {})
+            body_id = pinout.get("body_revision_id")
+            if body_id:
+                body = (
+                    Revision.objects.select_related("definition", "snapshot")
+                    .filter(id=body_id)
+                    .first()
+                )
+                if body is None:
+                    raise NotFound("Pinout body revision not found.")
+                authorize(user, body.definition.project_id, Perm.PROJECT_READ)
+                if body.definition_id != definition.id:
+                    authorize_snapshot(user, body.snapshot)
+        references.append((association, target, representation, file, body))
+
     if (
         interpretation.sha256 != population.interpretation_sha256
         or source.id != population.source_revision_id
@@ -200,28 +272,18 @@ def closure(user, definition, content) -> list[UUID]:
                 "Each population option must explicitly cover every native component."
             )
     dependencies: set[UUID] = set()
-    for association in population.associations:
+    for association, target, representation, file, body in references:
         if association.component_id not in components or (
             association.pad_id is not None
             and pads.get(association.pad_id) != association.component_id
         ):
             raise ValidationFailed("Association anchor is not in this native interpretation.")
-        if association.evidence:
-            _validate_evidence(user, definition.project_id, association.evidence)
-        if association.representation_id:
-            representation = (
-                Representation.objects.select_related(
-                    "revision__definition", "source_file__revision__bundle"
-                )
-                .filter(id=association.representation_id)
-                .first()
-            )
-            if representation is None:
-                raise NotFound("Model representation not found.")
-            authorize(user, representation.revision.definition.project_id, Perm.PROJECT_READ)
-            authorize(
-                user, representation.source_file.revision.bundle.project_id, Perm.PROJECT_READ
-            )
+        if file and (
+            file.blob.sha256 != association.evidence.sha256
+            or file.rights != association.evidence.rights
+        ):
+            raise ValidationFailed("Evidence source hash or rights differ from the preserved file.")
+        if representation:
             if (
                 representation.kind != "model"
                 or representation.revision.definition.project_id != definition.project_id
@@ -230,31 +292,22 @@ def closure(user, definition, content) -> list[UUID]:
                 raise ValidationFailed(
                     "Model association requires a same-project model representation."
                 )
-            dependencies.add(representation.revision_id)
-            target = representation.revision
-        else:
-            target = (
-                Revision.objects.select_related("definition", "snapshot")
-                .filter(id=association.target_revision_id)
-                .first()
-            )
-            if target is None:
-                raise NotFound("Association target not found.")
-            authorize(user, target.definition.project_id, Perm.PROJECT_READ)
-            if target.definition.project_id != definition.project_id:
-                raise ValidationFailed("Association target must belong to the PCB project.")
-            dependencies.add(target.id)
+        if target.definition.project_id != definition.project_id:
+            raise ValidationFailed("Association target must belong to the PCB project.")
+        dependencies.add(target.id)
         if target.definition_id == definition.id:
             raise ValidationFailed("PCB population cannot associate to its own revision.")
-        authorize_snapshot(user, target.snapshot)
         if association.kind == "port":
             if target.definition.kind != "pinout":
                 raise ValidationFailed("A port association requires a pinout revision.")
-            target_content = json.loads(bytes(target.snapshot.canonical))["content"]
-            pinout = target_content.get("interface", {})
-            contacts = {row["contact_id"] for row in pinout.get("assignments", [])}
+            if body is None or body.definition.kind != "connector_body":
+                raise ValidationFailed("Pinout has no exact connector body revision.")
+            body_content = json.loads(bytes(body.snapshot.canonical))["content"]
+            contacts = {
+                row["contact_id"] for row in body_content.get("interface", {}).get("contacts", [])
+            }
             if association.target_contact_id not in contacts:
-                raise ValidationFailed("Port contact is absent from the exact pinout revision.")
+                raise ValidationFailed("Port contact is absent from the exact connector body.")
     return sorted(dependencies, key=str)
 
 
@@ -279,7 +332,11 @@ def project_population(population: Population, report: Report, option_id: str) -
                 "reference": component.reference,
                 "native_dnp": component.dnp,
                 "decision": by_id[component.id].status,
-                "included": by_id[component.id].status == "populate",
+                "included": (
+                    None
+                    if by_id[component.id].status is None
+                    else by_id[component.id].status == "populate"
+                ),
             }
             for component in report.components
         ],

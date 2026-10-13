@@ -535,6 +535,7 @@ def test_population_options_exclude_omitted_part_without_promoting_native_dnp(us
     )
     assert original["projection"]["unresolved_component_ids"] == component_ids
     assert original["projection"]["components"][0]["native_dnp"] is True
+    assert original["projection"]["components"][0]["included"] is None
     assert original["projection"]["qualification"] == "not-assessed"
     content = copy.deepcopy(created["content"]["pcb_population"])
     content["options"][0]["decisions"] = [
@@ -640,7 +641,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
             "interface": {
                 "kind": "pinout",
                 "body_revision_id": body_revision,
-                "assignments": [{"contact_id": "1"}],
+                "assignments": [],
             },
         },
     )
@@ -769,6 +770,70 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
                 "population": wrong,
             },
             expected_state=frozen["draft"]["state"],
+        )
+
+
+def test_population_authorizes_later_hidden_targets_before_provenance_or_anchor_errors(
+    users, population
+):
+    created, _, _, _ = population
+    hidden_project = op(users["owner"], "project.create", {"name": "Separate project"})[
+        "project_id"
+    ]
+    hidden = op(
+        users["owner"],
+        "definition.create",
+        {
+            "project_id": hidden_project,
+            "kind": "part",
+            "name": "Hidden part",
+        },
+    )
+    hidden_revision = op(
+        users["owner"],
+        "draft.freeze",
+        {
+            "draft_id": hidden["draft_id"],
+        },
+        expected_state=hidden["state"],
+    )["revision_id"]
+    content = copy.deepcopy(created["content"]["pcb_population"])
+    content["interpretation_sha256"] = "0" * 64
+    content["associations"] = [
+        {
+            "local_id": "bad-anchor",
+            "kind": "library",
+            "component_id": str(uuid4()),
+            "target_revision_id": hidden_revision,
+            "review": "rejected",
+            "basis": "Rejected candidate.",
+            "evidence": {"kind": "citation", "citation": "Synthetic review."},
+        },
+    ]
+    with pytest.raises(NotFound):
+        op(
+            users["editor"],
+            "pcb.population_update",
+            {
+                "draft_id": created["draft_id"],
+                "population": content,
+            },
+            expected_state=created["state"],
+        )
+    from specmate.design.models import Draft
+
+    Draft.objects.filter(id=created["draft_id"]).update(content={"pcb_population": content})
+    with pytest.raises(NotFound):
+        op(users["editor"], "pcb.population_read", {"draft_id": created["draft_id"]})
+    with pytest.raises(NotFound):
+        op(
+            users["editor"],
+            "pcb.population_create",
+            {
+                "interpretation_id": created["content"]["pcb_population"]["interpretation_id"],
+                "name": "Board fit options",
+            },
+            idempotency_key="create-population",
         )
 
 
