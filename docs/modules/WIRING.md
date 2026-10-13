@@ -197,3 +197,34 @@ Frozen inspection separates material counts from spans and displays explicit ter
 relationships and unknown fates. Denied refreshes hide cached identity, draft and
 source-derived records and disable dependent mutations. HTTP reads are under
 `/api/v0/harnesses`; the shared operation API handles mutations.
+
+## Copper graph inspection
+
+`copper.graph` projects one exact revision and its assembly occurrences into bounded
+terminal components. Terminal IDs include the root revision, occurrence path, exact
+owning revision and typed feature identity. Repeated placements never share copper
+merely because their child revision, label or reported net name is the same.
+
+Declared wire edges follow each selected conductive feature between the ends of a
+cable or one harness segment. Only explicit terminations, splices, shield bonds and
+one-to-one uncut breakout mappings join those spans. Shared physical sections and
+stock groups create no additional links. Unknown breakout fates remain explicit;
+keying features are excluded from electrical terminals.
+
+Native PCB pad membership groups retain occurrence-scoped native net identities and
+are labelled `reported_net_membership`, separately from `declared_copper` evidence.
+They do not prove routed copper continuity. Resistor passages remain boundaries, so
+resistors between two native nets leave two components. Unspecified interface
+passages, assembly electrical/mating relationships, PCB port associations and
+unmodelled component behavior also remain boundaries with exact provenance. Even an
+accepted association does not assert electrical same-contact identity.
+
+The read-only operation and `/api/v0/copper/revisions/{revision_id}` recheck the full
+current owning source closure before projection or selection diagnostics. The operation
+can restrict display to an exact occurrence subtree and select a terminal's component;
+a restriction does not bypass authorization of the complete root. Projection is bounded
+by 2,000 captured snapshots, 20,000 terminals and 40,000 relationship/boundary records;
+exceeding a bound produces an error instead of a partial connectivity conclusion.
+Deterministic IDs describe the frozen graph and never update its source records.
+Continuity, compatibility and physical qualification remain `not_evaluated`. Passive,
+conditional and active path interpretation are separate capabilities.

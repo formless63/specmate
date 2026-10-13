@@ -1,0 +1,92 @@
+"""Read-only, exact revision-scoped declared copper projections."""
+
+from typing import Annotated, Literal
+from uuid import UUID
+
+from pydantic import Field
+
+from specmate.assemblies.contracts import Path, StrictModel
+from specmate.harnesses.contracts import EndpointTerminal, SegmentTerminal
+
+
+class CableTerminal(StrictModel):
+    kind: Literal["cable_conductor"] = "cable_conductor"
+    endpoint_id: str
+    element_path: str
+
+
+class ContactTerminal(StrictModel):
+    kind: Literal["contact"] = "contact"
+    contact_id: str
+
+
+class PadTerminal(StrictModel):
+    kind: Literal["pad"] = "pad"
+    pad_id: UUID
+    component_id: UUID
+
+
+Terminal = Annotated[
+    SegmentTerminal | EndpointTerminal | CableTerminal | ContactTerminal | PadTerminal,
+    Field(discriminator="kind"),
+]
+
+
+class ReadGraph(StrictModel):
+    revision_id: UUID
+    occurrence_path: Path = Field(default_factory=list)
+    # Optional selection is checked only after complete current source authority.
+    terminal_id: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class Node(StrictModel):
+    id: str
+    occurrence_path: Path
+    revision_id: UUID
+    terminal: Terminal
+    label: str
+    feature_kind: str
+    provenance: dict
+
+
+class Edge(StrictModel):
+    id: str
+    kind: Literal["wire", "termination", "splice", "shield_bond", "through", "native_net"]
+    evidence: Literal["declared_copper", "reported_net_membership"]
+    members: list[str] = Field(min_length=2, max_length=20000)
+    basis: str
+    provenance: dict
+
+
+class Boundary(StrictModel):
+    id: str
+    kind: str
+    members: list[str]
+    status: Literal["not_evaluated", "unknown", "declared_unconnected"]
+    reason: str
+    provenance: dict
+
+
+class Component(StrictModel):
+    id: str
+    members: list[str]
+    edge_ids: list[str]
+    native_net_ids: list[str]
+    evidence: list[Literal["declared_copper", "reported_net_membership"]]
+
+
+class Graph(StrictModel):
+    schema_version: Literal["1"] = "1"
+    root_revision_id: UUID
+    snapshot_id: UUID
+    snapshot_sha256: str
+    occurrence_path: Path
+    nodes: list[Node]
+    edges: list[Edge]
+    boundaries: list[Boundary]
+    components: list[Component]
+    selected_component_id: str | None
+    continuity: Literal["not_evaluated"] = "not_evaluated"
+    compatibility: Literal["not_evaluated"] = "not_evaluated"
+    physical_qualification: Literal["not_evaluated"] = "not_evaluated"
+    limitations: list[str]
