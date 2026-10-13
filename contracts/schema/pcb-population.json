@@ -1,0 +1,339 @@
+{
+  "$defs": {
+    "Association": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "component_id": {
+          "format": "uuid",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "enum": [
+            "port",
+            "model",
+            "library"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "pad_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pad Id"
+        },
+        "representation_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Representation Id"
+        },
+        "review": {
+          "default": "candidate",
+          "enum": [
+            "candidate",
+            "accepted",
+            "rejected"
+          ],
+          "title": "Review",
+          "type": "string"
+        },
+        "target_contact_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Contact Id"
+        },
+        "target_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Revision Id"
+        }
+      },
+      "required": [
+        "local_id",
+        "kind",
+        "component_id"
+      ],
+      "title": "Association",
+      "type": "object"
+    },
+    "ComponentDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "component_id": {
+          "format": "uuid",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "populate",
+                "omit"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        }
+      },
+      "required": [
+        "component_id"
+      ],
+      "title": "ComponentDecision",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "description": "Either an attributable statement or one exact, rights-bearing source file.",
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "kind": {
+          "enum": [
+            "citation",
+            "source_file"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "rights": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "source_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Revision Id"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "PopulationOption": {
+      "additionalProperties": false,
+      "properties": {
+        "decisions": {
+          "items": {
+            "$ref": "#/$defs/ComponentDecision"
+          },
+          "maxItems": 100000,
+          "title": "Decisions",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "name",
+        "decisions"
+      ],
+      "title": "PopulationOption",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "associations": {
+      "items": {
+        "$ref": "#/$defs/Association"
+      },
+      "maxItems": 10000,
+      "title": "Associations",
+      "type": "array"
+    },
+    "interpretation_id": {
+      "format": "uuid",
+      "title": "Interpretation Id",
+      "type": "string"
+    },
+    "interpretation_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Interpretation Sha256",
+      "type": "string"
+    },
+    "options": {
+      "items": {
+        "$ref": "#/$defs/PopulationOption"
+      },
+      "maxItems": 100,
+      "title": "Options",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Manifest Sha256",
+      "type": "string"
+    },
+    "source_revision_id": {
+      "format": "uuid",
+      "title": "Source Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "interpretation_id",
+    "interpretation_sha256",
+    "source_revision_id",
+    "source_manifest_sha256"
+  ],
+  "title": "Population",
+  "type": "object"
+}
