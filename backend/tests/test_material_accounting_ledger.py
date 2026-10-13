@@ -73,9 +73,7 @@ def test_frozen_observations_read_later_returns_without_mutation(users, project)
 def test_hidden_latest_account_work_precedes_competing_section_diagnostic(users, project):
     user = users["owner"]
     value, subject, _, plan = fixture(user, project)
-    _, issued = setup(
-        user, users, project, value["stock_revision_id"], subject["revision_id"]
-    )
+    _, issued = setup(user, users, project, value["stock_revision_id"], subject["revision_id"])
     plan["pieces"][0]["reconciliation"] = record(issued)
     draft = create(user, project, plan, idempotency_key="independent-retained")
     captured = freeze(user, draft)
