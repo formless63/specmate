@@ -95,6 +95,9 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Shared scene" }));
   await screen.findByRole("heading", { name: "Shared scene" });
   expect(screen.getByRole("button", { name: "Refresh scene access" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Assemblies" }));
+  await screen.findByRole("heading", { name: "Reusable assemblies" });
+  expect(screen.queryByRole("button", { name: "Create assembly draft" })).toBeNull();
 }, 10000);
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {

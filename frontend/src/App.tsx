@@ -102,7 +102,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="firmware-impact">{visited.has("firmware-impact") && <FirmwareImpactPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="mechanical-sources">{visited.has("mechanical-sources") && <MechanicalSourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="shared-scene">{visited.has("shared-scene") && <SharedScenePanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} permissions={permissions} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="interfaces">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="cables">{visited.has("cables") && <CablePanel projectId={projectId} />}</ToolPanel>
