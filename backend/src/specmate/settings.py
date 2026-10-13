@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "specmate.facts",
     "specmate.wire_stock",
     "specmate.workshop_profiles",
+    "specmate.material_accounting",
     "specmate.preparation",
     "specmate.end_preparation",
     "specmate.inventory",

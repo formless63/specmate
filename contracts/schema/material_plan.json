@@ -1,0 +1,521 @@
+{
+  "$defs": {
+    "ApplyProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "a_endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "A Endpoint Id",
+          "type": "string"
+        },
+        "b_endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "B Endpoint Id",
+          "type": "string"
+        },
+        "cable_revision_id": {
+          "format": "uuid",
+          "title": "Cable Revision Id",
+          "type": "string"
+        },
+        "mapping_basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Mapping Basis",
+          "type": "string"
+        },
+        "mapping_review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Mapping Review",
+          "type": "string"
+        },
+        "profile_revision_id": {
+          "format": "uuid",
+          "title": "Profile Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cable_revision_id",
+        "profile_revision_id",
+        "a_endpoint_id",
+        "b_endpoint_id",
+        "mapping_basis"
+      ],
+      "title": "ApplyProfile",
+      "type": "object"
+    },
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Citation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "citation",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Consumable": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "quantity": {
+          "$ref": "#/$defs/DemandQuantity"
+        },
+        "reconciliation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reconciliation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "waste": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WasteAllowance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "local_id",
+        "revision_id",
+        "quantity",
+        "basis"
+      ],
+      "title": "Consumable",
+      "type": "object"
+    },
+    "DemandQuantity": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "default": "ea",
+          "enum": [
+            "ea",
+            "m",
+            "cm",
+            "mm",
+            "kg",
+            "g"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "DemandQuantity",
+      "type": "object"
+    },
+    "Extent": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount Mm"
+        },
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "basis"
+      ],
+      "title": "Extent",
+      "type": "object"
+    },
+    "Piece": {
+      "additionalProperties": false,
+      "properties": {
+        "cut_basis": {
+          "default": "declaration",
+          "enum": [
+            "declaration",
+            "preparation_suggestion"
+          ],
+          "title": "Cut Basis",
+          "type": "string"
+        },
+        "extra_waste": {
+          "$ref": "#/$defs/Extent"
+        },
+        "installed": {
+          "$ref": "#/$defs/Extent"
+        },
+        "profile_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Profile Revision Id"
+        },
+        "reconciliation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reconciliation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "section_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Id"
+        }
+      },
+      "required": [
+        "installed",
+        "extra_waste"
+      ],
+      "title": "Piece",
+      "type": "object"
+    },
+    "Reconciliation": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "consumption_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Consumption Ids",
+          "type": "array"
+        },
+        "retained": {
+          "$ref": "#/$defs/DemandQuantity"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "waste": {
+          "$ref": "#/$defs/DemandQuantity"
+        }
+      },
+      "required": [
+        "retained",
+        "waste",
+        "basis"
+      ],
+      "title": "Reconciliation",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_revision_id": {
+          "format": "uuid",
+          "title": "Bundle Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locator": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Locator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_revision_id",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    },
+    "WasteAllowance": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "quantity": {
+          "$ref": "#/$defs/DemandQuantity"
+        }
+      },
+      "required": [
+        "basis"
+      ],
+      "title": "WasteAllowance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "consumables": {
+      "items": {
+        "$ref": "#/$defs/Consumable"
+      },
+      "maxItems": 256,
+      "title": "Consumables",
+      "type": "array"
+    },
+    "decision": {
+      "default": "unknown",
+      "enum": [
+        "make",
+        "buy",
+        "unknown"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "decision_basis": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Decision Basis",
+      "type": "string"
+    },
+    "end_preparation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplyProfile"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "pieces": {
+      "items": {
+        "$ref": "#/$defs/Piece"
+      },
+      "maxItems": 256,
+      "title": "Pieces",
+      "type": "array"
+    },
+    "quantity": {
+      "anyOf": [
+        {
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 1,
+      "title": "Quantity"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "subject_revision_id": {
+      "format": "uuid",
+      "title": "Subject Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "subject_revision_id",
+    "decision_basis"
+  ],
+  "title": "MaterialPlan",
+  "type": "object"
+}

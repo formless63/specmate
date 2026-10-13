@@ -138,6 +138,12 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         )
 
         derived = end_preparation_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "material_plan":
+        from specmate.material_accounting.queries import (
+            dependency_revisions as material_dependencies,
+        )
+
+        derived = material_dependencies(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "preparation_profile":
         from specmate.preparation.queries import dependency_revisions as preparation_dependencies
 
@@ -270,6 +276,10 @@ def validate_content(kind, content):
         from specmate.cable_test_intent.queries import validate_content as validate_test_plan
 
         content = validate_test_plan(kind, content)
+    if kind == "material_plan" or "material_plan" in content:
+        from specmate.material_accounting.queries import validate_content as validate_material
+
+        content = validate_material(kind, content)
     if kind == "preparation_profile" or "preparation_profile" in content:
         from specmate.preparation.queries import validate_content as validate_preparation
 
@@ -335,6 +345,10 @@ def authorize_design_content(user, definition, content):
         from specmate.cable_test_intent.queries import authorize_content as authorize_test_plan
 
         authorize_test_plan(user, definition, content)
+    if definition.kind == "material_plan" or "material_plan" in content:
+        from specmate.material_accounting.queries import authorize_content as authorize_material
+
+        authorize_material(user, definition, content)
     if definition.kind == "preparation_profile" or "preparation_profile" in content:
         from specmate.preparation.queries import authorize_content as authorize_preparation
 
