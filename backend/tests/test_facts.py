@@ -1,5 +1,6 @@
 import copy
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal, Underflow, localcontext
 from threading import Barrier
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from specmate.access.models import Membership
 from specmate.design.models import Snapshot
 from specmate.facts.models import AssertionInput, AssertionSource, FactAssertion, FactSubject
 from specmate.facts.queries import read_facts
+from specmate.facts.units import convert
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -569,4 +571,117 @@ def test_api_and_job_read_share_assessments_and_paginate_without_forgetting_conf
             "facts.read",
             {"subject_id": ledger["subject_id"]},
             idempotency_key="read",
+        )
+
+
+@pytest.mark.parametrize("statuses", [("known", "not_applicable"), ("not_applicable", "known")])
+def test_applicability_disagreement_is_conflicting_in_both_insertion_orders(
+    users, ledger, statuses
+):
+    records = []
+    current = ledger
+    for status in statuses:
+        current = append(
+            users["editor"],
+            current,
+            fact(
+                status=status,
+                value=fact()["value"] if status == "known" else None,
+            ),
+        )
+        records.append(current["assertion"]["assertion_id"])
+    result = read_facts(users["viewer"], ledger["subject_id"], "width")
+    assessment = result["assessments"]["width"][0]
+    assert assessment["status"] == "conflicting"
+    assert assessment["value"] is None
+    assert assessment["assertion_ids"] == records
+    assert [row["fact"]["status"] for row in result["assertions"]] == list(statuses)
+
+
+@pytest.mark.parametrize("magnitude", ["1e-9999999", "-1e-9999999", "0e-9999999", "1e9999999"])
+def test_extreme_decimal_exponents_are_rejected_before_precision_normalization(
+    users, ledger, magnitude
+):
+    with pytest.raises(ValidationFailed):
+        append(users["editor"], ledger, fact(magnitude=magnitude))
+    assert not FactAssertion.objects.exists()
+
+
+def test_small_known_magnitudes_convert_exactly_independent_of_ambient_decimal_context(
+    users, ledger
+):
+    value = {"kind": "quantity", "dimension": "capacitance", "unit": "pF", "magnitude": "1e-12"}
+    recorded = append(users["editor"], ledger, fact("capacitance", value=value))
+    assert recorded["assertion"]["canonical_value"]["magnitude"] == "0.000000000000000000000001"
+    with localcontext() as context:
+        context.prec = 2
+        assert convert(Decimal("12.345678901234"), "in") == ("mm", "313.5802440913436")
+        assert convert(Decimal("1e-12"), "pF") == ("F", "0.000000000000000000000001")
+    with pytest.raises(Underflow):
+        convert(Decimal("1e-9999999"), "mm")
+
+
+def test_source_paths_preserve_whitespace_and_bind_distinct_registered_bytes_and_rights(
+    users, project, ledger
+):
+    entries = []
+    for index, path in enumerate(("drawing.txt", " drawing.txt", "drawing.txt ")):
+        data = f"original synthetic drawing {index}".encode()
+        blob = register(users["editor"], project, data)
+        entries.append(
+            {
+                "path": path,
+                "sha256": blob["sha256"],
+                "media_type": "text/plain",
+                "rights": f"synthetic-rights-{index}",
+            }
+        )
+    source = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {"project_id": project, "name": "Distinct synthetic source paths", "files": entries},
+    )
+    current = ledger
+    for index, path in enumerate(("drawing.txt", " drawing.txt", "drawing.txt ")):
+        current = append(
+            users["editor"],
+            current,
+            fact(
+                f"width_{index}",
+                provenance={
+                    "method": "source_observation",
+                    "evidence": [
+                        {
+                            "kind": "source_file",
+                            "bundle_revision_id": source["revision_id"],
+                            "path": path,
+                        }
+                    ],
+                },
+            ),
+        )
+        assert current["assertion"]["fact"]["provenance"]["evidence"][0]["path"] == path
+        assert current["assertion"]["source_files"] == [
+            {
+                "bundle_revision_id": source["revision_id"],
+                "path": path,
+                "sha256": entries[index]["sha256"],
+                "rights": f"synthetic-rights-{index}",
+            }
+        ]
+
+
+def test_feature_ids_are_exact_and_occurrence_path_whitespace_is_not_reinterpreted(users, project):
+    design, _ = design_revision(users["owner"], project)
+    targets = [
+        {"kind": "definition", "definition_id": design["definition_id"], "feature_id": feature}
+        for feature in ("pin-a", " pin-a", "pin-a ")
+    ]
+    subjects = [subject(users["editor"], target) for target in targets]
+    assert len({row["subject_id"] for row in subjects}) == 3
+    assert [row["target"]["feature_id"] for row in subjects] == ["pin-a", " pin-a", "pin-a "]
+    with pytest.raises(ValidationFailed):
+        subject(
+            users["editor"],
+            {"kind": "occurrence", "snapshot_id": str(UUID(int=0)), "path": [" left"]},
         )

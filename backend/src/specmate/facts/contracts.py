@@ -1,13 +1,55 @@
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StringConstraints,
+    model_validator,
+)
 
+from specmate.contracts import check_package_path
 from specmate.facts.units import UNITS, convert
 
-Number = Annotated[Decimal, Field(max_digits=24, decimal_places=12, allow_inf_nan=False)]
+
+def bounded_decimal(value):
+    # Inspect exact input before Pydantic's precision normalization can underflow.
+    if isinstance(value, bool) or (isinstance(value, str) and len(value) > 200):
+        raise ValueError("Invalid numeric magnitude.")
+    try:
+        number = value if isinstance(value, Decimal) else Decimal(str(value))
+    except InvalidOperation:
+        raise ValueError("Invalid numeric magnitude.") from None
+    if not number.is_finite():
+        raise ValueError("Magnitude must be finite.")
+    digits = number.as_tuple()
+    if len(digits.digits) > 100 or not -100 <= digits.exponent <= 100:
+        raise ValueError("Magnitude exponent exceeds the supported range.")
+    if number != 0 and number.adjusted() < -12:
+        raise ValueError("Nonzero magnitude is below the supported precision.")
+    return number
+
+
+Number = Annotated[
+    Decimal,
+    Field(max_digits=24, decimal_places=12, allow_inf_nan=False),
+    BeforeValidator(bounded_decimal),
+]
+FeatureId = Annotated[str, StringConstraints(strip_whitespace=False, min_length=1, max_length=200)]
+LocalId = Annotated[
+    str, StringConstraints(strip_whitespace=False, pattern=r"^[a-z][a-z0-9_-]{0,79}$")
+]
+SourcePath = Annotated[
+    str,
+    StringConstraints(strip_whitespace=False, min_length=1, max_length=512),
+    AfterValidator(check_package_path),
+]
 Key = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")]
 Status = Literal["known", "unknown", "conflicting", "not_applicable", "not_evaluated"]
 Method = Literal[
@@ -30,22 +72,20 @@ class ProjectTarget(StrictModel):
 class DefinitionTarget(StrictModel):
     kind: Literal["definition"]
     definition_id: UUID
-    feature_id: str | None = Field(default=None, min_length=1, max_length=200)
+    feature_id: FeatureId | None = None
 
 
 class RevisionTarget(StrictModel):
     kind: Literal["revision"]
     revision_id: UUID
-    feature_id: str | None = Field(default=None, min_length=1, max_length=200)
+    feature_id: FeatureId | None = None
 
 
 class OccurrenceTarget(StrictModel):
     kind: Literal["occurrence"]
     snapshot_id: UUID
-    path: list[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,79}$")]] = Field(
-        min_length=1, max_length=32
-    )
-    feature_id: str | None = Field(default=None, min_length=1, max_length=200)
+    path: list[LocalId] = Field(min_length=1, max_length=32)
+    feature_id: FeatureId | None = None
 
 
 Target = Annotated[
@@ -135,7 +175,7 @@ class Citation(StrictModel):
 class SourceFileEvidence(StrictModel):
     kind: Literal["source_file"]
     bundle_revision_id: UUID
-    path: str = Field(min_length=1, max_length=512)
+    path: SourcePath
     locator: str = Field(default="", max_length=200)
 
 

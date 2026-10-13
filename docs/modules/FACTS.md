@@ -29,12 +29,17 @@ count and dimensionless quantities. Unsupported units are rejected. Original val
 and units remain in the assertion; canonical values are separate. Celsius temperatures
 convert to Kelvin, while temperature tolerance deltas do not receive the absolute
 temperature offset. Conditions also retain original and canonical values.
+Extreme decimal exponents are rejected before precision normalization. Canonical
+arithmetic uses a bounded decimal context with inexact/underflow traps, so a nonzero
+input cannot silently become zero.
 
 Reads authorize the subject, every registered source file and transitive input assertion
 before returning values, counts, hashes, state tokens or conflict diagnostics. A revoked
 dependency makes the ledger unavailable. Registered source rights and hashes remain
 attached. Free-text citations are declared and unverified; they grant no authority or
 qualification. Read pagination never loses conflicts from earlier assertion pages.
+Registered source paths and opaque feature identifiers retain their exact spelling;
+whitespace is not trimmed into a different file or feature identity.
 
 Assessments compare assertions only for the same property, purpose, role and conditions.
 Equal canonical values can be displayed once. Disjoint numeric intervals, incompatible
@@ -43,6 +48,8 @@ ranges retain each candidate without selecting a scalar value. Explicit unknowns
 unperformed evaluations remain visible alongside known observations. Illustrative
 dimensions are separate from manufacturing or clearance assertions; this module does
 not perform fit checks or elevate a fallback into measured geometry.
+A known assertion and a not-applicable assertion in the same context are an applicability
+conflict, regardless of insertion order; neither silently wins.
 
 Assertions linked to a revision or occurrence are **attached evidence**, not implicit
 edits to frozen content. Recording one later does not modify its canonical snapshot or

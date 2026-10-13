@@ -1,6 +1,6 @@
 """A deliberately finite dimension-aware registry; no guessed or dynamically fetched units."""
 
-from decimal import Decimal
+from decimal import Clamped, Decimal, Inexact, InvalidOperation, Overflow, Underflow, localcontext
 
 # dimension, canonical unit, factor, offset (offset is excluded for tolerance deltas)
 UNITS = {
@@ -40,7 +40,13 @@ UNITS = {
 
 def convert(value, unit, *, delta=False):
     _, canonical_unit, factor, offset = UNITS[unit]
-    magnitude = value * Decimal(factor) + (Decimal(0) if delta else Decimal(offset))
+    with localcontext() as context:
+        context.prec = 64
+        context.Emin = -100
+        context.Emax = 100
+        for signal in (Underflow, Inexact, Overflow, InvalidOperation, Clamped):
+            context.traps[signal] = True
+        magnitude = value * Decimal(factor) + (Decimal(0) if delta else Decimal(offset))
     # Fixed-point output avoids decimal exponent spelling creating false conflicts.
     encoded = format(magnitude, "f")
     if "." in encoded:

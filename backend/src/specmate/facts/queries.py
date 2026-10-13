@@ -223,7 +223,11 @@ def assessments(assertions, property_name):
     for key, records in groups.items():
         known = [row for row in records if row.status == "known"]
         declared = {row.status for row in records}
-        conflict = "conflicting" in declared or incompatible_candidates(known)
+        conflict = (
+            "conflicting" in declared
+            or {"known", "not_applicable"} <= declared
+            or incompatible_candidates(known)
+        )
         if conflict:
             status = "conflicting"
         elif "unknown" in declared:
