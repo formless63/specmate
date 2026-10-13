@@ -6,6 +6,8 @@ from pydantic import ValidationError
 
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import Closure as AssemblyClosure
+from specmate.catalog_matching.queries import current_actor
+from specmate.catalog_packs.authoring import authorize_origin
 from specmate.design.models import Revision
 from specmate.interfaces.contracts import (
     INTERFACE_ADAPTER,
@@ -50,6 +52,7 @@ def references(value):
 
 class Closure:
     def __init__(self, user, content, kind=None, dependencies=()):
+        user = current_actor(user)
         self.user = user
         self.root = parse_content(content, kind)
         self.revisions = {}
@@ -69,6 +72,7 @@ class Closure:
             if revision is None:
                 raise NotFound("Interface reference unavailable.")
             authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize_origin(user, revision.definition)
             self.revisions[rid] = revision
             body = json.loads(bytes(revision.snapshot.canonical))["content"]
             self.contents[rid] = body
@@ -133,12 +137,14 @@ def dependency_revisions(user, definition, content):
 
 
 def read_revision(user, revision_id):
+    user = current_actor(user)
     revision = (
         Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
     )
     if revision is None:
         raise NotFound("Interface unavailable.")
     authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    authorize_origin(user, revision.definition)
     content = json.loads(bytes(revision.snapshot.canonical))["content"]
     closure = Closure(
         user,
