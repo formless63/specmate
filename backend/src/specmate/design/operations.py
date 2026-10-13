@@ -138,6 +138,11 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         )
 
         derived = end_preparation_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "mechanical_source":
+        from specmate.mechanical_sources.operations import dependency_revisions, require_freezable
+
+        require_freezable(ctx.user, draft.definition, draft.content)
+        derived = dependency_revisions(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "firmware":
         from specmate.pcb.firmware import dependency_revisions, require_freezable
 
@@ -273,6 +278,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind == "mechanical_source" or "mechanical_source" in content:
+        from specmate.mechanical_sources.operations import validate_content as validate_mechanical
+
+        content = validate_mechanical(kind, content)
     if kind == "firmware" or "firmware" in content:
         from specmate.pcb.firmware import validate_content as validate_firmware
 
@@ -346,6 +355,10 @@ def authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind == "mechanical_source" or "mechanical_source" in content:
+        from specmate.mechanical_sources.operations import authorize_content as authorize_mechanical
+
+        authorize_mechanical(user, definition, content)
     if definition.kind == "firmware" or "firmware" in content:
         from specmate.pcb.firmware import authorize_content as authorize_firmware
 

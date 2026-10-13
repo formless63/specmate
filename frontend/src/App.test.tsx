@@ -86,6 +86,9 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Board firmware" }));
   await screen.findByRole("heading", { name: "Firmware on repeated boards" });
   expect(screen.getByRole("button", { name: "Show occurrence firmware" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Mechanical sources" }));
+  await screen.findByRole("heading", { name: "Mechanical sources" });
+  expect(screen.getByRole("button", { name: "Refresh mechanical sources" })).toBeTruthy();
 }, 10000);
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {

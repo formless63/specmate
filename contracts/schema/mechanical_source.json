@@ -1,0 +1,381 @@
+{
+  "$defs": {
+    "BoardPin": {
+      "additionalProperties": false,
+      "properties": {
+        "interpretation_id": {
+          "format": "uuid",
+          "title": "Interpretation Id",
+          "type": "string"
+        },
+        "interpretation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Interpretation Sha256",
+          "type": "string"
+        },
+        "option_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Option Id"
+        },
+        "source_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Manifest Sha256",
+          "type": "string"
+        },
+        "source_revision_id": {
+          "format": "uuid",
+          "title": "Source Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "interpretation_id",
+        "interpretation_sha256",
+        "source_revision_id",
+        "source_manifest_sha256"
+      ],
+      "title": "BoardPin",
+      "type": "object"
+    },
+    "ModelPin": {
+      "additionalProperties": false,
+      "properties": {
+        "accuracy": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accuracy"
+        },
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "purpose": {
+          "enum": [
+            "manufacturing",
+            "clearance",
+            "illustration"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "representation_id": {
+          "format": "uuid",
+          "title": "Representation Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        },
+        "source_local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Source Local Id",
+          "type": "string"
+        },
+        "target_local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Target Local Id",
+          "type": "string"
+        },
+        "units": {
+          "anyOf": [
+            {
+              "enum": [
+                "mm",
+                "m",
+                "in"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Units"
+        }
+      },
+      "required": [
+        "local_id",
+        "representation_id",
+        "revision_id",
+        "snapshot_sha256",
+        "source_local_id",
+        "path",
+        "target_local_id",
+        "purpose",
+        "basis"
+      ],
+      "title": "ModelPin",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "enum": [
+            "freecad",
+            "build123d",
+            "cadquery",
+            "step",
+            "brep",
+            "mesh",
+            "other"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "native",
+            "recipe",
+            "model",
+            "supporting",
+            "unsupported"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "rights",
+        "role",
+        "format"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    },
+    "SourcePin": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "items": {
+            "$ref": "#/$defs/SourceFile"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Files",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Manifest Sha256",
+          "type": "string"
+        },
+        "source_revision_id": {
+          "format": "uuid",
+          "title": "Source Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "source_revision_id",
+        "source_manifest_sha256",
+        "files"
+      ],
+      "title": "SourcePin",
+      "type": "object"
+    },
+    "TargetPin": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "board": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoardPin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "native_component_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Component Id"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "board",
+            "component",
+            "hardware"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "role",
+        "revision_id",
+        "snapshot_sha256",
+        "basis"
+      ],
+      "title": "TargetPin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "item_role": {
+      "enum": [
+        "enclosure",
+        "part",
+        "hardware"
+      ],
+      "title": "Item Role",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/ModelPin"
+      },
+      "maxItems": 100,
+      "title": "Models",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourcePin"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/TargetPin"
+      },
+      "maxItems": 100,
+      "title": "Targets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "item_role",
+    "sources"
+  ],
+  "title": "MechanicalSource",
+  "type": "object"
+}
