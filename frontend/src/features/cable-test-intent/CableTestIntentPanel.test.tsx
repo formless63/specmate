@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { CableTestIntentPanel, DraftEditor, PlanEditor, PlanInspector } from './CableTestIntentPanel';
 import { initialPlan, type Draft, type TestPlan } from './api';
 
-beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
+beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function wrap(children: React.ReactNode) {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>{children}</QueryClientProvider></MantineProvider>;
@@ -209,3 +209,124 @@ test('detached frozen-plan denial hides the same plan after a newer refresh succ
   fireEvent.click(screen.getByRole('button', { name: 'Refresh frozen test-plan access' }));
   await screen.findByText(/private-plan-hash/);
 });
+
+function sharedPlanFixture() {
+  const shared: TestPlan = { ...plan(), pairs: [{ local_id: 'check', first: terminal('a', '1'), second: terminal('b', '2'), intent: 'continuity', basis: 'Protected pair expectation', evidence: { status: 'registered_file', source_bundle_revision_id: 'source-r1', source_path: 'tests/intent.txt' } }], labels: [{ local_id: 'saved', text: 'Protected label', basis: 'Declared label', evidence: { status: 'unknown' } }] };
+  const draft: Draft = { definition_id: 'definition', draft_id: 'draft', state: 'draft-v1', content: { test_plan: shared } };
+  const inspection = { definition_id: 'definition', revision_id: 'plan-r1', sha256: 'protected-plan-hash', root_sha256: 'root-hash', root_snapshot_id: 'root-snapshot', cable_sha256: 'cable-hash', test_plan: shared, evidence: [{ kind: 'pair', local_id: 'check', evidence: { status: 'registered_file', source_path: 'tests/intent.txt', source_bundle_revision_id: 'source-r1', sha256: 'protected-source-hash', rights: 'declared-rights' } }], physical_test: 'not_performed', physical_continuity: 'not_evaluated', physical_qualification: 'not_evaluated' };
+  const definitions = [{ definition_id: 'definition', kind: 'cable_test_plan', name: 'Shared exact plan' }];
+  const identity = { drafts: [{ draft_id: 'draft', state: 'draft-v1' }], revisions: [{ revision_id: 'plan-r1', number: 1 }, { revision_id: 'plan-r2', number: 2 }] };
+  return { shared, draft, inspection, definitions, identity };
+}
+
+test('shared-plan frozen denial hides draft and target; deferred failed and successful restore preserve unsaved values and original CAS', async () => {
+  const fixture = sharedPlanFixture();
+  let mode: 'allowed' | 'denied' | 'failed-restore' | 'successful-restore' = 'allowed';
+  let restoredServerState = false;
+  let finishDraft!: (response: Response) => void;
+  let finishRevision!: (response: Response) => void;
+  const commands: { operation: string; expected_state: string; payload: { test_plan: TestPlan } }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === 'POST') {
+      const cmd = JSON.parse(String(options.body));
+      if (cmd.operation === 'cable_test_plan.inspect_target') return response({ result: target });
+      commands.push(cmd);
+      return response({ result: { ...fixture.draft, state: 'draft-v9', content: { test_plan: cmd.payload.test_plan } } });
+    }
+    if (url.includes('/projects/')) return response(fixture.definitions);
+    if (url.includes('/catalog/')) return response(fixture.identity);
+    if (url.includes('/drafts/')) {
+      if (mode === 'failed-restore') return new Promise<Response>(resolve => { finishDraft = resolve; });
+      return response(mode === 'allowed' && !restoredServerState ? fixture.draft : { ...fixture.draft, state: 'draft-v8', content: { test_plan: { ...fixture.shared, labels: [] } } });
+    }
+    if (mode === 'denied' || mode === 'failed-restore') return response({ error: { message: 'Shared source revoked' } }, 404);
+    if (mode === 'successful-restore') return new Promise<Response>(resolve => { finishRevision = resolve; });
+    return response(fixture.inspection);
+  }));
+  render(wrap(<CableTestIntentPanel projectId="project" />));
+  await select('Test-plan definition', 'Shared exact plan');
+  await select('Test-plan draft', 'draft · draft-v1');
+  fireEvent.change(await screen.findByLabelText('Pair stable ID'), { target: { value: 'unsaved-pair' } });
+  fireEvent.change(screen.getByLabelText('Label stable ID'), { target: { value: 'unsaved-label' } });
+  fireEvent.change(screen.getByLabelText('Label text'), { target: { value: 'Unsaved label text' } });
+  fireEvent.change(screen.getByLabelText('Label declaration basis'), { target: { value: 'Unsaved label basis' } });
+  await select('Frozen test plan', 'Revision 1 · plan-r1');
+  await screen.findByText(/protected-source-hash/);
+  mode = 'denied';
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh frozen test-plan access' }));
+  await screen.findByText('Shared source revoked');
+  expect(screen.queryByText('Protected pair expectation')).toBeNull();
+  expect(screen.queryByText('Protected label')).toBeNull();
+  expect(screen.queryByRole('combobox', { name: 'First test terminal' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save test-plan draft' })).toBeNull();
+  expect(screen.queryByRole('link')).toBeNull();
+  mode = 'failed-restore';
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh test-plan access' }));
+  await waitFor(() => expect(finishDraft).toBeDefined());
+  expect(screen.queryByRole('button', { name: 'Save test-plan draft' })).toBeNull();
+  await act(async () => finishDraft(response({ error: { message: 'Draft closure revoked' } }, 404)));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh test-plan access' }) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.queryByRole('button', { name: 'Save test-plan draft' })).toBeNull();
+  mode = 'successful-restore';
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh test-plan access' }));
+  await waitFor(() => expect(finishRevision).toBeDefined());
+  expect(screen.queryByRole('combobox', { name: 'First test terminal' })).toBeNull();
+  // Successful draft and target checks cannot restore the editor before the exact revision check.
+  mode = 'allowed';
+  restoredServerState = true;
+  await act(async () => finishRevision(response(fixture.inspection)));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save test-plan draft' })).toBeTruthy());
+  expect((screen.getByLabelText('Pair stable ID') as HTMLInputElement).value).toBe('unsaved-pair');
+  expect((screen.getByLabelText('Label text') as HTMLInputElement).value).toBe('Unsaved label text');
+  expect(screen.getAllByText('Protected label').length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Add cable label' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save test-plan draft' }));
+  await waitFor(() => expect(commands).toHaveLength(1));
+  expect(commands[0]).toMatchObject({ operation: 'cable_test_plan.update', expected_state: 'draft-v1', payload: { test_plan: { labels: [{ text: 'Protected label' }, { text: 'Unsaved label text' }] } } });
+}, 10_000);
+
+test.each([false, true])('delayed inspector denial ignores only actual editor replacement, replacement=%s', async replaceEditor => {
+  const fixture = sharedPlanFixture();
+  let rejectOld!: (response: Response) => void;
+  let firstCalls = 0;
+  const otherDraft = { ...fixture.draft, definition_id: 'other', draft_id: 'other-draft', content: { test_plan: { ...fixture.shared, pairs: [], labels: [{ ...fixture.shared.labels[0], text: 'Allowed other label' }] } } };
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === 'POST') return response({ result: target });
+    if (url.includes('/projects/')) return response([...fixture.definitions, { definition_id: 'other', kind: 'cable_test_plan', name: 'Other exact plan' }]);
+    if (url.includes('/catalog/definitions/other')) return response({ drafts: [{ draft_id: 'other-draft', state: 'draft-v1' }], revisions: [] });
+    if (url.includes('/catalog/')) return response(fixture.identity);
+    if (url.includes('/drafts/other-draft')) return response(otherDraft);
+    if (url.includes('/drafts/')) return response(fixture.draft);
+    if (url.includes('/revisions/plan-r1')) {
+      firstCalls += 1;
+      if (firstCalls === 2) return new Promise<Response>(resolve => { rejectOld = resolve; });
+    }
+    return response({ ...fixture.inspection, revision_id: url.includes('plan-r2') ? 'plan-r2' : 'plan-r1' });
+  }));
+  render(wrap(<CableTestIntentPanel projectId="project" />));
+  await select('Test-plan definition', 'Shared exact plan');
+  await select('Test-plan draft', 'draft · draft-v1');
+  await screen.findByLabelText('Pair stable ID');
+  await select('Frozen test plan', 'Revision 1 · plan-r1');
+  await screen.findByText(/protected-source-hash/);
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh frozen test-plan access' }));
+  await waitFor(() => expect(rejectOld).toBeDefined());
+  if (replaceEditor) {
+    await select('Test-plan definition', 'Other exact plan');
+    await select('Test-plan draft', 'other-draft · draft-v1');
+    await screen.findByText('Allowed other label');
+  } else {
+    await select('Frozen test plan', 'Revision 2 · plan-r2');
+    await screen.findByText(/Exact plan plan-r2/);
+  }
+  await act(async () => rejectOld(response({ error: { message: 'Previous inspector authority revoked' } }, 404)));
+  if (replaceEditor) {
+    expect(screen.getByRole('button', { name: 'Save test-plan draft' })).toBeTruthy();
+    expect(screen.getByText('Allowed other label')).toBeTruthy();
+  } else {
+    await screen.findByText('Retained test-plan content is hidden while access is unavailable or being rechecked.');
+    expect(screen.queryByRole('button', { name: 'Save test-plan draft' })).toBeNull();
+    expect(screen.queryByText('Protected pair expectation')).toBeNull();
+    expect(screen.queryByRole('link')).toBeNull();
+  }
+}, 10_000);
