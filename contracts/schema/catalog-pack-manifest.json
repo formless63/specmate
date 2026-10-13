@@ -1,0 +1,287 @@
+{
+  "$defs": {
+    "FilePin": {
+      "additionalProperties": false,
+      "properties": {
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "source_bundle_revision_id": {
+          "format": "uuid",
+          "title": "Source Bundle Revision Id",
+          "type": "string"
+        },
+        "source_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Source Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_bundle_revision_id",
+        "source_path",
+        "sha256",
+        "rights"
+      ],
+      "title": "FilePin",
+      "type": "object"
+    },
+    "PackEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "content",
+            "rule",
+            "profile",
+            "model",
+            "recipe_reference"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "recipe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeReference"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision Id"
+        },
+        "revision_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision Sha256"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FilePin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "category",
+        "rights"
+      ],
+      "title": "PackEntry",
+      "type": "object"
+    },
+    "RecipeReference": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "recipe_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Recipe Id",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "recipe_id",
+        "version",
+        "digest"
+      ],
+      "title": "RecipeReference",
+      "type": "object"
+    },
+    "SignatureClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "signature": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Signature",
+          "type": "string"
+        },
+        "signer": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Signer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "signer",
+        "signature"
+      ],
+      "title": "SignatureClaim",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "contract_version": {
+      "default": "1",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "dependencies": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Dependencies",
+      "type": "array"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/PackEntry"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Entries",
+      "type": "array"
+    },
+    "format": {
+      "const": "specmate.catalog-pack",
+      "default": "specmate.catalog-pack",
+      "title": "Format",
+      "type": "string"
+    },
+    "label": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+    },
+    "package_key": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,99}$",
+      "title": "Package Key",
+      "type": "string"
+    },
+    "publisher": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Publisher",
+      "type": "string"
+    },
+    "requested_authority": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 0,
+      "title": "Requested Authority",
+      "type": "array"
+    },
+    "rights": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Rights",
+      "type": "string"
+    },
+    "signature_claim": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SignatureClaim"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "version": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "package_key",
+    "label",
+    "version",
+    "publisher",
+    "rights",
+    "entries"
+  ],
+  "title": "PackManifest",
+  "type": "object"
+}

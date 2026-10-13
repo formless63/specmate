@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "entry_keys": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Entry Keys",
+      "type": "array"
+    },
+    "pack_id": {
+      "format": "uuid",
+      "title": "Pack Id",
+      "type": "string"
+    },
+    "version_id": {
+      "format": "uuid",
+      "title": "Version Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "pack_id",
+    "version_id",
+    "entry_keys",
+    "basis"
+  ],
+  "title": "AdoptPack",
+  "type": "object"
+}

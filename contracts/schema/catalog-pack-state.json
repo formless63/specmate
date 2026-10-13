@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "VersionSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "version_id": {
+          "format": "uuid",
+          "title": "Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version_id",
+        "version",
+        "label",
+        "sha256"
+      ],
+      "title": "VersionSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "consumer_adoption": {
+      "const": "explicit_new_drafts_only",
+      "title": "Consumer Adoption",
+      "type": "string"
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "execution_authority": {
+      "const": "none",
+      "title": "Execution Authority",
+      "type": "string"
+    },
+    "installed_version_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Installed Version Id"
+    },
+    "pack_id": {
+      "format": "uuid",
+      "title": "Pack Id",
+      "type": "string"
+    },
+    "package_key": {
+      "title": "Package Key",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "state": {
+      "title": "State",
+      "type": "string"
+    },
+    "versions": {
+      "items": {
+        "$ref": "#/$defs/VersionSummary"
+      },
+      "title": "Versions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "pack_id",
+    "project_id",
+    "package_key",
+    "state",
+    "installed_version_id",
+    "enabled",
+    "versions",
+    "execution_authority",
+    "consumer_adoption"
+  ],
+  "title": "PackResult",
+  "type": "object"
+}
