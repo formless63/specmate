@@ -1,0 +1,35 @@
+import type { StockSpecification } from '../../../../packages/section-layout/src';
+
+export interface StockRecord {
+  definition_id: string;
+  draft_id: string;
+  name: string;
+  state: string;
+  content: { stock?: StockSpecification };
+}
+const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find(c => c.startsWith('csrftoken='))?.slice(10) ?? '');
+async function read<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, { credentials: 'same-origin', ...options });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error?.message ?? `Request failed (${response.status}).`);
+  return body as T;
+}
+export const listStocks = (projectId: string): Promise<StockRecord[]> =>
+  read(`/api/v0/projects/${encodeURIComponent(projectId)}/stocks`);
+export async function saveStock(projectId: string, name: string, stock: StockSpecification, current: StockRecord | null): Promise<StockRecord> {
+  const result = await read<{ result: StockRecord }>('/api/v0/operations', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+    body: JSON.stringify({ operation: current ? 'wire_stock.update' : 'wire_stock.create',
+      request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(), expected_state: current?.state ?? null,
+      payload: current ? { draft_id: current.draft_id, stock } : { project_id: projectId, name, stock } }),
+  });
+  return result.result;
+}
+export async function freezeStock(current: StockRecord): Promise<{ number: number; draft: { state: string } }> {
+  const result = await read<{ result: { number: number; draft: { state: string } } }>('/api/v0/operations', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+    body: JSON.stringify({ operation: 'wire_stock.freeze', request_id: crypto.randomUUID(),
+      idempotency_key: crypto.randomUUID(), expected_state: current.state, payload: { draft_id: current.draft_id } }),
+  });
+  return result.result;
+}
