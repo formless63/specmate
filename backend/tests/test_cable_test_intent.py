@@ -521,3 +521,132 @@ def test_competing_plan_writes_use_independent_compare_and_set(users, project, p
     assert sorted(results) == ["conflict", "draft-v2"]
     stored = get_draft(users["owner"], draft["draft_id"])
     assert stored["content"]["test_plan"]["labels"][0]["text"] in {"Label one", "Label two"}
+
+
+def evidence_derivative(users, project, kind):
+    if kind == "derivative":
+        ancestor = source_evidence(users, project)
+        derived = op(
+            users["owner"],
+            "source.derive_bundle",
+            {
+                "source_revision_id": ancestor["source_bundle_revision_id"],
+                "name": "Synthetic derived test evidence",
+            },
+        )
+        path = ancestor["source_path"]
+        ancestor_id = ancestor["source_bundle_revision_id"]
+    elif kind == "archive":
+        from .test_source_zip import archive, payload, preserve
+
+        ancestor = preserve(users, project, archive())
+        derived = op(users["owner"], "source.expand_zip", payload(ancestor))
+        path = "src/board.native"
+        ancestor_id = ancestor["revision_id"]
+    else:
+        from .test_source_editing import edited_zip, original, preview, submit
+
+        baseline = original(users, project)
+        uploaded = edited_zip(
+            users,
+            project,
+            baseline["revision_id"],
+            lambda entries: entries.update({"board/main.native": b"synthetic edit"}),
+        )
+        payload = {"baseline_revision_id": baseline["revision_id"], "archive": uploaded}
+        review = preview(users["owner"], payload)
+        derived = submit(users["owner"], payload, review)
+        path = "board/main.native"
+        ancestor_id = uploaded["revision_id"]
+    return {
+        "status": "registered_file",
+        "source_bundle_revision_id": derived["revision_id"],
+        "source_path": path,
+    }, ancestor_id
+
+
+@pytest.mark.parametrize("kind", ["derivative", "archive", "edit"])
+@pytest.mark.parametrize("target_kind", ["pair", "label"])
+def test_evidence_source_ancestry_revocation_denies_reads_exports_and_generic_state(
+    users, project, plan, kind, target_kind
+):
+    owner = users["owner"]
+    evidence, ancestor_id = evidence_derivative(users, project, kind)
+    rows = plan["pairs"] if target_kind == "pair" else plan["labels"]
+    rows[0]["evidence"] = evidence
+    draft = create(owner, project, plan)
+    frozen = freeze(owner, draft)
+    inspected = result(users["viewer"], frozen["revision_id"])
+    resolved = next(row for row in inspected["evidence"] if row["kind"] == target_kind)
+    assert (
+        resolved["evidence"]["source_bundle_revision_id"] == evidence["source_bundle_revision_id"]
+    )
+    from .test_source_editing import hide_archive_member
+
+    hide_archive_member(users, ancestor_id)
+    for read in (
+        lambda: result(users["viewer"], frozen["revision_id"]),
+        lambda: portable_package(users["viewer"], frozen["revision_id"]),
+        lambda: get_draft(users["viewer"], draft["draft_id"]),
+        lambda: get_revision(users["viewer"], frozen["revision_id"]),
+    ):
+        with pytest.raises(NotFound):
+            read()
+    client = api(users["viewer"])
+    assert (
+        client.get(
+            f"/api/v0/cable-test-intent/revisions/{frozen['revision_id']}/package"
+        ).status_code
+        == 404
+    )
+    invalid = copy.deepcopy(plan)
+    invalid["pairs"][0]["first"]["contact_id"] = "missing"
+    invalid["labels"][0]["evidence"] = {**evidence, "source_path": "absent.txt"}
+    with pytest.raises(NotFound, match="Project"):
+        create(users["editor"], project, invalid)
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+@pytest.mark.parametrize("kind", ["derivative", "archive", "edit"])
+def test_retained_evidence_ancestry_authority_precedes_key_mismatch(
+    users, project, plan, legacy, kind
+):
+    editor = users["editor"]
+    evidence, ancestor_id = evidence_derivative(users, project, kind)
+    old = copy.deepcopy(plan)
+    old["pairs"][0]["evidence"] = evidence
+    draft = create(editor, project, old, idempotency_key="ancestor-key")
+    op(
+        editor,
+        "cable_test_plan.update",
+        {"draft_id": draft["draft_id"], "test_plan": plan},
+        expected_state=draft["state"],
+    )
+    if legacy:
+        IdempotencyRecord.objects.filter(
+            operation="cable_test_plan.create", key="ancestor-key"
+        ).update(scope="legacy")
+    from .test_source_editing import hide_archive_member
+
+    hide_archive_member(users, ancestor_id)
+    with pytest.raises(NotFound, match="Project"):
+        create(editor, project, plan, idempotency_key="ancestor-key")
+
+
+def test_scope_and_retained_authority_precede_missing_evidence_path_diagnostics(
+    users, project, plan
+):
+    evidence = source_evidence(users, project)
+    missing = copy.deepcopy(plan)
+    missing["pairs"][0]["evidence"] = {**evidence, "source_path": "absent.txt"}
+    create(users["editor"], project, plan, idempotency_key="authorized-key")
+    with pytest.raises(IdempotencyMismatch):
+        create(users["editor"], project, missing, idempotency_key="authorized-key")
+    hidden = op(users["owner"], "project.create", {"name": "Restricted incoming cable"})[
+        "project_id"
+    ]
+    *_, specification = cable_fixture(users["owner"], hidden)
+    cable = freeze_cable(users["owner"], create_cable(users["owner"], hidden, specification))
+    missing.update(root_revision_id=cable["revision_id"], cable_revision_id=cable["revision_id"])
+    with pytest.raises(NotFound, match="Project"):
+        create(users["editor"], project, missing)

@@ -22,7 +22,8 @@ capture. `.inspect_target`, `.read` and `.package` are fresh read operations. Bo
 supplied scope references and retained idempotency outcomes are reauthorized,
 including current and legacy keyed outcomes, before mismatch diagnostics.
 The full root owning closure, selected cable dependencies and registered evidence
-must remain accessible before terminal, label or occurrence diagnostics are shown.
+including preserved originals and archive/edit ancestors must remain accessible
+before file-path, terminal, label or occurrence diagnostics are shown.
 Direct query boundaries refresh account liveness.
 
 The Cable test intent workspace supports exact revision IDs, contextual paths,

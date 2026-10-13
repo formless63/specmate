@@ -14,7 +14,8 @@ from specmate.catalog_matching.operations import evidence_fields
 from specmate.catalog_matching.queries import current_actor, evidence_result
 from specmate.design.operations import canonical_bytes
 from specmate.operations import ValidationFailed
-from specmate.queries import get_revision
+from specmate.queries import get_bundle_revision, get_revision
+from specmate.sources.authority import authorize_revision
 
 _ACTIVE = ContextVar("test_plan_closure", default=frozenset())
 
@@ -108,11 +109,21 @@ def closure(user, content, kind=None, *, validate=True):
     plan = parse_content(content, kind)
     if plan is None:
         return None, None, None, None
-    # Every file is authorized before occurrence or terminal semantics are inspected.
-    for row in [*plan.pairs, *plan.labels]:
-        evidence_fields(user, row.evidence)
-    root, revision, cable = target(user, plan, validate=validate)
+    # Source ancestry and both complete design closures precede file-path and target
+    # diagnostics. Authority-only replay checks never resolve caller-supplied paths.
+    rows = [*plan.pairs, *plan.labels]
+    source_ids = {
+        row.evidence.source_bundle_revision_id
+        for row in rows
+        if row.evidence.status == "registered_file"
+    }
+    for source_id in sorted(source_ids, key=str):
+        authorize_revision(user, get_bundle_revision(user, source_id))
+    root, revision, cable = target(user, plan, validate=False)
     if validate:
+        for row in rows:
+            evidence_fields(user, row.evidence)
+        root, revision, cable = target(user, plan)
         allowed = {terminal_key(row["terminal"]) for row in terminals(cable)}
         endpoints = {row["local_id"] for row in cable["endpoints"]}
         for pair in plan.pairs:
