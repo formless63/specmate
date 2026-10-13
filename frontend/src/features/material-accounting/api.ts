@@ -10,6 +10,18 @@ export async function read<T>(path: string): Promise<T> {
   if (!response.ok) throw new CableOperationError(body.error?.message ?? `Material read failed (${response.status})`, response.status);
   return body as T;
 }
+// Authority is a fresh read, never an idempotent engineering command.
+export async function checkAuthority(plan: Plan): Promise<{ authorized: boolean }> {
+  const csrf = document.cookie.split('; ').find(cookie => cookie.startsWith('csrftoken='))?.split('=')[1];
+  const response = await fetch('/api/v0/material-accounting/authority', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(csrf ?? '') },
+    body: JSON.stringify(plan),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new CableOperationError(body.error?.message ?? `Material authority failed (${response.status})`, response.status);
+  return body;
+}
 export type { Definition, Identity } from '../identity/api';
 export type Extent = { amount_mm: string | null; basis: string; source: Source | null };
 export type Reconciliation = { consumption_ids: string[]; retained: DemandQuantity; waste: DemandQuantity; basis: string; source: Source | null };

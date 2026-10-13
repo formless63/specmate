@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BuildSheet } from './BuildSheet';
 import { PlanEditor } from './PlanEditor';
-import { authorityDenied, command, emptyPlan, read, type Definition, type Draft, type Identity, type Plan } from './api';
+import { authorityDenied, checkAuthority, command, emptyPlan, read, type Definition, type Draft, type Identity, type Plan } from './api';
 
 export function MaterialAccountingPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
@@ -45,7 +45,7 @@ function Workspace({ projectId }: { projectId: string }) {
   }, onError: (error, input) => fail(error, input.version) });
   const refresh = useMutation({ mutationFn: async ({ version, epoch }: { version: number; epoch: number }) => {
     // Fresh reads cover every retained choice without adopting a newer editing token.
-    if (plan.subject_revision_id) await command('material_plan.authority', plan);
+    if (plan.subject_revision_id) await checkAuthority(plan);
     if (current) await read<Draft>(`material-accounting/drafts/${current.draft_id}`);
     if (draftId && draftId !== current?.draft_id) await read<Draft>(`material-accounting/drafts/${draftId}`);
     if (revisionId) await read(`material-accounting/revisions/${revisionId}`);

@@ -51,7 +51,8 @@ test('save and freeze preserve independent unsaved observations and exact editin
 test('source denial hides retained evidence and restores unsaved state without adopting new server token', async () => {
   let denied = false; let restored = false; const commands: { expected_state?: string; operation: string }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
-    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); commands.push(cmd); if (cmd.operation === 'material_plan.authority') return denied ? response({ error: { message: 'Evidence still hidden.' } }, 404) : response({ result: { authorized: true } }); if (denied) return response({ error: { message: 'Source revoked.' } }, 403); if (restored) return response({ error: { message: 'Concurrent edit.' } }, 409); return response({ result: { definition_id: 'definition', draft_id: 'draft', state: 'original-token', content: { material_plan: plan } } }); }
+    if (url.endsWith('/material-accounting/authority')) return denied ? response({ error: { message: 'Evidence still hidden.' } }, 404) : response({ authorized: true });
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); commands.push(cmd); if (denied) return response({ error: { message: 'Source revoked.' } }, 403); if (restored) return response({ error: { message: 'Concurrent edit.' } }, 409); return response({ result: { definition_id: 'definition', draft_id: 'draft', state: 'original-token', content: { material_plan: plan } } }); }
     if (url.includes('/drafts/')) return response({ definition_id: 'definition', draft_id: 'draft', state: 'new-server-token', content: { material_plan: plan } });
     if (url.includes('catalog/definitions')) return response({ drafts: [], revisions: [] });
     return response([]);
@@ -112,8 +113,9 @@ test('history browsing retains the same editor and cannot suppress its late deni
 
 test('recovery reauthorizes selected identity before revealing its cached history', async () => {
   let writes = 0; let identityDenied = false;
-  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
-    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); if (cmd.operation === 'material_plan.authority') return response({ result: { authorized: true } }); return ++writes === 1 ? response({ result: draft }) : response({ error: { message: 'Mutation source denied.' } }, 403); }
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/material-accounting/authority')) return response({ authorized: true });
+    if (url.endsWith('/operations')) { return ++writes === 1 ? response({ result: draft }) : response({ error: { message: 'Mutation source denied.' } }, 403); }
     if (url.includes('catalog/definitions') && identityDenied) return response({ error: { message: 'Selected identity denied.' } }, 404);
     return response(readBody(url));
   }));
@@ -140,8 +142,9 @@ test.each([false, true])('detached frozen read denial is fenced only by genuine 
 
 test('a later detached denial keeps recovery closed when an earlier refresh succeeds', async () => {
   const first = deferred<Response>(); const recovery = deferred<Response>(); let writes = 0; let firstStarted = false; let firstReads = 0; let recoveredIdentity = false;
-  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
-    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); if (cmd.operation === 'material_plan.authority') return recovery.promise; return ++writes === 1 ? response({ result: draft }) : response({ error: { message: 'Initial source denied.' } }, 403); }
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('/material-accounting/authority')) return recovery.promise;
+    if (url.endsWith('/operations')) { return ++writes === 1 ? response({ result: draft }) : response({ error: { message: 'Initial source denied.' } }, 403); }
     if (url.endsWith('/revisions/first')) { firstStarted = true; return ++firstReads === 1 ? first.promise : response(sheet); }
     if (url.includes('catalog/definitions') && firstReads > 1) recoveredIdentity = true;
     return response(readBody(url));
