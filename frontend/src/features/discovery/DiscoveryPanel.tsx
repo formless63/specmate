@@ -42,7 +42,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
       const result = await searchCatalog(kind, trimmed, scopedProject);
       if (token === generation.current) setPage(result);
     } catch (reason) {
-      if (token === generation.current) setError(message(reason));
+      if (token === generation.current) { setPage(null); setDefinition(null); setUses(null); setError(message(reason)); }
     } finally {
       if (token === generation.current) setBusy(false);
     }
@@ -56,7 +56,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
       const next = await searchCatalog(submitted.kind, submitted.query, submitted.projectId, page.next_after);
       if (token === generation.current) setPage({ ...next, results: [...page.results, ...next.results] });
     } catch (reason) {
-      if (token === generation.current) setError(message(reason));
+      if (token === generation.current) { setPage(null); setDefinition(null); setUses(null); setError(message(reason)); }
     } finally {
       if (token === generation.current) setBusy(false);
     }
@@ -97,7 +97,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
         setMoreRevisions(next.revisions.length === 50);
       }
     } catch (reason) {
-      if (token === generation.current) setError(message(reason));
+      if (token === generation.current) { setDefinition(null); setUses(null); setError(message(reason)); }
     } finally {
       if (token === generation.current) setBusy(false);
     }
@@ -105,11 +105,12 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
 
   async function inspectRevision(revisionId: string, after?: string) {
     const token = ++generation.current;
-    setBusy(true); setError("");
+    const previous = uses;
+    setBusy(true); setError(""); setUses(null);
     try {
       const next = await whereUsed(revisionId, after);
-      if (token === generation.current) setUses(after && uses
-        ? { ...next, results: [...uses.results, ...next.results] } : next);
+      if (token === generation.current) setUses(after && previous
+        ? { ...next, results: [...previous.results, ...next.results] } : next);
     } catch (reason) {
       if (token === generation.current) setError(message(reason));
     } finally {

@@ -55,3 +55,25 @@ test("selected-project search sends scope and shows request failure", async () =
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   await waitFor(() => expect(screen.getByText("Access changed.")).toBeTruthy());
 });
+
+test("denied repeat pin inspection removes the previously disclosed consumer", async () => {
+  let denied = false;
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+    if (path.includes("catalog/search?")) return reply({ results: [{ record_id: "def", project_id: "p", label: "Bracket" }], next_after: null });
+    if (path.includes("catalog/definitions/")) return reply({ definition_id: "def", name: "Bracket", revisions: [{ revision_id: "rev", number: 1 }] });
+    if (path.includes("catalog/where-used?")) return denied
+      ? reply({ error: { message: "Pin unavailable." } }, 404)
+      : reply({ revision_id: "rev", results: [{ snapshot_id: "snap", label: "Formerly visible consumer", project_id: "p", definition_id: "parent" }], next_after: null });
+    throw new Error(`Unexpected request ${path}`);
+  }));
+  render(<MantineProvider><DiscoveryPanel projectId="p" /></MantineProvider>);
+  fireEvent.change(screen.getByLabelText("Search terms"), { target: { value: "bracket" } });
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Inspect uses" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Inspect revision 1" }));
+  expect(await screen.findByText("Formerly visible consumer")).toBeTruthy();
+  denied = true;
+  fireEvent.click(screen.getByRole("button", { name: "Inspect revision 1" }));
+  expect(await screen.findByText("Pin unavailable.")).toBeTruthy();
+  expect(screen.queryByText("Formerly visible consumer")).toBeNull();
+});
