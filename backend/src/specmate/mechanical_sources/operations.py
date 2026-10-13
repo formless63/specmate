@@ -28,6 +28,7 @@ from specmate.mechanical_sources.contracts import (
     ReadMechanicalSource,
     UpdateMechanicalSource,
 )
+from specmate.mechanical_sources.uncertainty import assess
 from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.pcb.population import Population, scoped_interpretation
 from specmate.pcb.report import Report
@@ -385,6 +386,7 @@ def evaluate(user, definition, declaration):
         for s in ("valid", "invalid", "unknown", "not_evaluated")
     }
     return {
+        "uncertainty_assessment": assess(declaration),
         "sources": source_rows,
         "targets": target_rows,
         "models": model_rows,

@@ -237,3 +237,42 @@ labels, hashes, cursors or provenance. The browser preserves the original draft 
 stale-save errors, hides retained and unsaved declarations after access denial, and requires
 an explicit refresh with current closure checks before showing them again. An identical
 save retried after a lost response uses the same reviewed idempotency key.
+
+### Material, process and geometry uncertainty
+
+A mechanical source can retain structured `uncertainty` collections for materials,
+processes, tolerances and connector envelopes. An absent collection is unassessed,
+not an assertion that no assumption is needed. Each row has a stable local ID,
+`unknown`, `declared` or justified `not_applicable` status, and an explicit basis.
+Material/process rows scope either the mechanical item itself or one exact pinned
+local target; they do not inherit supplier facts or apply automatically to other targets.
+Material specification and behavior, process method, parameters and behavior remain
+separate declarations. Missing behavior supplies no shrinkage, deformation or capability.
+
+Tolerance rows identify their dimension/feature, item/target and optional exact local
+model. Bounds are finite lower/upper deviations in millimetres, with lower no greater
+than upper. Explicit zero bounds are valid declarations; unknowns retain null bounds.
+Connector rows identify a deliberately selected target and body, mated, installation
+or cable-route usage. Declared min/max XYZ bounds in millimetres need an explicit
+frame and basis; they are not a computed solid or verified target correspondence.
+Unknown or not-applicable rows carry no guessed numeric geometry. A target with no
+connector scope remains unassessed: no reference label infers connector identity,
+and one declared usage does not cover another usage or operating configuration.
+
+The shared read operation and its HTTP view return an `uncertainty_assessment` with
+exact purpose-specific model/source hashes and rights, declared scopes and structured
+missing prerequisites. It identifies missing model units/frame/accuracy, missing
+model tolerance scope, unassessed connector scope and unsuitable geometry purpose.
+Illustration geometry supplies no manufacturing/clearance evidence; a mesh or a recipe
+labelled manufacturing is not validated B-rep. Even a complete set of listed declarations
+has only `declared_inputs_only` readiness with explicit scope coverage. Native validation,
+feature/frame correspondence, interactions of tolerances, operating envelopes and physical
+checks remain unevaluated. A closed, dimensionally correct illustration mesh cannot
+establish fit, clearance or manufacturability.
+
+Authoring uses the existing shared create/update operations, original draft CAS and
+idempotency guards. Both named and generic capture preserve incomplete/unknown declarations
+in immutable canonical state and never qualify them. Reads recheck the full current
+source/model/target closure before returning assumptions or diagnostics. The Mechanical
+sources editor and read-only frozen view expose the same declarations and missing
+prerequisites; editing later assumptions leaves retained snapshots unchanged.
