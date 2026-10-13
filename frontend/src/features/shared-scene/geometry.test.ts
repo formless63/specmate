@@ -48,3 +48,25 @@ test('inert mechanical models and missing geometry remain reported without unit 
   expect(object.unknown).toContain('right/board: Native model remains inert; geometry unavailable.');
   expect(scene).toEqual(before); object.dispose();
 });
+
+test('feature geometry keeps its unknown placement despite a known containing occurrence', () => {
+  const scene = syntheticScene();
+  for (const node of scene.nodes) {
+    const feature = node.features[0]!;
+    feature.geometry_id = node.geometry_ids[0]!;
+    node.geometry_ids = [];
+  }
+  const before = structuredClone(scene);
+  const canonical = buildSceneObject(scene, 'canonical');
+  expect(canonical.objects.size).toBe(0);
+  expect(canonical.unknown.filter(reason => reason.includes('placement unknown'))).toHaveLength(2);
+  canonical.dispose();
+  const inspection = buildSceneObject(scene, 'inspection');
+  const left = scene.nodes[0]!.features[0]!.address, right = scene.nodes[1]!.features[0]!.address;
+  expect(inspection.objects.size).toBe(2);
+  expect(inspection.objects.get(selectionKey(left))).not.toBe(inspection.objects.get(selectionKey(right)));
+  expect(inspection.objects.get(selectionKey(left))!.children[0]!.userData.address).toEqual(left);
+  expect(inspection.objects.get(selectionKey(right))!.children[0]!.userData.address).toEqual(right);
+  expect(scene).toEqual(before);
+  inspection.dispose();
+});

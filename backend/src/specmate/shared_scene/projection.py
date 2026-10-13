@@ -10,6 +10,7 @@ from uuid import UUID
 
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import get_snapshot, occurrence_result
+from specmate.catalog_matching.queries import current_actor
 from specmate.catalog_packs.authoring import authorize_origin
 from specmate.design.models import Revision, Snapshot
 from specmate.mechanical_sources.operations import evaluate, parse_content
@@ -34,6 +35,7 @@ def scene_snapshot(user, snapshot_id):
 
 
 def list_scenes(user, project_id):
+    user = current_actor(user)
     authorize(user, project_id, Perm.PROJECT_READ)
     rows = []
     # Bound closure work too. Counts and cursors never expose hidden assemblies.
@@ -369,6 +371,7 @@ def cable_stock_id(content):
 
 
 def read_scene(user, snapshot_id):
+    user = current_actor(user)
     snapshot, closure = scene_snapshot(user, snapshot_id)
     # A captured draft is not a frozen assembly. Keep this API's semantics exact.
     root_revision = Revision.objects.filter(snapshot=snapshot).first()
