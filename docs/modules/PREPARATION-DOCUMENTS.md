@@ -64,3 +64,15 @@ Predecessor disposition: WireHub build-sheet/schematic and saved-document route 
 Legacy server/catalog loading and workshop bench derivations are reference only.
 The Specmate Python projection uses immutable typed declarations instead. No
 predecessor models, fonts, workshop defaults or private fixture inputs are retained.
+
+The reusable `PreparationDocumentsPanel` takes project, principal and explicit
+engineering-generation permission props. It offers authorized frozen choices,
+exact contextual bindings and independent physical-end selection. Changing input
+fields invalidates review; retry preserves the same reviewed request/key until
+inputs deliberately change. Current-authority denial hides retained metadata and
+staged fields. Recovery freshly rechecks current inputs and any selected receipt;
+it retains prepared values and the original review token. Project/principal
+replacement disposes earlier responses and clears state. Downloaded bytes are
+independently checked against saved hashes and sizes before saving or sandboxed
+schematic preview. The small WireHub `svgSize` helper is retained under AGPL-3.0-only
+for preview sizing, with upstream identity and license notice in NOTICE.

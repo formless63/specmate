@@ -26,6 +26,8 @@ from specmate.selected_packages.queries import collect_sources, digest, source_a
 MAX_REVISIONS = 1024
 MAX_CONTEXTS = 256
 MAX_ROWS = 4096
+MAX_INPUT_BYTES = 8 * 1024 * 1024
+MAX_SOURCE_FILES = 4000
 
 
 def references(configuration):
@@ -55,6 +57,10 @@ def authorize_inputs(user, configuration):
         if len(captured) > MAX_REVISIONS:
             raise ValidationFailed("Document inputs exceed the bounded revision limit.")
     files, opaque = collect_sources(user, captured)
+    if sum(len(r.snapshot.canonical) for r in captured.values()) > MAX_INPUT_BYTES:
+        raise ValidationFailed("Canonical document inputs exceed the bounded byte limit.")
+    if len(files) > MAX_SOURCE_FILES:
+        raise ValidationFailed("Document source pins exceed the bounded file limit.")
     return user, captured, files, opaque
 
 
@@ -290,6 +296,9 @@ def project(user, configuration):
                     ],
                     "declared_assignment_count": len(cable["assignments"]),
                     "design_assignment_count": None if q is None else len(cable["assignments"]) * q,
+                    "workshop_assignment_count": None
+                    if workshop_quantity is None
+                    else len(cable["assignments"]) * workshop_quantity,
                     "authority": "declared_topology",
                     "physical_continuity": "not_evaluated",
                 }
@@ -324,6 +333,13 @@ def project(user, configuration):
                     "address": address,
                     "relationships": inspected["declared_relationships"],
                     "breakout_fates": inspected["breakout_fates"],
+                    "declared_relationship_count": len(inspected["declared_relationships"]),
+                    "design_relationship_count": None
+                    if q is None
+                    else len(inspected["declared_relationships"]) * q,
+                    "workshop_relationship_count": None
+                    if workshop_quantity is None
+                    else len(inspected["declared_relationships"]) * workshop_quantity,
                     "authority": "declared_relationships",
                     "physical_continuity": "not_evaluated",
                 }
@@ -466,6 +482,15 @@ def project(user, configuration):
             )
         for piece in pieces:
             if piece["section_id"] not in applied_sections:
+                issues.append(
+                    {
+                        "path": list(path),
+                        "section_id": piece["section_id"],
+                        "code": "missing_end_preparation",
+                        "status": "unknown",
+                        "message": "No exact per-end preparation profile is bound.",
+                    }
+                )
                 preparations.append(
                     {
                         "address": address,
@@ -487,10 +512,27 @@ def project(user, configuration):
                 raise ValidationFailed(
                     "Test intent must pin this exact root/context/cable revision."
                 )
+            if not plan["pairs"]:
+                issues.append(
+                    {
+                        "path": list(path),
+                        "code": "empty_test_intent",
+                        "status": "unknown",
+                        "message": "Authored plan has no test-pair expectations.",
+                    }
+                )
             tests.append(
                 {"address": address, "declarations": result, "physical_test": "not_performed"}
             )
         else:
+            issues.append(
+                {
+                    "path": list(path),
+                    "code": "missing_test_intent",
+                    "status": "unknown",
+                    "message": "No exact authored test intent is bound.",
+                }
+            )
             tests.append(
                 {
                     "address": address,

@@ -28,6 +28,16 @@ def render(projection):
         "readiness": projection["readiness"],
         "document_assessments": projection["document_assessments"],
         "issues": sections["issues"],
+        "quantity_summary": {
+            "meaning": "Declared design piece/relationship counts; no physical facts",
+            "physical_pieces": [
+                r for r in sections["cut_preparation"] if r["row_kind"] == "declared_physical_piece"
+            ],
+            "terminations": [
+                {k: v for k, v in row.items() if k == "address" or k.endswith("count")}
+                for row in sections["terminations"]
+            ],
+        },
     }
     files = {}
 
@@ -118,7 +128,7 @@ def render(projection):
             )
     add("cut-preparation.csv", "text/csv", stream.getvalue().encode())
     # Nodes and lines portray only authored relationships, never native/physical routes.
-    drawing, y = [], 95
+    drawing, y = [], 110
 
     def label(x, y, text):
         return f'<text x="{x}" y="{y}" font-size="13">{html.escape(text)}</text>'
@@ -170,6 +180,12 @@ def render(projection):
         '<rect width="100%" height="100%" fill="white"/>'
         + label(20, 30, "Declared schematic · root " + inputs["root"]["revision_id"])
         + label(20, 58, "Physical continuity, routing and test outcome: not evaluated.")
+        + label(
+            20,
+            78,
+            "Each drawing depicts one declared contextual occurrence; "
+            "batch quantities remain in the common metadata.",
+        )
         + "".join(drawing)
         + "</svg>"
     )
@@ -201,8 +217,37 @@ def render(projection):
     add("build-sheet.html", "text/html", document.encode())
     if set(files) != set(DOCUMENTS) or sum(len(data) for _, data in files.values()) > MAX_SET_BYTES:
         raise ValidationFailed("Coordinated output set exceeds the bounded complete-file limits.")
+    contexts = []
+    for scope in sections["specifications"]:
+        declarations = scope["declarations"]
+        cable = declarations.get("cable")
+        harness = declarations.get("harness")
+        contexts.append(
+            {
+                "address": scope["address"],
+                "kind": "cable" if cable is not None else "harness",
+                "disposition": scope["disposition"],
+                "sections": [
+                    {
+                        "section_id": None,
+                        "stock_revision_id": cable["stock_revision_id"],
+                        "end_ids": [e["local_id"] for e in cable["endpoints"]],
+                    }
+                ]
+                if cable is not None
+                else [
+                    {
+                        "section_id": s["local_id"],
+                        "stock_revision_id": s["stock_revision_id"],
+                        "end_ids": [e["local_id"] for e in s.get("physical_ends", [])],
+                    }
+                    for s in harness["sections"]
+                ],
+            }
+        )
     manifest = {
         **envelope,
+        "context_pins": contexts,
         "outputs": [
             {
                 "filename": name,

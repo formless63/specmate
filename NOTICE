@@ -34,3 +34,11 @@ upstream license, independently of the application license.
 @noble/hashes 2.0.1 provides the SHA-256 source-checksum fallback for HTTP browser origins.
 Copyright and MIT license: frontend/public/licenses/noble-hashes-LICENSE.txt,
 served at /licenses/noble-hashes-LICENSE.txt. Upstream: https://github.com/paulmillr/noble-hashes
+
+The generated schematic preview adapts WireHub by formless63 at
+cbf919edf30a9d906a791971d3a40e22cb78b67e (AGPL-3.0-only):
+- packages/docs/src/schematic-sheet.ts: pure svgSize viewBox sizing helper,
+  retained in frontend/src/features/preparation-documents/svg-size.ts.
+It sizes only an inert generated diagram and does not validate geometry. No server,
+catalog, private preparation defaults, fonts or predecessor design inputs are reused.
+The Module Exception additional permission is not applied to this adaptation.

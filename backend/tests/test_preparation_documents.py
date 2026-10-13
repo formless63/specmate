@@ -33,6 +33,7 @@ from .test_bom import create as create_bom
 from .test_cable_test_intent import contact, expectation
 from .test_cable_test_intent import create as create_tests
 from .test_cable_test_intent import freeze as freeze_tests
+from .test_cables import capture as freeze_cable
 from .test_end_preparation import create as create_ends
 from .test_end_preparation import freeze as freeze_ends
 from .test_end_preparation import profile as end_profile
@@ -141,6 +142,15 @@ def test_six_files_same_exact_provenance_independent_cut_pin_intent_quantities(u
     pre = html_file.split("<pre>", 1)[1].split("</pre>", 1)[0]
     envelopes.append(json.loads(html.unescape(pre)))
     assert len(envelopes) == 6
+    assert all(
+        e["quantity_summary"]["physical_pieces"][0]["design_piece_count"] == 2 for e in envelopes
+    )
+    assert all(
+        e["quantity_summary"]["physical_pieces"][0]["design_total_mm"] == "2140" for e in envelopes
+    )
+    assert all(
+        e["quantity_summary"]["terminations"][0]["design_assignment_count"] == 4 for e in envelopes
+    )
     assert all(e["inputs"] == saved["manifest"]["inputs"] for e in envelopes)
     assert all(e["inputs_sha256"] == saved["sha256"] for e in envelopes)
     assert all(e["inputs"]["root"]["revision_id"] == root["revision_id"] for e in envelopes)
@@ -461,3 +471,110 @@ def test_generator_identity_changes_review_state_and_unsupported_root_is_explici
             idempotency_key="old-generator",
         )
     assert not DocumentSet.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_parallel_same_key_publishes_one_whole_immutable_set(users, project):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connections
+
+    user = users["owner"]
+    _, root = cable(user, project)
+    config = configuration(root)
+    reviewed = op(user, "preparation_documents.review", config)
+    barrier = Barrier(2)
+
+    def submit():
+        close_old_connections()
+        try:
+            actor = get_user_model().objects.get(pk=user.pk)
+            barrier.wait(timeout=10)
+            try:
+                return op(
+                    actor,
+                    "preparation_documents.generate",
+                    config,
+                    expected_state=reviewed["state"],
+                    idempotency_key="parallel",
+                )
+            except Conflict:
+                # Shared operation concurrency publishes one winner; the loser retries.
+                return None
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: submit(), range(2)))
+    winner = next(r for r in results if r is not None)
+    assert all(r is None or r == winner for r in results)
+    assert (
+        op(
+            user,
+            "preparation_documents.generate",
+            config,
+            expected_state=reviewed["state"],
+            idempotency_key="parallel",
+        )
+        == winner
+    )
+    assert DocumentSet.objects.count() == 1
+    assert DocumentOutput.objects.count() == 6
+    assert IdempotencyRecord.objects.filter(operation="preparation_documents.generate").count() == 1
+
+
+def test_new_root_revision_keeps_old_frozen_bytes_and_exact_binary_adapter(users, project):
+    from types import SimpleNamespace
+
+    from specmate.preparation_documents import api as documents_api
+    from specmate.preparation_documents.contracts import Download
+
+    user = users["owner"]
+    value, root = cable(user, project)
+    config = configuration(root)
+    _, saved = retain(user, config)
+    original = files(user, saved)
+    value["assignments"][1]["contact_id"] = "a"
+    updated = op(
+        user,
+        "cable.update",
+        {"draft_id": root["draft"]["draft_id"], "cable": value},
+        expected_state=root["draft"]["state"],
+    )
+    revision_two = freeze_cable(user, updated)
+    _, later = retain(user, configuration(revision_two), "root-two")
+    assert (
+        later["manifest"]["inputs"]["root"]["revision_id"]
+        != saved["manifest"]["inputs"]["root"]["revision_id"]
+    )
+    assert files(user, saved) == original
+    request = SimpleNamespace(user=users["viewer"])
+    response = documents_api.file(
+        request, Download(document_set_id=saved["document_set_id"], filename="schematic.svg")
+    )
+    assert response.content == original["schematic.svg"]
+    assert response["Cache-Control"] == "private, no-store"
+    assert response["X-Content-Type-Options"] == "nosniff"
+    assert "sandbox" in response["Content-Security-Policy"]
+    assert documents_api.receipt(request, saved["document_set_id"])["sha256"] == saved["sha256"]
+    assert len(documents_api.records(request, project)["document_sets"]) == 2
+
+
+def test_output_metadata_cannot_depart_from_immutable_manifest(users, project):
+    user = users["owner"]
+    _, root = cable(user, project)
+    _, saved = retain(user, configuration(root))
+    output = DocumentOutput.objects.filter(document_set_id=saved["document_set_id"]).first()
+    with (
+        pytest.raises(DatabaseError, match="output does not match immutable manifest"),
+        transaction.atomic(),
+    ):
+        DocumentOutput.objects.create(
+            document_set_id=saved["document_set_id"],
+            filename=output.filename,
+            media_type="text/fabricated",
+            sha256="0" * 64,
+            size=1,
+            rights="unknown",
+        )
