@@ -11,6 +11,7 @@ on:
       - 'tests/native/**'
       - 'tests/portable/**'
       - 'toolpacks/kicad/**'
+      - 'toolpacks/firmware/**'
       - 'scripts/check_native_fixtures.py'
       - 'scripts/verify_selected_package.py'
       - 'Makefile'
@@ -71,6 +72,8 @@ jobs:
           make check-fixtures
           uv run --project backend --frozen ruff check --config backend/pyproject.toml scripts/verify_selected_package.py tests/portable
           uv run --project backend --frozen ruff format --check --config backend/pyproject.toml scripts/verify_selected_package.py tests/portable
+          uv run --project backend --frozen ruff check --config backend/pyproject.toml toolpacks/firmware
+          uv run --project backend --frozen ruff format --check --config backend/pyproject.toml toolpacks/firmware
           make portable-test
         # Real Docker/native-pack cases require explicit cached-image opt-in at a checkpoint.
   frontend:
