@@ -25,6 +25,8 @@ const PcbDisagreementPanel = lazy(() => import("./features/pcb-disagreement/PcbD
 
 const PassivePassagesWorkspace = lazy(() => import("./features/passive-passages/PassivePassagesWorkspace").then((module) => ({ default: module.PassivePassagesWorkspace })));
 
+const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((module) => ({ default: module.SourcesPanel })));
+
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
     <ProjectWorkspace key={`${projectId}:${project.permissions?.join(",") ?? ""}`}
@@ -40,6 +42,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
   }}>
     <Tabs.List aria-label="Project tools">
       <Tabs.Tab value="identity">Identities</Tabs.Tab>
+      <Tabs.Tab value="sources">Sources</Tabs.Tab>
       <Tabs.Tab value="discovery">Discovery</Tabs.Tab>
       <Tabs.Tab value="revision-upgrades">Revision upgrades</Tabs.Tab>
       <Tabs.Tab value="matching">Reviewed matching</Tabs.Tab>
@@ -60,6 +63,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="physical-units">Physical units</Tabs.Tab>
       <Tabs.Tab value="access">Project access</Tabs.Tab>
     </Tabs.List>
+    <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="revision-upgrades">{visited.has("revision-upgrades") && <RevisionUpgradeWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} />}</ToolPanel>

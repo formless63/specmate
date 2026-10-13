@@ -32,12 +32,14 @@ from specmate.pcb.api import router as pcb_router
 from specmate.pcb_disagreement.api import router as disagreement_router
 from specmate.physical_units.api import router as physical_units_router
 from specmate.revision_upgrades.api import router as upgrades_router
+from specmate.sources.api import router as sources_router
 from specmate.wire_stock.api import router as stock_router
 from specmate.workshop_profiles.api import router as workshop_profile_router
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
 api.add_router("/v0/access", access_router)
 api.add_router("/v0/catalog", catalog_router)
+api.add_router("/v0/sources", sources_router)
 api.add_router("/v0/catalog-matching", matching_router)
 api.add_router("/v0/catalog-packs", packs_router)
 api.add_router("/v0/facts", facts_router)
