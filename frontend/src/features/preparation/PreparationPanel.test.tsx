@@ -146,3 +146,31 @@ test('late computation denial does not gate an unrelated replacement editor', as
   await act(async () => { pending.resolve(response({ error: { message: 'Old source denied.' } }, 403)); });
   await screen.findByText('Old source denied.'); expect(onDenied).not.toHaveBeenCalled();
 });
+
+test('browsing history while a save is pending does not discard same-editor authority denial', async () => {
+  const pending = deferred<Response>(); let count = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); count += 1; if (count === 2) return pending.promise; return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: cmd.payload.profile } } }); }
+    if (url.includes('/definitions') && !url.includes('catalog/definitions')) return response([...baseRead(url) as object[], { definition_id: 'other', name: 'Other history', kind: 'preparation_profile' }]);
+    return response(baseRead(url));
+  }));
+  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } }); fireEvent.click(screen.getByText('Save preparation profile')); await waitFor(() => expect(count).toBe(2));
+  await select('Existing preparation definition', 'Other history'); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('25');
+  await act(async () => { pending.resolve(response({ error: { message: 'Retained editor source denied.' } }, 403)); });
+  await screen.findByText(/Preparation source access must be rechecked/); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); expect(screen.queryByText('draft · v1', { selector: 'p' })).toBeNull();
+});
+
+test('quantity edits cannot discard a pending computed denial affecting the retained editor', async () => {
+  const pending = deferred<Response>(); let computations = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: cmd.payload.profile } } }); }
+    if (url.endsWith('/compute')) { computations += 1; return computations === 1 ? response(computed) : pending.promise; }
+    return response(baseRead(url));
+  }));
+  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } }); fireEvent.change(screen.getByLabelText('Preparation subject exact revision ID'), { target: { value: 'cable-rev' } }); fireEvent.change(screen.getByLabelText('Application 1 profile exact revision ID'), { target: { value: 'profile-rev' } }); fireEvent.click(screen.getByText('Compute preparation cuts')); await screen.findByText(/1035 mm/);
+  fireEvent.click(screen.getByText('Refresh computed cut access')); await waitFor(() => expect(computations).toBe(2)); fireEvent.change(screen.getByLabelText('Requested units'), { target: { value: '3' } }); expect(screen.queryByText(/1035 mm/)).toBeNull(); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('25');
+  await act(async () => { pending.resolve(response({ error: { message: 'Superseded read source denied.' } }, 403)); });
+  await screen.findByText(/Preparation source access must be rechecked/); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); expect(screen.queryByText('Apply exact profiles to frozen cable or harness')).toBeNull();
+});

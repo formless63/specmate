@@ -25,7 +25,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const authorityGeneration = useRef(0);
   const deniedApplication = useRef<Request | null>(null);
   const changeProfile = (value: Profile) => { edits.current += 1; setProfile(value); };
-  const computationDenied = useCallback((request: Request) => { deniedApplication.current = request; setBlocked(true); }, []);
+  const computationDenied = useCallback((request: Request, scope: number) => { if (scope !== authorityGeneration.current) return; deniedApplication.current = request; setBlocked(true); }, []);
   const definitions = useQuery({ queryKey: ['preparation-definitions', projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
   const identity = useQuery({ queryKey: ['preparation-identity', definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
   const stock = useQuery({ queryKey: ['preparation-stock', profile.stock_revision_id], queryFn: () => loadFrozenStock(profile.stock_revision_id), enabled: !!profile.stock_revision_id });
@@ -46,12 +46,12 @@ function Workspace({ projectId }: { projectId: string }) {
   const refreshAccess = useCallback(() => refresh.mutate(), [refresh.mutate]);
   useEffect(() => { if (!blocked) return; window.addEventListener('focus', refreshAccess); return () => window.removeEventListener('focus', refreshAccess); }, [blocked, refreshAccess]);
   const load = useMutation({
-    mutationFn: ({ draftId }: { draftId: string; generation: number; edits: number }) => read<Draft>(`preparation/drafts/${draftId}`),
+    mutationFn: ({ draftId }: { draftId: string; generation: number; authorityGeneration: number; edits: number }) => read<Draft>(`preparation/drafts/${draftId}`),
     onSuccess: (data, submitted) => { if (submitted.generation !== generation.current || submitted.edits !== edits.current) return; authorityGeneration.current += 1; setRevisionId(null); setCurrent(data); setProfile(data.content.preparation_profile); },
-    onError: (_error, submitted) => { if (submitted.generation === generation.current) setBlocked(true); },
+    onError: (_error, submitted) => { if (submitted.authorityGeneration === authorityGeneration.current) setBlocked(true); },
   });
   const save = useMutation({
-    mutationFn: (submitted: { current: Draft | null; profile: Profile; name: string; generation: number; edits: number }) => command<Draft>(submitted.current ? 'preparation.update' : 'preparation.create', submitted.current ? { draft_id: submitted.current.draft_id, profile: submitted.profile } : { project_id: projectId, name: submitted.name, profile: submitted.profile }, submitted.current?.state),
+    mutationFn: (submitted: { current: Draft | null; profile: Profile; name: string; generation: number; authorityGeneration: number; edits: number }) => command<Draft>(submitted.current ? 'preparation.update' : 'preparation.create', submitted.current ? { draft_id: submitted.current.draft_id, profile: submitted.profile } : { project_id: projectId, name: submitted.name, profile: submitted.profile }, submitted.current?.state),
     onSuccess: async (data, submitted) => {
       if (submitted.generation !== generation.current) return;
       setCurrent(data);
@@ -60,12 +60,12 @@ function Workspace({ projectId }: { projectId: string }) {
       await cache.invalidateQueries({ queryKey: ['preparation-definitions', projectId] });
       await cache.invalidateQueries({ queryKey: ['preparation-identity', data.definition_id] });
     },
-    onError: (error, submitted) => { if (submitted.generation === generation.current) onError(error); },
+    onError: (error, submitted) => { if (submitted.authorityGeneration === authorityGeneration.current) onError(error); },
   });
   const freeze = useMutation({
-    mutationFn: (submitted: { current: Draft; generation: number }) => command<{ revision_id: string; draft: Draft }>('preparation.freeze', { draft_id: submitted.current.draft_id }, submitted.current.state),
+    mutationFn: (submitted: { current: Draft; generation: number; authorityGeneration: number }) => command<{ revision_id: string; draft: Draft }>('preparation.freeze', { draft_id: submitted.current.draft_id }, submitted.current.state),
     onSuccess: async (data, submitted) => { if (submitted.generation !== generation.current) return; setRevisionId(data.revision_id); setCurrent(c => c ? { ...c, state: data.draft.state } : c); await cache.invalidateQueries({ queryKey: ['preparation-identity', submitted.current.definition_id] }); },
-    onError: (error, submitted) => { if (submitted.generation === generation.current) onError(error); },
+    onError: (error, submitted) => { if (submitted.authorityGeneration === authorityGeneration.current) onError(error); },
   });
   const denied = blocked || definitions.isError || identity.isError || stock.isError;
   return <Stack><Title order={2}>Preparation arithmetic</Title><Text>Freeze reviewed formulas separately from illustrative workshop practices. Exact applications compute suggestions without changing stock, cable or harness declarations. Prepend, physical clearance and qualification remain unevaluated.</Text>
@@ -75,12 +75,12 @@ function Workspace({ projectId }: { projectId: string }) {
       {current ? <Text>{current.draft_id} · {current.state}</Text> : <TextInput label="Preparation profile name" value={name} onChange={e => setName(e.currentTarget.value)} />}
       <RevisionChoice label="Preparation stock" kinds={['wire_stock']} value={profile.stock_revision_id} onChange={stock_revision_id => changeProfile({ ...profile, stock_revision_id })} definitions={definitions.data ?? []} />
       <ProfileEditor value={profile} onChange={changeProfile} choices={stock.data ? conductiveChoices(stock.data.structure) : []} />
-      <Group><Button disabled={load.isPending || freeze.isPending || !profile.stock_revision_id || (!current && !name.trim())} loading={save.isPending} onClick={() => save.mutate({ current, profile, name, generation: generation.current, edits: edits.current })}>Save preparation profile</Button>{current && <Button disabled={save.isPending || load.isPending} loading={freeze.isPending} onClick={() => freeze.mutate({ current, generation: generation.current })}>Freeze preparation profile</Button>}<Button variant="subtle" onClick={() => { generation.current += 1; authorityGeneration.current += 1; setCurrent(null); changeProfile(emptyProfile()); setName(''); setDefinition(null); setDraftId(null); setRevisionId(null); }}>New preparation profile</Button></Group>
+      <Group><Button disabled={load.isPending || freeze.isPending || !profile.stock_revision_id || (!current && !name.trim())} loading={save.isPending} onClick={() => save.mutate({ current, profile, name, generation: generation.current, authorityGeneration: authorityGeneration.current, edits: edits.current })}>Save preparation profile</Button>{current && <Button disabled={save.isPending || load.isPending} loading={freeze.isPending} onClick={() => freeze.mutate({ current, generation: generation.current, authorityGeneration: authorityGeneration.current })}>Freeze preparation profile</Button>}<Button variant="subtle" onClick={() => { generation.current += 1; authorityGeneration.current += 1; setCurrent(null); changeProfile(emptyProfile()); setName(''); setDefinition(null); setDraftId(null); setRevisionId(null); }}>New preparation profile</Button></Group>
     </Stack></Card>
     <Select label="Existing preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={id => { generation.current += 1; setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
-    {identity.data && <><Select label="Preparation draft to load" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={id => { generation.current += 1; setDraftId(id); }} /><Button disabled={!draftId} loading={load.isPending} onClick={() => { generation.current += 1; load.mutate({ draftId: draftId!, generation: generation.current, edits: edits.current }); }}>Load preparation draft</Button><Select label="Frozen preparation revision" value={revisionId} data={identity.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={id => { generation.current += 1; setRevisionId(id); }} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous preparation history</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next preparation history</Button></Group></>}
+    {identity.data && <><Select label="Preparation draft to load" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={id => { generation.current += 1; setDraftId(id); }} /><Button disabled={!draftId} loading={load.isPending} onClick={() => { generation.current += 1; load.mutate({ draftId: draftId!, generation: generation.current, authorityGeneration: authorityGeneration.current, edits: edits.current }); }}>Load preparation draft</Button><Select label="Frozen preparation revision" value={revisionId} data={identity.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={id => { generation.current += 1; setRevisionId(id); }} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous preparation history</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next preparation history</Button></Group></>}
     {revisionId && <FrozenProfile key={revisionId} revisionId={revisionId} onDenied={() => setBlocked(true)} />}
-    <CutCalculation definitions={definitions.data ?? []} onDenied={computationDenied} authorityScope={authorityGeneration.current} />
+    <CutCalculation key={authorityGeneration.current} definitions={definitions.data ?? []} onDenied={computationDenied} authorityScope={authorityGeneration.current} />
     </>}
   </Stack>;
 }
