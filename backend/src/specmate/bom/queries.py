@@ -1,6 +1,7 @@
 """Permission-complete frozen inputs and purpose-specific, occurrence-preserving projections."""
 
 import json
+from contextvars import ContextVar
 
 from pydantic import ValidationError
 
@@ -8,7 +9,22 @@ from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import Closure as AssemblyClosure
 from specmate.bom.contracts import BomPlan
 from specmate.design.models import Revision
+from specmate.design.operations import authorize_snapshot
 from specmate.operations import NotFound, ValidationFailed
+
+_AUTHORIZING = ContextVar("bom_authorizing_snapshots", default=frozenset())
+
+
+def authorize_reference(user, revision):
+    """Apply owning typed-content/source checks without unbounded BOM re-entry."""
+    active = _AUTHORIZING.get()
+    if revision.snapshot_id in active or len(active) >= 32:
+        raise ValidationFailed("BOM authorization nesting limit or dependency cycle.")
+    token = _AUTHORIZING.set(active | {revision.snapshot_id})
+    try:
+        authorize_snapshot(user, revision.snapshot)
+    finally:
+        _AUTHORIZING.reset(token)
 
 
 def parse_content(content, kind=None):
@@ -54,11 +70,18 @@ class Closure:
             authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
             self.revisions[rid] = revision
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
+        # Project membership alone does not authorize typed source-file references,
+        # which need not be represented by design SnapshotDependency rows.
+        for revision in self.revisions.values():
+            authorize_reference(user, revision)
         self.root = self.revisions[self.plan.assembly_revision_id]
         content = json.loads(bytes(self.root.snapshot.canonical))["content"]
         if self.root.definition.kind != "assembly":
             raise ValidationFailed("BOM root requires an exact assembly revision.")
         self.assembly = AssemblyClosure(user, content, kind="assembly", dependencies=self.revisions)
+        for rid, revision in self.assembly.revisions.items():
+            if rid not in self.revisions:
+                authorize_reference(user, revision)
         self.revisions.update(self.assembly.revisions)
         for policy in self.plan.policies:
             node = self.assembly.nodes.get(tuple(policy.path))

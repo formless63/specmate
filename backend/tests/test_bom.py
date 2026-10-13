@@ -371,3 +371,153 @@ def test_concurrent_bom_updates_have_one_winner(users, project):
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         assert sorted(pool.map(update, [2, 3])) == ["conflict", "saved"]
+
+
+@pytest.mark.parametrize("reference_kind", ["supplemental", "assembly_child"])
+def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
+    users, project, reference_kind
+):
+    import hashlib
+
+    from specmate.sources.models import (
+        SourceBlob,
+        SourceBundle,
+        SourceBundleFile,
+        SourceBundleRevision,
+    )
+
+    from .test_workshop_profiles import profile, stock_revision
+
+    owner, user = users["owner"], users["editor"]
+    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    stock_id, _ = stock_revision(users, project)
+    raw = b"Synthetic process instruction."
+    digest = hashlib.sha256(raw).hexdigest()
+    blob = SourceBlob.objects.create(
+        project_id=project,
+        sha256=digest,
+        size=len(raw),
+        media_type="text/plain",
+        registered_by=owner,
+    )
+    bundle = SourceBundle.objects.create(
+        project_id=project, name="Synthetic provenance", role="original", created_by=owner
+    )
+    source_revision = SourceBundleRevision.objects.create(
+        bundle=bundle,
+        number=1,
+        manifest=b"{}",
+        manifest_sha256=hashlib.sha256(b"{}").hexdigest(),
+        created_by=owner,
+    )
+    SourceBundleFile.objects.create(
+        revision=source_revision,
+        path="instruction.txt",
+        blob=blob,
+        media_type="text/plain",
+        rights="synthetic-test",
+    )
+    documented = profile(
+        stock_id,
+        foil_visibility={
+            "value": "hide",
+            "basis": "documented",
+            "source": {
+                "kind": "source_file",
+                "bundle_revision_id": str(source_revision.id),
+                "path": "instruction.txt",
+                "locator": "line 1",
+                "sha256": digest,
+                "rights": "synthetic-test",
+            },
+        },
+    )
+    profile_draft = op(
+        owner,
+        "workshop_profile.create",
+        {
+            "project_id": project,
+            "name": "Synthetic referenced profile",
+            "profile": documented,
+        },
+    )
+    profile_revision = capture(owner, profile_draft, "workshop_profile.freeze")
+    root = assembly(
+        owner,
+        project,
+        [("process", profile_revision)] if reference_kind == "assembly_child" else [],
+    )
+    plan = {
+        "assembly_revision_id": root["revision_id"],
+        "quantity": {"status": "known", "amount": 1},
+        "policies": [policy([], root, "buy")],
+        "needs": []
+        if reference_kind == "assembly_child"
+        else [
+            {
+                "local_id": "process",
+                "context_path": [],
+                "revision_id": profile_revision["revision_id"],
+                "purpose": "consumables",
+                "basis": "Explicit planning reference",
+            }
+        ],
+    }
+    draft = create(user, project, plan, idempotency_key="source-backed-bom")
+    frozen = capture(user, draft, "bom.freeze", idempotency_key="source-backed-freeze")
+    assert len(inspect_revision(user, frozen["revision_id"])["rows"]) == 1
+    hidden_project = op(owner, "project.create", {"name": "Restricted provenance"})["project_id"]
+    bundle.project_id = hidden_project
+    bundle.save(update_fields=["project"])
+    malformed = copy.deepcopy(plan)
+    malformed["scope_paths"] = [["missing"]]
+    actions = [
+        lambda: create(user, project, plan),
+        lambda: create(user, project, malformed),
+        lambda: create(user, project, plan, idempotency_key="source-backed-bom"),
+        lambda: capture(user, draft, "bom.freeze", idempotency_key="source-backed-freeze"),
+        lambda: inspect_revision(user, frozen["revision_id"]),
+        lambda: op(user, "bom.read", {"revision_id": frozen["revision_id"]}),
+    ]
+    for state in (frozen["draft"]["state"], "stale"):
+        with pytest.raises(NotFound):
+            op(
+                user,
+                "bom.update",
+                {"draft_id": draft["draft_id"], "bom": plan},
+                expected_state=state,
+            )
+    for action in actions:
+        with pytest.raises(NotFound):
+            action()
+    client = Client()
+    client.force_login(user)
+    for path in (f"revisions/{frozen['revision_id']}", f"drafts/{draft['draft_id']}"):
+        response = client.get(f"/api/v0/bom/{path}")
+        assert response.status_code == 404
+        assert profile_revision["revision_id"].encode() not in response.content
+        assert str(source_revision.id).encode() not in response.content
+
+
+def test_nested_authorization_cycle_fails_bounded_and_resets_context(monkeypatch):
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from specmate.bom import queries
+
+    revision = SimpleNamespace(snapshot_id=uuid4(), snapshot=object())
+    calls = []
+
+    def recursive_authorize(user, snapshot):
+        calls.append(snapshot)
+        queries.authorize_reference(user, revision)
+
+    monkeypatch.setattr(queries, "authorize_snapshot", recursive_authorize)
+    with pytest.raises(ValidationFailed, match="nesting limit or dependency cycle"):
+        queries.authorize_reference(None, revision)
+    assert calls == [revision.snapshot]
+    monkeypatch.setattr(
+        queries, "authorize_snapshot", lambda user, snapshot: calls.append(snapshot)
+    )
+    queries.authorize_reference(None, revision)
+    assert calls == [revision.snapshot, revision.snapshot]
