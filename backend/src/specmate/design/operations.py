@@ -132,6 +132,10 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         if "profile" not in draft.content:
             raise ValidationFailed("A typed workshop profile is required before capture.")
         derived = dependency_revisions(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "bom_plan":
+        from specmate.bom.queries import dependency_revisions as bom_dependencies
+
+        derived = bom_dependencies(ctx.user, draft.definition, draft.content)
     if derived is not None:
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
@@ -215,6 +219,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if "bom" in content:
+        from specmate.bom.queries import validate_content as validate_bom
+
+        content = validate_bom(kind, content)
     if "profile" in content and kind != "workshop_profile":
         raise ValidationFailed("Workshop profiles require a workshop_profile definition.")
     if "interface" in content:
@@ -238,6 +246,10 @@ def validate_content(kind, content):
 
 
 def authorize_design_content(user, definition, content):
+    if "bom" in content:
+        from specmate.bom.queries import dependency_revisions as bom_dependencies
+
+        bom_dependencies(user, definition, content)
     if definition.kind == "workshop_profile":
         from specmate.workshop_profiles.queries import authorize_profile_content
 

@@ -117,3 +117,34 @@ Use inventory and evidence fixtures. Test competing reservations, replayed write
 count/length units, partial work/returns, bought-board boundaries, absent prices and isolated
 unit evidence. External system adapters need one declared authority per field/ledger, with
 uncertain-write reconciliation and no implicit purchase/flash/printer action.
+
+### Purpose-specific frozen BOM plans
+
+A `bom_plan` definition stores typed `content.bom` planning policy separately from the
+assembly's construction. `bom.create`, `bom.update`, `bom.snapshot`, `bom.freeze` and
+`bom.read` use shared design operations, current authorization and concurrency tokens.
+Capture pins an exact root assembly revision and the complete referenced revision closure,
+including supplemental needs. Frozen plans never follow later assembly or policy edits.
+
+Every decision has an exact contextual path, expected revision and declaration basis.
+The empty path identifies the root and requires its own explicit make/buy decision.
+Missing decisions remain unknown. Procurement stops at a bought boundary and lists that
+item once; an explicit make choice expands its retained children. Repeated subassemblies
+keep separate paths even when their revisions match. Assembly contents remain inspectable
+independently of procurement decisions. A terminal make without declared inputs remains
+unresolved. Disjoint occurrence scopes cannot bypass bought or undecided ancestors.
+
+Supplemental needs name an exact item revision, a context, a purpose (PCB fabrication,
+PCB population or consumables), a quantity and a basis. They are planning declarations,
+not extra construction edges. A retained direct child cannot also be declared as a
+supplemental need in the same context. Needs below bought or undecided boundaries are
+excluded with a reason. Consumables appear separately from retained composition and the
+procurement projection; fabrication/population needs also contribute procurement demand.
+This demand is not an order, supplier choice or validated native PCB population.
+
+Each structural occurrence represents one whole item per planned root. The root count
+multiplies declared per-assembly supplemental counts; unknown counts propagate as unknown,
+never zero. Only positive whole-item `ea` quantities are supported here. Length/mass
+stock, waste allowance, sourcing, prices, native PCB extraction and physical qualification
+remain unevaluated. The browser can create/edit/freeze plans and reopen purpose-specific
+revision views with contextual rows, unresolved branches and boundary explanations.

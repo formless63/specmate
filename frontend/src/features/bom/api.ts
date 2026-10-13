@@ -1,0 +1,10 @@
+export { command, read, type Definition, type Identity } from "../identity/api";
+export type Count = { status: "known" | "unknown"; amount: number | null; unit: "ea" };
+export type Policy = { path: string[]; revision_id: string; decision: "make" | "buy" | "unknown"; basis: string };
+export type Need = { local_id: string; context_path: string[]; revision_id: string; purpose: "pcb_fabrication" | "pcb_population" | "consumables"; quantity: Count; basis: string };
+export type Plan = { schema_version: "0.1"; assembly_revision_id: string; quantity: Count; scope_paths: string[][]; policies: Policy[]; needs: Need[] };
+export type Draft = { definition_id: string; draft_id: string; state: string; content: { bom?: Plan } };
+export type Purpose = "assembly_contents" | "procurement" | "pcb_fabrication" | "pcb_population" | "consumables";
+export type Inspection = { revision_id: string; snapshot_id: string; sha256: string; bom: Plan; purpose: Purpose; status: string; rows: { address: { snapshot_id: string; path: string[] }; revision_id: string; name: string; quantity: Count; reason: string; basis: string | null; need_id: string | null }[]; unresolved: { address: { path: string[] }; reason: string; need_id: string | null }[]; boundaries: { address: { path: string[] }; decision: string }[]; excluded_needs: { need_id: string; reason: string }[]; limitations: string[] };
+export const unknownCount = (): Count => ({ status: "unknown", amount: null, unit: "ea" });
+export const blankPlan = (): Plan => ({ schema_version: "0.1", assembly_revision_id: "", quantity: unknownCount(), scope_paths: [], policies: [], needs: [] });
