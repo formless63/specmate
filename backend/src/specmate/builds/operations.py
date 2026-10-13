@@ -34,6 +34,7 @@ from specmate.builds.recipes import (
     MAX_FILE_BYTES,
     MAX_FILES,
     MAX_INPUT_BYTES,
+    Recipe,
     approved_recipe,
     check_file_tree,
 )
@@ -125,6 +126,9 @@ def _execution_allowed(build: BuildAttempt) -> bool:
     try:
         authorize(build.requested_by, build.project_id, Perm.BUILD_EXECUTE)
         recipe = approved_recipe(build.recipe_id)
+        from specmate.firmware_builds.operations import execution_allowed
+
+        execution_allowed(build)
         return recipe.model_dump(mode="json") == build.recipe
     except OperationError:
         return False
@@ -176,6 +180,9 @@ def request_build(ctx: Context, p: RequestBuild) -> dict:
     if source is None:
         raise NotFound("Source revision not found.")
     recipe = approved_recipe(p.recipe_id)
+    from specmate.firmware_builds.operations import authorize_request
+
+    authorize_request(ctx, p, recipe)
     inputs = json.loads(bytes(source.manifest))["files"]
     if (
         len(inputs) > MAX_FILES
@@ -271,6 +278,7 @@ def poll_build(ctx: Context, p: BuildRef) -> dict:
 def get_build(ctx: Context, p: BuildRef) -> dict:
     stage = _stage_for_build(p.build_id)
     authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
+    _authorize_compiler_read(ctx, stage)
     return {**stage_result(stage), "receipt": stage.receipt}
 
 
@@ -287,12 +295,29 @@ class ArtifactRef(BuildRef):
 def get_output(ctx: Context, p: ArtifactRef) -> dict:
     stage = _stage_for_build(p.build_id)
     authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
+    _authorize_compiler_read(ctx, stage)
     if stage.state != "succeeded":
         raise NotFound("Accepted output not found.")
     output = stage.outputs.filter(id=p.output_id).first()
     if output is None:
         raise NotFound("Accepted output not found.")
     return {**_output_result(output), "media_type": output.media_type, "rights": output.rights}
+
+
+def _authorize_compiler_read(ctx, stage):
+    """Generic receipt/download adapters retain the exact compiler closure and acceptance gate."""
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.firmware_builds.operations import recipe_inputs, validate_outputs
+    from specmate.sources.authority import authorize_revision
+
+    user = current_actor(ctx.user)
+    recipe = Recipe.model_validate(stage.build.recipe)
+    if recipe_inputs(user, recipe) is None:
+        return
+    for output in stage.outputs.select_related("source_revision__bundle"):
+        authorize_revision(user, output.source_revision)
+    if stage.state == "succeeded":
+        validate_outputs(json.loads(recipe.argv[-1]), stage.build)
 
 
 @operation(

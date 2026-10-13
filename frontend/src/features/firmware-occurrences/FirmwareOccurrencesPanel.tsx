@@ -1,25 +1,26 @@
 import { Alert, Button, Card, Group, NativeSelect, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
+import { FirmwareBuildPanel } from '../firmware-builds/FirmwareBuildPanel';
 import type { FirmwareRead, FirmwareSummary } from '../firmware/api';
 import { read, type Definition, type Identity } from '../identity/api';
 import { operation, type Adoption, type OccurrenceInspection, type Owner, type SelectionReview, type Submission } from './api';
 
 export function FirmwareOccurrencesPanel({ projectId, permissions }: { projectId: string; permissions?: string[] }) {
-  return <Workspace key={projectId} projectId={projectId} canEdit={permissions?.includes('design.edit') ?? true} />;
+  return <Workspace key={projectId} projectId={projectId} canEdit={permissions?.includes('design.edit') ?? true} canExecute={permissions?.includes('build.execute') ?? false} />;
 }
 
-function Workspace({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+function Workspace({ projectId, canEdit, canExecute }: { projectId: string; canEdit: boolean; canExecute: boolean }) {
   const [opened, setOpened] = useState(false);
   return <Card withBorder><Stack>
     <Title order={3}>Firmware on repeated boards</Title>
     <Text>Choose firmware independently for each exact contextual board occurrence. Review its frozen sources, configuration and population before adopting the selection.</Text>
     <Button onClick={() => setOpened(!opened)}>{opened ? 'Hide occurrence firmware' : 'Show occurrence firmware'}</Button>
-    {opened && <Selector projectId={projectId} canEdit={canEdit} />}
+    {opened && <Selector projectId={projectId} canEdit={canEdit} canExecute={canExecute} />}
   </Stack></Card>;
 }
 
-function Selector({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+function Selector({ projectId, canEdit, canExecute }: { projectId: string; canEdit: boolean; canExecute: boolean }) {
   const selectionGeneration = useRef(0);
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
@@ -63,11 +64,11 @@ function Selector({ projectId, canEdit }: { projectId: string; canEdit: boolean 
       <NativeSelect key={`${definition}:${offset}`} label="Assembly draft or frozen revision" defaultValue="" data={[{ value: '', label: 'Select exact assembly state' }, ...identity.drafts.map((item) => ({ value: `draft:${item.draft_id}`, label: `Draft ${item.draft_id} · ${item.state}` })), ...identity.revisions.map((item) => ({ value: `revision:${item.revision_id}`, label: `Frozen revision ${item.number}` }))]} onChange={(event) => { void choose(event.currentTarget.value); }} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous assembly states</Button><Button disabled={Math.max(identity.drafts.length, identity.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next assembly states</Button></Group>
     </>}
-    {owner && <OccurrenceWorkspace key={JSON.stringify(owner)} owner={owner} firmware={firmware} canEdit={canEdit} />}
+    {owner && <OccurrenceWorkspace key={JSON.stringify(owner)} owner={owner} firmware={firmware} canEdit={canEdit} canExecute={canExecute} />}
   </Stack>;
 }
 
-function OccurrenceWorkspace({ owner, firmware, canEdit }: { owner: Owner; firmware: FirmwareSummary[]; canEdit: boolean }) {
+function OccurrenceWorkspace({ owner, firmware, canEdit, canExecute }: { owner: Owner; firmware: FirmwareSummary[]; canEdit: boolean; canExecute: boolean }) {
   const generation = useRef(0);
   const [inspection, setInspection] = useState<OccurrenceInspection | null>(null);
   const [path, setPath] = useState('');
@@ -122,13 +123,19 @@ function OccurrenceWorkspace({ owner, firmware, canEdit }: { owner: Owner; firmw
     finally { if (token === generation.current) setBusy(false); }
   }
   return <Stack>
-    <Text>Compilation: not performed · Flashing: not performed · Device operation: not observed</Text>
+    <Text>{owner.snapshot_id ? 'Compilation: inspect an exact frozen occurrence for retained evidence' : 'Compilation: not performed for this draft'} · Flashing: not performed · Device operation: not observed</Text>
     <Button disabled={busy} onClick={() => { void refresh(); }}>Refresh occurrence firmware</Button>
     {error && <Alert color="red">{error}</Alert>}
     {inspection && <>
       <Table><Table.Thead><Table.Tr><Table.Th>Contextual path</Table.Th><Table.Th>Exact board revision</Table.Th><Table.Th>Firmware revision</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
         {inspection.occurrences.map((item) => <Table.Tr key={JSON.stringify(item.path)}><Table.Td>{item.path.join('/')} · {item.display_ref || item.name}</Table.Td><Table.Td>{item.revision_id}</Table.Td><Table.Td>{item.firmware_revision_id ?? 'Unassigned'}</Table.Td></Table.Tr>)}
       </Table.Tbody></Table>
+      {owner.snapshot_id && <>
+        <NativeSelect label="Frozen board occurrence for compilation" value={path} data={[{ value: '', label: 'Select an exact frozen board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
+        {inspection.occurrences.filter((item) => item.kind === 'pcb_population' && JSON.stringify(item.path) === path).map((item) => item.firmware_revision_id
+          ? <FirmwareBuildPanel key={path} firmware_revision_id={item.firmware_revision_id} assembly_snapshot_id={owner.snapshot_id} path={item.path} canExecute={canExecute} />
+          : <Text key={path}>This exact frozen occurrence has no assigned firmware to compile.</Text>)}
+      </>}
       {owner.draft_id && <>
         <NativeSelect label="Exact board occurrence" value={path} data={[{ value: '', label: 'Select a board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
         <NativeSelect label="Frozen firmware for this occurrence" value={candidate} data={[{ value: '', label: 'Explicitly unassigned' }, ...firmware.flatMap((item) => item.revisions.map((revision) => ({ value: revision.revision_id, label: `${item.name} revision ${revision.number}` })))]} onChange={(event) => { clear(); setCandidate(event.currentTarget.value); }} />

@@ -1,5 +1,6 @@
 import { Alert, Badge, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
+import { FirmwareBuildPanel } from '../firmware-builds/FirmwareBuildPanel';
 import { command, request, SourceError, type RevisionDetail, type SourcePage } from '../sources/api';
 import {
   FUNCTIONS, type AssignmentReview, type ConfigEntry, type Firmware, type FirmwareRead, type FirmwareSource, type FirmwareSummary,
@@ -219,6 +220,7 @@ function FirmwareWorkspace({ projectId, permissions, onAccessLost }: FirmwarePan
         <Text size="sm">Toolchain: {current.content.firmware.toolchain.family} · {current.content.firmware.toolchain.name} · version {current.content.firmware.toolchain.version ?? 'unknown'}{current.content.firmware.toolchain.board_id ? ` · board id ${current.content.firmware.toolchain.board_id}` : ''}</Text>
         <Text size="sm">Configuration: {current.content.firmware.configuration.map(c => `${c.key}=${c.status === 'known' ? c.value : c.status === 'secret_reference' ? '[secret reference]' : 'unknown'}`).join(', ') || 'none'}</Text>
         <FirmwareEvaluation read={current} />
+        {current.revision_id && <FirmwareBuildPanel firmware_revision_id={current.revision_id} canExecute={permissions?.includes('build.execute') ?? false} />}
         {current.draft_id && canEdit && <Button variant="light" onClick={editCurrent}>Edit firmware draft</Button>}
         {current.draft_id && canFreeze && <Button disabled={busy || current.evaluation.readiness === 'blocked'} onClick={() => void freeze()}>Freeze firmware declarations</Button>}
       </Stack>}

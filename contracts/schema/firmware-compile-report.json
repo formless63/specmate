@@ -1,0 +1,116 @@
+{
+  "$defs": {
+    "Output": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "exclusiveMinimum": 0,
+          "maximum": 16777216,
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size"
+      ],
+      "title": "Output",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "const": "firmware-avr-gcc-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "compiler_exit_code": {
+      "const": 0,
+      "title": "Compiler Exit Code",
+      "type": "integer"
+    },
+    "compiler_version": {
+      "const": "5.4.0",
+      "title": "Compiler Version",
+      "type": "string"
+    },
+    "device_operation": {
+      "const": "not_observed",
+      "title": "Device Operation",
+      "type": "string"
+    },
+    "flashing": {
+      "const": "not_performed",
+      "title": "Flashing",
+      "type": "string"
+    },
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "hardware_compatibility": {
+      "const": "not_evaluated",
+      "title": "Hardware Compatibility",
+      "type": "string"
+    },
+    "input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/Output"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "title": "Outputs",
+      "type": "array"
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "source_unchanged": {
+      "const": true,
+      "title": "Source Unchanged",
+      "type": "boolean"
+    },
+    "tool_packages": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Tool Packages",
+      "type": "object"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "input_sha256",
+    "compiler_version",
+    "tool_packages",
+    "compiler_exit_code",
+    "source_unchanged",
+    "outputs",
+    "hardware_compatibility",
+    "flashing",
+    "device_operation",
+    "physical_qualification"
+  ],
+  "title": "CompileReport",
+  "type": "object"
+}

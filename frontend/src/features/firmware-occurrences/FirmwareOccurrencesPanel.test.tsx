@@ -34,6 +34,12 @@ function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: 
     if (url.endsWith('/firmware')) return response({ firmware: [{ definition_id: 'fw', name: 'Independent controller', draft_id: 'fw-draft', revisions: [{ revision_id: 'fw-900', number: 2 }] }] });
     if (url.includes('/catalog/definitions/asm')) return response({ definition_id: 'asm', name: 'Synthetic pair', kind: 'assembly', drafts: [{ draft_id: 'assembly-draft', state: 'draft-v3', dependencies: [] }], revisions: [{ revision_id: 'frozen-asm', number: 1 }] });
     if (url.endsWith('/revisions/frozen-asm')) return response({ snapshot_id: 'frozen-snapshot' });
+    if (url.includes('/firmware-builds/firmware/')) {
+      const query = new URL(url, 'http://localhost').searchParams;
+      return response({ inputs: { ...declared.content.firmware, adapter: 'firmware-avr-gcc-v1', firmware_revision_id: 'fw-500', firmware_snapshot_sha256: 'f'.repeat(64),
+        occurrence: { assembly_snapshot_id: query.get('assembly_snapshot_id'), assembly_snapshot_sha256: 'a'.repeat(64), path: query.get('path')!.split('/'), population_revision_id: 'same-copper', population_snapshot_sha256: 'p'.repeat(64) } },
+        available_recipe_id: null, unavailable_reason: 'Declared toolchain is unsupported by the installed profile.', builds: [], truncated: false });
+    }
     if (url.endsWith('/operations')) {
       const body = JSON.parse(String(init?.body)); bodies.push(body);
       if (denied) return response({ error: { message: 'Source authority unavailable' } }, 404);
@@ -66,6 +72,18 @@ async function review() {
   fireEvent.click(screen.getByRole('button', { name: 'Review occurrence firmware selection' }));
   await screen.findByText('BLINK_MS=900');
 }
+
+test('frozen compile inspection pins one repeated board and hides execution without its grant', async () => {
+  const { mock } = setup({ canEdit: false }); await open(true);
+  fireEvent.change(screen.getByLabelText('Frozen board occurrence for compilation'), { target: { value: JSON.stringify(['right', 'board']) } });
+  await screen.findByRole('heading', { name: 'Firmware compile and handoff' });
+  expect(await screen.findByText(/occurrence right \/ board/)).toBeTruthy();
+  expect(mock.mock.calls.some(([url]) => url === '/api/v0/firmware-builds/firmware/fw-500?assembly_snapshot_id=frozen-snapshot&path=right%2Fboard')).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Request firmware compile' })).toBeNull();
+  fireEvent.change(screen.getByLabelText('Frozen board occurrence for compilation'), { target: { value: JSON.stringify(['left', 'board']) } });
+  expect(await screen.findByText(/occurrence left \/ board/)).toBeTruthy();
+  expect(screen.queryByText(/occurrence right \/ board/)).toBeNull();
+});
 
 test('occurrence module stays lazy until opened', () => {
   const { mock } = setup();
