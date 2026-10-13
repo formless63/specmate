@@ -60,4 +60,5 @@ over the stored item and the payload's targets.
 
 Previews are not rendered; attachments download as inert bytes. Rich-text collaboration,
 search, notifications and review workflows are KNW-002/KNW-003 scope. The panel chooses
-targets by identifier or picker; discipline views can embed it for their selection.
+targets with a picker; discipline views can embed `KnowledgePanel` with a fixed `target`
+for their current selection. Global navigation mounting is left to integration.
