@@ -106,3 +106,38 @@ test("mapping form pins the selected repeated occurrence and its exact revision"
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]).toMatchObject({ operation: "interface.create", payload: { project_id: "project", interface: { kind: "interface_map", assembly_revision_id: "assembly-rev", external_pinout_revision_id: "pinout-rev", passages: [{ local_id: "path-a", external_contact_id: "a", internal: { path: ["right", "board"], revision_id: "board-rev", feature_id: "header.pin3" }, condition: null, basis: "Synthetic connection table", kind: "declared_passage" }] } } });
 });
+
+test("incomplete pinout draft opens with unknowns and requires an explicitly selected body", async () => {
+  const calls: { operation: string; expected_state?: string; payload: { interface?: Interface } }[] = [];
+  let value: Interface | undefined;
+  let state = "draft-v1";
+  const draft = () => ({ definition_id: "pinout", kind: "pinout", draft_id: "unfinished", state, content: value ? { interface: value } : {} });
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    let body: unknown;
+    if (options?.method === "POST") {
+      const command = JSON.parse(String(options.body)); calls.push(command);
+      value = command.payload.interface; state = "draft-v2";
+      body = { result: draft() };
+    } else if (url.includes("interfaces/drafts/")) body = draft();
+    else if (url.includes("interfaces/revisions/body-rev")) body = { interface: { ...initialInterface("connector_body"), contacts: [{ contact_id: "a", physical_role: "contact", label: "", position_mm: null }] } };
+    else if (url.includes("catalog/definitions/")) body = { drafts: [{ draft_id: "unfinished", state }], revisions: [] };
+    else body = [{ definition_id: "pinout", name: "Unfinished pinout", kind: "pinout" }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(wrap(<InterfacePanel projectId="project" />));
+  const definition = screen.getByRole("combobox", { name: "Existing interface definition" });
+  fireEvent.focus(definition); fireEvent.change(definition, { target: { value: "Unfinished" } });
+  fireEvent.click(await screen.findByText("Unfinished pinout (pinout)"));
+  const choice = await screen.findByRole("combobox", { name: "Edit interface draft" });
+  fireEvent.focus(choice); fireEvent.keyDown(choice, { key: "ArrowDown" });
+  fireEvent.click(await within(screen.getByRole("listbox", { name: "Edit interface draft", hidden: true })).findByText("unfinished · draft-v1"));
+  const heading = await screen.findByText("Edit draft");
+  const editor = within(heading.closest(".mantine-Card-root")! as HTMLElement);
+  expect((editor.getByLabelText("Physical body exact revision ID") as HTMLInputElement).value).toBe("");
+  expect((editor.getByRole("combobox", { name: "Viewing side" }) as HTMLInputElement).value).toBe("unknown");
+  expect((editor.getByRole("combobox", { name: "Pin table review" }) as HTMLInputElement).value).toBe("unreviewed");
+  fireEvent.change(editor.getByLabelText("Physical body exact revision ID"), { target: { value: "body-rev" } });
+  fireEvent.click(editor.getByText("Save interface draft"));
+  await waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0]).toMatchObject({ operation: "interface.update", expected_state: "draft-v1", payload: { draft_id: "unfinished", interface: { kind: "pinout", body_revision_id: "body-rev", assignments: [], review: "unreviewed", review_basis: null, orientation: { viewing_side: "unknown", rotation_degrees: null, datum: null } } } });
+});

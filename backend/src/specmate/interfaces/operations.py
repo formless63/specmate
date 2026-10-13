@@ -32,7 +32,10 @@ def interface_draft(ctx, draft_id, permission, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind not in KINDS:
         raise NotFound("Interface draft unavailable.")
-    dependency_revisions(ctx.user, draft.definition, draft.content)
+    # Incomplete generic drafts may omit the typed payload until their first edit.
+    # Present content always retains full closure validation and authorization.
+    if "interface" in draft.content:
+        dependency_revisions(ctx.user, draft.definition, draft.content)
     return draft
 
 

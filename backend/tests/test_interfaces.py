@@ -402,3 +402,70 @@ def test_current_freeze_grant_rechecked_on_retained_replay(users, project):
     Membership.objects.filter(user=users["editor"], project_id=project).update(grants=[])
     with pytest.raises(PermissionDenied):
         freeze(users["editor"], draft, idempotency_key="granted-freeze")
+
+
+@pytest.mark.parametrize("kind", ["connector_body", "pinout", "interface_map"])
+def test_incomplete_interface_reads_keep_kind_but_cannot_capture(users, project, kind):
+    user = users["owner"]
+    draft = op(
+        user,
+        "definition.create",
+        {
+            "project_id": project,
+            "name": "Unfinished interface",
+            "kind": kind,
+        },
+    )
+    client = Client()
+    client.force_login(user)
+    response = client.get(f"/api/v0/interfaces/drafts/{draft['draft_id']}")
+    assert response.status_code == 200
+    assert response.json()["kind"] == kind
+    assert response.json()["content"] == {}
+    for operation in ("interface.snapshot", "interface.freeze"):
+        with pytest.raises(ValidationFailed):
+            op(user, operation, {"draft_id": draft["draft_id"]}, expected_state=draft["state"])
+    client.force_login(users["outsider"])
+    assert client.get(f"/api/v0/interfaces/drafts/{draft['draft_id']}").status_code == 404
+
+
+def test_incomplete_pinout_can_resume_through_typed_update_and_freeze(users, project):
+    user = users["owner"]
+    body = freeze(user, create(user, project))
+    draft = op(
+        user,
+        "definition.create",
+        {
+            "project_id": project,
+            "name": "Unfinished pinout",
+            "kind": "pinout",
+        },
+    )
+    with pytest.raises(PermissionDenied):
+        op(
+            users["viewer"],
+            "interface.update",
+            {"draft_id": draft["draft_id"], "interface": pinout(body)},
+            expected_state=draft["state"],
+        )
+    with pytest.raises(ValidationFailed):
+        op(
+            user,
+            "interface.update",
+            {
+                "draft_id": draft["draft_id"],
+                "interface": {"kind": "pinout", "body_revision_id": ""},
+            },
+            expected_state=draft["state"],
+        )
+    updated = op(
+        user,
+        "interface.update",
+        {"draft_id": draft["draft_id"], "interface": pinout(body)},
+        expected_state=draft["state"],
+    )
+    frozen = freeze(user, updated)
+    assert (
+        inspect_revision(user, frozen["revision_id"])["interface"]["body_revision_id"]
+        == body["revision_id"]
+    )

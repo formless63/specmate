@@ -52,7 +52,7 @@ function Workspace({ projectId }: { projectId: string }) {
 }
 
 function DraftEditor({ draft, definitions, onSaved }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void> }) {
-  const [value, setValue] = useState(draft.content.interface);
+  const [value, setValue] = useState(() => draft.content.interface ?? initialInterface(draft.kind));
   const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
   return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><Editor value={value} onChange={setValue} definitions={definitions} /><Button loading={save.isPending} onClick={() => save.mutate()}>Save interface draft</Button>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }

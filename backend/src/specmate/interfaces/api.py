@@ -16,7 +16,11 @@ def draft(request, draft_id: UUID):
     value = interface_draft(
         Context(user=request.user, via="api", request_id="read"), draft_id, Perm.PROJECT_READ
     )
-    return {"definition_id": str(value.definition_id), **draft_state(value)}
+    return {
+        "definition_id": str(value.definition_id),
+        "kind": value.definition.kind,
+        **draft_state(value),
+    }
 
 
 @router.get("/revisions/{revision_id}")

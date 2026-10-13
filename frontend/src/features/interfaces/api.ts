@@ -7,7 +7,7 @@ export type Pinout = { kind: "pinout"; schema_version?: "0.1"; body_revision_id:
 export type Passage = { local_id: string; external_contact_id: string; kind: "declared_passage"; internal: { path: string[]; revision_id: string; feature_id: string }; condition: string | null; basis: string };
 export type Mapping = { kind: "interface_map"; schema_version?: "0.1"; assembly_revision_id: string; external_pinout_revision_id: string; passages: Passage[] };
 export type Interface = Body | Pinout | Mapping;
-export type Draft = { definition_id: string; draft_id: string; state: string; content: { interface: Interface } };
+export type Draft = { definition_id: string; kind: Interface["kind"]; draft_id: string; state: string; content: { interface?: Interface } };
 export type Inspection = { revision_id: string; interface: Interface; compatibility: "not_evaluated"; contacts?: (Contact & { electrical: Electrical | null })[] };
 export type Trace = { external_contact_id: string; status: string; continuity: string; compatibility: string; targets: { passage_id: string; assembly_revision_id: string; snapshot_id: string; path: string[]; revision_id: string; feature_id: string; condition: string | null; basis: string; feature_status: string }[] };
 export const unknownOrientation = (): Orientation => ({ viewing_side: "unknown", rotation_degrees: null, datum: null });
