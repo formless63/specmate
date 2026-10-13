@@ -6,10 +6,6 @@ from ninja import Router
 from specmate.operations import Context, execute
 from specmate.selected_packages.contracts import Download
 
-router = Router(tags=["selected-packages"])
-
-
-@router.post("/download")
 def download(request, payload: Download):
     result = execute(
         "selected_package.download",
@@ -23,3 +19,12 @@ def download(request, payload: Download):
     response["Digest"] = f"sha-256={result['sha256']}"
     response["Cache-Control"] = "private, no-store"
     return response
+
+
+def create_router():
+    router = Router(tags=["selected-packages"])
+    router.post("/download")(download)
+    return router
+
+
+router = create_router()

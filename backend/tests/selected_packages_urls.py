@@ -5,10 +5,10 @@ from ninja import NinjaAPI
 from ninja.security import django_auth
 
 from specmate.operations import OperationError
-from specmate.selected_packages.api import router
+from specmate.selected_packages.api import create_router
 
 api = NinjaAPI(urls_namespace="selected-package-tests", auth=django_auth)
-api.add_router("/v0/selected-packages", router)
+api.add_router("/v0/selected-packages", create_router())
 
 
 @api.exception_handler(OperationError)
