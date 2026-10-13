@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "specmate.sources",
     "specmate.builds",
     "specmate.pcb",
+    "specmate.pcb_disagreement",
 ]
 
 MIDDLEWARE = [

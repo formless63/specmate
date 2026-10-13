@@ -28,6 +28,7 @@ from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
 from specmate.pcb.api import router as pcb_router
+from specmate.pcb_disagreement.api import router as disagreement_router
 from specmate.physical_units.api import router as physical_units_router
 from specmate.revision_upgrades.api import router as upgrades_router
 from specmate.wire_stock.api import router as stock_router
@@ -52,6 +53,7 @@ api.add_router("/v0/revision-upgrades", upgrades_router)
 api.add_router("/v0/runner", runner_router)
 api.add_router("/v0/builds", artifacts_router)
 api.add_router("/v0/pcb", pcb_router)
+api.add_router("/v0/pcb-disagreement", disagreement_router)
 
 api.add_router("/v0", stock_router)
 api.add_router("/v0", workshop_profile_router)

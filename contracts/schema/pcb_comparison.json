@@ -1,0 +1,258 @@
+{
+  "$defs": {
+    "AssertionInput": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "assertion_revision",
+          "default": "assertion_revision",
+          "title": "Kind",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision_id",
+        "snapshot_sha256"
+      ],
+      "title": "AssertionInput",
+      "type": "object"
+    },
+    "BoardInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interpretation_id": {
+          "format": "uuid",
+          "title": "Interpretation Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "pcb_interpretation",
+          "default": "pcb_interpretation",
+          "title": "Kind",
+          "type": "string"
+        },
+        "report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Sha256",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/FilePin"
+        }
+      },
+      "required": [
+        "interpretation_id",
+        "report_sha256",
+        "source"
+      ],
+      "title": "BoardInput",
+      "type": "object"
+    },
+    "Correspondence": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "left_terminal_id": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Left Terminal Id"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "right_terminal_id": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Right Terminal Id"
+        }
+      },
+      "required": [
+        "local_id",
+        "basis"
+      ],
+      "title": "Correspondence",
+      "type": "object"
+    },
+    "FilePin": {
+      "additionalProperties": false,
+      "properties": {
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "source_revision_id": {
+          "format": "uuid",
+          "title": "Source Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_revision_id",
+        "manifest_sha256",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "FilePin",
+      "type": "object"
+    },
+    "Review": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "finding_id": {
+          "pattern": "^finding-[0-9a-f]{64}$",
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "acknowledged",
+            "requires_source_correction",
+            "not_comparable"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "status",
+        "basis"
+      ],
+      "title": "Review",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "correspondences": {
+      "items": {
+        "$ref": "#/$defs/Correspondence"
+      },
+      "maxItems": 2000,
+      "title": "Correspondences",
+      "type": "array"
+    },
+    "kind": {
+      "const": "pcb_comparison",
+      "default": "pcb_comparison",
+      "title": "Kind",
+      "type": "string"
+    },
+    "left": {
+      "discriminator": {
+        "mapping": {
+          "assertion_revision": "#/$defs/AssertionInput",
+          "pcb_interpretation": "#/$defs/BoardInput"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AssertionInput"
+        },
+        {
+          "$ref": "#/$defs/BoardInput"
+        }
+      ],
+      "title": "Left"
+    },
+    "reviews": {
+      "items": {
+        "$ref": "#/$defs/Review"
+      },
+      "maxItems": 6000,
+      "title": "Reviews",
+      "type": "array"
+    },
+    "right": {
+      "discriminator": {
+        "mapping": {
+          "assertion_revision": "#/$defs/AssertionInput",
+          "pcb_interpretation": "#/$defs/BoardInput"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AssertionInput"
+        },
+        {
+          "$ref": "#/$defs/BoardInput"
+        }
+      ],
+      "title": "Right"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "left",
+    "right"
+  ],
+  "title": "Comparison",
+  "type": "object"
+}

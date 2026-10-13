@@ -148,6 +148,10 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         from specmate.harnesses.queries import dependency_revisions as harness_dependencies
 
         derived = harness_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind in {"pcb_assertion", "pcb_comparison"}:
+        from specmate.pcb_disagreement.queries import dependency_revisions as review_dependencies
+
+        derived = review_dependencies(ctx.user, draft.definition, draft.content)
     if derived is not None:
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
@@ -238,6 +242,13 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind in {"pcb_assertion", "pcb_comparison"} or {
+        "pcb_assertion",
+        "pcb_comparison",
+    }.intersection(content):
+        from specmate.pcb_disagreement.queries import validate_content as validate_source_review
+
+        content = validate_source_review(kind, content)
     if "harness" in content:
         from specmate.harnesses.queries import validate_content as validate_harness
 
@@ -280,6 +291,13 @@ def authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind in {"pcb_assertion", "pcb_comparison"} or {
+        "pcb_assertion",
+        "pcb_comparison",
+    }.intersection(content):
+        from specmate.pcb_disagreement.queries import dependency_revisions as review_dependencies
+
+        review_dependencies(user, definition, content)
     if "harness" in content:
         from specmate.harnesses.queries import dependency_revisions as harness_dependencies
 

@@ -21,6 +21,7 @@ const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/Catalo
 const HarnessPanel = lazy(() => import("./features/harnesses/HarnessPanel").then((module) => ({ default: module.HarnessPanel })));
 const CopperPanel = lazy(() => import("./features/copper/CopperPanel").then((module) => ({ default: module.CopperPanel })));
 const RevisionUpgradeWorkspace = lazy(() => import("./features/revision-upgrades/RevisionUpgradeWorkspace").then((module) => ({ default: module.RevisionUpgradeWorkspace })));
+const PcbDisagreementPanel = lazy(() => import("./features/pcb-disagreement/PcbDisagreementPanel").then((module) => ({ default: module.PcbDisagreementPanel })));
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
@@ -50,6 +51,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="harnesses">Harness branches</Tabs.Tab>
       <Tabs.Tab value="copper">Copper graph</Tabs.Tab>
       <Tabs.Tab value="pcb">PCB intake</Tabs.Tab>
+      <Tabs.Tab value="pcb-disagreement">PCB source review</Tabs.Tab>
       <Tabs.Tab value="inventory">Inventory</Tabs.Tab>
       <Tabs.Tab value="bom">BOM planning</Tabs.Tab>
       <Tabs.Tab value="physical-units">Physical units</Tabs.Tab>
@@ -69,6 +71,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="harnesses">{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="copper">{visited.has("copper") && <CopperPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="pcb">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="pcb-disagreement">{visited.has("pcb-disagreement") && <PcbDisagreementPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="inventory">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="bom">{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="physical-units">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</ToolPanel>

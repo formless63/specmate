@@ -1,0 +1,202 @@
+{
+  "$defs": {
+    "FilePin": {
+      "additionalProperties": false,
+      "properties": {
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "source_revision_id": {
+          "format": "uuid",
+          "title": "Source Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_revision_id",
+        "manifest_sha256",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "FilePin",
+      "type": "object"
+    },
+    "TerminalAssertion": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "component_ref": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Component Ref",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "native_component_id": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Component Id"
+        },
+        "native_terminal_id": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Terminal Id"
+        },
+        "net_name": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Net Name"
+        },
+        "net_state": {
+          "default": "unknown",
+          "enum": [
+            "assigned",
+            "unconnected",
+            "unknown"
+          ],
+          "title": "Net State",
+          "type": "string"
+        },
+        "pin": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Pin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "component_ref",
+        "pin",
+        "basis"
+      ],
+      "title": "TerminalAssertion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "coverage": {
+      "default": "partial",
+      "enum": [
+        "partial",
+        "declared_complete"
+      ],
+      "title": "Coverage",
+      "type": "string"
+    },
+    "coverage_basis": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Coverage Basis",
+      "type": "string"
+    },
+    "kind": {
+      "const": "pcb_assertion",
+      "default": "pcb_assertion",
+      "title": "Kind",
+      "type": "string"
+    },
+    "method": {
+      "const": "human_assertion",
+      "default": "human_assertion",
+      "title": "Method",
+      "type": "string"
+    },
+    "property_owner": {
+      "const": "preserved_source",
+      "default": "preserved_source",
+      "title": "Property Owner",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/FilePin"
+    },
+    "source_role": {
+      "enum": [
+        "pcb",
+        "schematic",
+        "netlist"
+      ],
+      "title": "Source Role",
+      "type": "string"
+    },
+    "terminals": {
+      "items": {
+        "$ref": "#/$defs/TerminalAssertion"
+      },
+      "maxItems": 2000,
+      "title": "Terminals",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source_role",
+    "source",
+    "coverage_basis"
+  ],
+  "title": "Assertion",
+  "type": "object"
+}
