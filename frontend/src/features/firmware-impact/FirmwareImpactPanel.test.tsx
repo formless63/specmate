@@ -36,6 +36,7 @@ const result: ImpactResult = {
 };
 beforeEach(() => {
   vi.mocked(read).mockImplementation(async path => {
+    if (path.startsWith('pcb/firmware-revisions/')) return { name: 'Synthetic firmware', revision_id: 'firmware-one', revision_number: 1, snapshot_sha256: 'exact-hash' };
     if (path.includes('/firmware')) return { firmware: [{ definition_id: 'fw-definition', name: 'Synthetic firmware', draft_id: null, revisions: [{ revision_id: 'firmware-one', number: 1 }, { revision_id: 'firmware-two', number: 2 }] }] };
     if (path.includes('/definitions') && !path.startsWith('catalog')) return [{ definition_id: 'assembly-one', name: 'Synthetic repeated controller', kind: 'assembly' }];
     if (path.startsWith('catalog/')) return { revisions: [{ revision_id: 'assembly-revision', number: 3 }], drafts: [] };
@@ -115,6 +116,7 @@ test('context selection preserves exact frozen snapshot and occurrence path', as
   fireEvent.change(frozen, { target: { value: 'assembly-revision' } });
   const occurrence = await screen.findByLabelText('Baseline exact board occurrence');
   fireEvent.change(occurrence, { target: { value: '["left","board"]' } });
+  await waitFor(() => expect(screen.getByText(/Baseline assigned firmware: Synthetic firmware/)).toBeTruthy());
   fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
   await waitFor(() => expect(compareImpact).toHaveBeenCalledWith(expect.objectContaining({ baseline: { firmware_revision_id: 'firmware-one', assembly_snapshot_id: 'assembly-snapshot', path: ['left', 'board'] } })));
 });
@@ -159,6 +161,95 @@ test('denied contextual read hides its retained input labels and comparison', as
   await screen.findByText('Current assembly parent denied');
   expect(screen.queryByText('Exact change assessment')).toBeNull();
   expect(screen.queryByLabelText('Baseline frozen assembly revision')).toBeNull();
+});
+
+function reusedInputs() {
+  vi.mocked(read).mockImplementation(async path => {
+    if (path === 'pcb/projects/project-one/firmware') return { firmware: [] };
+    if (path === 'projects/project-one/definitions') return [{ definition_id: 'consumer-assembly', name: 'Consumer assembly', kind: 'assembly' }];
+    if (path.startsWith('catalog/definitions/consumer-assembly')) return { revisions: [{ revision_id: 'consumer-revision', number: 2 }], drafts: [] };
+    if (path === 'revisions/consumer-revision') return { snapshot_id: 'consumer-snapshot' };
+    if (path.startsWith('pcb/firmware-revisions/library-')) return { name: path.endsWith('one') ? 'Library controller 7' : 'Library controller 9', revision_number: 1, revision_id: path.split('/').at(-1), snapshot_sha256: 'exact-library-hash' };
+    throw new Error(`Unexpected scope ${path}`);
+  });
+  vi.mocked(operation).mockResolvedValue({ snapshot_id: 'consumer-snapshot', occurrences: [
+    { path: ['left'], kind: 'pcb_population', firmware_revision_id: 'library-one', display_ref: 'A1' },
+    { path: ['right'], kind: 'pcb_population', firmware_revision_id: 'library-two', display_ref: 'A1' },
+    { path: ['unassigned'], kind: 'pcb_population', firmware_revision_id: null, display_ref: 'A1' },
+  ], adoptions: [] });
+}
+async function occurrenceMode(side: 'Baseline' | 'Candidate') {
+  fireEvent.change(screen.getByLabelText(`${side} input mode`), { target: { value: 'occurrence' } });
+  fireEvent.change(screen.getByLabelText(`${side} assembly context`), { target: { value: 'consumer-assembly' } });
+  fireEvent.change(await screen.findByLabelText(`${side} frozen assembly revision`), { target: { value: 'consumer-revision' } });
+  await screen.findByLabelText(`${side} exact board occurrence`);
+}
+
+test('assembly occurrence-first choices inspect exact assigned readable library firmware without listing foreign projects', async () => {
+  reusedInputs(); render(panel()); fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' }));
+  await screen.findAllByRole('option', { name: 'Select a frozen firmware revision' });
+  await occurrenceMode('Baseline'); await occurrenceMode('Candidate');
+  fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
+  fireEvent.change(screen.getByLabelText('Candidate exact board occurrence'), { target: { value: '["right"]' } });
+  await screen.findByText(/Baseline assigned firmware: Library controller 7/);
+  await screen.findByText(/Candidate assigned firmware: Library controller 9/);
+  expect(screen.queryByLabelText('Baseline firmware revision')).toBeNull();
+  expect(screen.queryAllByRole('option', { name: 'unassigned · A1' })).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  await waitFor(() => expect(compareImpact).toHaveBeenCalledWith({ project_id: 'project-one', baseline: { firmware_revision_id: 'library-one', assembly_snapshot_id: 'consumer-snapshot', path: ['left'] }, candidate: { firmware_revision_id: 'library-two', assembly_snapshot_id: 'consumer-snapshot', path: ['right'] }, assertion_ids: [], observation_offset: 0 }));
+  expect(vi.mocked(read).mock.calls.some(([path]) => path.includes('projects/library'))).toBe(false);
+  expect(screen.getByText(/physical-unit and additional observations remain scoped to this project/)).toBeTruthy();
+});
+
+test('changing from assigned context to standalone removes foreign firmware and its retained metadata', async () => {
+  reusedInputs(); render(panel()); fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' }));
+  await screen.findAllByRole('option', { name: 'Select a frozen firmware revision' }); await occurrenceMode('Baseline');
+  fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
+  await screen.findByText(/Baseline assigned firmware: Library controller 7/);
+  fireEvent.change(screen.getByLabelText('Baseline input mode'), { target: { value: 'standalone' } });
+  expect(screen.queryByText(/Library controller 7/)).toBeNull();
+  expect((screen.getByLabelText('Baseline firmware revision') as HTMLSelectElement).value).toBe('');
+  expect((screen.getByRole('button', { name: 'Compare firmware impact' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('denied library metadata clears named contextual evidence and requires current recovery', async () => {
+  reusedInputs(); render(panel()); fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' }));
+  await screen.findAllByRole('option', { name: 'Select a frozen firmware revision' }); await occurrenceMode('Baseline');
+  const original = vi.mocked(read).getMockImplementation()!;
+  vi.mocked(read).mockImplementation(async path => { if (path === 'pcb/firmware-revisions/library-one') throw new Error('Current library source denied'); return original(path); });
+  fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
+  await screen.findByText('Current library source denied');
+  expect(screen.queryByLabelText('Baseline exact board occurrence')).toBeNull();
+  expect(screen.queryByText(/Library controller 7/)).toBeNull();
+  expect(screen.queryByText('Exact change assessment')).toBeNull();
+});
+
+test('late assigned-firmware metadata cannot restore foreign evidence after focus clears scope', async () => {
+  reusedInputs(); render(panel()); fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' }));
+  await screen.findAllByRole('option', { name: 'Select a frozen firmware revision' }); await occurrenceMode('Baseline');
+  let finish!: (value: unknown) => void;
+  const original = vi.mocked(read).getMockImplementation()!;
+  vi.mocked(read).mockImplementation(async path => path === 'pcb/firmware-revisions/library-one' ? new Promise(resolve => { finish = resolve; }) : original(path));
+  fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
+  await waitFor(() => expect(finish).toBeTruthy());
+  fireEvent(window, new Event('focus'));
+  await act(async () => finish({ name: 'Obsolete library firmware', revision_id: 'library-one', revision_number: 1, snapshot_sha256: 'old-hash' }));
+  expect(screen.queryByText(/Obsolete library firmware/)).toBeNull();
+  expect(screen.queryByLabelText('Baseline exact board occurrence')).toBeNull();
+});
+
+test('a newer exact contextual choice prevents late prior firmware metadata from replacing it', async () => {
+  reusedInputs(); render(panel()); fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' }));
+  await screen.findAllByRole('option', { name: 'Select a frozen firmware revision' }); await occurrenceMode('Baseline');
+  let finish!: (value: unknown) => void;
+  const original = vi.mocked(read).getMockImplementation()!;
+  vi.mocked(read).mockImplementation(async path => path === 'pcb/firmware-revisions/library-one' ? new Promise(resolve => { finish = resolve; }) : original(path));
+  fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
+  fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["right"]' } });
+  await screen.findByText(/Baseline assigned firmware: Library controller 9/);
+  await act(async () => finish({ name: 'Obsolete library firmware', revision_id: 'library-one', revision_number: 1, snapshot_sha256: 'old-hash' }));
+  expect(screen.queryByText(/Obsolete library firmware/)).toBeNull();
+  expect(screen.getByText(/Baseline assigned firmware: Library controller 9/)).toBeTruthy();
 });
 
 test('detached context denial cannot clear a replacement firmware selection', async () => {

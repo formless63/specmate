@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Checkbox, Group, NativeSelect, Stack, Table, Text, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { targetLabel, valueLabel, type Facts, type Subject } from '../facts/api';
-import type { FirmwareSummary } from '../firmware/api';
+import type { FirmwareRead, FirmwareSummary } from '../firmware/api';
 import { operation, type OccurrenceInspection } from '../firmware-occurrences/api';
 import { read, type Definition, type Identity } from '../identity/api';
 import { compareImpact, type FirmwareReference, type ImpactResult } from './api';
@@ -15,6 +15,8 @@ function Workspace({ projectId }: { projectId: string }) {
   const [opened, setOpened] = useState(false);
   const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
   const [assemblies, setAssemblies] = useState<Definition[]>([]);
+  const [baselineMode, setBaselineMode] = useState('standalone');
+  const [candidateMode, setCandidateMode] = useState('standalone');
   const [baseline, setBaseline] = useState('');
   const [candidate, setCandidate] = useState('');
   const [baselineContext, setBaselineContext] = useState<Partial<FirmwareReference>>({});
@@ -26,13 +28,13 @@ function Workspace({ projectId }: { projectId: string }) {
   const [pickerKey, setPickerKey] = useState(0);
   function clear() { generation.current++; setResult(null); setError(''); setBusy(false); }
   function deny(message: string) {
-    clear(); setFirmware([]); setAssemblies([]); setBaseline(''); setCandidate('');
+    clear(); setFirmware([]); setAssemblies([]); setBaseline(''); setCandidate(''); setBaselineMode('standalone'); setCandidateMode('standalone');
     setBaselineContext({}); setCandidateContext({}); setAssertions([]); setPickerKey(key => key + 1); setError(message);
   }
   async function refresh() {
     const token = ++generation.current;
     setResult(null); setFirmware([]); setAssemblies([]); setError(''); setBusy(true);
-    setBaseline(''); setCandidate(''); setBaselineContext({}); setCandidateContext({}); setAssertions([]);
+    setBaseline(''); setCandidate(''); setBaselineMode('standalone'); setCandidateMode('standalone'); setBaselineContext({}); setCandidateContext({}); setAssertions([]);
     setPickerKey(key => key + 1);
     try {
       const [records, definitions] = await Promise.all([
@@ -69,10 +71,13 @@ function Workspace({ projectId }: { projectId: string }) {
     {opened && <>
       <Button disabled={busy} onClick={() => { void refresh(); }}>Refresh authorized impact inputs</Button>
       {error && <Alert color="red">{error}</Alert>}
-      <NativeSelect label="Baseline firmware revision" value={baseline} data={options} onChange={event => { clear(); setBaseline(event.currentTarget.value); setBaselineContext({}); }} />
-      <NativeSelect label="Candidate firmware revision" value={candidate} data={options} onChange={event => { clear(); setCandidate(event.currentTarget.value); setCandidateContext({}); }} />
-      {baseline && <ContextSelector key={`baseline:${pickerKey}:${baseline}`} label="Baseline" firmwareId={baseline} assemblies={assemblies} onDenied={deny} onChange={context => { clear(); setBaselineContext(context); }} />}
-      {candidate && <ContextSelector key={`candidate:${pickerKey}:${candidate}`} label="Candidate" firmwareId={candidate} assemblies={assemblies} onDenied={deny} onChange={context => { clear(); setCandidateContext(context); }} />}
+      <Text>Standalone firmware belongs to this project. To inspect reused library firmware, choose a frozen assembly and its assigned board occurrence first. Exact library revision assertions are included; contextual, physical-unit and additional observations remain scoped to this project.</Text>
+      <NativeSelect label="Baseline input mode" value={baselineMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setBaselineMode(event.currentTarget.value); setBaseline(''); setBaselineContext({}); }} />
+      <NativeSelect label="Candidate input mode" value={candidateMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setCandidateMode(event.currentTarget.value); setCandidate(''); setCandidateContext({}); }} />
+      {baselineMode === 'standalone' && <NativeSelect label="Baseline firmware revision" value={baseline} data={options} onChange={event => { clear(); setBaseline(event.currentTarget.value); setBaselineContext({}); }} />}
+      {candidateMode === 'standalone' && <NativeSelect label="Candidate firmware revision" value={candidate} data={options} onChange={event => { clear(); setCandidate(event.currentTarget.value); setCandidateContext({}); }} />}
+      {(baseline || baselineMode === 'occurrence') && <ContextSelector key={`baseline:${pickerKey}:${baselineMode}:${baselineMode === 'standalone' ? baseline : ''}`} label="Baseline" firmwareId={baselineMode === 'standalone' ? baseline : undefined} assemblies={assemblies} onDenied={deny} onChange={context => { clear(); if (baselineMode === 'occurrence') setBaseline(context.firmware_revision_id || ''); setBaselineContext(context); }} />}
+      {(candidate || candidateMode === 'occurrence') && <ContextSelector key={`candidate:${pickerKey}:${candidateMode}:${candidateMode === 'standalone' ? candidate : ''}`} label="Candidate" firmwareId={candidateMode === 'standalone' ? candidate : undefined} assemblies={assemblies} onDenied={deny} onChange={context => { clear(); if (candidateMode === 'occurrence') setCandidate(context.firmware_revision_id || ''); setCandidateContext(context); }} />}
       <EvidenceSelector key={pickerKey} projectId={projectId} onChange={ids => { clear(); setAssertions(ids); }} onDenied={deny} />
       <Button disabled={busy || !baseline || !candidate} onClick={() => { void inspect(); }}>Compare firmware impact</Button>
       {result && <>
@@ -83,7 +88,7 @@ function Workspace({ projectId }: { projectId: string }) {
   </Stack></Card>;
 }
 
-function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: { label: string; firmwareId: string; assemblies: Definition[]; onDenied: (message: string) => void; onChange: (context: Partial<FirmwareReference>) => void }) {
+function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: { label: string; firmwareId?: string; assemblies: Definition[]; onDenied: (message: string) => void; onChange: (context: Partial<FirmwareReference>) => void }) {
   const generation = useRef(0);
   const [definition, setDefinition] = useState('');
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -92,9 +97,10 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
   const [inspection, setInspection] = useState<OccurrenceInspection | null>(null);
   const [path, setPath] = useState('');
   const [error, setError] = useState('');
+  const [assigned, setAssigned] = useState<FirmwareRead | null>(null);
   useEffect(() => {
     const token = ++generation.current;
-    setIdentity(null); setInspection(null); setRevision(''); setPath(''); setError('');
+    setIdentity(null); setInspection(null); setRevision(''); setPath(''); setAssigned(null); setError('');
     if (definition) read<Identity>(`catalog/definitions/${definition}?offset=${offset}`)
       .then(value => { if (token === generation.current) setIdentity(value); })
       .catch((failure: Error) => { if (token === generation.current) { setError(failure.message); onDenied(failure.message); } });
@@ -102,7 +108,7 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
   }, [definition, offset]);
   async function choose(value: string) {
     const token = ++generation.current;
-    setRevision(value); setInspection(null); setPath(''); setError(''); onChange({});
+    setRevision(value); setInspection(null); setPath(''); setAssigned(null); setError(''); onChange({});
     if (!value) return;
     try {
       const frozen = await read<{ snapshot_id: string }>(`revisions/${value}`);
@@ -111,13 +117,27 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
       if (token === generation.current) setInspection(data);
     } catch (failure) { if (token === generation.current) { setError((failure as Error).message); onDenied((failure as Error).message); } }
   }
+  async function chooseOccurrence(value: string) {
+    const token = ++generation.current;
+    setPath(value); setAssigned(null); setError(''); onChange({});
+    if (!value || !inspection) return;
+    const selected = inspection.occurrences.find(item => JSON.stringify(item.path) === value);
+    if (!selected?.firmware_revision_id) return;
+    try {
+      const firmware = await read<FirmwareRead>(`pcb/firmware-revisions/${selected.firmware_revision_id}`);
+      if (token !== generation.current) return;
+      setAssigned(firmware);
+      onChange({ firmware_revision_id: selected.firmware_revision_id, assembly_snapshot_id: inspection.snapshot_id!, path: selected.path });
+    } catch (failure) { if (token === generation.current) { setError((failure as Error).message); onDenied((failure as Error).message); } }
+  }
   return <Stack>
-    <NativeSelect label={`${label} assembly context (optional)`} value={definition} data={[{ value: '', label: 'No contextual occurrence selected' }, ...assemblies.map(item => ({ value: item.definition_id, label: item.name }))]} onChange={event => { onChange({}); setDefinition(event.currentTarget.value); setOffset(0); }} />
+    <NativeSelect label={`${label} assembly context${firmwareId ? ' (optional)' : ''}`} value={definition} data={[{ value: '', label: firmwareId ? 'No contextual occurrence selected' : 'Select assembly' }, ...assemblies.map(item => ({ value: item.definition_id, label: item.name }))]} onChange={event => { onChange({}); setDefinition(event.currentTarget.value); setOffset(0); }} />
     {identity && <>
       <NativeSelect label={`${label} frozen assembly revision`} value={revision} data={[{ value: '', label: 'Select frozen assembly' }, ...identity.revisions.map(item => ({ value: item.revision_id, label: `Frozen revision ${item.number}` }))]} onChange={event => { void choose(event.currentTarget.value); }} />
       <Group><Button disabled={!offset} onClick={() => { onChange({}); setOffset(Math.max(0, offset - 50)); }}>Previous {label.toLowerCase()} assembly revisions</Button><Button disabled={identity.revisions.length < 50} onClick={() => { onChange({}); setOffset(offset + 50); }}>Next {label.toLowerCase()} assembly revisions</Button></Group>
     </>}
-    {inspection && <NativeSelect label={`${label} exact board occurrence`} value={path} data={[{ value: '', label: 'Select occurrence or compare without context' }, ...inspection.occurrences.filter(item => item.kind === 'pcb_population' && item.firmware_revision_id === firmwareId).map(item => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={event => { const value = event.currentTarget.value; setPath(value); onChange(value ? { assembly_snapshot_id: inspection.snapshot_id!, path: JSON.parse(value) as string[] } : {}); }} />}
+    {inspection && <NativeSelect label={`${label} exact board occurrence`} value={path} data={[{ value: '', label: firmwareId ? 'Select occurrence or compare without context' : 'Select assigned board occurrence' }, ...inspection.occurrences.filter(item => item.kind === 'pcb_population' && !!item.firmware_revision_id && (!firmwareId || item.firmware_revision_id === firmwareId)).map(item => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={event => { void chooseOccurrence(event.currentTarget.value); }} />}
+    {assigned && <Text>{label} assigned firmware: {assigned.name} · frozen revision {assigned.revision_number} · {assigned.revision_id} · snapshot {assigned.snapshot_sha256}</Text>}
     {error && <Alert color="red">{error}</Alert>}
   </Stack>;
 }
@@ -148,7 +168,7 @@ function EvidenceSelector({ projectId, onChange, onDenied }: { projectId: string
     return () => { factGeneration.current++; };
   }, [subject, factOffset]);
   return <Stack>
-    <Text>Existing observations on exact baseline revisions, the selected occurrence, and physical units with those design pins are included automatically. Optionally inspect another subject and deliberately include its assertions.</Text>
+    <Text>Existing assertions on the exact readable baseline firmware/population revisions are included automatically from their owning library projects. Contextual observations and physical units with those design pins remain in the selected project. Optionally inspect another subject and deliberately include its assertions.</Text>
     <Button onClick={() => { setOpened(!opened); setSelected([]); setSubject(''); onChange([]); }}>Choose additional historical observations</Button>
     {opened && <>
       <NativeSelect label="Historical observation subject" value={subject} data={[{ value: '', label: 'Select actual observation subject' }, ...subjects.map(item => ({ value: item.subject_id, label: targetLabel(item.target, item.physical_unit_serial) }))]} onChange={event => { setSubject(event.currentTarget.value); setFactOffset(0); setSelected([]); onChange([]); }} />
@@ -183,6 +203,7 @@ function ImpactReview({ result }: { result: ImpactResult }) {
       {result.findings.map(finding => <Table.Tr key={finding.key}><Table.Td>{finding.key}</Table.Td><Table.Td>{finding.status}</Table.Td><Table.Td>{JSON.stringify(finding.baseline)}</Table.Td><Table.Td>{JSON.stringify(finding.candidate)}</Table.Td><Table.Td>{finding.reason}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
     <Title order={4}>Historical observation applicability</Title>
+    <Text>Scope: exact readable baseline firmware/population revision subjects, plus selected-project contextual occurrences, actual units and deliberately selected additional assertions.</Text>
     <Text>{result.observations_total} historical assertions in the declared scope. Observations remain immutable; no candidate result is created.</Text>
     {result.observations_truncated && <Alert color="yellow">This page shows up to 100 assertions from position {result.observation_offset + 1}. Review additional pages; all historical results remain preserved.</Alert>}
     {result.observations.map(row => <Card key={row.assertion.assertion_id} withBorder><Stack>

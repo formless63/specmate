@@ -259,7 +259,8 @@ and evidence. Sharing a board revision does not establish firmware compatibility
 
 `firmware_impact.compare` and the Firmware impact tool compare two exact frozen
 firmware declarations, optionally at separate frozen assembly occurrences. Choose
-authorized records by name and revision, then inspect their source, native target,
+authorized local records by name and revision, or choose a named assembly and exact
+board occurrence to use its assigned firmware, then inspect their source, native target,
 configuration, toolchain and pin identities. The comparison reports changed, unchanged
 and unknown assumptions with reasons. Labels and matching reference text never establish
 hardware identity or compatibility.
@@ -284,7 +285,11 @@ This review does not execute a compiler, flash a device or establish physical qu
 and candidate firmware revision. Each side can additionally name its exact frozen
 assembly snapshot and contextual board path; that firmware must actually be assigned
 to the selected occurrence. Repeated boards remain distinct even when their labels,
-board revision and firmware match. The selected project scopes both sides.
+board revision and firmware match. Each contextual snapshot belongs to the selected
+project. Its exact assigned firmware and population may retain their owning readable
+library project; the shared frozen-input resolver verifies assignment and target.
+Standalone firmware belongs to the selected project. Library reuse does not permit
+arbitrary foreign firmware or context selection.
 
 The assessment compares firmware identity, contextual occurrence, exact population
 target and option, accepted native interpretation and MCU identity, preserved sources
@@ -296,8 +301,12 @@ matching declarations do not establish MCU capabilities or toolchain compatibili
 
 Existing fact assertions on the exact baseline firmware/population revisions, selected
 contextual occurrence and physical units with those design pins are discovered without
-registering another subject or ledger. Callers may deliberately select up to 100
-additional assertion IDs. Results preserve the original subject, recorded value,
+registering another subject or ledger. Exact baseline firmware/population revision
+assertions may come from those revisions' owning readable library projects. Contextual
+occurrence and actual-unit assertions remain within the selected project; unrelated
+library assertions and units are not discovered. Callers may deliberately select up
+to 100 additional assertion IDs, also within the selected project. Results preserve
+the original subject, recorded value,
 method, conditions and evidence. An unrelated assertion has unknown applicability.
 Actual-unit observations always require review because the installed firmware and
 candidate device state are not established by a design pin. Changes require review
@@ -312,8 +321,9 @@ offset, continuation and partial-review status. Each page rechecks the complete
 current closure. The comparison hash identifies the derived response; it is not a
 persistent approval, observation or qualification record.
 
-The firmware impact panel selects authorized frozen firmware by name and revision,
-optionally selects frozen assembly occurrences and additional fact subjects, and
+The firmware impact panel selects authorized local frozen firmware by name and revision,
+or selects a named frozen assembly and exact occurrence first to resolve assigned
+firmware, including authorized library reuse. It optionally selects additional fact subjects and
 shows exact hashes, native IDs, assumptions and historical applicability. Focus,
 scope changes and denial discard retained evidence; late asynchronous responses cannot
 restore stale private findings. HTTP inspection is available at
