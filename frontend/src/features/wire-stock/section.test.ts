@@ -69,6 +69,15 @@ describe('shared stock section, drawing and geometry', () => {
     expect(a.features.find(f => f.path === 'stock.pair.red.center')?.y).toBeCloseTo(-0.75, 8);
     expect(a.electricalBonds).toEqual([]);
   });
+  it('does not render impossible unsaved layer boundaries as engineering geometry', () => {
+    const stock = structuredClone(stockPresets.coax!);
+    const layer = stock.structure.children[2]!;
+    if (layer.kind !== 'group' && layer.kind !== 'web') layer.inner_diameter_mm = 3;
+    const section = sectionLayout(stock);
+    expect(section.widthMm).toBeNull();
+    expect(section.features).toHaveLength(3);
+    expect(section.unknown).toContain('stock.screen: invalid layer boundaries');
+  });
   it('does not inject unsanitized SVG color attributes', () => {
     const section = sectionLayout(stockPresets.coax!);
     section.features[0]!.color = 'red" onload="alert(1)';

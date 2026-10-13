@@ -12,18 +12,18 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from specmate.operations import ValidationFailed
 
-Positive = Annotated[float, Field(gt=0, allow_inf_nan=False)]
-Nonnegative = Annotated[float, Field(ge=0, allow_inf_nan=False)]
-Coordinate = Annotated[float, Field(allow_inf_nan=False)]
+Positive = Annotated[float, Field(gt=0, allow_inf_nan=False, strict=True)]
+Nonnegative = Annotated[float, Field(ge=0, allow_inf_nan=False, strict=True)]
+Coordinate = Annotated[float, Field(allow_inf_nan=False, strict=True)]
 ElementId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 class Fact(StrictModel):
-    value: float | str | None = None
+    value: Annotated[float, Field(strict=True)] | str | None = None
     unit: str | None = None
     source: str | None = Field(default=None, max_length=1000)
     status: Literal["unknown", "documented", "measured", "inferred"] = "unknown"

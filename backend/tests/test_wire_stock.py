@@ -156,6 +156,10 @@ def test_typed_validation_rejects_duplicate_ids_impossible_radii_and_false_known
     stock["facts"]["impedance"]["value"] = 50
     with pytest.raises(ValidationFailed):
         validate_stock_content({"stock": stock})
+    stock = fixture()
+    stock["structure"]["children"][0]["outer_diameter_mm"] = True
+    with pytest.raises(ValidationFailed):
+        validate_stock_content({"stock": stock})
     assert validate_stock_content({"unfinished": True}) == {"unfinished": True}
 
 
@@ -201,3 +205,58 @@ def test_typed_freeze_requires_stock_but_generic_draft_can_be_incomplete(users, 
             expected_state=record["state"],
         )
     assert Snapshot.objects.count() == 0
+
+
+def test_command_failure_rolls_back_definition_draft_and_idempotency(users, project, monkeypatch):
+    from specmate.operations.models import IdempotencyRecord
+
+    def fail_draft(*args, **kwargs):
+        raise RuntimeError("Synthetic persistence interruption")
+
+    monkeypatch.setattr(Draft.objects, "create", fail_draft)
+    with pytest.raises(RuntimeError, match="Synthetic persistence"):
+        create(users, project, idempotency_key="rollback-stock")
+    assert Definition.objects.count() == 0
+    assert Draft.objects.count() == 0
+    assert not IdempotencyRecord.objects.filter(key="rollback-stock").exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_competing_stock_edits_have_one_winner(users, project):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connections
+
+    record = create(users, project)
+    barrier = Barrier(2)
+
+    def edit(color):
+        close_old_connections()
+        stock = fixture()
+        stock["structure"]["children"][-1]["color"] = color
+        barrier.wait(timeout=10)
+        try:
+            result = op(
+                users["owner"],
+                "wire_stock.update",
+                {"draft_id": record["draft_id"], "stock": stock},
+                expected_state=record["state"],
+            )
+            return result["state"]
+        except Conflict:
+            return "conflict"
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(edit, ["#ff0000", "#0000ff"]))
+    assert sorted(results) == ["conflict", "draft-v2"]
+    assert Draft.objects.get(id=record["draft_id"]).version == 2
+
+
+def test_committed_stock_schema_matches_authoritative_contract():
+    from specmate.operations.management.commands.export_contract_schemas import render
+
+    schema = FIXTURES.parents[1] / "contracts" / "schema" / "wire-stock.json"
+    assert schema.read_text() == render(StockSpecification)

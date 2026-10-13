@@ -1,0 +1,511 @@
+{
+  "$defs": {
+    "Fact": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "measured",
+            "inferred"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Fact",
+      "type": "object"
+    },
+    "GroupElement": {
+      "additionalProperties": false,
+      "properties": {
+        "arrangement": {
+          "default": "concentric",
+          "enum": [
+            "concentric",
+            "ring",
+            "linear",
+            "figure-eight"
+          ],
+          "title": "Arrangement",
+          "type": "string"
+        },
+        "children": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "conductor": "#/$defs/RoundElement",
+                "dielectric": "#/$defs/RoundElement",
+                "drain": "#/$defs/RoundElement",
+                "filler": "#/$defs/RoundElement",
+                "group": "#/$defs/GroupElement",
+                "insulation": "#/$defs/RoundElement",
+                "jacket": "#/$defs/RoundElement",
+                "shield": "#/$defs/RoundElement",
+                "web": "#/$defs/WebElement"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoundElement"
+              },
+              {
+                "$ref": "#/$defs/WebElement"
+              },
+              {
+                "$ref": "#/$defs/GroupElement"
+              }
+            ]
+          },
+          "maxItems": 128,
+          "title": "Children",
+          "type": "array"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "direction": {
+          "default": "ccw",
+          "enum": [
+            "cw",
+            "ccw"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "group",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material"
+        },
+        "pitch_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pitch Mm"
+        },
+        "role": {
+          "enum": [
+            "stock",
+            "coax",
+            "pair",
+            "ribbon",
+            "figure-eight",
+            "bundle"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "x_mm": {
+          "default": 0,
+          "title": "X Mm",
+          "type": "number"
+        },
+        "y_mm": {
+          "default": 0,
+          "title": "Y Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "role"
+      ],
+      "title": "GroupElement",
+      "type": "object"
+    },
+    "RoundElement": {
+      "additionalProperties": false,
+      "properties": {
+        "area_mm2": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Area Mm2"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "construction": {
+          "anyOf": [
+            {
+              "enum": [
+                "solid",
+                "stranded",
+                "braid",
+                "spiral",
+                "foil",
+                "tape"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Construction"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "inner_diameter_mm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inner Diameter Mm"
+        },
+        "kind": {
+          "enum": [
+            "conductor",
+            "dielectric",
+            "insulation",
+            "shield",
+            "drain",
+            "filler",
+            "jacket"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material"
+        },
+        "outer_diameter_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outer Diameter Mm"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "x_mm": {
+          "default": 0,
+          "title": "X Mm",
+          "type": "number"
+        },
+        "y_mm": {
+          "default": 0,
+          "title": "Y Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "title": "RoundElement",
+      "type": "object"
+    },
+    "WebElement": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color"
+        },
+        "height_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height Mm"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "web",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "width_mm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width Mm"
+        },
+        "x_mm": {
+          "default": 0,
+          "title": "X Mm",
+          "type": "number"
+        },
+        "y_mm": {
+          "default": 0,
+          "title": "Y Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "title": "WebElement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "construction": {
+      "enum": [
+        "coax",
+        "pair",
+        "ribbon",
+        "figure-eight",
+        "bundle"
+      ],
+      "title": "Construction",
+      "type": "string"
+    },
+    "facts": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Fact"
+      },
+      "maxProperties": 50,
+      "title": "Facts",
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "structure": {
+      "$ref": "#/$defs/GroupElement"
+    },
+    "viewed_from": {
+      "default": "unknown",
+      "enum": [
+        "a",
+        "b",
+        "unknown"
+      ],
+      "title": "Viewed From",
+      "type": "string"
+    }
+  },
+  "required": [
+    "construction",
+    "structure"
+  ],
+  "title": "StockSpecification",
+  "type": "object"
+}

@@ -16,7 +16,7 @@ export function sectionLayout(stock: StockSpecification): Section {
     const px = x === null ? null : x + node.x_mm;
     const py = y === null ? null : y + node.y_mm;
     if (node.kind === 'group') {
-      const members = node.children.filter(c => c.kind === 'group' || c.kind === 'conductor' || c.kind === 'drain');
+      const members = node.children.filter(c => c.kind === 'group' || c.kind === 'conductor');
       const arranged = node.arrangement !== 'concentric';
       if (arranged && node.pitch_mm === null) unknown.push(`${path}: arrangement pitch unknown`);
       for (const child of node.children) {
@@ -64,6 +64,8 @@ export function sectionLayout(stock: StockSpecification): Section {
         shape: { type: 'web', width: node.width_mm, height: node.height_mm } });
     } else if (node.outer_diameter_mm === null || node.inner_diameter_mm === null) {
       unknown.push(`${path}: layer dimensions unknown`);
+    } else if (!Number.isFinite(node.outer_diameter_mm) || !Number.isFinite(node.inner_diameter_mm) || node.outer_diameter_mm <= 0 || node.inner_diameter_mm < 0 || node.inner_diameter_mm >= node.outer_diameter_mm) {
+      unknown.push(`${path}: invalid layer boundaries`);
     } else features.push({ path, kind: node.kind, x: px, y: py, color: node.color, material: node.material,
       shape: { type: 'ring', rOuter: node.outer_diameter_mm / 2, rInner: node.inner_diameter_mm / 2 } });
   };
