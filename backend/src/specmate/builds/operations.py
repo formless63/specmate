@@ -232,7 +232,10 @@ def _job_stage(ctx: Context, p: BuildRef) -> BuildStage:
 
 
 @operation(
-    "build.dispatch", BuildRef, summary="Make an outbox-dispatched build available to runners."
+    "build.dispatch",
+    BuildRef,
+    summary="Make an outbox-dispatched build available to runners.",
+    supports_idempotency=False,
 )
 def dispatch_build(ctx: Context, p: BuildRef) -> dict:
     stage = _job_stage(ctx, p)
@@ -245,7 +248,12 @@ def dispatch_build(ctx: Context, p: BuildRef) -> dict:
     return stage_result(stage)
 
 
-@operation("build.poll", BuildRef, summary="Reconcile build liveness for its trusted workflow.")
+@operation(
+    "build.poll",
+    BuildRef,
+    summary="Reconcile build liveness for its trusted workflow.",
+    supports_idempotency=False,
+)
 def poll_build(ctx: Context, p: BuildRef) -> dict:
     stage = _job_stage(ctx, p)
     if not _execution_allowed(stage.build) and stage.cancellation_requested_at is None:
@@ -254,7 +262,12 @@ def poll_build(ctx: Context, p: BuildRef) -> dict:
     return stage_result(stage)
 
 
-@operation("build.get", BuildRef, summary="Read the state of a build within project scope.")
+@operation(
+    "build.get",
+    BuildRef,
+    summary="Read the state of a build within project scope.",
+    supports_idempotency=False,
+)
 def get_build(ctx: Context, p: BuildRef) -> dict:
     stage = _stage_for_build(p.build_id)
     authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
@@ -266,7 +279,10 @@ class ArtifactRef(BuildRef):
 
 
 @operation(
-    "build.output", ArtifactRef, summary="Authorize accepted artifact bytes in project scope."
+    "build.output",
+    ArtifactRef,
+    summary="Authorize accepted artifact bytes in project scope.",
+    supports_idempotency=False,
 )
 def get_output(ctx: Context, p: ArtifactRef) -> dict:
     stage = _stage_for_build(p.build_id)
@@ -309,7 +325,12 @@ def _operator(ctx: Context):
         raise PermissionDenied("Local installation operator authority is required.")
 
 
-@operation("runner.enroll", EnrollRunner, summary="Issue a project and recipe scoped runner token.")
+@operation(
+    "runner.enroll",
+    EnrollRunner,
+    summary="Issue a project and recipe scoped runner token.",
+    supports_idempotency=False,
+)
 def enroll_runner(ctx: Context, p: EnrollRunner) -> dict:
     _operator(ctx)
     if ctx.idempotency_key:
@@ -369,7 +390,13 @@ def _manifest(stage: BuildStage) -> dict:
     }
 
 
-@operation("runner.lease", ClaimLease, summary="Claim one authorized stage lease.", public=True)
+@operation(
+    "runner.lease",
+    ClaimLease,
+    summary="Claim one authorized stage lease.",
+    public=True,
+    supports_idempotency=False,
+)
 def claim_lease(ctx: Context, p: ClaimLease) -> dict:
     runner = _runner(ctx)
     existing = (
@@ -444,6 +471,7 @@ def _runner_stage(ctx: Context, p: StageLease, *, allow_expired=False, allow_ter
     StageLease,
     summary="Renew a stage lease and read cancellation.",
     public=True,
+    supports_idempotency=False,
 )
 def heartbeat(ctx: Context, p: StageLease) -> dict:
     stage = _runner_stage(ctx, p)
@@ -473,6 +501,7 @@ def _reconciliation_result(stage: BuildStage) -> dict:
     ReconcileLease,
     summary="Reconcile the original execution before resuming receipts.",
     public=True,
+    supports_idempotency=False,
 )
 def reconcile(ctx: Context, p: ReconcileLease) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)
@@ -504,6 +533,7 @@ class InputRef(StageLease):
     InputRef,
     summary="Authorize one exact input in the leased manifest.",
     public=True,
+    supports_idempotency=False,
 )
 def get_input(ctx: Context, p: InputRef) -> dict:
     stage = _runner_stage(ctx, p)
@@ -547,6 +577,7 @@ def _output_result(output: StageOutput) -> dict:
     RegisterOutput,
     summary="Verify and register a scoped output receipt.",
     public=True,
+    supports_idempotency=False,
     attachments=("content",),
 )
 def register_output(ctx: Context, p: RegisterOutput) -> dict:
@@ -610,6 +641,7 @@ class CompleteStage(StageLease):
     CompleteStage,
     summary="Accept one fenced terminal execution receipt.",
     public=True,
+    supports_idempotency=False,
 )
 def complete(ctx: Context, p: CompleteStage) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)

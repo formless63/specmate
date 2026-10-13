@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import IO, Any, Literal
 
 from django.db import IntegrityError, transaction
@@ -109,6 +109,8 @@ class OperationSpec:
     public: bool
     attachments: tuple[str, ...]
     status: ResultStatus
+    authorize_replay: Callable[[Context, BaseModel, Mapping[str, Any]], None] | None = None
+    supports_idempotency: bool = True
 
 
 registry: dict[str, OperationSpec] = {}
@@ -123,12 +125,23 @@ def operation(
     public: bool = False,
     attachments: tuple[str, ...] = (),
     status: ResultStatus = "completed",
+    authorize_replay: Callable[[Context, BaseModel, Mapping[str, Any]], None] | None = None,
+    supports_idempotency: bool = True,
 ):
     def register(handler: Callable[[Context, Any], dict[str, Any]]):
         if name in registry:
             raise RuntimeError(f"Duplicate operation {name}")
         registry[name] = OperationSpec(
-            name, summary, payload, handler, requires_expected_state, public, attachments, status
+            name,
+            summary,
+            payload,
+            handler,
+            requires_expected_state,
+            public,
+            attachments,
+            status,
+            authorize_replay,
+            supports_idempotency,
         )
         return handler
 
@@ -147,6 +160,21 @@ def execute(name: str, ctx: Context, payload: Mapping[str, Any]) -> OperationRes
         raise Unsupported(f"Unknown operation {name!r}.")
     if not spec.public and (ctx.user is None or not ctx.user.is_authenticated):
         raise Unauthenticated("Authentication required.")
+    # Sessions and in-process callers can hold stale user objects. Refresh account
+    # liveness before both fresh execution and replay; trusted cleanup stays possible.
+    from django.contrib.auth import get_user_model
+
+    user_model = get_user_model()
+    if isinstance(ctx.user, user_model):
+        current = user_model.objects.filter(pk=ctx.user.pk).first()
+        cleanup = ctx.via == "job" and name in {"build.poll", "build.dispatch"}
+        if current is None or (not current.is_active and not cleanup):
+            raise Unauthenticated("Actor is not active.")
+        ctx = replace(ctx, user=current)
+    if ctx.idempotency_key is not None and not spec.supports_idempotency:
+        raise ValidationFailed(
+            "This operation requires fresh evaluation, without an idempotency key."
+        )
     try:
         parsed = spec.payload.model_validate(dict(payload))
     except PydanticValidationError as exc:
@@ -172,6 +200,12 @@ def execute(name: str, ctx: Context, payload: Mapping[str, Any]) -> OperationRes
             if prior is not None:
                 if prior.fingerprint != fingerprint:
                     raise IdempotencyMismatch("Idempotency key was used with a different request.")
+                if spec.authorize_replay is not None:
+                    spec.authorize_replay(ctx, parsed, prior.result)
+                else:
+                    from specmate.operations.replay import authorize_builtin_replay
+
+                    authorize_builtin_replay(name, ctx, parsed, prior.result)
                 return OperationResult(
                     operation=name,
                     request_id=ctx.request_id,
