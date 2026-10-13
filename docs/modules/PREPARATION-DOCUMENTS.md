@@ -38,9 +38,11 @@ identity; it does not detect access changes, which are independently reauthorize
 requires `DESIGN_EDIT` on the root's owning project, the reviewed token and a stable
 idempotency key. Replay freshly checks both that write authority and the entire
 stored receipt closure. Review, read, list and download require `PROJECT_READ` for
-the owning project and complete current closure. Viewers can inspect and download;
-they cannot generate. Hidden input authority withholds the whole set, not a partial
-receipt or cached source label.
+the owning project and complete current closure. Changed keyed requests also check
+the original receipt's inputs before exposing mismatch diagnostics, even when those
+inputs are absent from the proposed configuration. Hidden input authority withholds
+the whole set, not a partial receipt or cached source label.
+Viewers can inspect and download; they cannot generate.
 
 Outputs use the shared content-addressed blobstore. All bytes are staged and promoted
 before transactional database publication. Failure publishes no partial receipt or

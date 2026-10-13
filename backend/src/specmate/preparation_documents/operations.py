@@ -6,6 +6,8 @@ import io
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog_matching.queries import current_actor
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
+from specmate.operations.models import IdempotencyRecord
+from specmate.operations.scope import LEGACY_SCOPE
 from specmate.preparation_documents.contracts import GENERATOR, Configuration, Download, SetRef
 from specmate.preparation_documents.models import DocumentOutput, DocumentSet
 from specmate.preparation_documents.projection import authorize_inputs, project
@@ -17,7 +19,18 @@ def configuration_scope(ctx, p):
     user, captured, _, _ = authorize_inputs(ctx.user, p)
     root = captured[p.root_revision_id]
     authorize(user, root.definition.project_id, Perm.DESIGN_EDIT)
-    return f"project:{root.definition.project_id}"
+    namespace = f"project:{root.definition.project_id}"
+    if ctx.idempotency_key is not None:
+        # A changed request may omit inputs still protected by its retained receipt.
+        # Scope runs before the shared executor exposes key/CAS diagnostics.
+        for prior in IdempotencyRecord.objects.filter(
+            actor=user,
+            operation="preparation_documents.generate",
+            key=ctx.idempotency_key,
+            scope__in=[namespace, LEGACY_SCOPE],
+        ):
+            authorized_set(user, prior.result["document_set_id"], Perm.DESIGN_EDIT)
+    return namespace
 
 
 def authorized_set(user, set_id, permission=Perm.PROJECT_READ):
