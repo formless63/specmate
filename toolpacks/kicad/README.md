@@ -58,6 +58,36 @@ recipe or a general PCB adapter. The [KiCad CLI reference](https://docs.kicad.or
 documents the native commands. No schematic ERC, fabrication output, foreign
 format, arm64 or physical design qualification is implied.
 
+## Bounded fabrication pack
+
+The separate `kicad-fabrication-v1` program produces fixed Gerber X2, separated
+through-hole Excellon, native JSON DRC and a hash manifest from an immutable selected
+board. See the explicit support/failure boundaries in [PCB scope](../../docs/modules/PCB.md).
+Production graphics/text, native DNP, custom project settings/rules, zones, vias,
+cutouts, curved geometry and slotted drills are outside this first qualified subset.
+It does not author, modify or route the source, interpret human population options,
+generate assembly outputs or authorize manufacturing.
+
+Print an operator-reviewable registry entry without installing it:
+
+```bash
+cd backend
+uv run python ../toolpacks/kicad/fabrication_recipe.py board.kicad_pcb --rights AGPL-3.0-only
+```
+
+Run the standalone native probe with the exact cached image and external evidence:
+
+```bash
+PYTHONPATH=runner:scripts backend/.venv/bin/python scripts/check_pcb_fabrication.py \
+  --evidence-dir /external/new-fabrication-evidence-directory
+```
+
+The checker uses the existing runner isolation and independent original fixture
+coordinates. It includes plated and unconnected synthetic variants and explicit
+malformed/slot/DNP rejection. It changes no recipe registry, credentials, database,
+permanent service or original fixture. This is standalone real-tool evidence;
+registered runner transport and browser acceptance remain separate checkpoints.
+
 Fetch the exact image explicitly before running integration checks:
 
 ```bash

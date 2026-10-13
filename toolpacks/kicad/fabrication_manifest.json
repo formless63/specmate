@@ -1,0 +1,51 @@
+{
+  "format_version": 1,
+  "id": "kicad-fabrication-v1",
+  "tool_version": "10.0.6",
+  "native_board_format_version": 20260206,
+  "image": "kicad/kicad:10.0.6@sha256:40568bc95527f3a673a31a9b59badf512e71046c2d5068a364503c525f946a4e",
+  "platforms": [
+    "linux/amd64"
+  ],
+  "input_formats": [
+    "kicad_pcb"
+  ],
+  "operations": [
+    "immutable-board-json-drc",
+    "fixed-layer-gerber-x2-export",
+    "circular-through-excellon-export"
+  ],
+  "output_formats": [
+    "application/json",
+    "application/vnd.gerber",
+    "application/x-excellon"
+  ],
+  "permissions": {
+    "network": false,
+    "read_only_inputs": true,
+    "read_only_root": true,
+    "native_source_modification": false
+  },
+  "limits": {
+    "cpus": 2,
+    "memory_bytes": 1073741824,
+    "pids": 128,
+    "timeout_seconds": 180,
+    "max_output_bytes": 16777216
+  },
+  "qualification": {
+    "scope": "Original synthetic two-net rectangular board, circular PTH variant, disconnected track variant, malformed/slot/nativeDNP rejection",
+    "evidence_level": "standalone-real-tool",
+    "approved_runner_pipeline": "separate-checkpoint",
+    "manufacturing_approval": false,
+    "physical_qualification": false,
+    "unsupported": [
+      "arm64 and other KiCad versions/formats",
+      "cutouts, curved outlines and tracks, zones, vias, slots and custom pads",
+      "production-layer graphics/text, variables and embedded assets",
+      "custom project rules/settings",
+      "native DNP and human population variants",
+      "source generation/modification, ERC, schematic parity, autorouting and assembly outputs"
+    ]
+  }
+}

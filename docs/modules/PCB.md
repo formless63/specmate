@@ -104,6 +104,55 @@ appropriate. Freerouting is an optional stage whose output is revalidated. Keep 
 libraries pinned per pack; do not depend on the web process importing native bindings.
 A black-box bought board can expose declared ports without invented internal detail.
 
+### Bounded native fabrication evidence
+
+`pcb_fabrication.request` generates outputs from one exact preserved board using an
+operator-approved `kicad-fabrication-v1` recipe and the existing build/outbox/runner
+boundary. An accepted native intake with a closed line outline is required. Requests
+carry no scripts or mutable report payloads. The recipe retains exact source bytes,
+rights, image, program and resource bounds. Source bytes are never saved, upgraded,
+refilled, routed or changed for population decisions.
+
+The initial subset is KiCad 10.0.6, board format 20260206, linux/amd64, two copper
+layers and one closed line outline without cutouts. Straight outer copper tracks,
+circle/rectangle pads and circular plated/nonplated through drills are supported.
+Zones, vias, curved tracks/outlines, slots, custom pads, production-layer graphics/text,
+native DNP, variables/embedded assets and companion project rules/settings fail
+explicitly. Custom project-rule coverage is not inferred from standalone DRC defaults.
+Companion bytes remain preserved; the pack cannot silently omit required custom rules.
+
+Every successful build declares JSON DRC, nine Gerber X2 layers (`F.Cu`, `B.Cu`,
+`F.Mask`, `B.Mask`, `F.SilkS`, `B.SilkS`, `F.Paste`, `B.Paste`, `Edge.Cuts`), the
+Gerber job, separate PTH/NPTH Excellon files and a bounded hash manifest. Gerber
+precision is 4.6 millimetres; drills use absolute coordinates, millimetres and decimal
+zeros. KiCad's output Y axis has the opposite sign from its native board coordinates.
+Empty layers and empty drill categories remain explicit files. Missing outputs fail;
+failed or partial stages cannot become successful review evidence.
+
+`pcb_fabrication.read` reviews only successful registered StageOutputs, verifying
+the exact recipe, source, successful receipt, hashes, sizes, rights, media types,
+complete declared output set and DRC counts. Current authority over the entire source
+bundle and every output source is checked before diagnostics and downloads. Reads
+under `/api/v0/pcb-fabrication` and shared command/API/MCP/job paths use the same
+authority. There is no client report acceptance. The PCB panel requests builds
+deliberately and displays currently authorized exact evidence; scope changes, denied
+requests, denied refreshes and focus rechecks discard retained output names and links.
+
+Native DRC uses all severities and retains excluded/ignored-check metadata in its JSON.
+The CLI omits `--exit-code-violations`: findings are retained diagnostics alongside
+successful export, including unconnected items. A parse, export or command failure
+remains a failed stage. Zero findings do not approve manufacturing, electrical intent
+or physical qualification. ERC, schematic parity, source generation/modification,
+autorouting and assembly BOM/placement remain separate PCB-005 work.
+
+The opt-in standalone checkpoint is `scripts/check_pcb_fabrication.py --evidence-dir
+<new-external-directory>`, using the existing isolated Docker runner boundary and
+unchanged original synthetic fixture. It independently checks Gerber coordinates,
+NPTH/PTH drilling, complete job layers, a disconnected-board DRC finding, malformed
+input and unsupported slots/DNP. This proves bounded native CLI/program behavior;
+approved runner transport, leases, cancellation/fencing/recovery and real browser
+journeys require their own checkpoint. No installed execution authority is implied.
+
 ## Firmware
 
 Resolve target, population, pin contract, sources, toolchain and configuration by exact
