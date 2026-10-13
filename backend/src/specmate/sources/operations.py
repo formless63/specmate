@@ -180,16 +180,24 @@ def head_details(head: SourceBundleRevision) -> dict:
     }
 
 
-def _revise_replay(ctx: Context, p: ReviseBundle, result) -> None:
-    authorized_head(ctx, p.bundle_id)
+def _retained_revision(ctx: Context, result) -> SourceBundleRevision:
+    """Authorize stored evidence independently of the incoming retry's pins."""
     produced = (
         SourceBundleRevision.objects.select_related("bundle")
-        .filter(id=result["revision_id"], bundle_id=p.bundle_id)
+        .filter(id=result["revision_id"])
         .first()
     )
     if produced is None:
         raise NotFound("Bundle revision not found.")
     authorize_revision(ctx.user, produced)
+    return produced
+
+
+def _revise_replay(ctx: Context, p: ReviseBundle, result) -> None:
+    authorized_head(ctx, p.bundle_id)
+    produced = _retained_revision(ctx, result)
+    if produced.bundle_id != p.bundle_id:
+        raise NotFound("Bundle revision not found.")
 
 
 def _revise_scope(ctx: Context, p: ReviseBundle) -> str:
@@ -204,7 +212,7 @@ def _revise_scope(ctx: Context, p: ReviseBundle) -> str:
     )
     retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
     if retained is not None:
-        _revise_replay(ctx, p, retained.result)
+        _retained_revision(ctx, retained.result)
     return scope
 
 
@@ -252,14 +260,9 @@ def _derive_source(ctx: Context, p: DeriveBundle) -> SourceBundleRevision:
 
 def _derive_replay(ctx: Context, p: DeriveBundle, result) -> None:
     source = _derive_source(ctx, p)
-    produced = (
-        SourceBundleRevision.objects.select_related("bundle")
-        .filter(id=result["revision_id"], bundle__derived_from=source)
-        .first()
-    )
-    if produced is None:
+    produced = _retained_revision(ctx, result)
+    if produced.bundle.derived_from_id != source.id:
         raise NotFound("Bundle revision not found.")
-    authorize_revision(ctx.user, produced)
 
 
 def _derive_scope(ctx: Context, p: DeriveBundle) -> str:
@@ -273,7 +276,7 @@ def _derive_scope(ctx: Context, p: DeriveBundle) -> str:
     )
     retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
     if retained is not None:
-        _derive_replay(ctx, p, retained.result)
+        _retained_revision(ctx, retained.result)
     return scope
 
 

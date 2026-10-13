@@ -46,6 +46,7 @@ def ordered_race(monkeypatch, first, second):
     first_locked = threading.Event()
     blocked = threading.Event()
     local = threading.local()
+    backend_pids = {}
 
     def gate(original_function):
         def wrapper(*args, **kwargs):
@@ -66,9 +67,8 @@ def ordered_race(monkeypatch, first, second):
                 with connection.cursor() as cursor:
                     for _ in range(200):
                         cursor.execute(
-                            "SELECT count(*) FROM pg_stat_activity WHERE datname = "
-                            "current_database() AND wait_event_type = 'Lock' "
-                            "AND pid <> pg_backend_pid()"
+                            "SELECT %s = ANY(pg_blocking_pids(%s))",
+                            [backend_pids[0], backend_pids[1]],
                         )
                         if cursor.fetchone()[0]:
                             blocked.set()
@@ -91,6 +91,8 @@ def ordered_race(monkeypatch, first, second):
         local.index = index
         try:
             with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_backend_pid()")
+                backend_pids[index] = cursor.fetchone()[0]
                 cursor.execute("SET lock_timeout = '10s'")
                 cursor.execute("SET statement_timeout = '20s'")
             try:
