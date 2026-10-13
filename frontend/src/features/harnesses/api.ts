@@ -1,0 +1,17 @@
+import type { Endpoint } from '../cables/api';
+export { command, read, type Definition, type Identity } from '../identity/api';
+export type Section = { local_id: string; stock_revision_id: string; planned_cut_length_mm: string | null; cut_basis: string | null };
+export type Segment = { local_id: string; section_id: string; label: string | null; element_paths: string[] | null };
+export type SegmentEnd = { segment_id: string; end: 'a' | 'b' };
+export type SegmentTerminal = SegmentEnd & { kind: 'segment'; element_path: string };
+export type Terminal = SegmentTerminal | { kind: 'endpoint'; endpoint_id: string; contact_id: string };
+export type Joint = { local_id: string; kind: 'termination' | 'splice' | 'shield_bond'; members: Terminal[]; basis: string };
+export type Fate = { local_id: string; kind: 'through'; trunk: SegmentTerminal; leg: SegmentTerminal; basis: string } | { local_id: string; kind: 'joint'; terminal: SegmentTerminal; joint_id: string } | { local_id: string; kind: 'unconnected'; terminal: SegmentTerminal; basis: string };
+export type Breakout = { local_id: string; trunk: SegmentEnd; legs: SegmentEnd[]; fates: Fate[] };
+export type Harness = { schema_version?: '0.1'; sections: Section[]; segments: Segment[]; endpoints: Endpoint[]; joints: Joint[]; breakouts: Breakout[]; review: 'unreviewed' | 'reviewed'; review_basis: string | null };
+export type Draft = { definition_id: string; draft_id: string; state: string; content: { harness?: Harness } };
+export type DeclaredRelationship = { id: string; breakout_id?: string; kind: string; members: Terminal[]; basis: string };
+export type Inspection = { revision_id: string; harness: Harness; terminals: { terminal: Terminal; feature_kind: string }[]; declared_relationships: DeclaredRelationship[]; breakout_fates: { breakout_id: string; terminal: SegmentTerminal; fate: string }[]; quantities: { harness_count: number | null; segment_count: number | null; physical_piece_count: number | null; stock: { stock_revision_id: string; section_ids: string[]; piece_count: number | null; planned_cut_total_mm: string | null }[] }; continuity: string; compatibility: string; physical_qualification: string };
+export const initialHarness = (): Harness => ({ sections: [], segments: [], endpoints: [], joints: [], breakouts: [], review: 'unreviewed', review_basis: null });
+export const terminalLabel = (t: Terminal): string => t.kind === 'segment' ? `${t.segment_id} / ${t.end} / ${t.element_path}` : `${t.endpoint_id} / ${t.contact_id}`;
+export const terminalKey = (t: Terminal): string => JSON.stringify(t.kind === 'segment' ? [t.kind, t.segment_id, t.end, t.element_path] : [t.kind, t.endpoint_id, t.contact_id]);

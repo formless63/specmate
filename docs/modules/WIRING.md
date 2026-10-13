@@ -176,3 +176,10 @@ Positive length and representability checks follow complete source authorization
 Section totals and quantity multiplication use the bounded exact decimal context;
 overflow or precision loss raises a validation error instead of rounding. The
 original declared decimal amount and cut basis remain in the frozen harness.
+
+`HarnessPanel(projectId)` edits exact sections, spans, endpoints, joints and breakout
+fates through structured controls. Decimal cut text reaches the operation unchanged.
+Frozen inspection separates material counts from spans and displays explicit terminal
+relationships and unknown fates. Denied refreshes hide cached identity, draft and
+source-derived records and disable dependent mutations. HTTP reads are under
+`/api/v0/harnesses`; the shared operation API handles mutations.
