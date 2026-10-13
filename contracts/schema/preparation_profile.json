@@ -1,0 +1,280 @@
+{
+  "$defs": {
+    "Allowance": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount Mm"
+        },
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "slack",
+            "preparation",
+            "trim"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "whole_piece",
+            "end_a",
+            "end_b"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "required": [
+        "local_id",
+        "kind",
+        "scope",
+        "basis"
+      ],
+      "title": "Allowance",
+      "type": "object"
+    },
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Citation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "citation",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Formula": {
+      "additionalProperties": false,
+      "properties": {
+        "allowances": {
+          "items": {
+            "$ref": "#/$defs/Allowance"
+          },
+          "maxItems": 32,
+          "title": "Allowances",
+          "type": "array"
+        },
+        "element_path": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Path"
+        },
+        "input_basis": {
+          "enum": [
+            "declaration",
+            "model_suggestion"
+          ],
+          "title": "Input Basis",
+          "type": "string"
+        },
+        "input_length": {
+          "enum": [
+            "route",
+            "finished",
+            "stock_cut",
+            "conductor_cut"
+          ],
+          "title": "Input Length",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Review",
+          "type": "string"
+        },
+        "review_basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Basis"
+        },
+        "target": {
+          "enum": [
+            "stock_piece",
+            "conductive_feature"
+          ],
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "label",
+        "target",
+        "input_length",
+        "input_basis"
+      ],
+      "title": "Formula",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_revision_id": {
+          "format": "uuid",
+          "title": "Bundle Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locator": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Locator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_revision_id",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "formulas": {
+      "items": {
+        "$ref": "#/$defs/Formula"
+      },
+      "maxItems": 128,
+      "title": "Formulas",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stock_revision_id": {
+      "format": "uuid",
+      "title": "Stock Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stock_revision_id"
+  ],
+  "title": "PreparationProfile",
+  "type": "object"
+}

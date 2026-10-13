@@ -132,6 +132,10 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         if "profile" not in draft.content:
             raise ValidationFailed("A typed workshop profile is required before capture.")
         derived = dependency_revisions(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "preparation_profile":
+        from specmate.preparation.queries import dependency_revisions as preparation_dependencies
+
+        derived = preparation_dependencies(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "bom_plan":
         from specmate.bom.queries import dependency_revisions as bom_dependencies
 
@@ -246,6 +250,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind == "preparation_profile" or "preparation_profile" in content:
+        from specmate.preparation.queries import validate_content as validate_preparation
+
+        content = validate_preparation(kind, content)
     if kind == "passage_model" or "passages" in content:
         from specmate.passive_passages.queries import validate_content as validate_passages
 
@@ -299,6 +307,10 @@ def authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind == "preparation_profile" or "preparation_profile" in content:
+        from specmate.preparation.queries import authorize_content as authorize_preparation
+
+        authorize_preparation(user, definition, content)
     if definition.kind == "passage_model" or "passages" in content:
         from specmate.passive_passages.queries import authorize_content as authorize_passages
 
