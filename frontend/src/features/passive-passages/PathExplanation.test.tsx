@@ -40,15 +40,13 @@ for (const change of [{ root_revision_id: "other-root" }, { snapshot_sha256: "ot
     expect(screen.getAllByText("Native net identity: board-net-17").length).toBeGreaterThan(0);
   });
 }
-test("conflicting conditions, approximate signal semantics and search bounds are explicit", () => {
-  const contact = { condition_id: "selector", state: "left", behavior: "ideal_contact" as const };
-  render(view({ ...result, limited: true, query: "signal", paths: [{ ...result.paths[0]!, conflicting_condition_ids: ["selector"], condition_requirements: [contact], series_impedance_ohm: { real: "0", imaginary: "-2.2", precision: "approximate" }, shortness: "not_evaluated", steps: [{ ...result.paths[0]!.steps[1]!, kind: "conditional", condition_requirement: contact, assigned_state: null, condition: "separate operating state unsupported" }] }] }));
-  expect(screen.getByText(/Mutually exclusive requirements conflict: selector/)).toBeTruthy();
-  expect(screen.getByText(/Requires selector = left; query state unspecified/)).toBeTruthy();
+test("approximate signal semantics and search bounds remain explicit", () => {
+  render(view({ ...result, limited: true, query: "signal", assumptions: { ...result.assumptions!, copper: "ideal_zero_resistance", frequency_hz: "1000" }, paths: [{ ...result.paths[0]!, status: "modeled_path", reasons: [], series_impedance_ohm: { real: "0", imaginary: "-2.2", precision: "derived_approximation" }, shortness: "not_evaluated", steps: [{ ...result.paths[0]!.steps[1]!, kind: "capacitor", status: "ideal_capacitive_impedance_approximation", capacitance_f: "0.001" }] }] }));
   expect(screen.getByText(/Derived model approximation, not a measurement/)).toBeTruthy();
   expect(screen.getByText("Ideal shortness: not evaluated")).toBeTruthy();
   expect(screen.getByText(/Search limit reached/)).toBeTruthy();
 });
+
 test("steps and boundaries are paginated and selecting another path resets step pagination", () => {
   const steps = Array.from({ length: 21 }, (_, index) => ({ ...result.paths[0]!.steps[0]!, record_id: `edge-${index}` }));
   const boundaries = Array.from({ length: 21 }, (_, index) => ({ ...result.unmodeled_boundaries![0]!, id: `boundary-${index}` }));
@@ -63,3 +61,25 @@ test("steps and boundaries are paginated and selecting another path resets step 
   fireEvent.click(screen.getByRole("button", { name: "Next source boundaries" }));
   expect(screen.getByText("Boundary identity: boundary-20")).toBeTruthy();
 });
+
+for (const states of [["closed"], ["closed", "open"]]) {
+  test(`backend-shaped grouped conditional requirements render ${states.length} exclusive states`, () => {
+    const conflicting = states.length > 1;
+    const contact = { condition_id: "switch-1", state: "closed", behavior: "ideal_contact" as const };
+    render(view({ ...result, query: "dc_continuity", status: "unknown", reason: "missing_parameters_or_unsupported_behavior", paths: [{
+      ...result.paths[0]!, status: "unknown", reasons: [conflicting ? "mutually_exclusive_condition_states" : "condition_assignment_required"],
+      condition_requirements: [{ condition_id: "switch-1", states }], conflicting_condition_ids: conflicting ? ["switch-1"] : [],
+      steps: states.map((state) => ({ ...result.paths[0]!.steps[1]!, record_id: `passage:contact-${state}`, kind: "conditional", status: conflicting ? "incompatible_condition_requirements" : "unknown", condition_requirement: { ...contact, state }, assigned_state: null })),
+    }] }));
+    expect(screen.getByText(`Path requires switch-1: ${states.join(", ")} · ${conflicting ? "multiple exclusive states; incompatible requirements" : "required declared state"}`)).toBeTruthy();
+    expect(screen.getByText(/Requires switch-1 = closed; query state unspecified/)).toBeTruthy();
+    if (conflicting) {
+      expect(screen.getByText(/Mutually exclusive requirements conflict: switch-1/)).toBeTruthy();
+      expect(screen.getByText("mutually exclusive condition states")).toBeTruthy();
+      expect(screen.getByText(/Requires switch-1 = open; query state unspecified/)).toBeTruthy();
+    } else {
+      expect(screen.queryByText(/Mutually exclusive requirements conflict/)).toBeNull();
+      expect(screen.getByText("condition assignment required")).toBeTruthy();
+    }
+  });
+}

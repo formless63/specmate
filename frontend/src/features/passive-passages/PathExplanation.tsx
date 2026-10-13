@@ -62,7 +62,7 @@ export function PathExplanation({ result, graph }: { result: Interpretation; gra
       {path.series_resistance_ohm !== null && <Text>Series declared resistance: {path.series_resistance_ohm} Ω</Text>}
       {path.series_impedance_ohm && <Text>Series impedance: {path.series_impedance_ohm.real} + j({path.series_impedance_ohm.imaginary}) Ω · {readable(path.series_impedance_ohm.precision)}. Derived model approximation, not a measurement.</Text>}
       {!!path.conflicting_condition_ids?.length && <Alert color="yellow">Mutually exclusive requirements conflict: {path.conflicting_condition_ids.join(", ")}. These states cannot establish a combined proof.</Alert>}
-      {(path.condition_requirements ?? []).map((c) => <Text key={`${c.condition_id}:${c.state}`}>Path requires {c.condition_id} = {c.state} · {readable(c.behavior)}</Text>)}
+      {(path.condition_requirements ?? []).map((c) => <Text key={c.condition_id}>Path requires {c.condition_id}: {c.states.join(", ")} · {c.states.length > 1 ? "multiple exclusive states; incompatible requirements" : "required declared state"}</Text>)}
       <Text>Steps {path.steps.length ? stepPage * PAGE_SIZE + 1 : 0}–{Math.min((stepPage + 1) * PAGE_SIZE, path.steps.length)} of {path.steps.length}</Text>
       {path.steps.slice(stepPage * PAGE_SIZE, (stepPage + 1) * PAGE_SIZE).map((step, index) => <Card withBorder key={`${step.record_id}:${index}`}><Stack gap="xs">
         <Text fw={600}>{readable(step.kind)} · {readable(step.status)}{step.direction ? ` · traversal ${step.direction}` : ""}</Text><Text size="xs">Step record identity: {step.record_id}</Text>

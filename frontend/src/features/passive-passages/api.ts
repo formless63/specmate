@@ -22,7 +22,7 @@ export type Interpretation = {
   };
   unmodeled_boundaries?: Boundary[];
   paths: {
-    terminal_ids: string[]; condition_requirements?: ConditionalContact[];
+    terminal_ids: string[]; condition_requirements?: { condition_id: string; states: string[] }[];
     conflicting_condition_ids?: string[]; status: string; reasons: string[];
     series_resistance_ohm: string | null; shortness: string;
     series_impedance_ohm: { real: string; imaginary: string; precision: string } | null;
