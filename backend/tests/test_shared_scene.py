@@ -1,13 +1,14 @@
 """Independent synthetic scene oracles; simulated extraction is not native proof."""
 
+import json
 import math
 from uuid import UUID
 
 import pytest
-from django.test import RequestFactory
+from django.test import Client, RequestFactory
 
 from specmate.access.models import Membership
-from specmate.design.models import Snapshot
+from specmate.design.models import Definition, Snapshot
 from specmate.operations import NotFound, ValidationFailed
 from specmate.shared_scene import operations  # noqa: F401
 from specmate.shared_scene.api import inspect_snapshot
@@ -15,6 +16,7 @@ from specmate.shared_scene.transforms import millimetre_factor
 
 from .conftest import op
 from .test_assemblies import create, freeze, occ, part
+from .test_assembly_source_authority import sourced_child  # noqa: F401
 from .test_cables import capture, fixture
 from .test_cables import create as create_cable
 from .test_mechanical_sources import create as create_mechanical
@@ -306,6 +308,33 @@ def test_read_jobs_and_router_adapter_share_projection_and_never_cache(users, pr
     request = RequestFactory().get("/shared-scenes/snapshots/" + frozen["snapshot_id"])
     request.user = users["viewer"]
     assert inspect_snapshot(request, UUID(frozen["snapshot_id"])) == expected
+    client = Client()
+    client.force_login(users["viewer"])
+    response = client.post(
+        "/api/v0/operations",
+        data=json.dumps(
+            {
+                "operation": "shared_scene.read",
+                "request_id": "scene-http",
+                "payload": {"snapshot_id": frozen["snapshot_id"]},
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 200 and response.json()["result"] == expected
+    client.force_login(users["outsider"])
+    denial = client.post(
+        "/api/v0/operations",
+        data=json.dumps(
+            {
+                "operation": "shared_scene.read",
+                "request_id": "scene-denial",
+                "payload": {"snapshot_id": frozen["snapshot_id"]},
+            }
+        ),
+        content_type="application/json",
+    )
+    assert denial.status_code == 404 and denial.json()["error"]["details"] == {}
     with pytest.raises(ValidationFailed):
         op(
             users["viewer"],
@@ -321,3 +350,126 @@ def test_read_jobs_and_router_adapter_share_projection_and_never_cache(users, pr
     )
     with pytest.raises(ValidationFailed, match="frozen"):
         op(users["owner"], "shared_scene.read", {"snapshot_id": captured["snapshot_id"]})
+
+
+def test_generic_unsupported_child_still_authorizes_its_facts_and_sources(
+    users,
+    project,
+    sourced_child,  # noqa: F811
+):
+    revision, revoke = sourced_child
+    frozen = freeze(users["owner"], create(users["owner"], project, [occ("module", revision)]))
+    first = scene(users["viewer"], frozen)
+    assert any(n["kind"] == "workshop_profile" for n in first["nodes"])
+    revoke()
+    with pytest.raises(NotFound):
+        scene(users["viewer"], frozen)
+    assert op(users["viewer"], "shared_scene.list", {"project_id": project})["assemblies"] == []
+
+
+def test_model_revision_authority_is_independent_from_mechanical_target(
+    users,
+    project,
+    mec_sources,  # noqa: F811
+    mec_target,  # noqa: F811
+):
+    user = users["owner"]
+    represented_draft, represented = part(user, project, "part", "Represented model identity")
+    model = op(
+        user,
+        "catalog.register_representation",
+        {
+            "revision_id": represented["revision_id"],
+            "kind": "model",
+            "label": "Source model",
+            "source_bundle_revision_id": mec_sources["revision_id"],
+            "source_path": "body.step",
+        },
+    )
+    declared = declaration(mec_sources, mec_target)
+    declared["models"] = [
+        {
+            "local_id": "model",
+            "representation_id": model["representation_id"],
+            "revision_id": represented["revision_id"],
+            "snapshot_sha256": represented["sha256"],
+            "source_local_id": "native",
+            "path": "body.step",
+            "target_local_id": "fastener",
+            "purpose": "manufacturing",
+            "units": "m",
+            "frame": "declared_local",
+            "accuracy": None,
+            "basis": "Explicit unverified model-to-target correspondence",
+        }
+    ]
+    draft = create_mechanical(user, project, declared)
+    revision = op(
+        user,
+        "mechanical_source.freeze",
+        {"draft_id": draft["draft_id"]},
+        expected_state=draft["state"],
+    )
+    frozen = freeze(user, create(user, project, [occ("enclosure", revision)]))
+    first = scene(user, frozen)
+    model_resource = next(g for g in first["geometry"] if g["type"] == "unavailable_model")
+    assert model_resource["role"] == "manufacturing" and model_resource["millimetre_factor"] == 1000
+    assert model_resource["source"]["revision_id"] != mec_target["revision_id"]
+    hidden = op(users["outsider"], "project.create", {"name": "Model owner"})["project_id"]
+    Definition.objects.filter(id=represented_draft["definition_id"]).update(project_id=hidden)
+    with pytest.raises(NotFound):
+        scene(user, frozen)
+    Definition.objects.filter(id=represented_draft["definition_id"]).update(project_id=project)
+    assert scene(user, frozen) == first
+
+
+def test_composed_nonfinite_coordinates_fail_without_returning_invalid_world_geometry(
+    users, project
+):
+    _, child = part(users["owner"], project)
+    module = freeze(
+        users["owner"],
+        create(users["owner"], project, [occ("item", child, placement=placement(1e308, 0))]),
+    )
+    frozen = freeze(
+        users["owner"],
+        create(users["owner"], project, [occ("module", module, placement=placement(1e308, 0))]),
+    )
+    with pytest.raises(ValidationFailed, match="finite coordinate bounds"):
+        scene(users["viewer"], frozen)
+
+
+def test_root_adoption_origin_authority_is_rechecked_before_any_root_label(users, project):
+    from specmate.catalog_packs.models import AdoptionEntry
+    from specmate.queries import get_draft
+
+    from .test_catalog_packs import adopt, install, manifest, registered
+
+    original = freeze(users["owner"], create(users["owner"], project))
+    remote = op(users["outsider"], "project.create", {"name": "Pack source scope"})["project_id"]
+    for actor in ("owner", "editor", "viewer"):
+        Membership.objects.create(project_id=remote, user=users[actor], role="viewer")
+    _, other = part(users["outsider"], remote, "part", "Other pack entry")
+    entries = manifest(original)["entries"] + [
+        {
+            "key": "other",
+            "label": "Other source",
+            "category": "content",
+            "revision_id": other["revision_id"],
+            "revision_sha256": other["sha256"],
+            "rights": "synthetic-original",
+        }
+    ]
+    version = registered(users, project, original, entries=entries)
+    install(users, version)
+    adopt(users, version)
+    record = AdoptionEntry.objects.get()
+    draft = get_draft(users["owner"], record.draft_id)
+    frozen = freeze(users["owner"], draft)
+    scene(users["viewer"], frozen)
+    # The retained pack's entire origin closure is distinct from adopted item dependencies.
+    Membership.objects.filter(project_id=remote, user=users["viewer"]).delete()
+    with pytest.raises(NotFound):
+        scene(users["viewer"], frozen)
+    available = op(users["viewer"], "shared_scene.list", {"project_id": project})
+    assert all(row["snapshot_id"] != frozen["snapshot_id"] for row in available["assemblies"])

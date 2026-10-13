@@ -10,7 +10,8 @@ from uuid import UUID
 
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import get_snapshot, occurrence_result
-from specmate.design.models import Revision
+from specmate.catalog_packs.authoring import authorize_origin
+from specmate.design.models import Revision, Snapshot
 from specmate.mechanical_sources.operations import evaluate, parse_content
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 from specmate.pcb.models import PcbInterpretation
@@ -20,6 +21,16 @@ from specmate.shared_scene.transforms import IDENTITY, compose, millimetre_facto
 from specmate.sources.models import SourceBundleFile
 
 MAX_FEATURES = 100000
+
+
+def scene_snapshot(user, snapshot_id):
+    # Own root provenance is distinct from the child references covered by Closure.
+    root = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
+    if root is None:
+        raise NotFound("Scene unavailable.")
+    authorize(user, root.definition.project_id, Perm.PROJECT_READ)
+    authorize_origin(user, root.definition)
+    return get_snapshot(user, snapshot_id)
 
 
 def list_scenes(user, project_id):
@@ -33,7 +44,7 @@ def list_scenes(user, project_id):
     )
     for revision in revisions:
         try:
-            get_snapshot(user, revision.snapshot_id)
+            scene_snapshot(user, revision.snapshot_id)
         except (NotFound, PermissionDenied):
             continue
         rows.append(
@@ -358,7 +369,7 @@ def cable_stock_id(content):
 
 
 def read_scene(user, snapshot_id):
-    snapshot, closure = get_snapshot(user, snapshot_id)
+    snapshot, closure = scene_snapshot(user, snapshot_id)
     # A captured draft is not a frozen assembly. Keep this API's semantics exact.
     root_revision = Revision.objects.filter(snapshot=snapshot).first()
     if root_revision is None:

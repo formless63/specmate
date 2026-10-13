@@ -1,6 +1,9 @@
 """Canonical parent-from-local transforms; row-major matrices, column vectors."""
 
+import math
+
 from specmate.assemblies.contracts import Placement
+from specmate.operations import ValidationFailed
 
 IDENTITY = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
 
@@ -22,7 +25,12 @@ def compose(parent, local):
     """An unknown ancestor makes world placement unknown, including at the origin."""
     if parent is None or local is None:
         return None
-    return [[sum(parent[i][k] * local[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+    result = [
+        [sum(parent[i][k] * local[k][j] for k in range(4)) for j in range(4)] for i in range(4)
+    ]
+    if not all(math.isfinite(value) for row in result for value in row):
+        raise ValidationFailed("Scene transform exceeds finite coordinate bounds.")
+    return result
 
 
 def millimetre_factor(unit):
