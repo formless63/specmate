@@ -31,6 +31,7 @@ from specmate.inventory.queries import (
     reserved_quantity,
 )
 from specmate.operations import Conflict, Context, ValidationFailed, operation
+from specmate.operations.scope import project_scope
 
 
 def validate_dimension(quantity, dimension):
@@ -75,6 +76,7 @@ def append_entry(ctx, account, p, kind, after):
     CreateLocation,
     summary="Register a project stock location.",
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
+    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
 )
 def create_location(ctx: Context, p: CreateLocation):
     authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE)
@@ -91,6 +93,7 @@ def create_location(ctx: Context, p: CreateLocation):
     OpenStock,
     summary="Establish a lot/location stock account.",
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
+    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
 )
 def open_stock(ctx: Context, p: OpenStock):
     lot = get_lot(ctx.user, p.lot_id)
@@ -137,6 +140,7 @@ def change_stock(ctx, p, kind):
     summary="Append a stock receipt.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
+    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
 )
 def receive(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "receipt")
@@ -148,6 +152,7 @@ def receive(ctx: Context, p: ChangeStock):
     summary="Append a compensating stock adjustment.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
+    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
 )
 def adjust(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "adjustment")
@@ -159,6 +164,7 @@ def adjust(ctx: Context, p: ChangeStock):
     summary="Record an explicit quantity assertion without claiming physical qualification.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
+    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
 )
 def establish_quantity(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "observation")
@@ -170,6 +176,7 @@ def establish_quantity(ctx: Context, p: ChangeStock):
     summary="Reserve availability without consuming physical stock.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
+    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
 )
 def reserve(ctx: Context, p: Reserve):
     account = writable_account(ctx, p.account_id, Perm.INVENTORY_RESERVE)
@@ -202,6 +209,7 @@ def reserve(ctx: Context, p: Reserve):
     summary="Release a reservation without changing physical stock.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
+    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
 )
 def release(ctx: Context, p: Release):
     reservation = get_reservation(ctx.user, p.reservation_id)
@@ -225,18 +233,21 @@ def inventory_list(ctx: Context, p: ListInventory):
     return list_inventory(ctx.user, p.project_id, offset=p.offset, limit=p.limit)
 
 
-def authorize_inventory_replay(ctx: Context, p, stored_result: dict) -> None:
-    """Recheck current scope/authority without appending ledger or reservation records."""
+def inventory_project_scope(ctx: Context, p) -> str:
+    """Resolve the exact authorized project for keys, before any retained-result lookup."""
     if isinstance(p, CreateLocation):
         authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE)
+        project_id = p.project_id
     elif isinstance(p, OpenStock):
         lot = get_lot(ctx.user, p.lot_id)
         location = get_location(ctx.user, p.location_id)
         if lot.revision.definition.project_id != location.project_id:
             raise ValidationFailed("Lot and stock location must belong to the same project.")
         authorize(ctx.user, location.project_id, Perm.INVENTORY_MANAGE)
+        project_id = location.project_id
     elif isinstance(p, ListInventory):
         authorize(ctx.user, p.project_id, Perm.PROJECT_READ)
+        project_id = p.project_id
     else:
         account_id = (
             p.account_id
@@ -248,3 +259,10 @@ def authorize_inventory_replay(ctx: Context, p, stored_result: dict) -> None:
             Perm.INVENTORY_RESERVE if isinstance(p, Reserve | Release) else Perm.INVENTORY_MANAGE
         )
         authorize(ctx.user, account.location.project_id, permission)
+        project_id = account.location.project_id
+    return project_scope(ctx, project_id)
+
+
+def authorize_inventory_replay(ctx: Context, p, stored_result: dict) -> None:
+    """Recheck current scope/authority without appending ledger or reservation records."""
+    inventory_project_scope(ctx, p)

@@ -497,3 +497,114 @@ def test_lot_dimension_stays_fixed_across_locations(users, project, lot, locatio
             registered_by=users["owner"],
         )
     assert StockAccount.objects.count() == 1
+
+
+def test_inventory_keys_are_namespaced_by_exact_project(users, project, stock):
+    name = "Keyed shelf"
+    first = op(
+        users["owner"],
+        "inventory.create_location",
+        {"project_id": project, "name": name},
+        idempotency_key="same-location-key",
+    )
+    other = op(users["owner"], "project.create", {"name": "Separate inventory scope"})["project_id"]
+    second = op(
+        users["owner"],
+        "inventory.create_location",
+        {"project_id": other, "name": name},
+        idempotency_key="same-location-key",
+    )
+    assert first["location_id"] != second["location_id"]
+    assert (
+        op(
+            users["owner"],
+            "inventory.create_location",
+            {"project_id": project, "name": name},
+            idempotency_key="same-location-key",
+        )
+        == first
+    )
+    other_definition = op(
+        users["owner"],
+        "definition.create",
+        {"project_id": other, "kind": "part", "name": "Separate stock"},
+    )
+    other_revision = freeze(users["owner"], other_definition["draft_id"], other_definition["state"])
+    other_lot = op(
+        users["owner"],
+        "catalog.register_lot",
+        {"revision_id": other_revision["revision_id"], "label": "Other batch"},
+    )
+    other_stock = open_account(users, other_lot, second)
+    a = mutate(
+        users["owner"],
+        "receive",
+        stock,
+        {"amount": "1", "unit": "ea"},
+        idempotency_key="same-receipt-key",
+    )
+    b = mutate(
+        users["owner"],
+        "receive",
+        other_stock,
+        {"amount": "2", "unit": "ea"},
+        idempotency_key="same-receipt-key",
+    )
+    assert a["physical_quantity"] == "11" and b["physical_quantity"] == "12"
+    assert (
+        mutate(
+            users["owner"],
+            "receive",
+            stock,
+            {"amount": "1", "unit": "ea"},
+            idempotency_key="same-receipt-key",
+        )
+        == a
+    )
+    assert (
+        mutate(
+            users["owner"],
+            "receive",
+            other_stock,
+            {"amount": "2", "unit": "ea"},
+            idempotency_key="same-receipt-key",
+        )
+        == b
+    )
+    with pytest.raises(IdempotencyMismatch):
+        mutate(
+            users["owner"],
+            "receive",
+            stock,
+            {"amount": "2", "unit": "ea"},
+            idempotency_key="same-receipt-key",
+        )
+    assert StockEntry.objects.count() == 4
+
+
+def test_inventory_keys_are_separate_for_actor_and_operation(users, project, stock):
+    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+        grants=["inventory.reserve"]
+    )
+    a = reserve(users["owner"], stock, "1", idempotency_key="shared-key")
+    b = reserve(users["editor"], a["account"], "1", idempotency_key="shared-key")
+    assert a["reservation"]["reservation_id"] != b["reservation"]["reservation_id"]
+    released = op(
+        users["owner"],
+        "inventory.release",
+        {"reservation_id": a["reservation"]["reservation_id"], "reason": "Released"},
+        expected_state=b["account"]["state"],
+        idempotency_key="shared-key",
+    )
+    assert released["account"]["physical_quantity"] == "10"
+    assert released["account"]["reserved_quantity"] == "1"
+
+
+def test_current_scope_is_checked_before_key_mismatch_disclosure(users, project, stock):
+    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+        grants=["inventory.reserve"]
+    )
+    reserve(users["editor"], stock, "1", idempotency_key="scoped-key")
+    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    with pytest.raises(NotFound):
+        reserve(users["editor"], stock, "2", idempotency_key="scoped-key")
