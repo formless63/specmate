@@ -154,7 +154,7 @@ function EvidenceSelector({ projectId, onChange, onDenied }: { projectId: string
       <NativeSelect label="Historical observation subject" value={subject} data={[{ value: '', label: 'Select actual observation subject' }, ...subjects.map(item => ({ value: item.subject_id, label: targetLabel(item.target, item.physical_unit_serial) }))]} onChange={event => { setSubject(event.currentTarget.value); setFactOffset(0); setSelected([]); onChange([]); }} />
       <Group><Button disabled={!subjectOffset} onClick={() => { setSubject(''); setSelected([]); onChange([]); setSubjectOffset(Math.max(0, subjectOffset - 50)); }}>Previous observation subjects</Button><Button disabled={subjects.length < 50} onClick={() => { setSubject(''); setSelected([]); onChange([]); setSubjectOffset(subjectOffset + 50); }}>Next observation subjects</Button></Group>
       {facts && <>
-        {facts.assertions.map(assertion => <Checkbox key={assertion.assertion_id} label={`${assertion.fact.property} · ${assertion.fact.status} · ${valueLabel(assertion.fact.value)} · ${assertion.fact.provenance.method}`} checked={selected.includes(assertion.assertion_id)} onChange={event => { const ids = event.currentTarget.checked ? [...selected, assertion.assertion_id] : selected.filter(id => id !== assertion.assertion_id); setSelected(ids); onChange(ids); }} />)}
+        {facts.assertions.map(assertion => <Checkbox key={assertion.assertion_id} label={`${assertion.fact.property} · ${assertion.fact.status} · ${valueLabel(assertion.fact.value)} · ${assertion.fact.provenance.method}`} checked={selected.includes(assertion.assertion_id)} disabled={selected.length >= 100 && !selected.includes(assertion.assertion_id)} onChange={event => { const ids = event.currentTarget.checked ? [...selected, assertion.assertion_id] : selected.filter(id => id !== assertion.assertion_id); setSelected(ids); onChange(ids); }} />)}
         <Group><Button disabled={!factOffset} onClick={() => setFactOffset(Math.max(0, factOffset - 50))}>Previous subject assertions</Button><Button disabled={!facts.has_more} onClick={() => setFactOffset(factOffset + 50)}>Next subject assertions</Button></Group>
       </>}
     </>}
@@ -171,6 +171,11 @@ function ImpactReview({ result }: { result: ImpactResult }) {
       <Text>Firmware {result[side].inputs.firmware_revision_id} · snapshot {result[side].inputs.firmware_snapshot_sha256}</Text>
       <Text>Population {result[side].inputs.target.population_revision_id} · option {result[side].inputs.target.option_id} · native component {result[side].inputs.target.component_id}</Text>
       <Text>Native interpretation {result[side].evaluation.target.interpretation_id} · {result[side].evaluation.target.interpretation_sha256}</Text>
+      <details><summary>Declared assumption evaluation: {result[side].evaluation.readiness}</summary>
+        <Table><Table.Thead><Table.Tr><Table.Th>Assumption</Table.Th><Table.Th>Status</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+          {result[side].evaluation.findings.map((finding, index) => <Table.Tr key={index}><Table.Td>{finding.subject.signal || finding.subject.key || finding.code}</Table.Td><Table.Td>{finding.status}</Table.Td><Table.Td>{finding.message}</Table.Td></Table.Tr>)}
+        </Table.Tbody></Table>
+      </details>
       {result[side].inputs.occurrence && <Text>Assembly {result[side].inputs.occurrence.assembly_snapshot_id} · {result[side].inputs.occurrence.assembly_snapshot_sha256} · {result[side].inputs.occurrence.path.join('/')}</Text>}
       {result[side].inputs.sources.map(source => <Text key={source.local_id}>Source {source.local_id} · {source.source_revision_id} · manifest {source.source_manifest_sha256} · {source.files.map(file => `${file.path} (${file.rights}, ${file.sha256})`).join('; ')}</Text>)}
     </Stack></Card>)}
@@ -186,6 +191,11 @@ function ImpactReview({ result }: { result: ImpactResult }) {
       <Text>Assertion {row.assertion.assertion_id} · original subject {row.assertion.subject_id}</Text>
       <Text>{row.applicability} · {row.reason}</Text>
       <Text>Conditions: {row.assertion.fact.conditions.map(condition => `${condition.property}: ${condition.status} ${valueLabel(condition.value)}`).join('; ') || 'None recorded'}</Text>
+      <Text>Observation basis: {row.assertion.fact.basis}</Text>
+      <Text>Observed at: {row.assertion.fact.provenance.observed_at || 'Not recorded'} · Instrument: {row.assertion.fact.provenance.instrument || 'Not recorded'} · Procedure: {row.assertion.fact.provenance.procedure || 'Not recorded'}</Text>
+      <Table><Table.Thead><Table.Tr><Table.Th>Historical evidence kind</Table.Th><Table.Th>Exact retained reference</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+        {row.assertion.fact.provenance.evidence.map((evidence, index) => <Table.Tr key={index}><Table.Td>{evidence.kind}</Table.Td><Table.Td>{evidence.kind === 'citation' ? evidence.citation : evidence.kind === 'assertion' ? evidence.assertion_id : `${evidence.bundle_revision_id} · ${evidence.path} · ${evidence.locator || 'No locator'}`}</Table.Td></Table.Tr>)}
+      </Table.Tbody></Table>
       <Text>Review assumptions: {row.review_keys.join(', ') || 'No changed recorded assumptions'}</Text>
     </Stack></Card>)}
   </Stack>;

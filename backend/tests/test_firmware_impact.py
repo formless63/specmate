@@ -16,6 +16,7 @@ from specmate.sources.models import SourceBundle
 from .conftest import op
 from .test_facts import append, fact, subject
 from .test_firmware import (  # noqa: F401
+    OPT,
     PADS,
     attempt,
     board,
@@ -125,6 +126,10 @@ def test_hardware_population_change_marks_firmware_and_unit_evidence(
     pop_revision = Revision.objects.get(id=board[0]["revision_id"])
     pop_content = json.loads(bytes(pop_revision.snapshot.canonical))["content"]["pcb_population"]
     pop_content["options"][0]["name"] = "Reviewed alternate fitting"
+    optional = next(
+        row for row in pop_content["options"][0]["decisions"] if row["component_id"] == OPT
+    )
+    optional.update(status="populate", basis="Deliberately fitted optional synthetic component")
     update = op(
         users["owner"],
         "pcb.population_update",

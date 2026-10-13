@@ -126,3 +126,36 @@ test('deliberate additional assertions display readable subject and predicate', 
   fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
   await waitFor(() => expect(compareImpact).toHaveBeenCalledWith(expect.objectContaining({ assertion_ids: ['assertion-one'] })));
 });
+
+test('comparison denial discards named selections and historical evidence before recovery', async () => {
+  render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  await screen.findByText('Exact change assessment');
+  vi.mocked(compareImpact).mockRejectedValueOnce(new Error('Current dependent source denied'));
+  fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  await screen.findByText('Current dependent source denied');
+  expect(screen.queryByText(/SYNTH-UNIT/)).toBeNull();
+  expect(screen.queryAllByRole('option', { name: 'Synthetic firmware · revision 1' })).toHaveLength(0);
+  expect((screen.getByRole('button', { name: 'Compare firmware impact' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh authorized impact inputs' }));
+  await screen.findAllByRole('option', { name: 'Synthetic firmware · revision 1' });
+});
+
+test('observation paging requests a fresh comparison and declares partial scope', async () => {
+  vi.mocked(compareImpact).mockResolvedValueOnce({ ...result, observations_total: 101, observations_truncated: true, observations_has_more: true });
+  render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  await screen.findByText(/This page shows up to 100 assertions from position 1/);
+  fireEvent.click(screen.getByRole('button', { name: 'Next impact observations' }));
+  await waitFor(() => expect(compareImpact).toHaveBeenLastCalledWith(expect.objectContaining({ observation_offset: 100 })));
+});
+
+test('denied contextual read hides its retained input labels and comparison', async () => {
+  render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  await screen.findByText('Exact change assessment');
+  fireEvent.change(screen.getByLabelText('Baseline assembly context (optional)'), { target: { value: 'assembly-one' } });
+  const frozen = await screen.findByLabelText('Baseline frozen assembly revision');
+  vi.mocked(operation).mockRejectedValueOnce(new Error('Current assembly parent denied'));
+  fireEvent.change(frozen, { target: { value: 'assembly-revision' } });
+  await screen.findByText('Current assembly parent denied');
+  expect(screen.queryByText('Exact change assessment')).toBeNull();
+  expect(screen.queryByLabelText('Baseline frozen assembly revision')).toBeNull();
+});
