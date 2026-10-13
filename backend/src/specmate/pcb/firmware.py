@@ -191,8 +191,9 @@ def validate_content(kind: str, content: dict) -> dict:
     return {"firmware": firmware.model_dump(mode="json")} if firmware else content
 
 
-def _sources(user, project_id, firmware: Firmware) -> list[dict]:
-    pinned = []
+def _source_revisions(user, project_id, firmware: Firmware) -> list[SourceBundleRevision]:
+    """Authorize the whole source set before exposing pin mismatch diagnostics."""
+    revisions = []
     for pin in firmware.sources:
         revision = (
             SourceBundleRevision.objects.select_related("bundle")
@@ -204,6 +205,13 @@ def _sources(user, project_id, firmware: Firmware) -> list[dict]:
         authorize_revision(user, revision)
         if revision.bundle.project_id != project_id:
             raise NotFound("Source revision not found.")
+        revisions.append(revision)
+    return revisions
+
+
+def _sources(firmware: Firmware, revisions: list[SourceBundleRevision]) -> list[dict]:
+    pinned = []
+    for pin, revision in zip(firmware.sources, revisions, strict=True):
         if revision.manifest_sha256 != pin.source_manifest_sha256:
             raise ValidationFailed("A source pin does not match its exact revision manifest.")
         files = {f.path: f for f in revision.files.select_related("blob")}
@@ -228,14 +236,9 @@ def _sources(user, project_id, firmware: Firmware) -> list[dict]:
 
 
 def _target(user, project_id, target: Target):
-    revision = (
-        Revision.objects.select_related("definition", "snapshot")
-        .filter(id=target.population_revision_id)
-        .first()
-    )
-    if revision is None:
-        raise NotFound("Target population revision not found.")
-    authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    from specmate.queries import get_revision
+
+    revision = get_revision(user, target.population_revision_id)
     if revision.definition.project_id != project_id:
         raise NotFound("Target population revision not found.")
     if revision.definition.kind != "pcb_population":
@@ -258,8 +261,9 @@ def closure(user, definition: Definition, content: dict) -> list[UUID]:
     firmware = parse_content(content, definition.kind)
     if firmware is None:
         return []
-    _sources(user, definition.project_id, firmware)
+    sources = _source_revisions(user, definition.project_id, firmware)
     revision, *_ = _target(user, definition.project_id, firmware.target)
+    _sources(firmware, sources)
     return [revision.id]
 
 
@@ -288,10 +292,11 @@ def _decision(option, component_id):
 
 
 def evaluate(user, definition: Definition, firmware: Firmware) -> dict:
-    sources = _sources(user, definition.project_id, firmware)
+    source_revisions = _source_revisions(user, definition.project_id, firmware)
     revision, population, interpretation, report = _target(
         user, definition.project_id, firmware.target
     )
+    sources = _sources(firmware, source_revisions)
     components = {c.id: c for c in report.components}
     pads = {p.id: p for p in report.pads}
     findings = []
@@ -731,12 +736,11 @@ def read_result(user, definition, content, *, draft=None, revision=None) -> dict
 
 
 def read_revision(user, revision_id) -> dict:
-    revision = (
-        Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
-    )
-    if revision is None or revision.definition.kind != KIND:
+    from specmate.queries import get_revision
+
+    revision = get_revision(user, revision_id)
+    if revision.definition.kind != KIND:
         raise NotFound("Firmware revision not found.")
-    authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
     content = json.loads(bytes(revision.snapshot.canonical))["content"]
     closure(user, revision.definition, content)
     return read_result(user, revision.definition, content, revision=revision)
@@ -838,6 +842,9 @@ def list_targets(user, project_id) -> list[dict]:
         definition__project_id=project_id, definition__kind="pcb_population"
     )
     for revision in revisions.order_by("definition__name", "number")[:500]:
+        from specmate.design.operations import authorize_snapshot
+
+        authorize_snapshot(user, revision.snapshot)
         content = json.loads(bytes(revision.snapshot.canonical))["content"]
         pcb_population.authorize_content(user, revision.definition, content)
         rows.append(

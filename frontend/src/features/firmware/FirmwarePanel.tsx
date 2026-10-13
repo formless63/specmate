@@ -44,29 +44,46 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
 
-  function failed(reason: unknown, keepForm = false) {
+  function failed(reason: unknown) {
     setMessage(reason instanceof Error ? reason.message : 'Firmware request failed.');
     const denied = reason instanceof SourceError && [401, 403, 404].includes(reason.status);
-    // A save naming an unavailable reference keeps the unsaved form; other denials clear data.
-    if (!denied || (keepForm && reason.status === 404)) return;
-    generation.current += 1; setList([]); setTargets([]); setCurrent(null); setForm(null); setPopulation(null); setReview(null); setShown(false); onAccessLost?.();
+    if (!denied) return;
+    generation.current += 1; setList([]); setTargets([]); setSourcePage([]); setCurrent(null); setForm(null); setPopulation(null); setReview(null); setShown(false); onAccessLost?.();
+  }
+  const currentPath = (value: FirmwareRead) => value.draft_id ? `pcb/firmware-drafts/${value.draft_id}` : `pcb/firmware-revisions/${value.revision_id}`;
+  async function checkRetainedAccess() {
+    // Recheck exact selected sources as well as the persisted record. A project
+    // list can succeed after one retained derivative origin becomes unavailable.
+    return await Promise.all([
+      current ? request<FirmwareRead>(currentPath(current)) : Promise.resolve(null),
+      ...((form?.sources ?? []).map(source => request(`sources/revisions/${source.source_revision_id}`))),
+      form?.target.population_revision_id ? request(`pcb/population-revisions/${form.target.population_revision_id}/review`) : Promise.resolve(null),
+      review ? request<AssignmentReview>(`pcb/assemblies/${review.assembly_snapshot_id}/firmware-review`) : Promise.resolve(null),
+    ]);
   }
   async function refresh() {
     const token = ++generation.current;
     try {
-      const [firmware, available, sources] = await Promise.all([
+      const [firmware, available, sources, retained] = await Promise.all([
         request<{ firmware: FirmwareSummary[] }>(`pcb/projects/${projectId}/firmware`),
         request<{ targets: TargetSummary[] }>(`pcb/projects/${projectId}/firmware-targets`),
         request<SourcePage>(`sources/projects/${projectId}/revisions`),
+        checkRetainedAccess(),
       ]);
       if (token !== generation.current) return;
       setList(firmware.firmware); setTargets(available.targets); setSourcePage(sources.revisions); setShown(true);
+      // An unsaved editor keeps its original compare-and-set token.
+      if (current && !form) setCurrent(retained[0] as FirmwareRead);
     } catch (reason) { failed(reason); }
   }
   async function loadPopulation(revisionId: string) {
+    const token = generation.current;
     setPopulation(null);
     if (!revisionId) return;
-    try { setPopulation(await request<PopulationReview>(`pcb/population-revisions/${revisionId}/review`)); } catch (reason) { failed(reason); }
+    try {
+      const result = await request<PopulationReview>(`pcb/population-revisions/${revisionId}/review`);
+      if (token === generation.current) setPopulation(result);
+    } catch (reason) { if (token === generation.current) failed(reason); }
   }
   async function open(path: string) {
     const token = ++generation.current;
@@ -87,8 +104,10 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
   }
   async function addSource(revisionId: string | null) {
     if (!revisionId || !form) return;
+    const token = generation.current;
     try {
       const detail = await request<RevisionDetail>(`sources/revisions/${revisionId}`);
+      if (token !== generation.current) return;
       const pin: FirmwareSource = {
         local_id: `src${form.sources.length + 1}`, source_revision_id: detail.revision_id, source_manifest_sha256: detail.manifest_sha256,
         files: detail.manifest.files.map(f => ({ path: f.path, sha256: f.sha256, rights: f.rights, role: 'other' as SourceFileRole })),
@@ -109,7 +128,11 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
       }
     } catch (reason) {
       // The unsaved form is kept on conflicts, validation failures and missing references.
-      failed(reason, true);
+      if (reason instanceof SourceError && reason.status === 404) {
+        try { await checkRetainedAccess(); } catch (denial) { failed(denial); return; }
+        // A missing new reference does not revoke an otherwise authorized draft.
+        setMessage(reason.message);
+      } else failed(reason);
     } finally { setBusy(false); }
   }
   async function freeze() {
@@ -121,8 +144,12 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
     } catch (reason) { failed(reason); } finally { setBusy(false); }
   }
   async function reviewAssembly() {
+    const token = generation.current;
     setReview(null);
-    try { setReview(await request<AssignmentReview>(`pcb/assemblies/${assemblyId.trim()}/firmware-review`)); } catch (reason) { failed(reason); }
+    try {
+      const result = await request<AssignmentReview>(`pcb/assemblies/${assemblyId.trim()}/firmware-review`);
+      if (token === generation.current) setReview(result);
+    } catch (reason) { if (token === generation.current) failed(reason); }
   }
 
   const option = population?.population.options.find(o => o.local_id === form?.target.option_id);

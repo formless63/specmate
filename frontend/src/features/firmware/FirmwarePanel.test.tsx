@@ -159,3 +159,50 @@ test('access loss clears retained firmware data', async () => {
   expect(screen.queryByText(/Toolchain: platformio/)).toBeNull();
   expect(screen.queryByText('Controller firmware')).toBeNull();
 });
+
+test('refresh rechecks the open firmware even when project lists still succeed', async () => {
+  const { fetchMock } = setup();
+  await show();
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  await screen.findByText(/Toolchain: platformio/);
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (url, init) => url.endsWith('/firmware-drafts/draft-1')
+    ? reply({ error: { message: 'Source origin unavailable.' } }, 404) : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh firmware' }));
+  await screen.findByText('Source origin unavailable.');
+  expect(screen.queryByText(/Toolchain: platformio/)).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Freeze firmware declarations' })).toBeNull();
+});
+
+test('a denied save rechecks retained authority and hides revoked source choices', async () => {
+  const { fetchMock } = setup({ commands: [reply({ error: { message: 'Source unavailable.' } }, 404)] });
+  await show();
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit firmware draft' }));
+  await screen.findByRole('option', { name: 'U1 SYNTH-MCU · populate', hidden: true });
+  fireEvent.change(screen.getByLabelText('Toolchain version'), { target: { value: '6.1.18' } });
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (url, init) => url.endsWith('/firmware-drafts/draft-1')
+    ? reply({ error: { message: 'Retained source revoked.' } }, 404) : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Save firmware draft' }));
+  await screen.findByText('Retained source revoked.');
+  expect(screen.queryByLabelText('Toolchain version')).toBeNull();
+  expect(screen.queryByText('src/main.cpp · MIT')).toBeNull();
+});
+
+test('authorized refresh preserves unsaved edits and their original state token', async () => {
+  const { fetchMock, bodies } = setup();
+  await show();
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit firmware draft' }));
+  fireEvent.change(screen.getByLabelText('Toolchain version'), { target: { value: '6.1.18' } });
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (url, init) => url.endsWith('/firmware-drafts/draft-1')
+    ? reply(read('declared', [], { state: 'draft-v2' })) : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh firmware' }));
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/firmware-drafts/draft-1'))).toHaveLength(2));
+  expect((screen.getByLabelText('Toolchain version') as HTMLInputElement).value).toBe('6.1.18');
+  fireEvent.click(screen.getByRole('button', { name: 'Save firmware draft' }));
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0]!.expected_state).toBe('draft-v1');
+});

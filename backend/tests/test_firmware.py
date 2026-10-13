@@ -558,3 +558,121 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, sources
     }
     detail = client.get(f"/api/v0/pcb/firmware-revisions/{firmware['revision_id']}")
     assert detail.status_code == 200 and detail.json()["evaluation"]["readiness"] == "declared"
+
+
+def test_all_source_authority_precedes_pin_diagnostics(users, project, sources, board):
+    other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
+    register(users["outsider"], other, MAIN)
+    hidden = op(
+        users["outsider"],
+        "source.create_original_bundle",
+        {
+            "project_id": other,
+            "name": "Hidden sources",
+            "files": [
+                {
+                    "path": "src/main.cpp",
+                    "sha256": digest(MAIN),
+                    "media_type": "text/plain",
+                    "rights": "MIT",
+                }
+            ],
+        },
+    )
+    firmware = declaration(sources, board)
+    firmware["sources"][0]["source_manifest_sha256"] = "0" * 64
+    firmware["sources"].append(
+        {
+            **firmware["sources"][0],
+            "local_id": "hidden",
+            "source_revision_id": hidden["revision_id"],
+        }
+    )
+    with pytest.raises(NotFound):
+        create(users, project, firmware)
+
+
+def test_frozen_firmware_read_rechecks_retained_snapshot_dependencies(
+    users, project, sources, board
+):
+    from specmate.design.models import SnapshotDependency
+
+    draft = create(users, project, declaration(sources, board))
+    frozen = op(
+        users["owner"],
+        "firmware.freeze",
+        {"draft_id": draft["draft_id"]},
+        expected_state=draft["state"],
+    )
+    other = op(users["outsider"], "project.create", {"name": "Private origin"})["project_id"]
+    origin = op(
+        users["outsider"],
+        "definition.create",
+        {
+            "project_id": other,
+            "kind": "board",
+            "name": "Retained origin",
+        },
+    )
+    revision = op(
+        users["outsider"],
+        "draft.freeze",
+        {"draft_id": origin["draft_id"]},
+        expected_state=origin["state"],
+    )
+    # Retained provenance pins must be authorized even when not part of the target.
+    SnapshotDependency.objects.create(
+        snapshot=Revision.objects.get(id=frozen["revision_id"]).snapshot,
+        revision_id=revision["revision_id"],
+    )
+    with pytest.raises(NotFound):
+        op(users["viewer"], "firmware.read", {"revision_id": frozen["revision_id"]})
+
+
+def test_replay_authorizes_old_result_after_draft_moves_to_new_sources(
+    users, project, sources, board
+):
+    draft = create(users, project, declaration(sources, board), idempotency_key="retained")
+    replacement = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {
+            "project_id": project,
+            "name": "Replacement source",
+            "files": [
+                {
+                    "path": "src/main.cpp",
+                    "sha256": digest(MAIN),
+                    "media_type": "text/plain",
+                    "rights": "MIT",
+                },
+                {
+                    "path": "platformio.ini",
+                    "sha256": digest(CONFIG),
+                    "media_type": "text/plain",
+                    "rights": "MIT",
+                },
+            ],
+        },
+    )
+    new = declaration(replacement, board)
+    op(
+        users["editor"],
+        "firmware.update",
+        {"draft_id": draft["draft_id"], "firmware": new},
+        expected_state=draft["state"],
+    )
+    other = op(users["outsider"], "project.create", {"name": "Private source origin"})["project_id"]
+    register(users["outsider"], other, b"private source")
+    SourceBundleFile.objects.create(
+        revision_id=sources["revision_id"],
+        path="unavailable.bin",
+        media_type="x",
+        rights="private",
+        blob=SourceBlob.objects.get(project_id=other),
+    )
+    # The current draft and changed request are readable, but the key's retained
+    # source closure is not. Denial must precede the otherwise applicable mismatch.
+    assert op(users["editor"], "firmware.read", {"draft_id": draft["draft_id"]})
+    with pytest.raises(NotFound):
+        create(users, project, new, idempotency_key="retained")
