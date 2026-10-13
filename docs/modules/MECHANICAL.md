@@ -101,6 +101,45 @@ authorized projection, without a persistent cross-project disclosure cache. A dr
 mesh or outline does not establish fit, clearance, manufacturing approval or physical
 qualification.
 
+## Canonical placement and mounting declarations
+
+The Assemblies tool authors each directly owned occurrence's explicit canonical
+translation and X/Y/Z/W quaternion in the containing assembly's right-handed,
+Z-up millimetre frame. A known transform requires all three finite coordinates
+and a unit quaternion. Empty coordinates remain missing, and a known origin or
+identity rotation is a deliberate input. The user can explicitly normalize a
+finite nonzero quaternion. Selecting unknown stores no translation or rotation.
+Moving a containing module preserves its frozen children's own local transforms;
+independently repeated modules keep distinct occurrence paths and placements.
+
+`assembly.placement_inputs` supplies bounded, freshly authorized nested occurrence
+choices with exact design revision and child snapshot hashes. The owning draft,
+catalog-pack origin, retained base snapshot and complete child/source/model closure
+are checked before paths, names or canonical declarations are returned. Its local
+placements are in each containing assembly's frame, not composed world transforms.
+This read performs no mutation and accepts no idempotency key.
+
+Mounting declarations choose exact mounted and support occurrence paths, optionally
+including unverified stable feature identifiers. A whole occurrence and a feature
+address are distinct. Names and references assist selection without establishing
+identity. A typed mounting link records assembly intent; feature existence and
+correspondence remain unevaluated by this authoring workflow. It creates no mating
+solver result, geometry, inferred coordinates, fastener dimensions or fit approval.
+Boards, mechanical source declarations, hardware and internal cables can participate
+through their existing frozen revisions and typed relationships.
+
+Saving and freezing use the shared `assembly.update` and `assembly.freeze`
+operations, immutable canonical snapshots and exact dependencies. Authoring retains
+its original draft token through an authorized refresh. A later server edit requires
+deliberate loading of the latest draft; it cannot silently replace an unsaved edit's
+compare-and-set token. An identical save retried after a lost response retains its
+exact payload, state token and idempotency key. Capture and freeze use saved content.
+Current source/model denial discards retained draft choices and unsaved private
+declarations. Frozen inspection rechecks authority and shows quaternion, contextual
+mounting endpoints and explicit feature/fit limits. Read-only users inspect these
+declarations without mutation controls. Display arrangements remain separate from
+the saved canonical placement and mounting relationships.
+
 ## Acceptance emphasis
 
 Use occurrence/transform fixtures and an independently dimensioned synthetic board/enclosure.

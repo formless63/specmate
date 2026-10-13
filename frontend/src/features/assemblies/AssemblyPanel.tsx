@@ -1,17 +1,26 @@
-import { Alert, Button, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Tabs, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Tabs, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { randomUUID } from '../../lib/random-id';
+import { SourceError } from '../sources/api';
+import { PlacementEditor } from './PlacementEditor';
+import { MountingDetails, MountingEditor } from './MountingEditor';
 import { addressKey, command, read, relationship, type Assembly, type Definition, type Draft, type Identity, type Occurrence, type Projection, type RelationshipKind } from "./api";
 
-export function AssemblyPanel({ projectId }: { projectId: string }) {
-  return <AssemblyWorkspace key={projectId} projectId={projectId} />;
+export function AssemblyPanel({ projectId, permissions, onAccessLost }: { projectId: string; permissions?: string[]; onAccessLost?: () => void }) {
+  return <AssemblyWorkspace key={projectId} projectId={projectId} permissions={permissions} onAccessLost={onAccessLost} />;
 }
 
-function AssemblyWorkspace({ projectId }: { projectId: string }) {
+function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId: string; permissions?: string[]; onAccessLost?: () => void }) {
+  const canEdit = !permissions || permissions.includes("design.edit");
+  const canFreeze = !permissions || permissions.includes("design.freeze");
+  const [accessError, setAccessError] = useState("");
+  const generation = useRef(0);
   const cache = useQueryClient();
   const [name, setName] = useState("");
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const activeDraftId = useRef(draftId); activeDraftId.current = draftId;
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [frozenRevision, setFrozenRevision] = useState<string | null>(null);
   const [identityOffset, setIdentityOffset] = useState(0);
@@ -20,30 +29,51 @@ function AssemblyWorkspace({ projectId }: { projectId: string }) {
   const revision = useQuery({ queryKey: ["assembly-revision", frozenRevision], queryFn: () => read<{ snapshot_id: string }>(`revisions/${frozenRevision}`), enabled: !!frozenRevision });
   const inspectedSnapshot = snapshotId ?? revision.data?.snapshot_id;
   const draft = useQuery({ queryKey: ["assembly-draft", draftId], queryFn: () => read<Draft>(`assemblies/drafts/${draftId}`), enabled: !!draftId });
-  const create = useMutation({ mutationFn: () => command<Draft>("assembly.create", { project_id: projectId, name }), onSuccess: async (data) => {
+  function accessLost(error: Error) {
+    if (!(error instanceof SourceError) || ![401, 403, 404].includes(error.status)) return;
+    generation.current++; setAccessError(error.message); setDraftId(null); setSnapshotId(null); setFrozenRevision(null);
+    cache.removeQueries({ queryKey: ['assembly-draft'] }); cache.removeQueries({ queryKey: ['assembly-projection'] }); cache.removeQueries({ queryKey: ['assembly-placement-inputs'] }); onAccessLost?.();
+  }
+  useEffect(() => { const error = draft.error || revision.error || identity.error; if (error) accessLost(error); }, [draft.error, revision.error, identity.error]);
+  useEffect(() => {
+    const focus = () => { void definitions.refetch(); if (draftId) void draft.refetch(); if (inspectedSnapshot) void cache.refetchQueries({ queryKey: ['assembly-projection', inspectedSnapshot] }); };
+    window.addEventListener('focus', focus);
+    return () => { generation.current++; window.removeEventListener('focus', focus); };
+  }, [draftId, inspectedSnapshot]);
+  async function guarded<T>(request: () => Promise<T>) {
+    const token = generation.current;
+    try { return { data: await request(), token }; }
+    catch (error) { if (token === generation.current) throw error; return { data: null, token }; }
+  }
+  const create = useMutation({ mutationFn: () => guarded(() => command<Draft>("assembly.create", { project_id: projectId, name })), onSuccess: async ({ data, token }) => {
+    if (token !== generation.current || !data) return;
     setDefinitionId(data.definition_id); setDraftId(data.draft_id); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); setName("");
     await cache.invalidateQueries({ queryKey: ["assembly-definitions", projectId] });
-  } });
-  const capture = useMutation({ mutationFn: (freeze: boolean) => command<{ snapshot_id: string; draft?: Draft }>(freeze ? "assembly.freeze" : "assembly.snapshot", { draft_id: draftId }, draft.data?.state), onSuccess: async (data) => {
+  }, onError: accessLost });
+  const capture = useMutation({ mutationFn: (freeze: boolean) => guarded(() => command<{ snapshot_id: string; draft?: Draft }>(freeze ? "assembly.freeze" : "assembly.snapshot", { draft_id: draftId }, draft.data?.state)), onSuccess: async ({ data, token }) => {
+    if (token !== generation.current || !data) return;
     setSnapshotId(data.snapshot_id);
     await cache.invalidateQueries({ queryKey: ["assembly-draft", draftId] });
     await cache.invalidateQueries({ queryKey: ["assembly-identity", definitionId] });
-  } });
+  }, onError: accessLost });
   return <Stack>
     <Title order={2}>Reusable assemblies</Title>
     <Text>Every occurrence uses an exact revision. Local IDs preserve identity; display references such as J1 may repeat. Snapshots pin the complete assembly.</Text>
-    <Group align="end"><TextInput label="Assembly name" value={name} onChange={(e) => setName(e.currentTarget.value)} /><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create assembly draft</Button></Group>
+    {canEdit && <Group align="end"><TextInput label="Assembly name" value={name} onChange={(e) => setName(e.currentTarget.value)} /><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create assembly draft</Button></Group>}
+    {accessError && <Alert color="red">{accessError}</Alert>}
+    <Button onClick={() => { setAccessError(""); void definitions.refetch(); }}>Refresh authorized assemblies</Button>
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Select label="Assembly definition" searchable value={definitionId} data={(definitions.data ?? []).filter((d) => d.kind === "assembly").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(id) => { setDefinitionId(id); setDraftId(null); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); }} />
+    <Select label="Assembly definition" searchable value={definitionId} data={(definitions.data ?? []).filter((d) => d.kind === "assembly").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(id) => { generation.current++; setDefinitionId(id); setDraftId(null); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); }} />
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {identity.data && <Select label="Assembly draft" value={draftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={(id) => { setDraftId(id); setSnapshotId(null); }} />}
-    {identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={(id) => { setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}
+    {identity.data && <Select label="Assembly draft" value={draftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={(id) => { generation.current++; setDraftId(id); setSnapshotId(null); }} />}
+    {identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={(id) => { generation.current++; setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}
     {revision.isError && <Alert color="red">{revision.error.message}</Alert>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     {draft.data && <>
-      <AssemblyEditor key={draft.data.draft_id} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["assembly-draft", draftId] }); }} />
-      <Group><Button loading={capture.isPending} onClick={() => capture.mutate(false)}>Capture assembly snapshot</Button><Button loading={capture.isPending} onClick={() => capture.mutate(true)}>Freeze assembly revision</Button></Group>
+      <AssemblyEditor key={draft.data.draft_id} draft={draft.data} definitions={definitions.data ?? []} canEdit={canEdit} onDenied={error => { if (draftId === activeDraftId.current) accessLost(error); }} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["assembly-draft", draftId] }); }} />
+      <Group>{canEdit && <Button loading={capture.isPending} onClick={() => capture.mutate(false)}>Capture assembly snapshot</Button>}{canFreeze && <Button loading={capture.isPending} onClick={() => capture.mutate(true)}>Freeze assembly revision</Button>}</Group>
+      <Text size="sm">Capture and freeze use the saved assembly declaration. Save staged placement or mounting edits first.</Text>
       <Text size="sm" c="dimmed">Freezing does not establish fit, electrical compatibility or manufacturing qualification.</Text>
       {capture.isError && <Alert color="red">{capture.error.message}</Alert>}
     </>}
@@ -52,7 +82,10 @@ function AssemblyWorkspace({ projectId }: { projectId: string }) {
   </Stack>;
 }
 
-function AssemblyEditor({ draft, definitions, onSaved }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void> }) {
+function AssemblyEditor({ draft: currentDraft, definitions, onSaved, canEdit, onDenied }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void>; canEdit: boolean; onDenied: (error: Error) => void }) {
+  const [draft, setDraft] = useState(currentDraft);
+  const [editorEpoch, setEditorEpoch] = useState(0);
+  const pendingSave = useRef<{ fingerprint: string; key: string } | null>(null);
   const [childDefinition, setChildDefinition] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [childOffset, setChildOffset] = useState(0);
@@ -67,16 +100,23 @@ function AssemblyEditor({ draft, definitions, onSaved }: { draft: Draft; definit
   const [assignmentPath, setAssignmentPath] = useState("");
   const [firmwareRevision, setFirmwareRevision] = useState("");
   const child = useQuery({ queryKey: ["assembly-child-identity", childDefinition, childOffset], queryFn: () => read<Identity>(`catalog/definitions/${childDefinition}?offset=${childOffset}`), enabled: !!childDefinition });
-  const save = useMutation({ mutationFn: (assembly: Assembly) => command<Draft>("assembly.update", { draft_id: draft.draft_id, assembly }, draft.state), onSuccess: onSaved });
+  const save = useMutation({ mutationFn: (assembly: Assembly) => {
+    const fingerprint = JSON.stringify([draft.state, assembly]);
+    if (!pendingSave.current || pendingSave.current.fingerprint !== fingerprint) pendingSave.current = { fingerprint, key: randomUUID() };
+    return command<Draft>("assembly.update", { draft_id: draft.draft_id, assembly }, draft.state, pendingSave.current.key);
+  }, onSuccess: async data => { setDraft(data); pendingSave.current = null; await onSaved(); }, onError: onDenied });
   const assembly = draft.content.assembly;
   const externalTarget = relationshipKind === "source_derivation" || relationshipKind === "procurement";
   function updateOccurrence(index: number, changes: Partial<Occurrence>) { save.mutate({ ...assembly, occurrences: assembly.occurrences.map((occ, i) => i === index ? { ...occ, ...changes } : occ) }); }
+  if (!canEdit) return <Stack><Text>Read-only assembly draft {currentDraft.draft_id} · {currentDraft.state}</Text><MountingDetails relationships={currentDraft.content.assembly.relationships} />{currentDraft.content.assembly.occurrences.map(occurrence => <Text key={occurrence.local_id}>{occurrence.local_id} · {occurrence.revision_id} · canonical placement {occurrence.placement?.status === 'known' ? `${occurrence.placement.translation?.join(', ')} mm; rotation quaternion ${occurrence.placement.rotation_xyzw?.join(', ')}` : 'Unknown'}</Text>)}</Stack>;
   return <Stack>
+    {currentDraft.state !== draft.state && <Alert color="yellow">A newer assembly draft is available. Unsaved fields retain their original state token. Deliberately load the latest draft before editing it.</Alert>}
+    {currentDraft.state !== draft.state && <Button onClick={() => { setDraft(currentDraft); setEditorEpoch(epoch => epoch + 1); pendingSave.current = null; }}>Load latest assembly draft</Button>}
     <Text size="sm">Draft {draft.draft_id} · {draft.state}</Text>
     {save.isError && <Alert color="red">{save.error.message}</Alert>}
     <Card withBorder><Stack>
       <Title order={3}>Occurrences</Title>
-      {assembly.occurrences.map((occ, index) => <OccurrenceEditor key={occ.local_id} occurrence={occ} busy={save.isPending} onSave={(changes) => updateOccurrence(index, changes)} onRemove={() => save.mutate({ ...assembly, occurrences: assembly.occurrences.filter((_, i) => i !== index) })} />)}
+      {assembly.occurrences.map((occ, index) => <PlacementEditor key={`${occ.local_id}:${editorEpoch}`} occurrence={occ} busy={save.isPending} onSave={(changes) => updateOccurrence(index, changes)} onRemove={() => save.mutate({ ...assembly, occurrences: assembly.occurrences.filter((_, i) => i !== index) })} />)}
       <TextInput label="Stable local occurrence ID" description="A lowercase ID for this use, independent of its displayed reference." value={localId} onChange={(e) => setLocalId(e.currentTarget.value)} />
       <TextInput label="Display reference" value={displayRef} onChange={(e) => setDisplayRef(e.currentTarget.value)} />
       <Select label="Child definition" searchable value={childDefinition} data={definitions.map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={(id) => { setChildDefinition(id); setRevisionId(null); setChildOffset(0); }} />
@@ -85,6 +125,7 @@ function AssemblyEditor({ draft, definitions, onSaved }: { draft: Draft; definit
       {child.data && <Group><Button disabled={childOffset === 0} onClick={() => { setChildOffset(Math.max(0, childOffset - 50)); setRevisionId(null); }}>Previous child revisions</Button><Button disabled={child.data.revisions.length < 50} onClick={() => { setChildOffset(childOffset + 50); setRevisionId(null); }}>Next child revisions</Button></Group>}
       <Button disabled={!localId || !revisionId} loading={save.isPending} onClick={() => save.mutate({ ...assembly, occurrences: [...assembly.occurrences, { local_id: localId, revision_id: revisionId!, display_ref: displayRef, placement: { status: "unknown" } }] })}>Add occurrence</Button>
     </Stack></Card>
+    <MountingEditor key={editorEpoch} draft={draft} busy={save.isPending} onSave={assembly => save.mutate(assembly)} onDenied={onDenied} />
     <Card withBorder><Stack>
       <Title order={3}>Typed relationships</Title>
       {assembly.relationships.map((r) => <Group key={r.local_id}><Text>{r.local_id} · {r.kind}</Text><Button size="xs" variant="subtle" onClick={() => save.mutate({ ...assembly, relationships: assembly.relationships.filter((rel) => rel.local_id !== r.local_id) })}>Remove {r.local_id}</Button></Group>)}
@@ -106,34 +147,24 @@ function AssemblyEditor({ draft, definitions, onSaved }: { draft: Draft; definit
   </Stack>;
 }
 
-function OccurrenceEditor({ occurrence, busy, onSave, onRemove }: { occurrence: Occurrence; busy: boolean; onSave: (changes: Partial<Occurrence>) => void; onRemove: () => void }) {
-  const [displayRef, setDisplayRef] = useState(occurrence.display_ref);
-  const [known, setKnown] = useState(occurrence.placement?.status === "known");
-  const [translation, setTranslation] = useState<[number, number, number]>(occurrence.placement?.translation ?? [0, 0, 0]);
-  return <Card withBorder><Stack gap="xs">
-    <Text>Local ID: {occurrence.local_id} · Exact revision: {occurrence.revision_id}</Text>
-    <TextInput label={`Display reference for ${occurrence.local_id}`} value={displayRef} onChange={(e) => setDisplayRef(e.currentTarget.value)} />
-    <Checkbox label={`Known placement for ${occurrence.local_id}`} checked={known} onChange={(e) => setKnown(e.currentTarget.checked)} />
-    {known && <Group>{["X", "Y", "Z"].map((axis, index) => <NumberInput key={axis} label={`${occurrence.local_id} ${axis} (mm)`} value={translation[index]} onChange={(value) => setTranslation((current) => current.map((v, i) => i === index ? Number(value) : v) as [number, number, number])} />)}</Group>}
-    <Group><Button size="xs" loading={busy} onClick={() => onSave({ display_ref: displayRef, placement: known ? { status: "known", translation, rotation_xyzw: occurrence.placement?.rotation_xyzw ?? [0, 0, 0, 1] } : { status: "unknown" } })}>Save {occurrence.local_id}</Button><Button size="xs" color="red" onClick={onRemove}>Remove {occurrence.local_id}</Button></Group>
-  </Stack></Card>;
-}
-
 export function AssemblyInspector({ snapshotId }: { snapshotId: string }) {
   const [selection, setSelection] = useState<string | null>(null);
   const [featureId, setFeatureId] = useState("");
   const [arranged, setArranged] = useState(false);
   const projection = useQuery({ queryKey: ["assembly-projection", snapshotId], queryFn: () => read<Projection>(`assemblies/snapshots/${snapshotId}`) });
-  const selected = projection.data?.occurrences.find((node) => addressKey(node.address.path) === selection);
+  const visible = projection.isError || projection.isFetching ? null : projection.data;
+  useEffect(() => { if (projection.isError) { setSelection(null); setFeatureId(''); setArranged(false); } }, [projection.isError]);
+  const selected = visible?.occurrences.find((node) => addressKey(node.address.path) === selection);
   return <Stack>
     <Title order={3}>Assembly snapshot</Title>
+    <Button disabled={projection.isFetching} onClick={() => { void projection.refetch(); }}>Refresh canonical assembly inspection</Button>
     {projection.isError && <Alert color="red">{projection.error.message}</Alert>}
-    {projection.data && <>
-      <Text size="sm">Snapshot {projection.data.snapshot_id} · SHA-256 {projection.data.sha256}</Text>
+    {visible && <>
+      <Text size="sm">Snapshot {visible.snapshot_id} · SHA-256 {visible.sha256}</Text>
       <Tabs defaultValue="tree"><Tabs.List><Tabs.Tab value="tree">Occurrence tree</Tabs.Tab><Tabs.Tab value="table">Assembly contents</Tabs.Tab><Tabs.Tab value="arrangement">View arrangement</Tabs.Tab></Tabs.List>
-        <Tabs.Panel value="tree"><Stack gap="xs">{projection.data.occurrences.map((node) => <Button key={addressKey(node.address.path)} variant={selection === addressKey(node.address.path) ? "filled" : "light"} aria-pressed={selection === addressKey(node.address.path)} onClick={() => setSelection(addressKey(node.address.path))}>{node.address.path.join("/")} · {node.display_ref || node.name}</Button>)}</Stack></Tabs.Panel>
-        <Tabs.Panel value="table"><Table><Table.Thead><Table.Tr><Table.Th>Contextual path</Table.Th><Table.Th>Display reference</Table.Th><Table.Th>Pinned revision</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{projection.data.occurrences.map((node) => <Table.Tr key={addressKey(node.address.path)} data-selected={selection === addressKey(node.address.path)}><Table.Td><Button variant="subtle" onClick={() => setSelection(addressKey(node.address.path))}>{node.address.path.join("/")}</Button></Table.Td><Table.Td>{node.display_ref}</Table.Td><Table.Td>{node.revision_id}</Table.Td></Table.Tr>)}</Table.Tbody></Table></Tabs.Panel>
-        <Tabs.Panel value="arrangement"><Stack><Checkbox label="Spread occurrences for inspection" checked={arranged} onChange={(e) => setArranged(e.currentTarget.checked)} /><Text size="sm">This is a display layout. Canonical placement stays in the pinned snapshot. Geometry and clearances are not evaluated.</Text><Group align="start" style={{ gap: arranged ? 48 : 12 }}>{projection.data.occurrences.map((node) => <Card key={addressKey(node.address.path)} withBorder><Button variant={selection === addressKey(node.address.path) ? "filled" : "light"} onClick={() => setSelection(addressKey(node.address.path))}>{node.address.path.join("/")}</Button><Text>{node.display_ref || node.name}</Text></Card>)}</Group></Stack></Tabs.Panel>
+        <Tabs.Panel value="tree"><Stack gap="xs">{visible.occurrences.map((node) => <Button key={addressKey(node.address.path)} variant={selection === addressKey(node.address.path) ? "filled" : "light"} aria-pressed={selection === addressKey(node.address.path)} onClick={() => setSelection(addressKey(node.address.path))}>{node.address.path.join("/")} · {node.display_ref || node.name}</Button>)}</Stack></Tabs.Panel>
+        <Tabs.Panel value="table"><Table><Table.Thead><Table.Tr><Table.Th>Contextual path</Table.Th><Table.Th>Display reference</Table.Th><Table.Th>Pinned revision</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{visible.occurrences.map((node) => <Table.Tr key={addressKey(node.address.path)} data-selected={selection === addressKey(node.address.path)}><Table.Td><Button variant="subtle" onClick={() => setSelection(addressKey(node.address.path))}>{node.address.path.join("/")}</Button></Table.Td><Table.Td>{node.display_ref}</Table.Td><Table.Td>{node.revision_id}</Table.Td></Table.Tr>)}</Table.Tbody></Table></Tabs.Panel>
+        <Tabs.Panel value="arrangement"><Stack><Checkbox label="Spread occurrences for inspection" checked={arranged} onChange={(e) => setArranged(e.currentTarget.checked)} /><Text size="sm">This is a display layout. Canonical placement stays in the pinned snapshot. Geometry and clearances are not evaluated.</Text><Group align="start" style={{ gap: arranged ? 48 : 12 }}>{visible.occurrences.map((node) => <Card key={addressKey(node.address.path)} withBorder><Button variant={selection === addressKey(node.address.path) ? "filled" : "light"} onClick={() => setSelection(addressKey(node.address.path))}>{node.address.path.join("/")}</Button><Text>{node.display_ref || node.name}</Text></Card>)}</Group></Stack></Tabs.Panel>
       </Tabs>
       {selected && <Card withBorder><Stack gap="xs">
         <Title order={4}>Selected occurrence</Title>
@@ -142,11 +173,13 @@ export function AssemblyInspector({ snapshotId }: { snapshotId: string }) {
         <Text>Child snapshot SHA-256: {selected.snapshot_sha256}</Text>
         <Text>Firmware revision: {selected.assignments.firmware_revision_id ?? "Unassigned"}</Text>
         <Text>Canonical placement: {selected.placement.status === "known" ? `${selected.placement.translation?.join(", ")} mm` : "Unknown"}</Text>
+        <Text>Canonical rotation quaternion (X, Y, Z, W): {selected.placement.status === "known" ? selected.placement.rotation_xyzw?.join(", ") : "Unknown"}</Text>
         <TextInput label="Selected stable feature ID" value={featureId} onChange={(e) => setFeatureId(e.currentTarget.value)} />
         {featureId && <Text>Feature address: {snapshotId} / {selected.address.path.join("/")} / {featureId} · Existence and compatibility not evaluated</Text>}
       </Stack></Card>}
+      <MountingDetails relationships={visible.relationships} />
       <Title order={4}>Relationships</Title>
-      {projection.data.relationships.map((r) => <Text key={`${addressKey(r.context_path)}:${r.local_id}`}>{r.context_path.join("/") || "Root"} · {r.local_id} · {r.kind}</Text>)}
+      {visible.relationships.map((r) => <Text key={`${addressKey(r.context_path)}:${r.local_id}`}>{r.context_path.join("/") || "Root"} · {r.local_id} · {r.kind}</Text>)}
     </>}
   </Stack>;
 }

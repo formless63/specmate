@@ -44,9 +44,9 @@ test("assembly create, edit and freeze send shared operations with expected stat
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
     let body: unknown;
     if (options?.method === "POST") {
-      const cmd = JSON.parse(String(options.body)); calls.push(cmd);
+      const cmd = JSON.parse(String(options.body)); if (cmd.operation !== "assembly.placement_inputs") calls.push(cmd);
       if (cmd.operation === "assembly.update") { assembly = cmd.payload.assembly; state = "draft-v2"; }
-      body = { result: cmd.operation === "assembly.freeze" ? { snapshot_id: "snapshot", draft: draft() } : draft() };
+      body = { result: cmd.operation === "assembly.placement_inputs" ? { draft_id: "draft", state, occurrences: [], relationships: [] } : cmd.operation === "assembly.freeze" ? { snapshot_id: "snapshot", draft: draft() } : draft() };
     } else if (url.includes("assemblies/drafts/")) body = draft();
     else if (url.includes("assemblies/snapshots/")) body = { snapshot_id: "snapshot", definition_id: "assembly", sha256: "hash", occurrences: [], relationships: [] };
     else if (url.includes("catalog/definitions/")) body = { definition_id: "assembly", name: "Synthetic", kind: "assembly", drafts: [{ draft_id: "draft", state, dependencies: [] }], revisions: [{ revision_id: "exact-revision", number: 1 }] };
