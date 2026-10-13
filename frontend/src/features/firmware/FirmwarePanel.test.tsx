@@ -1,5 +1,6 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Evaluation, Firmware, FirmwareRead, PopulationReview } from './api';
 import { FirmwarePanel } from './FirmwarePanel';
@@ -35,7 +36,7 @@ function reply(value: unknown, status = 200) { return new Response(JSON.stringif
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function setup(options: { draft?: FirmwareRead; revision?: FirmwareRead; commands?: Response[]; permissions?: string[] } = {}) {
+function setup(options: { draft?: FirmwareRead; revision?: FirmwareRead; commands?: Response[]; permissions?: string[]; strict?: boolean; onAccessLost?: () => void } = {}) {
   const bodies: Record<string, any>[] = [];
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/firmware')) return reply({ firmware: [{ definition_id: 'fw', name: 'Controller firmware', draft_id: 'draft-1', revisions: options.revision ? [{ revision_id: 'fw-rev', number: 1 }] : [] }] });
@@ -51,8 +52,9 @@ function setup(options: { draft?: FirmwareRead; revision?: FirmwareRead; command
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
-  render(<MantineProvider><FirmwarePanel projectId="project-a" permissions={options.permissions} /></MantineProvider>);
-  return { bodies, fetchMock };
+  const panel = <MantineProvider><FirmwarePanel projectId="project-a" permissions={options.permissions} onAccessLost={options.onAccessLost} /></MantineProvider>;
+  const view = render(options.strict ? <StrictMode>{panel}</StrictMode> : panel);
+  return { bodies, fetchMock, ...view };
 }
 async function show() { fireEvent.click(screen.getByRole('button', { name: 'Show firmware' })); await screen.findByText('Controller firmware'); }
 
@@ -205,4 +207,112 @@ test('authorized refresh preserves unsaved edits and their original state token'
   fireEvent.click(screen.getByRole('button', { name: 'Save firmware draft' }));
   await waitFor(() => expect(bodies).toHaveLength(1));
   expect(bodies[0]!.expected_state).toBe('draft-v1');
+});
+
+
+function delayedResponse() {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>(done => { resolve = done; });
+  return { promise, resolve };
+}
+async function finish(response: ReturnType<typeof delayedResponse>, value: Response) {
+  await act(async () => { response.resolve(value); await response.promise; });
+}
+
+test.each([200, 404])('an old read response (%s) cannot replace or deny a new declaration', async status => {
+  const onAccessLost = vi.fn();
+  const { fetchMock } = setup({ onAccessLost });
+  await show();
+  const pending = delayedResponse();
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url, init) => url.endsWith('/firmware-drafts/draft-1') ? pending.promise : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  fireEvent.click(screen.getByRole('button', { name: 'New firmware declaration' }));
+  fireEvent.change(screen.getByLabelText('Firmware name'), { target: { value: 'Keep new declaration' } });
+  await finish(pending, status === 200 ? reply(read('declared')) : reply({ error: { message: 'Old read denied.' } }, 404));
+  expect((screen.getByLabelText('Firmware name') as HTMLInputElement).value).toBe('Keep new declaration');
+  expect(screen.queryByText('Old read denied.')).toBeNull();
+  expect(onAccessLost).not.toHaveBeenCalled();
+});
+
+test.each([200, 404])('an old refresh response (%s) cannot affect a replacement editor', async status => {
+  const onAccessLost = vi.fn();
+  const { fetchMock } = setup({ onAccessLost });
+  await show();
+  const pending = delayedResponse();
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url, init) => url.endsWith('/firmware') ? pending.promise : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh firmware' }));
+  fireEvent.click(screen.getByRole('button', { name: 'New firmware declaration' }));
+  fireEvent.change(screen.getByLabelText('Firmware name'), { target: { value: 'Replacement' } });
+  await finish(pending, status === 200 ? reply({ firmware: [] }) : reply({ error: { message: 'Old refresh denied.' } }, 404));
+  expect(screen.getByRole('button', { name: 'Open Controller firmware draft' })).toBeTruthy();
+  expect((screen.getByLabelText('Firmware name') as HTMLInputElement).value).toBe('Replacement');
+  expect(onAccessLost).not.toHaveBeenCalled();
+});
+
+test.each([200, 404])('an old source response (%s) cannot mutate or deny a later draft editor', async status => {
+  const onAccessLost = vi.fn();
+  const { fetchMock } = setup({ onAccessLost });
+  await show();
+  const pending = delayedResponse();
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url, init) => url.endsWith('sources/revisions/src-rev') ? pending.promise : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'New firmware declaration' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Firmware sources revision 1', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit firmware draft' }));
+  fireEvent.change(screen.getByLabelText('Toolchain version'), { target: { value: '7.2' } });
+  await finish(pending, status === 200 ? await allowed('/api/v0/sources/revisions/src-rev') : reply({ error: { message: 'Old source denied.' } }, 404));
+  expect((screen.getByLabelText('Toolchain version') as HTMLInputElement).value).toBe('7.2');
+  expect(screen.getAllByText('src/main.cpp · MIT')).toHaveLength(1);
+  expect(onAccessLost).not.toHaveBeenCalled();
+});
+
+test.each([200, 404])('a previous save response (%s) cannot reopen or deny a newly selected draft', async status => {
+  const onAccessLost = vi.fn();
+  const { fetchMock } = setup({ onAccessLost });
+  await show();
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit firmware draft' }));
+  const pending = delayedResponse();
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url, init) => url.endsWith('/operations') ? pending.promise : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Save firmware draft' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  await screen.findByRole('button', { name: 'Edit firmware draft' });
+  const reads = fetchMock.mock.calls.filter(([url]) => url.endsWith('/firmware-drafts/draft-1')).length;
+  await finish(pending, status === 200 ? reply({ result: { draft_id: 'draft-1' } }) : reply({ error: { message: 'Old save denied.' } }, 404));
+  expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/firmware-drafts/draft-1'))).toHaveLength(reads);
+  expect(screen.getByRole('button', { name: 'Edit firmware draft' })).toBeTruthy();
+  expect(onAccessLost).not.toHaveBeenCalled();
+});
+
+test('StrictMode remains usable and unmounted requests cannot call access-loss handlers', async () => {
+  const onAccessLost = vi.fn();
+  const { fetchMock, unmount } = setup({ strict: true, onAccessLost });
+  await show();
+  const pending = delayedResponse();
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url, init) => url.endsWith('/firmware-drafts/draft-1') ? pending.promise : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  unmount();
+  await finish(pending, reply({ error: { message: 'Detached denial.' } }, 404));
+  expect(onAccessLost).not.toHaveBeenCalled();
+});
+
+test('changing projects clears the workspace and fences prior project responses', async () => {
+  const onAccessLost = vi.fn();
+  const { fetchMock, rerender } = setup({ onAccessLost });
+  await show();
+  const pending = delayedResponse();
+  const allowed = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url, init) => url.endsWith('/firmware-drafts/draft-1') ? pending.promise : allowed(url, init));
+  fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
+  rerender(<MantineProvider><FirmwarePanel projectId="project-b" onAccessLost={onAccessLost} /></MantineProvider>);
+  expect(screen.getByRole('button', { name: 'Show firmware' })).toBeTruthy();
+  expect(screen.queryByText('Controller firmware')).toBeNull();
+  await finish(pending, reply({ error: { message: 'Previous project denied.' } }, 404));
+  expect(onAccessLost).not.toHaveBeenCalled();
+  expect(screen.queryByText('Previous project denied.')).toBeNull();
 });

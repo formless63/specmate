@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { command, request, SourceError, type RevisionDetail, type SourcePage } from '../sources/api';
 import {
   FUNCTIONS, type AssignmentReview, type ConfigEntry, type Firmware, type FirmwareRead, type FirmwareSource, type FirmwareSummary,
@@ -27,7 +27,13 @@ export function FirmwareEvaluation({ read }: { read: FirmwareRead }) {
   </Stack>;
 }
 
-export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projectId: string; permissions?: string[]; onAccessLost?: () => void }) {
+type FirmwarePanelProps = { projectId: string; permissions?: string[]; onAccessLost?: () => void };
+
+export function FirmwarePanel(props: FirmwarePanelProps) {
+  return <FirmwareWorkspace key={props.projectId} {...props} />;
+}
+
+function FirmwareWorkspace({ projectId, permissions, onAccessLost }: FirmwarePanelProps) {
   const canEdit = !permissions || permissions.includes('design.edit');
   const canFreeze = !permissions || permissions.includes('design.freeze');
   const [shown, setShown] = useState(false);
@@ -43,12 +49,26 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
+  const alive = useRef(false);
+  const refreshRequest = useRef(0);
+  const populationRequest = useRef(0);
+  const assignmentRequest = useRef(0);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; generation.current += 1; };
+  }, []);
+  const active = (token: number) => alive.current && token === generation.current;
+  function nextSelection() {
+    generation.current += 1;
+    setBusy(false); setMessage(''); setPopulation(null); setReview(null);
+    return generation.current;
+  }
 
   function failed(reason: unknown) {
     setMessage(reason instanceof Error ? reason.message : 'Firmware request failed.');
     const denied = reason instanceof SourceError && [401, 403, 404].includes(reason.status);
     if (!denied) return;
-    generation.current += 1; setList([]); setTargets([]); setSourcePage([]); setCurrent(null); setForm(null); setPopulation(null); setReview(null); setShown(false); onAccessLost?.();
+    generation.current += 1; setBusy(false); setList([]); setTargets([]); setSourcePage([]); setCurrent(null); setForm(null); setPopulation(null); setReview(null); setShown(false); onAccessLost?.();
   }
   const currentPath = (value: FirmwareRead) => value.draft_id ? `pcb/firmware-drafts/${value.draft_id}` : `pcb/firmware-revisions/${value.revision_id}`;
   async function checkRetainedAccess() {
@@ -62,7 +82,9 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
     ]);
   }
   async function refresh() {
-    const token = ++generation.current;
+    const token = generation.current;
+    const requestId = ++refreshRequest.current;
+    const stillCurrent = () => active(token) && requestId === refreshRequest.current;
     try {
       const [firmware, available, sources, retained] = await Promise.all([
         request<{ firmware: FirmwareSummary[] }>(`pcb/projects/${projectId}/firmware`),
@@ -70,36 +92,41 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
         request<SourcePage>(`sources/projects/${projectId}/revisions`),
         checkRetainedAccess(),
       ]);
-      if (token !== generation.current) return;
+      if (!stillCurrent()) return false;
       setList(firmware.firmware); setTargets(available.targets); setSourcePage(sources.revisions); setShown(true);
       // An unsaved editor keeps its original compare-and-set token.
       if (current && !form) setCurrent(retained[0] as FirmwareRead);
-    } catch (reason) { failed(reason); }
+      return true;
+    } catch (reason) { if (stillCurrent()) failed(reason); return false; }
   }
   async function loadPopulation(revisionId: string) {
     const token = generation.current;
+    const requestId = ++populationRequest.current;
+    const stillCurrent = () => active(token) && requestId === populationRequest.current;
     setPopulation(null);
     if (!revisionId) return;
     try {
       const result = await request<PopulationReview>(`pcb/population-revisions/${revisionId}/review`);
-      if (token === generation.current) setPopulation(result);
-    } catch (reason) { if (token === generation.current) failed(reason); }
+      if (stillCurrent()) setPopulation(result);
+    } catch (reason) { if (stillCurrent()) failed(reason); }
   }
   async function open(path: string) {
-    const token = ++generation.current;
-    setMessage('');
+    const token = nextSelection();
+    setCurrent(null); setForm(null);
     try {
       const result = await request<FirmwareRead>(path);
-      if (token !== generation.current) return;
+      if (!active(token)) return;
       setCurrent(result); setForm(null); setReview(null);
-    } catch (reason) { failed(reason); }
+    } catch (reason) { if (active(token)) failed(reason); }
   }
   function startNew() {
+    nextSelection();
     setCurrent(null); setName(''); setPopulation(null);
     setForm({ sources: [], configuration: [], toolchain: { ...blankToolchain }, target: { population_revision_id: '', option_id: '', component_id: '', declared_part: null }, pins: [] });
   }
   function editCurrent() {
     if (!current) return;
+    nextSelection();
     setForm(structuredClone(current.content.firmware)); void loadPopulation(current.content.firmware.target.population_revision_id);
   }
   async function addSource(revisionId: string | null) {
@@ -107,49 +134,62 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
     const token = generation.current;
     try {
       const detail = await request<RevisionDetail>(`sources/revisions/${revisionId}`);
-      if (token !== generation.current) return;
+      if (!active(token)) return;
       const pin: FirmwareSource = {
         local_id: `src${form.sources.length + 1}`, source_revision_id: detail.revision_id, source_manifest_sha256: detail.manifest_sha256,
         files: detail.manifest.files.map(f => ({ path: f.path, sha256: f.sha256, rights: f.rights, role: 'other' as SourceFileRole })),
       };
-      setForm({ ...form, sources: [...form.sources, pin] });
-    } catch (reason) { failed(reason); }
+      setForm(latest => {
+        if (!latest || !active(token)) return latest;
+        let index = 1;
+        while (latest.sources.some(source => source.local_id === `src${index}`)) index += 1;
+        return { ...latest, sources: [...latest.sources, { ...pin, local_id: `src${index}` }] };
+      });
+    } catch (reason) { if (active(token)) failed(reason); }
   }
   async function save() {
     if (!form) return;
+    const token = generation.current;
     setBusy(true); setMessage('');
     try {
       if (current?.draft_id && current.state) {
         await command('firmware.update', { draft_id: current.draft_id, firmware: form }, { expectedState: current.state });
-        await open(`pcb/firmware-drafts/${current.draft_id}`);
+        if (active(token)) await open(`pcb/firmware-drafts/${current.draft_id}`);
       } else {
         const created = await command<{ draft_id: string }>('firmware.create', { project_id: projectId, name: name.trim(), firmware: form });
-        await refresh(); await open(`pcb/firmware-drafts/${created.draft_id}`);
+        if (!active(token) || !await refresh() || !active(token)) return;
+        await open(`pcb/firmware-drafts/${created.draft_id}`);
       }
     } catch (reason) {
+      if (!active(token)) return;
       // The unsaved form is kept on conflicts, validation failures and missing references.
       if (reason instanceof SourceError && reason.status === 404) {
-        try { await checkRetainedAccess(); } catch (denial) { failed(denial); return; }
+        try { await checkRetainedAccess(); } catch (denial) { if (active(token)) failed(denial); return; }
+        if (!active(token)) return;
         // A missing new reference does not revoke an otherwise authorized draft.
         setMessage(reason.message);
       } else failed(reason);
-    } finally { setBusy(false); }
+    } finally { if (active(token)) setBusy(false); }
   }
   async function freeze() {
     if (!current?.draft_id || !current.state) return;
+    const token = generation.current;
     setBusy(true); setMessage('');
     try {
       const frozen = await command<{ revision_id: string }>('firmware.freeze', { draft_id: current.draft_id }, { expectedState: current.state });
-      await refresh(); await open(`pcb/firmware-revisions/${frozen.revision_id}`);
-    } catch (reason) { failed(reason); } finally { setBusy(false); }
+      if (!active(token) || !await refresh() || !active(token)) return;
+      await open(`pcb/firmware-revisions/${frozen.revision_id}`);
+    } catch (reason) { if (active(token)) failed(reason); } finally { if (active(token)) setBusy(false); }
   }
   async function reviewAssembly() {
     const token = generation.current;
+    const requestId = ++assignmentRequest.current;
+    const stillCurrent = () => active(token) && requestId === assignmentRequest.current;
     setReview(null);
     try {
       const result = await request<AssignmentReview>(`pcb/assemblies/${assemblyId.trim()}/firmware-review`);
-      if (token === generation.current) setReview(result);
-    } catch (reason) { if (token === generation.current) failed(reason); }
+      if (stillCurrent()) setReview(result);
+    } catch (reason) { if (stillCurrent()) failed(reason); }
   }
 
   const option = population?.population.options.find(o => o.local_id === form?.target.option_id);
@@ -228,13 +268,13 @@ export function FirmwarePanel({ projectId, permissions, onAccessLost }: { projec
         <Button size="xs" variant="light" onClick={() => update({ pins: [...form.pins, { signal: '', pad_id: null, function: 'gpio_in', peripheral: null, expected_net: null, peer_pad_id: null, basis: null }] })}>Add signal</Button>
         <Group>
           <Button disabled={busy || (!current && !name.trim()) || !form.sources.length || !form.toolchain.name.trim() || !form.target.component_id || !form.target.option_id} onClick={() => void save()}>Save firmware draft</Button>
-          <Button variant="subtle" disabled={busy} onClick={() => setForm(null)}>Discard edits</Button>
+          <Button variant="subtle" disabled={busy} onClick={() => { nextSelection(); setForm(null); }}>Discard edits</Button>
         </Group>
         <Text size="xs">Saving validates exact source pins and records findings. Freezing requires no invalid target or pin finding.</Text>
       </Stack>}
       <Card withBorder><Stack gap="xs">
         <Text fw={600}>Assembly firmware assignments</Text>
-        <TextInput label="Frozen assembly snapshot ID" value={assemblyId} onChange={e => setAssemblyId(e.currentTarget.value)} />
+        <TextInput label="Frozen assembly snapshot ID" value={assemblyId} onChange={e => { assignmentRequest.current += 1; setReview(null); setAssemblyId(e.currentTarget.value); }} />
         <Button size="xs" disabled={!assemblyId.trim()} onClick={() => void reviewAssembly()}>Review firmware assignments</Button>
         {review && <Table><Table.Tbody>{review.assignments.map(row => <Table.Tr key={row.path.join('/')}><Table.Td>{row.path.join(' / ')}</Table.Td><Table.Td>{row.firmware_name}</Table.Td><Table.Td><Badge color={statusColor[row.status]}>{row.status}</Badge></Table.Td><Table.Td>{row.message}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
       </Stack></Card>
