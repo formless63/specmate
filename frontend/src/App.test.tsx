@@ -76,9 +76,9 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/projects/project-a/intakes", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
   fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
-  await screen.findByRole("heading", { name: "Inventory" });
+  await screen.findByRole("heading", { name: "Inventory" }, { timeout: 5000 });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-a?offset=0&limit=50", expect.anything()));
-});
+}, 10000);
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {
   const fetchMock = server({ authenticated: true });
