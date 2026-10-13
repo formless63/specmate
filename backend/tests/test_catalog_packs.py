@@ -403,6 +403,28 @@ def test_api_adapter_read_and_install_and_scoped_cursor(users, project, revision
     )
 
 
+def test_source_selector_adapter_preserves_exact_files_and_current_scope(users, project):
+    register(users["owner"], project, ORIGINAL)
+    source = op(
+        users["owner"],
+        "source.create_original_bundle",
+        {
+            "project_id": project,
+            "name": "Pack sources",
+            "files": files(ORIGINAL, path="models/source.step "),
+        },
+    )
+    url = f"/api/v0/catalog-packs/projects/{project}/source-files"
+    page = api(users["viewer"]).get(url).json()
+    assert page["results"][0]["source_path"] == "models/source.step "
+    assert page["results"][0]["source_bundle_revision_id"] == source["revision_id"]
+    cursor = page["results"][0]["file_id"]
+    assert api(users["viewer"]).get(url + f"?after={cursor}").json()["results"] == []
+    assert api(users["viewer"]).get(url + "?after=0").status_code == 404
+    assert api(users["outsider"]).get(url).status_code == 404
+    assert api().get(url).status_code == 401
+
+
 @pytest.mark.parametrize(
     "table",
     [
