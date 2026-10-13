@@ -2,7 +2,7 @@
 
 import json
 from contextvars import ContextVar
-from decimal import Decimal
+from decimal import Decimal, DecimalException, Inexact, Rounded, localcontext
 
 from pydantic import ValidationError
 
@@ -21,6 +21,7 @@ from specmate.harnesses.contracts import (
 )
 from specmate.interfaces.contracts import ConnectorBody, Pinout
 from specmate.interfaces.queries import parse_content as parse_interface
+from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import NotFound, ValidationFailed
 from specmate.wire_stock.schemas import StockSpecification
 
@@ -84,6 +85,17 @@ class Closure:
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         for revision in self.revisions.values():
             authorize_reference(user, revision)
+        for section in self.harness.sections:
+            amount = section.planned_cut_length_mm
+            if amount is not None:
+                if amount <= 0 or not section.cut_basis:
+                    raise ValidationFailed("A positive planned stock cut requires a basis.")
+                try:
+                    Quantity(amount=amount, unit="mm")
+                except ValidationError:
+                    raise ValidationFailed(
+                        "Planned stock cut exceeds exact length bounds."
+                    ) from None
         self.sections = {s.local_id: s for s in self.harness.sections}
         self.constructions = {}
         for section in self.harness.sections:
@@ -298,6 +310,24 @@ def read_revision(user, revision_id):
     return revision, closure
 
 
+def planned_cut_total(sections, quantity):
+    if quantity is None or any(s.planned_cut_length_mm is None for s in sections):
+        return None
+    try:
+        with localcontext(QUANTITY_CONTEXT) as context:
+            context.traps[Inexact] = True
+            context.traps[Rounded] = True
+            total = (
+                sum((s.planned_cut_length_mm for s in sections), Decimal(0)) * quantity
+            ).normalize()
+            Quantity(amount=total, unit="mm")
+        return format(total, "f")
+    except (DecimalException, ValidationError):
+        raise ValidationFailed(
+            "Planned cut total exceeds supported exact quantity bounds."
+        ) from None
+
+
 def quantities(closure, quantity):
     rows = {}
     for section in closure.harness.sections:
@@ -314,9 +344,7 @@ def quantities(closure, quantity):
                 "stock_revision_id": key,
                 "section_ids": [s.local_id for s in sections],
                 "piece_count": None if quantity is None else len(sections) * quantity,
-                "planned_cut_total_mm": None
-                if quantity is None or any(s.planned_cut_length_mm is None for s in sections)
-                else str(sum(Decimal(str(s.planned_cut_length_mm)) for s in sections) * quantity),
+                "planned_cut_total_mm": planned_cut_total(sections, quantity),
             }
             for key, sections in sorted(rows.items())
         ],

@@ -7,8 +7,8 @@ from pydantic import Field, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
 from specmate.cables.contracts import ElementPath, Endpoint
-from specmate.contracts import FiniteNumber
 from specmate.interfaces.contracts import ContactId, Text, unique
+from specmate.inventory.contracts import Amount
 
 
 class Section(StrictModel):
@@ -16,14 +16,8 @@ class Section(StrictModel):
 
     local_id: LocalId
     stock_revision_id: UUID
-    planned_cut_length_mm: FiniteNumber | None = Field(default=None, gt=0)
+    planned_cut_length_mm: Amount | None = None
     cut_basis: Text | None = None
-
-    @model_validator(mode="after")
-    def declared_length(self):
-        if self.planned_cut_length_mm is not None and not self.cut_basis:
-            raise ValueError("A planned stock cut length requires a declaration basis.")
-        return self
 
 
 class Segment(StrictModel):

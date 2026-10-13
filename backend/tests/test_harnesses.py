@@ -430,6 +430,7 @@ def test_deep_source_denial_precedes_relationship_diagnostics_current_stale_repl
     bundle.save(update_fields=["project"])
     malformed = copy.deepcopy(harness)
     malformed["segments"][0]["section_id"] = "missing"
+    malformed["sections"][0]["planned_cut_length_mm"] = -1
     actions = [
         lambda: create(user, project, malformed),
         lambda: create(user, project, harness, idempotency_key="source-harness"),
@@ -598,3 +599,67 @@ def test_explicit_multiway_splice_is_one_relationship_with_three_exact_members(u
     assert len(inspected["declared_relationships"]) == 1
     assert inspected["declared_relationships"][0]["members"] == splice["members"]
     assert inspected["continuity"] == "not_evaluated"
+
+
+@pytest.mark.parametrize("amount", [0.1, 1e-20, True, "0.000000001", 0, -1])
+def test_unsupported_or_nonpositive_planned_lengths_are_rejected(users, project, amount):
+    *_, harness = fixture(users["owner"], project)
+    harness["sections"][0]["planned_cut_length_mm"] = amount
+    with pytest.raises(ValidationFailed):
+        create(users["owner"], project, harness)
+
+
+def test_exact_original_decimal_cuts_survive_capture_and_sum_without_float_rounding(users, project):
+    from decimal import localcontext
+
+    *_, harness = fixture(users["owner"], project)
+    harness["sections"][0]["planned_cut_length_mm"] = "0.1000"
+    harness["sections"][1]["planned_cut_length_mm"] = "0.2"
+    frozen = capture(users["owner"], create(users["owner"], project, harness))
+    with localcontext() as context:
+        context.prec = 6
+        result = inspect_revision(users["owner"], frozen["revision_id"])
+    assert result["harness"]["sections"][0]["planned_cut_length_mm"] == "0.1000"
+    assert result["harness"]["sections"][0]["cut_basis"] == "Explicit planned cut"
+    assert result["quantities"]["stock"][0]["planned_cut_total_mm"] == "0.3"
+
+
+@pytest.mark.parametrize(
+    "left,right,count,expected",
+    [
+        ("999999999999999", "0.000001", 1, "999999999999999.000001"),
+        ("0.1", "0.2", 3, "0.9"),
+        ("999999999999999.999999", None, 1000000, None),
+    ],
+)
+def test_bounded_exact_sum_product_and_unknown_totals(left, right, count, expected):
+    from decimal import localcontext
+    from types import SimpleNamespace
+
+    from specmate.harnesses.queries import planned_cut_total
+
+    sections = [
+        SimpleNamespace(planned_cut_length_mm=Decimal(v) if v is not None else None)
+        for v in (left, right)
+    ]
+    with localcontext() as context:
+        context.prec = 6
+        assert planned_cut_total(sections, count) == expected
+
+
+@pytest.mark.parametrize(
+    "values,count",
+    [
+        (["999999999999999.999999", "0.000001"], 1),
+        (["100000000000000"], 10),
+    ],
+)
+def test_sum_and_product_overflow_are_rejected(values, count):
+    from types import SimpleNamespace
+
+    from specmate.harnesses.queries import planned_cut_total
+
+    with pytest.raises(ValidationFailed, match="exact quantity bounds"):
+        planned_cut_total(
+            [SimpleNamespace(planned_cut_length_mm=Decimal(v)) for v in values], count
+        )

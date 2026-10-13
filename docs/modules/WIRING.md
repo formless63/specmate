@@ -169,3 +169,10 @@ copper edges and is not a full electrical trace. Continuity, compatibility and
 physical qualification remain `not_evaluated`; electrical interpretation belongs to
 the topology capability. Reads and captures check the full owning source closure,
 and frozen revisions retain exact historical sections, endpoints and declarations.
+
+Planned cut amounts use exact decimal strings (or exact integer inputs) and the
+inventory quantity bounds for millimetres; floating-point inputs are rejected.
+Positive length and representability checks follow complete source authorization.
+Section totals and quantity multiplication use the bounded exact decimal context;
+overflow or precision loss raises a validation error instead of rounding. The
+original declared decimal amount and cut basis remain in the frozen harness.
