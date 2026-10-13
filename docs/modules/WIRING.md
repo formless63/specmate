@@ -105,3 +105,29 @@ only declared foil construction and never changes dimensions or electrical topol
 Explicit hidden paths take precedence over global foil display. Unknown occlusion leaves
 all interiors available with a notice. Group cut rules, prepend cuts and illustration lay
 are currently reported as unsupported and are not silently applied or inferred.
+
+## Two-end cable assignments
+
+A `cable` definition composes one exact `wire_stock` revision and two stable local
+endpoint IDs. Each endpoint pins an exact connector body and logical pinout revision;
+the body must be the exact revision selected by that pinout. Declared terminations
+identify the endpoint, full stock element path, contact ID and declaration basis.
+Conductors, shields and drains retain separate identities at both ends. A contact and
+a stock feature may each be assigned once per endpoint. Keying features, insulation
+and groups cannot be assigned as conductors. Shared screen appearance or pigtail
+geometry never creates a bond. Branches, joints and multi-end topology remain separate
+work under CAB-002; this two-end editor does not narrow that requirement.
+
+`cable.create`, `.update`, `.snapshot`, `.freeze` and `.read` share the operation layer.
+Generic design commands apply the same validation, exact dependency capture and current
+owning-reference authorization, including deep source evidence. Reads, retries and
+stale edits recheck that authority. Later catalog edits cannot rewrite frozen pins.
+Review requires a declared basis but permits explicit unknown or unassigned terminals.
+Ratings, roles and geometry remain those of the selected revisions; review does not
+establish continuity, compatibility, preparation or physical qualification.
+
+`CablePanel(projectId)` provides definition/revision selection, terminal assignment,
+concurrency-aware editing and frozen inspection. The inspection aligns each stable
+stock feature across both endpoints and shows pinned body/pinout roles and unknown
+ratings. HTTP reads are under `/api/v0/cables`; mutation and agent adapters use the
+same named operations. Existing stock section and geometry projections are unchanged.
