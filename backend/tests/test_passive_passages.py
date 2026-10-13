@@ -436,3 +436,29 @@ def test_root_project_revocation_precedes_query_selection_and_review_conflict(us
         interpretation(editor, frozen, terminals, from_terminal_id="terminal-" + "0" * 64)
     with pytest.raises(NotFound):
         review(editor, frozen, state="stale")
+
+
+def test_assertion_source_hash_rights_survive_frozen_view_and_interpreted_steps(
+    users, project, circuit
+):
+    _root, terminals, model, draft, frozen = circuit
+    owner = users["owner"]
+    evidence = source_evidence(
+        users, project, path="assertions/resistance.txt", rights=" synthetic declared rights "
+    )
+    model["passages"][0]["evidence"] = evidence
+    updated = op(
+        owner,
+        "passage.update",
+        {"draft_id": draft["draft_id"], "model": model},
+        expected_state=frozen["draft"]["state"],
+    )
+    sourced = op(
+        owner, "passage.freeze", {"draft_id": draft["draft_id"]}, expected_state=updated["state"]
+    )
+    view = review(owner, sourced)
+    resolved = view["assertion_evidence"][0]["evidence"]
+    assert resolved["source_path"] == "assertions/resistance.txt"
+    assert resolved["sha256"] and resolved["rights"] == " synthetic declared rights "
+    result = interpretation(owner, sourced, terminals)
+    assert result["paths"][0]["steps"][0]["evidence"] == resolved

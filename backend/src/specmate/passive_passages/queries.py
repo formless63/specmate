@@ -1,6 +1,7 @@
 """Current source and review authority precedes passive-model diagnostics."""
 
 import json
+from types import SimpleNamespace
 
 from pydantic import ValidationError
 
@@ -104,6 +105,18 @@ def state(reviews):
     return f"passage-review-v{reviews[-1].version if reviews else 0}"
 
 
+def assertion_evidence(user, model):
+    return [
+        {
+            "local_id": passage.local_id,
+            "evidence": evidence_result(
+                SimpleNamespace(**evidence_fields(user, passage.evidence))
+            ).model_dump(mode="json"),
+        }
+        for passage in model.passages
+    ]
+
+
 def result(user, revision_id):
     revision, model, graph, reviews = rows(user, revision_id)
     return {
@@ -112,6 +125,7 @@ def result(user, revision_id):
         "snapshot_id": str(revision.snapshot_id),
         "sha256": revision.snapshot.sha256,
         "model": model.model_dump(mode="json"),
+        "assertion_evidence": assertion_evidence(user, model),
         "graph": graph,
         "state": state(reviews),
         "decision": reviews[-1].decision if reviews else "unreviewed",
@@ -150,6 +164,12 @@ def interpret_model(user, payload):
             "signal_transfer": "not_evaluated",
             "physical_qualification": "not_evaluated",
         }
+    resolved_model = model.model_dump(mode="json")
+    resolved_evidence = {
+        row["local_id"]: row["evidence"] for row in assertion_evidence(user, model)
+    }
+    for passage in resolved_model["passages"]:
+        passage["evidence"] = resolved_evidence[passage["local_id"]]
     return {
         "revision_id": str(revision.id),
         "sha256": revision.snapshot.sha256,
@@ -157,5 +177,5 @@ def interpret_model(user, payload):
         "root_snapshot_sha256": graph["snapshot_sha256"],
         "review_id": str(latest.id),
         "review_state": state(reviews),
-        **interpret(graph, model.model_dump(mode="json"), payload),
+        **interpret(graph, resolved_model, payload),
     }

@@ -4,7 +4,7 @@ from decimal import Context, Decimal, InvalidOperation
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BeforeValidator, Field, model_validator
+from pydantic import BeforeValidator, Field, StringConstraints, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
 from specmate.catalog_matching.contracts import EvidenceInput
@@ -35,6 +35,7 @@ def exact_number(value):
 
 ExactNumber = Annotated[Decimal, BeforeValidator(exact_number, json_schema_input_type=str | int)]
 TerminalId = Annotated[str, Field(pattern=r"^terminal-[a-f0-9]{64}$")]
+Basis = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
 
 class Passage(StrictModel):
@@ -55,7 +56,7 @@ class Passage(StrictModel):
     capacitance_f: ExactNumber | None = Field(default=None, gt=0)
     condition: str | None = Field(default=None, min_length=1, max_length=500)
     native_candidate_boundary_id: str | None = Field(default=None, min_length=1, max_length=80)
-    basis: str = Field(min_length=1, max_length=4000)
+    basis: Basis
     evidence: EvidenceInput = Field(default_factory=EvidenceInput)
 
     @model_validator(mode="after")
@@ -73,7 +74,7 @@ class PassageModel(StrictModel):
     schema_version: Literal["1"] = "1"
     root_revision_id: UUID
     assumptions: Literal["ideal_lumped_components"]
-    model_basis: str = Field(min_length=1, max_length=4000)
+    model_basis: Basis
     passages: list[Passage] = Field(default_factory=list, max_length=1000)
 
     @model_validator(mode="after")
@@ -105,7 +106,7 @@ class ReadModel(StrictModel):
 
 class ReviewModel(ReadModel):
     decision: Literal["accepted", "rejected", "needs_evidence"]
-    basis: str = Field(min_length=1, max_length=4000)
+    basis: Basis
     evidence: EvidenceInput = Field(default_factory=EvidenceInput)
 
 

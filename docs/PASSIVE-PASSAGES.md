@@ -34,7 +34,8 @@ frequency. Capacitive impedance is a derived approximation using a stated ideal 
 finite pi approximation; it does not establish signal transfer, gain, loading, waveform
 quality or measured precision. The adapter does not resolve diode bias/nonlinear behavior,
 inductor losses, transformer coupling, active regeneration or conditional states. Those
-paths retain type, traversal direction and condition, and remain unknown. Incompatible or
+paths retain type, traversal direction and condition, and remain unknown. Forward/reverse
+traversal follows the declared endpoint order; it is not an inferred diode bias state. Incompatible or
 undefined switch states cannot form a positive continuity conclusion.
 
 Electrical parameters use exact decimal strings or exact integers; floating-point inputs
@@ -60,3 +61,13 @@ replay. `passage.read`, `.interpret` and the HTTP model reader evaluate live aut
 queries cannot use idempotency keys to bypass changed permissions or review decisions.
 Each result retains exact model/root hashes and the review identity. Physical continuity,
 compatibility, signal transfer and physical qualification remain explicitly unevaluated.
+
+
+The Passive passage interpretation workspace authors explicit terminal declarations, saves
+and reopens drafts, freezes saved state, reviews exact model revisions and inspects query
+paths. Native-candidate actions preselect only exact endpoints and the candidate link;
+kind and parameters start unknown. Electrical text reaches the operation unchanged.
+Registered assertion and review files show exact bundle/path/hash/rights provenance.
+A source denial clears cached models, graphs and results. A changed draft token requires
+reopening current state rather than rebasing unsaved edits silently. Changing query inputs
+or projects fences stale responses; an authorized unchanged refresh retains review text.
