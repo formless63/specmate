@@ -1,7 +1,7 @@
 export { command, read, type Definition, type Identity } from "../identity/api";
 
-export type Target = { kind: "project"; project_id: string } | { kind: "definition"; definition_id: string; feature_id?: string | null } | { kind: "revision"; revision_id: string; feature_id?: string | null } | { kind: "occurrence"; snapshot_id: string; path: string[]; feature_id?: string | null };
-export type Subject = { subject_id: string; project_id: string; target: Target; state: string };
+export type Target = { kind: "project"; project_id: string } | { kind: "definition"; definition_id: string; feature_id?: string | null } | { kind: "revision"; revision_id: string; feature_id?: string | null } | { kind: "occurrence"; snapshot_id: string; path: string[]; feature_id?: string | null } | { kind: "physical_unit"; unit_id: string };
+export type Subject = { subject_id: string; project_id: string; target: Target; state: string; physical_unit_serial?: string };
 export type Status = "known" | "unknown" | "conflicting" | "not_applicable" | "not_evaluated";
 export type Method = "source_observation" | "reviewed_association" | "calculation" | "measurement" | "preference";
 export type Purpose = "general" | "manufacturing" | "clearance" | "illustration" | "rating" | "preference";
@@ -14,10 +14,11 @@ export type Assertion = { assertion_id: string; subject_id: string; sequence: nu
 export type Assessment = { status: Status; value: Value | null; assertion_ids: string[]; purpose?: Purpose; role?: Role; conditions?: Fact["conditions"]; reason?: string };
 export type Facts = Subject & { assertions: Assertion[]; assessments: Record<string, Assessment[]>; offset: number; limit: number; has_more: boolean };
 
-export function targetLabel(target: Target): string {
+export function targetLabel(target: Target, serial?: string): string {
   if (target.kind === "project") return `Project ${target.project_id}`;
   if (target.kind === "definition") return `Definition ${target.definition_id}${target.feature_id ? ` / ${target.feature_id}` : ""}`;
   if (target.kind === "revision") return `Revision ${target.revision_id}${target.feature_id ? ` / ${target.feature_id}` : ""}`;
+  if (target.kind === "physical_unit") return `Physical unit ${serial ?? target.unit_id}`;
   return `${target.snapshot_id} / ${target.path.join("/")}${target.feature_id ? ` / ${target.feature_id}` : ""}`;
 }
 

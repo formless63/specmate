@@ -1,10 +1,18 @@
 # Scoped facts, explicit unknowns and provenance
 
-`facts.register_subject` resolves a project, definition, exact revision or contextual
-occurrence to a fact ledger. Occurrence targets use the root assembly snapshot and
+`facts.register_subject` resolves a project, definition, exact revision, contextual
+occurrence or actual physical unit to a fact ledger. Occurrence targets use the root assembly snapshot and
 ordered local ID path, optionally extended by a stable feature ID. Two repeated uses
 have separate ledgers. Feature existence remains explicitly `not_evaluated` until a
 discipline registry provides that evidence.
+
+An actual-unit target resolves one immutable serialized unit and its exact as-obtained
+or as-built revision through current project and revision access checks. Two units of
+one revision have separate ledgers; a later revision receives no copied observations.
+Registering or appending to a unit ledger requires `inventory.manage`. Existing design
+subjects retain `design.edit` write authority; current project read and all evidence
+closure checks govern disclosure. The facts panel selects actual units by serial and
+shows unit identity independently from design and occurrence targets.
 
 `facts.append` records an immutable assertion under the ledger's expected state token.
 Corrections, competing sources and later observations append new records. Neither an
@@ -58,7 +66,9 @@ Assertions linked to a revision or occurrence are **attached evidence**, not imp
 edits to frozen content. Recording one later does not modify its canonical snapshot or
 retroactively add that assertion to earlier build inputs. Explicit assertion pinning in
 future build/configuration/release manifests needs its own reviewed contract. Actual-unit
-measurement applicability, automated rule/calculation execution and physical qualification
+measurement assertions now attach to exact units, but they do not themselves establish
+qualification, release, or applicability to another unit, lot or revision. Batch and
+configuration test scope, automated rule/calculation execution and physical qualification
 remain separate evidence and discipline obligations.
 
 The panel opens resolved subjects, inspects unknowns and all conflict candidates, and

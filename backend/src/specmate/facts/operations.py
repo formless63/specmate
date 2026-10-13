@@ -4,7 +4,7 @@ import json
 from specmate.access.models import Project
 from specmate.access.permissions import Perm
 from specmate.design.operations import canonical_bytes
-from specmate.facts.contracts import AppendFact, ReadFacts, RegisterSubject
+from specmate.facts.contracts import AppendFact, PhysicalUnitTarget, ReadFacts, RegisterSubject
 from specmate.facts.models import AssertionInput, AssertionSource, FactAssertion, FactSubject
 from specmate.facts.queries import (
     MAX_ASSERTIONS,
@@ -15,6 +15,7 @@ from specmate.facts.queries import (
     read_facts,
     resolve_target,
     subject_result,
+    subject_target,
     subject_with_assertions,
     validate_evidence,
 )
@@ -22,18 +23,24 @@ from specmate.operations import Conflict, Context, ValidationFailed, operation
 from specmate.operations.scope import project_scope
 
 
+def target_write_permission(target):
+    return Perm.INVENTORY_MANAGE if isinstance(target, PhysicalUnitTarget) else Perm.DESIGN_EDIT
+
+
 def registration_scope(ctx, p):
-    fields = resolve_target(ctx.user, p.target, Perm.DESIGN_EDIT)
-    return project_scope(ctx, fields["project"].id, Perm.DESIGN_EDIT)
+    permission = target_write_permission(p.target)
+    fields = resolve_target(ctx.user, p.target, permission)
+    return project_scope(ctx, fields["project"].id, permission)
 
 
 def assertion_scope(ctx, p):
     subject, _ = subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT)
-    return project_scope(ctx, subject.project_id, Perm.DESIGN_EDIT)
+    permission = target_write_permission(subject_target(subject))
+    return project_scope(ctx, subject.project_id, permission)
 
 
 def authorize_registration_replay(ctx, p, stored):
-    resolve_target(ctx.user, p.target, Perm.DESIGN_EDIT)
+    resolve_target(ctx.user, p.target, target_write_permission(p.target))
     subject_with_assertions(ctx.user, stored["subject_id"], Perm.DESIGN_EDIT)
 
 
@@ -50,7 +57,7 @@ def authorize_append_replay(ctx, p, stored):
     authorize_replay=authorize_registration_replay,
 )
 def register_subject(ctx: Context, p: RegisterSubject):
-    fields = resolve_target(ctx.user, p.target, Perm.DESIGN_EDIT)
+    fields = resolve_target(ctx.user, p.target, target_write_permission(p.target))
     fingerprint = hashlib.sha256(canonical_bytes(p.target.model_dump(mode="json"))).hexdigest()
     # Serialize identity registration per owning project, without changing its state.
     Project.objects.select_for_update().get(id=fields["project"].id)

@@ -85,6 +85,32 @@ test("panel registers the real project identity before opening its ledger", asyn
   expect(calls[0]).toEqual(expect.objectContaining({ operation: "facts.register_subject", payload: { target: { kind: "project", project_id: "project-1" } } }));
 });
 
+test("panel selects a serialized unit and labels its independent fact ledger", async () => {
+  const calls: { operation: string; payload: unknown }[] = [];
+  const unitLedger: Facts = { ...ledger(), target: { kind: "physical_unit", unit_id: "unit-1" }, physical_unit_serial: "SERIAL-1" };
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === "POST") {
+      calls.push(JSON.parse(String(options.body)));
+      return new Response(JSON.stringify({ result: unitLedger }), { status: 200 });
+    }
+    const body = url.includes("physical-units/projects/")
+      ? { units: [{ unit_id: "unit-1", serial: "SERIAL-1", revision_id: "rev-1" }] }
+      : url.includes("facts/projects/") ? [unitLedger] : unitLedger;
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(wrap(<FactsPanel projectId="project-1" />));
+  await select("Fact subject kind", "Physical unit");
+  await select("Actual physical unit", "SERIAL-1 · revision rev-1");
+  fireEvent.click(screen.getByText("Open fact ledger"));
+  await waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0]).toEqual(expect.objectContaining({ operation: "facts.register_subject", payload: {
+    target: { kind: "physical_unit", unit_id: "unit-1" },
+  } }));
+  expect(await screen.findByText(/Subject: Physical unit SERIAL-1/)).toBeTruthy();
+  expect(screen.getByText(/they do not qualify a lot or release/)).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Value role" })).toHaveProperty("value", "actual");
+});
+
 test("revoked or unavailable evidence shows no partial assertions", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { message: "Evidence unavailable." } }), { status: 404 })));
   render(wrap(<FactLedger subjectId="restricted" />));

@@ -9,10 +9,13 @@ class FactSubject(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
-    kind = models.CharField(max_length=12)
+    kind = models.CharField(max_length=16)
     definition = models.ForeignKey("design.Definition", null=True, on_delete=models.PROTECT)
     revision = models.ForeignKey("design.Revision", null=True, on_delete=models.PROTECT)
     snapshot = models.ForeignKey("design.Snapshot", null=True, on_delete=models.PROTECT)
+    physical_unit = models.ForeignKey(
+        "physical_units.PhysicalUnit", null=True, on_delete=models.PROTECT
+    )
     path = models.JSONField(default=list)
     # NULL denotes the whole subject; it is never an empty feature identifier.
     feature_id = models.CharField(max_length=200, null=True)  # noqa: DJ001
@@ -33,6 +36,7 @@ class FactSubject(models.Model):
                         definition__isnull=True,
                         revision__isnull=True,
                         snapshot__isnull=True,
+                        physical_unit__isnull=True,
                         path=[],
                         feature_id__isnull=True,
                     )
@@ -41,6 +45,7 @@ class FactSubject(models.Model):
                         definition__isnull=False,
                         revision__isnull=True,
                         snapshot__isnull=True,
+                        physical_unit__isnull=True,
                         path=[],
                     )
                     | models.Q(
@@ -48,6 +53,7 @@ class FactSubject(models.Model):
                         definition__isnull=True,
                         revision__isnull=False,
                         snapshot__isnull=True,
+                        physical_unit__isnull=True,
                         path=[],
                     )
                     | (
@@ -56,8 +62,18 @@ class FactSubject(models.Model):
                             definition__isnull=True,
                             revision__isnull=True,
                             snapshot__isnull=False,
+                            physical_unit__isnull=True,
                         )
                         & ~models.Q(path=[])
+                    )
+                    | models.Q(
+                        kind="physical_unit",
+                        definition__isnull=True,
+                        revision__isnull=True,
+                        snapshot__isnull=True,
+                        physical_unit__isnull=False,
+                        path=[],
+                        feature_id__isnull=True,
                     )
                 ),
                 name="facts_subject_target",

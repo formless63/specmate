@@ -12,12 +12,14 @@ from specmate.facts.contracts import (
     DefinitionTarget,
     NumericValue,
     OccurrenceTarget,
+    PhysicalUnitTarget,
     ProjectTarget,
     RevisionTarget,
     SourceFileEvidence,
 )
 from specmate.facts.models import FactAssertion, FactSubject
 from specmate.operations import NotFound, ValidationFailed
+from specmate.physical_units.queries import get_unit
 from specmate.queries import get_bundle_revision, get_revision
 from specmate.sources.models import SourceBundleFile
 
@@ -39,6 +41,10 @@ def resolve_target(user, target, permission=Perm.PROJECT_READ):
         revision = get_revision(user, target.revision_id)
         project_id = revision.definition.project_id
         fields["revision"] = revision
+    elif isinstance(target, PhysicalUnitTarget):
+        unit = get_unit(user, target.unit_id)
+        project_id = unit.project_id
+        fields["physical_unit"] = unit
     else:
         snapshot, _ = get_snapshot(user, target.snapshot_id)
         resolve_occurrence(user, target.snapshot_id, target.path, target.feature_id)
@@ -59,6 +65,8 @@ def subject_target(subject):
         return RevisionTarget(
             kind="revision", revision_id=subject.revision_id, feature_id=subject.feature_id
         )
+    if subject.kind == "physical_unit":
+        return PhysicalUnitTarget(kind="physical_unit", unit_id=subject.physical_unit_id)
     return OccurrenceTarget(
         kind="occurrence",
         snapshot_id=subject.snapshot_id,
@@ -106,8 +114,13 @@ def subject_with_assertions(user, subject_id, permission=Perm.PROJECT_READ, *, l
     subject = query.filter(id=subject_id).first()
     if subject is None:
         raise NotFound("Subject unavailable.")
-    authorize(user, subject.project_id, permission)
-    resolve_target(user, subject_target(subject), permission)
+    effective_permission = (
+        Perm.INVENTORY_MANAGE
+        if subject.kind == "physical_unit" and permission == Perm.DESIGN_EDIT
+        else permission
+    )
+    authorize(user, subject.project_id, effective_permission)
+    resolve_target(user, subject_target(subject), effective_permission)
     assertions = list(subject.assertions.select_related("subject").order_by("sequence"))
     authorize_assertions(user, assertions)
     if len(assertions) > MAX_ASSERTIONS:
@@ -154,13 +167,16 @@ def canonical_conditions(fact):
 
 
 def subject_result(subject):
-    return {
+    result = {
         "subject_id": str(subject.id),
         "project_id": str(subject.project_id),
         "target": subject_target(subject).model_dump(mode="json"),
         "state": subject.state_token,
         "feature_status": "not_evaluated" if subject.feature_id else "not_applicable",
     }
+    if subject.kind == "physical_unit":
+        result["physical_unit_serial"] = subject.physical_unit.serial
+    return result
 
 
 def assertion_result(assertion):

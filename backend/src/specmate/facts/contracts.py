@@ -92,8 +92,13 @@ class OccurrenceTarget(StrictModel):
     feature_id: FeatureId | None = None
 
 
+class PhysicalUnitTarget(StrictModel):
+    kind: Literal["physical_unit"]
+    unit_id: UUID
+
+
 Target = Annotated[
-    ProjectTarget | DefinitionTarget | RevisionTarget | OccurrenceTarget,
+    ProjectTarget | DefinitionTarget | RevisionTarget | OccurrenceTarget | PhysicalUnitTarget,
     Field(discriminator="kind"),
 ]
 
