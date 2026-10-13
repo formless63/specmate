@@ -1,0 +1,386 @@
+{
+  "$defs": {
+    "ConfigEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "known",
+            "unknown",
+            "secret_reference"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "key",
+        "status"
+      ],
+      "title": "ConfigEntry",
+      "type": "object"
+    },
+    "PinAssumption": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "expected_net": {
+          "anyOf": [
+            {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Net"
+        },
+        "function": {
+          "enum": [
+            "gpio_in",
+            "gpio_out",
+            "gpio_bidir",
+            "analog_in",
+            "pwm_out",
+            "uart_tx",
+            "uart_rx",
+            "i2c_sda",
+            "i2c_scl",
+            "spi_sck",
+            "spi_mosi",
+            "spi_miso",
+            "spi_cs",
+            "can_tx",
+            "can_rx",
+            "usb_dp",
+            "usb_dm",
+            "other"
+          ],
+          "title": "Function",
+          "type": "string"
+        },
+        "pad_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pad Id"
+        },
+        "peer_pad_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peer Pad Id"
+        },
+        "peripheral": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peripheral"
+        },
+        "signal": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$",
+          "title": "Signal",
+          "type": "string"
+        }
+      },
+      "required": [
+        "signal",
+        "function"
+      ],
+      "title": "PinAssumption",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 512,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "application",
+            "library",
+            "configuration",
+            "board_support",
+            "lockfile",
+            "other"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "rights",
+        "role"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    },
+    "SourcePin": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "items": {
+            "$ref": "#/$defs/SourceFile"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Files",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Manifest Sha256",
+          "type": "string"
+        },
+        "source_revision_id": {
+          "format": "uuid",
+          "title": "Source Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "source_revision_id",
+        "source_manifest_sha256",
+        "files"
+      ],
+      "title": "SourcePin",
+      "type": "object"
+    },
+    "Target": {
+      "additionalProperties": false,
+      "properties": {
+        "component_id": {
+          "format": "uuid",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "declared_part": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Part"
+        },
+        "option_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Option Id",
+          "type": "string"
+        },
+        "population_revision_id": {
+          "format": "uuid",
+          "title": "Population Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "population_revision_id",
+        "option_id",
+        "component_id"
+      ],
+      "title": "Target",
+      "type": "object"
+    },
+    "Toolchain": {
+      "additionalProperties": false,
+      "properties": {
+        "board_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Board Id"
+        },
+        "family": {
+          "enum": [
+            "platformio",
+            "esp_idf",
+            "arduino_cli",
+            "zephyr",
+            "cmake_gcc",
+            "other"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "framework": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Framework"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "family",
+        "name"
+      ],
+      "title": "Toolchain",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "configuration": {
+      "items": {
+        "$ref": "#/$defs/ConfigEntry"
+      },
+      "maxItems": 500,
+      "title": "Configuration",
+      "type": "array"
+    },
+    "pins": {
+      "items": {
+        "$ref": "#/$defs/PinAssumption"
+      },
+      "maxItems": 500,
+      "title": "Pins",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourcePin"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    },
+    "target": {
+      "$ref": "#/$defs/Target"
+    },
+    "toolchain": {
+      "$ref": "#/$defs/Toolchain"
+    }
+  },
+  "required": [
+    "sources",
+    "toolchain",
+    "target"
+  ],
+  "title": "Firmware",
+  "type": "object"
+}

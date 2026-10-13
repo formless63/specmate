@@ -495,7 +495,7 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, sources
     placeholder = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "firmware", "name": "TBD"},
+        {"project_id": project, "kind": "board", "name": "Unreviewed board"},
     )
     placeholder = op(
         users["owner"],
@@ -522,7 +522,7 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, sources
                 "occurrences": [
                     occurrence("matched", frozen_board["revision_id"], firmware["revision_id"]),
                     occurrence("other", second["revision_id"], firmware["revision_id"]),
-                    occurrence("pending", frozen_board["revision_id"], placeholder["revision_id"]),
+                    occurrence("pending", placeholder["revision_id"], firmware["revision_id"]),
                 ],
                 "relationships": [],
             },
@@ -542,7 +542,8 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, sources
     assert {tuple(r["path"]): r["status"] for r in review["assignments"]} == {
         ("matched",): "valid",
         ("other",): "invalid",
-        ("pending",): "invalid",
+        # An untyped board is not evidence of a compatible population target.
+        ("pending",): "unknown",
     }
     assert review["compilation"] == "not_performed"
     client = Client()
@@ -676,3 +677,36 @@ def test_replay_authorizes_old_result_after_draft_moves_to_new_sources(
     assert op(users["editor"], "firmware.read", {"draft_id": draft["draft_id"]})
     with pytest.raises(NotFound):
         create(users, project, new, idempotency_key="retained")
+
+
+def test_generic_capture_rejects_empty_firmware_and_invalid_typed_target(
+    users, project, sources, board
+):
+    empty = op(
+        users["owner"],
+        "definition.create",
+        {
+            "project_id": project,
+            "kind": "firmware",
+            "name": "Pending declaration",
+        },
+    )
+    for command in ("draft.snapshot", "draft.freeze"):
+        with pytest.raises(ValidationFailed, match="Typed firmware"):
+            op(
+                users["owner"],
+                command,
+                {"draft_id": empty["draft_id"]},
+                expected_state=empty["state"],
+            )
+    invalid = create(users, project, declaration(sources, board, option_id="no-mcu"))
+    for command in ("draft.snapshot", "draft.freeze"):
+        with pytest.raises(ValidationFailed, match="invalid target"):
+            op(
+                users["owner"],
+                command,
+                {"draft_id": invalid["draft_id"]},
+                expected_state=invalid["state"],
+            )
+    assert not Revision.objects.filter(definition_id=empty["definition_id"]).exists()
+    assert not Revision.objects.filter(definition_id=invalid["definition_id"]).exists()

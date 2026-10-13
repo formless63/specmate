@@ -214,6 +214,7 @@ def read_property_authority(request, authority_id: UUID):
     context = Context(user=user, via="api", request_id="read-property-authority")
     return read_authority(user, authority_for(context, authority_id))
 
+
 @router.get("/projects/{project_id}/firmware")
 def list_project_firmware(request, project_id: UUID):
     from specmate.catalog_matching.queries import current_actor

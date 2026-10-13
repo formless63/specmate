@@ -157,8 +157,8 @@ def test_cable_package_opens_locally_exact_hashes_no_parent_sibling_or_labels(
 
 def test_repeated_nested_selection_keeps_only_selected_contextual_firmware(users, project):
     _, board = part(users["owner"], project)
-    _, fw_a = part(users["owner"], project, "firmware")
-    _, fw_b = part(users["owner"], project, "firmware")
+    fw_a_draft, fw_a = part(users["owner"], project, "firmware")
+    fw_b_draft, fw_b = part(users["owner"], project, "firmware")
     nested = freeze(users["owner"], create(users["owner"], project, [occ("board", board)]))
     root = freeze(
         users["owner"],
@@ -183,16 +183,21 @@ def test_repeated_nested_selection_keeps_only_selected_contextual_firmware(users
         nested["revision_id"],
         board["revision_id"],
         fw_b["revision_id"],
+        fw_b_draft["content"]["firmware"]["target"]["population_revision_id"],
     }
     assert [row["path"] for row in result["manifest"]["occurrences"]] == [[], ["board"]]
     assert result["manifest"]["occurrences"][1]["assignments"] == {
         "firmware_revision_id": fw_b["revision_id"],
     }
     assert fw_a["revision_id"].encode() not in b"".join(files.values())
+    assert fw_a_draft["content"]["firmware"]["target"][
+        "population_revision_id"
+    ].encode() not in b"".join(files.values())
     direct = op(users["owner"], "selected_package.review", request(root, ["b", "board"]))
     assert {row["revision_id"] for row in direct["manifest"]["design_revisions"]} == {
         board["revision_id"],
         fw_b["revision_id"],
+        fw_b_draft["content"]["firmware"]["target"]["population_revision_id"],
     }
     assert direct["manifest"]["scope"]["occurrence_path"] == ["b", "board"]
     # Generic/native semantics are explicitly limited, never advertised as tool processing.

@@ -138,6 +138,11 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         )
 
         derived = end_preparation_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "firmware":
+        from specmate.pcb.firmware import dependency_revisions, require_freezable
+
+        require_freezable(ctx.user, draft.definition, draft.content)
+        derived = dependency_revisions(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "material_plan":
         from specmate.material_accounting.queries import (
             dependency_revisions as material_dependencies,
@@ -268,6 +273,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind == "firmware" or "firmware" in content:
+        from specmate.pcb.firmware import validate_content as validate_firmware
+
+        content = validate_firmware(kind, content)
     if kind == "end_preparation_profile" or "end_preparation_profile" in content:
         from specmate.end_preparation.queries import validate_content as validate_end_preparation
 
@@ -337,6 +346,10 @@ def authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind == "firmware" or "firmware" in content:
+        from specmate.pcb.firmware import authorize_content as authorize_firmware
+
+        authorize_firmware(user, definition, content)
     if definition.kind == "end_preparation_profile" or "end_preparation_profile" in content:
         from specmate.end_preparation.queries import authorize_content as authorize_end_preparation
 

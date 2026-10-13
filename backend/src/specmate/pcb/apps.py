@@ -13,3 +13,4 @@ class PcbConfig(AppConfig):
 
         SCHEMAS["pcb-report"] = Report
         SCHEMAS["pcb-population"] = Population
+        SCHEMAS["firmware"] = firmware.Firmware

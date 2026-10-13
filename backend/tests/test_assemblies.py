@@ -27,10 +27,52 @@ from .conftest import op
 
 
 def part(user, project, kind="board", name="Synthetic board"):
+    if kind == "firmware":
+        return firmware_part(user, project, name)
     draft = op(user, "definition.create", {"project_id": project, "kind": kind, "name": name})
     return draft, op(
         user, "draft.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]
     )
+
+
+def firmware_part(user, project, name):
+    """Typed fixture declarations with simulated PCB evidence; no compiler/native proof."""
+    from django.test import override_settings
+
+    from specmate.pcb.pack import recipe_for
+
+    from .test_firmware import board, declaration, sources
+    from .test_pcb import intake, source
+
+    actors = {"owner": user, "editor": user}
+    original = source.__wrapped__(actors, project)
+    preserved = intake.__wrapped__(actors, project, original)
+    recipe = recipe_for("board.kicad_pcb", "AGPL-3.0-only")
+    with override_settings(SPECMATE_APPROVED_RECIPES={recipe["id"]: recipe}):
+        attempt = op(
+            user,
+            "pcb.request_extraction",
+            {
+                "intake_id": preserved["intake_id"],
+                "recipe_id": recipe["id"],
+            },
+            idempotency_key="fixture-extract-" + preserved["intake_id"],
+        )
+    target = board.__wrapped__(actors, project, attempt)
+    inputs = sources.__wrapped__(actors, project)
+    draft = op(
+        user,
+        "firmware.create",
+        {
+            "project_id": project,
+            "name": name,
+            "firmware": declaration(inputs, target),
+        },
+    )
+    frozen = op(
+        user, "draft.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]
+    )
+    return draft, frozen
 
 
 def create(user, project, occurrences=(), relationships=(), assignments=()):
@@ -73,8 +115,8 @@ def endpoint(path, feature_id=None):
 
 def test_repeated_nested_boards_keep_distinct_addresses_assignments_and_exact_pins(users, project):
     board_draft, board = part(users["owner"], project)
-    _, left_fw = part(users["owner"], project, "firmware", "Left firmware")
-    _, right_fw = part(users["owner"], project, "firmware", "Right firmware")
+    left_fw_draft, left_fw = part(users["owner"], project, "firmware", "Left firmware")
+    right_fw_draft, right_fw = part(users["owner"], project, "firmware", "Right firmware")
     module = create(users["owner"], project, [occ("control-board", board)])
     module_revision = freeze(users["owner"], module)
     root = create(
@@ -136,6 +178,8 @@ def test_repeated_nested_boards_keep_distinct_addresses_assignments_and_exact_pi
         module_revision["revision_id"],
         left_fw["revision_id"],
         right_fw["revision_id"],
+        left_fw_draft["content"]["firmware"]["target"]["population_revision_id"],
+        right_fw_draft["content"]["firmware"]["target"]["population_revision_id"],
     }
 
 
