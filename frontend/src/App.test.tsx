@@ -40,6 +40,7 @@ function server({ authenticated = false, denyInventory = false, includePermissio
     if (path === "/api/v0/session/logout") { authenticated = false; return reply({ result: {} }); }
     if (path === "/api/v0/projects") return reply([{ project_id: "project-a", name: "Project A", ...(includePermissions ? { permissions } : {}) }, { project_id: "project-b", name: "Project B", ...(includePermissions ? { permissions } : {}) }]);
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
+    if (path.startsWith("/api/v0/preparation-documents/projects/")) return reply({ document_sets: [] });
     if (path.startsWith("/api/v0/knowledge/projects/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
     if (path.startsWith("/api/v0/inventory/projects/")) return denyInventory
       ? reply({ error: { message: "Project not found." } }, 404)
@@ -102,6 +103,12 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Connected views" }));
   await screen.findByRole("heading", { name: "Contextual inspection" });
   expect(screen.getByRole("button", { name: "Refresh contextual scene choices" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Scene drawings" }));
+  await screen.findByRole("heading", { name: "Scene inspection drawings" });
+  expect(screen.getByRole("button", { name: "Inspect drawing scene" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Bench documents" }));
+  await screen.findByRole("heading", { name: "Coordinated documents" });
+  expect((screen.getByRole("button", { name: "Generate reviewed document set" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole("tab", { name: "Interfaces" }));
   await screen.findByRole("heading", { name: "Interface assessments" });
   expect(screen.queryByRole("button", { name: "New assessment" })).toBeNull();

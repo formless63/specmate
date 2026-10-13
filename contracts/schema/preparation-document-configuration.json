@@ -1,0 +1,289 @@
+{
+  "$defs": {
+    "Application": {
+      "additionalProperties": false,
+      "properties": {
+        "profile_revision_id": {
+          "format": "uuid",
+          "title": "Profile Revision Id",
+          "type": "string"
+        },
+        "section_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Id"
+        }
+      },
+      "required": [
+        "profile_revision_id"
+      ],
+      "title": "Application",
+      "type": "object"
+    },
+    "Binding": {
+      "additionalProperties": false,
+      "properties": {
+        "cut_profiles": {
+          "items": {
+            "$ref": "#/$defs/Application"
+          },
+          "maxItems": 256,
+          "title": "Cut Profiles",
+          "type": "array"
+        },
+        "end_profiles": {
+          "items": {
+            "$ref": "#/$defs/EndBinding"
+          },
+          "maxItems": 256,
+          "title": "End Profiles",
+          "type": "array"
+        },
+        "occurrence_path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Occurrence Path",
+          "type": "array"
+        },
+        "test_plan_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Test Plan Revision Id"
+        }
+      },
+      "title": "Binding",
+      "type": "object"
+    },
+    "EndBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "a_end_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "A End Id"
+        },
+        "b_end_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "B End Id"
+        },
+        "mapping_basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Mapping Basis",
+          "type": "string"
+        },
+        "mapping_review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Mapping Review",
+          "type": "string"
+        },
+        "profile_revision_id": {
+          "format": "uuid",
+          "title": "Profile Revision Id",
+          "type": "string"
+        },
+        "section_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Id"
+        }
+      },
+      "required": [
+        "profile_revision_id",
+        "mapping_basis"
+      ],
+      "title": "EndBinding",
+      "type": "object"
+    },
+    "RightsReview": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Basis",
+          "type": "string"
+        },
+        "decision": {
+          "default": "unknown",
+          "enum": [
+            "permitted",
+            "withheld",
+            "unknown"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "subject": {
+          "maxLength": 650,
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject"
+      ],
+      "title": "RightsReview",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bindings": {
+      "items": {
+        "$ref": "#/$defs/Binding"
+      },
+      "maxItems": 256,
+      "title": "Bindings",
+      "type": "array"
+    },
+    "bom_plan_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bom Plan Revision Id"
+    },
+    "output_rights": {
+      "default": "unknown",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Output Rights",
+      "type": "string"
+    },
+    "output_rights_basis": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Rights Basis"
+    },
+    "purpose": {
+      "default": "authorized_review",
+      "enum": [
+        "authorized_review",
+        "distribution"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "quantity": {
+      "anyOf": [
+        {
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 1,
+      "title": "Quantity"
+    },
+    "rights_reviews": {
+      "items": {
+        "$ref": "#/$defs/RightsReview"
+      },
+      "maxItems": 4000,
+      "title": "Rights Reviews",
+      "type": "array"
+    },
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    },
+    "standalone_basis": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Standalone Basis"
+    },
+    "standalone_decision": {
+      "default": "unknown",
+      "enum": [
+        "make",
+        "buy",
+        "unknown"
+      ],
+      "title": "Standalone Decision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_revision_id"
+  ],
+  "title": "Configuration",
+  "type": "object"
+}

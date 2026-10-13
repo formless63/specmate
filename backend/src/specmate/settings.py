@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "specmate.shared_scene.apps.SharedSceneConfig",
     "specmate.mechanical_sources.apps.MechanicalSourcesConfig",
     "specmate.preparation",
+    "specmate.preparation_documents.apps.PreparationDocumentsConfig",
     "specmate.end_preparation",
     "specmate.inventory",
     "specmate.physical_units",

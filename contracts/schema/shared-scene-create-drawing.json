@@ -1,0 +1,206 @@
+{
+  "$defs": {
+    "DrawingOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "explosion": {
+          "$ref": "#/$defs/Explosion"
+        },
+        "opening": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Opening"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "section": {
+          "$ref": "#/$defs/Section"
+        },
+        "view": {
+          "default": "top",
+          "enum": [
+            "top",
+            "front",
+            "end",
+            "isometric"
+          ],
+          "title": "View",
+          "type": "string"
+        }
+      },
+      "title": "DrawingOptions",
+      "type": "object"
+    },
+    "Explosion": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "default": "x",
+          "enum": [
+            "x",
+            "y",
+            "z"
+          ],
+          "title": "Axis",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "spacing_mm": {
+          "default": 20,
+          "maximum": 1000000000.0,
+          "minimum": 0,
+          "title": "Spacing Mm",
+          "type": "number"
+        }
+      },
+      "title": "Explosion",
+      "type": "object"
+    },
+    "Opening": {
+      "additionalProperties": false,
+      "properties": {
+        "angle_deg": {
+          "default": 90,
+          "maximum": 360,
+          "minimum": -360,
+          "title": "Angle Deg",
+          "type": "number"
+        },
+        "axis": {
+          "default": "z",
+          "enum": [
+            "x",
+            "y",
+            "z"
+          ],
+          "title": "Axis",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Path",
+          "type": "array"
+        },
+        "pivot_local_mm": {
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "maximum": 1000000000.0,
+              "minimum": -1000000000.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1000000000.0,
+              "minimum": -1000000000.0,
+              "type": "number"
+            },
+            {
+              "maximum": 1000000000.0,
+              "minimum": -1000000000.0,
+              "type": "number"
+            }
+          ],
+          "title": "Pivot Local Mm",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "Opening",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "default": "z",
+          "enum": [
+            "x",
+            "y",
+            "z"
+          ],
+          "title": "Axis",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "keep": {
+          "default": "positive",
+          "enum": [
+            "positive",
+            "negative"
+          ],
+          "title": "Keep",
+          "type": "string"
+        },
+        "offset_mm": {
+          "default": 0,
+          "maximum": 1000000000.0,
+          "minimum": -1000000000.0,
+          "title": "Offset Mm",
+          "type": "number"
+        }
+      },
+      "title": "Section",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "options": {
+      "$ref": "#/$defs/DrawingOptions"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "purpose": {
+      "const": "internal_inspection",
+      "default": "internal_inspection",
+      "title": "Purpose",
+      "type": "string"
+    },
+    "renderer_version": {
+      "const": "scene-line-svg-v1",
+      "default": "scene-line-svg-v1",
+      "title": "Renderer Version",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "snapshot_id"
+  ],
+  "title": "CreateDrawing",
+  "type": "object"
+}

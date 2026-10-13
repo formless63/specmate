@@ -43,6 +43,8 @@ const MechanicalSourcesPanel = lazy(() => import("./features/mechanical-sources/
 const SharedScenePanel = lazy(() => import("./features/shared-scene/SharedScenePanel").then((module) => ({ default: module.SharedScenePanel })));
 const ContextualInspectionWorkspace = lazy(() => import("./features/context-selection/ContextualInspectionWorkspace").then((module) => ({ default: module.ContextualInspectionWorkspace })));
 const KnowledgePanel = lazy(() => import("./features/knowledge/KnowledgePanel").then((module) => ({ default: module.KnowledgePanel })));
+const PreparationDocumentsPanel = lazy(() => import("./features/preparation-documents/PreparationDocumentsPanel").then((module) => ({ default: module.PreparationDocumentsPanel })));
+const SceneDrawingsPanel = lazy(() => import("./features/scene-drawings/SceneDrawingsPanel").then((module) => ({ default: module.SceneDrawingsPanel })));
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects, principalKey) =>
@@ -75,6 +77,8 @@ function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChange
       <Tabs.Tab value="mechanical-sources">Mechanical sources</Tabs.Tab>
       <Tabs.Tab value="shared-scene">Shared scene</Tabs.Tab>
       <Tabs.Tab value="context-selection">Connected views</Tabs.Tab>
+      <Tabs.Tab value="scene-drawings">Scene drawings</Tabs.Tab>
+      <Tabs.Tab value="preparation-documents">Bench documents</Tabs.Tab>
       <Tabs.Tab value="knowledge">Notes &amp; files</Tabs.Tab>
       <Tabs.Tab value="selected-packages">Selected packages</Tabs.Tab>
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
@@ -111,6 +115,8 @@ function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChange
     <ToolPanel value="context-selection">{visited.has("context-selection") && <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />}</ToolPanel>
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} permissions={permissions} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="scene-drawings">{visited.has("scene-drawings") && <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />}</ToolPanel>
+    <ToolPanel value="preparation-documents">{visited.has("preparation-documents") && <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} canGenerate={permissions.includes("design.edit")} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="interfaces">{visited.has("interfaces") && <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} /></Stack>}</ToolPanel>
     <ToolPanel value="cables">{visited.has("cables") && <CablePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="cable-test-intent">{visited.has("cable-test-intent") && <CableTestIntentPanel projectId={projectId} />}</ToolPanel>

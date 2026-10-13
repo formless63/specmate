@@ -1,5 +1,6 @@
 """Independent retained-receipt authority regressions for document generation."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from types import SimpleNamespace
@@ -104,7 +105,9 @@ def test_valid_catalog_origin_denies_whole_set_before_bad_binding_and_restores(u
     before = files(viewer, saved)
     receipt = {"document_set_id": saved["document_set_id"]}
     request = SimpleNamespace(user=viewer)
-    assert records(request, project)["document_sets"] == [saved]
+    response = records(request, project)
+    assert response["Cache-Control"] == "private, no-store"
+    assert json.loads(response.content)["document_sets"] == [saved]
     revoke(users, remote)  # Unselected retained pack entry, not a wiring child.
     with pytest.raises(NotFound, match="Project not found"):
         op(
@@ -116,10 +119,14 @@ def test_valid_catalog_origin_denies_whole_set_before_bad_binding_and_restores(u
         op(viewer, "preparation_documents.read", receipt)
     with pytest.raises(NotFound, match="Project not found"):
         files(viewer, saved)
-    assert records(request, project)["document_sets"] == []
+    response = records(request, project)
+    assert response["Cache-Control"] == "private, no-store"
+    assert json.loads(response.content)["document_sets"] == []
     restore(users, remote)
     assert op(viewer, "preparation_documents.read", receipt) == saved
-    assert records(request, project)["document_sets"] == [saved]
+    response = records(request, project)
+    assert response["Cache-Control"] == "private, no-store"
+    assert json.loads(response.content)["document_sets"] == [saved]
     assert files(viewer, saved) == before
     assert DocumentSet.objects.count() == 1
     assert DocumentOutput.objects.count() == 6

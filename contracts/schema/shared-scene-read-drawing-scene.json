@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "snapshot_id"
+  ],
+  "title": "ReadDrawingScene",
+  "type": "object"
+}

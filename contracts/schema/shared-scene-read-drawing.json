@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "drawing_id": {
+      "format": "uuid",
+      "title": "Drawing Id",
+      "type": "string"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    }
+  },
+  "required": [
+    "drawing_id"
+  ],
+  "title": "ReadDrawing",
+  "type": "object"
+}

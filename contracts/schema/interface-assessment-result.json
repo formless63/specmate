@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "EvidenceResult": {
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Media Type"
+        },
+        "rights": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "EvidenceResult",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "enum": [
+            "declaration",
+            "comparison_of_declarations"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "dimension": {
+          "enum": [
+            "mating",
+            "pin_correspondence",
+            "levels",
+            "current",
+            "protocol",
+            "shielding",
+            "grounding",
+            "fit"
+          ],
+          "title": "Dimension",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceResult"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        },
+        "facts": {
+          "additionalProperties": true,
+          "title": "Facts",
+          "type": "object"
+        },
+        "pair_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pair Id"
+        },
+        "status": {
+          "enum": [
+            "satisfied",
+            "invalid",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dimension",
+        "status",
+        "basis",
+        "explanation"
+      ],
+      "title": "Finding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "left_pinout_revision_id": {
+      "format": "uuid",
+      "title": "Left Pinout Revision Id",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "physical_qualification": {
+      "const": false,
+      "default": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "right_pinout_revision_id": {
+      "format": "uuid",
+      "title": "Right Pinout Revision Id",
+      "type": "string"
+    },
+    "scope": {
+      "const": "exact_pinout_pair_and_explicit_contact_rows",
+      "default": "exact_pinout_pair_and_explicit_contact_rows",
+      "title": "Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "left_pinout_revision_id",
+    "right_pinout_revision_id",
+    "findings",
+    "limitations"
+  ],
+  "title": "AssessmentResult",
+  "type": "object"
+}

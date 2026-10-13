@@ -1,0 +1,369 @@
+{
+  "$defs": {
+    "BondIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "declared": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "bonded",
+            "isolated"
+          ],
+          "title": "Declared",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceInput"
+        },
+        "left_contact_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^\\S+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Left Contact Id"
+        },
+        "required": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "bonded",
+            "isolated"
+          ],
+          "title": "Required",
+          "type": "string"
+        },
+        "right_contact_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^\\S+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Right Contact Id"
+        }
+      },
+      "title": "BondIntent",
+      "type": "object"
+    },
+    "ContactPair": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceInput"
+        },
+        "expected_signal": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Signal"
+        },
+        "left_contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Left Contact Id",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "operating": {
+          "$ref": "#/$defs/OperatingConditions"
+        },
+        "right_contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Right Contact Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "left_contact_id",
+        "right_contact_id",
+        "basis"
+      ],
+      "title": "ContactPair",
+      "type": "object"
+    },
+    "Declaration": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceInput"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "satisfied",
+            "invalid"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "Declaration",
+      "type": "object"
+    },
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceInput",
+      "type": "object"
+    },
+    "OperatingConditions": {
+      "additionalProperties": false,
+      "description": "A proposed operating envelope, not a value inferred from component ratings.",
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition"
+        },
+        "demand_a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Demand A"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceInput"
+        },
+        "required_protocol": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required Protocol"
+        },
+        "voltage_max_v": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voltage Max V"
+        },
+        "voltage_min_v": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voltage Min V"
+        }
+      },
+      "title": "OperatingConditions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "fit": {
+      "$ref": "#/$defs/Declaration"
+    },
+    "grounding": {
+      "$ref": "#/$defs/BondIntent"
+    },
+    "kind": {
+      "const": "interface_assessment",
+      "default": "interface_assessment",
+      "title": "Kind",
+      "type": "string"
+    },
+    "left_pinout_revision_id": {
+      "format": "uuid",
+      "title": "Left Pinout Revision Id",
+      "type": "string"
+    },
+    "mating": {
+      "$ref": "#/$defs/Declaration"
+    },
+    "pairs": {
+      "items": {
+        "$ref": "#/$defs/ContactPair"
+      },
+      "maxItems": 1000,
+      "title": "Pairs",
+      "type": "array"
+    },
+    "right_pinout_revision_id": {
+      "format": "uuid",
+      "title": "Right Pinout Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "shielding": {
+      "$ref": "#/$defs/BondIntent"
+    }
+  },
+  "required": [
+    "left_pinout_revision_id",
+    "right_pinout_revision_id"
+  ],
+  "title": "InterfaceAssessment",
+  "type": "object"
+}

@@ -40,6 +40,7 @@ from specmate.pcb_disagreement.api import router as disagreement_router
 from specmate.pcb_fabrication.api import router as fabrication_router
 from specmate.physical_units.api import router as physical_units_router
 from specmate.preparation.api import router as preparation_router
+from specmate.preparation_documents.api import router as preparation_documents_router
 from specmate.revision_upgrades.api import router as upgrades_router
 from specmate.selected_packages.api import create_router as selected_packages_router
 from specmate.shared_scene.api import router as shared_scene_router
@@ -79,6 +80,7 @@ api.add_router("/v0/firmware-impact", firmware_impact_router)
 api.add_router("/v0/shared-scenes", shared_scene_router)
 api.add_router("/v0/selected-packages", selected_packages_router())
 api.add_router("/v0/preparation", preparation_router)
+api.add_router("/v0/preparation-documents", preparation_documents_router)
 api.add_router("/v0/end-preparation", end_preparation_router)
 
 api.add_router("/v0", stock_router)
