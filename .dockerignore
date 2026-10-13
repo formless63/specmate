@@ -9,6 +9,13 @@
 !deploy/**
 !runner/
 !runner/**
+!tests/
+!tests/fixtures/
+!tests/fixtures/stock-section.json
+!tests/fixtures/wire-stock-coax.json
+!tests/fixtures/wire-stock-pair.json
+!tests/fixtures/wire-stock-ribbon.json
+!tests/fixtures/wire-stock-figure-eight.json
 !package.json
 !bun.lock
 !bunfig.toml
