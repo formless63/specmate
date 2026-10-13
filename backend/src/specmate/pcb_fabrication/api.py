@@ -4,6 +4,7 @@ from django.http import FileResponse
 from django.utils.http import content_disposition_header
 from ninja import Router
 
+from specmate.catalog_matching.queries import current_actor
 from specmate.operations import Context, NotFound
 from specmate.pcb_fabrication.operations import (
     BuildRef,
@@ -18,7 +19,7 @@ router = Router(tags=["pcb-fabrication"])
 
 
 def context(request):
-    return Context(user=request.user, via="api", request_id="read-pcb-fabrication")
+    return Context(user=current_actor(request.user), via="api", request_id="read-pcb-fabrication")
 
 
 @router.get("/intakes/{intake_id}")

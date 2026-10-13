@@ -11,16 +11,18 @@ from specmate.assemblies.contracts import StrictModel
 from specmate.builds.models import BuildAttempt
 from specmate.builds.operations import RequestBuild, request_build
 from specmate.builds.recipes import Recipe, approved_recipe
+from specmate.catalog_matching.queries import current_actor
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import LEGACY_SCOPE, project_scope
 from specmate.pcb.models import PcbInterpretation
 from specmate.pcb.operations import intake_for
 from specmate.pcb.report import Report as IntakeReport
-from specmate.pcb_disagreement.native_operations import authorize_bundle
 from specmate.pcb_fabrication.pack import MAX_OUTPUT_BYTES, OUTPUT_MEDIA, REPORT_PATH, recipe_for
 from specmate.pcb_fabrication.report import Report
 from specmate.sources import blobstore
+from specmate.sources.authority import authorize_revision
+from specmate.sources.models import SourceBundleRevision
 
 
 class IntakeRef(StrictModel):
@@ -33,6 +35,15 @@ class RequestFabrication(IntakeRef):
 
 class BuildRef(IntakeRef):
     build_id: UUID
+
+
+def authorize_bundle(user, revision_id):
+    actor = current_actor(user)
+    revision = SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
+    if revision is None:
+        raise NotFound("Source revision unavailable.")
+    authorize_revision(actor, revision)
+    return revision
 
 
 def source_for(ctx, intake_id, permission=Perm.PROJECT_READ):

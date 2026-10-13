@@ -132,7 +132,9 @@ failed or partial stages cannot become successful review evidence.
 `pcb_fabrication.read` reviews only successful registered StageOutputs, verifying
 the exact recipe, source, successful receipt, hashes, sizes, rights, media types,
 complete declared output set and DRC counts. Current authority over the entire source
-bundle and every output source is checked before diagnostics and downloads. Reads
+bundle and every output source, including derivation/archive parents, is checked
+before diagnostics, retained-request conflicts and downloads. Direct API reads refresh
+the actor's active account state. Reads
 under `/api/v0/pcb-fabrication` and shared command/API/MCP/job paths use the same
 authority. There is no client report acceptance. The PCB panel requests builds
 deliberately and displays currently authorized exact evidence; scope changes, denied

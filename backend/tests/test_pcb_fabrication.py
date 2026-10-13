@@ -15,15 +15,18 @@ from specmate.operations import (
     IdempotencyMismatch,
     NotFound,
     PermissionDenied,
+    Unauthenticated,
     Unsupported,
     ValidationFailed,
 )
+from specmate.pcb.models import PcbIntake
 from specmate.pcb_fabrication import (
     operations,  # noqa: F401 -- register for this isolated module test
 )
 from specmate.pcb_fabrication.api import download_output, read_build, read_options
 from specmate.pcb_fabrication.pack import LAYERS, OUTPUT_MEDIA, REPORT_PATH, recipe_for
 from specmate.sources import blobstore
+from specmate.sources.models import SourceBundle, SourceBundleFile, SourceBundleRevision
 
 from . import test_pcb as pcb_fixture
 from .conftest import op
@@ -81,7 +84,7 @@ def requested(users, intake, accepted, fabrication_recipe):
     )
 
 
-def register_test_outputs(requested, mutate=None, invalid=None):
+def register_test_outputs(requested, mutate=None, invalid=None, source_revision_id=None):
     stage = BuildStage.objects.get(build_id=requested["build_id"])
     payloads = {p: ("contract-only " + p).encode() for p in OUTPUT_MEDIA if p != REPORT_PATH}
     drc = {
@@ -126,7 +129,7 @@ def register_test_outputs(requested, mutate=None, invalid=None):
             size=len(content),
             media_type="text/plain" if invalid == "media" else OUTPUT_MEDIA[path],
             rights="wrong-rights" if invalid == "rights" else RIGHTS,
-            source_revision_id=stage.build.source_revision_id,
+            source_revision_id=source_revision_id or stage.build.source_revision_id,
         )
     stage.state = "succeeded"
     stage.receipt = {
@@ -271,3 +274,125 @@ def test_keyed_mismatch_rechecks_current_authority(users, intake, requested):
             {"intake_id": intake["intake_id"], "recipe_id": "changed-recipe"},
             idempotency_key="fabrication-one",
         )
+
+
+def derived_record(user, source_id, parent_id):
+    """Synthetic retained cross-project ancestry; no source bytes are fabricated."""
+    source = SourceBundleRevision.objects.select_related("bundle").get(id=source_id)
+    bundle = SourceBundle.objects.create(
+        project_id=source.bundle.project_id,
+        name="Synthetic retained derivative",
+        role="derivative",
+        derived_from_id=parent_id,
+        created_by=user,
+    )
+    revision = SourceBundleRevision.objects.create(
+        bundle=bundle,
+        number=1,
+        manifest=source.manifest,
+        manifest_sha256=source.manifest_sha256,
+        created_by=user,
+    )
+    for file in source.files.all():
+        SourceBundleFile.objects.create(
+            revision=revision,
+            path=file.path,
+            blob=file.blob,
+            rights=file.rights,
+            media_type=file.media_type,
+        )
+    return revision
+
+
+def other_source(users):
+    project_id = op(users["owner"], "project.create", {"name": "Synthetic source parent"})[
+        "project_id"
+    ]
+    content = b"preserved synthetic parent bytes"
+    digest = hashlib.sha256(content).hexdigest()
+    op(
+        users["owner"],
+        "source.register_blob",
+        {
+            "project_id": project_id,
+            "sha256": digest,
+            "size": len(content),
+            "media_type": "text/plain",
+        },
+        attachments={"content": io.BytesIO(content)},
+    )
+    source = op(
+        users["owner"],
+        "source.create_original_bundle",
+        {
+            "project_id": project_id,
+            "name": "Synthetic parent",
+            "files": [
+                {
+                    "path": "parent.txt",
+                    "sha256": digest,
+                    "media_type": "text/plain",
+                    "rights": RIGHTS,
+                }
+            ],
+        },
+    )
+    return project_id, source["revision_id"]
+
+
+def test_hidden_source_parent_blocks_request_and_options_before_missing_report(
+    users, source, fabrication_recipe
+):
+    parent_project, parent_id = other_source(users)
+    derived = derived_record(users["owner"], source["revision_id"], parent_id)
+    item = PcbIntake.objects.create(
+        source_revision=derived, board_path="board.kicad_pcb", created_by=users["owner"]
+    )
+    Membership.objects.filter(user=users["owner"], project_id=parent_project).delete()
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            "pcb_fabrication.request",
+            {"intake_id": str(item.id), "recipe_id": fabrication_recipe["id"]},
+            idempotency_key="hidden-parent",
+        )
+    with pytest.raises(NotFound):
+        read_options(read_request(users["owner"]), item.id)
+
+
+def test_hidden_output_parent_precedes_provenance_diagnostics_and_keyed_mismatch(
+    users, intake, source, requested
+):
+    parent_project, parent_id = other_source(users)
+    derived = derived_record(users["owner"], source["revision_id"], parent_id)
+    stage = register_test_outputs(requested, source_revision_id=derived.id)
+    Membership.objects.filter(user=users["owner"], project_id=parent_project).delete()
+    with pytest.raises(NotFound):
+        read_build(read_request(users["owner"]), intake["intake_id"], requested["build_id"])
+    with pytest.raises(NotFound):
+        download_output(
+            read_request(users["owner"]),
+            intake["intake_id"],
+            requested["build_id"],
+            stage.outputs.first().id,
+        )
+    for recipe_id in [stage.build.recipe_id, "changed-recipe"]:
+        with pytest.raises(NotFound):
+            op(
+                users["owner"],
+                "pcb_fabrication.request",
+                {"intake_id": intake["intake_id"], "recipe_id": recipe_id},
+                idempotency_key="fabrication-one",
+            )
+
+
+def test_direct_api_refresh_rejects_stale_inactive_actor(users, intake, requested):
+    from django.contrib.auth import get_user_model
+
+    register_test_outputs(requested)
+    get_user_model().objects.filter(pk=users["owner"].pk).update(is_active=False)
+    assert users["owner"].is_active  # Stale request object must not grant authority.
+    with pytest.raises(Unauthenticated):
+        read_options(read_request(users["owner"]), intake["intake_id"])
+    with pytest.raises(Unauthenticated):
+        read_build(read_request(users["owner"]), intake["intake_id"], requested["build_id"])
