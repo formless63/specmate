@@ -16,6 +16,9 @@ export async function readScene(projectId: string, snapshotId: string): Promise<
 
 export async function readBom(revisionId: string, purpose: Purpose): Promise<LoadedBom> {
   const inspection = await request<BomInspection>(`bom/revisions/${encodeURIComponent(revisionId)}?purpose=${purpose}`, { cache: 'no-store' });
+  if (inspection.revision_id !== revisionId || inspection.purpose !== purpose) {
+    throw new SourceError(422, 'Response does not match the requested exact BOM plan and purpose.');
+  }
   const root = await request<RootPin>(`revisions/${encodeURIComponent(inspection.bom.assembly_revision_id)}`, { cache: 'no-store' });
   return { inspection, root };
 }
@@ -25,9 +28,15 @@ export function validBomContext(scene: SharedScene, value: LoadedBom): boolean {
       value.root.revision_id !== scene.root.revision_id || value.root.snapshot_id !== scene.snapshot_id || value.root.sha256 !== scene.sha256) return false;
   return value.inspection.rows.every(row => {
     if (row.address.snapshot_id !== scene.snapshot_id) return false;
-    if (!row.address.path.length) return row.need_id !== null || row.revision_id === scene.root.revision_id;
-    const node = scene.nodes.find(n => sameOccurrence(n.address, row.address));
-    return node !== undefined && (row.need_id !== null || row.revision_id === node.revision_id);
+    const node = row.address.path.length ? scene.nodes.find(n => sameOccurrence(n.address, row.address)) : null;
+    if (row.address.path.length && !node) return false;
+    if (row.need_id !== null) {
+      const need = value.inspection.bom.needs.find(n => n.local_id === row.need_id);
+      return need !== undefined && need.revision_id === row.revision_id &&
+        JSON.stringify(need.context_path) === JSON.stringify(row.address.path) &&
+        (need.purpose === value.inspection.purpose || (value.inspection.purpose === 'procurement' && need.purpose !== 'consumables'));
+    }
+    return row.revision_id === (node?.revision_id ?? scene.root.revision_id);
   });
 }
 

@@ -47,7 +47,12 @@ function coherentScene(scope: Scope, scene: SharedScene): boolean {
     const key = occurrenceKey(node.address);
     if (node.address.snapshot_id !== scene.snapshot_id || keys.has(key)) return false;
     keys.add(key);
-    if (node.features.some(feature => !sameOccurrence(feature.address, node.address) || feature.address.feature_id !== feature.feature_id)) return false;
+    const features = new Set<string>();
+    for (const feature of node.features) {
+      const key = exactKey(feature.address);
+      if (!feature.feature_id || features.has(key) || !sameOccurrence(feature.address, node.address) || feature.address.feature_id !== feature.feature_id) return false;
+      features.add(key);
+    }
   }
   return true;
 }

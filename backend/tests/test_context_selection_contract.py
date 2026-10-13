@@ -120,3 +120,101 @@ def test_current_source_revocation_denies_every_connected_read_before_context(
     for path in [f"revisions/{frozen['revision_id']}", f"bom/revisions/{bom['revision_id']}"]:
         denied = client.get(f"/api/v0/{path}")
         assert denied.status_code == 404 and denied.json()["error"]["details"] == {}
+
+
+def test_supplemental_needs_keep_the_declared_repeated_native_owner_and_unknown_quantity(
+    users,
+    project,
+    mec_board,  # noqa: F811
+):
+    """Real operation/API pins; accepted PCB fixture is simulated, not native qualification."""
+    from .test_bom import part
+
+    owner, viewer = users["owner"], users["viewer"]
+    module = freeze(owner, create(owner, project, [occ("board", mec_board)]))
+    frozen = freeze(
+        owner, create(owner, project, [occ(side, module) for side in ("left", "right")])
+    )
+    consumable = part(owner, project, "Synthetic dimensional preparation material")
+    plan = {
+        "assembly_revision_id": frozen["revision_id"],
+        "quantity": {"status": "known", "amount": 2},
+        "policies": [policy([], frozen, "make")]
+        + [policy([side], module, "make") for side in ("left", "right")]
+        + [policy([side, "board"], mec_board, "make") for side in ("left", "right")],
+        "needs": [
+            {
+                "local_id": "left-unknown",
+                "context_path": ["left", "board"],
+                "revision_id": consumable["revision_id"],
+                "purpose": "consumables",
+                "quantity": {"status": "unknown", "amount": None, "unit": "m"},
+                "basis": "Original synthetic unknown process quantity",
+            },
+            {
+                "local_id": "right-known",
+                "context_path": ["right", "board"],
+                "revision_id": consumable["revision_id"],
+                "purpose": "consumables",
+                "quantity": {"status": "known", "amount": "0.125", "unit": "m"},
+                "basis": "Original synthetic fractional process quantity",
+            },
+        ],
+    }
+    bom = capture(owner, create_bom(owner, project, plan), "bom.freeze")
+    scene = op(viewer, "shared_scene.read", {"snapshot_id": frozen["snapshot_id"]})
+    result = inspect_revision(viewer, bom["revision_id"], "consumables")
+    assert len(result["rows"]) == 2
+    actual = {row["need_id"]: row for row in result["rows"]}
+    assert actual["left-unknown"]["quantity"] == {"status": "unknown", "amount": None, "unit": "m"}
+    assert actual["right-known"]["quantity"] == {"status": "known", "amount": "0.25", "unit": "m"}
+    for need in plan["needs"]:
+        row = actual[need["local_id"]]
+        node = next(
+            node for node in scene["nodes"] if node["address"]["path"] == need["context_path"]
+        )
+        assert row["address"] == node["address"]
+        assert row["revision_id"] == consumable["revision_id"] != node["revision_id"]
+        component = next(
+            feature for feature in node["features"] if feature["role"] == "native_component"
+        )
+        resolved = op(
+            viewer,
+            "assembly.resolve",
+            {
+                "snapshot_id": frozen["snapshot_id"],
+                "path": need["context_path"],
+                "feature_id": component["feature_id"],
+            },
+        )
+        assert resolved["address"] == component["address"]
+        assert resolved["revision_id"] == mec_board["revision_id"]
+    client = Client()
+    client.force_login(viewer)
+    assert (
+        client.get(f"/api/v0/bom/revisions/{bom['revision_id']}?purpose=consumables").json()
+        == result
+    )
+
+
+def test_accessible_shared_revision_does_not_make_a_foreign_root_a_selected_project_choice(
+    users,
+    project,
+    mec_board,  # noqa: F811
+):
+    from specmate.access.models import Membership
+
+    owner, viewer = users["owner"], users["viewer"]
+    foreign = op(owner, "project.create", {"name": "Synthetic second root project"})["project_id"]
+    Membership.objects.create(user=viewer, project_id=foreign, role="viewer")
+    frozen = freeze(owner, create(owner, foreign, [occ("board", mec_board)]))
+    scene = op(viewer, "shared_scene.read", {"snapshot_id": frozen["snapshot_id"]})
+    assert scene["nodes"][0]["revision_id"] == mec_board["revision_id"]
+    client = Client()
+    client.force_login(viewer)
+    original = client.get(f"/api/v0/projects/{project}/definitions").json()
+    other = client.get(f"/api/v0/projects/{foreign}/definitions").json()
+    assert scene["root"]["definition_id"] not in {row["definition_id"] for row in original}
+    assert scene["root"]["definition_id"] in {row["definition_id"] for row in other}
+    choices = op(viewer, "shared_scene.list", {"project_id": project})
+    assert frozen["snapshot_id"] not in {row["snapshot_id"] for row in choices["assemblies"]}

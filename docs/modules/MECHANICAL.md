@@ -123,12 +123,18 @@ root changes remount the scope and discard selections and retained data. Fresh r
 check the root definition against the selected project's authorized definitions and
 the existing scene authority closure. Explicit refresh, focus and document reveal hide
 all connected content while rechecking. A denial clears every connected view and
-selection intent; older responses cannot reopen it. Adapter reads use monotonic scope,
-read and optional selection tickets, never labels or a persistent disclosure cache.
+selection intent; older responses cannot reopen it. Project choice refresh also hides retained connected data while its current authority
+check is pending; selection intent returns only after a fresh exact root read succeeds.
+Adapter reads use monotonic scope, read and optional selection tickets, never labels or
+a persistent disclosure cache. Duplicate feature addresses within one occurrence fail
+coherence checks rather than selecting an ambiguous first match.
 
 A frozen BOM plan is optional and independently selected. Context mapping requires
 the same root assembly revision, snapshot and hash, with exact per-use addresses and
-revision pins. Grouped rows expand into separately selectable uses and retain their
+revision pins. The response must also match the explicitly requested frozen BOM plan
+and purpose. Supplemental rows are checked against the plan's exact need identity,
+owning path and orderable revision; a need identifier alone establishes no mapping.
+Grouped rows expand into separately selectable uses and retain their
 individual quantities, boundaries and unresolved reasons. Supplemental needs select
 their owning context and do not imply another physical occurrence. Filters, grouping,
 view changes and local scene arrangements preserve selection without rewriting
