@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "specmate.catalog",
     "specmate.wire_stock",
     "specmate.inventory",
+    "specmate.assemblies",
     "specmate.sources",
     "specmate.builds",
     "specmate.pcb",
