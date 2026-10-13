@@ -60,8 +60,10 @@ def authorized_inputs(ctx, p):
         )
     selected = list(FactAssertion.objects.select_related("subject").filter(id__in=p.assertion_ids))
     authorize_evidence(user, selected)
-    for revision in revisions:
-        if revision.definition.project_id != p.project_id:
+    for revision, snapshot in zip(revisions, snapshots, strict=True):
+        # A consumer owns the assembly context, while the assigned exact firmware
+        # may retain its readable library ownership. Standalone reads stay local.
+        if snapshot is None and revision.definition.project_id != p.project_id:
             raise NotFound("Firmware revision unavailable in this project.")
     if any(snapshot and snapshot.definition.project_id != p.project_id for snapshot in snapshots):
         raise NotFound("Assembly snapshot unavailable in this project.")
@@ -73,24 +75,33 @@ def authorized_inputs(ctx, p):
     target = baseline_content.get("firmware", {}).get("target", {})
     population_id = target.get("population_revision_id")
     revision_ids = [revisions[0].id, *([population_id] if population_id else [])]
-    related = Q(subject__kind="revision", subject__revision_id__in=revision_ids)
-    related |= Q(
+    # Revision evidence belongs to the exact readable library subjects. Unit and
+    # occurrence evidence belongs to the selected consumer; reuse never imports
+    # other projects' actual-unit results or unrelated project assertions.
+    revision_evidence = Q(subject__kind="revision", subject__revision_id__in=revision_ids)
+    contextual_evidence = Q(
         subject__kind="physical_unit", subject__physical_unit__revision_id__in=revision_ids
     )
     if snapshots[0]:
-        related |= Q(
+        contextual_evidence |= Q(
             subject__kind="occurrence",
             subject__snapshot=snapshots[0],
             subject__path=p.baseline.path,
         )
-        related |= Q(
+        contextual_evidence |= Q(
             subject__kind="physical_unit", subject__physical_unit__revision__snapshot=snapshots[0]
         )
     # Bound database materialization as well as closure traversal. The extra row
     # detects overflow; oversized scopes return no partial comparison or labels.
     rows = list(
         FactAssertion.objects.select_related("subject", "subject__physical_unit")
-        .filter(related | Q(id__in=p.assertion_ids), subject__project_id=p.project_id)
+        .filter(
+            revision_evidence
+            | (
+                Q(subject__project_id=p.project_id)
+                & (contextual_evidence | Q(id__in=p.assertion_ids))
+            )
+        )
         .order_by("recorded_at", "id")[: MAX_ASSERTIONS + 1]
     )
     authorize_evidence(user, rows)
@@ -274,7 +285,8 @@ def compare(ctx: Context, p: CompareImpact):
         "observation_offset": p.observation_offset,
         "observations_truncated": len(assertions) > 100,
         "observations_has_more": len(assertions) > p.observation_offset + 100,
-        "observation_scope": "exact_baseline_subjects_and_deliberately_selected_assertions",
+        "observation_scope": "exact_readable_baseline_revision_subjects_and_selected_project_"
+        "contexts_units_extras",
         "review_required": bool(changed) or any(row["status"] == "unknown" for row in rows),
         "hardware_compatibility": "not_evaluated",
         "compiler_receipts": "not_assessed",
