@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "specmate.workshop_profiles",
     "specmate.inventory",
     "specmate.physical_units",
+    "specmate.bom",
     "specmate.assemblies",
     "specmate.interfaces",
     "specmate.sources",

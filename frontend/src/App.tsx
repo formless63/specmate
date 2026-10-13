@@ -12,6 +12,7 @@ import { WorkspaceShell } from "./features/workspace";
 import { WorkshopProfilePanel } from "./features/workshop-profiles/WorkshopProfilePanel";
 import { DiscoveryPanel } from "./features/discovery/DiscoveryPanel";
 import { PhysicalUnitsPanel } from "./features/physical-units/PhysicalUnitsPanel";
+import { BomPanel } from "./features/bom/BomPanel";
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
@@ -23,7 +24,7 @@ export function App() {
 function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { projectId: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
   const [active, setActive] = useState<string | null>("identity");
   const [visited, setVisited] = useState(() => new Set(["identity"]));
-  return <Tabs value={active} onChange={(value) => {
+  return <Tabs keepMountedMode="display-none" value={active} onChange={(value) => {
     if (value) { setActive(value); setVisited((current) => new Set([...current, value])); }
   }}>
     <Tabs.List aria-label="Project tools">
@@ -36,6 +37,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
       <Tabs.Tab value="pcb">PCB intake</Tabs.Tab>
       <Tabs.Tab value="inventory">Inventory</Tabs.Tab>
+      <Tabs.Tab value="bom">BOM planning</Tabs.Tab>
       <Tabs.Tab value="physical-units">Physical units</Tabs.Tab>
       <Tabs.Tab value="access">Project access</Tabs.Tab>
     </Tabs.List>
@@ -48,6 +50,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <Tabs.Panel value="interfaces" pt="lg">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="pcb" pt="lg">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</Tabs.Panel>
     <Tabs.Panel value="inventory" pt="lg">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="bom" pt="lg">{visited.has("bom") && <BomPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="physical-units" pt="lg">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="access" pt="lg">{visited.has("access") && <ProjectAccessPanel projectId={projectId} onAccessChanged={onAccessChanged} />}</Tabs.Panel>
   </Tabs>;

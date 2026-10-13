@@ -13,6 +13,7 @@ from specmate.access.api import router as access_router
 from specmate.access.session import require_browser_request
 from specmate.access.session_api import router as session_router
 from specmate.assemblies.api import router as assemblies_router
+from specmate.bom.api import router as bom_router
 from specmate.builds.api import artifacts_router
 from specmate.builds.api import router as runner_router
 from specmate.catalog.api import router as catalog_router
@@ -33,6 +34,7 @@ api.add_router("/v0/facts", facts_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)
 api.add_router("/v0/physical-units", physical_units_router)
+api.add_router("/v0/bom", bom_router)
 api.add_router("/v0/assemblies", assemblies_router)
 api.add_router("/v0/interfaces", interfaces_router)
 api.add_router("/v0/runner", runner_router)

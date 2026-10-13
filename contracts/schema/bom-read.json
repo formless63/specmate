@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "purpose": {
+      "default": "procurement",
+      "enum": [
+        "assembly_contents",
+        "procurement",
+        "pcb_fabrication",
+        "pcb_population",
+        "consumables"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id"
+  ],
+  "title": "ReadBom",
+  "type": "object"
+}

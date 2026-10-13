@@ -1,0 +1,184 @@
+{
+  "$defs": {
+    "Count": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "const": "ea",
+          "default": "ea",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "Count",
+      "type": "object"
+    },
+    "Need": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "context_path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Context Path",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "purpose": {
+          "enum": [
+            "pcb_fabrication",
+            "pcb_population",
+            "consumables"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "quantity": {
+          "$ref": "#/$defs/Count"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "context_path",
+        "revision_id",
+        "purpose",
+        "basis"
+      ],
+      "title": "Need",
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "decision": {
+          "default": "unknown",
+          "enum": [
+            "make",
+            "buy",
+            "unknown"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Path",
+          "type": "array"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "revision_id",
+        "basis"
+      ],
+      "title": "Policy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assembly_revision_id": {
+      "format": "uuid",
+      "title": "Assembly Revision Id",
+      "type": "string"
+    },
+    "needs": {
+      "items": {
+        "$ref": "#/$defs/Need"
+      },
+      "maxItems": 2000,
+      "title": "Needs",
+      "type": "array"
+    },
+    "policies": {
+      "items": {
+        "$ref": "#/$defs/Policy"
+      },
+      "maxItems": 5000,
+      "title": "Policies",
+      "type": "array"
+    },
+    "quantity": {
+      "$ref": "#/$defs/Count"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scope_paths": {
+      "items": {
+        "items": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "type": "string"
+        },
+        "maxItems": 32,
+        "type": "array"
+      },
+      "maxItems": 5000,
+      "title": "Scope Paths",
+      "type": "array"
+    }
+  },
+  "required": [
+    "assembly_revision_id"
+  ],
+  "title": "BomPlan",
+  "type": "object"
+}
