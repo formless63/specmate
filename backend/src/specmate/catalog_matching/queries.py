@@ -118,7 +118,7 @@ def list_candidates(user, revision_id, *, after=None, limit=25):
     if not 1 <= limit <= 100:
         raise ValidationFailed("Limit must be between 1 and 100.")
     query = MatchCandidate.objects.filter(source_revision_id=revision_id).order_by("id")
-    if after:
+    if after is not None:
         cursor = query.filter(id=after).first()
         if cursor is None:
             raise NotFound("Match cursor not found.")
@@ -153,7 +153,7 @@ def list_evidence_files(user, project_id, *, after=None, limit=50):
         .filter(revision__bundle__project_id=project_id, blob__project_id=project_id)
         .order_by("id")
     )
-    if after:
+    if after is not None:
         cursor = query.filter(id=after).first()
         if cursor is None:
             raise NotFound("Evidence cursor not found.")

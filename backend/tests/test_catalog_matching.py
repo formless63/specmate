@@ -391,6 +391,8 @@ def test_evidence_file_cursor_scope_access_and_visible_pages(users, project):
         list_evidence_files(users["editor"], project, after=other_cursor)
     with pytest.raises(NotFound):
         list_evidence_files(users["editor"], project, after=9999999)
+    with pytest.raises(NotFound):
+        list_evidence_files(users["editor"], project, after=0)
     Membership.objects.filter(project_id=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         list_evidence_files(users["editor"], project, after=cursor)
