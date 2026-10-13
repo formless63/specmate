@@ -41,14 +41,21 @@ removal and any other link update.
 ## Authority and disclosure
 
 Creating, revising, linking and unlinking require `design.edit` in the item's project and
-current read access to every attachment closure and link target. Reads require project
+current read access to every attachment closure. Creating or adding links requires
+current read of the supplied targets; removing a link requires current read of that
+link's target. A hidden existing foreign link does not prevent reading or revising an
+otherwise authorized owned note. Reads require project
 read access and current source closure for every entry's attachments, including
 historical entries. Each link target is re-resolved under the reader's current access.
 Targets the reader cannot see are omitted from item reads: no name, identifier, kind or
 count is returned. `knowledge.for_target` resolves the exact target first and lists only
 items the reader can read, again without counting hidden items. A link whose target the
 actor cannot read cannot be removed by ID. Idempotent replays re-check current authority
-over the stored item and the payload's targets.
+over the stored item and the payload's targets. Before returning an immutable item
+receipt, replay also authorizes every target named in its stored active and removed
+links. A receipt with now-forbidden target metadata is unavailable; a fresh owned-item
+read still filters those links. Restoration permits exact receipt replay without
+rewriting history or appending another entry.
 
 ## Operations and reads
 
@@ -62,3 +69,21 @@ Previews are not rendered; attachments download as inert bytes. Rich-text collab
 search, notifications and review workflows are KNW-002/KNW-003 scope. The panel chooses
 targets with a picker; discipline views can embed `KnowledgePanel` with a fixed `target`
 for their current selection. Global navigation mounting is left to integration.
+
+The reusable panel accepts `principalKey` and `onAccessLost` from its workspace.
+Project, principal, permission and fixed-target changes discard retained results and
+prepared inputs. Current-authority refreshes hide cached target, item and attachment
+results while requests are pending or denied. An open editor keeps its own staged
+title, text, attachment references and declared rights inert during a transient
+source/target denial. It keeps the exact state token from when editing began; a
+newly read entry cannot silently advance that token. Choosing a new edit basis is
+deliberate. An uncertain mutation retries the same payload and idempotency key.
+Uploads stop before a later source-registration step if their workspace changes.
+
+Local definition choices use the existing authorized project-metadata listing.
+Offering a local definition name is separate from resolving its complete target
+closure: deliberate inspection can report that a target is unavailable. Denied
+knowledge target and link results retain no cached target labels. A readable item
+owned by another project can be inspected from a linked target, but content and
+link editing are offered only in that item's owning project workspace. Server
+permissions remain authoritative for each mutation and download.
