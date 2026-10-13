@@ -45,13 +45,21 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
 
   useEffect(() => {
     const controller = new AbortController();
-    associationTargets(projectId, controller.signal).then(setTargets).catch((reason) => {
-      if (!controller.signal.aborted) {
-        setTargets(null); setError(errorText(reason));
-        if (reason instanceof PcbRequestError && [401, 403, 404].includes(reason.status)) accessLost.current(reason);
-      }
-    });
-    return () => controller.abort();
+    let sequence = 0;
+    const refresh = () => {
+      const current = ++sequence;
+      associationTargets(projectId, controller.signal).then((result) => {
+        if (!controller.signal.aborted && current === sequence) setTargets(result);
+      }).catch((reason) => {
+        if (!controller.signal.aborted && current === sequence) {
+          setTargets(null); setError(errorText(reason));
+          if (reason instanceof PcbRequestError && [401, 403, 404].includes(reason.status)) accessLost.current(reason);
+        }
+      });
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => { controller.abort(); window.removeEventListener("focus", refresh); };
   }, [projectId]);
 
   async function work(action: () => Promise<void>): Promise<boolean> {
