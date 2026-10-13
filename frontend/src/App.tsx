@@ -25,6 +25,8 @@ const PcbDisagreementPanel = lazy(() => import("./features/pcb-disagreement/PcbD
 
 const PassivePassagesWorkspace = lazy(() => import("./features/passive-passages/PassivePassagesWorkspace").then((module) => ({ default: module.PassivePassagesWorkspace })));
 
+const MaterialAccountingPanel = lazy(() => import("./features/material-accounting/MaterialAccountingPanel").then((module) => ({ default: module.MaterialAccountingPanel })));
+
 const PreparationPanel = lazy(() => import("./features/preparation/PreparationPanel").then((module) => ({ default: module.PreparationPanel })));
 
 const CableTestIntentPanel = lazy(() => import("./features/cable-test-intent/CableTestIntentPanel").then((module) => ({ default: module.CableTestIntentPanel })));
@@ -55,6 +57,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="catalog-packs">Catalog packs</Tabs.Tab>
       <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
       <Tabs.Tab value="workshop-profiles">Workshop profiles</Tabs.Tab>
+      <Tabs.Tab value="material-accounting">Material accounting</Tabs.Tab>
       <Tabs.Tab value="preparation">Cut preparation</Tabs.Tab>
       <Tabs.Tab value="end-preparation">End preparation</Tabs.Tab>
       <Tabs.Tab value="assemblies">Assemblies</Tabs.Tab>
@@ -80,6 +83,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="catalog-packs">{visited.has("catalog-packs") && <CatalogPacksWorkspace projectId={projectId} />}</ToolPanel>
     <ToolPanel value="wire-stock">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="workshop-profiles">{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="material-accounting">{visited.has("material-accounting") && <MaterialAccountingPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="preparation">{visited.has("preparation") && <PreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="end-preparation">{visited.has("end-preparation") && <EndPreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</ToolPanel>

@@ -311,6 +311,10 @@ produce manufacturing documents, or establish clearance or physical qualificatio
 
 ## Reviewed preparation profiles and exact cut arithmetic
 
+The separate [preparation material accounting](../PREPARATION-MATERIALS.md) build
+sheet keeps installed material, selected cuts, waste, consumables and procurement
+distinct, with explicit observations against existing Inventory events.
+
 A `preparation_profile` is a separate versioned engineering definition. It pins one
 exact stock revision and stores structured formulas for the whole physical stock
 piece or an exact conductive feature path. Illustrative `workshop_profile` cutbacks,
