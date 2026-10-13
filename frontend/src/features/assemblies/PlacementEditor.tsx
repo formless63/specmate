@@ -2,7 +2,7 @@ import { Alert, Button, Card, Checkbox, Group, NumberInput, Stack, Text, TextInp
 import { useState } from 'react';
 import type { Occurrence } from './api';
 
-export function PlacementEditor({ occurrence, busy, onSave, onRemove }: { occurrence: Occurrence; busy: boolean; onSave: (changes: Partial<Occurrence>) => void; onRemove: () => void }) {
+export function PlacementEditor({ occurrence, busy, onSave, onRemove, authorized = true }: { occurrence: Occurrence; busy: boolean; onSave: (changes: Partial<Occurrence>) => void; onRemove: () => void; authorized?: boolean }) {
   const [displayRef, setDisplayRef] = useState(occurrence.display_ref);
   const [known, setKnown] = useState(occurrence.placement?.status === 'known');
   const [translation, setTranslation] = useState<(number | string)[]>(occurrence.placement?.translation ?? ['', '', '']);
@@ -15,6 +15,7 @@ export function PlacementEditor({ occurrence, busy, onSave, onRemove }: { occurr
     onSave({ display_ref: displayRef, placement: known ? { status: 'known', unit: 'mm', frame: 'right_handed_z_up',
       translation: translation as [number, number, number], rotation_xyzw: rotation as [number, number, number, number] } : { status: 'unknown' } });
   }
+  if (!authorized) return null;
   return <Card withBorder><Stack gap="xs">
     <Text>Local ID: {occurrence.local_id} · Exact revision: {occurrence.revision_id}</Text>
     <TextInput label={`Display reference for ${occurrence.local_id}`} value={displayRef} onChange={event => setDisplayRef(event.currentTarget.value)} />

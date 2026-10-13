@@ -13,7 +13,7 @@ export type RevisionRef = { kind: "revision"; revision_id: string };
 export type RelationshipKind = "containment" | "electrical" | "mating" | "mounting" | "source_derivation" | "documentation" | "procurement";
 export type Relationship = { kind: RelationshipKind; local_id: string } & Partial<Record<"parent" | "child" | "a" | "b" | "mounted" | "support" | "subject" | "source" | "document" | "orderable", OccurrenceRef | RevisionRef>>;
 export type Assembly = { schema_version?: "0.1"; occurrences: Occurrence[]; relationships: Relationship[]; assignments?: { path: string[]; assignments: Assignments }[] };
-export type Draft = { definition_id: string; draft_id: string; state: string; content: { assembly: Assembly } };
+export type Draft = { definition_id: string; draft_id: string; base_revision_id?: string | null; state: string; content: { assembly: Assembly } };
 export type ProjectionNode = { address: { snapshot_id: string; path: string[] }; definition_id: string; revision_id: string; kind: string; name: string; display_ref: string; placement: Placement; assignments: Assignments; snapshot_sha256: string };
 export type Projection = { snapshot_id: string; definition_id: string; sha256: string; occurrences: ProjectionNode[]; relationships: (Relationship & { context_path: string[] })[] };
 

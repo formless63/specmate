@@ -68,7 +68,7 @@ test('response-loss retry preserves reviewed exact payload, old token and key', 
   expect(state.calls[1]?.expected_state).toBe('draft-v1');
 });
 
-test('current source denial discards unsaved placements and retained mounting choices', async () => {
+test('current source denial hides unsaved placements and retained mounting choices', async () => {
   const state = fixture(); render(panel()); await open();
   fireEvent.change(screen.getByLabelText('board X (mm)'), { target: { value: '999' } });
   state.deny = true; fireEvent(window, new Event('focus'));
@@ -114,4 +114,25 @@ test('saving one occurrence preserves an independently staged sibling transform'
   expect(state.calls[1]?.expected_state).toBe('draft-v2');
   expect(state.calls[1]?.payload.assembly.occurrences[0]?.placement?.translation?.[0]).toBe(10);
   expect(state.calls[1]?.payload.assembly.occurrences[1]?.placement?.translation?.[0]).toBe(90);
+});
+
+
+test('lost save response retains its exact retry across source denial and restored original scope', async () => {
+  const state = fixture(); state.lose = true; render(panel()); await open();
+  fireEvent.change(screen.getByLabelText('board X (mm)'), { target: { value: '40' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save board' }));
+  await screen.findByText('Save response unavailable');
+  state.deny = true; fireEvent(window, new Event('focus'));
+  await screen.findByText('Current model source unavailable');
+  expect(screen.queryByLabelText('board X (mm)')).toBeNull();
+  state.deny = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh authorized assemblies' }));
+  expect((await screen.findByLabelText('board X (mm)') as HTMLInputElement).value).toBe('40');
+  fireEvent.click(screen.getByRole('button', { name: 'Save board' }));
+  await screen.findByText('Draft draft · draft-v2');
+  expect(state.calls).toHaveLength(2);
+  expect(state.calls[0]?.payload).toEqual(state.calls[1]?.payload);
+  expect(state.calls[0]?.idempotency_key).toBe(state.calls[1]?.idempotency_key);
+  expect(state.calls[1]?.expected_state).toBe('draft-v1');
+  expect(state.version).toBe('draft-v2');
 });

@@ -16,10 +16,15 @@ function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId
   const canFreeze = !permissions || permissions.includes("design.freeze");
   const [accessError, setAccessError] = useState("");
   const generation = useRef(0);
+  const [acceptedCapture, setAcceptedCapture] = useState<Draft | null>(null);
+  const [captureState, setCaptureState] = useState<{ draft_id: string; state: string } | null>(null);
+  const pendingCapture = useRef<{ fingerprint: string; key: string } | null>(null);
+  const retainedDraft = useRef<Draft | null>(null);
   const cache = useQueryClient();
   const [name, setName] = useState("");
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
   const activeDraftId = useRef(draftId); activeDraftId.current = draftId;
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [frozenRevision, setFrozenRevision] = useState<string | null>(null);
@@ -28,62 +33,126 @@ function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId
   const identity = useQuery({ queryKey: ["assembly-identity", definitionId, identityOffset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${identityOffset}`), enabled: !!definitionId });
   const revision = useQuery({ queryKey: ["assembly-revision", frozenRevision], queryFn: () => read<{ snapshot_id: string }>(`revisions/${frozenRevision}`), enabled: !!frozenRevision });
   const inspectedSnapshot = snapshotId ?? revision.data?.snapshot_id;
-  const draft = useQuery({ queryKey: ["assembly-draft", draftId], queryFn: () => read<Draft>(`assemblies/drafts/${draftId}`), enabled: !!draftId });
+  const draft = useQuery({ queryKey: ["assembly-draft", draftId], queryFn: () => read<Draft>(`assemblies/drafts/${draftId}`), enabled: !!draftId && !accessError });
   function accessLost(error: Error) {
     if (!(error instanceof SourceError) || ![401, 403, 404].includes(error.status)) return;
-    generation.current++; setAccessError(error.message); setDraftId(null); setSnapshotId(null); setFrozenRevision(null);
-    cache.removeQueries({ queryKey: ['assembly-draft'] }); cache.removeQueries({ queryKey: ['assembly-projection'] }); cache.removeQueries({ queryKey: ['assembly-placement-inputs'] }); onAccessLost?.();
+    generation.current++; setAccessError(error.message);
+    // Own manual input remains inert in mounted editors; no private DOM is rendered.
+    // Restoration must authorize every selected draft/snapshot before revealing it.
+    cache.removeQueries({ queryKey: ['assembly-projection'] }); cache.removeQueries({ queryKey: ['assembly-placement-inputs'] }); onAccessLost?.();
   }
-  useEffect(() => { const error = draft.error || revision.error || identity.error; if (error) accessLost(error); }, [draft.error, revision.error, identity.error]);
+  useEffect(() => { const error = draft.error || revision.error || identity.error || definitions.error; if (error) accessLost(error); }, [draft.error, revision.error, identity.error, definitions.error]);
+  // Fresh current content may omit a pin still displayed by the retained editor.
+  function authorizeRetainedPins() {
+    const original = canEdit ? retainedDraft.current : null;
+    const pins = new Set<string>(original?.content.assembly.occurrences.map(row => row.revision_id));
+    if (original?.base_revision_id) pins.add(original.base_revision_id);
+    for (const row of original?.content.assembly.relationships ?? []) {
+      for (const ref of Object.values(row)) if (typeof ref === 'object' && ref && ref.kind === 'revision') pins.add(ref.revision_id);
+    }
+    for (const row of original?.content.assembly.occurrences ?? []) if (row.assignments?.firmware_revision_id) pins.add(row.assignments.firmware_revision_id);
+    for (const row of original?.content.assembly.assignments ?? []) if (row.assignments.firmware_revision_id) pins.add(row.assignments.firmware_revision_id);
+    return Promise.all([...pins].map(pin => read(`revisions/${pin}`)));
+  }
   useEffect(() => {
-    const focus = () => { void definitions.refetch(); if (draftId) void draft.refetch(); if (inspectedSnapshot) void cache.refetchQueries({ queryKey: ['assembly-projection', inspectedSnapshot] }); };
+    const focus = () => {
+      const token = generation.current;
+      const original = retainedDraft.current;
+      void definitions.refetch(); if (draftId) void draft.refetch();
+      if (inspectedSnapshot) void cache.refetchQueries({ queryKey: ['assembly-projection', inspectedSnapshot] });
+      void authorizeRetainedPins().catch(error => { if (token === generation.current && original === retainedDraft.current) accessLost(error); });
+    };
     window.addEventListener('focus', focus);
     return () => { generation.current++; window.removeEventListener('focus', focus); };
-  }, [draftId, inspectedSnapshot]);
+  }, [draftId, inspectedSnapshot, canEdit]);
+  useEffect(() => {
+    if (draft.data && !draft.isFetching && !draft.isError) {
+      setLoadedDraftId(draft.data.draft_id);
+      if (captureState?.draft_id !== draft.data.draft_id || (!canEdit && captureState.state !== draft.data.state)) {
+        retainedDraft.current = draft.data; setCaptureState({ draft_id: draft.data.draft_id, state: draft.data.state });
+      }
+    }
+  }, [draft.data, draft.isFetching, draft.isError, captureState, canEdit]);
+  async function refreshAuthorized() {
+    const token = generation.current;
+    const original = retainedDraft.current;
+    try {
+      const [nextDefinitions, nextIdentity, nextDraft, nextRevision, nextProjection] = await Promise.all([
+        read<Definition[]>(`projects/${projectId}/definitions`),
+        definitionId ? read<Identity>(`catalog/definitions/${definitionId}?offset=${identityOffset}`) : Promise.resolve(null),
+        draftId ? read<Draft>(`assemblies/drafts/${draftId}`) : Promise.resolve(null),
+        frozenRevision ? read<{ snapshot_id: string }>(`revisions/${frozenRevision}`) : Promise.resolve(null),
+        inspectedSnapshot ? read<Projection>(`assemblies/snapshots/${inspectedSnapshot}`) : Promise.resolve(null),
+        authorizeRetainedPins(),
+      ]);
+      if (token !== generation.current || original !== retainedDraft.current) return;
+      cache.setQueryData(['assembly-definitions', projectId], nextDefinitions);
+      if (nextIdentity) cache.setQueryData(['assembly-identity', definitionId, identityOffset], nextIdentity);
+      if (nextDraft) cache.setQueryData(['assembly-draft', draftId], nextDraft);
+      if (nextRevision) cache.setQueryData(['assembly-revision', frozenRevision], nextRevision);
+      if (nextProjection) cache.setQueryData(['assembly-projection', inspectedSnapshot], nextProjection);
+      create.reset(); capture.reset(); setAccessError('');
+    } catch (error) { if (token === generation.current && original === retainedDraft.current) accessLost(error as Error); }
+  }
   async function guarded<T>(request: () => Promise<T>) {
     const token = generation.current;
     try { return { data: await request(), token }; }
     catch (error) { if (token === generation.current) throw error; return { data: null, token }; }
   }
+  function clearDraftSession() {
+    setAcceptedCapture(null); retainedDraft.current = null; setCaptureState(null);
+    setLoadedDraftId(null); pendingCapture.current = null;
+  }
   const create = useMutation({ mutationFn: () => guarded(() => command<Draft>("assembly.create", { project_id: projectId, name })), onSuccess: async ({ data, token }) => {
     if (token !== generation.current || !data) return;
-    setDefinitionId(data.definition_id); setDraftId(data.draft_id); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); setName("");
+    clearDraftSession(); setDefinitionId(data.definition_id); setDraftId(data.draft_id); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); setName("");
     await cache.invalidateQueries({ queryKey: ["assembly-definitions", projectId] });
   }, onError: accessLost });
-  const capture = useMutation({ mutationFn: (freeze: boolean) => guarded(() => command<{ snapshot_id: string; draft?: Draft }>(freeze ? "assembly.freeze" : "assembly.snapshot", { draft_id: draftId }, draft.data?.state)), onSuccess: async ({ data, token }) => {
+  const capture = useMutation({ mutationFn: (freeze: boolean) => {
+    const operation = freeze ? "assembly.freeze" : "assembly.snapshot";
+    const expectedState = captureState?.draft_id === draftId ? captureState.state : undefined;
+    const fingerprint = JSON.stringify([operation, draftId, expectedState]);
+    if (!pendingCapture.current || pendingCapture.current.fingerprint !== fingerprint) pendingCapture.current = { fingerprint, key: randomUUID() };
+    return guarded(() => command<{ snapshot_id: string; draft?: Draft }>(operation, { draft_id: draftId }, expectedState, pendingCapture.current!.key));
+  }, onSuccess: async ({ data, token }) => {
     if (token !== generation.current || !data) return;
-    setSnapshotId(data.snapshot_id);
+    pendingCapture.current = null; setSnapshotId(data.snapshot_id);
+    if (data.draft) { retainedDraft.current = data.draft; setAcceptedCapture(data.draft); setCaptureState({ draft_id: data.draft.draft_id, state: data.draft.state }); }
     await cache.invalidateQueries({ queryKey: ["assembly-draft", draftId] });
     await cache.invalidateQueries({ queryKey: ["assembly-identity", definitionId] });
   }, onError: accessLost });
   return <Stack>
     <Title order={2}>Reusable assemblies</Title>
     <Text>Every occurrence uses an exact revision. Local IDs preserve identity; display references such as J1 may repeat. Snapshots pin the complete assembly.</Text>
-    {canEdit && <Group align="end"><TextInput label="Assembly name" value={name} onChange={(e) => setName(e.currentTarget.value)} /><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create assembly draft</Button></Group>}
+    {canEdit && !accessError && <Group align="end"><TextInput label="Assembly name" value={name} onChange={(e) => setName(e.currentTarget.value)} /><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create assembly draft</Button></Group>}
     {accessError && <Alert color="red">{accessError}</Alert>}
-    <Button onClick={() => { setAccessError(""); void definitions.refetch(); }}>Refresh authorized assemblies</Button>
-    {create.isError && <Alert color="red">{create.error.message}</Alert>}
-    {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Select label="Assembly definition" searchable value={definitionId} data={(definitions.data ?? []).filter((d) => d.kind === "assembly").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(id) => { generation.current++; setDefinitionId(id); setDraftId(null); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); }} />
-    {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {identity.data && <Select label="Assembly draft" value={draftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={(id) => { generation.current++; setDraftId(id); setSnapshotId(null); }} />}
-    {identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={(id) => { generation.current++; setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}
-    {revision.isError && <Alert color="red">{revision.error.message}</Alert>}
-    {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && <>
-      <AssemblyEditor key={draft.data.draft_id} draft={draft.data} definitions={definitions.data ?? []} canEdit={canEdit} onDenied={error => { if (draftId === activeDraftId.current) accessLost(error); }} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["assembly-draft", draftId] }); }} />
-      <Group>{canEdit && <Button loading={capture.isPending} onClick={() => capture.mutate(false)}>Capture assembly snapshot</Button>}{canFreeze && <Button loading={capture.isPending} onClick={() => capture.mutate(true)}>Freeze assembly revision</Button>}</Group>
+    <Button onClick={() => { void refreshAuthorized(); }}>Refresh authorized assemblies</Button>
+    {!accessError && create.isError && <Alert color="red">{create.error.message}</Alert>}
+    {!accessError && definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
+    {!accessError && <Select label="Assembly definition" searchable value={definitionId} data={(definitions.data ?? []).filter((d) => d.kind === "assembly").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(id) => { generation.current++; clearDraftSession(); setDefinitionId(id); setDraftId(null); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); }} />}
+    {!accessError && identity.isError && <Alert color="red">{identity.error.message}</Alert>}
+    {!accessError && identity.data && <Select label="Assembly draft" value={draftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={(id) => { generation.current++; clearDraftSession(); setDraftId(id); setSnapshotId(null); }} />}
+    {!accessError && identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={(id) => { generation.current++; setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}
+    {!accessError && revision.isError && <Alert color="red">{revision.error.message}</Alert>}
+    {!accessError && draft.isError && <Alert color="red">{draft.error.message}</Alert>}
+    {draft.data && loadedDraftId === draftId && <>
+      <AssemblyEditor key={draft.data.draft_id} draft={draft.data} definitions={definitions.data ?? []} authorized={!accessError} acceptedCapture={acceptedCapture} canEdit={canEdit} onDenied={error => { if (draftId === activeDraftId.current) accessLost(error); }} onSaved={async data => { retainedDraft.current = data; setCaptureState({ draft_id: data.draft_id, state: data.state }); await cache.invalidateQueries({ queryKey: ["assembly-draft", draftId] }); }} />
+      {!accessError && <Group>{canEdit && <Button disabled={captureState?.draft_id !== draftId} loading={capture.isPending} onClick={() => capture.mutate(false)}>Capture assembly snapshot</Button>}{canFreeze && <Button disabled={captureState?.draft_id !== draftId} loading={capture.isPending} onClick={() => capture.mutate(true)}>Freeze assembly revision</Button>}</Group>}
       <Text size="sm">Capture and freeze use the saved assembly declaration. Save staged placement or mounting edits first.</Text>
       <Text size="sm" c="dimmed">Freezing does not establish fit, electrical compatibility or manufacturing qualification.</Text>
-      {capture.isError && <Alert color="red">{capture.error.message}</Alert>}
+      {!accessError && capture.isError && <Alert color="red">{capture.error.message}</Alert>}
     </>}
-    <TextInput label="Inspect assembly snapshot ID" value={inspectedSnapshot ?? ""} onChange={(e) => { setFrozenRevision(null); setSnapshotId(e.currentTarget.value || null); }} />
-    {inspectedSnapshot && <AssemblyInspector key={inspectedSnapshot} snapshotId={inspectedSnapshot} />}
+    {!accessError && <TextInput label="Inspect assembly snapshot ID" value={inspectedSnapshot ?? ""} onChange={(e) => { setFrozenRevision(null); setSnapshotId(e.currentTarget.value || null); }} />}
+    {!accessError && inspectedSnapshot && <AssemblyInspector key={inspectedSnapshot} snapshotId={inspectedSnapshot} />}
   </Stack>;
 }
 
-function AssemblyEditor({ draft: currentDraft, definitions, onSaved, canEdit, onDenied }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void>; canEdit: boolean; onDenied: (error: Error) => void }) {
+function AssemblyEditor({ draft: currentDraft, definitions, onSaved, canEdit, onDenied, authorized, acceptedCapture }: { draft: Draft; definitions: Definition[]; onSaved: (draft: Draft) => Promise<void>; canEdit: boolean; onDenied: (error: Error) => void; authorized: boolean; acceptedCapture: Draft | null }) {
   const [draft, setDraft] = useState(currentDraft);
+  useEffect(() => { if (acceptedCapture?.draft_id === currentDraft.draft_id) setDraft(acceptedCapture); }, [acceptedCapture, currentDraft.draft_id]);
+  const requestEpoch = useRef(0);
+  const isAuthorized = useRef(authorized); isAuthorized.current = authorized;
+  useEffect(() => { requestEpoch.current++; return () => { requestEpoch.current++; }; }, [authorized]);
   const [editorEpoch, setEditorEpoch] = useState(0);
   const pendingSave = useRef<{ fingerprint: string; key: string } | null>(null);
   const [childDefinition, setChildDefinition] = useState<string | null>(null);
@@ -100,33 +169,46 @@ function AssemblyEditor({ draft: currentDraft, definitions, onSaved, canEdit, on
   const [assignmentPath, setAssignmentPath] = useState("");
   const [firmwareRevision, setFirmwareRevision] = useState("");
   const child = useQuery({ queryKey: ["assembly-child-identity", childDefinition, childOffset], queryFn: () => read<Identity>(`catalog/definitions/${childDefinition}?offset=${childOffset}`), enabled: !!childDefinition });
-  const save = useMutation({ mutationFn: (assembly: Assembly) => {
+  const visibleChild = child.isError || child.isFetching ? null : child.data;
+  const save = useMutation({ mutationFn: async (assembly: Assembly) => {
+    const epoch = requestEpoch.current;
     const fingerprint = JSON.stringify([draft.state, assembly]);
     if (!pendingSave.current || pendingSave.current.fingerprint !== fingerprint) pendingSave.current = { fingerprint, key: randomUUID() };
-    return command<Draft>("assembly.update", { draft_id: draft.draft_id, assembly }, draft.state, pendingSave.current.key);
-  }, onSuccess: async data => { setDraft(data); pendingSave.current = null; await onSaved(); }, onError: onDenied });
+    try {
+      return { data: await command<Draft>("assembly.update", { draft_id: draft.draft_id, assembly }, draft.state, pendingSave.current.key), epoch };
+    } catch (error) {
+      if (epoch !== requestEpoch.current || !isAuthorized.current) return { data: null, epoch };
+      throw error;
+    }
+  }, onSuccess: async ({ data, epoch }) => {
+    if (!data || epoch !== requestEpoch.current || !isAuthorized.current) return;
+    setDraft(data); pendingSave.current = null; await onSaved(data);
+  }, onError: onDenied });
+  useEffect(() => { if (!authorized) save.reset(); }, [authorized]);
   const assembly = draft.content.assembly;
   const externalTarget = relationshipKind === "source_derivation" || relationshipKind === "procurement";
   function updateOccurrence(index: number, changes: Partial<Occurrence>) { save.mutate({ ...assembly, occurrences: assembly.occurrences.map((occ, i) => i === index ? { ...occ, ...changes } : occ) }); }
-  if (!canEdit) return <Stack><Text>Read-only assembly draft {currentDraft.draft_id} · {currentDraft.state}</Text><MountingDetails relationships={currentDraft.content.assembly.relationships} />{currentDraft.content.assembly.occurrences.map(occurrence => <Text key={occurrence.local_id}>{occurrence.local_id} · {occurrence.revision_id} · canonical placement {occurrence.placement?.status === 'known' ? `${occurrence.placement.translation?.join(', ')} mm; rotation quaternion ${occurrence.placement.rotation_xyzw?.join(', ')}` : 'Unknown'}</Text>)}</Stack>;
+  if (!canEdit) return authorized ? <Stack><Text>Read-only assembly draft {currentDraft.draft_id} · {currentDraft.state}</Text><MountingDetails relationships={currentDraft.content.assembly.relationships} />{currentDraft.content.assembly.occurrences.map(occurrence => <Text key={occurrence.local_id}>{occurrence.local_id} · {occurrence.revision_id} · canonical placement {occurrence.placement?.status === 'known' ? `${occurrence.placement.translation?.join(', ')} mm; rotation quaternion ${occurrence.placement.rotation_xyzw?.join(', ')}` : 'Unknown'}</Text>)}</Stack> : null;
   return <Stack>
-    {currentDraft.state !== draft.state && <Alert color="yellow">A newer assembly draft is available. Unsaved fields retain their original state token. Deliberately load the latest draft before editing it.</Alert>}
-    {currentDraft.state !== draft.state && <Button onClick={() => { setDraft(currentDraft); setEditorEpoch(epoch => epoch + 1); pendingSave.current = null; }}>Load latest assembly draft</Button>}
-    <Text size="sm">Draft {draft.draft_id} · {draft.state}</Text>
-    {save.isError && <Alert color="red">{save.error.message}</Alert>}
+    {authorized && currentDraft.state !== draft.state && <Alert color="yellow">A newer assembly draft is available. Unsaved fields retain their original state token. Deliberately load the latest draft before editing it.</Alert>}
+    {authorized && currentDraft.state !== draft.state && <Button onClick={() => { setDraft(currentDraft); setEditorEpoch(epoch => epoch + 1); pendingSave.current = null; void onSaved(currentDraft); }}>Load latest assembly draft</Button>}
+    {authorized && <Text size="sm">Draft {draft.draft_id} · {draft.state}</Text>}
+    {authorized && save.isError && <Alert color="red">{save.error.message}</Alert>}
     <Card withBorder><Stack>
-      <Title order={3}>Occurrences</Title>
-      {assembly.occurrences.map((occ, index) => <PlacementEditor key={`${occ.local_id}:${editorEpoch}`} occurrence={occ} busy={save.isPending} onSave={(changes) => updateOccurrence(index, changes)} onRemove={() => save.mutate({ ...assembly, occurrences: assembly.occurrences.filter((_, i) => i !== index) })} />)}
+      {authorized && <Title order={3}>Occurrences</Title>}
+      {assembly.occurrences.map((occ, index) => <PlacementEditor key={`${occ.local_id}:${editorEpoch}`} occurrence={occ} busy={save.isPending} authorized={authorized} onSave={(changes) => updateOccurrence(index, changes)} onRemove={() => save.mutate({ ...assembly, occurrences: assembly.occurrences.filter((_, i) => i !== index) })} />)}
+      {authorized && <>
       <TextInput label="Stable local occurrence ID" description="A lowercase ID for this use, independent of its displayed reference." value={localId} onChange={(e) => setLocalId(e.currentTarget.value)} />
       <TextInput label="Display reference" value={displayRef} onChange={(e) => setDisplayRef(e.currentTarget.value)} />
       <Select label="Child definition" searchable value={childDefinition} data={definitions.map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={(id) => { setChildDefinition(id); setRevisionId(null); setChildOffset(0); }} />
       {child.isError && <Alert color="red">{child.error.message}</Alert>}
-      <Select label="Pinned child revision" value={revisionId} data={(child.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={setRevisionId} />
-      {child.data && <Group><Button disabled={childOffset === 0} onClick={() => { setChildOffset(Math.max(0, childOffset - 50)); setRevisionId(null); }}>Previous child revisions</Button><Button disabled={child.data.revisions.length < 50} onClick={() => { setChildOffset(childOffset + 50); setRevisionId(null); }}>Next child revisions</Button></Group>}
+      <Select label="Pinned child revision" value={revisionId} data={(visibleChild?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={setRevisionId} />
+      {visibleChild && <Group><Button disabled={childOffset === 0} onClick={() => { setChildOffset(Math.max(0, childOffset - 50)); setRevisionId(null); }}>Previous child revisions</Button><Button disabled={visibleChild.revisions.length < 50} onClick={() => { setChildOffset(childOffset + 50); setRevisionId(null); }}>Next child revisions</Button></Group>}
       <Button disabled={!localId || !revisionId} loading={save.isPending} onClick={() => save.mutate({ ...assembly, occurrences: [...assembly.occurrences, { local_id: localId, revision_id: revisionId!, display_ref: displayRef, placement: { status: "unknown" } }] })}>Add occurrence</Button>
+      </>}
     </Stack></Card>
-    <MountingEditor key={editorEpoch} draft={draft} busy={save.isPending} onSave={assembly => save.mutate(assembly)} onDenied={onDenied} />
-    <Card withBorder><Stack>
+    <MountingEditor key={editorEpoch} draft={draft} busy={save.isPending} authorized={authorized} onSave={assembly => save.mutate(assembly)} onDenied={onDenied} />
+    {authorized && <><Card withBorder><Stack>
       <Title order={3}>Typed relationships</Title>
       {assembly.relationships.map((r) => <Group key={r.local_id}><Text>{r.local_id} · {r.kind}</Text><Button size="xs" variant="subtle" onClick={() => save.mutate({ ...assembly, relationships: assembly.relationships.filter((rel) => rel.local_id !== r.local_id) })}>Remove {r.local_id}</Button></Group>)}
       <Select label="Relationship type" value={relationshipKind} allowDeselect={false} data={["containment", "electrical", "mating", "mounting", "source_derivation", "documentation", "procurement"]} onChange={(value) => setRelationshipKind(value as RelationshipKind)} />
@@ -143,7 +225,7 @@ function AssemblyEditor({ draft: currentDraft, definitions, onSaved, canEdit, on
       <TextInput label="Firmware occurrence path" value={assignmentPath} onChange={(e) => setAssignmentPath(e.currentTarget.value)} />
       <TextInput label="Exact firmware revision ID" value={firmwareRevision} onChange={(e) => setFirmwareRevision(e.currentTarget.value)} />
       <Button disabled={!assignmentPath || !firmwareRevision} loading={save.isPending} onClick={() => { const path = assignmentPath.split("/"); save.mutate({ ...assembly, assignments: [...(assembly.assignments ?? []).filter((a) => addressKey(a.path) !== addressKey(path)), { path, assignments: { firmware_revision_id: firmwareRevision } }] }); }}>Assign firmware to this occurrence</Button>
-    </Stack></Card>
+    </Stack></Card></>}
   </Stack>;
 }
 

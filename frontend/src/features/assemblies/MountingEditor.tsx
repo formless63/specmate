@@ -11,21 +11,22 @@ export function MountingDetails({ relationships }: { relationships: (Relationshi
     {relationships.filter(row => row.kind === 'mounting').map(row => <Table.Tr key={`${JSON.stringify(row.context_path ?? [])}:${row.local_id}`}><Table.Td>{row.context_path?.join("/") || "Root"} / {row.local_id}</Table.Td><Table.Td>{refLabel({ ...(row.mounted as OccurrenceRef), path: [...(row.context_path ?? []), ...(row.mounted as OccurrenceRef).path] })}</Table.Td><Table.Td>{refLabel({ ...(row.support as OccurrenceRef), path: [...(row.context_path ?? []), ...(row.support as OccurrenceRef).path] })}</Table.Td><Table.Td>Feature existence/correspondence, fit and clearance: not evaluated</Table.Td></Table.Tr>)}
   </Table.Tbody></Table>;
 }
-export function MountingEditor({ draft, busy, onSave, onDenied }: { draft: Draft; busy: boolean; onSave: (assembly: Assembly) => void; onDenied: (error: Error) => void }) {
+export function MountingEditor({ draft, busy, onSave, onDenied, authorized = true }: { draft: Draft; busy: boolean; onSave: (assembly: Assembly) => void; onDenied: (error: Error) => void; authorized?: boolean }) {
   const [localId, setLocalId] = useState('');
   const [mounted, setMounted] = useState('');
   const [support, setSupport] = useState('');
   const [mountedFeature, setMountedFeature] = useState('');
   const [supportFeature, setSupportFeature] = useState('');
-  const choices = useQuery({ queryKey: ['assembly-placement-inputs', draft.draft_id, draft.state], queryFn: () => sourceCommand<PlacementInputs>('assembly.placement_inputs', { draft_id: draft.draft_id }, { idempotent: false }), retry: false });
+  const choices = useQuery({ queryKey: ['assembly-placement-inputs', draft.draft_id, draft.state], queryFn: () => sourceCommand<PlacementInputs>('assembly.placement_inputs', { draft_id: draft.draft_id }, { idempotent: false }), retry: false, enabled: authorized });
   useEffect(() => { if (choices.error) onDenied(choices.error); }, [choices.error]);
-  const inputs = !choices.isError && !choices.isFetching ? choices.data : null;
+  const inputs = authorized && !choices.isError && !choices.isFetching ? choices.data : null;
   const options = [{ value: '', label: 'Select exact occurrence' }, { value: '[]', label: 'Root containing assembly' }, ...(inputs?.occurrences ?? []).map(row => ({ value: JSON.stringify(row.path), label: `${row.path.join('/')} · ${row.display_ref || row.name} (${row.kind})` }))];
   function save() {
     if (!inputs || inputs.state !== draft.state) return;
     const ref = (path: string, feature: string): OccurrenceRef => ({ kind: 'occurrence', path: JSON.parse(path) as string[], feature_id: feature.trim() || null });
     onSave({ ...draft.content.assembly, relationships: [...draft.content.assembly.relationships, { kind: 'mounting', local_id: localId, mounted: ref(mounted, mountedFeature), support: ref(support, supportFeature) }] });
   }
+  if (!authorized) return null;
   return <Card withBorder><Stack>
     <Title order={3}>Canonical mounting declarations</Title>
     <MountingDetails relationships={draft.content.assembly.relationships} />

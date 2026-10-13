@@ -133,9 +133,15 @@ operations, immutable canonical snapshots and exact dependencies. Authoring reta
 its original draft token through an authorized refresh. A later server edit requires
 deliberate loading of the latest draft; it cannot silently replace an unsaved edit's
 compare-and-set token. An identical save retried after a lost response retains its
-exact payload, state token and idempotency key. Capture and freeze use saved content.
-Current source/model denial discards retained draft choices and unsaved private
-declarations. Frozen inspection rechecks authority and shows quaternion, contextual
+exact payload, state token and idempotency key. Capture and freeze use saved content
+with the displayed editor's original token; a successful save, successful freeze or
+explicit latest-draft adoption advances that token. Capture retries also preserve
+their exact state and idempotency key after response loss.
+Current source/model denial hides private results, labels, choices and controls.
+Own staged fields and their original token remain inert until an explicit refresh
+freshly authorizes the selected scope and the original retained revision pins.
+Changing projects or leaving the editor clears this retained input. Frozen inspection
+rechecks authority and shows quaternion, contextual
 mounting endpoints and explicit feature/fit limits. Read-only users inspect these
 declarations without mutation controls. Display arrangements remain separate from
 the saved canonical placement and mounting relationships.
