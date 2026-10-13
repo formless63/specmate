@@ -339,6 +339,80 @@
       "title": "Suggestion[Annotated[float, FieldInfo(annotation=NoneType, required=True, metadata=[Strict(strict=True), Ge(ge=0), _PydanticGeneralMetadata(allow_inf_nan=False)])]]",
       "type": "object"
     },
+    "Suggestion_Literal__positive____negative___": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "inferred",
+            "preference"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "positive",
+                "negative"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Suggestion[Literal['positive', 'negative']]",
+      "type": "object"
+    },
     "Suggestion_Literal__show____hide___": {
       "additionalProperties": false,
       "properties": {
@@ -437,6 +511,9 @@
       "maxItems": 1024,
       "title": "Hidden Element Paths",
       "type": "array"
+    },
+    "illustration_lay_direction": {
+      "$ref": "#/$defs/Suggestion_Literal__positive____negative___"
     },
     "illustration_lay_length_mm": {
       "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____"

@@ -138,11 +138,12 @@ same named operations. Existing stock section and geometry projections are uncha
 ## Branched harnesses and explicit relationships
 
 The separate `harness` kind preserves the two-end `cable` contract. A physical
-section identifies one original retained stock piece pinned to an exact stock
+section identifies one planned retained stock piece pinned to an exact stock
 revision. Segments name spans or conductive feature subsets of those sections;
 several segments referencing one section do not create additional stock pieces.
 The quantity projection expands every explicit physical section once per requested
-harness and reports segment counts separately. Planned stock cuts require a basis;
+harness and reports segment counts separately. Counts represent planned material;
+actual units and stock issuance are recorded separately. Planned stock cuts require a basis;
 missing cuts or an unknown requested quantity propagate unknown totals. Route,
 finished and conductor-cut lengths are not inferred, including from a longest leg.
 

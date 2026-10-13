@@ -1,0 +1,525 @@
+{
+  "$defs": {
+    "Breakout": {
+      "additionalProperties": false,
+      "properties": {
+        "fates": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "joint": "#/$defs/JointFate",
+                "through": "#/$defs/Through",
+                "unconnected": "#/$defs/Unconnected"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Through"
+              },
+              {
+                "$ref": "#/$defs/JointFate"
+              },
+              {
+                "$ref": "#/$defs/Unconnected"
+              }
+            ]
+          },
+          "maxItems": 2048,
+          "title": "Fates",
+          "type": "array"
+        },
+        "legs": {
+          "items": {
+            "$ref": "#/$defs/SegmentEnd"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Legs",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "trunk": {
+          "$ref": "#/$defs/SegmentEnd"
+        }
+      },
+      "required": [
+        "local_id",
+        "trunk",
+        "legs"
+      ],
+      "title": "Breakout",
+      "type": "object"
+    },
+    "Endpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "body_revision_id": {
+          "format": "uuid",
+          "title": "Body Revision Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "pinout_revision_id": {
+          "format": "uuid",
+          "title": "Pinout Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "body_revision_id",
+        "pinout_revision_id"
+      ],
+      "title": "Endpoint",
+      "type": "object"
+    },
+    "EndpointTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "endpoint",
+          "default": "endpoint",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "contact_id"
+      ],
+      "title": "EndpointTerminal",
+      "type": "object"
+    },
+    "Joint": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "termination",
+            "splice",
+            "shield_bond"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "endpoint": "#/$defs/EndpointTerminal",
+                "segment": "#/$defs/SegmentTerminal"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/SegmentTerminal"
+              },
+              {
+                "$ref": "#/$defs/EndpointTerminal"
+              }
+            ]
+          },
+          "maxItems": 64,
+          "minItems": 2,
+          "title": "Members",
+          "type": "array"
+        }
+      },
+      "required": [
+        "local_id",
+        "kind",
+        "members",
+        "basis"
+      ],
+      "title": "Joint",
+      "type": "object"
+    },
+    "JointFate": {
+      "additionalProperties": false,
+      "properties": {
+        "joint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Joint Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "joint",
+          "default": "joint",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "terminal": {
+          "$ref": "#/$defs/SegmentTerminal"
+        }
+      },
+      "required": [
+        "local_id",
+        "terminal",
+        "joint_id"
+      ],
+      "title": "JointFate",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "description": "One planned stock piece, even when several segments describe it.",
+      "properties": {
+        "cut_basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Basis"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "planned_cut_length_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planned Cut Length Mm"
+        },
+        "stock_revision_id": {
+          "format": "uuid",
+          "title": "Stock Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "stock_revision_id"
+      ],
+      "title": "Section",
+      "type": "object"
+    },
+    "Segment": {
+      "additionalProperties": false,
+      "properties": {
+        "element_paths": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+                "type": "string"
+              },
+              "maxItems": 1024,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Paths"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "section_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Section Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "section_id"
+      ],
+      "title": "Segment",
+      "type": "object"
+    },
+    "SegmentEnd": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "segment_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Segment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "end"
+      ],
+      "title": "SegmentEnd",
+      "type": "object"
+    },
+    "SegmentTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "kind": {
+          "const": "segment",
+          "default": "segment",
+          "title": "Kind",
+          "type": "string"
+        },
+        "segment_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Segment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "end",
+        "element_path"
+      ],
+      "title": "SegmentTerminal",
+      "type": "object"
+    },
+    "Through": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "const": "through",
+          "default": "through",
+          "title": "Kind",
+          "type": "string"
+        },
+        "leg": {
+          "$ref": "#/$defs/SegmentTerminal"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "trunk": {
+          "$ref": "#/$defs/SegmentTerminal"
+        }
+      },
+      "required": [
+        "local_id",
+        "trunk",
+        "leg",
+        "basis"
+      ],
+      "title": "Through",
+      "type": "object"
+    },
+    "Unconnected": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "const": "unconnected",
+          "default": "unconnected",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "terminal": {
+          "$ref": "#/$defs/SegmentTerminal"
+        }
+      },
+      "required": [
+        "local_id",
+        "terminal",
+        "basis"
+      ],
+      "title": "Unconnected",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "breakouts": {
+      "items": {
+        "$ref": "#/$defs/Breakout"
+      },
+      "maxItems": 256,
+      "title": "Breakouts",
+      "type": "array"
+    },
+    "endpoints": {
+      "items": {
+        "$ref": "#/$defs/Endpoint"
+      },
+      "maxItems": 256,
+      "title": "Endpoints",
+      "type": "array"
+    },
+    "joints": {
+      "items": {
+        "$ref": "#/$defs/Joint"
+      },
+      "maxItems": 2000,
+      "title": "Joints",
+      "type": "array"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/Section"
+      },
+      "maxItems": 256,
+      "title": "Sections",
+      "type": "array"
+    },
+    "segments": {
+      "items": {
+        "$ref": "#/$defs/Segment"
+      },
+      "maxItems": 256,
+      "title": "Segments",
+      "type": "array"
+    }
+  },
+  "title": "Harness",
+  "type": "object"
+}

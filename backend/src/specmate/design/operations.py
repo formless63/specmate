@@ -144,6 +144,10 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         from specmate.pcb.population import dependency_revisions as population_dependencies
 
         derived = population_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "harness":
+        from specmate.harnesses.queries import dependency_revisions as harness_dependencies
+
+        derived = harness_dependencies(ctx.user, draft.definition, draft.content)
     if derived is not None:
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
@@ -227,6 +231,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if "harness" in content:
+        from specmate.harnesses.queries import validate_content as validate_harness
+
+        content = validate_harness(kind, content)
     if kind == "pcb_population" or "pcb_population" in content:
         from specmate.pcb.population import validate_content as validate_population
 
@@ -262,6 +270,10 @@ def validate_content(kind, content):
 
 
 def authorize_design_content(user, definition, content):
+    if "harness" in content:
+        from specmate.harnesses.queries import dependency_revisions as harness_dependencies
+
+        harness_dependencies(user, definition, content)
     if definition.kind == "pcb_population" or "pcb_population" in content:
         from specmate.pcb.population import authorize_content as authorize_population
 

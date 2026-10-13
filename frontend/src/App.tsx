@@ -15,6 +15,7 @@ import { PhysicalUnitsPanel } from "./features/physical-units/PhysicalUnitsPanel
 import { BomPanel } from "./features/bom/BomPanel";
 import { CablePanel } from "./features/cables/CablePanel";
 import { MatchingWorkspace } from "./features/catalog-matching/MatchingWorkspace";
+import { HarnessPanel } from "./features/harnesses/HarnessPanel";
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
@@ -39,6 +40,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
       <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
       <Tabs.Tab value="cables">Cables</Tabs.Tab>
+      <Tabs.Tab value="harnesses">Harness branches</Tabs.Tab>
       <Tabs.Tab value="pcb">PCB intake</Tabs.Tab>
       <Tabs.Tab value="inventory">Inventory</Tabs.Tab>
       <Tabs.Tab value="bom">BOM planning</Tabs.Tab>
@@ -54,6 +56,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <Tabs.Panel value="facts" pt="lg">{visited.has("facts") && <FactsPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="interfaces" pt="lg">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="cables" pt="lg">{visited.has("cables") && <CablePanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="harnesses" pt="lg">{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="pcb" pt="lg">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</Tabs.Panel>
     <Tabs.Panel value="inventory" pt="lg">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="bom" pt="lg">{visited.has("bom") && <BomPanel projectId={projectId} />}</Tabs.Panel>

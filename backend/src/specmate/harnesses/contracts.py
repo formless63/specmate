@@ -12,7 +12,7 @@ from specmate.inventory.contracts import Amount
 
 
 class Section(StrictModel):
-    """One original retained stock piece, even when several segments describe it."""
+    """One planned stock piece, even when several segments describe it."""
 
     local_id: LocalId
     stock_revision_id: UUID

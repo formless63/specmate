@@ -21,6 +21,7 @@ from specmate.catalog.api import router as catalog_router
 from specmate.catalog_matching.api import router as matching_router
 from specmate.contracts import OperationEnvelope
 from specmate.facts.api import router as facts_router
+from specmate.harnesses.api import router as harnesses_router
 from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
@@ -41,6 +42,7 @@ api.add_router("/v0/bom", bom_router)
 api.add_router("/v0/assemblies", assemblies_router)
 api.add_router("/v0/interfaces", interfaces_router)
 api.add_router("/v0/cables", cables_router)
+api.add_router("/v0/harnesses", harnesses_router)
 api.add_router("/v0/runner", runner_router)
 api.add_router("/v0/builds", artifacts_router)
 api.add_router("/v0/pcb", pcb_router)
