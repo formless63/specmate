@@ -10,7 +10,7 @@ import { emptyFormula, type Profile, type Result } from './api';
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function wrap(children: React.ReactNode) { return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider></MantineProvider>; }
-async function select(label: string, option: string) { const field = screen.getByRole('combobox', { name: label }); fireEvent.focus(field); fireEvent.keyDown(field, { key: 'ArrowDown' }); fireEvent.click(await within(screen.getByRole('listbox', { name: label, hidden: true })).findByText(option)); }
+async function select(label: string, option: string) { const field = await screen.findByRole('combobox', { name: label }); fireEvent.focus(field); fireEvent.keyDown(field, { key: 'ArrowDown' }); fireEvent.click(await within(screen.getByRole('listbox', { name: label, hidden: true })).findByText(option)); }
 const formula = { ...emptyFormula(1), review: 'reviewed' as const, review_basis: 'Synthetic arithmetic review', allowances: ['20', '10', '5'].map((amount_mm, i) => ({ local_id: `a${i}`, kind: 'preparation' as const, scope: 'whole_piece' as const, amount_mm, basis: `Synthetic allowance ${i}`, source: null })) };
 const profile: Profile = { stock_revision_id: 'stock-rev', formulas: [formula] };
 const computed: Result = { revision_id: 'cable-rev', sha256: 'subject-hash', quantity: 2, physical_piece_count: 2, unprofiled_sections: [], rows: [{ section_id: null, segment_ids: [], target: 'stock_piece', element_path: null, element_kind: null, profile_revision_id: 'profile-rev', profile_sha256: 'profile-hash', stock_revision_id: 'stock-rev', stock_sha256: 'stock-hash', formula, input_mm: '1000', input_provenance: { declaration: { amount_mm: '1000', basis: 'human_declaration', explanation: 'Synthetic declared route' } }, cut_mm: '1035', total_mm: '2070', declared_cut_mm: '1070', declaration_matches_result: false, status: 'suggestion' }] };
@@ -47,7 +47,7 @@ test.each(['preparation.create', 'preparation.update', 'preparation.freeze'])('%
   }));
   render(wrap(<PreparationPanel projectId="project" />));
   fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } }); fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } }); fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance')); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20.000001' } });
-  if (operation !== 'preparation.create') { fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1'); }
+  if (operation !== 'preparation.create') { fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' }); }
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 basis'), { target: { value: 'Unsaved synthetic basis' } }); denied = true; fireEvent.click(screen.getByText(operation === 'preparation.freeze' ? 'Freeze preparation profile' : 'Save preparation profile'));
   await screen.findByText('Mutation source denied.'); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); expect(screen.queryByText('Apply exact profiles to frozen cable or harness')).toBeNull();
   await act(async () => { window.dispatchEvent(new Event('focus')); }); await screen.findByText('Still denied.'); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); denied = false; restored = true;
@@ -69,7 +69,80 @@ test('saved formulas freeze exact history while later unsaved edits stay indepen
     return response([{ definition_id: 'profile', name: 'Synthetic profile', kind: 'preparation_profile' }]);
   }));
   render(wrap(<PreparationPanel projectId="project" />));
-  fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } }); fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } }); fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance')); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20' } }); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 basis'), { target: { value: 'Saved synthetic basis' } }); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1');
+  fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } }); fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } }); fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance')); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20' } }); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 basis'), { target: { value: 'Saved synthetic basis' } }); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '999' } }); fireEvent.click(screen.getByText('Freeze preparation profile')); await screen.findByText(/frozen-formula-hash/);
-  expect(screen.getByText('allowance-1: preparation 20 mm · whole_piece · Saved synthetic basis')).toBeTruthy(); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('999'); expect(commands.at(-1)).toMatchObject({ operation: 'preparation.freeze', expected_state: 'v1' }); await screen.findByText('draft · v2');
+  expect(screen.getByText('allowance-1: preparation 20 mm · whole_piece · Saved synthetic basis')).toBeTruthy(); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('999'); expect(commands.at(-1)).toMatchObject({ operation: 'preparation.freeze', expected_state: 'v1' }); await screen.findByText('draft · v2', { selector: 'p' });
+});
+
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+function startProfile() {
+  fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } });
+  fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } });
+  fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance'));
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20' } });
+}
+function baseRead(url: string) {
+  if (url.includes('/snapshot')) return { content: { stock: { structure: { id: 'stock', kind: 'group', children: [] } } } };
+  if (url.includes('catalog/definitions')) return { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [{ revision_id: 'profile-rev', number: 1 }] };
+  return [{ definition_id: 'profile', name: 'Synthetic profile', kind: 'preparation_profile' }];
+}
+test('late save retains post-submit edits while advancing only the accepted CAS baseline', async () => {
+  const pending = deferred<Response>(); const commands: { expected_state?: string; payload: { profile: Profile } }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (!url.endsWith('/operations')) return response(baseRead(url));
+    const cmd = JSON.parse(String(options?.body)); commands.push(cmd);
+    if (commands.length === 1) return pending.promise;
+    return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v2', content: { preparation_profile: cmd.payload.profile } } });
+  }));
+  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile'));
+  await waitFor(() => expect(commands).toHaveLength(1));
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } });
+  await act(async () => { pending.resolve(response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: commands[0]!.payload.profile } } })); });
+  await screen.findByText('draft · v1', { selector: 'p' }); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('25');
+  fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v2', { selector: 'p' });
+  expect(commands[1]).toMatchObject({ expected_state: 'v1', payload: { profile: { formulas: [{ allowances: [{ amount_mm: '25' }] }] } } });
+});
+test.each(['save', 'load', 'freeze'])('late %s cannot reopen an editor replaced by New', async action => {
+  const pending = deferred<Response>(); let waiting = false; let saved = profile;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); saved = cmd.payload.profile ?? saved; if ((action === 'save' && cmd.operation === 'preparation.create') || cmd.operation === 'preparation.freeze') { waiting = true; return pending.promise; } return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: saved } } }); }
+    if (url.includes('preparation/drafts/')) { waiting = true; return pending.promise; }
+    return response(baseRead(url));
+  }));
+  render(wrap(<PreparationPanel projectId="project" />)); startProfile();
+  if (action === 'load') { await select('Existing preparation definition', 'Synthetic profile'); await select('Preparation draft to load', 'draft · v1'); fireEvent.click(screen.getByText('Load preparation draft')); }
+  else { fireEvent.click(screen.getByText('Save preparation profile')); if (action === 'freeze') { await screen.findByText('draft · v1', { selector: 'p' }); fireEvent.click(screen.getByText('Freeze preparation profile')); } }
+  await waitFor(() => expect(waiting).toBe(true)); fireEvent.click(screen.getByRole('button', { name: 'New preparation profile' })); fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Replacement profile' } });
+  const draft = { definition_id: 'profile', draft_id: 'draft', state: 'late-token', content: { preparation_profile: saved } };
+  await act(async () => { pending.resolve(response(action === 'load' ? draft : { result: action === 'freeze' ? { revision_id: 'profile-rev', draft } : draft })); });
+  expect(screen.queryByText('draft · late-token')).toBeNull(); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); expect((screen.getByLabelText('Preparation profile name') as HTMLInputElement).value).toBe('Replacement profile'); expect(screen.queryByText('Frozen preparation profile')).toBeNull();
+});
+test('computed denial gates sibling frozen/editor provenance and checks exact denied inputs before restoring', async () => {
+  let denied = false; let saved = profile; const authorityReads: string[] = []; const commands: { expected_state?: string }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); commands.push(cmd); saved = cmd.payload.profile ?? saved; const draft = { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: saved } }; return response({ result: cmd.operation === 'preparation.freeze' ? { revision_id: 'profile-rev', draft } : draft }); }
+    if (url.endsWith('/compute')) return denied ? response({ error: { message: 'Computed source denied.' } }, 403) : response(computed);
+    if (url.includes('preparation/revisions')) { authorityReads.push(url); return denied ? response({ error: { message: 'Profile source still denied.' } }, 404) : response({ revision_id: 'profile-rev', sha256: 'sibling-private-hash', stock_sha256: 'stock-hash', profile: saved, conductive_features: [] }); }
+    if (url.includes('preparation/drafts')) return response({ definition_id: 'profile', draft_id: 'draft', state: 'newer-server-token', content: { preparation_profile: profile } });
+    if (url.endsWith('/authority')) return response({ authorized: true });
+    if (url.includes('cable-rev/snapshot')) authorityReads.push(url);
+    return response(baseRead(url));
+  }));
+  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' }); fireEvent.click(screen.getByText('Freeze preparation profile')); await screen.findByText(/sibling-private-hash/);
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } });
+  fireEvent.change(screen.getByLabelText('Preparation subject exact revision ID'), { target: { value: 'cable-rev' } }); fireEvent.change(screen.getByLabelText('Application 1 profile exact revision ID'), { target: { value: 'profile-rev' } }); fireEvent.click(screen.getByText('Compute preparation cuts')); await screen.findByText(/1035 mm/);
+  denied = true; fireEvent.click(screen.getByText('Refresh computed cut access')); await screen.findByText(/Preparation source access must be rechecked/);
+  expect(screen.queryByText(/sibling-private-hash/)).toBeNull(); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull();
+  fireEvent.click(screen.getByText('Refresh preparation access')); await screen.findByText('Profile source still denied.'); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull();
+  denied = false; fireEvent.click(screen.getByText('Refresh preparation access')); await screen.findByLabelText('Formula 1 allowance 1 mm'); expect(authorityReads).toContain('/api/v0/revisions/cable-rev/snapshot'); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('25');
+  fireEvent.click(screen.getByText('Save preparation profile')); await waitFor(() => expect(commands).toHaveLength(3)); expect(commands[2]!.expected_state).toBe('v1');
+});
+test('late computation denial does not gate an unrelated replacement editor', async () => {
+  const pending = deferred<Response>(); const onDenied = vi.fn();
+  vi.stubGlobal('fetch', vi.fn(() => pending.promise));
+  const view = render(wrap(<CutCalculation definitions={[]} onDenied={onDenied} authorityScope={1} />));
+  fireEvent.change(screen.getByLabelText('Preparation subject exact revision ID'), { target: { value: 'old-cable' } }); fireEvent.change(screen.getByLabelText('Application 1 profile exact revision ID'), { target: { value: 'old-profile' } }); fireEvent.click(screen.getByText('Compute preparation cuts'));
+  view.rerender(wrap(<CutCalculation definitions={[]} onDenied={onDenied} authorityScope={2} />));
+  await act(async () => { pending.resolve(response({ error: { message: 'Old source denied.' } }, 403)); });
+  await screen.findByText('Old source denied.'); expect(onDenied).not.toHaveBeenCalled();
 });

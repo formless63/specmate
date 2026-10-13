@@ -355,7 +355,11 @@ The Cut preparation panel supports structured profile authoring, explicit draft 
 save/freeze, immutable history inspection and reviewed application queries. Failed
 access refreshes hide retained provenance and results. Mutation authority denial
 hides the editor until a successful authority refresh; unsaved values and their
-original concurrency token survive recovery. Freezing captures the saved draft,
+original concurrency token survive recovery. A cut-query authority denial also hides
+retained editor and frozen evidence until the exact supplied subject and profile
+revisions pass current authorization. Late save responses advance the accepted
+editing token while preserving edits made after submission; replacing or loading
+an editor fences pending responses from the prior selection. Freezing captures the saved draft,
 so unsaved edits remain distinct from the displayed frozen profile. Geometric route
 solving, helical-length derivation, prepend semantics, manufacturing document
 production, clearance and physical qualification remain unsupported or unevaluated.
