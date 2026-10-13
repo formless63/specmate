@@ -79,6 +79,8 @@ def test_capacitor_blocks_ideal_steady_state_dc_but_signal_requires_frequency_an
     )
     assert impedance["precision"] == "derived_approximation"
     assert signal["signal_transfer"] == "not_evaluated"
+    assert signal["paths"][0]["shortness"] == "not_evaluated"
+    assert interpret(graph(), circuit, query("shortness"))["paths"][0]["shortness"] == "blocked"
     missing = model([passage("c1", "capacitor")])
     assert interpret(graph(), missing, query("signal", frequency_hz="1000"))["status"] == "unknown"
 

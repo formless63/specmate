@@ -164,7 +164,7 @@ def evaluate_path(terminals, links, records, query):
         if query.query == "signal" and not reasons
         else None,
         "shortness": "not_evaluated"
-        if reasons
+        if reasons or query.query == "signal"
         else "blocked"
         if blocked
         else "ideal_zero_resistance_path"
