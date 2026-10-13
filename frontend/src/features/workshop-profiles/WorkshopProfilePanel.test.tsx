@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import coax from '../../../../tests/fixtures/wire-stock-coax.json';
 import { WorkshopProfilePanel } from './WorkshopProfilePanel';
+import type { WorkshopProfile } from './api';
 
 const revision = '11111111-1111-4111-8111-111111111111';
 const stock = { definition_id: 'stock-definition', draft_id: 'stock-draft', name: 'Synthetic coax', base_revision_id: revision };
@@ -68,4 +69,91 @@ test('without a frozen stock revision, no profile can be saved', async () => {
   await screen.findByRole('combobox', { name: 'Start from frozen stock' });
   expect(screen.getByText('Select a frozen stock revision to prepare a profile.')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Save profile' })).toBeNull();
+});
+
+test('fresh selection shows frozen suggestion provenance instead of new-edit defaults', async () => {
+  const unknown = { value: null, basis: 'unknown', source: null, note: null } as const;
+  const frozenProfile: WorkshopProfile = {
+    schema_version: '1', stock_revision_id: revision,
+    foil_visibility: { value: 'hide', basis: 'documented', note: null,
+      source: { kind: 'citation', citation: 'Synthetic preparation illustration citation' } },
+    illustration_lay_length_mm: unknown,
+    omit_occluded: { value: false, basis: 'documented', note: null,
+      source: { kind: 'source_file', bundle_revision_id: revision, path: ' instructions/occlusion.txt ',
+        locator: 'line 2', sha256: 'b'.repeat(64), rights: ' synthetic-test ' } },
+    hidden_element_paths: ['stock.screen'],
+    element_rules: { 'stock.jacket': {
+      a: { cutback_mm: { value: 40, basis: 'documented', note: null,
+        source: { kind: 'citation', citation: 'Synthetic preparation illustration citation' } },
+        prepend_cut_mm: { value: 3, basis: 'inferred', note: 'Illustrative extension.', source: null },
+        lead: { length_mm: { value: 8, basis: 'preference', note: 'Show separate strands.', source: null },
+          diameter_mm: unknown, reach_mm: unknown, angle_deg: unknown } },
+      b: { cutback_mm: unknown, prepend_cut_mm: unknown, lead: null },
+    } },
+  };
+  const draftProfile = structuredClone(frozenProfile);
+  draftProfile.element_rules['stock.jacket']!.a.cutback_mm = {
+    value: 12, basis: 'preference', note: 'New draft only.', source: null,
+  };
+  const record = { definition_id: 'profile-definition', draft_id: 'profile-draft', name: 'Synthetic preparation',
+    state: 'draft-v3', base_revision_id: 'profile-revision', content: { profile: draftProfile } };
+  const exact = { revision_id: 'profile-revision', definition_id: 'profile-definition', name: record.name,
+    number: 1, sha256: 'a'.repeat(64), content: { profile: frozenProfile } };
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
+    if (options?.method === 'POST') throw new Error('Viewing must not save.');
+    if (url.endsWith('/stocks')) return new Response(JSON.stringify([stock]));
+    if (url.endsWith('/workshop-profiles')) return new Response(JSON.stringify([record]));
+    if (url.endsWith(`/revisions/${revision}/snapshot`)) return new Response(JSON.stringify({ content: { stock: coax.stock } }));
+    if (url.endsWith('/workshop-profile-definitions/profile-definition/revisions')) return new Response(JSON.stringify([exact]));
+    if (url.endsWith('/workshop-profile-revisions/profile-revision')) return new Response(JSON.stringify(exact));
+    throw new Error(`Unexpected URL ${url}`);
+  }));
+  show();
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Saved profile' }));
+  fireEvent.click(await screen.findByText('Synthetic preparation'));
+  await screen.findByText(/New draft only/);
+  expect(screen.getByLabelText('Basis note or citation')).toHaveProperty('value', '');
+  expect(screen.getByRole('combobox', { name: 'Basis for new edits' })).toHaveProperty('value', 'Workshop preference');
+  fireEvent.click(screen.getByRole('combobox', { name: 'Frozen profile revision' }));
+  fireEvent.click(await screen.findByText(/Revision 1/));
+  await screen.findByText(/Viewing immutable revision 1/);
+  const provenance = screen.getByRole('region', { name: 'Recorded workshop practices' });
+  expect(provenance.textContent).toContain('Cutback: 40 mm · Basis: documented');
+  expect(provenance.textContent).toContain('Unverified citation: Synthetic preparation illustration citation');
+  expect(provenance.textContent).toContain('Illustration lay length: Unknown · Basis: unknown');
+  expect(provenance.textContent).toContain('Omit occluded material: No · Basis: documented');
+  expect(provenance.textContent).toContain(`bundle revision ${revision} · path “ instructions/occlusion.txt ”`);
+  expect(provenance.textContent).toContain(`SHA-256 ${'b'.repeat(64)} · rights  synthetic-test `);
+  expect(provenance.textContent).toContain('Locator: line 2');
+  expect(provenance.textContent).toContain('Prepend cut: 3 mm · Basis: inferred');
+  expect(provenance.textContent).toContain('Illustrated lead extent: 8 mm · Basis: preference');
+  expect(provenance.textContent).toContain('Illustrated lead diameter: Unknown · Basis: unknown');
+  expect(provenance.textContent).toContain('Lead depiction: Unknown (no rule recorded)');
+  expect(screen.queryByRole('combobox', { name: 'Basis for new edits' })).toBeNull();
+  expect(calls).toHaveLength(0);
+  expect(record.content.profile.element_rules['stock.jacket']!.a.cutback_mm.value).toBe(12);
+});
+
+test('keeps registered source path and rights exact when authoring a documented suggestion', async () => {
+  show();
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Start from frozen stock' }));
+  fireEvent.click(await screen.findByText(`Synthetic coax · ${revision}`));
+  await screen.findByRole('combobox', { name: 'Foil visibility' });
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Synthetic documented practice' } });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Basis for new edits' }));
+  fireEvent.click(await screen.findByText('Documented'));
+  fireEvent.change(screen.getByLabelText('Source bundle revision ID (optional)'), { target: { value: revision } });
+  fireEvent.change(screen.getByLabelText('Source file path'), { target: { value: ' instructions/strip.txt ' } });
+  fireEvent.change(screen.getByLabelText('Registered source SHA-256'), { target: { value: 'a'.repeat(64) } });
+  fireEvent.change(screen.getByLabelText('Registered source rights'), { target: { value: ' synthetic-test ' } });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Foil visibility' }));
+  fireEvent.click(await screen.findByText('hide'));
+  fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+  await screen.findByText('Saved Synthetic documented practice (draft-v1).');
+  const source = (calls[0]!.payload.profile as WorkshopProfile).foil_visibility.source;
+  expect(source).toEqual({ kind: 'source_file', bundle_revision_id: revision,
+    path: ' instructions/strip.txt ', locator: '', sha256: 'a'.repeat(64), rights: ' synthetic-test ' });
+  const provenance = screen.getByRole('region', { name: 'Recorded workshop practices' });
+  expect(provenance.textContent).toContain('path “ instructions/strip.txt ”');
+  expect(provenance.textContent).toContain('rights  synthetic-test ');
 });

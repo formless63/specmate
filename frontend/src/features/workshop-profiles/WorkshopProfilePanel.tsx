@@ -7,6 +7,7 @@ import {
 } from './api';
 import type { Basis, ElementPractice, EndPractice, LeadDisplay, ProfileRecord,
   ProfileRevision, Source, StockChoice, Suggestion, WorkshopProfile } from './api';
+import { WorkshopProfileProvenance } from './PracticeProvenance';
 
 const unknown = <T,>(): Suggestion<T> => ({ value: null, basis: 'unknown', source: null, note: null });
 const blankEnd = (): EndPractice => ({ cutback_mm: unknown(), prepend_cut_mm: unknown(), lead: null });
@@ -56,9 +57,9 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
 
   const source = (): Source | null => {
     if (basis !== 'documented') return null;
-    return sourceRevision.trim() || sourcePath.trim() || sourceSha256.trim() || sourceRights.trim()
-      ? { kind: 'source_file', bundle_revision_id: sourceRevision.trim(), path: sourcePath.trim(), locator: '',
-          sha256: sourceSha256.trim(), rights: sourceRights.trim() }
+    return sourceRevision || sourcePath || sourceSha256 || sourceRights
+      ? { kind: 'source_file', bundle_revision_id: sourceRevision.trim(), path: sourcePath, locator: '',
+          sha256: sourceSha256, rights: sourceRights }
       : note.trim() ? { kind: 'citation', citation: note.trim() } : null;
   };
   const suggestion = <T,>(value: T | null): Suggestion<T> => value === null ? unknown<T>() : {
@@ -155,6 +156,10 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
     </Group>}
     {shown && <>
       <Text size="sm">Stock revision: {shown.stock_revision_id}. Unknown values remain unknown; shown lengths are illustration suggestions, not measured dimensions.</Text>
+      <WorkshopProfileProvenance profile={shown} />
+      {!frozen && <>
+      <Title order={3}>Author new suggestions</Title>
+      <Text size="sm">The basis fields below apply only when you change a value. Recorded practice details above show what is already stored.</Text>
       <Group align="end">
         <Select label="Basis for new edits" value={basis} data={[
           { value: 'preference', label: 'Workshop preference' }, { value: 'documented', label: 'Documented' },
@@ -169,6 +174,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
           <TextInput label="Registered source rights" value={sourceRights} onChange={event => setSourceRights(event.target.value)} />
         </>}
       </Group>
+      </>}
       <Group>
         <Select label="Foil visibility" value={shown.foil_visibility.value ?? 'unknown'} disabled={!!frozen}
           data={['unknown', 'show', 'hide']} onChange={value => modify(next => {
