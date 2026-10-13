@@ -2,14 +2,21 @@
 
 import json
 from contextvars import ContextVar
+from decimal import localcontext
 
 from pydantic import ValidationError
 
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import Closure as AssemblyClosure
-from specmate.bom.contracts import BomPlan
+from specmate.bom.contracts import BomPlan, DemandQuantity
 from specmate.design.models import Revision
 from specmate.design.operations import authorize_snapshot
+from specmate.inventory.contracts import (
+    CANONICAL_UNITS,
+    QUANTITY_CONTEXT,
+    UNITS,
+    Quantity,
+)
 from specmate.operations import NotFound, ValidationFailed
 
 _AUTHORIZING = ContextVar("bom_authorizing_snapshots", default=frozenset())
@@ -88,6 +95,35 @@ class Closure:
             expected = node.revision.id if node else self.root.id if not policy.path else None
             if expected != policy.revision_id:
                 raise ValidationFailed("Policy must match an exact contextual occurrence revision.")
+        demand_paths = set()
+        for demand in self.plan.occurrence_demands:
+            path = tuple(demand.path)
+            node = self.assembly.nodes.get(path)
+            expected = node.revision.id if node else self.root.id if not path else None
+            if expected != demand.revision_id or path in demand_paths:
+                raise ValidationFailed("Demand must identify one exact contextual occurrence.")
+            demand_paths.add(path)
+        # Validate semantics and derived arithmetic only after current owning source
+        # closure has been authorized, including declarations excluded by buy policy.
+        for demand in [*self.plan.occurrence_demands, *self.plan.needs]:
+            if not demand.basis.strip() or (demand.waste and not demand.waste.basis.strip()):
+                raise ValidationFailed("Demand and waste require an explicit nonblank basis.")
+            for quantity in [demand.quantity, *([demand.waste.quantity] if demand.waste else [])]:
+                if quantity.amount is not None:
+                    try:
+                        Quantity(amount=quantity.amount, unit=quantity.unit)
+                    except ValidationError:
+                        raise ValidationFailed(
+                            "Invalid exact dimensional demand quantity."
+                        ) from None
+            if demand.quantity.amount is not None and demand.quantity.amount <= 0:
+                raise ValidationFailed("Net demand must be positive when known.")
+            if demand.waste:
+                if UNITS[demand.quantity.unit][0] != UNITS[demand.waste.quantity.unit][0]:
+                    raise ValidationFailed("Waste allowance must have the net demand dimension.")
+                if demand.waste.quantity.amount is not None and demand.waste.quantity.amount < 0:
+                    raise ValidationFailed("Waste allowance cannot be negative.")
+            demand_quantities(demand, self.plan.quantity.amount)
         for path in [*self.plan.scope_paths, *(n.context_path for n in self.plan.needs)]:
             if path and tuple(path) not in self.assembly.nodes:
                 raise ValidationFailed("BOM context does not resolve in the pinned assembly.")
@@ -129,10 +165,60 @@ def read_revision(user, revision_id):
     return revision, closure
 
 
+def quantity_result(amount, unit):
+    return {
+        "status": "known" if amount is not None else "unknown",
+        "amount": None if amount is None else int(amount) if unit == "ea" else format(amount, "f"),
+        "unit": unit,
+    }
+
+
+def demand_quantities(demand, root_count):
+    """Independent net and additive waste per root, with bounded exact canonical totals."""
+    unit = CANONICAL_UNITS[UNITS[demand.quantity.unit][0]]
+
+    def scaled(quantity):
+        if quantity.amount is None or root_count is None:
+            return None
+        with localcontext(QUANTITY_CONTEXT):
+            amount = (quantity.amount * UNITS[quantity.unit][1] * root_count).normalize()
+        try:
+            Quantity(amount=amount, unit=unit)
+        except ValidationError:
+            raise ValidationFailed(
+                "Derived demand exceeds supported exact quantity bounds."
+            ) from None
+        return amount
+
+    net = scaled(demand.quantity)
+    waste = scaled(demand.waste.quantity) if demand.waste else None
+    total = None
+    if net is not None and waste is not None:
+        with localcontext(QUANTITY_CONTEXT):
+            total = (net + waste).normalize()
+        try:
+            Quantity(amount=total, unit=unit)
+        except ValidationError:
+            raise ValidationFailed(
+                "Demand plus waste exceeds supported exact quantity bounds."
+            ) from None
+    return {
+        "net_quantity": quantity_result(net, unit),
+        "waste_quantity": quantity_result(waste, unit),
+        "required_quantity": quantity_result(total, unit),
+        "waste_status": "declared" if demand.waste else "not_evaluated",
+        "waste_basis": demand.waste.basis if demand.waste else None,
+        "demand_basis": demand.basis,
+        "per_root_quantity": demand.quantity.model_dump(mode="json"),
+        "per_root_waste": demand.waste.quantity.model_dump(mode="json") if demand.waste else None,
+    }
+
+
 def project(closure, purpose):
     plan, root, nodes = closure.plan, closure.root, closure.assembly.nodes
     scopes = [tuple(p) for p in plan.scope_paths]
     policies = {tuple(p.path): p for p in plan.policies}
+    demands = {tuple(d.path): d for d in plan.occurrence_demands}
     rows, unresolved, boundaries, excluded_needs = [], [], [], []
 
     def selected(path):
@@ -153,16 +239,25 @@ def project(closure, purpose):
         return None
 
     def row(path, revision, reason, amount, need=None):
+        declaration = need or demands.get(path)
+        if declaration is None:
+            declaration = SimpleNamespace(
+                quantity=DemandQuantity(status="known", amount=1),
+                waste=None,
+                basis="One structural item per contextual occurrence per root assembly.",
+            )
+        quantities = demand_quantities(declaration, plan.quantity.amount)
+        structural = quantity_result(amount, "ea") if need is None else None
         return {
             "address": address(path),
             "revision_id": str(revision.id),
             "definition_id": str(revision.definition_id),
             "name": revision.definition.name,
-            "quantity": {
-                "status": "known" if amount is not None else "unknown",
-                "amount": amount,
-                "unit": "ea",
-            },
+            "quantity": structural
+            if purpose == "assembly_contents"
+            else quantities["net_quantity"],
+            "structural_quantity": structural,
+            **quantities,
             "reason": reason,
             "need_id": need.local_id if need else None,
             "basis": need.basis if need else (policies[path].basis if path in policies else None),
@@ -227,23 +322,20 @@ def project(closure, purpose):
             if purpose == need.purpose or (
                 purpose == "procurement" and need.purpose != "consumables"
             ):
-                amount = (
-                    None
-                    if plan.quantity.amount is None or need.quantity.amount is None
-                    else plan.quantity.amount * need.quantity.amount
-                )
                 rows.append(
                     row(
                         path,
                         closure.revisions[need.revision_id],
                         "declared_process_need",
-                        amount,
+                        None,
                         need,
                     )
                 )
     for item in rows:
         if item["quantity"]["status"] == "unknown":
             issue(tuple(item["address"]["path"]), "quantity_unknown", item["need_id"])
+        if purpose != "assembly_contents" and item["required_quantity"]["status"] == "unknown":
+            issue(tuple(item["address"]["path"]), "required_quantity_unknown", item["need_id"])
     return {
         "purpose": purpose,
         "rows": rows,
@@ -253,8 +345,10 @@ def project(closure, purpose):
         "status": "unknown" if unresolved else "resolved",
         "physical_qualification": "not_evaluated",
         "limitations": [
-            "Counts only; stock lengths, mass, waste, sourcing and native PCB extraction "
-            "are not evaluated.",
+            "Demand units do not establish stock compatibility; sourcing and native PCB "
+            "extraction are not evaluated.",
+            "Waste is an explicit additive amount per root assembly. An undeclared "
+            "allowance leaves gross required demand unknown.",
             "Process needs are explicit declarations, not validated PCB fabrication "
             "or population instructions.",
         ],

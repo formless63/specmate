@@ -471,9 +471,30 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
     bundle.save(update_fields=["project"])
     malformed = copy.deepcopy(plan)
     malformed["scope_paths"] = [["missing"]]
+    malformed_demand = copy.deepcopy(plan)
+    malformed_demand["occurrence_demands"] = [
+        {
+            "path": [],
+            "revision_id": root["revision_id"],
+            "quantity": {"status": "known", "amount": "1", "unit": "m"},
+            "basis": "Synthetic dimension diagnostic must follow source authority",
+            "waste": {
+                "quantity": {"status": "known", "amount": "1", "unit": "kg"},
+                "basis": "Deliberately mismatched synthetic waste",
+            },
+        }
+    ]
+    malformed_count = copy.deepcopy(malformed_demand)
+    malformed_count["occurrence_demands"][0]["quantity"] = {
+        "status": "known",
+        "amount": "0.1",
+        "unit": "ea",
+    }
     actions = [
         lambda: create(user, project, plan),
         lambda: create(user, project, malformed),
+        lambda: create(user, project, malformed_demand),
+        lambda: create(user, project, malformed_count),
         lambda: create(user, project, plan, idempotency_key="source-backed-bom"),
         lambda: capture(user, draft, "bom.freeze", idempotency_key="source-backed-freeze"),
         lambda: inspect_revision(user, frozen["revision_id"]),

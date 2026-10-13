@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
+from specmate.inventory.contracts import Amount, Unit
 
 Purpose = Literal[
     "assembly_contents", "procurement", "pcb_fabrication", "pcb_population", "consumables"
@@ -31,13 +32,39 @@ class Policy(StrictModel):
     basis: str = Field(min_length=1, max_length=1000)
 
 
+class DemandQuantity(StrictModel):
+    status: Literal["known", "unknown"] = "unknown"
+    amount: Amount | None = None
+    unit: Unit = "ea"
+
+    @model_validator(mode="after")
+    def consistent(self):
+        if (self.status == "known") != (self.amount is not None):
+            raise ValueError("Known demand requires an amount; unknown demand cannot have one.")
+        return self
+
+
+class WasteAllowance(StrictModel):
+    quantity: DemandQuantity = Field(default_factory=DemandQuantity)
+    basis: str = Field(min_length=1, max_length=1000)
+
+
+class OccurrenceDemand(StrictModel):
+    path: Path
+    revision_id: UUID
+    quantity: DemandQuantity = Field(default_factory=DemandQuantity)
+    basis: str = Field(min_length=1, max_length=1000)
+    waste: WasteAllowance | None = None
+
+
 class Need(StrictModel):
     local_id: LocalId
     context_path: Path
     revision_id: UUID
     purpose: Literal["pcb_fabrication", "pcb_population", "consumables"]
-    quantity: Count = Field(default_factory=Count)
+    quantity: DemandQuantity = Field(default_factory=DemandQuantity)
     basis: str = Field(min_length=1, max_length=1000)
+    waste: WasteAllowance | None = None
 
 
 class BomPlan(StrictModel):
@@ -47,6 +74,7 @@ class BomPlan(StrictModel):
     scope_paths: list[Path] = Field(default_factory=list, max_length=5000)
     policies: list[Policy] = Field(default_factory=list, max_length=5000)
     needs: list[Need] = Field(default_factory=list, max_length=2000)
+    occurrence_demands: list[OccurrenceDemand] = Field(default_factory=list, max_length=5000)
 
     @model_validator(mode="after")
     def unique(self):
