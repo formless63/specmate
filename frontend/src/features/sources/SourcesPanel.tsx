@@ -1,6 +1,7 @@
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { command, preserve, request, SourceError, type RevisionDetail, type SourcePage } from './api';
+import { EditHandoff, EditProvenanceCard } from './EditHandoff';
 
 export function SourcesPanel(props: { projectId: string; permissions?: string[] }) {
   return <SourceWorkspace key={props.projectId} {...props} />;
@@ -95,6 +96,7 @@ function SourceWorkspace({ projectId, permissions }: { projectId: string; permis
       <Text>{detail.name} · {detail.role} · revision {detail.number}</Text><Text>Revision: {detail.revision_id}</Text><Text size="sm">Manifest SHA-256: {detail.manifest_sha256}</Text>
       <Button variant="subtle" disabled={busy} onClick={() => void inspect(detail.revision_id)}>Refresh exact source</Button>
       {detail.expansion && <Card withBorder><Text fw={600}>ZIP expansion provenance</Text><Text>Archive revision: {detail.expansion.source_revision_id}</Text><Text>Archive path: {detail.expansion.path}</Text><Text size="sm">Archive SHA-256: {detail.expansion.sha256}</Text><Text>Inherited declared rights: {detail.expansion.rights}</Text><Text size="sm">Parser: {detail.expansion.parser} · Execution: none</Text></Card>}
+      <EditProvenanceCard detail={detail} />
       {detail.manifest.ancestry.map(id => <Text key={id}>Parent revision: {id}</Text>)}
       <Table.ScrollContainer minWidth={700}><Table><Table.Thead><Table.Tr><Table.Th>Path</Table.Th><Table.Th>Bytes</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Declared rights</Table.Th><Table.Th>Original bytes</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{detail.manifest.files.map(entry => <Table.Tr key={entry.path}><Table.Td>{entry.path}</Table.Td><Table.Td>{entry.bytes}</Table.Td><Table.Td style={{ overflowWrap: 'anywhere' }}>{entry.sha256}</Table.Td><Table.Td>{entry.rights}</Table.Td><Table.Td><a href={`/api/v0/sources/revisions/${detail.revision_id}/file?${new URLSearchParams({ path: entry.path })}`}>Download {entry.path}</a></Table.Td></Table.Tr>)}</Table.Tbody></Table></Table.ScrollContainer>
       {canWrite && detail.role === 'original' && <Stack><Title order={4}>Expand a ZIP as a separate derivative</Title><Text size="sm">Classic stored or deflated ZIP only: up to 1000 entries, 16 MiB per file, 64 MiB expanded total and 200× expansion. Encrypted, linked, ZIP64, streamed data-descriptor and unsupported metadata archives are rejected. Nested archives stay inert. Empty directories are validated but omitted. The original remains preserved if expansion fails.</Text>
@@ -102,6 +104,8 @@ function SourceWorkspace({ projectId, permissions }: { projectId: string; permis
         <TextInput label="Expanded bundle name" value={derivedName} disabled={busy} onChange={event => setDerivedName(event.currentTarget.value)} />
         <Button disabled={!path || !derivedName.trim()} loading={busy} onClick={() => void expand()}>Expand ZIP into derivative</Button>
       </Stack>}
+      <EditHandoff key={detail.revision_id} projectId={projectId} detail={detail} canWrite={canWrite} busy={busy} setBusy={value => { if (alive.current) setBusy(value); }}
+        onAuthorityFailure={failed} onSubmitted={async id => { if (alive.current && await refresh()) await inspect(id); }} />
     </Stack></Card>}
   </Stack>;
 }

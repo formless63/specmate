@@ -92,3 +92,52 @@ rows and idempotency outcomes roll back together.
 These explicit limits intentionally reject some valid ZIP files. Other archive formats
 can be preserved but have no expansion operation. Bounded in-process parsing does not
 establish general hostile-format isolation or qualification of native tools and previews.
+
+## Native editing handoff
+
+Native sources can be edited with their own tools outside Specmate without Git.
+`GET /api/v0/sources/revisions/{id}/handoff` exports an exact revision as a deterministic
+classic stored ZIP: the files at their manifest paths plus a reserved root
+`SPECMATE-HANDOFF.json` naming the baseline revision, manifest hash, file hashes and
+declared rights. The current revision closure is authorized first; project readers may
+export. Export refuses revisions that already use the reserved name or exceed the
+re-entry limits above, and verifies stored bytes before writing them.
+
+Edited files return through two shared operations, listed in the operation catalog and
+used by the Sources panel, HTTP command API and trusted jobs alike:
+
+- `source.preview_edit` reviews edited input against the selected baseline without
+  changing state or promoting bytes. Input is either `files` (paths and hashes of bytes
+  already registered in the baseline's project, for example a browser folder upload) or
+  `archive` (a ZIP first preserved as its own original and parsed by the bounded parser
+  above). It reports every path as added, modified, rights changed, unchanged, removed or
+  excluded with old and new hashes, the baseline bundle's current head and state token,
+  and a `review_sha256` over the exact change set.
+- `source.submit_edit` requires that state token as `expected_state` and the reviewed hash.
+  It recomputes the change set and conflicts if either differs, so only the reviewed
+  bytes, paths, rights and exclusions can be recorded.
+
+The marker is optional and grants nothing. When present it must name the selected
+baseline; a marker from another revision is a conflict, never a silent rebase. If it sits
+in one top-level folder that contains every file, that folder is treated as the root.
+The marker itself is never stored. Exclusions are explicit; common operating-system and
+editor by-products are suggested for exclusion but never dropped silently.
+
+Unchanged and modified paths keep the baseline's declared rights unless the submitter
+declares otherwise; added paths require a declaration, which may be `unknown`. Media types
+of existing paths are retained; new files are inert octet-stream bytes.
+
+Targets never merge or overwrite. `new_derivative` creates a separate derivative bundle
+whose `derived_from` is the baseline; a stale baseline is allowed only after reviewing it
+against the current head token, and later revisions remain untouched. `next_revision`
+appends to a derivative bundle only when the baseline is still its head; originals are
+never revised by edits. Concurrent submissions from the same baseline therefore produce
+one next revision and a conflict, after which the other edit can be reviewed again and
+kept as a separate derivative. An immutable `SourceEditSubmission` pins the baseline,
+optional preserved archive file and parser, marker outcome, root folder, review hash and
+summary; revision detail shows it. Baseline and archive revisions join the source closure
+checked before diagnostics, retained idempotency outcomes, inspection and downloads.
+
+Re-entry is not native validation, conversion, regeneration or physical qualification.
+Specmate does not interpret the edited formats, detect semantic conflicts inside native
+files, or reconcile parallel edits; reconciling two derivatives is a later explicit edit.
