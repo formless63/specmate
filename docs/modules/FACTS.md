@@ -32,6 +32,9 @@ temperature offset. Conditions also retain original and canonical values.
 Extreme decimal exponents are rejected before precision normalization. Canonical
 arithmetic uses a bounded decimal context with inexact/underflow traps, so a nonzero
 input cannot silently become zero.
+Wire magnitudes use decimal strings or exact whole JSON integers. Binary floating-point
+JSON values and booleans are rejected because decoding can already have rounded or
+underflowed them before fact validation. Internal typed callers may pass `Decimal`.
 
 Reads authorize the subject, every registered source file and transitive input assertion
 before returning values, counts, hashes, state tokens or conflict diagnostics. A revoked

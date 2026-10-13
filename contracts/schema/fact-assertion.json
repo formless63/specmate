@@ -139,11 +139,10 @@
         "lower": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "string"
             },
             {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
-              "type": "string"
+              "type": "integer"
             },
             {
               "type": "null"
@@ -155,11 +154,10 @@
         "magnitude": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "string"
             },
             {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
-              "type": "string"
+              "type": "integer"
             },
             {
               "type": "null"
@@ -171,11 +169,10 @@
         "minus": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "string"
             },
             {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
-              "type": "string"
+              "type": "integer"
             },
             {
               "type": "null"
@@ -187,11 +184,10 @@
         "plus": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "string"
             },
             {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
-              "type": "string"
+              "type": "integer"
             },
             {
               "type": "null"
@@ -240,11 +236,10 @@
         "upper": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "string"
             },
             {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
-              "type": "string"
+              "type": "integer"
             },
             {
               "type": "null"

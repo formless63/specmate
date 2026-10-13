@@ -10,6 +10,7 @@ from pydantic import (
     ConfigDict,
     Field,
     StrictBool,
+    StrictInt,
     StringConstraints,
     model_validator,
 )
@@ -20,7 +21,10 @@ from specmate.facts.units import UNITS, convert
 
 def bounded_decimal(value):
     # Inspect exact input before Pydantic's precision normalization can underflow.
-    if isinstance(value, bool) or (isinstance(value, str) and len(value) > 200):
+    # Binary floats may already have rounded or underflowed during JSON decoding.
+    if isinstance(value, bool) or not isinstance(value, str | int | Decimal):
+        raise ValueError("Magnitude requires a decimal string or exact integer.")
+    if isinstance(value, str) and len(value) > 200:
         raise ValueError("Invalid numeric magnitude.")
     try:
         number = value if isinstance(value, Decimal) else Decimal(str(value))
@@ -39,7 +43,7 @@ def bounded_decimal(value):
 Number = Annotated[
     Decimal,
     Field(max_digits=24, decimal_places=12, allow_inf_nan=False),
-    BeforeValidator(bounded_decimal),
+    BeforeValidator(bounded_decimal, json_schema_input_type=str | StrictInt),
 ]
 FeatureId = Annotated[str, StringConstraints(strip_whitespace=False, min_length=1, max_length=200)]
 LocalId = Annotated[

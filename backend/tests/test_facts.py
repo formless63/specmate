@@ -1,4 +1,5 @@
 import copy
+import json
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal, Underflow, localcontext
 from threading import Barrier
@@ -687,3 +688,44 @@ def test_feature_ids_are_exact_and_occurrence_path_whitespace_is_not_reinterpret
             users["editor"],
             {"kind": "occurrence", "snapshot_id": str(UUID(int=0)), "path": [" left"]},
         )
+
+
+@pytest.mark.parametrize("raw_magnitude", ["1e-9999999", "0.0", "0.125", "true"])
+def test_http_numeric_floats_and_booleans_cannot_become_known_fact_magnitudes(
+    users, ledger, raw_magnitude
+):
+    payload = {
+        "operation": "facts.append",
+        "request_id": "precise-fact-wire",
+        "expected_state": ledger["state"],
+        "payload": {"subject_id": ledger["subject_id"], "fact": fact(magnitude="wire-number")},
+    }
+    raw_body = json.dumps(payload).replace('"wire-number"', raw_magnitude)
+    response = api(users["editor"]).post(
+        "/api/v0/operations", data=raw_body, content_type="application/json"
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_failed"
+    assert not FactAssertion.objects.exists()
+    assert FactSubject.objects.get(id=ledger["subject_id"]).state_token == "facts-v1"
+
+
+@pytest.mark.parametrize("magnitude, canonical", [(0, "0"), ("0.125", "0.125")])
+def test_http_exact_integer_zero_and_decimal_string_fraction_are_known_values(
+    users, ledger, magnitude, canonical
+):
+    response = post_op(
+        api(users["editor"]),
+        "facts.append",
+        {"subject_id": ledger["subject_id"], "fact": fact(magnitude=magnitude)},
+        expected_state=ledger["state"],
+    )
+    assert response.status_code == 200
+    recorded = response.json()["result"]["assertion"]
+    assert recorded["fact"]["status"] == "known"
+    assert recorded["canonical_value"]["magnitude"] == canonical
+
+
+def test_internal_typed_decimal_stays_exact(users, ledger):
+    recorded = append(users["editor"], ledger, fact(magnitude=Decimal("0.125")))
+    assert recorded["assertion"]["canonical_value"]["magnitude"] == "0.125"
