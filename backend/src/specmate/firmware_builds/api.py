@@ -3,11 +3,12 @@ from uuid import UUID
 from django.http import FileResponse
 from django.utils.http import content_disposition_header
 from ninja import Router
+from pydantic import ValidationError
 
 from specmate.catalog_matching.queries import current_actor
 from specmate.firmware_builds.contracts import CompileRef, FirmwareRef
 from specmate.firmware_builds.operations import options, read, scoped_build, validate_outputs
-from specmate.operations import Context, NotFound
+from specmate.operations import Context, NotFound, ValidationFailed
 from specmate.sources import blobstore
 
 router = Router(tags=["firmware-builds"])
@@ -18,11 +19,16 @@ def context(request):
 
 
 def reference(firmware_id, assembly_snapshot_id=None, path=""):
-    return FirmwareRef(
-        firmware_revision_id=firmware_id,
-        assembly_snapshot_id=assembly_snapshot_id,
-        path=path.split("/") if path else [],
-    )
+    try:
+        return FirmwareRef(
+            firmware_revision_id=firmware_id,
+            assembly_snapshot_id=assembly_snapshot_id,
+            path=path.split("/") if path else [],
+        )
+    except ValidationError:
+        raise ValidationFailed(
+            "Supply an exact frozen occurrence snapshot and portable path together."
+        ) from None
 
 
 @router.get("/firmware/{firmware_id}")

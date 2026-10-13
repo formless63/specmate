@@ -399,3 +399,13 @@ def test_unknown_or_unsupported_inputs_fail_explicitly(users, firmware, change):
     change(spec)
     with pytest.raises(Unsupported):
         recipe_for(spec, IMAGE)
+
+
+@pytest.mark.parametrize(
+    "snapshot,path", [(None, "right"), (str(uuid4()), ""), (str(uuid4()), "../board")]
+)
+def test_malformed_api_occurrence_is_typed_validation_failure(users, firmware, snapshot, path):
+    request = RequestFactory().get("/")
+    request.user = users["owner"]
+    with pytest.raises(ValidationFailed):
+        read_options(request, firmware["revision_id"], snapshot, path)
