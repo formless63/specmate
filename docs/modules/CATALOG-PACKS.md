@@ -6,6 +6,12 @@ signature claims, exact dependency versions and up to 100 entries. Entries ident
 content, workshop profiles, rule/model files or recipe references. Engineering pins
 include an exact revision and snapshot hash; registered files include exact bundle
 revision, path, hash and declared rights. Labels, paths and rights preserve whitespace.
+Content/profile entries may cite supplementary registered files. Rule/model entries
+may also associate an exact engineering revision; recipe references may cite an exact
+supporting file. These supplementary references remain part of retained authorized
+closure even when their category does not materialize a draft. Every supplied pin is
+checked at registration, inspection and adoption; an inert classification is not an
+authorization exception and never turns a cited recipe file into executable authority.
 
 `catalog_pack.register` stores canonical manifest bytes and their hash, with immutable
 normalized entry/dependency pins. Optional manifest-file provenance is checked against
@@ -45,6 +51,9 @@ Pack decisions are append-only with a database sequential-version guard and row-
 compare-and-set (`pack-v0`, `pack-v1`, …). Shared executor idempotency is scoped by
 actor/project/operation. Current authority covers all retained manifest versions,
 dependency versions and source files before reads, replay or conflict diagnostics.
+Dependency inserts are serialized and checked for cycles at the database boundary.
+Each materialized definition and draft has a unique retained adoption origin; content
+and profiles require a draft result while rule/model/recipe entries remain inert.
 Dependency inspection has a declared 2,000-version closure bound. Adoption origins
 have a 32-record recursive-depth and 2,000-unique-record bound; cycle/depth failures
 reset their traversal context before the next request. Inaccessible packs

@@ -98,6 +98,16 @@ class AdoptionEntry(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["decision", "entry"], name="pack_adoption_entry"),
+            models.UniqueConstraint(
+                fields=["definition"],
+                condition=models.Q(definition__isnull=False),
+                name="pack_adopted_definition_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["draft"],
+                condition=models.Q(draft__isnull=False),
+                name="pack_adopted_draft_unique",
+            ),
             models.CheckConstraint(
                 condition=models.Q(
                     status="draft_created",
