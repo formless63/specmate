@@ -14,7 +14,9 @@ from specmate.pcb_disagreement.pack import recipe_for
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source_path")
-    parser.add_argument("--source-role", required=True, choices=("schematic", "netlist"))
+    parser.add_argument(
+        "--source-role", required=True, choices=("schematic", "netlist")
+    )
     parser.add_argument("--rights", required=True)
     args = parser.parse_args()
     try:
