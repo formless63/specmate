@@ -461,6 +461,12 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(
 
 def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
     stock_id, _ = stock_revision(users, project)
+    direction = {
+        "value": "negative",
+        "basis": "documented",
+        "note": None,
+        "source": {"kind": "citation", "citation": "Synthetic display-axis instruction"},
+    }
     client = Client()
     client.force_login(users["owner"])
     response = client.post(
@@ -472,7 +478,7 @@ def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
                 "payload": {
                     "project_id": project,
                     "name": "Synthetic display",
-                    "profile": profile(stock_id),
+                    "profile": profile(stock_id, illustration_lay_direction=direction),
                 },
             }
         ),
@@ -492,6 +498,7 @@ def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
     exact = client.get(f"/api/v0/workshop-profile-revisions/{frozen['revision_id']}")
     assert exact.status_code == 200
     assert exact.json()["content"]["profile"]["stock_revision_id"] == stock_id
+    assert exact.json()["content"]["profile"]["illustration_lay_direction"] == direction
     assert len(list_profile_revisions(users["viewer"], draft["definition_id"])) == 1
     with pytest.raises(NotFound):
         list_profile_revisions(users["outsider"], draft["definition_id"])
