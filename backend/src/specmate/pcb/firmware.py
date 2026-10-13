@@ -678,6 +678,21 @@ def update_firmware(ctx: Context, p: UpdateFirmware) -> dict:
     return update_draft(ctx, UpdateDraft(draft_id=p.draft_id, changes=_content(p.firmware)))
 
 
+def require_freezable(user, definition, content) -> dict:
+    """Design capture hook: typed declarations with no invalid target or pin finding."""
+    firmware = parse_content(content, definition.kind)
+    if firmware is None:
+        raise ValidationFailed("Typed firmware declarations are required before freezing.")
+    evaluation = evaluate(user, definition, firmware)
+    invalid = [f for f in evaluation["findings"] if f["status"] == "invalid"]
+    if invalid:
+        raise ValidationFailed(
+            "Firmware has invalid target or pin assumptions and cannot be frozen.",
+            details={"findings": invalid},
+        )
+    return evaluation
+
+
 @operation(
     "firmware.freeze",
     DraftRef,
@@ -688,16 +703,7 @@ def update_firmware(ctx: Context, p: UpdateFirmware) -> dict:
 )
 def freeze_firmware(ctx: Context, p: DraftRef) -> dict:
     draft = firmware_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE, lock=True)
-    firmware = parse_content(draft.content, KIND)
-    if firmware is None:
-        raise ValidationFailed("Typed firmware declarations are required before freezing.")
-    evaluation = evaluate(ctx.user, draft.definition, firmware)
-    invalid = [f for f in evaluation["findings"] if f["status"] == "invalid"]
-    if invalid:
-        raise ValidationFailed(
-            "Firmware has invalid target or pin assumptions and cannot be frozen.",
-            details={"findings": invalid},
-        )
+    evaluation = require_freezable(ctx.user, draft.definition, draft.content)
     result = freeze_draft(
         ctx,
         CaptureDraft(
