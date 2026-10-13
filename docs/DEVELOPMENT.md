@@ -24,6 +24,12 @@ registry, runner token and durable receipts outside the source checkout. Builds 
 the public repository as their Docker context. Runner tests and explicit real-container
 checks are documented in [runner/README.md](../runner/README.md).
 
+`make check-fixtures` validates native fixture pins/hashes and the independent comparator
+without starting tools. The [synthetic fixture guide](../tests/fixtures/README.md) describes
+source-package checks and `make native-fixture-check NATIVE_EVIDENCE_DIR=<external-path>`.
+That explicit checkpoint uses the cached KiCad digest, runs actual native commands and
+container failure/recovery cases, and writes evidence outside the checkout.
+
 ## Pre-1.0 means no supported production users
 
 Until v1.0.0 is deliberately released, historical development databases, Temporal histories,

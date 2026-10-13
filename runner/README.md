@@ -83,7 +83,11 @@ SPECMATE_RUNNER_TEST_IMAGE='<repository>@sha256:<verified-digest>' \
 ```
 
 Without that variable, Docker cases report skipped, not verified. These cases exercise
-real success, timeout, descendant cancellation and restart fencing. They establish
-controller behavior, not compatibility of a CAD tool or engineering/physical validity.
+real success, timeout, descendant cancellation, restart fencing, resumption of a running
+container and completion replay after a lost acknowledgment. The control API is simulated;
+container processes and durable controller receipts are real. They establish controller
+behavior, not live API/Temporal integration or engineering/physical validity.
+The [native fixture checkpoint](../tests/fixtures/README.md) runs these cases explicitly
+alongside the pinned KiCad checks and records their distinct evidence levels.
 Application API integration, real native packs, supported CPU architectures, rootless
 Podman and quota-managed storage require their own integration evidence.

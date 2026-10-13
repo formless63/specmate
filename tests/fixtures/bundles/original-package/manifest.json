@@ -1,0 +1,30 @@
+{
+  "schema_version": "0.1",
+  "synthetic": true,
+  "bundle_id": "bundle-synthetic-original-package",
+  "source_revision": "source-synthetic-original-package-r1",
+  "ancestry": [],
+  "files": [
+    {
+      "path": "design/properties.json",
+      "sha256": "0cc3e2e205033b20a1d318053cda7f6b4e4f32e901542a76b00602b85d8e2016",
+      "bytes": 129,
+      "media_type": "application/json",
+      "rights": "AGPL-3.0-only"
+    },
+    {
+      "path": "notes.txt",
+      "sha256": "ca2b214bba01ce49ab4565cb7db3a608650345ca12cdcc4c4049e42e6e8a7408",
+      "bytes": 157,
+      "media_type": "text/plain",
+      "rights": "AGPL-3.0-only"
+    },
+    {
+      "path": "scripts/inert_source.py",
+      "sha256": "752326f19183aaa17d52a6ec497f5dfca4d01fe0fa362e54f3ce9844ace1d474",
+      "bytes": 161,
+      "media_type": "text/x-python",
+      "rights": "AGPL-3.0-only"
+    }
+  ]
+}

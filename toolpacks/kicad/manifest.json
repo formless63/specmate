@@ -1,0 +1,39 @@
+{
+  "format_version": 1,
+  "id": "kicad-fixture-v1",
+  "purpose": "Synthetic native-fixture qualification; not an installed production recipe",
+  "image": "kicad/kicad:10.0.6@sha256:40568bc95527f3a673a31a9b59badf512e71046c2d5068a364503c525f946a4e",
+  "upstream_tag": "kicad/kicad:10.0.6",
+  "upstream_index_digest": "sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec",
+  "upstream_source": "https://www.kicad.org/download/docker/",
+  "tool_version": "10.0.6",
+  "python_version": "3.13.5",
+  "platforms": ["linux/amd64"],
+  "input_formats": ["kicad_pcb"],
+  "native_board_format_version": 20260206,
+  "fixture": "tests/fixtures/native/kicad/two-net-board.kicad_pcb",
+  "fixture_sha256": "e73610f79927c1969b21b3fca2de175fdc2956a68ef411b82a149851985c979e",
+  "malformed_fixture": "tests/fixtures/native/kicad/invalid-board.kicad_pcb",
+  "malformed_fixture_sha256": "96968a7857ff3c6bfb0c8602256759efa65c6877fd32d91ce9768681978e5bce",
+  "operations": [
+    "synthetic-board-authoring",
+    "pcbnew-board-inspection",
+    "kicad-cli-pcb-drc-json",
+    "kicad-cli-pcb-svg-export"
+  ],
+  "output_formats": ["kicad_pcb", "application/json", "image/svg+xml"],
+  "permissions": {"network": false, "read_only_inputs": true},
+  "limits": {"cpus": 2, "memory_mb": 1024, "pids": 128, "timeout_seconds": 120},
+  "qualification": {
+    "scope": "One original synthetic two-net board and one malformed input",
+    "engineering_release_qualified": false,
+    "unsupported_or_unverified": [
+      "linux/arm64",
+      "schematic ERC and PCB/schematic parity",
+      "fabrication and assembly exports",
+      "foreign CAD formats",
+      "3D models and rendering",
+      "physical fit, component ratings and manufacturability"
+    ]
+  }
+}

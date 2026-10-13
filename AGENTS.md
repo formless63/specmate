@@ -52,6 +52,9 @@ version number. Never delete original sources or private reference material.
 - `python3 scripts/check_guidance.py` — specification/link/fixture integrity.
 - `python3 scripts/check_public_tree.py` — heuristic public-tree safety checks.
 - `python3 scripts/check_public_tree.py --staged` — inspect staged Git content.
+- `make check-fixtures` — native fixture integrity and comparator checks without tool execution.
+- `make native-fixture-check NATIVE_EVIDENCE_DIR=<external-path>` — explicit cached-image
+  KiCad and container recovery checkpoint; see `tests/fixtures/README.md`.
 
 Application skeleton (toolchain in `docs/DEVELOPMENT.md`; `make help` lists targets):
 

@@ -68,5 +68,5 @@
     "mounting_hole_count": 4,
     "procurement_mode": "make-unless-explicitly-bought"
   },
-  "native_fixture": "To be authored and checked with pinned KiCad during implementation; no native file is claimed here."
+  "native_fixture": "tests/fixtures/native/kicad/two-net-board.kicad_pcb"
 }

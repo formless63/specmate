@@ -1,11 +1,19 @@
-.PHONY: help check-guidance check-public dev-db-up dev-db-down backend-sync backend-lint backend-test frontend-install frontend-typecheck frontend-test frontend-build runner-test
+.PHONY: help check-guidance check-public check-fixtures native-fixture-check dev-db-up dev-db-down backend-sync backend-lint backend-test frontend-install frontend-typecheck frontend-test frontend-build runner-test
 help:
 	@printf '%s\n' 'Targets: check-guidance check-public dev-db-up dev-db-down backend-sync backend-lint backend-test' \
-	  'frontend-install frontend-typecheck frontend-test frontend-build runner-test'
+	  'frontend-install frontend-typecheck frontend-test frontend-build runner-test' \
+	  'check-fixtures native-fixture-check (requires NATIVE_EVIDENCE_DIR outside checkout)'
 check-guidance:
 	python3 scripts/check_guidance.py
 check-public:
 	python3 scripts/check_public_tree.py
+check-fixtures:
+	python3 scripts/check_native_fixtures.py
+	python3 -m unittest discover -s tests/native -v
+# Explicit integration checkpoint; the pinned image must already be cached.
+native-fixture-check:
+	@test -n "$(NATIVE_EVIDENCE_DIR)" || (echo 'Set NATIVE_EVIDENCE_DIR to an external evidence directory' >&2; exit 2)
+	python3 scripts/check_native_fixtures.py --real-tools --output "$(NATIVE_EVIDENCE_DIR)"
 dev-db-up:
 	scripts/dev_postgres.sh up
 dev-db-down:

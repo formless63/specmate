@@ -1,0 +1,2 @@
+Original synthetic source package for byte-preservation and safe-intake tests.
+The nominal value is illustrative and is not physical qualification evidence.

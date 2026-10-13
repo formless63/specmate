@@ -4,7 +4,9 @@ import hashlib
 import json
 import os
 import tempfile
+import time
 import unittest
+import uuid
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -417,7 +419,9 @@ class DockerIntegrationTests(unittest.TestCase):
             self.docker.remove(receipt["name"], receipt["identity"])
 
     def prepare(self, argv):
-        receipt = self.runner.prepare(manifest(self.image, argv))
+        lease = manifest(self.image, argv)
+        lease["stage_id"] = str(uuid.uuid4())
+        receipt = self.runner.prepare(lease)
         self.owned.append(receipt)
         return receipt
 
@@ -471,6 +475,81 @@ class DockerIntegrationTests(unittest.TestCase):
         container = self.docker.inspect(receipt["name"], receipt["identity"])
         self.assertFalse(container["State"]["Running"])
         self.client.complete.assert_not_called()
+
+    def test_lost_success_ack_replays_receipt_after_one_actual_execution(self):
+        receipt = self.prepare(
+            ["/bin/sh", "-c", "printf synthetic > /outputs/result.txt"]
+        )
+        receipt["lease"]["recipe"]["outputs"] = [
+            {"path": "result.txt", "media_type": "text/plain", "rights": "CC0-1.0"}
+        ]
+        self.docker.create = Mock(wraps=self.docker.create)
+        self.docker.start = Mock(wraps=self.docker.start)
+        # The control-plane acknowledgment is deliberately lost after the real
+        # container has exited and the controller persisted its output receipt.
+        self.client.complete.side_effect = [Unavailable("lost acknowledgment"), {}]
+        with self.assertRaises(Unavailable):
+            self.runner.run_receipt(receipt, recovered=False)
+        self.assertFalse(
+            self.docker.inspect(receipt["name"], receipt["identity"])["State"][
+                "Running"
+            ]
+        )
+        self.client.reconcile.return_value = {
+            "state": "succeeded",
+            "cancellation_requested": False,
+        }
+        restarted = Runner(self.client, self.docker, self.temp.name, self.temp.name)
+        self.assertTrue(restarted.tick())
+        self.docker.create.assert_called_once()
+        self.docker.start.assert_called_once()
+        self.client.upload.assert_called_once()
+        self.assertEqual(self.client.complete.call_count, 2)
+        self.assertEqual(
+            self.client.complete.call_args_list[0],
+            self.client.complete.call_args_list[1],
+        )
+        self.assertEqual(
+            self.client.complete.call_args.args[1]["outputs"][0]["sha256"],
+            hashlib.sha256(b"synthetic").hexdigest(),
+        )
+        persisted = json.loads(
+            (Path(self.temp.name) / receipt["identity"] / "receipt.json").read_text()
+        )
+        self.assertEqual(persisted["phase"], "accepted")
+        self.assertIsNone(self.docker.inspect(receipt["name"], receipt["identity"]))
+
+    def test_restart_resumes_running_container_without_another_execution(self):
+        receipt = self.prepare(["/bin/sleep", "2"])
+        self.runner.stage_inputs(receipt)
+        directory = Path(self.temp.name) / receipt["identity"]
+        self.docker.create = Mock(wraps=self.docker.create)
+        self.docker.start = Mock(wraps=self.docker.start)
+        self.docker.create(
+            receipt["name"],
+            receipt["identity"],
+            receipt["lease"]["recipe"],
+            directory / "inputs",
+            directory / "outputs",
+        )
+        receipt["started_at"] = time.time()
+        receipt["phase"] = "running"
+        self.runner.save(receipt)
+        self.docker.start(receipt["name"])
+        self.assertTrue(
+            self.docker.inspect(receipt["name"], receipt["identity"])["State"][
+                "Running"
+            ]
+        )
+        restarted = Runner(
+            self.client, self.docker, self.temp.name, self.temp.name, poll_seconds=0.05
+        )
+        self.assertTrue(restarted.tick())
+        self.client.reconcile.assert_called_once()
+        self.docker.create.assert_called_once()
+        self.docker.start.assert_called_once()
+        self.assertEqual(self.client.complete.call_args.args[1]["outcome"], "succeeded")
+        self.assertIsNone(self.docker.inspect(receipt["name"], receipt["identity"]))
 
 
 if __name__ == "__main__":

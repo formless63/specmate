@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1",
+  "synthetic": true,
+  "bundle_id": "bundle-native-kicad",
+  "source_revision": "native-kicad-r1",
+  "ancestry": [],
+  "files": [
+    {
+      "path": "two-net-board.kicad_pcb",
+      "sha256": "e73610f79927c1969b21b3fca2de175fdc2956a68ef411b82a149851985c979e",
+      "bytes": 14256,
+      "media_type": "application/x-kicad-pcb",
+      "rights": "synthetic-original"
+    }
+  ]
+}
