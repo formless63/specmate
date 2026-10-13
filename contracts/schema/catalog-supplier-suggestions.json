@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "RevisionIdentity": {
+      "properties": {
+        "definition_id": {
+          "format": "uuid",
+          "title": "Definition Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision_id",
+        "definition_id",
+        "project_id",
+        "name",
+        "kind",
+        "number",
+        "sha256"
+      ],
+      "title": "RevisionIdentity",
+      "type": "object"
+    },
+    "SupplierSuggestion": {
+      "properties": {
+        "compatibility": {
+          "const": "not_evaluated",
+          "default": "not_evaluated",
+          "title": "Compatibility",
+          "type": "string"
+        },
+        "manufacturer": {
+          "title": "Manufacturer",
+          "type": "string"
+        },
+        "match_basis": {
+          "const": "exact_manufacturer_and_part_number",
+          "title": "Match Basis",
+          "type": "string"
+        },
+        "part_number": {
+          "title": "Part Number",
+          "type": "string"
+        },
+        "review": {
+          "const": "not_reviewed",
+          "default": "not_reviewed",
+          "title": "Review",
+          "type": "string"
+        },
+        "source_association_basis": {
+          "title": "Source Association Basis",
+          "type": "string"
+        },
+        "source_variant_id": {
+          "format": "uuid",
+          "title": "Source Variant Id",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/RevisionIdentity"
+        },
+        "target_association_basis": {
+          "title": "Target Association Basis",
+          "type": "string"
+        },
+        "target_variant_id": {
+          "format": "uuid",
+          "title": "Target Variant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_variant_id",
+        "target_variant_id",
+        "manufacturer",
+        "part_number",
+        "source_association_basis",
+        "target_association_basis",
+        "target",
+        "match_basis"
+      ],
+      "title": "SupplierSuggestion",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "inspection_truncated": {
+      "title": "Inspection Truncated",
+      "type": "boolean"
+    },
+    "meaning": {
+      "const": "identifier_suggestions_only",
+      "default": "identifier_suggestions_only",
+      "title": "Meaning",
+      "type": "string"
+    },
+    "next_after": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Next After"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/SupplierSuggestion"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "source": {
+      "$ref": "#/$defs/RevisionIdentity"
+    },
+    "target_project_id": {
+      "format": "uuid",
+      "title": "Target Project Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source",
+    "target_project_id",
+    "results",
+    "next_after",
+    "inspection_truncated"
+  ],
+  "title": "SupplierSuggestions",
+  "type": "object"
+}

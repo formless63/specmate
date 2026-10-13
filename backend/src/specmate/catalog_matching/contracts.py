@@ -70,6 +70,37 @@ class RevisionIdentity(BaseModel):
     sha256: str
 
 
+class SuggestSupplierMatches(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_revision_id: UUID
+    source_variant_id: UUID
+    target_project_id: UUID
+    after: UUID | None = None
+    limit: int = 25
+
+
+class SupplierSuggestion(BaseModel):
+    source_variant_id: UUID
+    target_variant_id: UUID
+    manufacturer: str
+    part_number: str
+    source_association_basis: str
+    target_association_basis: str
+    target: RevisionIdentity
+    match_basis: Literal["exact_manufacturer_and_part_number"]
+    review: Literal["not_reviewed"] = "not_reviewed"
+    compatibility: Literal["not_evaluated"] = "not_evaluated"
+
+
+class SupplierSuggestions(BaseModel):
+    source: RevisionIdentity
+    target_project_id: UUID
+    results: list[SupplierSuggestion]
+    next_after: UUID | None
+    inspection_truncated: bool
+    meaning: Literal["identifier_suggestions_only"] = "identifier_suggestions_only"
+
+
 class ReviewResult(BaseModel):
     review_id: UUID
     version: int

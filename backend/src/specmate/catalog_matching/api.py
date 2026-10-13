@@ -3,8 +3,32 @@ from uuid import UUID
 from ninja import Router
 
 from specmate.catalog_matching import queries
+from specmate.catalog_matching.contracts import SuggestSupplierMatches
+from specmate.catalog_matching.suppliers import suggest_supplier_matches
+from specmate.operations import Context
 
 router = Router(tags=["catalog matching"])
+
+
+@router.get("/revisions/{revision_id}/supplier-suggestions")
+def supplier_suggestions(
+    request,
+    revision_id: UUID,
+    source_variant_id: UUID,
+    target_project_id: UUID,
+    after: UUID | None = None,
+    limit: int = 25,
+):
+    return suggest_supplier_matches(
+        Context(user=request.user, via="api", request_id="supplier-suggestions"),
+        SuggestSupplierMatches(
+            source_revision_id=revision_id,
+            source_variant_id=source_variant_id,
+            target_project_id=target_project_id,
+            after=after,
+            limit=limit,
+        ),
+    )
 
 
 @router.get("/candidates/{candidate_id}")

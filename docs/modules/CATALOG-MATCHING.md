@@ -45,6 +45,18 @@ The browser's explicit access refresh and window-focus refresh discard retained
 selections, forms and history before reading current authority. A denied candidate
 reread also clears old options and disables mutations until access is refreshed.
 
+`catalog.suggest_supplier_matches` and its read-only HTTP adapter compare one explicitly
+selected immutable manufacturer association with a target project's associations.
+Only an exact manufacturer and part-number pair produces a suggestion, and revisions
+of the source's own definition are excluded. The response retains both association IDs,
+bases and exact revision identities. These are unreviewed catalog assertions, not
+verified supplier evidence, interchangeability, a model-fit result or a merged identity.
+Reading suggestions creates no candidate or review; a person must deliberately use the
+normal proposal command. Every disclosed target's complete current source closure is
+checked, inaccessible rows are omitted, and continuation cursors belong to that same
+currently authorized query. Pages contain at most 50 rows, with a 2,000-association
+inspection bound and an explicit truncation flag rather than a completeness claim.
+
 Automatic similarity scoring, supplier import adapters, model-fit computation and
 candidate deduplication are further capability work. This implementation accepts
 explicitly observed candidates and never silently collapses them. PCB population

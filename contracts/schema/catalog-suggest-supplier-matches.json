@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After"
+    },
+    "limit": {
+      "default": 25,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "source_revision_id": {
+      "format": "uuid",
+      "title": "Source Revision Id",
+      "type": "string"
+    },
+    "source_variant_id": {
+      "format": "uuid",
+      "title": "Source Variant Id",
+      "type": "string"
+    },
+    "target_project_id": {
+      "format": "uuid",
+      "title": "Target Project Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_revision_id",
+    "source_variant_id",
+    "target_project_id"
+  ],
+  "title": "SuggestSupplierMatches",
+  "type": "object"
+}
