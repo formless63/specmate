@@ -46,7 +46,7 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
         project = cable_draft(ctx, p.draft_id, permission).definition.project_id
     resolved = project_scope(ctx, project, permission)
     if isinstance(p, (CreateCable, UpdateCable)):
-        authorize_content(ctx.user, {"cable": p.cable.model_dump(mode="json")})
+        authorize_content(ctx.user, {"cable": p.cable.model_dump(mode="json")}, authority_only=True)
     name = (
         "cable.create"
         if isinstance(p, CreateCable)

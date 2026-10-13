@@ -298,7 +298,11 @@ length-impact query compare two exact revisions of one definition, including has
 changed declarations/model suggestions and preparation/document review requirements.
 A route change requires review even without a model. Comparison performs no stock or
 cut-declaration writes. Current source access is rechecked before both revisions are
-shown, and denied browser refreshes hide retained results.
+shown, and denied browser refreshes hide retained results. A mutation authority
+denial also gates retained editors and frozen results while affected reads are
+rechecked. Unsaved text and its original editing token survive that gate; a newer
+server read does not silently adopt a new token for the unsaved edit. Stock-pin
+changes are reported separately from changes to the actual route declaration.
 
 This length model is an explicitly reviewed arithmetic relationship, not a geometric
 routing solver or a measurement. It does not derive physical conductor length from a

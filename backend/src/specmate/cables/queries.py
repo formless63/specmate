@@ -56,7 +56,7 @@ def conductive_elements(node, prefix=""):
 
 
 class Closure:
-    def __init__(self, user, content, kind=None, dependencies=()):
+    def __init__(self, user, content, kind=None, dependencies=(), *, authority_only=False):
         self.cable = parse_content(content, kind)
         self.revisions = {}
         if self.cable is None:
@@ -84,6 +84,8 @@ class Closure:
         # Recheck typed source evidence, not just membership or snapshot dependency rows.
         for revision in self.revisions.values():
             authorize_reference(user, revision)
+        if authority_only:
+            return
         stock_revision = self.revisions[self.cable.stock_revision_id]
         stock_content = json.loads(bytes(stock_revision.snapshot.canonical))["content"]
         if stock_revision.definition.kind != "wire_stock" or "stock" not in stock_content:
@@ -133,8 +135,8 @@ class Closure:
                 raise ValidationFailed("Termination must identify a physical contact or shell.")
 
 
-def authorize_content(user, content):
-    Closure(user, content)
+def authorize_content(user, content, *, authority_only=False):
+    Closure(user, content, authority_only=authority_only)
 
 
 def dependency_revisions(user, definition, content):
@@ -210,7 +212,7 @@ def length_impact(user, before_id, after_id):
         for target in sorted(old.keys() | new.keys())
         if old.get(target) != new.get(target)
     ]
-    route_changed = old["route"] != new["route"]
+    route_changed = old["route"]["declaration"] != new["route"]["declaration"]
     return {
         "before_revision_id": before["revision_id"],
         "after_revision_id": after["revision_id"],

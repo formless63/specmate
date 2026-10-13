@@ -1,11 +1,11 @@
 import { LengthsEditor, LengthInspection, LengthImpactView } from "./Lengths";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { useMutation, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient, type Query, type UseQueryResult } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
 import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
-import { command, read, initialCable, type Cable, type Definition, type Draft, type Identity, type Inspection } from './api';
+import { authorityDenied, command, read, initialCable, type Cable, type Definition, type Draft, type Identity, type Inspection } from './api';
 
 export function CablePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
@@ -18,51 +18,94 @@ function Workspace({ projectId }: { projectId: string }) {
   const [offset, setOffset] = useState(0);
   const [createSourceDenied, setCreateSourceDenied] = useState(false);
   const [draftSourceDenied, setDraftSourceDenied] = useState(false);
+  const [draftToken, setDraftToken] = useState<string>();
+  const [committedDraft, setCommittedDraft] = useState<Draft | null>(null);
+  const [authorityBlocked, setAuthorityBlocked] = useState(false);
+  const [checkingAuthority, setCheckingAuthority] = useState(false);
+  const affectedQueries = useRef<Query[]>([]);
+  const checking = useRef(false);
+  const refreshAuthority = useCallback(async () => {
+    if (checking.current) return;
+    checking.current = true; setCheckingAuthority(true);
+    try {
+      // Preserve the read functions as well as keys: hidden reference queries can be
+      // garbage-collected while access is denied, and must still be reauthorized.
+      await Promise.all(affectedQueries.current.map(query => cache.fetchQuery({
+        queryKey: query.queryKey, queryFn: query.options.queryFn, staleTime: 0,
+      })));
+      setAuthorityBlocked(false);
+    } catch { /* Keep retained form state hidden until every affected read is authorized. */ }
+    finally { checking.current = false; setCheckingAuthority(false); }
+  }, [cache]);
+  const mutationError = useCallback((error: Error) => {
+    if (!authorityDenied(error)) return;
+    affectedQueries.current = cache.getQueryCache().findAll({ type: 'active' })
+      .filter(query => String(query.queryKey[0]).startsWith('cable-'));
+    setAuthorityBlocked(true);
+    void refreshAuthority();
+  }, [cache, refreshAuthority]);
+  useEffect(() => {
+    if (!authorityBlocked) return;
+    const refresh = () => { void refreshAuthority(); };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [authorityBlocked, refreshAuthority]);
   const definitions = useQuery({ queryKey: ["cable-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
   const identity = useQuery({ queryKey: ["cable-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["cable-draft", draftId], queryFn: () => read<Draft>(`cables/drafts/${draftId}`), enabled: !!draftId });
   const create = useMutation({ mutationFn: () => command<Draft>("cable.create", { project_id: projectId, name, cable: value }), onSuccess: async (data) => {
-    setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
+    setDefinitionId(data.definition_id); setDraftId(data.draft_id); setDraftToken(data.state); setCommittedDraft(null); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["cable-definitions", projectId] });
-  } });
-  const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("cable.freeze", { draft_id: draftId }, draft.data?.state), onSuccess: async (data) => {
+  }, onError: mutationError });
+  const freeze = useMutation({ mutationFn: () => command<{ revision_id: string; draft?: Draft }>("cable.freeze", { draft_id: draftId }, draftToken), onSuccess: async (data) => {
     setRevisionId(data.revision_id);
+    if (data.draft) { setCommittedDraft(data.draft); setDraftToken(data.draft.state); }
     await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] });
     await cache.invalidateQueries({ queryKey: ["cable-identity", definitionId] });
-  } });
+  }, onError: mutationError });
   const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
-  const workspaceDenied = definitions.isError || identity.isError;
+  const workspaceDenied = authorityBlocked || definitions.isError || identity.isError;
   return <Stack>
     <Title order={2}>Cable endpoints and terminations</Title>
     <Text>Compose exact stock, body and pinout revisions. Assignments preserve each conductor, shield and drain identity. Review records declared terminations; continuity and physical qualification remain unevaluated.</Text>
-    <Card withBorder><Stack>
+    {authorityBlocked && <Alert color="red"><Stack><Text>Cable access must be rechecked before retained content can be shown.</Text><Button loading={checkingAuthority} onClick={() => void refreshAuthority()}>Refresh cable access</Button></Stack></Alert>}
+    {!authorityBlocked && <Card withBorder><Stack>
       <Title order={3}>New reusable definition</Title>
       <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <CableEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} />
       <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} onClick={() => create.mutate()}>Create cable draft</Button>
-      {create.isError && <Alert color="red">{create.error.message}</Alert>}
-    </Stack></Card>
+    </Stack></Card>}
+    {create.isError && <Alert color="red">{create.error.message}</Alert>}
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Select label="Existing cable definition" searchable data={currentDefinitions.filter((d) => d.kind === "cable").map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitions.isError ? null : definitionId} disabled={definitions.isError} onChange={(id) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
+    {!authorityBlocked && <Select label="Existing cable definition" searchable data={currentDefinitions.filter((d) => d.kind === "cable").map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitions.isError ? null : definitionId} disabled={definitions.isError} onChange={(id) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setDraftToken(undefined); setCommittedDraft(null); setOffset(0); }} />}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && !workspaceDenied && <>
-      <Select label="Edit cable draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
+      <Select label="Edit cable draft" value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); } }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
       <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && !draft.isError && !workspaceDenied && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={currentDefinitions} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} /><Button disabled={draftSourceDenied} loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze cable revision</Button></>}
+    {draft.data && draftId && <DraftEditor key={draft.data.draft_id} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} />}
+    {draft.data && !draft.isError && !workspaceDenied && <Button disabled={draftSourceDenied || !draftToken} loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze cable revision</Button>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
     {revisionId && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
   </Stack>;
 }
 
-function DraftEditor({ draft, definitions, onSaved, onAuthorityChange }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void }) {
+function DraftEditor({ draft, committedDraft, hidden, definitions, onSaved, onAuthorityChange, onStateChange, onMutationError }: { draft: Draft; committedDraft: Draft | null; hidden: boolean; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void; onStateChange: (state: string) => void; onMutationError: (error: Error) => void }) {
   const [sourceDenied, setSourceDenied] = useState(false);
-  useEffect(() => onAuthorityChange(sourceDenied), [sourceDenied, onAuthorityChange]);
+  // Refocus/access refreshes may read a newer server state. Keep the editing baseline
+  // and unsaved text together until this editor successfully saves or freezes.
+  const [base, setBase] = useState(draft);
   const [value, setValue] = useState(() => draft.content.cable ?? initialCable());
-  const save = useMutation({ mutationFn: () => command("cable.update", { draft_id: draft.draft_id, cable: value }, draft.state), onSuccess: onSaved });
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><CableEditor value={value} onChange={setValue} definitions={definitions} onAuthorityChange={setSourceDenied} /><Button disabled={sourceDenied} loading={save.isPending} onClick={() => save.mutate()}>Save cable draft</Button>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+  useEffect(() => onAuthorityChange(sourceDenied), [sourceDenied, onAuthorityChange]);
+  useEffect(() => onStateChange(base.state), [base.state, onStateChange]);
+  useEffect(() => {
+    if (committedDraft?.draft_id === base.draft_id) setBase(current => ({ ...current, state: committedDraft.state }));
+  }, [committedDraft, base.draft_id]);
+  const save = useMutation({ mutationFn: () => command<Draft>("cable.update", { draft_id: base.draft_id, cable: value }, base.state), onSuccess: async data => { setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }, onError: onMutationError });
+  if (hidden) return null;
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><CableEditor value={value} onChange={setValue} definitions={definitions} onAuthorityChange={setSourceDenied} /><Button disabled={sourceDenied} loading={save.isPending} onClick={() => save.mutate()}>Save cable draft</Button>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
 function RevisionPicker({ label, kind, value, onChange, definitions }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[] }) {
   const [definition, setDefinition] = useState<string | null>(null);

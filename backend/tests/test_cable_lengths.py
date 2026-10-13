@@ -292,3 +292,82 @@ def test_fractional_allowances_zero_and_endpoint_scope_remain_exact(users, proje
     )
     assert response.status_code == 200
     assert response.json()["changes"] == []
+
+
+@pytest.mark.parametrize("invalid", ["cut", "allowance_endpoint", "termination_endpoint"])
+@pytest.mark.parametrize("operation_name", ["cable.create", "cable.update"])
+def test_hidden_retained_authority_precedes_supplied_semantic_diagnostics(
+    users, project, invalid, operation_name
+):
+    user = users["owner"]
+    hidden_project = op(user, "project.create", {"name": "Hidden retained length source"})[
+        "project_id"
+    ]
+    *_, hidden = fixture(user, hidden_project)
+    *_, replacement = fixture(user, project)
+    original = create(user, project, hidden, idempotency_key="semantic-guard")
+    if operation_name == "cable.update":
+        stored = op(
+            user,
+            operation_name,
+            {"draft_id": original["draft_id"], "cable": hidden},
+            expected_state=original["state"],
+            idempotency_key="semantic-guard",
+        )
+        op(
+            user,
+            operation_name,
+            {"draft_id": original["draft_id"], "cable": replacement},
+            expected_state=stored["state"],
+        )
+    replacement["lengths"] = length_plan()
+    if invalid == "cut":
+        replacement["lengths"]["conductor_cuts"][0]["element_path"] = "stock.jacket"
+    elif invalid == "allowance_endpoint":
+        replacement["lengths"]["finished"]["model"]["allowances"][0].update(
+            scope="endpoint", endpoint_id="missing"
+        )
+    else:
+        replacement["assignments"][0]["endpoint_id"] = "missing"
+    fresh = create(user, project, fixture(user, project)[-1])
+    payload = (
+        {"project_id": project, "name": "Replacement", "cable": replacement}
+        if operation_name == "cable.create"
+        else {"draft_id": fresh["draft_id"], "cable": replacement}
+    )
+    Membership.objects.filter(project_id=hidden_project, user=user).delete()
+    with pytest.raises((PermissionDenied, NotFound)):
+        op(
+            user,
+            operation_name,
+            payload,
+            expected_state=fresh["state"],
+            idempotency_key="semantic-guard",
+        )
+    with pytest.raises(ValidationFailed):
+        op(user, operation_name, payload, expected_state=fresh["state"])
+
+
+def test_stock_pin_change_does_not_report_route_declaration_change(users, project):
+    user = users["owner"]
+    _, _, stock, _, _, cable = fixture(user, project)
+    cable["lengths"] = length_plan()
+    original = capture(user, create(user, project, cable))
+    later_stock = capture(user, stock["draft"], "wire_stock.freeze")
+    cable["stock_revision_id"] = later_stock["revision_id"]
+    updated = op(
+        user,
+        "cable.update",
+        {"draft_id": original["draft"]["draft_id"], "cable": cable},
+        expected_state=original["draft"]["state"],
+    )
+    later = capture(user, updated)
+    result = op(
+        user,
+        "cable.length_impact",
+        {"before_revision_id": original["revision_id"], "after_revision_id": later["revision_id"]},
+    )
+    assert result["stock_revision_changed"] is True
+    assert result["route_changed"] is False
+    assert result["preparation_review_required"] is True
+    assert result["document_review_required"] is True

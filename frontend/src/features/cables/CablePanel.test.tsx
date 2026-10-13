@@ -190,3 +190,86 @@ test('a denied reference identity refresh clears its retained revision choices',
   expect((screen.getByRole('combobox', { name: 'Cable stock revision' }) as HTMLInputElement).disabled).toBe(true);
   expect(screen.queryByText('Revision 1 · private-stock-rev')).toBeNull();
 });
+
+test.each([
+  ['cable.create', 'Create cable draft', 403],
+  ['cable.update', 'Save cable draft', 404],
+  ['cable.freeze', 'Freeze cable revision', 403],
+])('%s denial hides retained content and focus restores unsaved text with its original CAS token', async (operation, button, status) => {
+  let serverCable = initialCable();
+  let state = 'saved-v1';
+  let denyMutation = false;
+  let sourceDenied = false;
+  let restored = false;
+  const commands: { operation: string; expected_state?: string; payload: { cable?: Cable } }[] = [];
+  const savedDraft = () => ({ definition_id: 'cable', draft_id: 'draft', state, content: { cable: serverCable } });
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === 'POST') {
+      const cmd = JSON.parse(String(options.body)); commands.push(cmd);
+      if (denyMutation && cmd.operation === operation) {
+        sourceDenied = true;
+        return new Response(JSON.stringify({ error: { message: 'Mutation source access denied.' } }), { status });
+      }
+      if (restored && cmd.operation === 'cable.update') {
+        return new Response(JSON.stringify({ error: { message: 'Original editing token conflicts with newer draft.' } }), { status: 409 });
+      }
+      if (cmd.payload.cable) serverCable = cmd.payload.cable;
+      if (cmd.operation === 'cable.freeze') state = 'saved-v2';
+      return new Response(JSON.stringify({ result: cmd.operation === 'cable.freeze' ? { revision_id: 'cable-rev', draft: savedDraft() } : savedDraft() }), { status: 200 });
+    }
+    if (sourceDenied && url.includes('/snapshot')) return new Response(JSON.stringify({ error: { message: 'Stock source access denied.' } }), { status: 404 });
+    const data = url.includes('cables/drafts') ? savedDraft()
+      : url.includes('cables/revisions') ? inspected(serverCable)
+      : url.includes('interfaces/revisions/body-rev') ? { interface: body }
+      : url.includes('interfaces/revisions/pinout-rev') ? { interface: pinout }
+      : url.includes('/snapshot') ? { content: { stock } }
+      : url.includes('catalog/definitions') ? { drafts: [{ draft_id: 'draft', state }], revisions: [{ revision_id: 'cable-rev', number: 1 }] }
+      : [{ definition_id: 'cable', name: 'Synthetic cable', kind: 'cable' }];
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(wrap(<CablePanel projectId="project" />, cache));
+  fireEvent.change(screen.getByLabelText('Definition name'), { target: { value: 'Synthetic cable' } });
+  fireEvent.change(screen.getByLabelText('Cable stock exact revision ID'), { target: { value: 'stock-rev' } });
+  for (const index of [1, 2]) {
+    fireEvent.change(screen.getByLabelText(`Endpoint ${index} body exact revision ID`), { target: { value: 'body-rev' } });
+    fireEvent.change(screen.getByLabelText(`Endpoint ${index} pinout exact revision ID`), { target: { value: 'pinout-rev' } });
+  }
+  fireEvent.click(screen.getByLabelText('Record independent cable lengths'));
+  fireEvent.change(screen.getByLabelText('Route declared mm'), { target: { value: '1234' } });
+  fireEvent.change(screen.getByLabelText('Route declaration basis'), { target: { value: 'Private route basis' } });
+  fireEvent.click(screen.getByText('Create cable draft'));
+  await screen.findByText('Edit draft');
+  fireEvent.click(screen.getByText('Freeze cable revision'));
+  await screen.findByText('Exact revision cable-rev');
+  await screen.findByText('saved-v2');
+  const createEditor = () => within(screen.getByText('New reusable definition').closest('.mantine-Card-root')! as HTMLElement);
+  const draftEditor = () => within(screen.getByText('Edit draft').closest('.mantine-Card-root')! as HTMLElement);
+  fireEvent.change(createEditor().getByLabelText('Route declared mm'), { target: { value: '888.000001' } });
+  fireEvent.change(draftEditor().getByLabelText('Route declared mm'), { target: { value: '777.000001' } });
+  denyMutation = true;
+  fireEvent.click(screen.getByRole('button', { name: button }));
+  const refresh = await screen.findByRole('button', { name: 'Refresh cable access' });
+  await waitFor(() => expect((refresh as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
+  expect(screen.queryByDisplayValue('777.000001')).toBeNull();
+  expect(screen.queryByDisplayValue('stock-rev')).toBeNull();
+  expect(screen.queryByText('Exact revision cable-rev')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save cable draft' })).toBeNull();
+  // A long-lived denial may garbage-collect hidden source queries. Their original
+  // read functions must still be rechecked before revealing the retained editor.
+  cache.removeQueries({ queryKey: ['cable-stock', 'stock-rev'] });
+  fireEvent(window, new Event('focus'));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh cable access' }) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.queryByDisplayValue('777.000001')).toBeNull();
+  sourceDenied = false; denyMutation = false; restored = true; state = 'server-newer';
+  fireEvent(window, new Event('focus'));
+  await screen.findByText('Edit draft');
+  expect((createEditor().getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('888.000001');
+  expect((draftEditor().getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('777.000001');
+  expect(draftEditor().getByText('saved-v2')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Save cable draft' }));
+  await screen.findByText('Original editing token conflicts with newer draft.');
+  expect(commands.at(-1)).toMatchObject({ operation: 'cable.update', expected_state: 'saved-v2', payload: { cable: { lengths: { route: { amount_mm: '777.000001' } } } } });
+  expect((draftEditor().getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('777.000001');
+}, 15_000);
