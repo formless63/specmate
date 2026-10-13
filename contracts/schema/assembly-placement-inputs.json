@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "draft_id": {
+      "format": "uuid",
+      "title": "Draft Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "draft_id"
+  ],
+  "title": "PlacementInputs",
+  "type": "object"
+}

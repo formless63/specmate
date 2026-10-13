@@ -3,11 +3,20 @@ from uuid import UUID
 from ninja import Router
 
 from specmate.access.permissions import Perm
+from specmate.assemblies.placement import PlacementInputs, inspect_inputs
 from specmate.assemblies.queries import authorize_content, read_assembly
 from specmate.design.operations import draft_state, scoped_draft
 from specmate.operations import Context, ValidationFailed
 
 router = Router(tags=["assemblies"])
+
+
+@router.get("/drafts/{draft_id}/placement-inputs")
+def inspect_placement_inputs(request, draft_id: UUID):
+    return inspect_inputs(
+        Context(user=request.user, via="api", request_id="placement-read"),
+        PlacementInputs(draft_id=draft_id),
+    )
 
 
 @router.get("/snapshots/{snapshot_id}")
