@@ -1,5 +1,5 @@
 import type { StockSpecification } from '../../../../packages/section-layout/src';
-import type { ProjectionNode, Relationship } from '../assemblies/api';
+import type { OccurrenceRef, ProjectionNode, RelationshipKind, RevisionRef } from '../assemblies/api';
 export { request, SourceError } from '../sources/api';
 
 export type Matrix = number[][];
@@ -31,7 +31,7 @@ export type SharedScene = {
   schema_version: '1'; snapshot_id: string; sha256: string; root: Pin & { world_transform: Matrix };
   units: 'mm'; frame: 'right_handed_z_up'; matrix_convention: string;
   nodes: SceneNode[]; geometry: Geometry[];
-  relationships: (Relationship & { context_path: string[] })[];
+  relationships: ({ kind: RelationshipKind; local_id: string; context_path: string[] } & Partial<Record<'parent' | 'child' | 'a' | 'b' | 'mounted' | 'support' | 'subject' | 'source' | 'document' | 'orderable', OccurrenceRef | RevisionRef>>)[];
   qualification: { fit: 'not_evaluated'; clearance: 'not_evaluated'; manufacturing: 'not_evaluated'; physical: false };
 };
 export type SceneChoices = { assemblies: { snapshot_id: string; revision_id: string; name: string; number: number }[]; window: string };

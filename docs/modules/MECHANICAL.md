@@ -101,6 +101,41 @@ authorized projection, without a persistent cross-project disclosure cache. A dr
 mesh or outline does not establish fit, clearance, manufacturing approval or physical
 qualification.
 
+### Connected contextual inspection
+
+The contextual inspection workspace connects tree, native board plane, cable/harness,
+scene, inspector, schematic context and BOM context around one currently authorized
+frozen root. Its transient selection is either an exact occurrence address
+`{snapshot_id, path, feature_id?}` or an independent reusable revision ID. A revision
+selection carries no containing placement or firmware assignment. Equal display
+references, native feature IDs and shared geometry never merge repeated occurrences.
+
+Board components and pads use the exact accepted native feature IDs owned by the
+selected occurrence. Marker size is only a selection aid. Native schematic geometry
+and board-to-schematic correspondence remain visibly unavailable; reference and pin
+labels establish no identity. Cable views expose exact typed relationship context
+without inferring installed routes, terminal correspondence or physical continuity.
+The existing scene viewport highlights a containing occurrence when a selected feature
+has no drawable 3D geometry, while retaining the exact feature selection.
+
+The host supplies the signed-in principal and selected project. Project, principal or
+root changes remount the scope and discard selections and retained data. Fresh reads
+check the root definition against the selected project's authorized definitions and
+the existing scene authority closure. Explicit refresh, focus and document reveal hide
+all connected content while rechecking. A denial clears every connected view and
+selection intent; older responses cannot reopen it. Adapter reads use monotonic scope,
+read and optional selection tickets, never labels or a persistent disclosure cache.
+
+A frozen BOM plan is optional and independently selected. Context mapping requires
+the same root assembly revision, snapshot and hash, with exact per-use addresses and
+revision pins. Grouped rows expand into separately selectable uses and retain their
+individual quantities, boundaries and unresolved reasons. Supplemental needs select
+their owning context and do not imply another physical occurrence. Filters, grouping,
+view changes and local scene arrangements preserve selection without rewriting
+canonical placement or engineering state. Deliberate occurrence picks select the whole
+use; selecting a feature is a separate exact action. Standalone discipline tools remain
+independent from this connected occurrence context.
+
 ## Canonical placement and mounting declarations
 
 The Assemblies tool authors each directly owned occurrence's explicit canonical
