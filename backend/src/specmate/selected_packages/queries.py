@@ -34,12 +34,24 @@ def inside(path, selection):
     return tuple(path[: len(selection)]) == selection
 
 
-def source_pins(value):
+def source_pins(value, *, kind=None):
     """Recognize exact existing file-pin shapes, never attach a whole source bundle.
 
     Unknown native/extension references remain unresolved, rather than claiming a
     reconstruction merely because their containing canonical record is preserved.
     """
+    if kind == "firmware":
+        from specmate.pcb.firmware import parse_content
+
+        firmware = parse_content(value, kind)
+        if firmware is not None:
+            # The shared revision read has already checked each manifest, file hash,
+            # rights declaration and full source ancestry. Only these typed file
+            # pins belong to the selected package, never the rest of their bundle.
+            for pin in firmware.sources:
+                for file in pin.files:
+                    yield str(pin.source_revision_id), file.path, None
+            return
     if isinstance(value, dict):
         rid = value.get("source_bundle_revision_id")
         path = value.get("source_path")
@@ -278,7 +290,7 @@ def collect_sources(user, captured):
     pins = []
     for revision in captured.values():
         body = json.loads(bytes(revision.snapshot.canonical))
-        pins.extend(source_pins(body["content"]))
+        pins.extend(source_pins(body["content"], kind=revision.definition.kind))
     # Resolve all source revisions/ancestry before any missing-path diagnostic.
     source_revisions = {}
     for rid, path, representation_id in pins:
@@ -465,11 +477,23 @@ def build_package(user, p):
         unresolved.append(
             {"reason": "Source bundle reference lacks an exact selected file boundary."}
         )
-    if unsupported:
+    if "firmware" in unsupported:
+        unresolved.append(
+            {
+                "reason": "Preserved firmware declarations and selected source files do not "
+                "reconstruct a compiled firmware artifact.",
+                "kinds": ["firmware"],
+                "toolchain_support": "declared_not_verified",
+                "compilation": "not_performed",
+                "flashing": "not_performed",
+            }
+        )
+    other_unsupported = [kind for kind in unsupported if kind != "firmware"]
+    if other_unsupported:
         unresolved.append(
             {
                 "reason": "Native/extension reconstruction unsupported for preserved kinds.",
-                "kinds": unsupported,
+                "kinds": other_unsupported,
             }
         )
     occurrences = occurrence_rows(selected, closure, selection)
