@@ -1,8 +1,8 @@
-import { Alert, Button, Card, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Projection } from "../assemblies/api";
-import { blankPlan, command, read, unknownCount, type Count, type Definition, type Draft, type Identity, type Inspection, type Need, type Plan, type Purpose } from "./api";
+import { blankPlan, command, read, unknownCount, unknownDemand, type DemandQuantity, type Waste, type Count, type Definition, type Draft, type Identity, type Inspection, type Need, type Plan, type Purpose } from "./api";
 
 const purposes = [{ value: "assembly_contents", label: "Assembly contents" }, { value: "procurement", label: "Procurement" }, { value: "pcb_fabrication", label: "PCB fabrication" }, { value: "pcb_population", label: "PCB population" }, { value: "consumables", label: "Consumables" }];
 const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembly";
@@ -74,12 +74,21 @@ function CountInput({ title, value, onChange }: { title: string; value: Count; o
   return <NumberInput label={title} description="Whole items only. Blank means unknown." min={1} max={1000000} allowDecimal={false} value={value.amount ?? ""} onChange={n => onChange(typeof n === "number" ? { status: "known", amount: n, unit: "ea" } : unknownCount())} />;
 }
 
+function DemandInput({ title, value, onChange }: { title: string; value: DemandQuantity; onChange: (value: DemandQuantity) => void }) {
+  return <Group align="start"><TextInput label={title} description="Exact decimal amount. Blank means unknown; no percentage or rounding." value={value.amount ?? ""} onChange={e => onChange({ ...value, status: e.currentTarget.value === "" ? "unknown" : "known", amount: e.currentTarget.value === "" ? null : e.currentTarget.value })} />
+    <Select label={`${title} unit`} value={value.unit} data={["ea", "m", "cm", "mm", "kg", "g"]} onChange={unit => onChange({ ...value, unit: unit as DemandQuantity["unit"] })} /></Group>;
+}
+function WasteInput({ title, value, unit, onChange }: { title: string; value?: Waste | null; unit: DemandQuantity["unit"]; onChange: (value: Waste | null) => void }) {
+  return <Stack gap="xs"><Checkbox label={`Declare additive waste for ${title}`} checked={!!value} onChange={e => onChange(e.currentTarget.checked ? { quantity: unknownDemand(unit), basis: "" } : null)} />
+    {value ? <><DemandInput title={`${title} additive waste per root assembly`} value={value.quantity} onChange={quantity => onChange({ ...value, quantity })} /><TextInput label={`${title} waste basis`} value={value.basis} onChange={e => onChange({ ...value, basis: e.currentTarget.value })} /></> : <Text size="sm">Waste not evaluated. Gross required demand remains unknown; declare zero explicitly when justified.</Text>}</Stack>;
+}
+
 function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions: Definition[]; onChange: (value: Plan) => void }) {
   const root = useQuery({ queryKey: ["bom-root", value.assembly_revision_id], queryFn: () => read<{ snapshot_id: string }>(`revisions/${value.assembly_revision_id}`), enabled: !!value.assembly_revision_id });
   const tree = useQuery({ queryKey: ["bom-tree", root.data?.snapshot_id], queryFn: () => read<Projection>(`assemblies/snapshots/${root.data?.snapshot_id}`), enabled: !!root.data });
   const contexts = [{ path: [] as string[], revision_id: value.assembly_revision_id }, ...(tree.data?.occurrences ?? []).map(n => ({ path: n.address.path, revision_id: n.revision_id }))];
   const [context, setContext] = useState("[]");
-  const [need, setNeed] = useState<Need>({ local_id: "", context_path: [], revision_id: "", purpose: "consumables", quantity: unknownCount(), basis: "" });
+  const [need, setNeed] = useState<Need>({ local_id: "", context_path: [], revision_id: "", purpose: "consumables", quantity: unknownDemand(), basis: "" });
   return <Stack>
     <RevisionPicker title="Root assembly" definitions={definitions.filter(d => d.kind === "assembly")} value={value.assembly_revision_id} onChange={id => onChange({ ...blankPlan(), assembly_revision_id: id, quantity: value.quantity })} />
     <CountInput title="Planned assembly quantity" value={value.quantity} onChange={quantity => onChange({ ...value, quantity })} />
@@ -91,15 +100,21 @@ function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions
         <Select label={`Decision for ${label(c.path)}`} data={["unknown", "make", "buy"]} value={existing?.decision ?? "unknown"} onChange={decision => { const next = { path: c.path, revision_id: c.revision_id, decision: decision as "make" | "buy" | "unknown", basis: existing?.basis ?? "" }; onChange({ ...value, policies: [...value.policies.filter(p => JSON.stringify(p.path) !== JSON.stringify(c.path)), next] }); }} />
         <TextInput label={`Decision basis for ${label(c.path)}`} value={existing?.basis ?? ""} onChange={e => onChange({ ...value, policies: [...value.policies.filter(p => JSON.stringify(p.path) !== JSON.stringify(c.path)), { path: c.path, revision_id: c.revision_id, decision: existing?.decision ?? "unknown", basis: e.currentTarget.value }] })} />
       </Stack></Card>; })}
-      <Title order={4}>Supplemental process needs</Title><Text>Declare fabrication, population or consumable demand that is not already a retained child. Needs only apply under explicit make decisions. They do not change assembly contents.</Text>
+      <Title order={4}>Occurrence material demand</Title><Text>Each declaration is for this exact occurrence in one root assembly, including repeated occurrences. Structural contents remain one item per occurrence. Units alone do not establish stock compatibility. No amount is inferred from geometry.</Text>
+      {contexts.map(c => { const existing = value.occurrence_demands?.find(d => JSON.stringify(d.path) === JSON.stringify(c.path)); const update = (change: Partial<NonNullable<Plan["occurrence_demands"]>[number]>) => onChange({ ...value, occurrence_demands: (value.occurrence_demands ?? []).map(d => JSON.stringify(d.path) === JSON.stringify(c.path) ? { ...d, ...change } : d) }); return <Card withBorder key={`demand:${JSON.stringify(c.path)}`}><Stack gap="xs">
+        <Checkbox label={`Declare material demand for ${label(c.path)}`} checked={!!existing} onChange={e => onChange({ ...value, occurrence_demands: e.currentTarget.checked ? [...(value.occurrence_demands ?? []), { path: c.path, revision_id: c.revision_id, quantity: unknownDemand(), basis: "", waste: null }] : (value.occurrence_demands ?? []).filter(d => JSON.stringify(d.path) !== JSON.stringify(c.path)) })} />
+        {existing && <><DemandInput title={`${label(c.path)} net demand per root assembly`} value={existing.quantity} onChange={quantity => update({ quantity })} /><TextInput label={`${label(c.path)} demand basis`} value={existing.basis} onChange={e => update({ basis: e.currentTarget.value })} /><WasteInput title={label(c.path)} value={existing.waste} unit={existing.quantity.unit} onChange={waste => update({ waste })} /></>}
+      </Stack></Card>; })}
+      <Title order={4}>Supplemental process needs</Title><Text>Declare fabrication, population or consumable demand that is not already a retained child. Needs only apply under explicit make decisions. They do not change assembly contents. Each quantity and additive waste amount is per one root assembly at the chosen context.</Text>
       <Select label="Need context" value={context} data={contexts.map(c => ({ value: JSON.stringify(c.path), label: label(c.path) }))} onChange={c => setContext(c ?? "[]")} />
       <TextInput label="Need stable ID" value={need.local_id} onChange={e => setNeed({ ...need, local_id: e.currentTarget.value })} />
       <RevisionPicker title="Need item" definitions={definitions} value={need.revision_id} onChange={id => setNeed({ ...need, revision_id: id })} />
       <Select label="Need purpose" data={purposes.slice(2)} value={need.purpose} onChange={p => setNeed({ ...need, purpose: p as Need["purpose"] })} />
-      <CountInput title="Need quantity per assembly" value={need.quantity} onChange={quantity => setNeed({ ...need, quantity })} />
+      <DemandInput title="Need net demand per root assembly" value={need.quantity} onChange={quantity => setNeed({ ...need, quantity })} />
+      <WasteInput title="Need" value={need.waste} unit={need.quantity.unit} onChange={waste => setNeed({ ...need, waste })} />
       <TextInput label="Need basis" value={need.basis} onChange={e => setNeed({ ...need, basis: e.currentTarget.value })} />
       <Button disabled={!need.local_id || !need.revision_id || !need.basis} onClick={() => onChange({ ...value, needs: [...value.needs, { ...need, context_path: JSON.parse(context) as string[] }] })}>Add process need</Button>
-      {value.needs.map((n, i) => <Group key={`${n.local_id}:${i}`}><Text>{n.local_id} · {label(n.context_path)} · {n.purpose} · {n.quantity.amount ?? "unknown"} ea</Text><Button size="xs" onClick={() => onChange({ ...value, needs: value.needs.filter((_, j) => i !== j) })}>Remove {n.local_id}</Button></Group>)}
+      {value.needs.map((n, i) => <Group key={`${n.local_id}:${i}`}><Stack gap="xs"><Text>{n.local_id} · {label(n.context_path)} · {n.purpose} · {n.quantity.amount ?? "unknown"} {n.quantity.unit} per root assembly</Text><Text size="xs">{n.basis}</Text><Text size="xs">Additive waste: {n.waste ? `${n.waste.quantity.amount ?? "unknown"} ${n.waste.quantity.unit} per root · ${n.waste.basis}` : "not evaluated"}</Text></Stack><Button size="xs" onClick={() => onChange({ ...value, needs: value.needs.filter((_, j) => i !== j) })}>Remove {n.local_id}</Button></Group>)}
     </>}
   </Stack>;
 }
@@ -111,7 +126,7 @@ export function BomInspector({ revisionId }: { revisionId: string }) {
     <Select label="BOM purpose" value={purpose} data={purposes} onChange={p => setPurpose(p as Purpose)} />
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {result.data && <><Text>Plan revision: {result.data.revision_id}</Text><Text>Assembly revision: {result.data.bom.assembly_revision_id}</Text><Text>Status: {result.data.status}. Physical qualification: not evaluated.</Text>
-      <Table><Table.Thead><Table.Tr><Table.Th>Occurrence / need</Table.Th><Table.Th>Exact item</Table.Th><Table.Th>Quantity</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{result.data.rows.map((r, i) => <Table.Tr key={i}><Table.Td>{label(r.address.path)}{r.need_id ? ` · ${r.need_id}` : ""}</Table.Td><Table.Td>{r.name}<Text size="xs">{r.revision_id}</Text></Table.Td><Table.Td>{r.quantity.amount ?? "unknown"} ea</Table.Td><Table.Td>{r.reason}<Text size="xs">{r.basis}</Text></Table.Td></Table.Tr>)}</Table.Tbody></Table>
+      <Table><Table.Thead><Table.Tr><Table.Th>Occurrence / need</Table.Th><Table.Th>Exact item</Table.Th><Table.Th>Net / structural quantity</Table.Th><Table.Th>Additive waste / gross required</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{result.data.rows.map((r, i) => <Table.Tr key={i}><Table.Td>{label(r.address.path)}{r.need_id ? ` · ${r.need_id}` : ""}</Table.Td><Table.Td>{r.name}<Text size="xs">{r.revision_id}</Text></Table.Td><Table.Td>{r.quantity.amount ?? "unknown"} {r.quantity.unit}<Text size="xs">{r.demand_basis}</Text>{r.per_root_quantity && <Text size="xs">Per root: {r.per_root_quantity.amount ?? "unknown"} {r.per_root_quantity.unit}</Text>}{r.structural_quantity && <Text size="xs">Structural: {r.structural_quantity.amount ?? "unknown"} ea</Text>}{r.net_quantity && <Text size="xs">Net demand: {r.net_quantity.amount ?? "unknown"} {r.net_quantity.unit}</Text>}</Table.Td><Table.Td>{r.waste_quantity ? <>Waste: {r.waste_quantity.amount ?? "unknown"} {r.waste_quantity.unit}<Text size="xs">{r.waste_status} · {r.waste_basis}</Text>{r.per_root_waste && <Text size="xs">Allowance per root: {r.per_root_waste.amount ?? "unknown"} {r.per_root_waste.unit}</Text>}<Text>Gross: {r.required_quantity?.amount ?? "unknown"} {r.required_quantity?.unit ?? r.quantity.unit}</Text></> : "Waste not evaluated"}</Table.Td><Table.Td>{r.reason}<Text size="xs">{r.basis}</Text></Table.Td></Table.Tr>)}</Table.Tbody></Table>
       {!result.data.rows.length && <Text>No included rows for this purpose and scope. Check boundaries and unresolved decisions below.</Text>}
       {result.data.boundaries.map((b, i) => <Text key={i}>Boundary: {label(b.address.path)} · {b.decision}</Text>)}
       {result.data.unresolved.map((u, i) => <Alert color="yellow" key={i}>{label(u.address.path)}{u.need_id ? ` · ${u.need_id}` : ""}: {u.reason}</Alert>)}

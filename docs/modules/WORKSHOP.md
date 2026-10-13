@@ -142,9 +142,39 @@ excluded with a reason. Consumables appear separately from retained composition 
 procurement projection; fabrication/population needs also contribute procurement demand.
 This demand is not an order, supplier choice or validated native PCB population.
 
-Each structural occurrence represents one whole item per planned root. The root count
-multiplies declared per-assembly supplemental counts; unknown counts propagate as unknown,
-never zero. Only positive whole-item `ea` quantities are supported here. Length/mass
-stock, waste allowance, sourcing, prices, native PCB extraction and physical qualification
-remain unevaluated. The browser can create/edit/freeze plans and reopen purpose-specific
-revision views with contextual rows, unresolved branches and boundary explanations.
+Each structural occurrence represents one whole item per planned root. Structural counts
+remain independent of material extent: an `occurrence_demands` declaration identifies an
+exact contextual path and expected revision, a reviewed basis, and net material quantity
+for that occurrence in **one root assembly**. Repeated occurrences have separate declarations;
+none are pooled or divided by geometry. Without a declaration, the structural demand remains
+one whole item. Assembly contents keep structural counts and show declared net demand
+separately; procurement uses the declared demand at an included buy boundary. A declaration
+below a bought ancestor cannot bypass it. Supplemental needs use the same dimensional
+quantities per root assembly at their declared context and remain separate from retained
+construction. No stock compatibility is asserted by choosing a matching unit.
+
+Net demand is positive when known, with explicit unknown status otherwise. Supported units
+are whole-item `ea`, length `m`/`cm`/`mm`, and mass `kg`/`g`. Decimal strings or exact integers
+are accepted; floats, booleans, nonfinite values, fractional items and values outside the
+ledger's exact range/precision are rejected. Input declarations retain original units and
+exact values. Derived totals use canonical `ea`, `m` or `kg`, exact bounded arithmetic and
+the planned root count; overflow or unrepresentable precision fails rather than rounds.
+Unknown root counts or net quantities propagate independently.
+
+A declaration may include `waste`, an **additive quantity per one root assembly**, with its
+own basis, known/unknown status and units of the same dimension as net demand. It is not an
+implicit percentage, geometry-derived preparation rule or actual scrapped material record.
+Waste may be zero only by explicit declaration and basis. Frozen rows distinguish structural
+counts, net demand, waste allowance and gross `required_quantity` (net plus allowance).
+An absent allowance is `not_evaluated`: net demand stays known if established, while gross
+required demand remains unknown. Unknown waste does not become zero. Each total scales
+independently by root count; original declarations, bases and historical totals remain
+immutable. Source closure is reauthorized before contextual, dimension and derived quantity
+diagnostics, including declarations suppressed by a procurement boundary.
+
+The browser can create/edit/freeze exact decimal declarations and reopen purpose-specific
+revision views with contextual rows, unresolved branches and boundary explanations. Sourcing,
+prices, native PCB extraction and physical qualification remain unevaluated. These planning
+allowances cover part of consumable/waste separation; preparation-derived cut/slack rules,
+actual waste reconciliation and build-sheet export have their own scope. Planning never
+creates material usage, completion or an actual unit.

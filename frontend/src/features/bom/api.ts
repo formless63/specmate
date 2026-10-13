@@ -1,10 +1,14 @@
 export { command, read, type Definition, type Identity } from "../identity/api";
 export type Count = { status: "known" | "unknown"; amount: number | null; unit: "ea" };
+export type DemandQuantity = { status: "known" | "unknown"; amount: string | number | null; unit: "ea" | "m" | "cm" | "mm" | "kg" | "g" };
+export type Waste = { quantity: DemandQuantity; basis: string };
+export type Demand = { path: string[]; revision_id: string; quantity: DemandQuantity; basis: string; waste?: Waste | null };
 export type Policy = { path: string[]; revision_id: string; decision: "make" | "buy" | "unknown"; basis: string };
-export type Need = { local_id: string; context_path: string[]; revision_id: string; purpose: "pcb_fabrication" | "pcb_population" | "consumables"; quantity: Count; basis: string };
-export type Plan = { schema_version: "0.1"; assembly_revision_id: string; quantity: Count; scope_paths: string[][]; policies: Policy[]; needs: Need[] };
+export type Need = { local_id: string; context_path: string[]; revision_id: string; purpose: "pcb_fabrication" | "pcb_population" | "consumables"; quantity: DemandQuantity; basis: string; waste?: Waste | null };
+export type Plan = { schema_version: "0.1"; assembly_revision_id: string; quantity: Count; scope_paths: string[][]; policies: Policy[]; needs: Need[]; occurrence_demands?: Demand[] };
 export type Draft = { definition_id: string; draft_id: string; state: string; content: { bom?: Plan } };
 export type Purpose = "assembly_contents" | "procurement" | "pcb_fabrication" | "pcb_population" | "consumables";
-export type Inspection = { revision_id: string; snapshot_id: string; sha256: string; bom: Plan; purpose: Purpose; status: string; rows: { address: { snapshot_id: string; path: string[] }; revision_id: string; name: string; quantity: Count; reason: string; basis: string | null; need_id: string | null }[]; unresolved: { address: { path: string[] }; reason: string; need_id: string | null }[]; boundaries: { address: { path: string[] }; decision: string }[]; excluded_needs: { need_id: string; reason: string }[]; limitations: string[] };
+export type Inspection = { revision_id: string; snapshot_id: string; sha256: string; bom: Plan; purpose: Purpose; status: string; rows: { address: { snapshot_id: string; path: string[] }; revision_id: string; name: string; quantity: DemandQuantity; structural_quantity?: Count | null; net_quantity?: DemandQuantity; waste_quantity?: DemandQuantity; required_quantity?: DemandQuantity; per_root_quantity?: DemandQuantity; per_root_waste?: DemandQuantity | null; waste_status?: string; demand_basis?: string; waste_basis?: string | null; reason: string; basis: string | null; need_id: string | null }[]; unresolved: { address: { path: string[] }; reason: string; need_id: string | null }[]; boundaries: { address: { path: string[] }; decision: string }[]; excluded_needs: { need_id: string; reason: string }[]; limitations: string[] };
 export const unknownCount = (): Count => ({ status: "unknown", amount: null, unit: "ea" });
-export const blankPlan = (): Plan => ({ schema_version: "0.1", assembly_revision_id: "", quantity: unknownCount(), scope_paths: [], policies: [], needs: [] });
+export const unknownDemand = (unit: DemandQuantity["unit"] = "ea"): DemandQuantity => ({ status: "unknown", amount: null, unit });
+export const blankPlan = (): Plan => ({ schema_version: "0.1", assembly_revision_id: "", quantity: unknownCount(), scope_paths: [], policies: [], needs: [], occurrence_demands: [] });
