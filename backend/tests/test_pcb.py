@@ -621,7 +621,13 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         {
             "project_id": project,
             "name": "One contact body",
-            "interface": {"kind": "connector_body", "contacts": [{"contact_id": "1"}]},
+            "interface": {
+                "kind": "connector_body",
+                "contacts": [
+                    {"contact_id": "1"},
+                    {"contact_id": "K", "physical_role": "key"},
+                ],
+            },
         },
     )
     body_revision = op(
@@ -747,6 +753,26 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
             "revision_id", flat=True
         )
     ) == {UUID(pinout_revision), UUID(part_revision)}
+    client = Client()
+    client.force_login(users["viewer"])
+    target_response = client.get(f"/api/v0/pcb/projects/{project}/association-targets")
+    assert target_response.status_code == 200
+    pinout_target = next(
+        row for row in target_response.json()["revisions"] if row["revision_id"] == pinout_revision
+    )
+    assert pinout_target["contacts"] == ["1"]
+    wrong = copy.deepcopy(content)
+    wrong["associations"][0]["target_contact_id"] = "K"
+    with pytest.raises(ValidationFailed):
+        op(
+            users["editor"],
+            "pcb.population_update",
+            {
+                "draft_id": created["draft_id"],
+                "population": wrong,
+            },
+            expected_state=frozen["draft"]["state"],
+        )
     wrong = copy.deepcopy(content)
     wrong["associations"][2]["target_revision_id"] = str(uuid4())
     with pytest.raises(NotFound):
@@ -950,3 +976,88 @@ def test_generic_design_commands_apply_pcb_population_contract(users, project, p
     with pytest.raises(ValidationFailed):
         get_draft(users["viewer"], created["draft_id"])
     assert get_revision(users["viewer"], frozen["revision_id"]).id == UUID(frozen["revision_id"])
+
+
+def test_population_snapshot_guard_allows_older_revision_in_acyclic_history(users, population):
+    created_a, interpretation, component_ids, _ = population
+    a1 = op(
+        users["owner"],
+        "pcb.population_freeze",
+        {
+            "draft_id": created_a["draft_id"],
+        },
+        expected_state=created_a["state"],
+    )
+    created_b = op(
+        users["editor"],
+        "pcb.population_create",
+        {
+            "interpretation_id": interpretation["interpretation_id"],
+            "name": "Related set",
+        },
+    )
+    b_content = copy.deepcopy(created_b["content"]["pcb_population"])
+    b_content["associations"] = [
+        {
+            "local_id": "prior-a",
+            "kind": "library",
+            "component_id": component_ids[0],
+            "target_revision_id": a1["revision_id"],
+            "review": "candidate",
+        }
+    ]
+    b_updated = op(
+        users["editor"],
+        "pcb.population_update",
+        {
+            "draft_id": created_b["draft_id"],
+            "population": b_content,
+        },
+        expected_state=created_b["state"],
+    )
+    b1 = op(
+        users["owner"],
+        "pcb.population_freeze",
+        {
+            "draft_id": created_b["draft_id"],
+        },
+        expected_state=b_updated["state"],
+    )
+    a_content = copy.deepcopy(a1["draft"]["content"]["pcb_population"])
+    a_content["associations"] = [
+        {
+            "local_id": "related-b",
+            "kind": "library",
+            "component_id": component_ids[1],
+            "target_revision_id": b1["revision_id"],
+            "review": "candidate",
+        }
+    ]
+    a_updated = op(
+        users["editor"],
+        "pcb.population_update",
+        {
+            "draft_id": created_a["draft_id"],
+            "population": a_content,
+        },
+        expected_state=a1["draft"]["state"],
+    )
+    a2 = op(
+        users["owner"],
+        "pcb.population_freeze",
+        {
+            "draft_id": created_a["draft_id"],
+        },
+        expected_state=a_updated["state"],
+    )
+    assert a2["number"] == 2
+    assert (
+        op(
+            users["viewer"],
+            "pcb.population_read",
+            {
+                "draft_id": created_a["draft_id"],
+            },
+        )["state"]
+        == a2["draft"]["state"]
+    )

@@ -176,7 +176,19 @@ def _authorize_evidence(user, project_id, evidence: Evidence):
     return file
 
 
-_AUTHORIZING = ContextVar("pcb_authorizing_definitions", default=frozenset())
+_AUTHORIZING = ContextVar("pcb_authorizing_snapshots", default=frozenset())
+
+
+def _authorize_snapshot(user, snapshot):
+    """Bound nested exact-snapshot authorization while allowing older revisions."""
+    active = _AUTHORIZING.get()
+    if snapshot.id in active or len(active) >= 32:
+        raise ValidationFailed("PCB population association snapshot cycle or depth limit exceeded.")
+    token = _AUTHORIZING.set(active | {snapshot.id})
+    try:
+        authorize_snapshot(user, snapshot)
+    finally:
+        _AUTHORIZING.reset(token)
 
 
 def closure(user, definition, content) -> list[UUID]:
@@ -184,14 +196,7 @@ def closure(user, definition, content) -> list[UUID]:
     population = parse_content(content, definition.kind)
     if population is None:
         return []
-    active = _AUTHORIZING.get()
-    if definition.id in active or len(active) >= 32:
-        raise ValidationFailed("PCB population association cycle or depth limit exceeded.")
-    token = _AUTHORIZING.set(active | {definition.id})
-    try:
-        return _closure(user, definition, population)
-    finally:
-        _AUTHORIZING.reset(token)
+    return _closure(user, definition, population)
 
 
 def _closure(user, definition, population: Population) -> list[UUID]:
@@ -236,8 +241,7 @@ def _closure(user, definition, population: Population) -> list[UUID]:
             if target is None:
                 raise NotFound("Association target not found.")
             authorize(user, target.definition.project_id, Perm.PROJECT_READ)
-        if target.definition_id != definition.id:
-            authorize_snapshot(user, target.snapshot)
+        _authorize_snapshot(user, target.snapshot)
         body = None
         if association.kind == "port" and target.definition.kind == "pinout":
             pinout = json.loads(bytes(target.snapshot.canonical))["content"].get("interface", {})
@@ -251,8 +255,7 @@ def _closure(user, definition, population: Population) -> list[UUID]:
                 if body is None:
                     raise NotFound("Pinout body revision not found.")
                 authorize(user, body.definition.project_id, Perm.PROJECT_READ)
-                if body.definition_id != definition.id:
-                    authorize_snapshot(user, body.snapshot)
+                _authorize_snapshot(user, body.snapshot)
         references.append((association, target, representation, file, body))
 
     if (
@@ -295,8 +298,6 @@ def _closure(user, definition, population: Population) -> list[UUID]:
         if target.definition.project_id != definition.project_id:
             raise ValidationFailed("Association target must belong to the PCB project.")
         dependencies.add(target.id)
-        if target.definition_id == definition.id:
-            raise ValidationFailed("PCB population cannot associate to its own revision.")
         if association.kind == "port":
             if target.definition.kind != "pinout":
                 raise ValidationFailed("A port association requires a pinout revision.")
@@ -304,7 +305,9 @@ def _closure(user, definition, population: Population) -> list[UUID]:
                 raise ValidationFailed("Pinout has no exact connector body revision.")
             body_content = json.loads(bytes(body.snapshot.canonical))["content"]
             contacts = {
-                row["contact_id"] for row in body_content.get("interface", {}).get("contacts", [])
+                row["contact_id"]
+                for row in body_content.get("interface", {}).get("contacts", [])
+                if row.get("physical_role") != "key"
             }
             if association.target_contact_id not in contacts:
                 raise ValidationFailed("Port contact is absent from the exact connector body.")

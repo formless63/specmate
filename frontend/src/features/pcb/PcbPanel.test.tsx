@@ -2,11 +2,11 @@ import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PcbPanel, ReportView } from "./PcbPanel";
-import { command, getIntake, listIntakes, PcbRequestError, type Intake, type NativeReport } from "./api";
+import { associationTargets, command, getIntake, listIntakes, listPopulations, PcbRequestError, type Intake, type NativeReport } from "./api";
 
 vi.mock("./api", async (original) => ({
   ...(await original<typeof import("./api")>()),
-  command: vi.fn(), getIntake: vi.fn(), listIntakes: vi.fn(), preserveFiles: vi.fn(),
+  command: vi.fn(), getIntake: vi.fn(), listIntakes: vi.fn(), listPopulations: vi.fn(), associationTargets: vi.fn(), preserveFiles: vi.fn(),
 }));
 
 const report: NativeReport = {
@@ -14,7 +14,7 @@ const report: NativeReport = {
   coordinate_frame: "KiCad absolute: x right, y down; angles native degrees",
   components: [{ id: "native-component", reference: "R1", value: "1k", footprint: "Synthetic:R",
     position: [25, 10], rotation_deg: 0, side: "front", dnp: false }],
-  pads: [{ id: "native-pad", terminal: "R1.1", net: "N1", position: [25, 10], type: "smd" }],
+  pads: [{ id: "native-pad", component_id: "native-component", terminal: "R1.1", net: "N1", position: [25, 10], type: "smd" }],
   copper_nets: { N1: ["R1.1"] }, outline: [[[0, 0], [40, 0], [40, 25], [0, 25]]], cutouts: [],
   mounting_holes: [], coverage: { nets: "pad-membership-not-connectivity-proof" },
   unsupported: ["schematic parity not extracted", "component passages require review"],
@@ -25,7 +25,7 @@ const intake: Intake = {
   project_id: "project-a", source_manifest_sha256: "b".repeat(64),
   available_recipe_id: "approved-intake",
   files: [{ path: "board.kicad_pcb", sha256: "a".repeat(64), size: 1024, rights: "synthetic-original", coverage: "parsed-native-subset", unsupported: [] }],
-  attempts: [], interpretations: [{ interpretation_id: "interpretation", attempt_id: "attempt", output_id: "output", report }],
+  attempts: [], interpretations: [{ interpretation_id: "interpretation", attempt_id: "attempt", output_id: "output", sha256: "c".repeat(64), report }],
 };
 
 beforeEach(() => {
@@ -33,6 +33,8 @@ beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.mocked(listIntakes).mockResolvedValue([intake]);
   vi.mocked(getIntake).mockResolvedValue(intake);
+  vi.mocked(listPopulations).mockResolvedValue([]);
+  vi.mocked(associationTargets).mockResolvedValue({ revisions: [], models: [], truncated: { revisions: false, models: false } });
   vi.mocked(command).mockResolvedValue({});
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });

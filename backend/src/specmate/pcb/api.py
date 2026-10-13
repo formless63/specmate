@@ -101,21 +101,30 @@ def list_populations(request, intake_id: UUID):
 def association_targets(request, project_id: UUID):
     """Offer exact selectable revisions/representations from the authorized project."""
     authorize(request.user, project_id, Perm.PROJECT_READ)
-    revisions = []
-    for revision in (
+    revision_rows = list(
         Revision.objects.select_related("definition", "snapshot")
         .filter(definition__project_id=project_id)
-        .order_by("definition__name", "number")[:2000]
-    ):
-        if revision.definition.kind == "pcb_population":
-            continue
+        .exclude(definition__kind="pcb_population")
+        .order_by("definition__name", "number")[:2001]
+    )
+    revisions = []
+    for revision in revision_rows[:2000]:
         authorize_snapshot(request.user, revision.snapshot)
         content = json.loads(bytes(revision.snapshot.canonical))["content"]
-        contacts = (
-            [row["contact_id"] for row in content.get("interface", {}).get("assignments", [])]
-            if revision.definition.kind == "pinout"
-            else []
-        )
+        contacts = []
+        if revision.definition.kind == "pinout":
+            body_id = content.get("interface", {}).get("body_revision_id")
+            body = (
+                Revision.objects.select_related("definition", "snapshot").filter(id=body_id).first()
+            )
+            if body is not None:
+                authorize_snapshot(request.user, body.snapshot)
+                body_content = json.loads(bytes(body.snapshot.canonical))["content"]
+                contacts = [
+                    row["contact_id"]
+                    for row in body_content.get("interface", {}).get("contacts", [])
+                    if row.get("physical_role") != "key"
+                ]
         revisions.append(
             {
                 "revision_id": str(revision.id),
@@ -125,14 +134,15 @@ def association_targets(request, project_id: UUID):
                 "contacts": contacts,
             }
         )
-    models = []
-    for representation in (
+    model_rows = list(
         Representation.objects.select_related(
             "revision__definition", "source_file__revision__bundle", "source_file__blob"
         )
         .filter(revision__definition__project_id=project_id, kind="model")
-        .order_by("label")[:2000]
-    ):
+        .order_by("label")[:2001]
+    )
+    models = []
+    for representation in model_rows[:2000]:
         authorize_snapshot(request.user, representation.revision.snapshot)
         authorize(
             request.user, representation.source_file.revision.bundle.project_id, Perm.PROJECT_READ
@@ -146,4 +156,8 @@ def association_targets(request, project_id: UUID):
                 "sha256": representation.source_file.blob.sha256,
             }
         )
-    return {"revisions": revisions, "models": models}
+    return {
+        "revisions": revisions,
+        "models": models,
+        "truncated": {"revisions": len(revision_rows) > 2000, "models": len(model_rows) > 2000},
+    }

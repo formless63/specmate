@@ -33,11 +33,11 @@ remain explicitly unsupported. Copper membership never follows the separately
 labelled, unreviewed resistor reference/value candidate passages.
 
 Other KiCad versions, schematic parity, netlist/fabrication/BOM/placement-file parsing,
-foreign CAD formats, models, reviewed matching, population variants and manufacturing
-rules remain unsupported or unverified. Companion bytes are retained with unparsed
-coverage. A native source flag is not an approved population configuration; an absent
-outline is unresolved geometry. This is an incremental PCB-001/002 implementation,
-not acceptance of the complete PCB product scope.
+foreign CAD formats, native model extraction and manufacturing rules remain unsupported
+or unverified. Companion bytes are retained with unparsed coverage. A native source
+flag is not an approved population configuration; an absent outline is unresolved
+geometry. This is incremental PCB-001/002 implementation, not acceptance of the
+complete PCB product scope.
 
 The PCB panel preserves packages, lists exact source revisions and coverage, downloads
 originals, requests extraction explicitly, validates successful reports and displays
@@ -48,6 +48,41 @@ Focused PostgreSQL tests cover scope, replay, rollback, immutable evidence and r
 provenance/JSON. `scripts/check_pcb_intake.py --evidence-dir <new-external-directory>`
 is the opt-in cached-image checkpoint against the unchanged independent synthetic
 oracle, including malformed input. See the [pack guide](../../toolpacks/kicad/README.md).
+
+## Population options and reviewed associations
+
+`pcb_population` uses the shared Definition/Draft/Revision command and snapshot layer.
+`pcb.population_create` seeds a default option with an explicit unresolved decision
+for every native component in one accepted interpretation. `pcb.population_update`
+uses the draft state token; `pcb.population_freeze` pins the complete target-revision
+closure. Generic definition and draft commands apply the same typed validation,
+authorization and exact dependency closure. A later draft may select a different
+accepted interpretation; existing frozen revisions retain their original pins.
+
+Each named option records `populate`, `omit` or unresolved for every exact native
+component UUID. Only explicit `populate` enters that option's included set; explicit
+`omit` enters its excluded set. Unresolved has no inclusion boolean. Decisions require
+a human basis. The report's native DNP/BOM flags remain separate source assertions,
+including when an option decision differs from them. No option alone qualifies an
+assembly, fabrication output or purchase.
+
+An association is an exact native component or pad UUID linked to a candidate target:
+a pad to a connector-body contact through an exact pinout revision, a component to a
+registered model representation, or a component to a library revision. The pinout's
+body contact may have an unknown electrical assignment; mechanical keys are excluded.
+Review is separately `candidate`, `accepted` or `rejected`. Accepted means the
+association itself was reviewed, not that electrical compatibility, 3D fit, part
+interchangeability or manufacturing readiness was approved. Accepted and rejected
+decisions require a basis and either an attributable citation or one preserved source
+file with exact revision, path, hash and rights. All candidates, including rejected
+ones, remain in the permission and dependency closure. Source, interpretation,
+target and evidence authority is rechecked on read, mutation and idempotent replay.
+
+The PCB panel provides option decisions and association review forms over these
+commands. Its target selector displays up to 2,000 authorized revisions and 2,000
+registered models, and explicitly reports truncation. It does not claim complete
+discovery beyond that limit. The option and association UI is an authoring and review
+surface; physical and native-tool qualification remain separate checkpoints.
 
 ## Authoring and builds
 

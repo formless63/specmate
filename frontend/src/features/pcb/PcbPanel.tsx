@@ -1,6 +1,7 @@
 import { Alert, Anchor, Badge, Button, FileInput, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
-import { command, getIntake, listIntakes, PcbRequestError, preserveFiles, type Intake, type IntakeSummary, type NativeReport } from "./api";
+import { command, getIntake, listIntakes, listPopulations, PcbRequestError, preserveFiles, type Intake, type IntakeSummary, type NativeReport, type PopulationDraft } from "./api";
+import { PopulationEditor } from "./PopulationEditor";
 
 export type PcbPanelProps = { projectId: string; permissions?: string[] };
 
@@ -12,6 +13,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
   const [items, setItems] = useState<IntakeSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [intake, setIntake] = useState<Intake | null>(null);
+  const [populations, setPopulations] = useState<PopulationDraft[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [name, setName] = useState("");
   const [rights, setRights] = useState("");
@@ -29,7 +31,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
     if (lifetime.current.signal.aborted) return;
     if (reason instanceof PcbRequestError && [401, 403, 404].includes(reason.status)) {
       denied.current = true; setAccessLost(true); ++readSequence.current;
-      setIntake(null); setItems([]); setSelected(null); setFiles([]);
+      setIntake(null); setPopulations([]); setItems([]); setSelected(null); setFiles([]);
     }
     setError(reason instanceof Error ? reason.message : "PCB request failed.");
   }
@@ -43,10 +45,12 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
   async function load(id: string) {
     const sequence = ++readSequence.current;
     try {
-      const result = await getIntake(id, lifetime.current.signal);
-      if (sequence === readSequence.current && !denied.current) { setIntake(result); setError(""); }
+      const [result, drafts] = await Promise.all([
+        getIntake(id, lifetime.current.signal), listPopulations(id, lifetime.current.signal),
+      ]);
+      if (sequence === readSequence.current && !denied.current) { setIntake(result); setPopulations(drafts); setError(""); }
     } catch (reason) {
-      if (sequence === readSequence.current) { setIntake(null); failure(reason); }
+      if (sequence === readSequence.current) { setIntake(null); setPopulations([]); failure(reason); }
     }
   }
   useEffect(() => {
@@ -58,7 +62,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
   }, []);
   useEffect(() => {
     ++readSequence.current;
-    setIntake(null);
+    setIntake(null); setPopulations([]);
     if (selected) void load(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
@@ -133,6 +137,10 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
         {attempt.state === "succeeded" && canImport && !intake.interpretations.some((i) => i.attempt_id === attempt.attempt_id) && <Button size="xs" onClick={() => void accept(attempt.attempt_id)} disabled={busy}>Validate interpretation</Button>}
       </Group>)}
       {report && <ReportView report={report} />}
+      {!!intake.interpretations.length && <PopulationEditor
+        projectId={projectId} intake={intake} drafts={populations}
+        permissions={permissions} onChanged={() => selected && load(selected)} onAccessLost={failure}
+      />}
     </Stack>}
   </Stack>;
 }
