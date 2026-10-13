@@ -3,6 +3,7 @@
 import hashlib
 
 from specmate.access.permissions import Perm, authorize
+from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import canonical_bytes
 from specmate.facts.contracts import (
     DefinitionTarget,
@@ -180,6 +181,7 @@ def item_summary(item, entries, by_entry):
 
 
 def read_item(user, item_id):
+    user = current_actor(user)
     item, entries, by_entry = get_item(user, item_id)
     links = list(item.links.order_by("created_at", "id")[: MAX_LINKS + 1])
     if len(links) > MAX_LINKS:
@@ -227,6 +229,7 @@ def items_for_target(user, target, offset=0, limit=50):
 
 
 def project_items(user, project_id, offset=0, limit=50):
+    user = current_actor(user)
     project = authorize(user, project_id, Perm.PROJECT_READ)
     items = KnowledgeItem.objects.filter(project=project).order_by("created_at", "id")
     page = list(items[offset : offset + limit + 1])
