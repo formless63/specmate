@@ -1,0 +1,490 @@
+{
+  "$defs": {
+    "Component": {
+      "additionalProperties": false,
+      "properties": {
+        "dnp": {
+          "title": "Dnp",
+          "type": "boolean"
+        },
+        "exclude_from_bom": {
+          "title": "Exclude From Bom",
+          "type": "boolean"
+        },
+        "footprint": {
+          "maxLength": 1024,
+          "title": "Footprint",
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "position": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Position",
+          "type": "array"
+        },
+        "reference": {
+          "maxLength": 1024,
+          "title": "Reference",
+          "type": "string"
+        },
+        "rotation_deg": {
+          "title": "Rotation Deg",
+          "type": "number"
+        },
+        "side": {
+          "enum": [
+            "front",
+            "back"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 1024,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "reference",
+        "value",
+        "footprint",
+        "position",
+        "rotation_deg",
+        "side",
+        "dnp",
+        "exclude_from_bom"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "const": "identity-reference-value-footprint-and-flags",
+          "title": "Components",
+          "type": "string"
+        },
+        "holes": {
+          "const": "nonplated-pad-drills-not-reviewed-mounts",
+          "title": "Holes",
+          "type": "string"
+        },
+        "nets": {
+          "const": "pad-membership-not-connectivity-proof",
+          "title": "Nets",
+          "type": "string"
+        },
+        "outline": {
+          "enum": [
+            "closed-line-polygons",
+            "unsupported"
+          ],
+          "title": "Outline",
+          "type": "string"
+        },
+        "pads": {
+          "const": "identity-and-basic-geometry",
+          "title": "Pads",
+          "type": "string"
+        },
+        "placements": {
+          "const": "native-absolute",
+          "title": "Placements",
+          "type": "string"
+        }
+      },
+      "required": [
+        "components",
+        "pads",
+        "nets",
+        "outline",
+        "holes",
+        "placements"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "Hole": {
+      "additionalProperties": false,
+      "properties": {
+        "drill": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Drill",
+          "type": "array"
+        },
+        "mounting_status": {
+          "const": "candidate-not-reviewed",
+          "title": "Mounting Status",
+          "type": "string"
+        },
+        "pad_id": {
+          "format": "uuid",
+          "title": "Pad Id",
+          "type": "string"
+        },
+        "position": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Position",
+          "type": "array"
+        }
+      },
+      "required": [
+        "pad_id",
+        "position",
+        "drill",
+        "mounting_status"
+      ],
+      "title": "Hole",
+      "type": "object"
+    },
+    "Pad": {
+      "additionalProperties": false,
+      "properties": {
+        "component_id": {
+          "format": "uuid",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "drill": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Drill",
+          "type": "array"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "layers": {
+          "items": {
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Layers",
+          "type": "array"
+        },
+        "net": {
+          "maxLength": 1024,
+          "title": "Net",
+          "type": "string"
+        },
+        "number": {
+          "maxLength": 1024,
+          "title": "Number",
+          "type": "string"
+        },
+        "position": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Position",
+          "type": "array"
+        },
+        "rotation_deg": {
+          "title": "Rotation Deg",
+          "type": "number"
+        },
+        "shape": {
+          "maxLength": 1024,
+          "title": "Shape",
+          "type": "string"
+        },
+        "size": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Size",
+          "type": "array"
+        },
+        "terminal": {
+          "maxLength": 1024,
+          "title": "Terminal",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "smd",
+            "pth",
+            "npth",
+            "connector",
+            "unknown"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "component_id",
+        "number",
+        "terminal",
+        "position",
+        "size",
+        "drill",
+        "rotation_deg",
+        "type",
+        "shape",
+        "net",
+        "layers"
+      ],
+      "title": "Pad",
+      "type": "object"
+    },
+    "Passage": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "maxLength": 1024,
+          "title": "From",
+          "type": "string"
+        },
+        "kind": {
+          "const": "resistor",
+          "title": "Kind",
+          "type": "string"
+        },
+        "resistance_ohm": {
+          "minimum": 0,
+          "title": "Resistance Ohm",
+          "type": "number"
+        },
+        "to": {
+          "maxLength": 1024,
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "from",
+        "to",
+        "resistance_ohm"
+      ],
+      "title": "Passage",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "const": "kicad-intake-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "component_passages": {
+      "items": {
+        "$ref": "#/$defs/Passage"
+      },
+      "maxItems": 100000,
+      "title": "Component Passages",
+      "type": "array"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/Component"
+      },
+      "maxItems": 100000,
+      "title": "Components",
+      "type": "array"
+    },
+    "coordinate_frame": {
+      "const": "KiCad absolute: x right, y down; angles native degrees",
+      "title": "Coordinate Frame",
+      "type": "string"
+    },
+    "copper_nets": {
+      "additionalProperties": {
+        "items": {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "propertyNames": {
+        "maxLength": 1024
+      },
+      "title": "Copper Nets",
+      "type": "object"
+    },
+    "coverage": {
+      "$ref": "#/$defs/Coverage"
+    },
+    "cutouts": {
+      "items": {
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "maxItems": 10000,
+      "title": "Cutouts",
+      "type": "array"
+    },
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "mounting_holes": {
+      "items": {
+        "$ref": "#/$defs/Hole"
+      },
+      "maxItems": 100000,
+      "title": "Mounting Holes",
+      "type": "array"
+    },
+    "native_format_version": {
+      "const": 20260206,
+      "title": "Native Format Version",
+      "type": "integer"
+    },
+    "outline": {
+      "items": {
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "maxItems": 10000,
+      "title": "Outline",
+      "type": "array"
+    },
+    "pads": {
+      "items": {
+        "$ref": "#/$defs/Pad"
+      },
+      "maxItems": 200000,
+      "title": "Pads",
+      "type": "array"
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "tool_version": {
+      "const": "10.0.6",
+      "title": "Tool Version",
+      "type": "string"
+    },
+    "units": {
+      "const": "mm",
+      "title": "Units",
+      "type": "string"
+    },
+    "unsupported": {
+      "items": {
+        "maxLength": 1024,
+        "type": "string"
+      },
+      "maxItems": 10000,
+      "minItems": 4,
+      "title": "Unsupported",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "tool_version",
+    "native_format_version",
+    "source_sha256",
+    "units",
+    "coordinate_frame",
+    "components",
+    "pads",
+    "copper_nets",
+    "outline",
+    "cutouts",
+    "mounting_holes",
+    "component_passages",
+    "coverage",
+    "unsupported",
+    "physical_qualification"
+  ],
+  "title": "Report",
+  "type": "object"
+}

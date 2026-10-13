@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "specmate.wire_stock",
     "specmate.sources",
     "specmate.builds",
+    "specmate.pcb",
 ]
 
 MIDDLEWARE = [
