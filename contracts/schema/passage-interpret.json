@@ -1,6 +1,37 @@
 {
+  "$defs": {
+    "ConditionAssignment": {
+      "additionalProperties": false,
+      "properties": {
+        "condition_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "state": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "condition_id",
+        "state"
+      ],
+      "title": "ConditionAssignment",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "properties": {
+    "condition_assignments": {
+      "items": {
+        "$ref": "#/$defs/ConditionAssignment"
+      },
+      "maxItems": 64,
+      "title": "Condition Assignments",
+      "type": "array"
+    },
     "copper_assumption": {
       "default": "unspecified",
       "enum": [

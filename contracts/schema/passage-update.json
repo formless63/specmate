@@ -1,5 +1,66 @@
 {
   "$defs": {
+    "ConditionDeclaration": {
+      "additionalProperties": false,
+      "description": "One model-local variable with mutually exclusive declared states.",
+      "properties": {
+        "basis": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "states": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 2,
+          "title": "States",
+          "type": "array"
+        }
+      },
+      "required": [
+        "local_id",
+        "states",
+        "basis"
+      ],
+      "title": "ConditionDeclaration",
+      "type": "object"
+    },
+    "ConditionalContact": {
+      "additionalProperties": false,
+      "properties": {
+        "behavior": {
+          "const": "ideal_contact",
+          "title": "Behavior",
+          "type": "string"
+        },
+        "condition_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "state": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "condition_id",
+        "state",
+        "behavior"
+      ],
+      "title": "ConditionalContact",
+      "type": "object"
+    },
     "EvidenceInput": {
       "additionalProperties": false,
       "properties": {
@@ -101,6 +162,17 @@
           "default": null,
           "title": "Condition"
         },
+        "conditional_contact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConditionalContact"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "evidence": {
           "$ref": "#/$defs/EvidenceInput"
         },
@@ -185,6 +257,14 @@
           "const": "ideal_lumped_components",
           "title": "Assumptions",
           "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/$defs/ConditionDeclaration"
+          },
+          "maxItems": 64,
+          "title": "Conditions",
+          "type": "array"
         },
         "model_basis": {
           "maxLength": 4000,
