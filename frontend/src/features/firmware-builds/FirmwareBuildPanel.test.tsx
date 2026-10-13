@@ -1,5 +1,6 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { command } from '../sources/api';
 import { FirmwareBuildPanel } from './FirmwareBuildPanel';
@@ -46,4 +47,70 @@ test('focus denial clears source evidence and handoff links', async () => {
   expect(screen.queryByRole('link', { name: 'handoff.json' })).toBeNull();
   expect(screen.queryByText(/synthetic-main.c/)).toBeNull();
   await screen.findByText('Current source authority denied.');
+});
+
+test('late compile success cannot reopen evidence after a newer denied refresh', async () => {
+  let finish!: (value: unknown) => void;
+  vi.mocked(command).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  render(panel(true)); await screen.findByRole('button', { name: 'Request firmware compile' });
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Exact reviewed source' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
+  await waitFor(() => expect(command).toHaveBeenCalledOnce());
+  vi.mocked(compileOptions).mockRejectedValueOnce(new Error('Latest source access denied'));
+  fireEvent(window, new Event('focus'));
+  await screen.findByText('Latest source access denied');
+  const count = vi.mocked(compileOptions).mock.calls.length;
+  await act(async () => finish({ build_id: 'committed-build' }));
+  expect(compileOptions).toHaveBeenCalledTimes(count);
+  expect(screen.getByText('Latest source access denied')).toBeTruthy();
+  expect(screen.queryByText(/synthetic-main.c/)).toBeNull();
+});
+
+test('response-loss retry keeps its exact key through denial and deliberate restoration', async () => {
+  vi.mocked(command).mockRejectedValueOnce(new Error('Compile response unavailable'));
+  render(panel(true)); await screen.findByRole('button', { name: 'Request firmware compile' });
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Exact reviewed source' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
+  await screen.findByText('Compile response unavailable');
+  vi.mocked(compileOptions).mockRejectedValueOnce(new Error('Source temporarily denied'));
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh compiler evidence' }));
+  await screen.findByText('Source temporarily denied');
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh compiler evidence' }));
+  await screen.findByRole('button', { name: 'Request firmware compile' });
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
+  await waitFor(() => expect(command).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(command).mock.calls[1]).toEqual(vi.mocked(command).mock.calls[0]);
+});
+
+test('late compile failure cannot clear a newer successful authority refresh', async () => {
+  let fail!: (reason: Error) => void;
+  vi.mocked(command).mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+  render(panel(true)); await screen.findByRole('button', { name: 'Request firmware compile' });
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Exact reviewed source' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
+  fireEvent(window, new Event('focus'));
+  await screen.findByRole('button', { name: 'Request firmware compile' });
+  await act(async () => fail(new Error('Stale compile failure')));
+  expect(screen.queryByText('Stale compile failure')).toBeNull();
+  expect(screen.getByText(/synthetic-main.c/)).toBeTruthy();
+});
+
+test('strict-mode project replacement and unmount ignore old compile completion', async () => {
+  let finish!: (value: unknown) => void;
+  vi.mocked(command).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const view = render(<StrictMode>{panel(true)}</StrictMode>);
+  await screen.findByRole('button', { name: 'Request firmware compile' });
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Exact reviewed source' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
+  view.rerender(<StrictMode>{panel(false, 'firmware-two')}</StrictMode>);
+  await screen.findByRole('button', { name: 'Inspect firmware handoff build-one' });
+  const count = vi.mocked(compileOptions).mock.calls.length;
+  view.unmount();
+  await act(async () => finish({ build_id: 'old-build' }));
+  expect(compileOptions).toHaveBeenCalledTimes(count);
 });

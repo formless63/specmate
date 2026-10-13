@@ -34,6 +34,7 @@ from specmate.operations import NotFound, PermissionDenied, Unsupported, Validat
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import LEGACY_SCOPE
 from specmate.pcb.firmware import read_revision
+from specmate.queries import get_revision
 from specmate.sources import blobstore
 from specmate.sources.authority import authorize_revision
 from specmate.sources.models import SourceBundleRevision
@@ -171,7 +172,12 @@ def retained(ctx, stored):
 
 
 def scope(ctx, p):
-    revision, _, _ = inputs(ctx.user, p, Perm.BUILD_EXECUTE)
+    # Resolve only the owning firmware scope before retained evidence. Incoming
+    # occurrence diagnostics must not bypass authority over an earlier build.
+    revision = get_revision(current_actor(ctx.user), p.firmware_revision_id)
+    authorize(ctx.user, revision.definition.project_id, Perm.BUILD_EXECUTE)
+    if revision.definition.kind != "firmware":
+        raise NotFound("Firmware revision unavailable.")
     namespace = f"project:{revision.definition.project_id}"
     for prior in IdempotencyRecord.objects.filter(
         actor=ctx.user,
@@ -180,6 +186,7 @@ def scope(ctx, p):
         scope__in=[namespace, LEGACY_SCOPE],
     ):
         retained(ctx, prior.result)
+    inputs(ctx.user, p, Perm.BUILD_EXECUTE)
     return namespace
 
 
@@ -259,7 +266,6 @@ def validate_outputs(spec, build):
         raw[path] = output_bytes(output)
     try:
         report = CompileReport.model_validate_json(raw["compile.json"])
-        handoff = json.loads(raw["handoff.json"])
         expected_handoff = {
             "format_version": 1,
             "inputs": spec,
@@ -271,7 +277,10 @@ def validate_outputs(spec, build):
         if (
             report.tool_packages != TOOL_PACKAGES
             or report.input_sha256 != hashlib.sha256(canonical(spec)).hexdigest()
-            or handoff != expected_handoff
+            # The fixed adapter emits canonical bytes. Reject duplicate keys,
+            # coercible booleans and other ambiguous representations even when
+            # their transport hashes and last-key-wins parsed value agree.
+            or raw["handoff.json"] != canonical(expected_handoff)
             or {o.path for o in report.outputs} != set(OUTPUT_MEDIA) - {"compile.json"}
             or len({o.path for o in report.outputs}) != len(report.outputs)
         ):

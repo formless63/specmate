@@ -17,10 +17,12 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
   const [basis, setBasis] = useState('');
   const [busy, setBusy] = useState(false);
   const alive = useRef(true);
+  const generation = useRef(0);
   const active = useRef<AbortController | null>(null);
   const selected = useRef<string | null>(null);
   const retry = useRef<{ key: string; payload: object } | null>(null);
   const refresh = useCallback(async (buildId = selected.current) => {
+    const token = ++generation.current;
     active.current?.abort();
     const controller = new AbortController(); active.current = controller;
     setAvailable(undefined); setReview(undefined); setError(''); setBusy(true);
@@ -29,33 +31,36 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
         compileOptions(reference, controller.signal),
         buildId ? compileReview(reference, buildId, controller.signal) : Promise.resolve(undefined),
       ]);
-      if (!alive.current || controller.signal.aborted) return;
+      if (!alive.current || token !== generation.current || controller.signal.aborted) return;
       selected.current = buildId; setAvailable(options); setReview(evidence);
     } catch (reason) {
-      if (!alive.current || controller.signal.aborted) return;
-      selected.current = null; setConsent(false); retry.current = null;
+      if (!alive.current || token !== generation.current || controller.signal.aborted) return;
+      selected.current = null; setConsent(false);
+      // Retain an uncertain submitted request for an exact keyed retry after
+      // authority is restored; the hidden payload never grants execution access.
       setError(reason instanceof Error ? reason.message : 'Compiler review unavailable.');
-    } finally { if (alive.current && !controller.signal.aborted) setBusy(false); }
+    } finally { if (alive.current && token === generation.current && !controller.signal.aborted) setBusy(false); }
   }, [reference]);
   useEffect(() => {
     alive.current = true;
     void refresh(null);
     const focus = () => void refresh();
     window.addEventListener('focus', focus);
-    return () => { alive.current = false; active.current?.abort(); window.removeEventListener('focus', focus); };
+    return () => { alive.current = false; generation.current += 1; active.current?.abort(); window.removeEventListener('focus', focus); };
   }, [refresh]);
   async function compile() {
     const recipeId = available?.available_recipe_id;
     if (!recipeId || !consent || !basis.trim()) return;
     const payload = { ...reference, recipe_id: recipeId, source_execution_authorized: true, basis: basis.trim() };
     if (!retry.current || JSON.stringify(retry.current.payload) !== JSON.stringify(payload)) retry.current = { key: randomUUID(), payload };
+    const token = ++generation.current; active.current?.abort();
     setBusy(true); setError(''); setReview(undefined);
     try {
       await command('firmware_build.request', retry.current.payload, { idempotencyKey: retry.current.key });
-      if (!alive.current) return;
+      if (!alive.current || token !== generation.current) return;
       retry.current = null; setConsent(false); await refresh(null);
     } catch (reason) {
-      if (!alive.current) return;
+      if (!alive.current || token !== generation.current) return;
       setError(reason instanceof Error ? reason.message : 'Compile request failed.');
       setAvailable(undefined); setReview(undefined); setBusy(false);
     }
