@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "assertion_source": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Assertion Source",
+      "type": "string"
+    },
+    "assertion_status": {
+      "default": "declared",
+      "enum": [
+        "declared",
+        "observed",
+        "measured"
+      ],
+      "title": "Assertion Status",
+      "type": "string"
+    },
+    "lot_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lot Id"
+    },
+    "origin": {
+      "enum": [
+        "obtained",
+        "assembled"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "serial": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Serial",
+      "type": "string"
+    },
+    "variant_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Variant Id"
+    }
+  },
+  "required": [
+    "revision_id",
+    "serial",
+    "origin",
+    "assertion_source"
+  ],
+  "title": "RegisterPhysicalUnit",
+  "type": "object"
+}

@@ -22,6 +22,7 @@ from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
 from specmate.pcb.api import router as pcb_router
+from specmate.physical_units.api import router as physical_units_router
 from specmate.wire_stock.api import router as stock_router
 from specmate.workshop_profiles.api import router as workshop_profile_router
 
@@ -31,6 +32,7 @@ api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/facts", facts_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)
+api.add_router("/v0/physical-units", physical_units_router)
 api.add_router("/v0/assemblies", assemblies_router)
 api.add_router("/v0/interfaces", interfaces_router)
 api.add_router("/v0/runner", runner_router)

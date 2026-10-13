@@ -1,8 +1,8 @@
 {
   "properties": {
     "actual_unit_tracking": {
-      "const": "not_implemented",
-      "default": "not_implemented",
+      "const": "separate_records",
+      "default": "separate_records",
       "title": "Actual Unit Tracking",
       "type": "string"
     },

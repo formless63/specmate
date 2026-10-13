@@ -15,14 +15,14 @@ class Page(Schema):
 
 @router.get("/projects/{project_id}")
 def get_project_units(request, project_id: UUID, page: Query[Page]):
-    return list_units(request.user, project_id, **page.dict())
+    return list_units(request.user, project_id, **page.model_dump())
 
 
 @router.get("/units/{unit_id}")
 def get_physical_unit(request, unit_id: UUID, page: Query[Page]):
-    return unit_detail(request.user, unit_id, **page.dict())
+    return unit_detail(request.user, unit_id, **page.model_dump())
 
 
 @router.get("/work-batches/{work_batch_id}")
 def get_work_units(request, work_batch_id: UUID, page: Query[Page]):
-    return work_units(request.user, work_batch_id, **page.dict())
+    return work_units(request.user, work_batch_id, **page.model_dump())

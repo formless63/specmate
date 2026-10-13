@@ -59,6 +59,19 @@
       "title": "Expected Work State",
       "type": "string"
     },
+    "physical_unit_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Physical Unit Id"
+    },
     "quantity": {
       "$ref": "#/$defs/Quantity"
     },

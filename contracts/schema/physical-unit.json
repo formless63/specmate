@@ -1,0 +1,121 @@
+{
+  "properties": {
+    "assertion_source": {
+      "title": "Assertion Source",
+      "type": "string"
+    },
+    "assertion_status": {
+      "enum": [
+        "declared",
+        "observed",
+        "measured"
+      ],
+      "title": "Assertion Status",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "lot_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Lot Id"
+    },
+    "origin": {
+      "enum": [
+        "obtained",
+        "assembled"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "physical_qualification": {
+      "const": false,
+      "default": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "registered_by_id": {
+      "title": "Registered By Id",
+      "type": "integer"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "serial": {
+      "title": "Serial",
+      "type": "string"
+    },
+    "unit_id": {
+      "format": "uuid",
+      "title": "Unit Id",
+      "type": "string"
+    },
+    "variant_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Variant Id"
+    },
+    "work_batch_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Work Batch Id"
+    }
+  },
+  "required": [
+    "unit_id",
+    "project_id",
+    "revision_id",
+    "definition_id",
+    "serial",
+    "origin",
+    "lot_id",
+    "variant_id",
+    "assertion_source",
+    "assertion_status",
+    "registered_by_id",
+    "request_id",
+    "created_at",
+    "work_batch_id"
+  ],
+  "title": "PhysicalUnitResult",
+  "type": "object"
+}

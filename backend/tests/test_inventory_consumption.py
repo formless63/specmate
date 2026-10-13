@@ -199,6 +199,8 @@ def test_original_units_and_consumption_caps_apply_to_length(users, lot, locatio
 
 
 def test_progress_reports_partial_counts_and_unknown_plan_is_not_zero(users, work, lot):
+    from specmate.physical_units.models import PhysicalUnit
+
     first = complete(users["owner"], work, 2)
     assert first["work_batch"]["reported_completed_units"] == 2
     assert first["work_batch"]["progress"] == "partial"
@@ -209,7 +211,8 @@ def test_progress_reports_partial_counts_and_unknown_plan_is_not_zero(users, wor
     reported = complete(users["owner"], unknown, 3, key="unknown-complete")
     assert reported["work_batch"]["planned_units"] is None
     assert reported["work_batch"]["progress"] == "partial"
-    assert reported["work_batch"]["actual_unit_tracking"] == "not_implemented"
+    assert reported["work_batch"]["actual_unit_tracking"] == "separate_records"
+    assert PhysicalUnit.objects.count() == 0
     assert reported["work_batch"]["physical_qualification"] is False
     detail = work_batch_detail(users["viewer"], work["work_batch_id"])
     assert len(detail["completions"]) == 1 and detail["completions"][0]["units_completed"] == 2

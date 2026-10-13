@@ -128,7 +128,9 @@ def test_unit_writes_need_inventory_authority_and_replays_recheck_current_grant(
         grants=[Perm.INVENTORY_MANAGE.value]
     )
     registered = post_op(
-        api(users["viewer"]), "facts.register_subject", {"target": target},
+        api(users["viewer"]),
+        "facts.register_subject",
+        {"target": target},
         idempotency_key="unit-ledger",
     )
     assert registered.status_code == 200

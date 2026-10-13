@@ -81,6 +81,27 @@
       "title": "OccurrenceTarget",
       "type": "object"
     },
+    "PhysicalUnitTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "physical_unit",
+          "title": "Kind",
+          "type": "string"
+        },
+        "unit_id": {
+          "format": "uuid",
+          "title": "Unit Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "unit_id"
+      ],
+      "title": "PhysicalUnitTarget",
+      "type": "object"
+    },
     "ProjectTarget": {
       "additionalProperties": false,
       "properties": {
@@ -145,6 +166,7 @@
         "mapping": {
           "definition": "#/$defs/DefinitionTarget",
           "occurrence": "#/$defs/OccurrenceTarget",
+          "physical_unit": "#/$defs/PhysicalUnitTarget",
           "project": "#/$defs/ProjectTarget",
           "revision": "#/$defs/RevisionTarget"
         },
@@ -162,6 +184,9 @@
         },
         {
           "$ref": "#/$defs/OccurrenceTarget"
+        },
+        {
+          "$ref": "#/$defs/PhysicalUnitTarget"
         }
       ],
       "title": "Target"
