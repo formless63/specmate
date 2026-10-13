@@ -92,6 +92,9 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Firmware impact" }));
   await screen.findByRole("heading", { name: "Firmware change and observation review" });
   expect(screen.getByRole("button", { name: "Show firmware impact" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Shared scene" }));
+  await screen.findByRole("heading", { name: "Shared scene" });
+  expect(screen.getByRole("button", { name: "Refresh scene access" })).toBeTruthy();
 }, 10000);
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {
