@@ -14,7 +14,8 @@ from specmate.builds.operations import RequestBuild, request_build
 from specmate.builds.recipes import Recipe, approved_recipe
 from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.models import IdempotencyRecord
+from specmate.operations.scope import LEGACY_SCOPE, project_scope
 from specmate.pcb_disagreement.contracts import FilePin
 from specmate.pcb_disagreement.models import SourceNetAttempt, SourceNetInterpretation
 from specmate.pcb_disagreement.native_report import NativeReport
@@ -122,9 +123,27 @@ def check_recipe(file, role, recipe):
 def scope(ctx, p):
     if isinstance(p, RequestNative):
         request_source(ctx, p)
-        return project_scope(ctx, p.project_id, Perm.BUILD_EXECUTE)
-    attempt = scoped_attempt(ctx.user, p.attempt_id, Perm.SOURCE_REGISTER)
-    return project_scope(ctx, attempt.build.project_id, Perm.SOURCE_REGISTER)
+        namespace = project_scope(ctx, p.project_id, Perm.BUILD_EXECUTE)
+        name = "pcb_disagreement.request_native"
+    else:
+        attempt = scoped_attempt(ctx.user, p.attempt_id, Perm.SOURCE_REGISTER)
+        namespace = project_scope(ctx, attempt.build.project_id, Perm.SOURCE_REGISTER)
+        name = "pcb_disagreement.accept_native"
+    # The executor deliberately diagnoses mismatches before invoking replay hooks.
+    # Authorize old outcomes here even when the new payload selects another source.
+    if ctx.idempotency_key is not None:
+        for record in IdempotencyRecord.objects.filter(
+            actor=ctx.user,
+            operation=name,
+            key=ctx.idempotency_key,
+            scope__in=[namespace, LEGACY_SCOPE],
+        ):
+            if isinstance(p, RequestNative):
+                scoped_attempt(ctx.user, record.result["attempt_id"], Perm.BUILD_EXECUTE)
+            else:
+                item = scoped_interpretation(ctx.user, record.result["interpretation_id"])
+                scoped_attempt(ctx.user, item.attempt_id, Perm.SOURCE_REGISTER)
+    return namespace
 
 
 def replay(ctx, p, stored):

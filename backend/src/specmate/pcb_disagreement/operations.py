@@ -9,7 +9,8 @@ from specmate.design.operations import (
     update_draft,
 )
 from specmate.operations import Context, NotFound, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.models import IdempotencyRecord
+from specmate.operations.scope import LEGACY_SCOPE, project_scope
 from specmate.pcb_disagreement.contracts import (
     KINDS,
     CaptureReview,
@@ -39,19 +40,42 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
         if isinstance(p, CreateReview)
         else review_draft(ctx, p.draft_id, permission).definition.project_id
     )
-    return project_scope(ctx, project, permission)
-
-
-def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
-    scope(ctx, p, permission)
+    namespace = project_scope(ctx, project, permission)
+    name = (
+        "pcb_disagreement.create"
+        if isinstance(p, CreateReview)
+        else "pcb_disagreement.update"
+        if isinstance(p, UpdateReview)
+        else "pcb_disagreement.freeze"
+    )
+    if ctx.idempotency_key is not None:
+        for record in IdempotencyRecord.objects.filter(
+            actor=ctx.user,
+            operation=name,
+            key=ctx.idempotency_key,
+            scope__in=[namespace, LEGACY_SCOPE],
+        ):
+            retained_authority(ctx, record.result, permission)
     if isinstance(p, (CreateReview, UpdateReview)):
         authorize_value(ctx.user, p.value)
-    if "content" in stored:
-        value = parse_content(stored["content"])
+    return namespace
+
+
+def retained_authority(ctx, stored, permission):
+    draft = stored.get("draft", stored)
+    if "draft_id" in draft:
+        review_draft(ctx, draft["draft_id"], permission)
+    if "content" in draft:
+        value = parse_content(draft["content"])
         if value:
             authorize_value(ctx.user, value)
     if "revision_id" in stored:
         inspect_revision(ctx.user, stored["revision_id"])
+
+
+def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
+    scope(ctx, p, permission)
+    retained_authority(ctx, stored, permission)
 
 
 @operation(

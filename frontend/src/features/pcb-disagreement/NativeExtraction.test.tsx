@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { NativeExtraction, NativeInspector } from './NativeExtraction';
 import { ComparisonEditor } from './Editors';
+import { PcbDisagreementInspector } from './PcbDisagreementPanel';
 import { type Comparison, type NativeAccepted, type Projection } from './api';
 
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
@@ -76,4 +77,96 @@ test('denied native input refresh removes exact correspondence choices and repor
   expect(screen.getByRole('combobox', { name: 'Left exact terminal; blank declares absent' })).toBeTruthy();
   denied = true; await act(async () => { await cache.refetchQueries({ queryKey: ['pcb-native-interpretation', NATIVE] }); });
   expect(await screen.findAllByText('Exact extraction denied.')).toHaveLength(2); expect(screen.queryByRole('combobox', { name: 'Left exact terminal; blank declares absent' })).toBeNull(); expect(onDenied).toHaveBeenLastCalledWith(true);
+});
+
+test.each(['request', 'accept'])('a denied %s clears retained native rows, inspector and source options', async action => {
+  let denied = false;
+  const retained = { ...attempt, interpretation: { interpretation_id: NATIVE, report_sha256: accepted.report_sha256 } };
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (denied && (options?.method === 'POST' || url.includes('/sources/') || url.includes(`/native/${NATIVE}`))) return new Response(JSON.stringify({ error: { message: 'Native evidence denied.' } }), { status: 404 });
+    const value = url.includes('/sources/') ? { files: [source] } : url.includes('/native-options') ? { available_recipe_id: 'exact-approved' } : url.includes(`/native/${NATIVE}`) ? accepted : { attempts: [retained, { ...attempt, attempt_id: 'pending' }], limit: 100 };
+    return new Response(JSON.stringify(value), { status: 200 });
+  }));
+  wrap(<NativeExtraction projectId="project" />);
+  fireEvent.change(screen.getByLabelText('Preserved source revision ID'), { target: { value: SOURCE } });
+  await choose('Preserved source file', source.path);
+  fireEvent.click(await screen.findByRole('button', { name: `Inspect accepted extraction ${NATIVE}` }));
+  expect(await screen.findByText('assigned · private-net')).toBeTruthy();
+  denied = true;
+  fireEvent.click(screen.getByRole('button', { name: action === 'request' ? 'Request native source extraction' : 'Accept extraction pending' }));
+  expect(await screen.findByText('Native evidence denied.')).toBeTruthy();
+  await waitFor(() => expect(screen.queryByText('assigned · private-net')).toBeNull());
+  expect(screen.queryByText(/Report SHA-256:/)).toBeNull();
+  expect(screen.queryByText(/Exact source SHA-256:/)).toBeNull();
+  expect((screen.getByRole('combobox', { name: 'Preserved source file' }) as HTMLInputElement).value).toBe('');
+  expect((screen.getByLabelText('Preserved source revision ID') as HTMLInputElement).value).toBe('');
+  expect((screen.getByRole('button', { name: 'Request native source extraction' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('status refresh revalidates a selected interpretation even when the filtered attempt list succeeds', async () => {
+  let denied = false; let reads = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.includes(`/native/${NATIVE}`)) {
+      reads += 1;
+      return new Response(JSON.stringify(denied ? { error: { message: 'Selected native source denied.' } } : accepted), { status: denied ? 404 : 200 });
+    }
+    return new Response(JSON.stringify({ attempts: denied ? [] : [{ ...attempt, interpretation: { interpretation_id: NATIVE, report_sha256: accepted.report_sha256 } }], limit: 100 }), { status: 200 });
+  }));
+  wrap(<NativeExtraction projectId="project" />);
+  fireEvent.click(await screen.findByRole('button', { name: `Inspect accepted extraction ${NATIVE}` }));
+  expect(await screen.findByText('assigned · private-net')).toBeTruthy();
+  denied = true;
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh extraction status' }));
+  expect(await screen.findByText('Selected native source denied.')).toBeTruthy();
+  expect(reads).toBeGreaterThan(1);
+  expect(screen.queryByText('assigned · private-net')).toBeNull();
+  expect(screen.queryByText(/Report SHA-256:/)).toBeNull();
+  // The denied selection was discarded; a fresh list can recover without requesting an empty source.
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh extraction status' }));
+  await waitFor(() => expect(screen.queryByText(/Cached native evidence was cleared/)).toBeNull());
+});
+
+test('native mutation denial revalidates the affected comparison input without rewriting unsaved values', async () => {
+  let denied = false;
+  const changed = vi.fn(), onDenied = vi.fn();
+  const pin = { kind: 'source_net_interpretation' as const, interpretation_id: NATIVE, report_sha256: accepted.report_sha256, source };
+  const value: Comparison = { kind: 'pcb_comparison', left: pin, right: pin, correspondences: [], reviews: [] };
+  const input = { method: accepted.report.method, source_role: 'schematic', source, coverage: accepted.report.coverage, coverage_basis: 'Native root inventory', terminals: accepted.report.terminals, extractor: null, unsupported: [] };
+  const projection: Projection = { inputs: { left: input, right: input }, parity: 'not_evaluated', physical_qualification: 'not_evaluated' };
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (denied && (options?.method === 'POST' || url.includes(`/native/${NATIVE}`))) return new Response(JSON.stringify({ error: { message: 'Comparison native source denied.' } }), { status: 404 });
+    return new Response(JSON.stringify(url.includes(`/native/${NATIVE}`) ? accepted : { attempts: [attempt, { ...attempt, attempt_id: 'accepted', interpretation: pin }], limit: 100 }), { status: 200 });
+  }));
+  const { cache } = wrap(<><NativeExtraction projectId="project" /><ComparisonEditor projectId="project" value={value} onChange={changed} definitions={[]} projection={projection} sourcePinsCurrent onDenied={onDenied} /></>);
+  expect(await screen.findAllByText(/exact XML/)).toHaveLength(2);
+  expect(screen.getByRole('combobox', { name: 'Left exact terminal; blank declares absent' })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Correspondence basis'), { target: { value: 'Unsaved review basis' } });
+  denied = true;
+  fireEvent.click(await screen.findByRole('button', { name: 'Accept extraction attempt' }));
+  await waitFor(() => expect(onDenied).toHaveBeenLastCalledWith(true));
+  expect(screen.queryByRole('combobox', { name: 'Left exact terminal; blank declares absent' })).toBeNull();
+  expect(screen.queryByText(/exact XML/)).toBeNull();
+  expect(changed).not.toHaveBeenCalled();
+  denied = false;
+  await act(async () => { await cache.refetchQueries({ queryKey: ['pcb-native-interpretation', NATIVE] }); });
+  await waitFor(() => expect(onDenied).toHaveBeenLastCalledWith(false));
+  expect((screen.getByLabelText('Correspondence basis') as HTMLInputElement).value).toBe('Unsaved review basis');
+  expect(changed).not.toHaveBeenCalled();
+});
+
+test('native mutation denial revalidates a frozen comparison that retains the same source', async () => {
+  let denied = false;
+  const input = { method: accepted.report.method, source_role: 'schematic', source, coverage: accepted.report.coverage, coverage_basis: 'Native inventory', terminals: accepted.report.terminals, extractor: { adapter: accepted.report.adapter, tool_version: accepted.report.tool_version, report_sha256: accepted.report_sha256, interpretation_id: NATIVE }, unsupported: [] };
+  const frozen = { revision_id: 'frozen', projection: { inputs: { left: input, right: input }, parity: 'not_evaluated', physical_qualification: 'not_evaluated' } };
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (denied && (options?.method === 'POST' || url.includes('/revisions/frozen'))) return new Response(JSON.stringify({ error: { message: 'Frozen native source denied.' } }), { status: 404 });
+    return new Response(JSON.stringify(url.includes('/revisions/frozen') ? frozen : { attempts: [attempt], limit: 100 }), { status: 200 });
+  }));
+  wrap(<><NativeExtraction projectId="project" /><PcbDisagreementInspector revisionId="frozen" /></>);
+  expect(await screen.findAllByText(/Source revision:/)).toHaveLength(2);
+  denied = true;
+  fireEvent.click(await screen.findByRole('button', { name: 'Accept extraction attempt' }));
+  await waitFor(() => expect(screen.queryByText(/Source revision:/)).toBeNull());
+  expect(screen.queryByText(/Report SHA-256:/)).toBeNull();
+  expect(await screen.findAllByText('Frozen native source denied.')).toHaveLength(2);
 });

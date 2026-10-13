@@ -191,6 +191,12 @@ and deliberate comparison selection. Read APIs under `/v0/pcb-disagreement/nativ
 return currently authorized metadata or exact interpretations; denied refreshes hide
 cached rows and terminal choices.
 
+Native request/acceptance and source-review commands authorize retained keyed outcomes
+before reporting a changed-payload conflict, including unresolved legacy keys. Native
+mutation failures clear the extraction preview and recheck affected source/interpretation
+queries shared with comparison selectors. Refreshing extraction status also rechecks a
+selected interpretation; this does not replace unsaved comparison edits or their state token.
+
 The original fixture, contradictory variant, malformed input and trusted program were
 checked with the exact isolated KiCad image. Full approved runner transport, cancellation,
 fencing/recovery and application acceptance remain an integration checkpoint. Hierarchy,

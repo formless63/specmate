@@ -16,6 +16,7 @@ from specmate.operations import (
     PermissionDenied,
     ValidationFailed,
 )
+from specmate.operations.models import IdempotencyRecord
 from specmate.pcb_disagreement.queries import inspect_revision, projection
 from specmate.queries import get_draft
 from specmate.sources.models import SourceBundle, SourceBundleFile
@@ -328,6 +329,52 @@ def test_replay_retains_old_source_authority_after_draft_retargets(users, projec
     )
     with pytest.raises(NotFound):
         create(editor, project, old, idempotency_key="old-compare")
+
+
+@pytest.mark.parametrize("operation", ["create", "update", "freeze"])
+@pytest.mark.parametrize("legacy", [False, True])
+def test_changed_review_payload_authorizes_retained_content_before_mismatch(
+    users, project, operation, legacy
+):
+    owner, editor = users["owner"], users["editor"]
+    Membership.objects.filter(user=editor, project_id=project).update(grants=["design.freeze"])
+    old_source = source_pin(owner, project)
+    old_value = assertion(old_source)
+    current_value = assertion(source_pin(owner, project, role="netlist"))
+    key = "retained-review"
+    draft = create(
+        editor, project, old_value, **({"idempotency_key": key} if operation == "create" else {})
+    )
+    if operation == "update":
+        draft = update(editor, draft, old_value, idempotency_key=key)
+    elif operation == "freeze":
+        draft = freeze(editor, draft, idempotency_key=key)["draft"]
+    current = update(editor, draft, current_value)
+    name = "pcb_disagreement." + operation
+    if legacy:
+        IdempotencyRecord.objects.filter(actor=editor, operation=name, key=key).update(
+            scope="legacy"
+        )
+
+    def changed():
+        if operation == "create":
+            return create(editor, project, current_value, idempotency_key=key)
+        if operation == "update":
+            return update(editor, current, current_value, idempotency_key=key)
+        return freeze(editor, current, idempotency_key=key)
+
+    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+        changed()
+    hidden = op(owner, "project.create", {"name": "Revoked retained review origin"})["project_id"]
+    SourceBundle.objects.filter(revisions__id=old_source["source_revision_id"]).update(
+        project_id=hidden
+    )
+    assert (
+        get_draft(editor, current["draft_id"])["content"]["pcb_assertion"]["source"]
+        == (current_value["source"])
+    )
+    with pytest.raises(NotFound):
+        changed()
 
 
 def test_api_generic_contract_and_read_permissions(users, project):

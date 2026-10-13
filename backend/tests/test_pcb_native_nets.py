@@ -12,7 +12,15 @@ from django.test import Client
 
 from specmate.access.models import Membership
 from specmate.builds.models import BuildStage, StageOutput
-from specmate.operations import Conflict, NotFound, PermissionDenied, Unsupported, ValidationFailed
+from specmate.operations import (
+    Conflict,
+    IdempotencyMismatch,
+    NotFound,
+    PermissionDenied,
+    Unsupported,
+    ValidationFailed,
+)
+from specmate.operations.models import IdempotencyRecord
 from specmate.pcb_disagreement.models import SourceNetAttempt, SourceNetInterpretation
 from specmate.pcb_disagreement.native_operations import list_native, source_pin
 from specmate.pcb_disagreement.pack import REPORT_PATH, XML_PATH, recipe_for
@@ -314,11 +322,12 @@ def test_native_comparison_retains_complete_source_closure_on_draft_frozen_and_s
     from .test_pcb_disagreement import pin
 
     current = get_draft(editor, draft["draft_id"])
-    update(
-        editor,
-        current,
-        {"kind": "pcb_comparison", "left": pin(replacement), "right": pin(replacement)},
-    )
+    replacement_value = {
+        "kind": "pcb_comparison",
+        "left": pin(replacement),
+        "right": pin(replacement),
+    }
+    update(editor, current, replacement_value)
     hidden = op(owner, "project.create", {"name": "Revoked native origin"})["project_id"]
     SourceBundle.objects.filter(revisions__id=accepted["source"]["source_revision_id"]).update(
         project_id=hidden
@@ -326,6 +335,8 @@ def test_native_comparison_retains_complete_source_closure_on_draft_frozen_and_s
     assert get_draft(editor, draft["draft_id"])
     with pytest.raises(NotFound):
         create(editor, project, value, idempotency_key="native-compare")
+    with pytest.raises(NotFound):
+        create(editor, project, replacement_value, idempotency_key="native-compare")
     with pytest.raises(NotFound):
         inspect_revision(editor, frozen["revision_id"])
     invalid = deepcopy(value)
@@ -368,3 +379,64 @@ def test_visible_bundle_hidden_registered_blob_denied_before_file_or_recipe_diag
     assert responses[0] == responses[1]
     assert responses[0][0] == 404
     assert not SourceNetAttempt.objects.exists()
+
+
+@pytest.mark.parametrize("operation", ["request_native", "accept_native"])
+@pytest.mark.parametrize("legacy", [False, True])
+def test_changed_native_payload_authorizes_retained_source_before_key_mismatch(
+    users, project, native_request, operation, legacy
+):
+    owner, editor = users["owner"], users["editor"]
+    Membership.objects.filter(user=editor, project_id=project).update(grants=["build.execute"])
+    old = request(editor, native_request)
+    output_pair(old)
+    accept(editor, old)
+    # A separate, accessible bundle shares bytes; hashes do not transfer authority.
+    other_bundle = op(
+        owner,
+        "source.create_original_bundle",
+        {
+            "project_id": project,
+            "name": "Independent accessible native source",
+            "files": [
+                {
+                    "path": "source.xml",
+                    "sha256": native_request["source"]["sha256"],
+                    "media_type": "application/xml",
+                    "rights": "synthetic",
+                }
+            ],
+        },
+    )
+    file = SourceBundleFile.objects.select_related("revision", "blob").get(
+        revision_id=other_bundle["revision_id"]
+    )
+    changed_request = {**native_request, "source": source_pin(file)}
+    other = op(
+        editor,
+        "pcb_disagreement.request_native",
+        changed_request,
+        idempotency_key="independent-native-request",
+    )
+    output_pair(other)
+    name = "pcb_disagreement." + operation
+    key = "native-request" if operation == "request_native" else "accept-nets"
+    payload = (
+        changed_request if operation == "request_native" else {"attempt_id": other["attempt_id"]}
+    )
+    if legacy:
+        IdempotencyRecord.objects.filter(actor=editor, operation=name, key=key).update(
+            scope="legacy"
+        )
+    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+        op(editor, name, payload, idempotency_key=key)
+    hidden = op(owner, "project.create", {"name": "Revoked retained native origin"})["project_id"]
+    SourceBundle.objects.filter(
+        revisions__id=native_request["source"]["source_revision_id"]
+    ).update(project_id=hidden)
+    # The submitted B remains readable; only the retained A makes this unavailable.
+    assert list_native(editor, UUID(project))["attempts"][0]["attempt_id"] == other["attempt_id"]
+    with pytest.raises(NotFound):
+        op(editor, name, payload, idempotency_key=key)
+    assert SourceNetAttempt.objects.count() == 2
+    assert SourceNetInterpretation.objects.count() == 1
