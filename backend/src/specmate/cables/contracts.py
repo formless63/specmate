@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
+from specmate.cables.lengths import LengthPlan
 from specmate.interfaces.contracts import ContactId, Text, unique
 
 ElementPath = Annotated[
@@ -30,6 +31,7 @@ class Termination(StrictModel):
 class Cable(StrictModel):
     schema_version: Literal["0.1"] = "0.1"
     stock_revision_id: UUID
+    lengths: LengthPlan | None = None
     endpoints: list[Endpoint] = Field(min_length=2, max_length=2)
     assignments: list[Termination] = Field(default_factory=list, max_length=2048)
     review: Literal["unreviewed", "reviewed"] = "unreviewed"
@@ -62,3 +64,8 @@ class CaptureCable(StrictModel):
 
 class ReadCable(StrictModel):
     revision_id: UUID
+
+
+class LengthImpact(StrictModel):
+    before_revision_id: UUID
+    after_revision_id: UUID

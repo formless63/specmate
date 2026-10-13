@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from specmate.access.permissions import Perm, authorize
 from specmate.cables.contracts import Cable
+from specmate.cables.lengths import project_lengths
 from specmate.design.models import Revision
 from specmate.design.operations import authorize_snapshot
 from specmate.interfaces.contracts import ConnectorBody, Pinout
@@ -89,6 +90,21 @@ class Closure:
             raise ValidationFailed("Cable requires an exact typed stock revision.")
         self.stock = StockSpecification.model_validate(stock_content["stock"])
         self.elements = dict(conductive_elements(self.stock.structure))
+        self.lengths = project_lengths(self.cable.lengths, self.elements)
+        for row in self.lengths["rows"]:
+            row["stock_revision_id"] = str(self.cable.stock_revision_id)
+            if row["target"].startswith("conductor:"):
+                path = row["target"].removeprefix("conductor:")
+                row["element_path"] = path
+                row["element_kind"] = self.elements[path].kind
+            if row["model"]:
+                for allowance in row["model"]["allowances"]:
+                    if allowance["scope"] == "endpoint" and allowance["endpoint_id"] not in {
+                        endpoint.local_id for endpoint in self.cable.endpoints
+                    }:
+                        raise ValidationFailed(
+                            "Length allowance endpoint is absent from this cable."
+                        )
         self.endpoints = {}
         for endpoint in self.cable.endpoints:
             body_revision = self.revisions[endpoint.body_revision_id]
@@ -142,6 +158,8 @@ def inspect_revision(user, revision_id):
         raise ValidationFailed("Revision is not a cable.")
     assignments = {(a.element_path, a.endpoint_id): a for a in closure.cable.assignments}
     return {
+        "definition_id": str(revision.definition_id),
+        "lengths": closure.lengths,
         "revision_id": str(revision.id),
         "snapshot_id": str(revision.snapshot_id),
         "sha256": revision.snapshot.sha256,
@@ -176,5 +194,35 @@ def inspect_revision(user, revision_id):
         ],
         "continuity": "not_evaluated",
         "compatibility": "not_evaluated",
+        "physical_qualification": "not_evaluated",
+    }
+
+
+def length_impact(user, before_id, after_id):
+    before = inspect_revision(user, before_id)
+    after = inspect_revision(user, after_id)
+    if before["definition_id"] != after["definition_id"]:
+        raise ValidationFailed("Length comparison requires revisions of one cable definition.")
+    old = {row["target"]: row for row in before["lengths"]["rows"]}
+    new = {row["target"]: row for row in after["lengths"]["rows"]}
+    changes = [
+        {"target": target, "before": old.get(target), "after": new.get(target)}
+        for target in sorted(old.keys() | new.keys())
+        if old.get(target) != new.get(target)
+    ]
+    route_changed = old["route"] != new["route"]
+    return {
+        "before_revision_id": before["revision_id"],
+        "after_revision_id": after["revision_id"],
+        "before_sha256": before["sha256"],
+        "after_sha256": after["sha256"],
+        "route_changed": route_changed,
+        "changes": changes,
+        "preparation_review_required": bool(changes),
+        "document_review_required": bool(changes),
+        "stock_revision_changed": before["cable"]["stock_revision_id"]
+        != after["cable"]["stock_revision_id"],
+        "stock_facts_written": False,
+        "declarations_applied": False,
         "physical_qualification": "not_evaluated",
     }

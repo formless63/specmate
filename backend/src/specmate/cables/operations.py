@@ -2,6 +2,7 @@ from specmate.access.permissions import Perm, authorize
 from specmate.cables.contracts import (
     CaptureCable,
     CreateCable,
+    LengthImpact,
     ReadCable,
     UpdateCable,
 )
@@ -9,6 +10,7 @@ from specmate.cables.queries import (
     authorize_content,
     dependency_revisions,
     inspect_revision,
+    length_impact,
     parse_content,
 )
 from specmate.design.operations import (
@@ -22,7 +24,8 @@ from specmate.design.operations import (
     update_draft,
 )
 from specmate.operations import Context, NotFound, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.models import IdempotencyRecord
+from specmate.operations.scope import LEGACY_SCOPE, project_scope
 
 
 def cable_draft(ctx, draft_id, permission, lock=False):
@@ -41,15 +44,40 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
         project = p.project_id
     else:
         project = cable_draft(ctx, p.draft_id, permission).definition.project_id
-    return project_scope(ctx, project, permission)
+    resolved = project_scope(ctx, project, permission)
+    if isinstance(p, (CreateCable, UpdateCable)):
+        authorize_content(ctx.user, {"cable": p.cable.model_dump(mode="json")})
+    name = (
+        "cable.create"
+        if isinstance(p, CreateCable)
+        else "cable.update"
+        if isinstance(p, UpdateCable)
+        else "cable.freeze"
+        if permission == Perm.DESIGN_FREEZE
+        else "cable.snapshot"
+    )
+    if ctx.idempotency_key is not None:
+        for record in IdempotencyRecord.objects.filter(
+            actor=ctx.user,
+            operation=name,
+            key=ctx.idempotency_key,
+            scope__in=[resolved, LEGACY_SCOPE],
+        ):
+            retained_authority(ctx, record.result, permission)
+    return resolved
 
 
 def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     scope(ctx, p, permission)
-    if isinstance(p, (CreateCable, UpdateCable)):
-        authorize_content(ctx.user, {"cable": p.cable.model_dump(mode="json")})
-    if "content" in stored:
-        authorize_content(ctx.user, stored["content"])
+    retained_authority(ctx, stored, permission)
+
+
+def retained_authority(ctx, stored, permission):
+    draft = stored.get("draft", stored)
+    if "draft_id" in draft:
+        cable_draft(ctx, draft["draft_id"], permission)
+    if "content" in draft:
+        authorize_content(ctx.user, draft["content"])
     if "revision_id" in stored:
         inspect_revision(ctx.user, stored["revision_id"])
     if "snapshot_id" in stored:
@@ -133,3 +161,13 @@ def freeze(ctx: Context, p: CaptureCable):
 )
 def read(ctx: Context, p: ReadCable):
     return inspect_revision(ctx.user, p.revision_id)
+
+
+@operation(
+    "cable.length_impact",
+    LengthImpact,
+    summary="Compare exact cable length declarations and preparation/document impacts.",
+    supports_idempotency=False,
+)
+def inspect_length_impact(ctx: Context, p: LengthImpact):
+    return length_impact(ctx.user, p.before_revision_id, p.after_revision_id)
