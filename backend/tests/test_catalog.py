@@ -140,7 +140,14 @@ def test_authorization_replay_and_validation(users, revision, source, operation)
         op(
             users["editor"],
             operation,
-            {**payload, "revision_id": str(uuid.uuid4())},
+            {
+                **payload,
+                **(
+                    {"part_number": "Changed"}
+                    if operation.endswith("variant")
+                    else {"label": "Changed"}
+                ),
+            },
             idempotency_key="catalog-1",
         )
     with pytest.raises(ValidationFailed):

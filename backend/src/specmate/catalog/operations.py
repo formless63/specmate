@@ -4,8 +4,38 @@ from specmate.catalog.models import ManufacturerVariant, PhysicalLot, Representa
 from specmate.catalog.queries import lot_result, representation_result, variant_result
 from specmate.design.models import Revision
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
+from specmate.operations.scope import revision_scope
 from specmate.queries import get_bundle_revision, get_revision
 from specmate.sources.models import SourceBundleFile
+
+
+def authorize_catalog_replay(ctx: Context, p, stored_result: dict) -> None:
+    """Recheck current authority without repeating an append or a duplicate check.
+
+    The shared executor supplies the already-validated payload and its stored result.
+    Registration results only disclose records scoped by these pinned references.
+    """
+    revision = get_revision(ctx.user, p.revision_id)
+    authorize(ctx.user, revision.definition.project_id, Perm.DESIGN_EDIT)
+    if isinstance(p, RegisterRepresentation):
+        source = get_bundle_revision(ctx.user, p.source_bundle_revision_id)
+        if source.bundle.project_id != revision.definition.project_id:
+            raise ValidationFailed("Representation source must belong to the definition's project.")
+    if isinstance(p, RegisterLot) and p.variant_id:
+        variant = (
+            ManufacturerVariant.objects.select_related("revision__definition")
+            .filter(id=p.variant_id)
+            .first()
+        )
+        if variant is None:
+            raise NotFound("Variant not found.")
+        authorize(ctx.user, variant.revision.definition.project_id, Perm.PROJECT_READ)
+        if variant.revision_id != revision.id:
+            raise ValidationFailed("Lot and manufacturer variant must pin the same revision.")
+
+
+def catalog_scope(ctx: Context, p) -> str:
+    return revision_scope(ctx, p.revision_id)
 
 
 def editable_revision(ctx, revision_id):
@@ -19,6 +49,8 @@ def editable_revision(ctx, revision_id):
 @operation(
     "catalog.register_variant",
     RegisterVariant,
+    authorize_replay=authorize_catalog_replay,
+    idempotency_scope=catalog_scope,
     summary="Associate an orderable manufacturer identity with an exact design revision.",
 )
 def register_variant(ctx: Context, p: RegisterVariant) -> dict:
@@ -40,6 +72,8 @@ def register_variant(ctx: Context, p: RegisterVariant) -> dict:
 @operation(
     "catalog.register_representation",
     RegisterRepresentation,
+    authorize_replay=authorize_catalog_replay,
+    idempotency_scope=catalog_scope,
     summary="Associate an immutable source file representation with an exact design revision.",
 )
 def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
@@ -71,6 +105,8 @@ def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
 @operation(
     "catalog.register_lot",
     RegisterLot,
+    authorize_replay=authorize_catalog_replay,
+    idempotency_scope=catalog_scope,
     summary="Register a physical lot identity pinned to a revision; no stock transaction occurs.",
 )
 def register_lot(ctx: Context, p: RegisterLot) -> dict:
@@ -94,28 +130,3 @@ def register_lot(ctx: Context, p: RegisterLot) -> dict:
         registered_by=ctx.user,
     )
     return lot_result(lot)
-
-
-def authorize_catalog_replay(ctx: Context, p, stored_result: dict) -> None:
-    """Recheck current authority without repeating an append or a duplicate check.
-
-    The shared executor supplies the already-validated payload and its stored result.
-    Registration results only disclose records scoped by these pinned references.
-    """
-    revision = get_revision(ctx.user, p.revision_id)
-    authorize(ctx.user, revision.definition.project_id, Perm.DESIGN_EDIT)
-    if isinstance(p, RegisterRepresentation):
-        source = get_bundle_revision(ctx.user, p.source_bundle_revision_id)
-        if source.bundle.project_id != revision.definition.project_id:
-            raise ValidationFailed("Representation source must belong to the definition's project.")
-    if isinstance(p, RegisterLot) and p.variant_id:
-        variant = (
-            ManufacturerVariant.objects.select_related("revision__definition")
-            .filter(id=p.variant_id)
-            .first()
-        )
-        if variant is None:
-            raise NotFound("Variant not found.")
-        authorize(ctx.user, variant.revision.definition.project_id, Perm.PROJECT_READ)
-        if variant.revision_id != revision.id:
-            raise ValidationFailed("Lot and manufacturer variant must pin the same revision.")
