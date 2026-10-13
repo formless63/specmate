@@ -15,7 +15,7 @@ const blankRule = (): ElementPractice => ({ a: blankEnd(), b: blankEnd() });
 const blankLead = (): LeadDisplay => ({ length_mm: unknown(), diameter_mm: unknown(), reach_mm: unknown(), angle_deg: unknown() });
 const blankProfile = (revisionId: string): WorkshopProfile => ({
   schema_version: '1', stock_revision_id: revisionId, foil_visibility: unknown(),
-  illustration_lay_length_mm: unknown(), omit_occluded: unknown(), element_rules: {}, hidden_element_paths: [],
+  illustration_lay_length_mm: unknown(), illustration_lay_direction: unknown(), omit_occluded: unknown(), element_rules: {}, hidden_element_paths: [],
 });
 const copy = <T,>(value: T): T => structuredClone(value);
 
@@ -184,11 +184,16 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
           disabled={!!frozen} min={0} onChange={value => modify(next => {
             next.illustration_lay_length_mm = suggestion(typeof value === 'number' ? value : null);
           })} />
+        <Select label="Illustration lay direction" value={shown.illustration_lay_direction?.value ?? 'unknown'} disabled={!!frozen}
+          data={['unknown', 'positive', 'negative']} onChange={value => modify(next => {
+            next.illustration_lay_direction = suggestion(value === 'unknown' ? null : value as 'positive' | 'negative');
+          })} />
         <Select label="Omit occluded material" value={shown.omit_occluded.value === null ? 'unknown' : String(shown.omit_occluded.value)}
           disabled={!!frozen} data={['unknown', 'true', 'false']} onChange={value => modify(next => {
             next.omit_occluded = suggestion(value === 'unknown' ? null : value === 'true');
           })} />
       </Group>
+      <Text size="sm">Illustration direction is rotation about +x as x increases, with zero phase at end A. Positive follows the right-hand rule; negative reverses it. This preference does not state engineering twist handedness.</Text>
       <Title order={3}>Element preparation</Title>
       <Text size="sm">Cuts and lead dimensions are per stock element and per end. A blank field means unknown.</Text>
       {elementPaths.map(path => {

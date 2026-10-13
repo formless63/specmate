@@ -47,6 +47,8 @@ test('saves independent sourced display and per-end cut suggestions, then freeze
   fireEvent.click(screen.getByRole('combobox', { name: 'Foil visibility' }));
   fireEvent.click(await screen.findByText('hide'));
   fireEvent.change(screen.getByLabelText('Illustration lay length mm'), { target: { value: '24' } });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Illustration lay direction' }));
+  fireEvent.click(await screen.findByText('negative'));
   fireEvent.change(screen.getByLabelText('stock.jacket end a cutback mm'), { target: { value: '12' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
   await screen.findByText('Saved Synthetic strip drawing (draft-v1).');
@@ -57,6 +59,7 @@ test('saves independent sourced display and per-end cut suggestions, then freeze
   expect(profile.stock_revision_id).toBe(revision);
   expect(profile.foil_visibility).toMatchObject({ value: 'hide', basis: 'preference', note: 'Illustration for bench training' });
   expect(profile.illustration_lay_length_mm.value).toBe(24);
+  expect(profile.illustration_lay_direction).toMatchObject({ value: 'negative', basis: 'preference', note: 'Illustration for bench training' });
   expect(profile.element_rules['stock.jacket'].a.cutback_mm.value).toBe(12);
   expect(profile.element_rules['stock.jacket'].b.cutback_mm.value).toBeNull();
   expect(JSON.stringify(profile)).not.toMatch(/bond|rating|measured/);
@@ -78,6 +81,8 @@ test('fresh selection shows frozen suggestion provenance instead of new-edit def
     foil_visibility: { value: 'hide', basis: 'documented', note: null,
       source: { kind: 'citation', citation: 'Synthetic preparation illustration citation' } },
     illustration_lay_length_mm: unknown,
+    illustration_lay_direction: { value: 'positive', basis: 'documented', note: null,
+      source: { kind: 'citation', citation: 'Synthetic direction instruction' } },
     omit_occluded: { value: false, basis: 'documented', note: null,
       source: { kind: 'source_file', bundle_revision_id: revision, path: ' instructions/occlusion.txt ',
         locator: 'line 2', sha256: 'b'.repeat(64), rights: ' synthetic-test ' } },
@@ -121,6 +126,8 @@ test('fresh selection shows frozen suggestion provenance instead of new-edit def
   expect(provenance.textContent).toContain('Cutback: 40 mm · Basis: documented');
   expect(provenance.textContent).toContain('Unverified citation: Synthetic preparation illustration citation');
   expect(provenance.textContent).toContain('Illustration lay length: Unknown · Basis: unknown');
+  expect(provenance.textContent).toContain('Illustration lay direction: positive · Basis: documented');
+  expect(provenance.textContent).toContain('Unverified citation: Synthetic direction instruction');
   expect(provenance.textContent).toContain('Omit occluded material: No · Basis: documented');
   expect(provenance.textContent).toContain(`bundle revision ${revision} · path “ instructions/occlusion.txt ”`);
   expect(provenance.textContent).toContain(`SHA-256 ${'b'.repeat(64)} · rights “ synthetic-test ”`);

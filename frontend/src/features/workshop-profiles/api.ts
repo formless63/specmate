@@ -17,6 +17,8 @@ export interface WorkshopProfile {
   schema_version: '1'; stock_revision_id: string;
   foil_visibility: Suggestion<'show' | 'hide'>;
   illustration_lay_length_mm: Suggestion<number>;
+  /** Older exact frozen snapshots may omit this; absence remains unknown. */
+  illustration_lay_direction?: Suggestion<'positive' | 'negative'>;
   omit_occluded: Suggestion<boolean>;
   element_rules: Record<string, ElementPractice>;
   hidden_element_paths: string[];

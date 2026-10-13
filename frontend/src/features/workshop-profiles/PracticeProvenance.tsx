@@ -31,6 +31,7 @@ export function WorkshopProfileProvenance({ profile, stateLabel = 'Displayed pro
     <Text size="sm">These values and sources belong to the displayed profile state. They do not establish measured dimensions, ratings, or electrical bonds.</Text>
     <SuggestionProvenance label="Foil visibility" suggestion={profile.foil_visibility} />
     <SuggestionProvenance label="Illustration lay length" suggestion={profile.illustration_lay_length_mm} unit="mm" />
+    <SuggestionProvenance label="Illustration lay direction" suggestion={profile.illustration_lay_direction ?? { value: null, basis: 'unknown', source: null, note: null }} />
     <SuggestionProvenance label="Omit occluded material" suggestion={profile.omit_occluded} />
     <Text size="sm">Hidden element paths (display only): {profile.hidden_element_paths.length ? profile.hidden_element_paths.join(', ') : 'None recorded'}</Text>
     <Title order={4}>Per-element preparation</Title>

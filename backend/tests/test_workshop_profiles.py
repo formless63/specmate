@@ -331,7 +331,12 @@ def test_generic_commands_keep_profile_validation_and_exact_dependency(users, pr
         )
 
 
-def test_registered_source_digest_and_rights_are_checked_on_profile_read(users, project):
+@pytest.mark.parametrize(
+    "field,value", [("foil_visibility", "hide"), ("illustration_lay_direction", "positive")]
+)
+def test_registered_source_digest_and_rights_are_checked_on_profile_read(
+    users, project, field, value
+):
     stock_id, _ = stock_revision(users, project)
     source_path = " instructions/strip.txt "
     raw = b"synthetic workshop instruction\n"
@@ -369,13 +374,11 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(users, 
         "rights": "synthetic-test",
     }
     documented = profile(
-        stock_id, foil_visibility={"value": "hide", "basis": "documented", "source": source}
+        stock_id, **{field: {"value": value, "basis": "documented", "source": source}}
     )
     draft = create(users, project, documented, idempotency_key="documented-profile")
     assert (
-        get_profile(users["viewer"], draft["draft_id"])["content"]["profile"]["foil_visibility"][
-            "source"
-        ]
+        get_profile(users["viewer"], draft["draft_id"])["content"]["profile"][field]["source"]
         == source
     )
     with pytest.raises(NotFound):
@@ -384,10 +387,12 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(users, 
             project,
             profile(
                 stock_id,
-                foil_visibility={
-                    "value": "hide",
-                    "basis": "documented",
-                    "source": {**source, "path": source_path.strip()},
+                **{
+                    field: {
+                        "value": value,
+                        "basis": "documented",
+                        "source": {**source, "path": source_path.strip()},
+                    }
                 },
             ),
         )
@@ -399,7 +404,7 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(users, 
                 project,
                 profile(
                     stock_id,
-                    foil_visibility={"value": "hide", "basis": "documented", "source": altered},
+                    **{field: {"value": value, "basis": "documented", "source": altered}},
                 ),
             )
     with pytest.raises(NotFound):
@@ -408,24 +413,50 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(users, 
             project,
             profile(
                 stock_id,
-                foil_visibility={
-                    "value": "hide",
-                    "basis": "documented",
-                    "source": {**source, "path": "instructions/missing.txt"},
+                **{
+                    field: {
+                        "value": value,
+                        "basis": "documented",
+                        "source": {**source, "path": "instructions/missing.txt"},
+                    }
                 },
             ),
         )
+    frozen = op(
+        users["owner"],
+        "workshop_profile.freeze",
+        {"draft_id": draft["draft_id"]},
+        expected_state=draft["state"],
+        idempotency_key="documented-freeze",
+    )
+    assert (
+        revision_result(users["viewer"], frozen["revision_id"])["content"]["profile"][field][
+            "source"
+        ]
+        == source
+    )
     op(
         users["editor"],
         "workshop_profile.update",
         {"draft_id": draft["draft_id"], "profile": profile(stock_id)},
-        expected_state=draft["state"],
+        expected_state=frozen["draft"]["state"],
     )
     other_project = op(users["owner"], "project.create", {"name": "Separate project"})["project_id"]
     bundle.project_id = other_project
     bundle.save(update_fields=["project"])
     with pytest.raises(ValidationFailed):
         create(users, project, documented, idempotency_key="documented-profile")
+
+    with pytest.raises(NotFound):
+        revision_result(users["viewer"], frozen["revision_id"])
+    with pytest.raises(ValidationFailed):
+        op(
+            users["owner"],
+            "workshop_profile.freeze",
+            {"draft_id": draft["draft_id"]},
+            expected_state=draft["state"],
+            idempotency_key="documented-freeze",
+        )
 
 
 def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
@@ -464,3 +495,26 @@ def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
     assert len(list_profile_revisions(users["viewer"], draft["definition_id"])) == 1
     with pytest.raises(NotFound):
         list_profile_revisions(users["outsider"], draft["definition_id"])
+
+
+def test_direction_is_independent_nullable_practice_with_explicit_basis():
+    from pydantic import ValidationError
+
+    body = profile("00000000-0000-0000-0000-000000000001")
+    assert WorkshopProfile.model_validate(body).illustration_lay_direction.value is None
+    for direction in ["positive", "negative"]:
+        body["illustration_lay_direction"] = {
+            "value": direction,
+            "basis": "preference",
+            "note": "Synthetic display rotation.",
+        }
+        parsed = WorkshopProfile.model_validate(body)
+        assert parsed.illustration_lay_direction.value == direction
+        assert parsed.illustration_lay_length_mm.value is None
+    for direction in ["S", "Z", "cw", "ccw", "", 0, False]:
+        body["illustration_lay_direction"]["value"] = direction
+        with pytest.raises(ValidationError):
+            WorkshopProfile.model_validate(body)
+    body["illustration_lay_direction"] = {"value": "positive", "basis": "unknown"}
+    with pytest.raises(ValidationError):
+        WorkshopProfile.model_validate(body)

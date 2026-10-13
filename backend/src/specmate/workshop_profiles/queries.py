@@ -61,6 +61,7 @@ def authorize_profile_content(user, definition, content: dict) -> None:
 def _suggestions(profile: WorkshopProfile):
     yield profile.foil_visibility
     yield profile.illustration_lay_length_mm
+    yield profile.illustration_lay_direction
     yield profile.omit_occluded
     for rule in profile.element_rules.values():
         for end in (rule.a, rule.b):

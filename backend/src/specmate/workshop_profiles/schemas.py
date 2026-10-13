@@ -94,6 +94,11 @@ class WorkshopProfile(StrictModel):
     illustration_lay_length_mm: Suggestion[Millimetres] = Field(
         default_factory=Suggestion[Millimetres]
     )
+    # Depiction rotation about +x as x increases; phase zero at end A.
+    # Independent of stock ring placement and any measured engineering lay.
+    illustration_lay_direction: Suggestion[Literal["positive", "negative"]] = Field(
+        default_factory=Suggestion[Literal["positive", "negative"]]
+    )
     omit_occluded: Suggestion[StrictBool] = Field(default_factory=Suggestion[StrictBool])
     element_rules: dict[ElementPath, ElementPractice] = Field(default_factory=dict, max_length=1024)
     hidden_element_paths: list[ElementPath] = Field(default_factory=list, max_length=1024)
