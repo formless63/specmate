@@ -36,6 +36,50 @@
       "title": "Count",
       "type": "object"
     },
+    "DemandQuantity": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "default": "ea",
+          "enum": [
+            "ea",
+            "m",
+            "cm",
+            "mm",
+            "kg",
+            "g"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "DemandQuantity",
+      "type": "object"
+    },
     "Need": {
       "additionalProperties": false,
       "properties": {
@@ -69,12 +113,23 @@
           "type": "string"
         },
         "quantity": {
-          "$ref": "#/$defs/Count"
+          "$ref": "#/$defs/DemandQuantity"
         },
         "revision_id": {
           "format": "uuid",
           "title": "Revision Id",
           "type": "string"
+        },
+        "waste": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WasteAllowance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -85,6 +140,52 @@
         "basis"
       ],
       "title": "Need",
+      "type": "object"
+    },
+    "OccurrenceDemand": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Path",
+          "type": "array"
+        },
+        "quantity": {
+          "$ref": "#/$defs/DemandQuantity"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "waste": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WasteAllowance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "path",
+        "revision_id",
+        "basis"
+      ],
+      "title": "OccurrenceDemand",
       "type": "object"
     },
     "Policy": {
@@ -128,6 +229,25 @@
       ],
       "title": "Policy",
       "type": "object"
+    },
+    "WasteAllowance": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "quantity": {
+          "$ref": "#/$defs/DemandQuantity"
+        }
+      },
+      "required": [
+        "basis"
+      ],
+      "title": "WasteAllowance",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -143,6 +263,14 @@
       },
       "maxItems": 2000,
       "title": "Needs",
+      "type": "array"
+    },
+    "occurrence_demands": {
+      "items": {
+        "$ref": "#/$defs/OccurrenceDemand"
+      },
+      "maxItems": 5000,
+      "title": "Occurrence Demands",
       "type": "array"
     },
     "policies": {
