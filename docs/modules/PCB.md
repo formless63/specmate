@@ -118,3 +118,44 @@ memberships, outline and holes using the actual toolchain during implementation.
 preservation, discrepancy review, supported authoring, ERC/DRC, fabrication and assembly
 outputs against those expectations. A tool absent from an environment is unverified, not
 a passing mocked adapter. A bought populated board stops procurement expansion appropriately.
+
+## Independent source assertions and disagreement review
+
+`pcb_assertion` records explicitly human-entered terminal/net statements about one
+exact preserved PCB, schematic or netlist file. The source revision, manifest hash,
+path, file hash and rights remain pinned. Source role and property ownership are
+explicit; the original stays authoritative. Coverage is either partial or a human
+declaration of completeness with a basis. Unknown net state differs from explicitly
+unconnected. Entered native IDs remain assertions; labels never establish identity.
+These records do not parse original bytes or claim native schematic parity.
+
+`pcb_comparison` independently pins two assertion revisions or accepted native PCB
+interpretations, including exact report/source hashes. Board inputs preserve the
+native extractor version, build/output evidence, native component/pad identities
+and unsupported coverage. Blank native net names remain unknown. Comparisons use
+explicit one-to-one terminal correspondence with a basis. Duplicate reference/pin
+labels never trigger inferred matching; unmapped terminals remain reviewable unknowns.
+An explicitly absent counterpart distinguishes declared complete from partial coverage.
+
+Net-name differences and membership partition differences are separate findings.
+Unknown assignments do not become agreement, disconnection or zero. No finding
+chooses the correct source, merges nets, rewrites the original or updates an existing
+copper graph. Human decisions are separately acknowledged, require source correction,
+or mark the comparison not comparable, each with a basis. Finding identities bind the
+exact source pins and correspondence; changed evidence cannot silently inherit an
+old review. Freezing preserves both unresolved findings and reviewed decisions.
+
+`pcb_disagreement.create`, `.update`, `.freeze` and `.read` use the shared operation
+layer, source authorization, draft concurrency and current replay checks. The generic
+design path applies the same validation and captured assertion-revision dependencies.
+Reads recheck all retained source inputs before discrepancy diagnostics. Supported
+comparisons are bounded to 2,000 terminals per input and 2,000 correspondences.
+Schematic/netlist native extraction and automatic parity remain unverified by this
+manual-assertion workflow. Physical qualification is never implied.
+
+The source-disagreement workspace selects preserved files and exact assertion or
+accepted board-report inputs, edits explicit terminal correspondence, shows independent
+source evidence and findings, and saves/freezes review decisions. Changing inputs or
+correspondence requires saving before reviewing new findings. Source, draft or frozen
+read denial clears retained private findings and disables dependent editing actions.
+HTTP inspection is available under `/api/v0/pcb-disagreement`.

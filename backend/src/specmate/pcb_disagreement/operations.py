@@ -1,0 +1,121 @@
+from specmate.access.permissions import Perm, authorize
+from specmate.design.operations import (
+    CaptureDraft,
+    CreateDefinition,
+    UpdateDraft,
+    create_definition,
+    freeze_draft,
+    scoped_draft,
+    update_draft,
+)
+from specmate.operations import Context, NotFound, operation
+from specmate.operations.scope import project_scope
+from specmate.pcb_disagreement.contracts import (
+    KINDS,
+    CaptureReview,
+    CreateReview,
+    ReadReview,
+    UpdateReview,
+)
+from specmate.pcb_disagreement.queries import (
+    authorize_value,
+    dependency_revisions,
+    inspect_revision,
+    parse_content,
+)
+
+
+def review_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+    draft = scoped_draft(ctx, draft_id, permission, lock=lock)
+    if draft.definition.kind not in KINDS:
+        raise NotFound("PCB source review draft unavailable.")
+    dependency_revisions(ctx.user, draft.definition, draft.content)
+    return draft
+
+
+def scope(ctx, p, permission=Perm.DESIGN_EDIT):
+    project = (
+        p.project_id
+        if isinstance(p, CreateReview)
+        else review_draft(ctx, p.draft_id, permission).definition.project_id
+    )
+    return project_scope(ctx, project, permission)
+
+
+def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
+    scope(ctx, p, permission)
+    if isinstance(p, (CreateReview, UpdateReview)):
+        authorize_value(ctx.user, p.value)
+    if "content" in stored:
+        value = parse_content(stored["content"])
+        if value:
+            authorize_value(ctx.user, value)
+    if "revision_id" in stored:
+        inspect_revision(ctx.user, stored["revision_id"])
+
+
+@operation(
+    "pcb_disagreement.create",
+    CreateReview,
+    summary="Record independent exact-source assertions or a comparison review.",
+    authorize_replay=replay,
+    idempotency_scope=scope,
+)
+def create(ctx: Context, p: CreateReview):
+    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    authorize_value(ctx.user, p.value)
+    return create_definition(
+        ctx,
+        CreateDefinition(
+            project_id=p.project_id,
+            name=p.name,
+            kind=p.value.kind,
+            content={p.value.kind: p.value.model_dump(mode="json")},
+        ),
+    )
+
+
+@operation(
+    "pcb_disagreement.update",
+    UpdateReview,
+    summary="Edit assertions or independent discrepancy review with concurrency control.",
+    requires_expected_state=True,
+    authorize_replay=replay,
+    idempotency_scope=scope,
+)
+def update(ctx: Context, p: UpdateReview):
+    review_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
+    authorize_value(ctx.user, p.value)
+    return update_draft(
+        ctx,
+        UpdateDraft(draft_id=p.draft_id, changes={p.value.kind: p.value.model_dump(mode="json")}),
+    )
+
+
+@operation(
+    "pcb_disagreement.freeze",
+    CaptureReview,
+    summary="Freeze exact source assertions and comparison decisions.",
+    requires_expected_state=True,
+    authorize_replay=lambda ctx, p, stored: replay(ctx, p, stored, Perm.DESIGN_FREEZE),
+    idempotency_scope=lambda ctx, p: scope(ctx, p, Perm.DESIGN_FREEZE),
+)
+def freeze(ctx: Context, p: CaptureReview):
+    draft = review_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE, lock=True)
+    return freeze_draft(
+        ctx,
+        CaptureDraft(
+            draft_id=draft.id,
+            dependencies=dependency_revisions(ctx.user, draft.definition, draft.content),
+        ),
+    )
+
+
+@operation(
+    "pcb_disagreement.read",
+    ReadReview,
+    summary="Inspect exact source assertions, conflicts and review without choosing a source.",
+    supports_idempotency=False,
+)
+def read(ctx: Context, p: ReadReview):
+    return inspect_revision(ctx.user, p.revision_id)
