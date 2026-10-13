@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import { Alert, Badge, Button, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -236,7 +237,7 @@ function AssociationForm({ report, intake, population, targets, disabled, onSave
       ? { kind: "citation", citation: citation.trim() }
       : file ? { kind: "source_file", source_revision_id: intake.source_revision_id, path: file.path, sha256: file.sha256, rights: file.rights } : null;
     const row: Association = {
-      local_id: editingId ?? `a_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`,
+      local_id: editingId ?? `a_${randomUUID().replaceAll("-", "").slice(0, 12)}`,
       kind, component_id: componentId, pad_id: kind === "port" ? padId : null,
       target_revision_id: kind === "model" ? null : targetId,
       target_contact_id: kind === "port" ? contactId : null,

@@ -1,3 +1,5 @@
+import { sha256Hex } from "../../lib/sha256";
+import { randomUUID } from "../../lib/random-id";
 export type IntakeSummary = { intake_id: string; board_path: string; source_revision_id: string };
 type Point = [number, number];
 export type NativeReport = {
@@ -110,7 +112,7 @@ export function getPopulationRevisionReview(revisionId: string, signal?: AbortSi
 export async function command<T>(operation: string, payload: object, signal?: AbortSignal, expectedState?: string) {
   const result = await request<{ result: T }>("/api/v0/operations", {
     method: "POST", headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
-    body: JSON.stringify({ operation, payload, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(), expected_state: expectedState }),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
   }, signal);
   return result.result;
 }
@@ -119,12 +121,11 @@ export async function preserveFiles(projectId: string, files: File[], name: stri
   const refs = [];
   for (const file of files) {
     const content = await file.arrayBuffer();
-    const hash = await crypto.subtle.digest("SHA-256", content);
-    const sha256 = Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
+    const sha256 = await sha256Hex(content);
     const path = file.webkitRelativePath || file.name;
     const media_type = file.type || "application/octet-stream";
     const form = new FormData();
-    for (const [key, value] of Object.entries({ request_id: crypto.randomUUID(), sha256, size: `${file.size}`, media_type })) form.set(key, value);
+    for (const [key, value] of Object.entries({ request_id: randomUUID(), sha256, size: `${file.size}`, media_type })) form.set(key, value);
     form.set("content", file);
     await request(`/api/v0/projects/${encodeURIComponent(projectId)}/blobs`, {
       method: "POST", headers: { "X-CSRFToken": csrfToken() }, body: form,

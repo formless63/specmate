@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 export type Definition = { definition_id: string; name: string; kind: string };
 export type Identity = Definition & {
   revisions: { revision_id: string; number: number }[];
@@ -22,7 +23,7 @@ export async function command<T>(operation: string, payload: object, expectedSta
   const response = await fetch("/api/v0/operations", {
     method: "POST", credentials: "same-origin",
     headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") },
-    body: JSON.stringify({ operation, payload, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(), expected_state: expectedState }),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
   });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message ?? `Operation failed (${response.status})`);

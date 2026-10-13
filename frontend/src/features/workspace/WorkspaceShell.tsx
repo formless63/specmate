@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import { Alert, Button, Container, Group, PasswordInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -75,7 +76,7 @@ export function WorkspaceShell({ children }: { children: (projectId: string, pro
     await act(async () => {
       const setup = session?.owner_setup_required;
       await requestJson<OperationResult<unknown>>(setup ? "/api/v0/setup/owner" : "/api/v0/session/login", {
-        method: "POST", body: JSON.stringify({ request_id: crypto.randomUUID(), username, password,
+        method: "POST", body: JSON.stringify({ request_id: randomUUID(), username, password,
           ...(setup ? { token } : {}) }),
       });
       setPassword("");
@@ -89,7 +90,7 @@ export function WorkspaceShell({ children }: { children: (projectId: string, pro
   async function signOut() {
     await act(async () => {
       await requestJson("/api/v0/session/logout", {
-        method: "POST", body: JSON.stringify({ request_id: crypto.randomUUID() }),
+        method: "POST", body: JSON.stringify({ request_id: randomUUID() }),
       });
       clearPrivate();
       setUsername("");

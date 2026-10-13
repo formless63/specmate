@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 export class MatchingRequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
@@ -13,7 +14,7 @@ async function command(operation: string, payload: object, expectedState?: strin
   const csrf = document.cookie.split("; ").find((cookie) => cookie.startsWith("csrftoken="))?.split("=")[1];
   const body = await request<{ result: Candidate }>("operations", {
     method: "POST", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") },
-    body: JSON.stringify({ operation, payload, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(), expected_state: expectedState }),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
   });
   return body.result;
 }

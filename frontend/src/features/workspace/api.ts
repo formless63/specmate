@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 export type SessionState = {
   user: { id: string; username: string } | null;
   owner_setup_required: boolean;
@@ -46,7 +47,7 @@ export function runOperation<T>(
 ): Promise<OperationResult<T>> {
   return requestJson("/api/v0/operations", {
     method: "POST",
-    body: JSON.stringify({ operation, payload, request_id: crypto.randomUUID(),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(),
       expected_state: options.expectedState, idempotency_key: options.idempotencyKey }),
   });
 }

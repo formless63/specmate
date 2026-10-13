@@ -30,3 +30,7 @@ viewer retains the Three.js copyright and MIT permission notice in
 frontend/public/third-party-licenses/three.txt, served as
 /third-party-licenses/three.txt in the static web build. This file retains its
 upstream license, independently of the application license.
+
+@noble/hashes 2.0.1 provides the SHA-256 source-checksum fallback for HTTP browser origins.
+Copyright and MIT license: frontend/public/licenses/noble-hashes-LICENSE.txt,
+served at /licenses/noble-hashes-LICENSE.txt. Upstream: https://github.com/paulmillr/noble-hashes

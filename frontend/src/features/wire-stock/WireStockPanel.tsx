@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { renderPreviewSvg, renderSectionSvg, sectionLayout, stockGeometry } from '../../../../packages/section-layout/src';
@@ -24,8 +25,8 @@ function editNode(root: GroupElement, path: string, patch: Partial<StockElement>
   find(result, root.id); return result;
 }
 function newElement(kind: StockElement['kind'], siblings: StockElement[]): StockElement {
-  let id = `${kind}-${crypto.randomUUID()}`;
-  while (siblings.some(child => child.id === id)) id = `${kind}-${crypto.randomUUID()}`;
+  let id = `${kind}-${randomUUID()}`;
+  while (siblings.some(child => child.id === id)) id = `${kind}-${randomUUID()}`;
   const base = { id, label: `New ${kind}`, source: null, material: null, color: null, x_mm: 0, y_mm: 0 };
   if (kind === 'group') return { ...base, kind, role: 'bundle', arrangement: 'concentric', pitch_mm: null, direction: 'ccw', children: [] };
   if (kind === 'web') return { ...base, kind, width_mm: null, height_mm: null };

@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import { command, read } from "../identity/api";
 import type { Boundary, Graph, Origin } from "../copper/api";
 export type { Graph };
@@ -48,7 +49,7 @@ export const freezeModel = (draft: Draft) => command<Frozen>("passage.freeze", {
 export const reviewModel = (inspection: Inspection, decision: string, basis: string, evidence: Evidence) => command<Inspection>("passage.review", { revision_id: inspection.revision_id, decision, basis, evidence }, inspection.state);
 export async function interpretModel(payload: object) {
   const csrf = document.cookie.split("; ").find((c) => c.startsWith("csrftoken="))?.split("=")[1];
-  const response = await fetch("/api/v0/operations", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") }, body: JSON.stringify({ operation: "passage.interpret", request_id: crypto.randomUUID(), payload }) });
+  const response = await fetch("/api/v0/operations", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") }, body: JSON.stringify({ operation: "passage.interpret", request_id: randomUUID(), payload }) });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message ?? `Query failed (${response.status})`);
   return body.result as Interpretation;

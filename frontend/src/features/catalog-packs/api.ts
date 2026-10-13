@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 export type FilePin = { source_bundle_revision_id: string; source_path: string; sha256: string; rights: string };
 export type RecipeReference = { recipe_id: string; version: string; digest: string };
 export type Entry = { key: string; label: string; category: "content" | "rule" | "profile" | "model" | "recipe_reference"; revision_id?: string | null; revision_sha256?: string | null; source?: FilePin | null; recipe?: RecipeReference | null; rights: string };
@@ -17,7 +18,7 @@ export async function read<T>(path: string): Promise<T> {
 }
 export async function command<T>(operation: string, payload: object, expectedState?: string): Promise<T> {
   const csrf = document.cookie.split("; ").find((cookie) => cookie.startsWith("csrftoken="))?.split("=")[1];
-  const response = await fetch("/api/v0/operations", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") }, body: JSON.stringify({ operation, payload, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(), expected_state: expectedState }) });
+  const response = await fetch("/api/v0/operations", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") }, body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }) });
   const body = await response.json();
   if (!response.ok) throw new PackRequestError(body.error?.message ?? `Operation failed (${response.status})`, response.status);
   return body.result as T;

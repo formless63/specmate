@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import { Alert, Badge, Button, Card, Checkbox, Group, MultiSelect, NativeSelect, Stack, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { command, PackRequestError, read, type Decision, type Entry, type FilePin, type Manifest, type Pack, type Project, type SourceFile, type Version } from "./api";
@@ -161,7 +162,7 @@ function RegisterForm({ projectId, projects, packs, canEdit, onRegistered, onDen
     <Checkbox label="Link an exact registered manifest file" checked={linkedManifest} onChange={(event) => setLinkedManifest(event.currentTarget.checked)} />
     {linkedManifest && <SourcePicker label="Manifest" projectId={projectId} projects={projects} onChange={setManifestSource} onDenied={onDenied} />}
     {entries.map((entry, index) => <Card withBorder key={entry.id}><EntryEditor index={index + 1} value={entry.value} projectId={projectId} projects={projects} onChange={(value) => setEntries((current) => current.map((row) => row.id === entry.id ? { ...row, value } : row))} onDenied={onDenied} />{entries.length > 1 && <Button variant="light" onClick={() => setEntries((current) => current.filter((row) => row.id !== entry.id))}>Remove entry {index + 1}</Button>}</Card>)}
-    <Button variant="light" disabled={entries.length >= 100} onClick={() => setEntries((current) => [...current, { id: crypto.randomUUID(), value: blankEntry() }])}>Add catalog entry</Button>
+    <Button variant="light" disabled={entries.length >= 100} onClick={() => setEntries((current) => [...current, { id: randomUUID(), value: blankEntry() }])}>Add catalog entry</Button>
     <Button type="submit" loading={busy} disabled={!canEdit || !completeEntries || (linkedManifest && !manifestSource)}>Register exact version</Button>
   </Stack></form></Card>;
 }

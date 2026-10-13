@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 export class UpgradeRequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
@@ -11,7 +12,7 @@ async function command<T>(operation: string, payload: object, expectedState?: st
   const csrf = document.cookie.split("; ").find((c) => c.startsWith("csrftoken="))?.split("=")[1];
   const response = await request<{ result: T }>("operations", {
     method: "POST", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") },
-    body: JSON.stringify({ operation, payload, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(), expected_state: expectedState }),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
   });
   return response.result;
 }

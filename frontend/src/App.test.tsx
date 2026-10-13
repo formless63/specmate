@@ -55,6 +55,8 @@ async function selectProject(name: string) {
 }
 
 test("sign-in opens scoped project tools and mounts each real feature on its first selection", async () => {
+  const cryptoSource = globalThis.crypto;
+  vi.stubGlobal("crypto", { getRandomValues: cryptoSource.getRandomValues.bind(cryptoSource) });
   const fetchMock = server(); renderApp();
   await screen.findByRole("heading", { name: "Sign in" });
   expect(screen.queryByRole("tablist")).toBeNull();

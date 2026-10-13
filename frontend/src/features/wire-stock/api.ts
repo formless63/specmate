@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import type { StockSpecification } from '../../../../packages/section-layout/src';
 
 export interface StockRecord {
@@ -20,7 +21,7 @@ export async function saveStock(projectId: string, name: string, stock: StockSpe
   const result = await read<{ result: StockRecord }>('/api/v0/operations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
     body: JSON.stringify({ operation: current ? 'wire_stock.update' : 'wire_stock.create',
-      request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(), expected_state: current?.state ?? null,
+      request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: current?.state ?? null,
       payload: current ? { draft_id: current.draft_id, stock } : { project_id: projectId, name, stock } }),
   });
   return result.result;
@@ -28,8 +29,8 @@ export async function saveStock(projectId: string, name: string, stock: StockSpe
 export async function freezeStock(current: StockRecord): Promise<{ number: number; draft: { state: string } }> {
   const result = await read<{ result: { number: number; draft: { state: string } } }>('/api/v0/operations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-    body: JSON.stringify({ operation: 'wire_stock.freeze', request_id: crypto.randomUUID(),
-      idempotency_key: crypto.randomUUID(), expected_state: current.state, payload: { draft_id: current.draft_id } }),
+    body: JSON.stringify({ operation: 'wire_stock.freeze', request_id: randomUUID(),
+      idempotency_key: randomUUID(), expected_state: current.state, payload: { draft_id: current.draft_id } }),
   });
   return result.result;
 }

@@ -1,3 +1,5 @@
+import { sha256Hex } from "../../lib/sha256";
+import { randomUUID } from "../../lib/random-id";
 export type RevisionSummary = {
   revision_id: string; bundle_id: string; name: string; role: 'original' | 'derivative';
   number: number; manifest_sha256: string; derived_from: string | null;
@@ -21,15 +23,14 @@ export async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export async function command<T>(operation: string, payload: object): Promise<T> {
   return (await request<{ result: T }>('operations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-    body: JSON.stringify({ operation, payload, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID() }),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID() }),
   })).result;
 }
 export async function preserve(projectId: string, file: File, name: string, rights: string) {
   const content = await file.arrayBuffer();
-  const hash = await crypto.subtle.digest('SHA-256', content);
-  const sha256 = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
+  const sha256 = await sha256Hex(content);
   const form = new FormData();
-  for (const [key, value] of Object.entries({ request_id: crypto.randomUUID(), sha256, size: `${file.size}`, media_type: 'application/octet-stream' })) form.set(key, value);
+  for (const [key, value] of Object.entries({ request_id: randomUUID(), sha256, size: `${file.size}`, media_type: 'application/octet-stream' })) form.set(key, value);
   form.set('content', file);
   await request(`projects/${encodeURIComponent(projectId)}/blobs`, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form });
   return command<{ revision_id: string }>('source.create_original_bundle', {

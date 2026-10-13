@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import { read } from "../identity/api";
 
 export { read };
@@ -41,7 +42,7 @@ export type Submit = (operation: string, payload: object, state?: string) => voi
 export type Command = { operation: string; payload: object; expected_state?: string; request_id: string; idempotency_key: string };
 
 export function request(operation: string, payload: object, state?: string): Command {
-  return { operation, payload, expected_state: state, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID() };
+  return { operation, payload, expected_state: state, request_id: randomUUID(), idempotency_key: randomUUID() };
 }
 
 export async function command(envelope: Command): Promise<unknown> {

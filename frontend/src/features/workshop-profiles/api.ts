@@ -1,3 +1,4 @@
+import { randomUUID } from "../../lib/random-id";
 import type { StockSpecification } from '../../../../packages/section-layout/src';
 
 export type Basis = 'unknown' | 'documented' | 'inferred' | 'preference';
@@ -58,7 +59,7 @@ export async function readStockRevision(revisionId: string): Promise<StockSpecif
 async function command<T>(operation: string, payload: object, expectedState?: string): Promise<T> {
   const response = await read<{ result: T }>('/api/v0/operations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-    body: JSON.stringify({ operation, request_id: crypto.randomUUID(), idempotency_key: crypto.randomUUID(),
+    body: JSON.stringify({ operation, request_id: randomUUID(), idempotency_key: randomUUID(),
       expected_state: expectedState ?? null, payload }),
   });
   return response.result;
