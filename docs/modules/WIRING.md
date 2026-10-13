@@ -308,3 +308,54 @@ This length model is an explicitly reviewed arithmetic relationship, not a geome
 routing solver or a measurement. It does not derive physical conductor length from a
 helical illustration, infer longest-leg cuts, interpret prepend/profile semantics,
 produce manufacturing documents, or establish clearance or physical qualification.
+
+## Reviewed preparation profiles and exact cut arithmetic
+
+A `preparation_profile` is a separate versioned engineering definition. It pins one
+exact stock revision and stores structured formulas for the whole physical stock
+piece or an exact conductive feature path. Illustrative `workshop_profile` cutbacks,
+leads, overlaps and prepend practices do not become arithmetic rules implicitly.
+Each formula explicitly selects route, finished, stock-cut or conductive-cut input,
+and selects either its independent declaration or its reviewed model suggestion.
+An unavailable selected input stays unknown; another declaration is never substituted.
+
+Reviewed formulas add slack and preparation allowances and subtract trim. Every
+allowance retains a whole-piece or profile-end A/B scope, a basis, and optional
+registered source-file evidence or an explicitly unverified citation. Profile end
+scopes do not infer connector endpoint associations. Unknown allowances are nullable;
+zero and an empty allowance list are explicit zero additions. Unreviewed formulas
+remain inspectable but produce no numeric suggestion. Exact decimal arithmetic rejects
+nonpositive cuts, overflow and results outside the shared quantity bounds. For example,
+a declared 1000 mm input plus reviewed 20, 10 and 5 mm allowances produces 1035 mm;
+two requested units produce 2070 mm. Unknown quantity retains a known per-piece cut
+while leaving the total unknown.
+
+`preparation.create`, `preparation.update` and `preparation.freeze` use the shared
+operation layer, editing tokens, idempotency and immutable snapshot dependencies.
+Generic definition paths enforce the same typed content and source closure. Registered
+source evidence checks exact file paths, hashes and rights, including current access
+to derived-source and archive-original ancestors. Reads refresh the actor's active
+account state. Replays reauthorize retained and supplied evidence before returning
+results or payload-mismatch diagnostics.
+
+The read-only `preparation.compute` operation and `/v0/preparation/compute` HTTP query
+apply exact profile revisions to an exact cable or harness revision. A cable is one
+physical piece. Harness applications identify exact retained physical section IDs;
+multiple segments through a shared section do not multiply its stock quantity.
+Harness sections currently provide their declared planned stock-cut input; unavailable
+route, finished and conductive inputs remain unknown. Every application must match
+its section's exact stock revision. All supplied profiles and source ancestry are
+authorized before selection or arithmetic diagnostics. Results retain subject,
+profile and stock revision/hash provenance, the complete formula, selected input
+basis and independent saved cut; mismatches remain visible and no suggestion is
+applied to saved lengths, stock facts, inventory or workshop geometry. Stock-piece
+and conductive-feature totals are distinct. Unprofiled sections are reported.
+
+The Cut preparation panel supports structured profile authoring, explicit draft load,
+save/freeze, immutable history inspection and reviewed application queries. Failed
+access refreshes hide retained provenance and results. Mutation authority denial
+hides the editor until a successful authority refresh; unsaved values and their
+original concurrency token survive recovery. Freezing captures the saved draft,
+so unsaved edits remain distinct from the displayed frozen profile. Geometric route
+solving, helical-length derivation, prepend semantics, manufacturing document
+production, clearance and physical qualification remain unsupported or unevaluated.

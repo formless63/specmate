@@ -1,0 +1,75 @@
+import { MantineProvider } from '@mantine/core';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { PreparationPanel, FrozenProfile } from './PreparationPanel';
+import { ProfileEditor } from './ProfileEditor';
+import { CutCalculation } from './CutCalculation';
+import { emptyFormula, type Profile, type Result } from './api';
+beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+function wrap(children: React.ReactNode) { return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider></MantineProvider>; }
+async function select(label: string, option: string) { const field = screen.getByRole('combobox', { name: label }); fireEvent.focus(field); fireEvent.keyDown(field, { key: 'ArrowDown' }); fireEvent.click(await within(screen.getByRole('listbox', { name: label, hidden: true })).findByText(option)); }
+const formula = { ...emptyFormula(1), review: 'reviewed' as const, review_basis: 'Synthetic arithmetic review', allowances: ['20', '10', '5'].map((amount_mm, i) => ({ local_id: `a${i}`, kind: 'preparation' as const, scope: 'whole_piece' as const, amount_mm, basis: `Synthetic allowance ${i}`, source: null })) };
+const profile: Profile = { stock_revision_id: 'stock-rev', formulas: [formula] };
+const computed: Result = { revision_id: 'cable-rev', sha256: 'subject-hash', quantity: 2, physical_piece_count: 2, unprofiled_sections: [], rows: [{ section_id: null, segment_ids: [], target: 'stock_piece', element_path: null, element_kind: null, profile_revision_id: 'profile-rev', profile_sha256: 'profile-hash', stock_revision_id: 'stock-rev', stock_sha256: 'stock-hash', formula, input_mm: '1000', input_provenance: { declaration: { amount_mm: '1000', basis: 'human_declaration', explanation: 'Synthetic declared route' } }, cut_mm: '1035', total_mm: '2070', declared_cut_mm: '1070', declaration_matches_result: false, status: 'suggestion' }] };
+const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
+test('structured authoring retains unknown versus zero and exact feature provenance', async () => {
+  let value = profile;
+  function Editor() { const [state, setState] = useState(profile); value = state; return <ProfileEditor value={state} onChange={setState} choices={[{ value: 'stock.group.core', label: 'stock.group.core · conductor' }]} />; }
+  render(wrap(<Editor />));
+  await select('Formula 1 target', 'conductive_feature'); await select('Formula 1 exact stock feature', 'stock.group.core · conductor');
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '' } }); expect(value.formulas[0]!.allowances[0]!.amount_mm).toBeNull();
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '0' } });
+  await select('Formula 1 allowance 1 source kind', 'source_file');
+  for (const [key, val] of Object.entries({ bundle_revision_id: 'exact-source', path: 'synthetic.txt', sha256: 'a'.repeat(64), rights: 'Original synthetic', locator: 'row 1' })) fireEvent.change(screen.getByLabelText(`Formula 1 allowance 1 source ${key}`), { target: { value: val } });
+  expect(value.formulas[0]).toMatchObject({ target: 'conductive_feature', element_path: 'stock.group.core', allowances: [{ amount_mm: '0', source: { kind: 'source_file', bundle_revision_id: 'exact-source' } }, { amount_mm: '10' }, { amount_mm: '5' }] });
+});
+test('exact applications show independent cuts and hide cached results after denial', async () => {
+  let denied = false; const requests: unknown[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => { requests.push(JSON.parse(String(options?.body))); return denied ? response({ error: { message: 'Source denied.' } }, 404) : response(computed); }));
+  render(wrap(<CutCalculation definitions={[]} />));
+  fireEvent.change(screen.getByLabelText('Preparation subject exact revision ID'), { target: { value: 'cable-rev' } }); fireEvent.change(screen.getByLabelText('Application 1 profile exact revision ID'), { target: { value: 'profile-rev' } }); fireEvent.change(screen.getByLabelText('Requested units'), { target: { value: '2' } }); fireEvent.click(screen.getByText('Compute preparation cuts'));
+  await screen.findByText('1035 mm / 2070 mm · suggestion'); expect(requests[0]).toEqual({ revision_id: 'cable-rev', applications: [{ section_id: null, profile_revision_id: 'profile-rev' }], quantity: 2 }); expect(screen.getByText('1070 mm')).toBeTruthy(); expect(screen.getByText('Differs from computed suggestion')).toBeTruthy(); expect(screen.getByText(/Synthetic declared route/)).toBeTruthy();
+  denied = true; fireEvent.click(screen.getByText('Refresh computed cut access')); await screen.findByText('Source denied.'); expect(screen.queryByText(/subject-hash/)).toBeNull(); expect(screen.queryByText(/1035 mm/)).toBeNull();
+  denied = false; fireEvent.click(screen.getByText('Compute preparation cuts')); await screen.findByText('1035 mm / 2070 mm · suggestion'); fireEvent.change(screen.getByLabelText('Requested units'), { target: { value: '' } }); expect(screen.queryByText(/1035 mm/)).toBeNull(); fireEvent.click(screen.getByText('Compute preparation cuts')); await waitFor(() => expect(requests.at(-1)).toMatchObject({ quantity: null }));
+});
+test.each(['preparation.create', 'preparation.update', 'preparation.freeze'])('%s denial hides content; refocus restores unsaved values and original token', async operation => {
+  let denied = false; let restored = false; let saved = profile; const commands: { operation: string; expected_state?: string; payload: { profile?: Profile } }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); commands.push(cmd); if (denied && cmd.operation === operation) return response({ error: { message: 'Mutation source denied.' } }, 403); if (restored) return response({ error: { message: 'Draft changed concurrently.' } }, 409); saved = cmd.payload.profile ?? saved; return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: saved } } }); }
+    if (url.endsWith('/authority')) return denied ? response({ error: { message: 'Still denied.' } }, 404) : response({ authorized: true });
+    if (url.includes('/snapshot')) return response({ content: { stock: { structure: { id: 'stock', kind: 'group', children: [] } } } });
+    if (url.includes('/drafts/')) return response({ definition_id: 'profile', draft_id: 'draft', state: 'newer-server-token', content: { preparation_profile: profile } });
+    if (url.includes('catalog/definitions')) return response({ drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] });
+    return response([{ definition_id: 'profile', name: 'Synthetic profile', kind: 'preparation_profile' }]);
+  }));
+  render(wrap(<PreparationPanel projectId="project" />));
+  fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } }); fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } }); fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance')); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20.000001' } });
+  if (operation !== 'preparation.create') { fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1'); }
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 basis'), { target: { value: 'Unsaved synthetic basis' } }); denied = true; fireEvent.click(screen.getByText(operation === 'preparation.freeze' ? 'Freeze preparation profile' : 'Save preparation profile'));
+  await screen.findByText('Mutation source denied.'); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); expect(screen.queryByText('Apply exact profiles to frozen cable or harness')).toBeNull();
+  await act(async () => { window.dispatchEvent(new Event('focus')); }); await screen.findByText('Still denied.'); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); denied = false; restored = true;
+  await act(async () => { window.dispatchEvent(new Event('focus')); }); await screen.findByLabelText('Formula 1 allowance 1 mm'); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('20.000001'); expect((screen.getByLabelText('Formula 1 allowance 1 basis') as HTMLInputElement).value).toBe('Unsaved synthetic basis');
+  fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('Draft changed concurrently.'); if (operation !== 'preparation.create') expect(commands.at(-1)!.expected_state).toBe('v1'); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('20.000001');
+});
+test('frozen provenance hides after denial and notifies enclosing editor', async () => {
+  let denied = false; const onDenied = vi.fn(); vi.stubGlobal('fetch', vi.fn(async () => denied ? response({ error: { message: 'Hidden evidence.' } }, 404) : response({ revision_id: 'profile-rev', sha256: 'immutable-hash', stock_sha256: 'stock-hash', profile, conductive_features: [] })));
+  render(wrap(<FrozenProfile revisionId="profile-rev" onDenied={onDenied} />)); await screen.findByText(/immutable-hash/); denied = true; fireEvent.click(screen.getByText('Refresh frozen preparation access')); await screen.findByText('Hidden evidence.'); expect(screen.queryByText(/immutable-hash/)).toBeNull(); expect(onDenied).toHaveBeenCalled();
+});
+
+test('saved formulas freeze exact history while later unsaved edits stay independent', async () => {
+  let saved = profile; let frozen = profile; const commands: { operation: string; expected_state?: string }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); commands.push(cmd); saved = cmd.payload.profile ?? saved; const draft = { definition_id: 'profile', draft_id: 'draft', state: cmd.operation === 'preparation.freeze' ? 'v2' : 'v1', content: { preparation_profile: saved } }; if (cmd.operation === 'preparation.freeze') { frozen = structuredClone(saved); return response({ result: { revision_id: 'profile-rev', draft } }); } return response({ result: draft }); }
+    if (url.includes('/snapshot')) return response({ content: { stock: { structure: { id: 'stock', kind: 'group', children: [] } } } });
+    if (url.includes('preparation/revisions')) return response({ revision_id: 'profile-rev', sha256: 'frozen-formula-hash', stock_sha256: 'exact-stock-hash', profile: frozen, conductive_features: [] });
+    if (url.includes('catalog/definitions')) return response({ drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [{ revision_id: 'profile-rev', number: 1 }] });
+    return response([{ definition_id: 'profile', name: 'Synthetic profile', kind: 'preparation_profile' }]);
+  }));
+  render(wrap(<PreparationPanel projectId="project" />));
+  fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } }); fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } }); fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance')); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20' } }); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 basis'), { target: { value: 'Saved synthetic basis' } }); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1');
+  fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '999' } }); fireEvent.click(screen.getByText('Freeze preparation profile')); await screen.findByText(/frozen-formula-hash/);
+  expect(screen.getByText('allowance-1: preparation 20 mm · whole_piece · Saved synthetic basis')).toBeTruthy(); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('999'); expect(commands.at(-1)).toMatchObject({ operation: 'preparation.freeze', expected_state: 'v1' }); await screen.findByText('draft · v2');
+});
