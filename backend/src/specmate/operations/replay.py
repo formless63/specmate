@@ -49,24 +49,6 @@ def authorize_builtin_replay(name, ctx, payload, stored):
         authorize(ctx.user, payload.project_id, Perm.SOURCE_REGISTER)
         if name == "source.register_blob":
             _verify_replayed_upload(ctx, payload)
-    elif name == "source.revise_bundle":
-        from specmate.sources.models import SourceBundle
-
-        bundle = SourceBundle.objects.filter(id=payload.bundle_id).first()
-        if bundle is None:
-            raise NotFound("Bundle not found.")
-        authorize(ctx.user, bundle.project_id, Perm.SOURCE_REGISTER)
-    elif name == "source.derive_bundle":
-        from specmate.sources.models import SourceBundleRevision
-
-        source = (
-            SourceBundleRevision.objects.select_related("bundle")
-            .filter(id=payload.source_revision_id)
-            .first()
-        )
-        if source is None:
-            raise NotFound("Bundle revision not found.")
-        authorize(ctx.user, source.bundle.project_id, Perm.SOURCE_REGISTER)
     elif name == "build.request":
         from specmate.builds.models import BuildAttempt
         from specmate.builds.recipes import approved_recipe

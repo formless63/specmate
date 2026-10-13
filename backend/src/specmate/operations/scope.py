@@ -56,18 +56,6 @@ def builtin_scope(name, ctx, payload) -> str:
 
         draft = scoped_draft(ctx, payload.draft_id, Perm.PROJECT_READ)
         return f"project:{draft.definition.project_id}"
-    if name == "source.revise_bundle":
-        from specmate.sources.models import SourceBundle
-
-        bundle = SourceBundle.objects.filter(id=payload.bundle_id).first()
-        if bundle is None:
-            raise NotFound("Bundle not found.")
-        return project_scope(ctx, bundle.project_id)
-    if name == "source.derive_bundle":
-        from specmate.queries import get_bundle_revision
-
-        revision = get_bundle_revision(ctx.user, payload.source_revision_id)
-        return f"project:{revision.bundle.project_id}"
     if name == "build.cancel":
         from specmate.builds.models import BuildAttempt
 
