@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "description": "Reference authorization only: no quantities, mappings or declaration assessment.",
+  "properties": {
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    },
+    "supplementary_revision_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 1023,
+      "title": "Supplementary Revision Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "root_revision_id"
+  ],
+  "title": "InputAuthority",
+  "type": "object"
+}
