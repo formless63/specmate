@@ -4,7 +4,7 @@ import json
 
 # Imported pytest fixtures are deliberately rebound by test parameters.
 # ruff: noqa: F811
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -418,3 +418,65 @@ def test_competing_updates_keep_winner_data(users, project, mec_sources, mec_tar
     assert draft.version == 2
     assert draft.content["mechanical_source"]["item_role"] == winners[0][0]
     assert winners[0][1]["content"] == draft.content
+
+
+def test_target_summary_excludes_models_but_exact_lookup_requires_their_authority(
+    users, project, mec_sources, mec_target
+):
+    from django.test import RequestFactory
+
+    from specmate.mechanical_sources.api import list_targets, read_target
+    from specmate.sources.models import SourceBundle
+
+    op(
+        users["editor"],
+        "catalog.register_representation",
+        {
+            "revision_id": mec_target["revision_id"],
+            "kind": "model",
+            "label": "Protected model",
+            "source_bundle_revision_id": mec_sources["revision_id"],
+            "source_path": "body.step",
+        },
+    )
+    hidden = op(users["outsider"], "project.create", {"name": "Model origin"})["project_id"]
+    SourceBundle.objects.filter(id=mec_sources["bundle_id"]).update(project_id=hidden)
+    request = RequestFactory().get("/")
+    request.user = users["viewer"]
+    page = list_targets(request, UUID(project))
+    summary = next(
+        row for row in page["targets"] if row["revision_id"] == mec_target["revision_id"]
+    )
+    assert summary["models"] == [] and summary["board"] is None
+    with pytest.raises(NotFound):
+        read_target(request, UUID(mec_target["revision_id"]))
+
+
+def test_uninterpreted_board_unknowns_require_retained_dependency_authority(
+    users, project, mec_sources, mec_target
+):
+    # The new board-role fallback may expose unknown geometry only after exact
+    # revision closure is authorized, including dependencies outside the project.
+    from specmate.mechanical_sources.contracts import MechanicalSource
+    from specmate.mechanical_sources.operations import evaluate
+
+    hidden_project = op(
+        users["outsider"], "project.create", {"name": "Uninterpreted board origin"}
+    )["project_id"]
+    original = op(
+        users["outsider"],
+        "definition.create",
+        {"project_id": hidden_project, "kind": "board", "name": "Original board"},
+    )
+    hidden = op(
+        users["outsider"],
+        "draft.freeze",
+        {"draft_id": original["draft_id"]},
+        expected_state=original["state"],
+    )
+    target = Revision.objects.get(id=mec_target["revision_id"])
+    SnapshotDependency.objects.create(snapshot=target.snapshot, revision_id=hidden["revision_id"])
+    content = declaration(mec_sources, mec_target)
+    content["targets"][0]["role"] = "board"
+    with pytest.raises(NotFound):
+        evaluate(users["editor"], target.definition, MechanicalSource.model_validate(content))

@@ -156,7 +156,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
     const token = generation.current;
     try { const detail = await request<TargetChoice>(`mechanical-sources/targets/${id}`);
       if (!active(token)) return;
-      setTargets(prior => prior.targets.some(t => t.revision_id === id) ? prior : { ...prior, targets: [...prior.targets, detail] });
+      setTargets(prior => ({ ...prior, targets: [...prior.targets.filter(t => t.revision_id !== id), detail] }));
       setForm(prior => prior ? { ...prior, targets: [...prior.targets, { local_id: keyFor('target', prior.targets), role: detail.board || ['board', 'pcb'].includes(detail.kind) ? 'board' : 'hardware',
         revision_id: detail.revision_id, snapshot_sha256: detail.snapshot_sha256, board: detail.board ? {
           interpretation_id: detail.board.interpretation_id, interpretation_sha256: detail.board.interpretation_sha256,

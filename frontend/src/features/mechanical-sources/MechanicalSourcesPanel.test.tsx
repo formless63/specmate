@@ -25,13 +25,13 @@ function read(extra: Partial<MechanicalRead> = {}): MechanicalRead {
 function reply(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status }); }
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
-function setup(options: { permissions?: string[]; strict?: boolean; draft?: MechanicalRead; operations?: Response[]; lost?: () => void; target?: TargetChoice } = {}) {
+function setup(options: { permissions?: string[]; strict?: boolean; draft?: MechanicalRead; operations?: Response[]; lost?: () => void; target?: TargetChoice; summary?: TargetChoice } = {}) {
   const bodies: any[] = [];
   let denied = false;
   const mock = vi.fn(async (url: string, init?: RequestInit) => {
     if (denied && url.includes('/sources/revisions/')) return reply({ error: { message: 'Source access unavailable' } }, 404);
     if (url.endsWith('/records')) return reply({ records: [{ definition_id: 'definition', name: 'Synthetic enclosure', drafts: [{ draft_id: 'draft' }], revisions: [{ revision_id: 'frozen', number: 1 }] }], next_after: null });
-    if (url.endsWith('/mechanical-sources/projects/project/targets')) return reply({ targets: [options.target ?? target], next_after: null });
+    if (url.endsWith('/mechanical-sources/projects/project/targets')) return reply({ targets: [options.summary ?? options.target ?? target], next_after: null });
     if (url.endsWith('/sources/projects/project/revisions')) return reply({ revisions: [{ revision_id: 'source-rev', name: 'Synthetic native sources', role: 'derivative', number: 1 }], next_after: null });
     if (url.endsWith('/sources/revisions/source-rev')) return reply({ revision_id: 'source-rev', name: 'Synthetic native sources', role: 'derivative', number: 1,
       manifest_sha256: 'a'.repeat(64), manifest: { ancestry: ['original-rev'], files: [{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT' }] } });
@@ -144,4 +144,38 @@ test('a selected model pins its represented revision and source, preserving unkn
   expect(bodies[0].payload.mechanical_source.models[0]).toMatchObject({ representation_id: 'model-representation', revision_id: 'hardware-rev',
     snapshot_sha256: 'c'.repeat(64), source_local_id: 'native', path: 'body.step', target_local_id: 'hardware', units: null, frame: null, accuracy: null });
   expect(bodies[0].payload.mechanical_source.sources[0].files[0].role).toBe('model');
+});
+
+test('adding a summarized board immediately restores exact option and component choices', async () => {
+  const board: TargetChoice = { ...target, kind: 'pcb_population', board: {
+    interpretation_id: 'interpretation', interpretation_sha256: 'e'.repeat(64), source_revision_id: 'board-source',
+    source_manifest_sha256: 'f'.repeat(64), options: [{ local_id: 'fit', name: 'Chosen population' }],
+  }, components: [{ id: 'component', reference: 'U1', value: 'Synthetic controller' }] };
+  setup({ target: board, summary: target }); await refresh();
+  fireEvent.click(screen.getByRole('button', { name: 'New mechanical source' }));
+  fireEvent.change(screen.getByLabelText('Exact accessible target revision ID'), { target: { value: 'hardware-rev' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add exact target' }));
+  await screen.findByLabelText('Board option for target1', { selector: 'input' });
+  fireEvent.click(screen.getByLabelText('Board option for target1', { selector: 'input' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Chosen population', hidden: true }));
+  fireEvent.click(screen.getByLabelText('Target role for target1', { selector: 'input' }));
+  fireEvent.click(screen.getByRole('option', { name: 'component', hidden: true }));
+  fireEvent.click(screen.getByLabelText('Native component for target1', { selector: 'input' }));
+  expect(await screen.findByRole('option', { name: 'U1: Synthetic controller', hidden: true })).toBeTruthy();
+});
+
+test('an exact path pins only its file from a larger source bundle', async () => {
+  const { mock, bodies } = setup(); await refresh();
+  fireEvent.click(screen.getByRole('button', { name: 'New mechanical source' }));
+  fireEvent.change(screen.getByLabelText('Mechanical source name'), { target: { value: 'Exact source file' } });
+  fireEvent.change(screen.getByLabelText('Exact source file path (optional)'), { target: { value: 'body.step' } });
+  fireEvent.change(screen.getByLabelText('Exact accessible source revision ID'), { target: { value: 'source-rev' } });
+  mock.mockImplementationOnce(async () => reply({ revision_id: 'source-rev', manifest_sha256: 'a'.repeat(64), manifest: {
+    files: [{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT' }, ...Array.from({ length: 201 }, (_, i) => ({ path: `sibling${i}.step`, sha256: 'd'.repeat(64), rights: 'unknown' }))],
+  } }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add exact source' }));
+  await screen.findByText(/source1 · revision source-rev/);
+  fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' }));
+  await screen.findByRole('button', { name: 'Edit mechanical draft' });
+  expect(bodies[0].payload.mechanical_source.sources[0].files).toEqual([{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT', role: 'supporting', format: 'other' }]);
 });
