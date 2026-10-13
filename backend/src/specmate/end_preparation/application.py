@@ -16,9 +16,12 @@ def unresolved(instruction):
         if instruction.treatment == "bond" and instruction.target is None:
             missing.append("bond_target")
     else:
-        # Retain/remove describe a whole feature. Dimensional actions require explicit size.
+        # Retaining a feature does not choose a new size. Removing or insulating at
+        # an end still needs an explicit extent; omission is never a whole-feature default.
         dimensional = instruction.treatment in {
             "strip_back",
+            "remove",
+            "insulate",
             "trim",
             "form_lead",
             "fold_back",

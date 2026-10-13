@@ -562,3 +562,118 @@ def test_inaccessible_cable_ancestor_precedes_invalid_mapping(users, project):
     Membership.objects.filter(user=user, project_id=private_project).delete()
     with pytest.raises((NotFound, PermissionDenied), match="Project"):
         op(user, "end_preparation.apply", application(target, frozen, a_endpoint_id="bad"))
+
+
+def test_known_endpoint_orientations_are_preserved_without_mirroring_or_label_inference(
+    users, project
+):
+    from .test_interfaces import (
+        BODY,
+        pinout,
+    )
+    from .test_interfaces import (
+        create as create_interface,
+    )
+    from .test_interfaces import (
+        freeze as freeze_interface,
+    )
+
+    user = users["owner"]
+    _, _, stock, _, _, cable = fixture(user, project)
+    body = freeze_interface(
+        user,
+        create_interface(
+            user,
+            project,
+            {
+                **BODY,
+                "drawing_orientation": {
+                    "viewing_side": "termination",
+                    "rotation_degrees": 180,
+                    "datum": "Synthetic key datum",
+                },
+            },
+        ),
+    )
+    pins = freeze_interface(user, create_interface(user, project, pinout(body)))
+    cable["endpoints"][0].update(
+        body_revision_id=body["revision_id"], pinout_revision_id=pins["revision_id"]
+    )
+    target = capture(user, create_cable(user, project, cable))
+    recipe = freeze(user, create(user, project, profile(stock["revision_id"], body["revision_id"])))
+    result = op(user, "end_preparation.apply", application(target, recipe))
+    assert result["ends"][0]["endpoint"]["body"]["drawing_orientation"] == {
+        "viewing_side": "termination",
+        "rotation_degrees": 180,
+        "datum": "Synthetic key datum",
+    }
+    assert result["ends"][1]["endpoint"]["body"]["drawing_orientation"]["viewing_side"] == "unknown"
+    with pytest.raises(ValidationFailed, match="body pin"):
+        op(
+            user,
+            "end_preparation.apply",
+            application(target, recipe, a_endpoint_id="right", b_endpoint_id="left"),
+        )
+
+
+def test_body_target_authority_precedes_feature_diagnostics(users, project):
+    from .test_interfaces import create as create_interface
+    from .test_interfaces import freeze as freeze_interface
+
+    user = users["owner"]
+    _, _, stock, _, _, _ = fixture(user, project)
+    private_project = op(user, "project.create", {"name": "Synthetic private body"})["project_id"]
+    body = freeze_interface(user, create_interface(user, private_project))
+    rules = profile(stock["revision_id"], body["revision_id"])
+    recipe = freeze(user, create(user, project, rules))
+    Membership.objects.filter(user=user, project_id=private_project).delete()
+    rules["a"]["instructions"][0]["element_path"] = "unavailable.feature"
+    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+        create(user, project, rules)
+    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+        inspect_profile(user, recipe["revision_id"])
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"sha256": "f" * 64}, {"rights": "Different declared rights"}, {"path": "absent.txt"}],
+)
+def test_registered_evidence_metadata_is_not_trusted_without_matching_file(users, project, change):
+    user = users["owner"]
+    _, _, stock, _, _, _ = fixture(user, project)
+    _, source = evidence(user, project)
+    rules = profile(stock["revision_id"])
+    rules["a"]["instructions"][0]["source"] = {**source, **change}
+    before = Definition.objects.count()
+    with pytest.raises((ValidationFailed, NotFound)):
+        create(user, project, rules)
+    assert Definition.objects.count() == before
+
+
+def test_unknown_bond_target_remains_unresolved_and_readonly(users, project):
+    user = users["owner"]
+    stock, _, target, _, _ = setup(user, project)
+    rules = profile(stock["revision_id"])
+    rules["a"]["instructions"][3]["target"] = None
+    recipe = freeze(user, create(user, project, rules))
+    row = op(user, "end_preparation.apply", application(target, recipe))["ends"][0]["instructions"][
+        3
+    ]
+    assert row["unresolved"] == ["bond_target"]
+    assert row["status"] == "incomplete_intent"
+    assert row["bond_created"] is False
+
+
+@pytest.mark.parametrize("index,treatment", [(0, "remove"), (2, "insulate")])
+def test_end_removal_or_insulation_without_extent_is_incomplete(users, project, index, treatment):
+    user = users["owner"]
+    stock, _, target, _, _ = setup(user, project)
+    rules = profile(stock["revision_id"])
+    instruction = rules["a"]["instructions"][index]
+    instruction.update(treatment=treatment, length={})
+    recipe = freeze(user, create(user, project, rules))
+    row = op(user, "end_preparation.apply", application(target, recipe))["ends"][0]["instructions"][
+        index
+    ]
+    assert row["status"] == "incomplete_intent"
+    assert row["unresolved"] == ["nominal_mm", "minus_mm", "plus_mm"]
