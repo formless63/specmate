@@ -58,8 +58,12 @@ def get_revision(user: Any, revision_id: UUID) -> Revision:
 
 
 def get_bundle_revision(user: Any, revision_id: UUID) -> SourceBundleRevision:
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.sources.authority import authorize_revision
+
+    user = current_actor(user)
     revision = SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
     if revision is None:
         raise NotFound("Bundle revision not found.")
-    authorize(user, revision.bundle.project_id, Perm.PROJECT_READ)
+    authorize_revision(user, revision)
     return revision
