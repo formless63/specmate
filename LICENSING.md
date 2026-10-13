@@ -36,8 +36,8 @@ check dependencies and asset rights, and provide corresponding source as require
 applicable licenses, including AGPL network-use obligations. The implemented release
 must offer access to the exact applicable source, not an unrelated latest branch.
 
-This bootstrap contains no imported predecessor implementation, font files, or third-party
-engineering models. Add actual import notices when code or assets enter the repository.
+Adapted predecessor implementation and bundled library notices are recorded in `NOTICE`.
+No predecessor catalogs, font files, or third-party engineering models are included.
 The full AGPL text is reproduced verbatim; its own license-document notice is retained.
 
 References: [GNU AGPL](https://www.gnu.org/licenses/agpl-3.0.html),

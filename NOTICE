@@ -24,5 +24,8 @@ cbf919edf30a9d906a791971d3a40e22cb78b67e (AGPL-3.0-only):
 - packages/editor-react/src/panels/WireModel3d.tsx and wire-model-lazy.tsx:
   lazy event-driven viewer lifecycle, adapted in frontend/src/features/wire-stock.
 Workshop-specific preparation defaults and inferred stock dimensions are excluded.
-Three.js and its type declarations are MIT-licensed dependencies; their package
-license notices remain in the distributed dependency packages.
+Three.js and its type declarations are MIT-licensed dependencies. The bundled
+viewer retains the Three.js copyright and MIT permission notice in
+frontend/public/third-party-licenses/three.txt, served as
+/third-party-licenses/three.txt in the static web build. This file retains its
+upstream license, independently of the application license.
