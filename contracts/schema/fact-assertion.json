@@ -1,0 +1,547 @@
+{
+  "$defs": {
+    "AssertionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "assertion_id": {
+          "format": "uuid",
+          "title": "Assertion Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "assertion",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "assertion_id"
+      ],
+      "title": "AssertionEvidence",
+      "type": "object"
+    },
+    "BooleanValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "boolean",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "BooleanValue",
+      "type": "object"
+    },
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Citation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "citation",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "properties": {
+        "property": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Property",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "boolean": "#/$defs/BooleanValue",
+                  "quantity": "#/$defs/NumericValue",
+                  "range": "#/$defs/NumericValue",
+                  "text": "#/$defs/TextValue",
+                  "tolerance": "#/$defs/NumericValue"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/NumericValue"
+                },
+                {
+                  "$ref": "#/$defs/TextValue"
+                },
+                {
+                  "$ref": "#/$defs/BooleanValue"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "property",
+        "status"
+      ],
+      "title": "Condition",
+      "type": "object"
+    },
+    "NumericValue": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Dimension",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "quantity",
+            "range",
+            "tolerance"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lower": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lower"
+        },
+        "magnitude": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Magnitude"
+        },
+        "minus": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minus"
+        },
+        "plus": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plus"
+        },
+        "unit": {
+          "enum": [
+            "mm",
+            "cm",
+            "m",
+            "in",
+            "mg",
+            "g",
+            "kg",
+            "ms",
+            "s",
+            "min",
+            "V",
+            "mV",
+            "A",
+            "mA",
+            "ohm",
+            "kohm",
+            "F",
+            "uF",
+            "nF",
+            "pF",
+            "H",
+            "mH",
+            "Hz",
+            "kHz",
+            "MHz",
+            "K",
+            "degC",
+            "deg",
+            "ea",
+            "1",
+            "%"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "upper": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,25}0*$)\\d{0,12}\\.\\d{0,12}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upper"
+        }
+      },
+      "required": [
+        "kind",
+        "dimension",
+        "unit"
+      ],
+      "title": "NumericValue",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm_version": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Algorithm Version"
+        },
+        "evidence": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "assertion": "#/$defs/AssertionEvidence",
+                "citation": "#/$defs/Citation",
+                "source_file": "#/$defs/SourceFileEvidence"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Citation"
+              },
+              {
+                "$ref": "#/$defs/SourceFileEvidence"
+              },
+              {
+                "$ref": "#/$defs/AssertionEvidence"
+              }
+            ]
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "formula": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Formula"
+        },
+        "instrument": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instrument"
+        },
+        "method": {
+          "enum": [
+            "source_observation",
+            "reviewed_association",
+            "calculation",
+            "measurement",
+            "preference"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "procedure": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Procedure"
+        }
+      },
+      "required": [
+        "method",
+        "evidence"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "SourceFileEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_revision_id": {
+          "format": "uuid",
+          "title": "Bundle Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locator": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Locator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_revision_id",
+        "path"
+      ],
+      "title": "SourceFileEvidence",
+      "type": "object"
+    },
+    "TextValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "TextValue",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/Condition"
+      },
+      "maxItems": 30,
+      "title": "Conditions",
+      "type": "array"
+    },
+    "property": {
+      "pattern": "^[a-z][a-z0-9_]{0,79}$",
+      "title": "Property",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "purpose": {
+      "enum": [
+        "general",
+        "manufacturing",
+        "clearance",
+        "illustration",
+        "rating",
+        "preference"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "role": {
+      "enum": [
+        "actual",
+        "nominal",
+        "lower_bound",
+        "upper_bound",
+        "tolerance"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "known",
+        "unknown",
+        "conflicting",
+        "not_applicable",
+        "not_evaluated"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "discriminator": {
+            "mapping": {
+              "boolean": "#/$defs/BooleanValue",
+              "quantity": "#/$defs/NumericValue",
+              "range": "#/$defs/NumericValue",
+              "text": "#/$defs/TextValue",
+              "tolerance": "#/$defs/NumericValue"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NumericValue"
+            },
+            {
+              "$ref": "#/$defs/TextValue"
+            },
+            {
+              "$ref": "#/$defs/BooleanValue"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value"
+    }
+  },
+  "required": [
+    "property",
+    "status",
+    "purpose",
+    "role",
+    "basis",
+    "provenance"
+  ],
+  "title": "FactContent",
+  "type": "object"
+}

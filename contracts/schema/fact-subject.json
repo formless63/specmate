@@ -1,0 +1,175 @@
+{
+  "$defs": {
+    "DefinitionTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "definition_id": {
+          "format": "uuid",
+          "title": "Definition Id",
+          "type": "string"
+        },
+        "feature_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Id"
+        },
+        "kind": {
+          "const": "definition",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "definition_id"
+      ],
+      "title": "DefinitionTarget",
+      "type": "object"
+    },
+    "OccurrenceTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Id"
+        },
+        "kind": {
+          "const": "occurrence",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Path",
+          "type": "array"
+        },
+        "snapshot_id": {
+          "format": "uuid",
+          "title": "Snapshot Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "snapshot_id",
+        "path"
+      ],
+      "title": "OccurrenceTarget",
+      "type": "object"
+    },
+    "ProjectTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "project",
+          "title": "Kind",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "project_id"
+      ],
+      "title": "ProjectTarget",
+      "type": "object"
+    },
+    "RevisionTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Id"
+        },
+        "kind": {
+          "const": "revision",
+          "title": "Kind",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "revision_id"
+      ],
+      "title": "RevisionTarget",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "discriminator": {
+        "mapping": {
+          "definition": "#/$defs/DefinitionTarget",
+          "occurrence": "#/$defs/OccurrenceTarget",
+          "project": "#/$defs/ProjectTarget",
+          "revision": "#/$defs/RevisionTarget"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ProjectTarget"
+        },
+        {
+          "$ref": "#/$defs/DefinitionTarget"
+        },
+        {
+          "$ref": "#/$defs/RevisionTarget"
+        },
+        {
+          "$ref": "#/$defs/OccurrenceTarget"
+        }
+      ],
+      "title": "Target"
+    }
+  },
+  "required": [
+    "target"
+  ],
+  "title": "RegisterSubject",
+  "type": "object"
+}

@@ -1,0 +1,127 @@
+import hashlib
+import json
+
+from specmate.access.models import Project
+from specmate.access.permissions import Perm
+from specmate.design.operations import canonical_bytes
+from specmate.facts.contracts import AppendFact, ReadFacts, RegisterSubject
+from specmate.facts.models import AssertionInput, AssertionSource, FactAssertion, FactSubject
+from specmate.facts.queries import (
+    MAX_ASSERTIONS,
+    assertion_result,
+    canonical_conditions,
+    canonical_value,
+    group_key,
+    read_facts,
+    resolve_target,
+    subject_result,
+    subject_with_assertions,
+    validate_evidence,
+)
+from specmate.operations import Conflict, Context, ValidationFailed, operation
+from specmate.operations.scope import project_scope
+
+
+def registration_scope(ctx, p):
+    fields = resolve_target(ctx.user, p.target, Perm.DESIGN_EDIT)
+    return project_scope(ctx, fields["project"].id, Perm.DESIGN_EDIT)
+
+
+def assertion_scope(ctx, p):
+    subject, _ = subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT)
+    return project_scope(ctx, subject.project_id, Perm.DESIGN_EDIT)
+
+
+def authorize_registration_replay(ctx, p, stored):
+    resolve_target(ctx.user, p.target, Perm.DESIGN_EDIT)
+    subject_with_assertions(ctx.user, stored["subject_id"], Perm.DESIGN_EDIT)
+
+
+def authorize_append_replay(ctx, p, stored):
+    subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT)
+    validate_evidence(ctx.user, p.fact)
+
+
+@operation(
+    "facts.register_subject",
+    RegisterSubject,
+    summary="Resolve an engineering identity and register its fact ledger.",
+    idempotency_scope=registration_scope,
+    authorize_replay=authorize_registration_replay,
+)
+def register_subject(ctx: Context, p: RegisterSubject):
+    fields = resolve_target(ctx.user, p.target, Perm.DESIGN_EDIT)
+    fingerprint = hashlib.sha256(canonical_bytes(p.target.model_dump(mode="json"))).hexdigest()
+    # Serialize identity registration per owning project, without changing its state.
+    Project.objects.select_for_update().get(id=fields["project"].id)
+    subject, _ = FactSubject.objects.get_or_create(
+        project=fields.pop("project"),
+        fingerprint=fingerprint,
+        defaults={**fields, "registered_by": ctx.user},
+    )
+    subject, _ = subject_with_assertions(ctx.user, subject.id, Perm.DESIGN_EDIT)
+    return subject_result(subject)
+
+
+@operation(
+    "facts.append",
+    AppendFact,
+    summary="Append an immutable scoped assertion without replacing prior evidence.",
+    requires_expected_state=True,
+    idempotency_scope=assertion_scope,
+    authorize_replay=authorize_append_replay,
+)
+def append_fact(ctx: Context, p: AppendFact):
+    subject, rows = subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT, lock=True)
+    if ctx.require_expected_state() != subject.state_token:
+        raise Conflict("Fact ledger changed.", details={"current_state": subject.state_token})
+    if len(rows) >= MAX_ASSERTIONS:
+        raise ValidationFailed("Fact ledger exceeds the supported limit.")
+    sources, inputs = validate_evidence(ctx.user, p.fact)
+    if p.fact.status == "conflicting":
+        context = {
+            "purpose": p.fact.purpose,
+            "role": p.fact.role,
+            "conditions": canonical_conditions(p.fact),
+        }
+        for candidate in inputs:
+            if (
+                candidate.subject_id != subject.id
+                or candidate.property != p.fact.property
+                or candidate.status != "known"
+                or group_key(candidate) != json.dumps(context, sort_keys=True)
+            ):
+                raise ValidationFailed("Conflict inputs must address the same subject and context.")
+        if len(inputs) < 2:
+            raise ValidationFailed("Conflict requires two distinct assertions.")
+    assertion = FactAssertion.objects.create(
+        subject=subject,
+        sequence=subject.version,
+        property=p.fact.property,
+        status=p.fact.status,
+        method=p.fact.provenance.method,
+        content=p.fact.model_dump(mode="json"),
+        canonical_value=canonical_value(p.fact.value),
+        canonical_conditions=canonical_conditions(p.fact),
+        actor=ctx.user,
+        request_id=ctx.request_id,
+    )
+    AssertionSource.objects.bulk_create(
+        AssertionSource(assertion=assertion, source_file=source) for source in sources
+    )
+    AssertionInput.objects.bulk_create(
+        AssertionInput(assertion=assertion, input_assertion=source) for source in inputs
+    )
+    subject.version += 1
+    subject.save(update_fields=["version"])
+    return {**subject_result(subject), "assertion": assertion_result(assertion)}
+
+
+@operation(
+    "facts.read",
+    ReadFacts,
+    summary="Inspect facts, unknowns and all conflicting candidates.",
+    supports_idempotency=False,
+)
+def inspect_facts(ctx: Context, p: ReadFacts):
+    return read_facts(ctx.user, p.subject_id, p.property, offset=p.offset, limit=p.limit)
