@@ -1,0 +1,212 @@
+{
+  "$defs": {
+    "Counts": {
+      "additionalProperties": false,
+      "properties": {
+        "schematic_parity": {
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Schematic Parity",
+          "type": "integer"
+        },
+        "unconnected_items": {
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Unconnected Items",
+          "type": "integer"
+        },
+        "violations": {
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Violations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "violations",
+        "unconnected_items",
+        "schematic_parity"
+      ],
+      "title": "Counts",
+      "type": "object"
+    },
+    "Drills": {
+      "additionalProperties": false,
+      "properties": {
+        "npth": {
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 10000,
+          "title": "Npth",
+          "type": "array"
+        },
+        "pth": {
+          "items": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 10000,
+          "title": "Pth",
+          "type": "array"
+        }
+      },
+      "required": [
+        "pth",
+        "npth"
+      ],
+      "title": "Drills",
+      "type": "object"
+    },
+    "Output": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "exclusiveMinimum": 0,
+          "maximum": 16777216,
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size"
+      ],
+      "title": "Output",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "const": "kicad-fabrication-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "drc_counts": {
+      "$ref": "#/$defs/Counts"
+    },
+    "drill_format": {
+      "const": "excellon-mm-decimal-absolute-separated-through",
+      "title": "Drill Format",
+      "type": "string"
+    },
+    "drills": {
+      "$ref": "#/$defs/Drills"
+    },
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "layers": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 9,
+      "title": "Layers",
+      "type": "array"
+    },
+    "manufacturing_approval": {
+      "const": false,
+      "title": "Manufacturing Approval",
+      "type": "boolean"
+    },
+    "native_format_version": {
+      "const": 20260206,
+      "title": "Native Format Version",
+      "type": "integer"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/Output"
+      },
+      "maxItems": 13,
+      "minItems": 13,
+      "title": "Outputs",
+      "type": "array"
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "source_unchanged": {
+      "const": true,
+      "title": "Source Unchanged",
+      "type": "boolean"
+    },
+    "tool_version": {
+      "const": "10.0.6",
+      "title": "Tool Version",
+      "type": "string"
+    },
+    "unsupported": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Unsupported",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "tool_version",
+    "native_format_version",
+    "source_sha256",
+    "source_unchanged",
+    "layers",
+    "drill_format",
+    "drills",
+    "drc_counts",
+    "outputs",
+    "physical_qualification",
+    "manufacturing_approval",
+    "unsupported"
+  ],
+  "title": "Report",
+  "type": "object"
+}

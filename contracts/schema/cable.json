@@ -1,5 +1,99 @@
 {
   "$defs": {
+    "Allowance": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount Mm"
+        },
+        "endpoint_id": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
+        },
+        "explanation": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "slack",
+            "preparation",
+            "trim"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "scope": {
+          "default": "whole_length",
+          "enum": [
+            "whole_length",
+            "endpoint"
+          ],
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "explanation"
+      ],
+      "title": "Allowance",
+      "type": "object"
+    },
+    "ConductorLength": {
+      "additionalProperties": false,
+      "properties": {
+        "declaration": {
+          "$ref": "#/$defs/LengthDeclaration"
+        },
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Element Path",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LengthModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "element_path"
+      ],
+      "title": "ConductorLength",
+      "type": "object"
+    },
     "Endpoint": {
       "additionalProperties": false,
       "properties": {
@@ -39,6 +133,146 @@
         "pinout_revision_id"
       ],
       "title": "Endpoint",
+      "type": "object"
+    },
+    "LengthDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount Mm"
+        },
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "human_declaration"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        }
+      },
+      "title": "LengthDeclaration",
+      "type": "object"
+    },
+    "LengthModel": {
+      "additionalProperties": false,
+      "properties": {
+        "allowances": {
+          "items": {
+            "$ref": "#/$defs/Allowance"
+          },
+          "maxItems": 32,
+          "title": "Allowances",
+          "type": "array"
+        },
+        "review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Review",
+          "type": "string"
+        },
+        "review_basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Basis"
+        },
+        "source": {
+          "enum": [
+            "route",
+            "finished",
+            "stock_cut"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "LengthModel",
+      "type": "object"
+    },
+    "LengthPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "conductor_cuts": {
+          "items": {
+            "$ref": "#/$defs/ConductorLength"
+          },
+          "maxItems": 1024,
+          "title": "Conductor Cuts",
+          "type": "array"
+        },
+        "finished": {
+          "$ref": "#/$defs/PreparedLength"
+        },
+        "route": {
+          "$ref": "#/$defs/LengthDeclaration"
+        },
+        "stock_cut": {
+          "$ref": "#/$defs/PreparedLength"
+        }
+      },
+      "title": "LengthPlan",
+      "type": "object"
+    },
+    "PreparedLength": {
+      "additionalProperties": false,
+      "properties": {
+        "declaration": {
+          "$ref": "#/$defs/LengthDeclaration"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LengthModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "PreparedLength",
       "type": "object"
     },
     "Termination": {
@@ -98,6 +332,17 @@
       "minItems": 2,
       "title": "Endpoints",
       "type": "array"
+    },
+    "lengths": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LengthPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "review": {
       "default": "unreviewed",

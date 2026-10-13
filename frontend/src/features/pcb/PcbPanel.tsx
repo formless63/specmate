@@ -2,6 +2,7 @@ import { Alert, Anchor, Badge, Button, FileInput, Group, Select, Stack, Table, T
 import { useEffect, useRef, useState } from "react";
 import { command, getIntake, listIntakes, listPopulations, PcbRequestError, preserveFiles, type Intake, type IntakeSummary, type NativeReport, type PopulationDraft } from "./api";
 import { PopulationEditor } from "./PopulationEditor";
+import { PcbFabricationPanel } from "../pcb-fabrication/PcbFabricationPanel";
 
 export type PcbPanelProps = { projectId: string; permissions?: string[] };
 
@@ -137,6 +138,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
         {attempt.state === "succeeded" && canImport && !intake.interpretations.some((i) => i.attempt_id === attempt.attempt_id) && <Button size="xs" onClick={() => void accept(attempt.attempt_id)} disabled={busy}>Validate interpretation</Button>}
       </Group>)}
       {report && <ReportView report={report} />}
+      {report && <PcbFabricationPanel key={intake.intake_id} intakeId={intake.intake_id} canExecute={canExecute && !accessLost} />}
       {!!intake.interpretations.length && <PopulationEditor
         projectId={projectId} intake={intake} drafts={populations}
         permissions={permissions} onChanged={() => selected && load(selected)} onAccessLost={failure}
