@@ -1,0 +1,143 @@
+{
+  "$defs": {
+    "Endpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "body_revision_id": {
+          "format": "uuid",
+          "title": "Body Revision Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "pinout_revision_id": {
+          "format": "uuid",
+          "title": "Pinout Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "body_revision_id",
+        "pinout_revision_id"
+      ],
+      "title": "Endpoint",
+      "type": "object"
+    },
+    "Termination": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Endpoint Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "element_path",
+        "contact_id",
+        "basis"
+      ],
+      "title": "Termination",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assignments": {
+      "items": {
+        "$ref": "#/$defs/Termination"
+      },
+      "maxItems": 2048,
+      "title": "Assignments",
+      "type": "array"
+    },
+    "endpoints": {
+      "items": {
+        "$ref": "#/$defs/Endpoint"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Endpoints",
+      "type": "array"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stock_revision_id": {
+      "format": "uuid",
+      "title": "Stock Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stock_revision_id",
+    "endpoints"
+  ],
+  "title": "Cable",
+  "type": "object"
+}

@@ -16,6 +16,7 @@ from specmate.assemblies.api import router as assemblies_router
 from specmate.bom.api import router as bom_router
 from specmate.builds.api import artifacts_router
 from specmate.builds.api import router as runner_router
+from specmate.cables.api import router as cables_router
 from specmate.catalog.api import router as catalog_router
 from specmate.contracts import OperationEnvelope
 from specmate.facts.api import router as facts_router
@@ -37,6 +38,7 @@ api.add_router("/v0/physical-units", physical_units_router)
 api.add_router("/v0/bom", bom_router)
 api.add_router("/v0/assemblies", assemblies_router)
 api.add_router("/v0/interfaces", interfaces_router)
+api.add_router("/v0/cables", cables_router)
 api.add_router("/v0/runner", runner_router)
 api.add_router("/v0/builds", artifacts_router)
 api.add_router("/v0/pcb", pcb_router)
