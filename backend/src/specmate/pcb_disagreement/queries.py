@@ -241,8 +241,21 @@ def compare(value, inputs):
     }
     fingerprint = hashlib.sha256(canonical_bytes(salt)).hexdigest()
     findings = {}
+    remaining_references = 20000
 
     def finding(kind, anchors, left, right, explanation):
+        nonlocal remaining_references
+        references = len(anchors) + sum(
+            len(record["members"]) if "members" in record else 1
+            for record in (left, right)
+            if record is not None
+        )
+        if references > remaining_references:
+            raise ValidationFailed(
+                "Comparison exceeds the 20000 finding-detail reference bound; "
+                "reduce the explicitly compared subset. No partial conclusion was retained."
+            )
+        remaining_references -= references
         detail = {
             "kind": kind,
             "correspondence_ids": sorted(anchors),

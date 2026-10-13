@@ -159,3 +159,8 @@ source evidence and findings, and saves/freezes review decisions. Changing input
 correspondence requires saving before reviewing new findings. Source, draft or frozen
 read denial clears retained private findings and disables dependent editing actions.
 HTTP inspection is available under `/api/v0/pcb-disagreement`.
+
+Comparison output additionally has a cumulative 20,000-reference bound across finding
+anchors, terminal details and repeated membership lists. A large split/merge partition
+that exceeds it fails without saving a partial conclusion; compare a smaller explicitly
+selected subset. Complete current source authorization still precedes this diagnostic.

@@ -498,3 +498,42 @@ def test_hidden_bundle_authority_precedes_file_presence_and_pin_diagnostics(user
     assert errors == ["Project not found.", "Project not found."]
     assert responses[0] == responses[1]
     assert responses[0][0] == 404
+
+
+def test_split_net_finding_detail_bound_rolls_back_after_current_source_authority(users, project):
+    owner, editor = users["owner"], users["editor"]
+    left = assertion(source_pin(owner, project))
+    right = assertion(source_pin(owner, project, "netlist"))
+    left["terminals"] = [
+        {**left["terminals"][0], "local_id": f"pin-{i}", "pin": str(i)} for i in range(120)
+    ]
+    right["terminals"] = [
+        {**terminal, "net_name": f"separate-{i}"} for i, terminal in enumerate(left["terminals"])
+    ]
+    a = freeze(owner, create(owner, project, left))
+    b = freeze(owner, create(owner, project, right))
+    value = {
+        "kind": "pcb_comparison",
+        "left": pin(a),
+        "right": pin(b),
+        "correspondences": [
+            {
+                "local_id": f"pair-{i}",
+                "left_terminal_id": f"pin-{i}",
+                "right_terminal_id": f"pin-{i}",
+                "basis": "Explicit independent split-net oracle",
+            }
+            for i in range(120)
+        ],
+    }
+    before = Definition.objects.count()
+    with pytest.raises(ValidationFailed, match="20000 finding-detail reference bound"):
+        create(editor, project, value)
+    assert Definition.objects.count() == before
+    hidden = op(owner, "project.create", {"name": "Hidden bounded source"})["project_id"]
+    SourceBundle.objects.filter(revisions__id=right["source"]["source_revision_id"]).update(
+        project_id=hidden
+    )
+    with pytest.raises(NotFound, match="Project not found"):
+        create(editor, project, value)
+    assert Definition.objects.count() == before
