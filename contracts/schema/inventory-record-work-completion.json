@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "assertion_source": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Assertion Source",
+      "type": "string"
+    },
+    "assertion_status": {
+      "default": "declared",
+      "enum": [
+        "declared",
+        "observed",
+        "measured"
+      ],
+      "title": "Assertion Status",
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "units_completed": {
+      "maximum": 1000000,
+      "minimum": 1,
+      "title": "Units Completed",
+      "type": "integer"
+    },
+    "work_batch_id": {
+      "format": "uuid",
+      "title": "Work Batch Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reason",
+    "assertion_source",
+    "work_batch_id",
+    "units_completed"
+  ],
+  "title": "RecordWorkCompletion",
+  "type": "object"
+}

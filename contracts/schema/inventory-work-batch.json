@@ -1,0 +1,90 @@
+{
+  "properties": {
+    "actual_unit_tracking": {
+      "const": "not_implemented",
+      "default": "not_implemented",
+      "title": "Actual Unit Tracking",
+      "type": "string"
+    },
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "job",
+        "batch"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "physical_qualification": {
+      "const": false,
+      "default": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "planned_units": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Planned Units"
+    },
+    "progress": {
+      "enum": [
+        "none_reported",
+        "partial",
+        "reported_complete"
+      ],
+      "title": "Progress",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "reported_completed_units": {
+      "title": "Reported Completed Units",
+      "type": "integer"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "state": {
+      "title": "State",
+      "type": "string"
+    },
+    "work_batch_id": {
+      "format": "uuid",
+      "title": "Work Batch Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "work_batch_id",
+    "project_id",
+    "revision_id",
+    "definition_id",
+    "kind",
+    "label",
+    "planned_units",
+    "reported_completed_units",
+    "progress",
+    "state"
+  ],
+  "title": "WorkBatchResult",
+  "type": "object"
+}

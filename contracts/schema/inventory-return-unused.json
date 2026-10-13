@@ -1,0 +1,86 @@
+{
+  "$defs": {
+    "Quantity": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "Use exact decimal strings or integers; floating-point amounts are rejected.",
+          "title": "Amount"
+        },
+        "unit": {
+          "enum": [
+            "ea",
+            "m",
+            "cm",
+            "mm",
+            "kg",
+            "g"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "unit"
+      ],
+      "title": "Quantity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assertion_source": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Assertion Source",
+      "type": "string"
+    },
+    "assertion_status": {
+      "default": "declared",
+      "enum": [
+        "declared",
+        "observed",
+        "measured"
+      ],
+      "title": "Assertion Status",
+      "type": "string"
+    },
+    "consumption_id": {
+      "format": "uuid",
+      "title": "Consumption Id",
+      "type": "string"
+    },
+    "expected_work_state": {
+      "format": "uuid",
+      "title": "Expected Work State",
+      "type": "string"
+    },
+    "quantity": {
+      "$ref": "#/$defs/Quantity"
+    },
+    "reason": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reason",
+    "assertion_source",
+    "consumption_id",
+    "quantity",
+    "expected_work_state"
+  ],
+  "title": "ReturnUnused",
+  "type": "object"
+}

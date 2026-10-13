@@ -4,13 +4,13 @@
     "amount": {
       "anyOf": [
         {
-          "type": "number"
+          "type": "string"
         },
         {
-          "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,15}|(?=[\\d.]{1,25}0*$)\\d{0,15}\\.\\d{0,9}0*$)",
-          "type": "string"
+          "type": "integer"
         }
       ],
+      "description": "Use exact decimal strings or integers; floating-point amounts are rejected.",
       "title": "Amount"
     },
     "unit": {

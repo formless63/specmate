@@ -13,6 +13,10 @@
       "title": "Amount",
       "type": "string"
     },
+    "consumed_quantity": {
+      "title": "Consumed Quantity",
+      "type": "string"
+    },
     "created_at": {
       "title": "Created At",
       "type": "string"
@@ -23,6 +27,10 @@
     },
     "quantity": {
       "title": "Quantity",
+      "type": "string"
+    },
+    "remaining_quantity": {
+      "title": "Remaining Quantity",
       "type": "string"
     },
     "request_id": {
@@ -37,7 +45,8 @@
     "status": {
       "enum": [
         "active",
-        "released"
+        "released",
+        "consumed"
       ],
       "title": "Status",
       "type": "string"
@@ -62,6 +71,8 @@
     "amount",
     "unit",
     "purpose",
+    "consumed_quantity",
+    "remaining_quantity",
     "status",
     "actor_id",
     "request_id",
