@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { MantineProvider } from '@mantine/core';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -158,4 +159,39 @@ test('denied contextual read hides its retained input labels and comparison', as
   await screen.findByText('Current assembly parent denied');
   expect(screen.queryByText('Exact change assessment')).toBeNull();
   expect(screen.queryByLabelText('Baseline frozen assembly revision')).toBeNull();
+});
+
+test('detached context denial cannot clear a replacement firmware selection', async () => {
+  let fail!: (reason: Error) => void;
+  const original = vi.mocked(read).getMockImplementation()!;
+  vi.mocked(read).mockImplementation(path => path.startsWith('catalog/')
+    ? new Promise((_resolve, reject) => { fail = reject; }) : original(path));
+  render(panel()); await select();
+  fireEvent.change(screen.getByLabelText('Baseline assembly context (optional)'), { target: { value: 'assembly-one' } });
+  await waitFor(() => expect(fail).toBeTypeOf('function'));
+  fireEvent.change(screen.getByLabelText('Baseline firmware revision'), { target: { value: 'firmware-two' } });
+  await act(async () => fail(new Error('Old context access denied')));
+  expect(screen.queryByText('Old context access denied')).toBeNull();
+  expect((screen.getByLabelText('Baseline firmware revision') as HTMLSelectElement).value).toBe('firmware-two');
+  fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  await screen.findByText('Exact change assessment');
+  expect(compareImpact).toHaveBeenCalledWith(expect.objectContaining({ baseline: { firmware_revision_id: 'firmware-two' } }));
+});
+
+test('StrictMode focus replacement rejects delayed private fact rows from the detached selector', async () => {
+  let finish!: (value: unknown) => void;
+  const original = vi.mocked(read).getMockImplementation()!;
+  vi.mocked(read).mockImplementation(path => path.startsWith('facts/subjects/')
+    ? new Promise(resolve => { finish = resolve; }) : original(path));
+  const view = render(<StrictMode>{panel()}</StrictMode>); await select();
+  fireEvent.click(screen.getByRole('button', { name: 'Choose additional historical observations' }));
+  await screen.findByRole('option', { name: 'Physical unit SYNTH-UNIT' });
+  fireEvent.change(screen.getByLabelText('Historical observation subject'), { target: { value: 'original-subject' } });
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  fireEvent(window, new Event('focus'));
+  await screen.findAllByRole('option', { name: 'Synthetic firmware · revision 1' });
+  await act(async () => finish({ ...result.observations[0]!.subject, assertions: [result.observations[0]!.assertion], has_more: false }));
+  expect(screen.queryByRole('checkbox', { name: /device_test/ })).toBeNull();
+  expect(screen.queryByText(/SYNTH-UNIT/)).toBeNull();
+  view.unmount();
 });

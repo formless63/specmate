@@ -86,10 +86,12 @@ def authorized_inputs(ctx, p):
         related |= Q(
             subject__kind="physical_unit", subject__physical_unit__revision__snapshot=snapshots[0]
         )
+    # Bound database materialization as well as closure traversal. The extra row
+    # detects overflow; oversized scopes return no partial comparison or labels.
     rows = list(
         FactAssertion.objects.select_related("subject", "subject__physical_unit")
         .filter(related | Q(id__in=p.assertion_ids), subject__project_id=p.project_id)
-        .order_by("recorded_at", "id")
+        .order_by("recorded_at", "id")[: MAX_ASSERTIONS + 1]
     )
     authorize_evidence(user, rows)
     if len(rows) > MAX_ASSERTIONS:
