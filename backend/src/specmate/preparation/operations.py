@@ -115,10 +115,11 @@ def create(ctx: Context, payload: CreateProfile):
     idempotency_scope=scope,
 )
 def update(ctx: Context, payload: UpdateProfile):
-    profile_draft(ctx, payload.draft_id, Perm.DESIGN_EDIT, lock=True)
+    draft = profile_draft(ctx, payload.draft_id, Perm.DESIGN_EDIT, lock=True)
     content = {"preparation_profile": payload.profile.model_dump(mode="json")}
     closure(ctx.user, content)
-    return update_draft(ctx, UpdateDraft(draft_id=payload.draft_id, changes=content))
+    result = update_draft(ctx, UpdateDraft(draft_id=payload.draft_id, changes=content))
+    return {"definition_id": str(draft.definition_id), **result}
 
 
 @operation(

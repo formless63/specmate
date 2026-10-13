@@ -169,6 +169,7 @@ def test_exact_profile_arithmetic_history_pins_and_http(users, project):
         {"draft_id": draft["draft_id"], "profile": changed},
         expected_state=recipe["draft"]["state"],
     )
+    assert updated["definition_id"] == draft["definition_id"]
     later = freeze(user, updated)
     assert compute(user, target, recipe, quantity=3) == result
     assert compute(user, target, later)["rows"][0]["cut_mm"] == "1036"
