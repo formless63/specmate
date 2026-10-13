@@ -9,6 +9,7 @@ from ninja.files import UploadedFile
 from ninja.security import django_auth
 
 from specmate import queries
+from specmate.access.api import router as access_router
 from specmate.access.session import require_browser_request
 from specmate.access.session_api import router as session_router
 from specmate.assemblies.api import router as assemblies_router
@@ -22,6 +23,7 @@ from specmate.pcb.api import router as pcb_router
 from specmate.wire_stock.api import router as stock_router
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
+api.add_router("/v0/access", access_router)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)

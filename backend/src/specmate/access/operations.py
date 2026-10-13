@@ -11,6 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field
 
+from specmate.access.account_names import LocalUsername
 from specmate.access.models import Installation, Membership, OwnerSetupToken, Project
 from specmate.operations import Conflict, Context, ValidationFailed, operation
 
@@ -41,7 +42,7 @@ def issue_owner_setup_token() -> tuple[str, OwnerSetupToken]:
 class ClaimOwner(BaseModel):
     model_config = ConfigDict(extra="forbid")
     token: str = Field(min_length=20, max_length=200, repr=False)
-    username: str = Field(min_length=1, max_length=150, pattern=r"^[\w.@+-]+$")
+    username: LocalUsername
     password: str = Field(min_length=1, max_length=512, repr=False)
 
 

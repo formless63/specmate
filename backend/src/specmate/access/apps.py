@@ -6,4 +6,8 @@ class AccessConfig(AppConfig):
     label = "access"
 
     def ready(self):
-        from specmate.access import operations, session  # noqa: F401  (registers operations)
+        from specmate.access import (  # noqa: F401  (registers operations)
+            operations,
+            projects,
+            session,
+        )

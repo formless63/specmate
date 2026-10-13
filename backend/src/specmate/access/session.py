@@ -5,6 +5,7 @@ from django.http import HttpRequest
 from django.middleware.csrf import CsrfViewMiddleware, get_token
 from pydantic import BaseModel, ConfigDict, Field
 
+from specmate.access.account_names import LocalUsername
 from specmate.access.models import Installation
 from specmate.operations import Context, PermissionDenied, Unauthenticated, operation
 
@@ -44,7 +45,7 @@ def session_state(request: HttpRequest) -> dict:
 
 class Login(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    username: str = Field(min_length=1, max_length=150)
+    username: LocalUsername
     password: str = Field(min_length=1, max_length=512, repr=False)
 
 
