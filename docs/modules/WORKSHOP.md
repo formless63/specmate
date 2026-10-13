@@ -17,7 +17,10 @@ applicable. Do not let two concurrent reservations spend the same availability.
 `inventory` supplies project locations and one stock account per lot/location. A lot's
 quantity dimension stays fixed across locations. Supported units are whole-item `ea`,
 length `m`/`cm`/`mm`, and mass `kg`/`g`, with decimal canonical quantities in `ea`, `m`
-and `kg`. Values outside the supported precision are rejected rather than rounded.
+and `kg`. Amounts accept exact decimal strings or exact integers; JSON floating-point numbers and
+booleans are rejected. Original values support 24 digits with at most nine decimal places,
+and converted canonical values must fit nine decimal places. Extreme exponents and values
+outside the supported precision are rejected before normalization rather than rounded.
 
 `inventory.create_location` and `inventory.open_stock` establish identities. Opening
 quantity may be explicitly unknown; unknown stock cannot satisfy a reservation or an
@@ -28,7 +31,7 @@ An assertion marked observed or measured remains scoped evidence; it is not phys
 qualification. Ledger entries and reservations cannot be rewritten or deleted.
 
 `inventory.reserve` holds availability without consuming stock; `inventory.release`
-appends a release that restores availability. Reservations cannot exceed known stock,
+appends a release that restores the reservation's remaining availability. Reservations cannot exceed known stock,
 and adjustments/observations cannot reduce stock below active reservations. PostgreSQL
 serializes account writes and backs dimension, scope, history and availability rules.
 Mutations of existing stock require its current state token. Idempotency keys are scoped
@@ -37,8 +40,41 @@ to actor/project/operation, and replay checks current access and inventory autho
 Stock management needs `inventory.manage`; reservations/releases need `inventory.reserve`.
 Owners hold both. Other roles require explicit grants; `inventory.manage` includes
 reservation authority. Read access follows project membership. The Inventory workspace
-uses the shared commands and scoped, paginated stock/history reads. Consumption, returns,
-procurement and actual-unit evidence have separate capability acceptance obligations.
+uses the shared commands and scoped, paginated stock/history reads. Procurement and
+actual-unit evidence have separate capability acceptance obligations.
+
+### Material usage and partial work
+
+`inventory.create_work_batch` registers a planned job or batch with an immutable identity
+and exact authorized design revision. The intended unit count may be unknown; a missing
+count never becomes zero. Material lot revision and work target revision remain separate,
+and their association does not assert BOM compatibility. Both belong to the same project.
+Revision reads, commands, replay and conflict diagnostics recheck current access to the
+stocked revision and work target's dependency closures.
+
+`inventory.consume` appends a usage entry against an exact reservation and work batch. It
+decreases physical stock and the reservation's remaining quantity together, preserving
+other available stock. The caller explicitly retains or releases the unused reservation
+remainder. Original reservation quantity is immutable; remaining quantity derives from
+consumptions and the optional closing release.
+
+`inventory.return_unused` appends a positive return against one exact consumption, limited
+to its issued amount minus prior returns. It increases on-hand availability once, without
+restoring a spent or released reservation or reversing a reported completion. Original
+units, actor, request, assertion source/status and cause links remain in account and work
+history. PostgreSQL guards these invariants, including competing raw inserts.
+
+`inventory.record_work_completion` appends a count assertion for partial progress; reported
+counts cannot exceed a known planned count. Material usage alone does not complete work.
+These planned records do not identify serialized actual units, batch members or physical
+qualification; actual-unit tracking remains unimplemented in this bounded ledger.
+
+Work and usage writes require scoped idempotency keys. Consumption and returns check both
+account and work state tokens; completion reports check the work token. Retrying the same
+request cannot duplicate usage, returned quantity or completion counts. Work identities,
+completion assertions and cause-linked ledger entries remain immutable. The Inventory
+workspace can select an existing exact target revision, register work, report partial
+progress, consume allocations and return issued material with traceable assertion sources.
 
 ## Make and buy
 

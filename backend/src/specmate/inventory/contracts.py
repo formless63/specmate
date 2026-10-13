@@ -1,8 +1,8 @@
-from decimal import Decimal
-from typing import Literal
+from decimal import Context, Decimal, InvalidOperation, localcontext
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 Dimension = Literal["count", "length", "mass"]
 Unit = Literal["ea", "m", "cm", "mm", "kg", "g"]
@@ -18,6 +18,42 @@ UNITS = {
 CANONICAL_UNITS = {"count": "ea", "length": "m", "mass": "kg"}
 MAX_QUANTITY = Decimal("999999999999999.999999999")
 QUANTUM = Decimal("0.000000001")
+QUANTITY_CONTEXT = Context(prec=40, Emin=-40, Emax=40)
+
+
+def exact_amount(value):
+    """Bound lexical precision before Pydantic or decimal contexts can round an input."""
+    if isinstance(value, bool | float) or not isinstance(value, str | int | Decimal):
+        raise ValueError("Quantity amounts require decimal strings or exact integers.")
+    if isinstance(value, str) and len(value) > 100:
+        raise ValueError("Quantity amount is too long.")
+    if isinstance(value, int) and abs(value) > 999999999999999:
+        raise ValueError("Quantity amount exceeds the supported range.")
+    try:
+        amount = value if isinstance(value, Decimal) else Decimal(value)
+    except InvalidOperation:
+        raise ValueError("Invalid decimal quantity.") from None
+    if not amount.is_finite():
+        raise ValueError("Quantity amount must be finite.")
+    parts = amount.as_tuple()
+    if len(parts.digits) > 24 or not -9 <= parts.exponent <= 14:
+        raise ValueError("Quantity exponent or precision is outside the supported range.")
+    if amount and not -9 <= amount.adjusted() <= 14:
+        raise ValueError("Quantity amount is outside the supported range.")
+    return amount
+
+
+Amount = Annotated[Decimal, BeforeValidator(exact_amount, json_schema_input_type=str | int)]
+
+
+def quantity_add(left, right):
+    with localcontext(QUANTITY_CONTEXT):
+        return left + right
+
+
+def quantity_subtract(left, right):
+    with localcontext(QUANTITY_CONTEXT):
+        return left - right
 
 
 class Payload(BaseModel):
@@ -25,7 +61,12 @@ class Payload(BaseModel):
 
 
 class Quantity(Payload):
-    amount: Decimal = Field(max_digits=24, decimal_places=9, allow_inf_nan=False)
+    amount: Amount = Field(
+        max_digits=24,
+        decimal_places=9,
+        allow_inf_nan=False,
+        description="Use exact decimal strings or integers; floating-point amounts are rejected.",
+    )
     unit: Unit
 
     @model_validator(mode="after")
@@ -33,13 +74,15 @@ class Quantity(Payload):
         if self.unit == "ea" and self.amount != self.amount.to_integral_value():
             raise ValueError("Count quantities must be whole items.")
         canonical = self.canonical
-        if abs(canonical) > MAX_QUANTITY or canonical != canonical.quantize(QUANTUM):
-            raise ValueError("Canonical quantity exceeds the supported range or precision.")
+        with localcontext(QUANTITY_CONTEXT):
+            if canonical.copy_abs() > MAX_QUANTITY or canonical != canonical.quantize(QUANTUM):
+                raise ValueError("Canonical quantity exceeds the supported range or precision.")
         return self
 
     @property
     def canonical(self):
-        return self.amount * UNITS[self.unit][1]
+        with localcontext(QUANTITY_CONTEXT):
+            return self.amount * UNITS[self.unit][1]
 
     @property
     def dimension(self):
@@ -113,7 +156,50 @@ class ReservationResult(BaseModel):
     amount: str
     unit: Unit
     purpose: str
-    status: Literal["active", "released"]
+    consumed_quantity: str
+    remaining_quantity: str
+    status: Literal["active", "released", "consumed"]
     actor_id: int
     request_id: str
     created_at: str
+
+
+class CreateWorkBatch(Payload):
+    revision_id: UUID
+    kind: Literal["job", "batch"] = "batch"
+    label: str = Field(min_length=1, max_length=200)
+    planned_units: int | None = Field(default=None, ge=1, le=1_000_000, strict=True)
+
+
+class RecordWorkCompletion(Assertion):
+    work_batch_id: UUID
+    units_completed: int = Field(ge=1, le=1_000_000, strict=True)
+
+
+class Consume(Assertion):
+    reservation_id: UUID
+    work_batch_id: UUID
+    quantity: Quantity
+    remainder: Literal["retain", "release"]
+    expected_work_state: UUID
+
+
+class ReturnUnused(Assertion):
+    consumption_id: UUID
+    quantity: Quantity
+    expected_work_state: UUID
+
+
+class WorkBatchResult(BaseModel):
+    work_batch_id: UUID
+    project_id: UUID
+    revision_id: UUID
+    definition_id: UUID
+    kind: Literal["job", "batch"]
+    label: str
+    planned_units: int | None
+    reported_completed_units: int
+    progress: Literal["none_reported", "partial", "reported_complete"]
+    state: str
+    actual_unit_tracking: Literal["not_implemented"] = "not_implemented"
+    physical_qualification: Literal[False] = False
