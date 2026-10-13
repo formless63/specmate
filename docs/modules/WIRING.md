@@ -363,3 +363,54 @@ an editor fences pending responses from the prior selection. Freezing captures t
 so unsaved edits remain distinct from the displayed frozen profile. Geometric route
 solving, helical-length derivation, prepend semantics, manufacturing document
 production, clearance and physical qualification remain unsupported or unevaluated.
+
+## Reviewed per-end stripping and shielding intent
+
+An `end_preparation_profile` is an independent engineering definition with an exact
+stock revision pin. Its ends A and B each retain their own review decision, review
+basis and typed instructions. Layer-strip instructions identify exact jacket,
+dielectric, insulation, shield, filler or web paths. Drain treatments and shield-lead
+instructions identify their own drain or shield paths. Repeated local labels never
+substitute for full hierarchical feature paths. Omitted instructions stay unknown;
+workshop display rules, source-only drain practices and illustrative lead defaults
+never fill them.
+
+Each dimensional instruction retains exact nullable nominal millimetres, lower and
+upper tolerance magnitudes, an explicit datum and a basis. Dimensions measured from
+the stock cut end are distinct from length along a finished lead. Zero must be
+entered deliberately; missing size or tolerance remains unresolved. Known dimensions
+require a datum and basis, floating-point inputs are rejected, and lower tolerance
+cannot extend below zero. These values describe reviewed intent, not measurements.
+A dimensional instruction with missing size or tolerance remains incomplete even
+when the end has been reviewed. Unreviewed ends or mappings remain visibly unreviewed.
+
+A bond expectation identifies a shield or drain and either isolation, an unknown
+expectation, or an intended bond. Bond targets identify another exact conductive
+stock feature or an exact connector-body revision and physical contact/shell ID.
+Keys cannot be bond targets. A bond with no specified target remains unresolved.
+The profile does not create a joint, assert actual bonding, modify the copper graph,
+or establish continuity. Contact targets add immutable body dependencies alongside
+the stock pin. Current source-file authority includes derived/archive-original
+ancestry; file paths, hashes and rights are checked after the complete supplied
+closure. Inline citations remain unverified references.
+
+`end_preparation.create`, `.update` and `.freeze` use the shared operation layer,
+optimistic tokens, retained replay authorization and immutable snapshot dependencies.
+Generic definition paths enforce the same profile rules and pins. Reads reload the
+actor's current active-account state. `end_preparation.apply` and the read-only
+`/v0/end-preparation/apply` query require exact profile and cable revisions plus an
+explicit reviewed mapping of A/B to two distinct stable cable endpoint IDs. Labels,
+list order and screen orientation do not choose that mapping. The output preserves
+exact cable/profile/stock hashes, body and pinout identities and their declared
+orientations; it does not invent rotations or a viewing side. Contact expectations
+must match the mapped endpoint's exact body revision. Both complete source closures
+are authorized before endpoint or feature diagnostics.
+
+Application returns separate instructions and missing-rule lists for both ends,
+including their explicit dimensions, tolerances, source and review basis. It leaves
+stock construction, cable assignments, saved cuts, inventory and topology untouched.
+Physical preparation, actual bonds, measured outcomes and qualification are not
+evaluated. Harness application remains a separate application milestone: shared
+physical sections currently lack an explicit physical-end mapping, so segment names
+or multiple logical segment ends cannot stand in for physical section ends. This
+boundary does not remove generalized harness preparation from the product scope.
