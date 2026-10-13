@@ -102,6 +102,9 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Connected views" }));
   await screen.findByRole("heading", { name: "Contextual inspection" });
   expect(screen.getByRole("button", { name: "Refresh contextual scene choices" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Interfaces" }));
+  await screen.findByRole("heading", { name: "Interface assessments" });
+  expect(screen.queryByRole("button", { name: "New assessment" })).toBeNull();
   fireEvent.click(screen.getByRole("tab", { name: "Notes & files" }));
   await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
   expect(screen.queryByRole("button", { name: "Create knowledge item" })).toBeNull();

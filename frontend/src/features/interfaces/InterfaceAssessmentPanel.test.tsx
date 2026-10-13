@@ -140,3 +140,38 @@ test("deliberate freezing uses the saved token and exposes exact immutable asses
   expect(screen.getByText(/Frozen revision frozen · snapshot snapshot/)).toBeTruthy();
   expect(screen.getByText(/Exact left pinout left-exact · exact right pinout right-exact/)).toBeTruthy();
 });
+
+
+test("ordinary decimal entry keeps its intermediate point and preserves explicit zero", async () => {
+  const f = fixture();
+  render(wrap(panel()));
+  await editExisting();
+  const minimum = screen.getByLabelText("signal operating minimum V (blank = unknown)") as HTMLInputElement;
+  fireEvent.change(minimum, { target: { value: "1" } });
+  fireEvent.change(minimum, { target: { value: "1." } });
+  expect(minimum.value).toBe("1.");
+  fireEvent.change(minimum, { target: { value: "1.25" } });
+  fireEvent.change(screen.getByLabelText("signal operating maximum V (blank = unknown)"), { target: { value: "1.5" } });
+  fireEvent.change(screen.getByLabelText("signal current demand A (blank = unknown)"), { target: { value: "0" } });
+  fireEvent.change(screen.getByLabelText("signal operating basis"), { target: { value: "Explicit decimal envelope and zero demand" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save assessment draft" }));
+  await waitFor(() => expect(f.calls.length).toBe(1));
+  expect(f.calls[0]?.payload.interface?.pairs[0]?.operating).toMatchObject({ voltage_min_v: 1.25, voltage_max_v: 1.5, demand_a: 0 });
+});
+
+
+test("replacing a voltage with a negative value keeps the intermediate minus sign", async () => {
+  const f = fixture();
+  render(wrap(panel()));
+  await editExisting();
+  const minimum = screen.getByLabelText("signal operating minimum V (blank = unknown)") as HTMLInputElement;
+  fireEvent.change(minimum, { target: { value: "1.25" } });
+  fireEvent.change(minimum, { target: { value: "-" } });
+  expect(minimum.value).toBe("-");
+  fireEvent.change(minimum, { target: { value: "-1.25" } });
+  fireEvent.change(screen.getByLabelText("signal operating maximum V (blank = unknown)"), { target: { value: "-1" } });
+  fireEvent.change(screen.getByLabelText("signal operating basis"), { target: { value: "Explicit negative voltage envelope" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save assessment draft" }));
+  await waitFor(() => expect(f.calls.length).toBe(1));
+  expect(f.calls[0]?.payload.interface?.pairs[0]?.operating).toMatchObject({ voltage_min_v: -1.25, voltage_max_v: -1, demand_a: null });
+});

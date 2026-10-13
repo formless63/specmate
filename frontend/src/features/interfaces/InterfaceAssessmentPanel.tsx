@@ -97,6 +97,26 @@ function Author({ projectId, initial, ready, canFreeze, current, onSaved, onFroz
   </Stack></Card>;
 }
 
+/** Keep decimal points and signs while editing; persisted inputs remain finite numbers or null. */
+function OperatingNumberInput({ value, onChange, ...props }: { label: string; min?: number; value: number | string; onChange: (value: number | null) => void }) {
+  const numeric = typeof value === "number" ? value : null;
+  const [input, setInput] = useState<number | string>(value);
+  const reported = useRef<number | null>(numeric);
+  useEffect(() => {
+    if (!Object.is(numeric, reported.current)) {
+      reported.current = numeric;
+      setInput(numeric ?? "");
+    }
+  }, [numeric]);
+  return <NumberInput {...props} value={input} onChange={raw => {
+    setInput(raw);
+    const parsed = raw === "" ? null : typeof raw === "number" ? raw : Number(raw);
+    const next = parsed !== null && Number.isFinite(parsed) ? parsed : null;
+    reported.current = next;
+    onChange(next);
+  }} />;
+}
+
 function EvidenceEditor({ label, value, onChange }: { label: string; value: Evidence; onChange: (value: Evidence) => void }) {
   return <Stack gap="xs"><Select label={`${label} evidence`} value={value.status} data={[{ value: "unknown", label: "Unknown" }, { value: "unverified_citation", label: "Unverified citation" }, { value: "registered_file", label: "Exact registered file" }]} onChange={status => onChange({ status: status as Evidence["status"] })} />
     {value.status === "unverified_citation" && <TextInput label={`${label} citation`} value={value.citation ?? ""} onChange={e => onChange({ ...value, citation: e.currentTarget.value })} />}
@@ -115,7 +135,7 @@ export function AssessmentEditor({ value, onChange }: { value: Assessment; onCha
       return <Card key={pair.local_id} withBorder><Stack><Title order={5}>Contact row {pair.local_id}</Title><Group>
         <TextInput label={`${pair.local_id} left contact`} value={pair.left_contact_id} onChange={e => update({ left_contact_id: e.currentTarget.value })} /><TextInput label={`${pair.local_id} right contact`} value={pair.right_contact_id} onChange={e => update({ right_contact_id: e.currentTarget.value })} /><TextInput label={`${pair.local_id} expected signal`} value={pair.expected_signal ?? ""} onChange={e => update({ expected_signal: e.currentTarget.value || null })} />
       </Group><TextInput label={`${pair.local_id} correspondence basis`} value={pair.basis} onChange={e => update({ basis: e.currentTarget.value })} /><EvidenceEditor label={`${pair.local_id} correspondence`} value={pair.evidence} onChange={evidence => update({ evidence })} />
-      <Group>{(["voltage_min_v", "voltage_max_v", "demand_a"] as const).map(key => <NumberInput key={key} label={`${pair.local_id} ${key === "demand_a" ? "current demand A" : key === "voltage_min_v" ? "operating minimum V" : "operating maximum V"} (blank = unknown)`} value={pair.operating[key] ?? ""} min={key === "demand_a" ? 0 : undefined} onChange={n => update({ operating: { ...pair.operating, [key]: typeof n === "number" ? n : null } })} />)}</Group>
+      <Group>{(["voltage_min_v", "voltage_max_v", "demand_a"] as const).map(key => <OperatingNumberInput key={key} label={`${pair.local_id} ${key === "demand_a" ? "current demand A" : key === "voltage_min_v" ? "operating minimum V" : "operating maximum V"} (blank = unknown)`} value={pair.operating[key] ?? ""} min={key === "demand_a" ? 0 : undefined} onChange={n => update({ operating: { ...pair.operating, [key]: n } })} />)}</Group>
       {(["required_protocol", "condition", "basis"] as const).map(key => <TextInput key={key} label={`${pair.local_id} operating ${key.replaceAll("_", " ")}`} value={pair.operating[key] ?? ""} onChange={e => update({ operating: { ...pair.operating, [key]: e.currentTarget.value || null } })} />)}
       <EvidenceEditor label={`${pair.local_id} operating`} value={pair.operating.evidence} onChange={evidence => update({ operating: { ...pair.operating, evidence } })} /><Button variant="subtle" onClick={() => onChange({ ...value, pairs: value.pairs.filter((_, j) => j !== i) })}>Remove row {pair.local_id}</Button></Stack></Card>;
     })}
