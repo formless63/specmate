@@ -421,3 +421,41 @@ def test_every_application_source_is_authorized_before_cut_diagnostics(users, pr
                 ],
             },
         )
+
+
+@pytest.mark.parametrize("boundary", ["revision", "draft", "compute", "authority", "query"])
+def test_disabled_actor_denied_at_direct_read_boundaries(users, project, boundary):
+    from types import SimpleNamespace
+
+    from django.contrib.auth import get_user_model
+
+    from specmate.operations import Unauthenticated
+    from specmate.preparation import api
+    from specmate.preparation.contracts import ComputeCuts, PreparationProfile
+
+    user = users["owner"]
+    value, target = cable(user, project)
+    rules = profile(value["stock_revision_id"])
+    draft = create(user, project, rules)
+    recipe = freeze(user, draft)
+    request = SimpleNamespace(user=user)
+    calls = {
+        "revision": lambda: api.revision(request, recipe["revision_id"]),
+        "draft": lambda: api.draft(request, draft["draft_id"]),
+        "compute": lambda: api.calculate(
+            request,
+            ComputeCuts.model_validate(
+                {
+                    "revision_id": target["revision_id"],
+                    "applications": [{"profile_revision_id": recipe["revision_id"]}],
+                }
+            ),
+        ),
+        "authority": lambda: api.authority(request, PreparationProfile.model_validate(rules)),
+        "query": lambda: inspect_profile(user, recipe["revision_id"]),
+    }
+    assert calls[boundary]() is not None
+    get_user_model().objects.filter(pk=user.pk).update(is_active=False)
+    assert user.is_active  # Deliberately stale authenticated request object.
+    with pytest.raises(Unauthenticated):
+        calls[boundary]()

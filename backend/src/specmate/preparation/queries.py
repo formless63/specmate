@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from pydantic import ValidationError
 
 from specmate.cables.queries import conductive_elements
+from specmate.catalog_matching.queries import current_actor
 from specmate.operations import NotFound, ValidationFailed
 from specmate.preparation.contracts import PreparationProfile
 from specmate.queries import get_bundle_revision, get_revision
@@ -38,6 +39,7 @@ def validate_content(kind, content):
 
 
 def closure(user, content, kind=None, *, authority_only=False):
+    user = current_actor(user)
     profile = parse_content(content, kind)
     if profile is None:
         return None, None, {}
@@ -92,6 +94,7 @@ def dependency_revisions(user, definition, content):
 
 
 def profile_revision(user, revision_id):
+    user = current_actor(user)
     revision = get_revision(user, revision_id)
     if revision.definition.kind != "preparation_profile":
         raise ValidationFailed("An exact preparation profile revision is required.")

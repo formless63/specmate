@@ -5,6 +5,7 @@ from decimal import Decimal, DecimalException, Inexact, Rounded, localcontext
 from pydantic import ValidationError
 
 from specmate.cables.queries import inspect_revision as inspect_cable
+from specmate.catalog_matching.queries import current_actor
 from specmate.harnesses.queries import read_revision as read_harness
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
@@ -36,6 +37,7 @@ def exact_result(base, allowances, quantity):
 
 
 def compute(user, request):
+    user = current_actor(user)
     # Authorize every supplied revision and source closure before selection diagnostics.
     subject = get_revision(user, request.revision_id)
     revisions = {

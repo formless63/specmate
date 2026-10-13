@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 from specmate.access.permissions import Perm, authorize
+from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Snapshot
 from specmate.design.operations import (
     CaptureDraft,
@@ -26,6 +29,7 @@ from specmate.preparation.queries import closure, dependency_revisions, inspect_
 
 
 def profile_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+    ctx = replace(ctx, user=current_actor(ctx.user))
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "preparation_profile":
         raise NotFound("Preparation profile draft unavailable.")
