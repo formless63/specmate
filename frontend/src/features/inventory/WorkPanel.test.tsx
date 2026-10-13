@@ -14,7 +14,7 @@ const account: Account = {
 const batch: WorkBatch = {
   work_batch_id: "work-1", project_id: "project-1", definition_id: "target-definition", revision_id: "target-revision",
   kind: "batch", label: "Assembly job", planned_units: null, reported_completed_units: 0, progress: "none_reported", state: "work-before",
-  actual_unit_tracking: "not_implemented", physical_qualification: false,
+  actual_unit_tracking: "separate_records", physical_qualification: false,
 };
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
@@ -55,6 +55,7 @@ function server(fail = false) {
     let body: unknown;
     if (url.includes("catalog/definitions/")) body = { definition_id: "target-definition", name: "Target", kind: "assembly", revisions: [{ revision_id: "target-revision", number: 1 }], drafts: [] };
     else if (url.includes("/definitions")) body = [{ definition_id: "target-definition", name: "Target", kind: "assembly" }];
+    else if (url.includes("physical-units/work-batches/")) body = { work_batch: work, linked_unit_count: 1, units: [{ unit_id: "unit-1", serial: "UNIT-1" }] };
     else if (url.includes("work-batches/")) body = { work_batch: work, usage: entries, completions };
     else if (url.includes("accounts/")) body = { account: current, reservations, entries };
     else body = { accounts: [current], locations: [], lots: [], work_batches: [work] };
@@ -75,7 +76,7 @@ test("registers work using a selected exact revision and keeps the unknown plan 
   expect(calls[0]).toMatchObject({ operation: "inventory.create_work_batch", payload: { revision_id: "target-revision", label: "Partial assembly", kind: "batch", planned_units: null } });
   expect(calls[0]?.idempotency_key).toBeTruthy();
   expect(await screen.findByText(/Partial assembly · batch · reported 0 \/ Unknown planned count/)).toBeTruthy();
-  expect(screen.getByText(/do not track serialized physical units/)).toBeTruthy();
+  expect(screen.getByText(/Actual subjects can be linked to this plan/)).toBeTruthy();
 });
 
 test("reports partial completion independently from material consumption", async () => {
@@ -127,4 +128,21 @@ test("failed consumption retry preserves target, state tokens, quantity and requ
   await waitFor(() => expect(calls).toHaveLength(2));
   expect(calls[1]).toEqual(calls[0]);
   expect(screen.queryByText("Inventory operation completed.")).toBeNull();
+});
+
+test("attributes consumption to an explicitly selected linked unit", async () => {
+  const calls = server(); mount();
+  fireEvent.click(await screen.findByText("Manage Material batch"));
+  fireEvent.change(await screen.findByLabelText("Reservation to consume"), { target: { value: "reserved-1" } });
+  fireEvent.change(screen.getByLabelText("Material work target"), { target: { value: "work-1" } });
+  await screen.findByRole("option", { name: "Unit UNIT-1" });
+  fireEvent.change(screen.getByLabelText("Usage attribution"), { target: { value: "unit-1" } });
+  fireEvent.change(screen.getByLabelText("Material usage quantity"), { target: { value: "1" } });
+  fireEvent.change(screen.getByLabelText("Material usage reason"), { target: { value: "Used by one actual unit" } });
+  fireEvent.change(screen.getByLabelText("Material assertion source"), { target: { value: "Synthetic traveler" } });
+  fireEvent.click(screen.getByText("Apply material usage"));
+  await waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0]).toMatchObject({ operation: "inventory.consume", payload: {
+    physical_unit_id: "unit-1", work_batch_id: "work-1",
+  } });
 });

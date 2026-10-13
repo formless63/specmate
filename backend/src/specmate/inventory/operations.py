@@ -269,10 +269,27 @@ def inventory_project_scope(ctx: Context, p) -> str:
             reservation = get_reservation(ctx.user, p.reservation_id)
             account = get_account(ctx.user, reservation.account_id)
             batch = get_work_batch(ctx.user, p.work_batch_id)
+            authorize(ctx.user, account.location.project_id, Perm.INVENTORY_MANAGE)
+            if p.physical_unit_id:
+                from specmate.physical_units.models import WorkUnitLink
+                from specmate.physical_units.queries import get_unit
+
+                unit = get_unit(ctx.user, p.physical_unit_id)
+                if (
+                    unit.project_id != account.location.project_id
+                    or not WorkUnitLink.objects.filter(unit=unit, work_batch=batch).exists()
+                ):
+                    raise ValidationFailed(
+                        "Attributed unit must be linked to the exact work target."
+                    )
         else:
             consumption = get_consumption(ctx.user, p.consumption_id)
             account = get_account(ctx.user, consumption.account_id)
             batch = get_work_batch(ctx.user, consumption.work_batch_id)
+            if consumption.physical_unit_id:
+                from specmate.physical_units.queries import get_unit
+
+                get_unit(ctx.user, consumption.physical_unit_id)
         if batch.revision.definition.project_id != account.location.project_id:
             raise ValidationFailed("Stock and work target must belong to the same project.")
         project_id = account.location.project_id
@@ -412,6 +429,7 @@ def consume(ctx: Context, p: Consume):
         quantity_subtract(current, p.quantity.canonical),
         reservation=reservation,
         work_batch=batch,
+        physical_unit_id=p.physical_unit_id,
     )
     if p.remainder == "release" and remaining_quantity(reservation) > 0:
         ReservationRelease.objects.create(
@@ -458,6 +476,7 @@ def return_unused(ctx: Context, p: ReturnUnused):
         "return",
         quantity_add(current, p.quantity.canonical),
         work_batch=batch,
+        physical_unit_id=origin.physical_unit_id,
         consumption_origin=origin,
     )
     batch.refresh_from_db(fields=["state"])

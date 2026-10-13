@@ -66,15 +66,36 @@ history. PostgreSQL guards these invariants, including competing raw inserts.
 
 `inventory.record_work_completion` appends a count assertion for partial progress; reported
 counts cannot exceed a known planned count. Material usage alone does not complete work.
-These planned records do not identify serialized actual units, batch members or physical
-qualification; actual-unit tracking remains unimplemented in this bounded ledger.
+These planned records do not themselves identify serialized actual units or establish
+physical qualification. `physical_units.register` asserts an actual obtained or assembled
+subject with a project-unique serial, exact design revision, optional same-revision
+physical lot and manufacturer variant, source, and assertion status. An actual lot is a
+batch identity, while stock quantities remain in the ledger. A unit's initial identity
+is immutable; a later design change does not rewrite its as-built revision.
 
-Work and usage writes require scoped idempotency keys. Consumption and returns check both
+`physical_units.link_work` records a separate immutable relationship between one actual
+unit and one planned work job/batch at the same project and exact revision. It changes
+the work state token but does not alter the planned or reported completion count. The
+unit count and reported completion count are displayed independently: an unreported
+linked unit does not silently become a reported completion, and a reported completion
+does not invent a serial. A unit may have only one work link in the current model.
+
+`inventory.consume` may optionally name a unit already linked to its exact work target.
+When omitted, usage stays expressly at batch level and is never allocated to individual
+units by dividing totals. `inventory.return_unused` inherits the original consumption's
+unit attribution; the caller cannot reassign it. Unit detail shows only directly
+attributed material entries, with current stock and work access rechecked. None of
+these assertions establishes physical qualification or release. A release domain and
+later rework/evidence histories remain separate implementation work.
+
+Work, unit and usage writes require scoped idempotency keys. Consumption and returns check both
 account and work state tokens; completion reports check the work token. Retrying the same
 request cannot duplicate usage, returned quantity or completion counts. Work identities,
 completion assertions and cause-linked ledger entries remain immutable. The Inventory
 workspace can select an existing exact target revision, register work, report partial
 progress, consume allocations and return issued material with traceable assertion sources.
+Physical units have their own workspace; the material usage form offers exact linked-unit
+attribution or explicit batch-level usage.
 
 ## Make and buy
 

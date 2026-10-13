@@ -179,6 +179,7 @@ class RecordWorkCompletion(Assertion):
 class Consume(Assertion):
     reservation_id: UUID
     work_batch_id: UUID
+    physical_unit_id: UUID | None = None
     quantity: Quantity
     remainder: Literal["retain", "release"]
     expected_work_state: UUID
@@ -201,5 +202,5 @@ class WorkBatchResult(BaseModel):
     reported_completed_units: int
     progress: Literal["none_reported", "partial", "reported_complete"]
     state: str
-    actual_unit_tracking: Literal["not_implemented"] = "not_implemented"
+    actual_unit_tracking: Literal["separate_records"] = "separate_records"
     physical_qualification: Literal[False] = False

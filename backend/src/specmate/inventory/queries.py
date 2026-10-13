@@ -208,6 +208,7 @@ def entry_result(entry):
         "created_at": entry.created_at.isoformat(),
         "reservation_id": str(entry.reservation_id) if entry.reservation_id else None,
         "work_batch_id": str(entry.work_batch_id) if entry.work_batch_id else None,
+        "physical_unit_id": str(entry.physical_unit_id) if entry.physical_unit_id else None,
         "consumption_origin_id": str(entry.consumption_origin_id)
         if entry.consumption_origin_id
         else None,
@@ -275,6 +276,10 @@ def account_detail(user, account_id, *, offset=0, limit=50):
     batch_ids = [entry.work_batch_id for entry in entries if entry.work_batch_id]
     for batch_id in set(batch_ids):
         get_work_batch(user, batch_id)
+    for unit_id in {entry.physical_unit_id for entry in entries if entry.physical_unit_id}:
+        from specmate.physical_units.queries import get_unit
+
+        get_unit(user, unit_id)
     return {
         "account": account_result(account),
         "entries": [entry_result(entry) for entry in entries],
@@ -307,6 +312,10 @@ def work_batch_detail(user, work_batch_id, *, offset=0, limit=50):
     )
     for entry in usage:
         get_account(user, entry.account_id)
+        if entry.physical_unit_id:
+            from specmate.physical_units.queries import get_unit
+
+            get_unit(user, entry.physical_unit_id)
     completions = batch.completions.order_by("sequence")[offset : offset + limit]
     return {
         "work_batch": work_batch_result(batch),

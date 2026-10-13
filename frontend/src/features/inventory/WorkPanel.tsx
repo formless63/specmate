@@ -25,7 +25,7 @@ export function WorkPanel({ projectId, batches, pending, submit }: { projectId: 
   const identity = useQuery({ queryKey: ["identity", definition, revisionOffset], enabled: !!definition, queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${revisionOffset}`) });
   return <Card withBorder><Stack>
     <Title order={3}>Planned jobs and batches</Title>
-    <Text size="sm">Pin intended work to an exact frozen revision. Material usage and reported completion counts remain separate. These records do not track serialized physical units or establish qualification.</Text>
+    <Text size="sm">Pin intended work to an exact frozen revision. Material usage and reported completion counts remain separate. Actual subjects can be linked to this plan in Physical units; neither record establishes qualification.</Text>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     <NativeSelect label="Work target definition" value={definition} onChange={(e) => { setDefinition(e.currentTarget.value); setRevision(""); setRevisionOffset(0); }} data={[{ value: "", label: "Choose definition" }, ...(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: d.name }))]} />
@@ -77,19 +77,26 @@ export function UsageForm({ detail, batches, pending, submit }: { detail: Detail
   const [reason, setReason] = useState("");
   const [source, setSource] = useState("");
   const [status, setStatus] = useState("declared");
+  const [physicalUnitId, setPhysicalUnitId] = useState("");
+  const [unitOffset, setUnitOffset] = useState(0);
   const consumption = detail.entries.find((entry) => entry.entry_id === origin && entry.kind === "consumption");
   const target = action === "consume" ? workId : consumption?.work_batch_id ?? "";
   const work = useWork(target);
   const batch = work.data?.work_batch;
+  const linkedUnits = useQuery({ queryKey: ["physical-work-units", target, unitOffset], enabled: action === "consume" && !!target,
+    queryFn: () => read<{ units: { unit_id: string; serial: string }[]; linked_unit_count: number }>(`physical-units/work-batches/${target}?offset=${unitOffset}&limit=50`) });
   return <Stack>
     <Title order={4}>Consume and return material</Title>
     <Text size="sm">Consumption reduces physical and reserved balances together. A return restores on-hand stock only, never a closed reservation. The selected work target does not imply BOM compatibility with this lot.</Text>
     <NativeSelect label="Material usage operation" value={action} onChange={(e) => setAction(e.currentTarget.value)} data={[{ value: "consume", label: "Consume reserved material" }, { value: "return_unused", label: "Return unused issued material" }]} />
     {action === "consume" ? <>
       <NativeSelect label="Reservation to consume" value={reservation} onChange={(e) => setReservation(e.currentTarget.value)} data={[{ value: "", label: "Choose active reservation" }, ...detail.reservations.filter((r) => r.status === "active").map((r) => ({ value: r.reservation_id, label: `${r.purpose} · remaining ${r.remaining_quantity ?? r.amount} ${detail.account.unit}` }))]} />
-      <NativeSelect label="Material work target" value={workId} onChange={(e) => setWorkId(e.currentTarget.value)} data={[{ value: "", label: "Choose registered work" }, ...batches.map((b) => ({ value: b.work_batch_id, label: `${b.label} · ${b.revision_id}` }))]} />
+      <NativeSelect label="Material work target" value={workId} onChange={(e) => { setWorkId(e.currentTarget.value); setPhysicalUnitId(""); setUnitOffset(0); }} data={[{ value: "", label: "Choose registered work" }, ...batches.map((b) => ({ value: b.work_batch_id, label: `${b.label} · ${b.revision_id}` }))]} />
+      <NativeSelect label="Usage attribution" value={physicalUnitId} onChange={(e) => setPhysicalUnitId(e.currentTarget.value)} data={[{ value: "", label: "Batch usage; no individual unit asserted" }, ...(linkedUnits.data?.units ?? []).map((u) => ({ value: u.unit_id, label: `Unit ${u.serial}` }))]} />
+      {linkedUnits.isError && <Alert color="red">{linkedUnits.error.message}</Alert>}
+      {target && <Group><Button disabled={unitOffset === 0} onClick={() => { setUnitOffset(Math.max(0, unitOffset - 50)); setPhysicalUnitId(""); }}>Previous linked units</Button><Button disabled={(linkedUnits.data?.units.length ?? 0) < 50} onClick={() => { setUnitOffset(unitOffset + 50); setPhysicalUnitId(""); }}>Next linked units</Button></Group>}
       <NativeSelect label="Unused reservation remainder" value={remainder} onChange={(e) => setRemainder(e.currentTarget.value)} data={[{ value: "retain", label: "Retain reservation" }, { value: "release", label: "Release reservation remainder" }]} />
-    </> : <NativeSelect label="Original consumption" value={origin} onChange={(e) => setOrigin(e.currentTarget.value)} data={[{ value: "", label: "Choose issued material" }, ...detail.entries.filter((entry) => entry.kind === "consumption" && entry.returnable_quantity && entry.returnable_quantity !== "0").map((entry) => ({ value: entry.entry_id, label: `${entry.entry_id} · returnable ${entry.returnable_quantity} ${detail.account.unit}` }))]} />}
+    </> : <><NativeSelect label="Original consumption" value={origin} onChange={(e) => setOrigin(e.currentTarget.value)} data={[{ value: "", label: "Choose issued material" }, ...detail.entries.filter((entry) => entry.kind === "consumption" && entry.returnable_quantity && entry.returnable_quantity !== "0").map((entry) => ({ value: entry.entry_id, label: `${entry.entry_id} · returnable ${entry.returnable_quantity} ${detail.account.unit}` }))]} />{consumption && <Text size="sm">Return keeps original attribution: {consumption.physical_unit_id ? `unit ${consumption.physical_unit_id}` : "batch usage without a unit"}.</Text>}</>}
     {work.isError && <Alert color="red">{work.error.message}</Alert>}
     {batch && <Text size="sm">Exact work revision: {batch.revision_id}</Text>}
     <TextInput label="Material usage quantity" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} />
@@ -97,6 +104,6 @@ export function UsageForm({ detail, batches, pending, submit }: { detail: Detail
     <TextInput label="Material usage reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
     <TextInput label="Material assertion source" value={source} onChange={(e) => setSource(e.currentTarget.value)} />
     <NativeSelect label="Material assertion status" value={status} onChange={(e) => setStatus(e.currentTarget.value)} data={statuses} />
-    <Button loading={pending} disabled={!batch || work.isError || !amount.trim() || !reason.trim() || !source.trim() || (action === "consume" ? !reservation : !consumption)} onClick={() => submit(`inventory.${action}`, { quantity: { amount, unit }, reason, assertion_source: source, assertion_status: status, expected_work_state: batch!.state, ...(action === "consume" ? { reservation_id: reservation, work_batch_id: target, remainder } : { consumption_id: origin }) }, detail.account.state)}>Apply material usage</Button>
+    <Button loading={pending} disabled={!batch || work.isError || (action === "consume" && linkedUnits.isError) || !amount.trim() || !reason.trim() || !source.trim() || (action === "consume" ? !reservation : !consumption)} onClick={() => submit(`inventory.${action}`, { quantity: { amount, unit }, reason, assertion_source: source, assertion_status: status, expected_work_state: batch!.state, ...(action === "consume" ? { reservation_id: reservation, work_batch_id: target, physical_unit_id: physicalUnitId || null, remainder } : { consumption_id: origin }) }, detail.account.state)}>Apply material usage</Button>
   </Stack>;
 }

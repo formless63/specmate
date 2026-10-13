@@ -17,12 +17,13 @@ export type WorkBatch = {
   work_batch_id: string; project_id: string; revision_id: string; definition_id: string;
   kind: "job" | "batch"; label: string; planned_units: number | null;
   reported_completed_units: number; progress: string; state: string;
-  actual_unit_tracking: "not_implemented"; physical_qualification: false;
+  actual_unit_tracking: "separate_records"; physical_qualification: false;
 };
 export type Entry = {
   entry_id: string; kind: string; amount: string | null; unit: string; after: string | null;
   reason: string; assertion_source: string; assertion_status: string; created_at: string;
   reservation_id?: string | null; work_batch_id?: string | null;
+  physical_unit_id?: string | null;
   consumption_origin_id?: string | null; returnable_quantity?: string | null;
 };
 export type Detail = {

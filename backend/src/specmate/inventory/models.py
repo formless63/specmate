@@ -54,6 +54,9 @@ class StockEntry(models.Model):
     after = models.DecimalField(max_digits=24, decimal_places=9, null=True)
     reservation = models.ForeignKey("Reservation", null=True, on_delete=models.PROTECT)
     work_batch = models.ForeignKey("WorkBatch", null=True, on_delete=models.PROTECT)
+    physical_unit = models.ForeignKey(
+        "physical_units.PhysicalUnit", null=True, on_delete=models.PROTECT
+    )
     consumption_origin = models.ForeignKey(
         "self", null=True, on_delete=models.PROTECT, related_name="returns"
     )
