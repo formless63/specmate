@@ -27,3 +27,10 @@ export function saveFile(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob), link = document.createElement('a');
   try { link.href = url; link.download = filename; link.click(); } finally { URL.revokeObjectURL(url); }
 }
+
+export function references(config: Configuration) {
+  return [...new Set([config.bom_plan_revision_id, ...config.bindings.flatMap(b => [b.test_plan_revision_id, ...b.cut_profiles.map(p => p.profile_revision_id), ...b.end_profiles.map(p => p.profile_revision_id)])].filter((id): id is string => !!id && id !== config.root_revision_id))].sort();
+}
+export async function authority(config: Configuration) {
+  return (await runOperation<{ authorized: true }>('preparation_documents.authority', { root_revision_id: config.root_revision_id, supplementary_revision_ids: references(config) })).result;
+}

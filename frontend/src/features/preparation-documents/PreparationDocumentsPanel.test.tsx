@@ -12,6 +12,7 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} }));
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal('Blob', NodeBlob);
+  HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320"><text>Original declared diagram</text></svg>';
@@ -21,7 +22,7 @@ function manifest(config: Configuration): Manifest {
   return { inputs_sha256: 'one-input-hash', readiness: 'declared_with_unknowns', inputs: { root: { revision_id: config.root_revision_id, snapshot_id: 'root-snapshot', snapshot_sha256: 'root-hash', name: 'Original synthetic assembly', kind: 'assembly' }, generator: 'specmate.preparation-documents/1', format: 'specmate.coordinated-document-set/0.1', configuration: config, physical_test: 'not_performed', physical_continuity: 'not_evaluated', fit: 'not_evaluated', physical_qualification: false, revision_pins: [{ revision_id: 'root-revision', snapshot_id: 'root-snapshot', snapshot_sha256: 'root-hash', name: 'Original frozen root', kind: 'assembly' }], source_pins: [{ bundle_revision_id: 'source-revision', path: 'original.txt', sha256: 'source-hash', rights: 'unknown', source_manifest_sha256: 'source-manifest', ancestry: [] }], rights_reviews: [{ subject: 'design:root-revision', review: { subject: 'design:root-revision', decision: 'unknown', basis: '' } }] }, context_pins: ['left', 'right'].map(side => ({ address: { root_snapshot_id: 'root-snapshot', path: [side], revision_id: 'shared-harness', snapshot_sha256: 'harness-hash' }, kind: 'harness', disposition: side === 'right' ? 'buy' : 'make', sections: [{ section_id: 'shared', stock_revision_id: 'stock-revision', end_ids: ['input-end', 'output-end'] }] })), document_assessments: Object.fromEntries(['specifications.json', 'schematic.svg', 'cut-preparation.csv', 'build-sheet.html', 'terminations.json', 'test-intent.json'].map(n => [n, { status: 'declared_with_unknowns', physical_qualification: 'not_evaluated' }])), issues: [{ path: ['right'], code: 'missing_test_intent', status: 'unknown', message: 'No exact authored test intent is bound.' }], outputs: [output] };
 }
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
-function fixture() {
+function fixture(extraHistory = false) {
   const calls: { operation: string; payload: Configuration; expected_state?: string; idempotency_key?: string }[] = [];
   let deny = false, failGenerate = false, saved: Receipt | null = null;
   const defs = [{ definition_id: 'root', name: 'Original synthetic assembly', kind: 'assembly' }, { definition_id: 'cut', name: 'Original cut profile', kind: 'preparation_profile' }, { definition_id: 'ends', name: 'Original end profile', kind: 'end_preparation_profile' }];
@@ -29,6 +30,7 @@ function fixture() {
     if (url.endsWith('/operations')) {
       const body = JSON.parse(String(options?.body)); calls.push(body);
       if (deny) return json({ error: { message: 'Source unavailable.' } }, 404);
+      if (body.operation === 'preparation_documents.authority') return json({ result: { authorized: true } });
       if (body.operation === 'preparation_documents.review') return json({ result: { manifest: manifest(body.payload), state: 'review-original-token' } });
       if (body.operation === 'preparation_documents.generate') {
         if (failGenerate) { failGenerate = false; return json({ error: { message: 'Original lost response.' } }, 503); }
@@ -44,7 +46,7 @@ function fixture() {
       return json({ ...d, revisions: [{ revision_id: `${name}-revision`, number: 1 }], drafts: [] });
     }
     if (url.endsWith('/definitions')) return json(defs);
-    return json({ document_sets: saved ? [saved] : [] });
+    return json({ document_sets: saved ? [saved, ...(extraHistory ? [{ ...saved, document_set_id: 'set-secondary', created_at: '2026-01-02' }] : [])] : [] });
   });
   vi.stubGlobal('fetch', fetch);
   return { calls, fetch, deny: () => { deny = true; }, restore: () => { deny = false; }, failGenerate: () => { failGenerate = true; } };
@@ -96,9 +98,10 @@ test('retry retains stable reviewed token/key and denial recovery retains prepar
   f.deny(); fireEvent.click(screen.getByRole('button', { name: 'Download schematic.svg' }));
   await screen.findByText(/Document metadata and staged fields are hidden/);
   expect(screen.queryByText(/source-revision \/ original.txt/)).toBeNull();
-  expect(screen.queryByLabelText('Generated output rights basis')).toBeNull();
+  expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.hasAttribute('inert')).toBe(true);
+  expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.style.display).toBe('none');
   f.restore(); fireEvent.click(screen.getByRole('button', { name: 'Refresh document access and choices' }));
-  await screen.findByLabelText('Generated output rights basis');
+  await waitFor(() => expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.style.display).not.toBe('none'));
   expect((screen.getByLabelText('Generated output rights basis') as HTMLTextAreaElement).value).toBe('Original prepared rights basis');
   fireEvent.click(screen.getByRole('button', { name: 'Generate reviewed document set' }));
   await waitFor(() => expect(f.calls.filter(c => c.operation === 'preparation_documents.generate')).toHaveLength(3));
@@ -137,4 +140,101 @@ test('independent byte corruption blocks download; licensed viewBox helper retai
   expect(svgSize(svg)).toEqual({ width: 800, height: 320 });
   expect(svgSize('<svg viewBox="0,0,5,7"></svg>')).toEqual({ width: 5, height: 7 });
   for (const content of ['<svg></svg>', '<svg viewBox="0 0 Infinity 7">', '<svg viewBox="0 0 -2 7">', '<svg viewBox="0 0 0 7">', '<svg><g viewBox="0 0 5 7"></g></svg>']) expect(svgSize(content)).toBeUndefined();
+});
+
+test('held review hides cached protected manifests and SVG until input and selected receipt authority complete', async () => {
+  const f = fixture(); render(panel()); await root(); await review(); await generate();
+  fireEvent.click(screen.getByRole('button', { name: 'Preview declared schematic' }));
+  await screen.findByTitle('Declared schematic preview');
+  const original = f.fetch.getMockImplementation()!;
+  let finish!: (response: Response) => void;
+  f.fetch.mockImplementation((url: string, options?: RequestInit) => {
+    if (!finish && url.endsWith('/operations') && JSON.parse(String(options?.body)).operation === 'preparation_documents.review') return new Promise<Response>(r => { finish = r; });
+    return original(url, options);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Review coordinated documents' }));
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  expect(screen.queryByRole('heading', { name: 'Retained coordinated provenance' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Current reviewed document inputs' })).toBeNull();
+  expect(screen.queryByTitle('Declared schematic preview')).toBeNull();
+  finish(json({ result: { manifest: manifest(f.calls.find(c => c.operation === 'preparation_documents.generate')!.payload), state: 'review-original-token' } }));
+  await screen.findByRole('heading', { name: 'Retained coordinated provenance' });
+  expect(f.calls.some(c => c.operation === 'preparation_documents.read')).toBe(true);
+});
+
+test('held download and historic receipt reads hide all earlier protected review evidence', async () => {
+  const f = fixture(true); render(panel()); await root(); await review(); await generate();
+  const original = f.fetch.getMockImplementation()!;
+  let finish!: (response: Response) => void;
+  f.fetch.mockImplementation((url: string, options?: RequestInit) => url.endsWith('/preparation-documents/download') ? new Promise<Response>(r => { finish = r; }) : original(url, options));
+  fireEvent.click(screen.getByRole('button', { name: 'Preview declared schematic' }));
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  expect(screen.queryByRole('heading', { name: 'Current reviewed document inputs' })).toBeNull();
+  finish(new Response(bytes));
+  await screen.findByTitle('Declared schematic preview');
+  f.fetch.mockImplementation((url: string, options?: RequestInit) => url.endsWith('/operations') && JSON.parse(String(options?.body)).operation === 'preparation_documents.read' ? new Promise<Response>(r => { finish = r; }) : original(url, options));
+  finish = undefined as unknown as (response: Response) => void;
+  await choose('Retained document history', 'Original synthetic assembly · 2026-01-02 · set-secondary');
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  expect(screen.queryByRole('heading', { name: 'Current reviewed document inputs' })).toBeNull();
+  expect(screen.queryByTitle('Declared schematic preview')).toBeNull();
+});
+
+test('blur/focus and inactive/return preserve staging and original retry token/key behind fresh closure fences', async () => {
+  const f = fixture(); const view = render(panel()); await root();
+  fireEvent.change(screen.getByLabelText('Generated output rights basis'), { target: { value: 'Original staged scope recovery basis' } });
+  await review(); await generate();
+  const packet = f.calls.find(c => c.operation === 'preparation_documents.generate')!;
+  fireEvent.blur(window);
+  expect(screen.queryByRole('heading', { name: 'Retained coordinated provenance' })).toBeNull();
+  expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.hasAttribute('inert')).toBe(true);
+  expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.style.display).toBe('none');
+  fireEvent.focus(window);
+  await waitFor(() => expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.style.display).not.toBe('none'));
+  expect((screen.getByLabelText('Generated output rights basis') as HTMLTextAreaElement).value).toBe('Original staged scope recovery basis');
+  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active={false} /></MantineProvider>);
+  expect(screen.queryByRole('heading', { name: 'Retained coordinated provenance' })).toBeNull();
+  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active /></MantineProvider>);
+  await waitFor(() => expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.style.display).not.toBe('none'));
+  expect((screen.getByLabelText('Generated output rights basis') as HTMLTextAreaElement).value).toBe('Original staged scope recovery basis');
+  fireEvent.click(screen.getByRole('button', { name: 'Generate reviewed document set' }));
+  await waitFor(() => expect(f.calls.filter(c => c.operation === 'preparation_documents.generate')).toHaveLength(2));
+  const replay = f.calls.filter(c => c.operation === 'preparation_documents.generate')[1]!;
+  expect(replay.idempotency_key).toBe(packet.idempotency_key);
+  expect(replay.expected_state).toBe(packet.expected_state);
+  expect(f.calls.filter(c => c.operation === 'preparation_documents.read').length).toBeGreaterThanOrEqual(2);
+});
+
+test('fresh changed-config review cannot revive a denied old historic receipt', async () => {
+  const f = fixture(); render(panel()); await root(); await review(); await generate();
+  fireEvent.change(screen.getByLabelText('Document quantity (blank means unknown)'), { target: { value: '2' } });
+  const original = f.fetch.getMockImplementation()!;
+  f.fetch.mockImplementation((url: string, options?: RequestInit) => url.endsWith('/operations') && JSON.parse(String(options?.body)).operation === 'preparation_documents.read' ? Promise.resolve(json({ error: { message: 'Historical source unavailable.' } }, 404)) : original(url, options));
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh document access and choices' }));
+  await screen.findByText('Historical source unavailable.');
+  expect(screen.queryByRole('heading', { name: 'Retained coordinated provenance' })).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Current reviewed document inputs' })).toBeNull();
+});
+
+test('incomplete staged mapping remains editable after tab return without completed review or inherited labels', async () => {
+  const f = fixture(); const view = render(panel()); await root(); await review();
+  fireEvent.click(screen.getByRole('button', { name: 'Bind right · harness' }));
+  await choose('End profile shared definition', 'Original end profile (end_preparation_profile)');
+  await choose('End profile shared revision', 'Revision 1 · ends-revision');
+  fireEvent.change(screen.getByLabelText('End mapping basis shared'), { target: { value: '' } });
+  const original = f.fetch.getMockImplementation()!;
+  f.fetch.mockImplementation((url: string, options?: RequestInit) => {
+    const body = url.endsWith('/operations') ? JSON.parse(String(options?.body)) : null;
+    if (body?.operation === 'preparation_documents.review' && body.payload.bindings?.some((b: { end_profiles: { mapping_basis: string }[] }) => b.end_profiles.some(e => e.mapping_basis === ''))) return Promise.resolve(json({ error: { message: 'Incomplete mapping basis.' } }, 422));
+    return original(url, options);
+  });
+  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active={false} /></MantineProvider>);
+  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active /></MantineProvider>);
+  await waitFor(() => expect(screen.getByLabelText('End mapping basis shared').closest('fieldset')?.parentElement?.closest('fieldset')?.style.display).not.toBe('none'));
+  expect((screen.getByLabelText('End mapping basis shared') as HTMLTextAreaElement).value).toBe('');
+  fireEvent.change(screen.getByLabelText('End mapping basis shared'), { target: { value: 'Original explicit mapping recovered' } });
+  expect(screen.getByRole('button', { name: 'Generate reviewed document set' }).hasAttribute('disabled')).toBe(true);
+  expect(f.calls.some(c => c.operation === 'preparation_documents.authority')).toBe(true);
+  await review();
+  expect(screen.getByRole('button', { name: 'Generate reviewed document set' }).hasAttribute('disabled')).toBe(false);
 });

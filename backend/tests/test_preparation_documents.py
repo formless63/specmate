@@ -583,3 +583,32 @@ def test_output_metadata_cannot_depart_from_immutable_manifest(users, project):
             size=1,
             rights="unknown",
         )
+
+
+def test_reference_authority_is_narrow_read_only_and_checks_entire_supplementary_source(
+    users, project
+):
+    user = users["owner"]
+    value, root = cable(user, project)
+    foreign = op(user, "project.create", {"name": "Original isolated authority evidence"})[
+        "project_id"
+    ]
+    _, source = evidence(user, foreign)
+    rules = profile(value["stock_revision_id"])
+    rules["formulas"][0]["allowances"][0]["source"] = source
+    recipe = freeze_cuts(user, create_cuts(user, project, rules))
+    payload = {
+        "root_revision_id": root["revision_id"],
+        "supplementary_revision_ids": [recipe["revision_id"]],
+    }
+    assert op(user, "preparation_documents.authority", payload) == {"authorized": True}
+    assert not DocumentSet.objects.exists()
+    response = post_op(api(user), "preparation_documents.authority", payload)
+    assert response.status_code == 200 and response.json()["result"] == {"authorized": True}
+    Membership.objects.filter(user=user, project_id=foreign).delete()
+    with pytest.raises((NotFound, PermissionDenied)):
+        op(user, "preparation_documents.authority", payload)
+    assert post_op(api(user), "preparation_documents.authority", payload).status_code == 404
+    assert op(
+        user, "preparation_documents.authority", {"root_revision_id": root["revision_id"]}
+    ) == {"authorized": True}

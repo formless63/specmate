@@ -78,3 +78,21 @@ replacement disposes earlier responses and clears state. Downloaded bytes are
 independently checked against saved hashes and sizes before saving or sandboxed
 schematic preview. The small WireHub `svgSize` helper is retained under AGPL-3.0-only
 for preview sizing, with upstream identity and license notice in NOTICE.
+
+`preparation_documents.authority` accepts only an exact root and unique supplementary
+revision IDs, authorizes the current actor and complete design/catalog/source closure,
+and returns only `authorized: true`. This read-only check neither assesses declarations
+nor produces a review token. It allows an incomplete quantity, basis or mapping to
+remain editable after reference authority is restored.
+
+The panel accepts an optional `active` host prop. Inactive tabs and window blur retain
+prepared configuration, the original reviewed token and stable retry key as inert
+intent. Pending authority reads hide protected manifests, history and SVG documents;
+prepared fields remain mounted, hidden and inert. Return/focus freshly authorizes
+current reference inputs, separately reviews the original basis before its manifest
+can reappear, and independently reads any selected historic receipt. A new clean
+config cannot authorize an older receipt. Fresh unknown-flags root context assists
+editing incomplete mappings without replacing prepared quantities or completing a
+review. Obsolete derived rights labels are withheld. Explicit close/discard controls
+remain outside the display fence for recovery from invalid references. Project and
+principal replacement still dispose the entire workspace.

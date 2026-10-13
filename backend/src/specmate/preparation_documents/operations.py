@@ -8,7 +8,13 @@ from specmate.catalog_matching.queries import current_actor
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import LEGACY_SCOPE
-from specmate.preparation_documents.contracts import GENERATOR, Configuration, Download, SetRef
+from specmate.preparation_documents.contracts import (
+    GENERATOR,
+    Configuration,
+    Download,
+    InputAuthority,
+    SetRef,
+)
 from specmate.preparation_documents.models import DocumentOutput, DocumentSet
 from specmate.preparation_documents.projection import authorize_inputs, project
 from specmate.preparation_documents.rendering import MAX_FILE_BYTES, render
@@ -171,3 +177,18 @@ def download(ctx: Context, p: Download):
         "inputs_sha256": record.sha256,
         "data_base64": base64.b64encode(data).decode(),
     }
+
+
+@operation(
+    "preparation_documents.authority",
+    InputAuthority,
+    supports_idempotency=False,
+    summary="Authorize exact references without assessing document declarations.",
+)
+def authority(ctx: Context, p: InputAuthority):
+    authorize_inputs(
+        ctx.user,
+        Configuration(root_revision_id=p.root_revision_id),
+        supplementary=p.supplementary_revision_ids,
+    )
+    return {"authorized": True}

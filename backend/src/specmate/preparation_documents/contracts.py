@@ -94,3 +94,19 @@ class Download(SetRef):
         "terminations.json",
         "test-intent.json",
     ]
+
+
+class InputAuthority(StrictModel):
+    """Reference authorization only: no quantities, mappings or declaration assessment."""
+
+    root_revision_id: UUID
+    supplementary_revision_ids: list[UUID] = Field(default_factory=list, max_length=1023)
+
+    @model_validator(mode="after")
+    def unique(self):
+        if (
+            len(set(self.supplementary_revision_ids)) != len(self.supplementary_revision_ids)
+            or self.root_revision_id in self.supplementary_revision_ids
+        ):
+            raise ValueError("Supplementary pins must be unique and distinct from the root.")
+        return self

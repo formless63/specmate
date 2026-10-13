@@ -42,11 +42,11 @@ def references(configuration):
     return ids
 
 
-def authorize_inputs(user, configuration):
+def authorize_inputs(user, configuration, supplementary=()):
     """Resolve all owning/catalog/design/source closure before projection diagnostics."""
     user = current_actor(user)
     captured = {}
-    pending = list(references(configuration))
+    pending = list(references(configuration) | set(supplementary))
     while pending:
         rid = pending.pop()
         if rid in captured:
