@@ -24,6 +24,6 @@ def revision(request, revision_id: UUID):
     return inspect_revision(request.user, revision_id)
 
 
-@router.get("/revisions/{revision_id}/trace/{contact_id}")
+@router.get("/revisions/{revision_id}/trace")
 def declared_trace(request, revision_id: UUID, contact_id: str):
     return trace(request.user, revision_id, contact_id)

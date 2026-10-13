@@ -351,3 +351,54 @@ def test_concurrent_interface_updates_have_one_winner(users, project):
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(write, ["Alpha", "Beta"]))
     assert sorted(results) == ["conflict", "saved"]
+
+
+def test_api_trace_uses_query_parameter_for_arbitrary_contact_ids(users, project):
+    *_, mapping = setup_mapping(users["owner"], project)
+    frozen = freeze(users["owner"], create(users["owner"], project, mapping))
+    client = Client()
+    client.force_login(users["owner"])
+    response = client.get(
+        f"/api/v0/interfaces/revisions/{frozen['revision_id']}/trace", {"contact_id": "a"}
+    )
+    assert response.status_code == 200
+    assert response.json()["targets"][0]["path"] == ["right"]
+    assert (
+        client.get(
+            f"/api/v0/interfaces/revisions/{frozen['revision_id']}/trace",
+            {"contact_id": "absent/contact"},
+        ).status_code
+        == 404
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_competing_keyed_creates_have_one_effect(users, project):
+    barrier = Barrier(2)
+
+    def create_once(_):
+        close_old_connections()
+        try:
+            barrier.wait(timeout=5)
+            return create(users["owner"], project, idempotency_key="concurrent-key")
+        except Conflict:
+            # The shared operation contract rolls back the losing transaction.
+            return create(users["owner"], project, idempotency_key="concurrent-key")
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(create_once, range(2)))
+    assert results[0] == results[1]
+    assert Definition.objects.filter(kind="connector_body").count() == 1
+
+
+def test_current_freeze_grant_rechecked_on_retained_replay(users, project):
+    Membership.objects.filter(user=users["editor"], project_id=project).update(
+        grants=["design.freeze"]
+    )
+    draft = create(users["editor"], project)
+    freeze(users["editor"], draft, idempotency_key="granted-freeze")
+    Membership.objects.filter(user=users["editor"], project_id=project).update(grants=[])
+    with pytest.raises(PermissionDenied):
+        freeze(users["editor"], draft, idempotency_key="granted-freeze")

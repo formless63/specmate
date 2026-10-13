@@ -1,0 +1,134 @@
+import { Alert, Button, Card, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { command, read, initialInterface, unknownElectrical, type Body, type Definition, type Draft, type Identity, type Inspection, type Interface, type Mapping, type Orientation, type Pinout, type Trace } from "./api";
+
+const kinds = [{ value: "connector_body", label: "Connector body" }, { value: "pinout", label: "Logical pinout" }, { value: "interface_map", label: "External / internal mapping" }];
+export function InterfacePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
+function Workspace({ projectId }: { projectId: string }) {
+  const cache = useQueryClient();
+  const [name, setName] = useState("");
+  const [value, setValue] = useState<Interface>(initialInterface("connector_body"));
+  const [definitionId, setDefinitionId] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [revisionId, setRevisionId] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const definitions = useQuery({ queryKey: ["interface-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const identity = useQuery({ queryKey: ["interface-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
+  const draft = useQuery({ queryKey: ["interface-draft", draftId], queryFn: () => read<Draft>(`interfaces/drafts/${draftId}`), enabled: !!draftId });
+  const create = useMutation({ mutationFn: () => command<Draft>("interface.create", { project_id: projectId, name, interface: value }), onSuccess: async (data) => {
+    setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
+    await cache.invalidateQueries({ queryKey: ["interface-definitions", projectId] });
+  } });
+  const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("interface.freeze", { draft_id: draftId }, draft.data?.state), onSuccess: async (data) => {
+    setRevisionId(data.revision_id);
+    await cache.invalidateQueries({ queryKey: ["interface-draft", draftId] });
+    await cache.invalidateQueries({ queryKey: ["interface-identity", definitionId] });
+  } });
+  return <Stack>
+    <Title order={2}>Bodies, pinouts and boundary mappings</Title>
+    <Text>Physical contacts remain separate from signal roles. Placement belongs to assembly occurrences. Unknown values stay unknown; reviewed pin tables and declared paths do not establish compatibility or measured continuity.</Text>
+    <Card withBorder><Stack>
+      <Title order={3}>New reusable definition</Title>
+      <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+      <Select label="Interface definition kind" data={kinds} value={value.kind} onChange={(v) => setValue(initialInterface(v as Interface["kind"]))} />
+      <Editor value={value} onChange={setValue} definitions={definitions.data ?? []} />
+      <Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create interface draft</Button>
+      {create.isError && <Alert color="red">{create.error.message}</Alert>}
+    </Stack></Card>
+    {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
+    <Select label="Existing interface definition" searchable data={(definitions.data ?? []).filter((d) => kinds.some((k) => k.value === d.kind)).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitionId} onChange={(id) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
+    {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
+    {identity.data && <>
+      <Select label="Edit interface draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
+      <Select label="Inspect frozen interface" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} />
+      <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
+    </>}
+    {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
+    {draft.data && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["interface-draft", draftId] }); }} /><Button loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze interface revision</Button></>}
+    {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
+    {revisionId && <InterfaceInspector key={revisionId} revisionId={revisionId} />}
+  </Stack>;
+}
+
+function DraftEditor({ draft, definitions, onSaved }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void> }) {
+  const [value, setValue] = useState(draft.content.interface);
+  const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><Editor value={value} onChange={setValue} definitions={definitions} /><Button loading={save.isPending} onClick={() => save.mutate()}>Save interface draft</Button>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+}
+function Editor({ value, onChange, definitions }: { value: Interface; onChange: (v: Interface) => void; definitions: Definition[] }) {
+  if (value.kind === "connector_body") return <BodyEditor value={value} onChange={onChange} />;
+  if (value.kind === "pinout") return <PinoutEditor value={value} onChange={onChange} definitions={definitions} />;
+  return <MappingEditor value={value} onChange={onChange} definitions={definitions} />;
+}
+function OrientationEditor({ value, onChange }: { value: Orientation; onChange: (v: Orientation) => void }) {
+  return <Group align="end"><Select label="Viewing side" value={value.viewing_side} data={["unknown", "mating", "termination"]} onChange={(v) => onChange(v === "unknown" ? { viewing_side: "unknown", rotation_degrees: null, datum: null } : { ...value, viewing_side: v as Orientation["viewing_side"] })} /><TextInput label="Orientation datum" disabled={value.viewing_side === "unknown"} value={value.datum ?? ""} onChange={(e) => onChange({ ...value, datum: e.currentTarget.value || null })} /><NumberInput label="Rotation degrees (blank = unknown)" min={0} max={359.999} disabled={value.viewing_side === "unknown"} value={value.rotation_degrees ?? ""} onChange={(v) => onChange({ ...value, rotation_degrees: typeof v === "number" ? v : null })} /></Group>;
+}
+function BodyEditor({ value, onChange }: { value: Body; onChange: (v: Body) => void }) {
+  const [contactId, setContactId] = useState("");
+  return <Stack><Group><TextInput label="Body family (blank = unknown)" value={value.family ?? ""} onChange={(e) => onChange({ ...value, family: e.currentTarget.value || null })} /><Select label="Mating role" value={value.mating_role} data={["unknown", "plug", "receptacle", "hermaphroditic"]} onChange={(v) => onChange({ ...value, mating_role: v ?? "unknown" })} /></Group><OrientationEditor value={value.drawing_orientation} onChange={(v) => onChange({ ...value, drawing_orientation: v })} />
+    {value.contacts.map((contact, i) => <Group key={contact.contact_id}><Text>{contact.contact_id}</Text><TextInput label="Contact label" value={contact.label} onChange={(e) => onChange({ ...value, contacts: value.contacts.map((c, j) => j === i ? { ...c, label: e.currentTarget.value } : c) })} /><Select label="Physical role" value={contact.physical_role} data={["contact", "shell", "key"]} onChange={(v) => onChange({ ...value, contacts: value.contacts.map((c, j) => j === i ? { ...c, physical_role: v as typeof c.physical_role } : c) })} /><Button variant="subtle" onClick={() => onChange({ ...value, contacts: value.contacts.filter((_, j) => j !== i) })}>Remove contact {contact.contact_id}</Button></Group>)}
+    <Group align="end"><TextInput label="New physical contact ID" value={contactId} onChange={(e) => setContactId(e.currentTarget.value)} /><Button disabled={!contactId || value.contacts.some((c) => c.contact_id === contactId)} onClick={() => { onChange({ ...value, contacts: [...value.contacts, { contact_id: contactId, physical_role: "contact", label: "", position_mm: null }] }); setContactId(""); }}>Add contact</Button></Group>
+  </Stack>;
+}
+
+function RevisionPicker({ label, kind, value, onChange, definitions }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[] }) {
+  const [definition, setDefinition] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const identity = useQuery({ queryKey: ["interface-reference", definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
+  return <Stack gap="xs"><Select label={`${label} definition`} searchable value={definition} data={definitions.filter((d) => d.kind === kind).map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setDefinition(v); setOffset(0); }} /><Select label={`${label} revision`} value={value || null} onChange={(v) => onChange(v ?? "")} data={(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} />{identity.data && <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}<TextInput label={`${label} exact revision ID`} description="An accessible revision from another project can also be supplied." value={value} onChange={(e) => onChange(e.currentTarget.value)} />{identity.isError && <Alert color="red">{identity.error.message}</Alert>}</Stack>;
+}
+function PinoutEditor({ value, onChange, definitions }: { value: Pinout; onChange: (v: Pinout) => void; definitions: Definition[] }) {
+  const [contactId, setContactId] = useState<string | null>(null);
+  const body = useQuery({ queryKey: ["interface-body", value.body_revision_id], queryFn: () => read<Inspection>(`interfaces/revisions/${value.body_revision_id}`), enabled: !!value.body_revision_id });
+  const contacts = body.data?.interface.kind === "connector_body" ? body.data.interface.contacts : [];
+  return <Stack><RevisionPicker label="Physical body" kind="connector_body" value={value.body_revision_id} onChange={(v) => onChange({ ...value, body_revision_id: v })} definitions={definitions} />{body.isError && <Alert color="red">{body.error.message}</Alert>}<OrientationEditor value={value.orientation} onChange={(v) => onChange({ ...value, orientation: v })} />
+    <Group><Select label="Pin table review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: v as Pinout["review"] })} /><TextInput label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></Group>
+    {value.assignments.map((assignment, i) => {
+      const change = (patch: Partial<typeof assignment.electrical>) => onChange({ ...value, assignments: value.assignments.map((a, j) => j === i ? { ...a, electrical: { ...a.electrical, ...patch } } : a) });
+      return <Card withBorder key={assignment.contact_id}><Stack><Text fw={600}>Contact {assignment.contact_id}</Text><Group><TextInput label="Signal" value={assignment.electrical.signal ?? ""} onChange={(e) => change({ signal: e.currentTarget.value || null })} /><Select label="Logical role" value={assignment.electrical.role} data={["unknown", "signal", "power", "return", "shield", "chassis", "unused"]} onChange={(v) => change({ role: v ?? "unknown" })} /><Select label="Direction from device" value={assignment.electrical.direction} data={["unknown", "input", "output", "bidirectional", "passive"]} onChange={(v) => change({ direction: v ?? "unknown" })} /></Group><Group>
+        {([['voltage_min_v', 'Minimum voltage (V)'], ['voltage_max_v', 'Maximum voltage (V)'], ['current_max_a', 'Maximum current (A)']] as const).map(([key, label]) => <NumberInput key={key} label={`${label}; blank = unknown`} value={assignment.electrical[key] ?? ""} onChange={(v) => change({ [key]: typeof v === "number" ? v : null })} />)}
+      </Group><Group>{([['protocol', 'Protocol'], ['condition', 'Applicable condition'], ['basis', 'Declaration basis']] as const).map(([key, label]) => <TextInput key={key} label={label} value={assignment.electrical[key] ?? ""} onChange={(e) => change({ [key]: e.currentTarget.value || null })} />)}</Group><Button variant="subtle" onClick={() => onChange({ ...value, assignments: value.assignments.filter((_, j) => j !== i) })}>Remove assignment {assignment.contact_id}</Button></Stack></Card>;
+    })}
+    <Group align="end"><Select label="Physical contact to assign" data={contacts.filter((c) => c.physical_role !== "key" && !value.assignments.some((a) => a.contact_id === c.contact_id)).map((c) => ({ value: c.contact_id, label: c.contact_id }))} value={contactId} onChange={setContactId} /><Button disabled={!contactId} onClick={() => { if (contactId) onChange({ ...value, assignments: [...value.assignments, { contact_id: contactId, electrical: unknownElectrical() }] }); setContactId(null); }}>Assign contact</Button></Group>
+  </Stack>;
+}
+function MappingEditor({ value, onChange, definitions }: { value: Mapping; onChange: (v: Mapping) => void; definitions: Definition[] }) {
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [path, setPath] = useState<string | null>(null);
+  const [localId, setLocalId] = useState("");
+  const [feature, setFeature] = useState("");
+  const [condition, setCondition] = useState("");
+  const [basis, setBasis] = useState("");
+  const pins = useQuery({ queryKey: ["mapping-pins", value.external_pinout_revision_id], queryFn: () => read<Inspection>(`interfaces/revisions/${value.external_pinout_revision_id}`), enabled: !!value.external_pinout_revision_id });
+  const revision = useQuery({ queryKey: ["mapping-assembly-revision", value.assembly_revision_id], queryFn: () => read<{ snapshot_id: string }>(`revisions/${value.assembly_revision_id}`), enabled: !!value.assembly_revision_id });
+  const assembly = useQuery({ queryKey: ["mapping-assembly", revision.data?.snapshot_id], queryFn: () => read<{ occurrences: { address: { path: string[] }; revision_id: string; name: string; display_ref: string }[] }>(`assemblies/snapshots/${revision.data?.snapshot_id}`), enabled: !!revision.data?.snapshot_id });
+  const selected = assembly.data?.occurrences.find((o) => JSON.stringify(o.address.path) === path);
+  return <Stack><RevisionPicker label="Assembly" kind="assembly" value={value.assembly_revision_id} onChange={(v) => { setPath(null); onChange({ ...value, assembly_revision_id: v }); }} definitions={definitions} /><RevisionPicker label="External pinout" kind="pinout" value={value.external_pinout_revision_id} onChange={(v) => { setContactId(null); onChange({ ...value, external_pinout_revision_id: v }); }} definitions={definitions} />
+    {[pins.error, revision.error, assembly.error].filter(Boolean).map((error, i) => <Alert key={i} color="red">{error?.message}</Alert>)}
+    {value.passages.map((p, i) => <Card key={p.local_id} withBorder><Text>{p.external_contact_id} → {p.internal.path.join(" / ")} · {p.internal.feature_id}</Text><Text size="sm">Pinned revision {p.internal.revision_id}. Condition: {p.condition ?? "unknown"}. Basis: {p.basis}</Text><Button variant="subtle" onClick={() => onChange({ ...value, passages: value.passages.filter((_, j) => j !== i) })}>Remove passage {p.local_id}</Button></Card>)}
+    <TextInput label="Passage stable ID" value={localId} onChange={(e) => setLocalId(e.currentTarget.value)} />
+    <Select label="External contact" value={contactId} onChange={setContactId} data={(pins.data?.contacts ?? []).filter((c) => c.physical_role !== "key").map((c) => ({ value: c.contact_id, label: c.contact_id }))} />
+    <Select label="Exact internal occurrence" value={path} onChange={setPath} data={(assembly.data?.occurrences ?? []).map((o) => ({ value: JSON.stringify(o.address.path), label: `${o.address.path.join(" / ")} · ${o.name} (${o.display_ref})` }))} />
+    {selected && <Text size="sm">Internal revision: {selected.revision_id}</Text>}
+    <TextInput label="Internal terminal feature ID" description="Body/pinout contacts are checked. Other board feature identifiers remain declared and not evaluated." value={feature} onChange={(e) => setFeature(e.currentTarget.value)} />
+    <TextInput label="Passage condition (blank = unknown)" value={condition} onChange={(e) => setCondition(e.currentTarget.value)} /><TextInput label="Passage declaration basis" value={basis} onChange={(e) => setBasis(e.currentTarget.value)} />
+    <Button disabled={!localId || !contactId || !selected || !feature || !basis} onClick={() => { if (selected && contactId) { onChange({ ...value, passages: [...value.passages, { local_id: localId, external_contact_id: contactId, kind: "declared_passage", internal: { path: selected.address.path, revision_id: selected.revision_id, feature_id: feature }, condition: condition || null, basis }] }); setLocalId(""); setFeature(""); } }}>Add declared passage</Button>
+  </Stack>;
+}
+export function InterfaceInspector({ revisionId }: { revisionId: string }) {
+  const [contactId, setContactId] = useState("");
+  const [traced, setTraced] = useState("");
+  const inspected = useQuery({ queryKey: ["interface-inspect", revisionId], queryFn: () => read<Inspection>(`interfaces/revisions/${revisionId}`) });
+  const tracedPath = useQuery({ queryKey: ["interface-trace", revisionId, traced], queryFn: () => read<Trace>(`interfaces/revisions/${revisionId}/trace?contact_id=${encodeURIComponent(traced)}`), enabled: !!traced });
+  return <Card withBorder><Stack><Title order={3}>Frozen interface inspection</Title><Text size="sm">Exact revision {revisionId}</Text>
+    {inspected.isError && <Alert color="red">{inspected.error.message}</Alert>}
+    {inspected.data && <><Text>Compatibility: {inspected.data.compatibility}</Text>
+      {inspected.data.interface.kind === "connector_body" && <><Text>Body family: {inspected.data.interface.family ?? "unknown"}; mating role: {inspected.data.interface.mating_role}</Text><Text>Viewing side: {inspected.data.interface.drawing_orientation.viewing_side}</Text>{inspected.data.interface.contacts.map((c) => <Text key={c.contact_id}>{c.contact_id}: {c.physical_role} · {c.label || "unlabelled"}</Text>)}</>}
+      {inspected.data.interface.kind === "pinout" && <><Text>Body revision: {inspected.data.interface.body_revision_id}</Text><Text>Pin table: {inspected.data.interface.review}; viewing side: {inspected.data.interface.orientation.viewing_side}</Text><Table><Table.Thead><Table.Tr><Table.Th>Physical contact</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Role</Table.Th><Table.Th>Direction</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{inspected.data.contacts?.map((c) => <Table.Tr key={c.contact_id}><Table.Td>{c.contact_id} ({c.physical_role})</Table.Td><Table.Td>{c.electrical?.signal ?? "unknown"}</Table.Td><Table.Td>{c.electrical?.role ?? "unknown"}</Table.Td><Table.Td>{c.electrical?.direction ?? "unknown"}</Table.Td></Table.Tr>)}</Table.Tbody></Table></>}
+      {inspected.data.interface.kind === "interface_map" && <><Text>Assembly revision: {inspected.data.interface.assembly_revision_id}</Text><Text>External pinout: {inspected.data.interface.external_pinout_revision_id}</Text><Group align="end"><TextInput label="External contact to trace" value={contactId} onChange={(e) => setContactId(e.currentTarget.value)} /><Button disabled={!contactId} onClick={() => setTraced(contactId)}>Trace declared path</Button></Group></>}
+    </>}
+    {tracedPath.isError && <Alert color="red">{tracedPath.error.message}</Alert>}
+    {tracedPath.data && <><Text>Path: {tracedPath.data.status}. Continuity: {tracedPath.data.continuity}.</Text>{tracedPath.data.targets.map((t) => <Card withBorder key={t.passage_id}><Text>{tracedPath.data.external_contact_id} → {t.path.join(" / ")} · {t.feature_id}</Text><Text size="sm">Revision {t.revision_id} · assembly snapshot {t.snapshot_id}</Text><Text>Feature status: {t.feature_status}; condition: {t.condition ?? "unknown"}</Text><Text>Declaration: {t.basis}</Text></Card>)}</>}
+  </Stack></Card>;
+}
