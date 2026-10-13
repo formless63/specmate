@@ -23,6 +23,7 @@ from specmate.catalog_matching.api import router as matching_router
 from specmate.catalog_packs.api import router as packs_router
 from specmate.contracts import OperationEnvelope
 from specmate.copper.api import router as copper_router
+from specmate.end_preparation.api import router as end_preparation_router
 from specmate.facts.api import router as facts_router
 from specmate.harnesses.api import router as harnesses_router
 from specmate.interfaces.api import router as interfaces_router
@@ -64,6 +65,7 @@ api.add_router("/v0/pcb", pcb_router)
 api.add_router("/v0/pcb-disagreement", disagreement_router)
 api.add_router("/v0/pcb-fabrication", fabrication_router)
 api.add_router("/v0/preparation", preparation_router)
+api.add_router("/v0/end-preparation", end_preparation_router)
 
 api.add_router("/v0", stock_router)
 api.add_router("/v0", workshop_profile_router)

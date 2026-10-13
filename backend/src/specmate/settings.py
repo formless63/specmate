@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "specmate.wire_stock",
     "specmate.workshop_profiles",
     "specmate.preparation",
+    "specmate.end_preparation",
     "specmate.inventory",
     "specmate.physical_units",
     "specmate.bom",

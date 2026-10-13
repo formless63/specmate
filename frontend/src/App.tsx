@@ -29,6 +29,8 @@ const PreparationPanel = lazy(() => import("./features/preparation/PreparationPa
 
 const CableTestIntentPanel = lazy(() => import("./features/cable-test-intent/CableTestIntentPanel").then((module) => ({ default: module.CableTestIntentPanel })));
 
+const EndPreparationPanel = lazy(() => import("./features/end-preparation/EndPreparationPanel").then((module) => ({ default: module.EndPreparationPanel })));
+
 const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((module) => ({ default: module.SourcesPanel })));
 
 export function App() {
@@ -54,6 +56,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
       <Tabs.Tab value="workshop-profiles">Workshop profiles</Tabs.Tab>
       <Tabs.Tab value="preparation">Cut preparation</Tabs.Tab>
+      <Tabs.Tab value="end-preparation">End preparation</Tabs.Tab>
       <Tabs.Tab value="assemblies">Assemblies</Tabs.Tab>
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
       <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
@@ -78,6 +81,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="wire-stock">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="workshop-profiles">{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="preparation">{visited.has("preparation") && <PreparationPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="end-preparation">{visited.has("end-preparation") && <EndPreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="interfaces">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</ToolPanel>

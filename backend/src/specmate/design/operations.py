@@ -132,6 +132,12 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         if "profile" not in draft.content:
             raise ValidationFailed("A typed workshop profile is required before capture.")
         derived = dependency_revisions(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "end_preparation_profile":
+        from specmate.end_preparation.queries import (
+            dependency_revisions as end_preparation_dependencies,
+        )
+
+        derived = end_preparation_dependencies(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "preparation_profile":
         from specmate.preparation.queries import dependency_revisions as preparation_dependencies
 
@@ -256,6 +262,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind == "end_preparation_profile" or "end_preparation_profile" in content:
+        from specmate.end_preparation.queries import validate_content as validate_end_preparation
+
+        content = validate_end_preparation(kind, content)
     if kind == "cable_test_plan" or "test_plan" in content:
         from specmate.cable_test_intent.queries import validate_content as validate_test_plan
 
@@ -317,6 +327,10 @@ def authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind == "end_preparation_profile" or "end_preparation_profile" in content:
+        from specmate.end_preparation.queries import authorize_content as authorize_end_preparation
+
+        authorize_end_preparation(user, definition, content)
     if definition.kind == "cable_test_plan" or "test_plan" in content:
         from specmate.cable_test_intent.queries import authorize_content as authorize_test_plan
 

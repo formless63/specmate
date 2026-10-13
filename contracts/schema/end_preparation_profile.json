@@ -1,0 +1,642 @@
+{
+  "$defs": {
+    "BondExpectation": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "kind": {
+          "const": "bond_expectation",
+          "default": "bond_expectation",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "endpoint_contact": "#/$defs/ContactTarget",
+                  "stock_feature": "#/$defs/FeatureTarget"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/FeatureTarget"
+                },
+                {
+                  "$ref": "#/$defs/ContactTarget"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "treatment": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "isolate",
+            "bond"
+          ],
+          "title": "Treatment",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "element_path"
+      ],
+      "title": "BondExpectation",
+      "type": "object"
+    },
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Citation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "citation",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "ContactTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "body_revision_id": {
+          "format": "uuid",
+          "title": "Body Revision Id",
+          "type": "string"
+        },
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "endpoint_contact",
+          "default": "endpoint_contact",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "body_revision_id",
+        "contact_id"
+      ],
+      "title": "ContactTarget",
+      "type": "object"
+    },
+    "Dimension": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "datum": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "from_stock_cut_end",
+            "along_finished_lead"
+          ],
+          "title": "Datum",
+          "type": "string"
+        },
+        "minus_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minus Mm"
+        },
+        "nominal_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nominal Mm"
+        },
+        "plus_mm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plus Mm"
+        }
+      },
+      "title": "Dimension",
+      "type": "object"
+    },
+    "DrainTreatment": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "kind": {
+          "const": "drain_treatment",
+          "default": "drain_treatment",
+          "title": "Kind",
+          "type": "string"
+        },
+        "length": {
+          "$ref": "#/$defs/Dimension"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "treatment": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "retain",
+            "trim",
+            "insulate",
+            "prepare_termination"
+          ],
+          "title": "Treatment",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "element_path"
+      ],
+      "title": "DrainTreatment",
+      "type": "object"
+    },
+    "End": {
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "bond_expectation": "#/$defs/BondExpectation",
+                "drain_treatment": "#/$defs/DrainTreatment",
+                "layer_strip": "#/$defs/LayerStrip",
+                "shield_lead": "#/$defs/ShieldLead"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/LayerStrip"
+              },
+              {
+                "$ref": "#/$defs/DrainTreatment"
+              },
+              {
+                "$ref": "#/$defs/ShieldLead"
+              },
+              {
+                "$ref": "#/$defs/BondExpectation"
+              }
+            ]
+          },
+          "maxItems": 512,
+          "title": "Instructions",
+          "type": "array"
+        },
+        "review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Review",
+          "type": "string"
+        },
+        "review_basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Basis"
+        }
+      },
+      "title": "End",
+      "type": "object"
+    },
+    "FeatureTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "kind": {
+          "const": "stock_feature",
+          "default": "stock_feature",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "element_path"
+      ],
+      "title": "FeatureTarget",
+      "type": "object"
+    },
+    "LayerStrip": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "kind": {
+          "const": "layer_strip",
+          "default": "layer_strip",
+          "title": "Kind",
+          "type": "string"
+        },
+        "length": {
+          "$ref": "#/$defs/Dimension"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "treatment": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "retain",
+            "remove",
+            "strip_back"
+          ],
+          "title": "Treatment",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "element_path"
+      ],
+      "title": "LayerStrip",
+      "type": "object"
+    },
+    "ShieldLead": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "kind": {
+          "const": "shield_lead",
+          "default": "shield_lead",
+          "title": "Kind",
+          "type": "string"
+        },
+        "length": {
+          "$ref": "#/$defs/Dimension"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "treatment": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "retain_shield",
+            "trim",
+            "form_lead",
+            "fold_back"
+          ],
+          "title": "Treatment",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "element_path"
+      ],
+      "title": "ShieldLead",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_revision_id": {
+          "format": "uuid",
+          "title": "Bundle Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locator": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Locator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_revision_id",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "a": {
+      "$ref": "#/$defs/End"
+    },
+    "b": {
+      "$ref": "#/$defs/End"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stock_revision_id": {
+      "format": "uuid",
+      "title": "Stock Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stock_revision_id"
+  ],
+  "title": "EndPreparationProfile",
+  "type": "object"
+}
