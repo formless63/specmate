@@ -14,11 +14,14 @@ from specmate.builds.api import router as runner_router
 from specmate.catalog.api import router as catalog_router
 from specmate.contracts import OperationEnvelope
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
+from specmate.wire_stock.api import router as stock_router
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/runner", runner_router)
 api.add_router("/v0/builds", artifacts_router)
+
+api.add_router("/v0", stock_router)
 
 
 @api.exception_handler(OperationError)

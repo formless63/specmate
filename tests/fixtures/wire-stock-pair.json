@@ -1,0 +1,205 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Original synthetic construction; not physical qualification.",
+  "stock": {
+    "schema_version": "1",
+    "construction": "pair",
+    "viewed_from": "a",
+    "structure": {
+      "id": "stock",
+      "label": "Stock",
+      "kind": "group",
+      "role": "stock",
+      "arrangement": "concentric",
+      "pitch_mm": null,
+      "direction": "ccw",
+      "children": [
+        {
+          "id": "pair",
+          "label": "Pair",
+          "kind": "group",
+          "role": "pair",
+          "arrangement": "linear",
+          "pitch_mm": 1.5,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "red",
+              "label": "Red",
+              "kind": "group",
+              "role": "coax",
+              "arrangement": "concentric",
+              "pitch_mm": null,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "center",
+                  "label": "Center",
+                  "kind": "conductor",
+                  "outer_diameter_mm": 0.6,
+                  "inner_diameter_mm": 0,
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic arithmetic fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "construction": null,
+                  "area_mm2": null
+                },
+                {
+                  "id": "insulation",
+                  "label": "Insulation",
+                  "kind": "insulation",
+                  "outer_diameter_mm": 1.2,
+                  "inner_diameter_mm": 0.6,
+                  "material": null,
+                  "color": "#ff0000",
+                  "source": "Original synthetic arithmetic fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "construction": null,
+                  "area_mm2": null
+                }
+              ],
+              "material": null,
+              "color": null,
+              "source": "Original synthetic arithmetic fixture",
+              "x_mm": 0,
+              "y_mm": 0
+            },
+            {
+              "id": "blue",
+              "label": "Blue",
+              "kind": "group",
+              "role": "coax",
+              "arrangement": "concentric",
+              "pitch_mm": null,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "center",
+                  "label": "Center",
+                  "kind": "conductor",
+                  "outer_diameter_mm": 0.6,
+                  "inner_diameter_mm": 0,
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic arithmetic fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "construction": null,
+                  "area_mm2": null
+                },
+                {
+                  "id": "insulation",
+                  "label": "Insulation",
+                  "kind": "insulation",
+                  "outer_diameter_mm": 1.2,
+                  "inner_diameter_mm": 0.6,
+                  "material": null,
+                  "color": "#0000ff",
+                  "source": "Original synthetic arithmetic fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "construction": null,
+                  "area_mm2": null
+                }
+              ],
+              "material": null,
+              "color": null,
+              "source": "Original synthetic arithmetic fixture",
+              "x_mm": 0,
+              "y_mm": 0
+            }
+          ],
+          "material": null,
+          "color": null,
+          "source": "Original synthetic arithmetic fixture",
+          "x_mm": 0,
+          "y_mm": 0
+        },
+        {
+          "id": "jacket",
+          "label": "Jacket",
+          "kind": "jacket",
+          "outer_diameter_mm": 4,
+          "inner_diameter_mm": 3.6,
+          "material": null,
+          "color": "#222222",
+          "source": "Original synthetic arithmetic fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "construction": null,
+          "area_mm2": null
+        },
+        {
+          "id": "screen",
+          "label": "Screen",
+          "kind": "shield",
+          "outer_diameter_mm": 3.6,
+          "inner_diameter_mm": 3.4,
+          "material": null,
+          "color": null,
+          "source": "Original synthetic arithmetic fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "construction": null,
+          "area_mm2": null
+        },
+        {
+          "id": "drain",
+          "label": "Drain",
+          "kind": "drain",
+          "outer_diameter_mm": 0.2,
+          "inner_diameter_mm": 0,
+          "material": null,
+          "color": null,
+          "source": "Original synthetic arithmetic fixture",
+          "x_mm": 0,
+          "y_mm": 1.5,
+          "construction": null,
+          "area_mm2": null
+        },
+        {
+          "id": "filler",
+          "label": "Filler",
+          "kind": "filler",
+          "outer_diameter_mm": 0.3,
+          "inner_diameter_mm": 0,
+          "material": null,
+          "color": null,
+          "source": "Original synthetic arithmetic fixture",
+          "x_mm": 0,
+          "y_mm": -1.5,
+          "construction": null,
+          "area_mm2": null
+        }
+      ],
+      "material": null,
+      "color": null,
+      "source": "Original synthetic arithmetic fixture",
+      "x_mm": 0,
+      "y_mm": 0
+    },
+    "facts": {
+      "voltage_rating": {
+        "value": null,
+        "unit": "V",
+        "source": null,
+        "status": "unknown"
+      },
+      "impedance": {
+        "value": null,
+        "unit": "ohm",
+        "source": null,
+        "status": "unknown"
+      }
+    }
+  },
+  "expected": {
+    "width_mm": 4,
+    "height_mm": 4,
+    "leaf_count": 8
+  }
+}

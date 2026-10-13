@@ -1,9 +1,16 @@
-Specmate implementation bootstrap
+Specmate
 
-No predecessor application source, company-specific catalog, font file, or third-party
-engineering model has been bundled. Proposed dependencies are selections, not installed
-or redistributed implementations. Imports must add their applicable notices here or
-in clearly referenced per-package notice files.
+Original application code is AGPL-3.0-only. Third-party material retains its terms.
+
+Wire stock geometry includes adaptations of WireHub by formless63, commit
+cbf919edf30a9d906a791971d3a40e22cb78b67e:
+- packages/layout/src/cross-section.ts: deterministic ring placement.
+- packages/layout/src/figure8.ts: figure-eight joined-lobe outline.
+
+Retained in packages/section-layout/src under AGPL-3.0-only. The WireHub Module
+Exception v1.0 additional permission is not required and is not applied to these
+adaptations. No predecessor catalog data, designs, fonts, preparation profiles,
+or native engineering models are included. See LICENSE for AGPL-3.0 text.
 
 The GNU Affero General Public License version 3 text in LICENSE retains the Free
 Software Foundation's license-document copyright and verbatim-copy notice.
