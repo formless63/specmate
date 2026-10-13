@@ -3,6 +3,7 @@
 import pytest
 from django.contrib.auth import get_user_model
 
+from specmate.access.models import Membership
 from specmate.design.models import Snapshot
 from specmate.interfaces.queries import inspect_revision
 from specmate.operations import NotFound, Unauthenticated
@@ -41,3 +42,31 @@ def test_direct_interface_reader_rechecks_captured_inactive_actor(users, project
         inspect_revision(actor, target["revision_id"])
     get_user_model().objects.filter(pk=actor.pk).update(is_active=True)
     assert inspect_revision(actor, target["revision_id"]) == before
+
+
+def test_changed_interface_key_authorizes_retained_receipt_after_draft_drops_origin(users, project):
+    from specmate.queries import get_draft
+
+    from .conftest import op
+
+    owner = users["owner"]
+    body = freeze(owner, create(owner, project))
+    remote, _, adopted = adopt_with_remote_origin(users, project, body)
+    original = pinout(adopted)
+    saved = create(owner, project, original, idempotency_key="retained-interface")
+    # Latest draft no longer contains the old protected origin; receipt still does.
+    newer = op(
+        owner,
+        "interface.update",
+        {"draft_id": saved["draft_id"], "interface": pinout(body)},
+        expected_state=saved["state"],
+    )
+    Membership.objects.filter(project_id=remote, user=owner).delete()
+    assert get_draft(owner, saved["draft_id"])["state"] == newer["state"]
+    with pytest.raises(NotFound):
+        create(owner, project, pinout(body), idempotency_key="retained-interface")
+    with pytest.raises(NotFound):
+        create(owner, project, original, idempotency_key="retained-interface")
+    Membership.objects.create(project_id=remote, user=owner, role="owner")
+    assert create(owner, project, original, idempotency_key="retained-interface") == saved
+    assert get_draft(owner, saved["draft_id"])["state"] == newer["state"]

@@ -25,6 +25,7 @@ from specmate.interfaces.queries import (
     trace,
 )
 from specmate.operations import Context, NotFound, ValidationFailed, operation
+from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import project_scope
 
 
@@ -44,13 +45,33 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
         project = p.project_id
     else:
         project = interface_draft(ctx, p.draft_id, permission).definition.project_id
-    return project_scope(ctx, project, permission)
+    namespace = project_scope(ctx, project, permission)
+    if isinstance(p, (CreateInterface, UpdateInterface)):
+        authorize_content(ctx.user, {"interface": p.interface.model_dump(mode="json")})
+    if isinstance(p, CreateInterface):
+        name = "interface.create"
+    elif isinstance(p, UpdateInterface):
+        name = "interface.update"
+    else:
+        name = "interface.freeze" if permission == Perm.DESIGN_FREEZE else "interface.snapshot"
+    if ctx.idempotency_key is not None:
+        for record in IdempotencyRecord.objects.filter(
+            actor=ctx.user,
+            operation=name,
+            key=ctx.idempotency_key,
+            scope__in=[namespace, "legacy"],
+        ):
+            authorize_stored(ctx, record.result)
+    return namespace
 
 
 def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     scope(ctx, p, permission)
-    if isinstance(p, (CreateInterface, UpdateInterface)):
-        authorize_content(ctx.user, {"interface": p.interface.model_dump(mode="json")})
+    authorize_stored(ctx, stored)
+
+
+def authorize_stored(ctx, stored):
+    """The exact receipt can retain protected inputs a later draft has removed."""
     if "content" in stored:
         authorize_content(ctx.user, stored["content"])
     if "revision_id" in stored:
