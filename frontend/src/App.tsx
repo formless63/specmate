@@ -41,6 +41,7 @@ const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/Firmwa
 const MechanicalSourcesPanel = lazy(() => import("./features/mechanical-sources/MechanicalSourcesPanel").then((module) => ({ default: module.MechanicalSourcesPanel })));
 const SharedScenePanel = lazy(() => import("./features/shared-scene/SharedScenePanel").then((module) => ({ default: module.SharedScenePanel })));
 const ContextualInspectionWorkspace = lazy(() => import("./features/context-selection/ContextualInspectionWorkspace").then((module) => ({ default: module.ContextualInspectionWorkspace })));
+const KnowledgePanel = lazy(() => import("./features/knowledge/KnowledgePanel").then((module) => ({ default: module.KnowledgePanel })));
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects, principalKey) =>
@@ -73,6 +74,7 @@ function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChange
       <Tabs.Tab value="mechanical-sources">Mechanical sources</Tabs.Tab>
       <Tabs.Tab value="shared-scene">Shared scene</Tabs.Tab>
       <Tabs.Tab value="context-selection">Connected views</Tabs.Tab>
+      <Tabs.Tab value="knowledge">Notes &amp; files</Tabs.Tab>
       <Tabs.Tab value="selected-packages">Selected packages</Tabs.Tab>
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
       <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
@@ -89,6 +91,7 @@ function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChange
       <Tabs.Tab value="access">Project access</Tabs.Tab>
     </Tabs.List>
     <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="knowledge">{visited.has("knowledge") && <KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="revision-upgrades">{visited.has("revision-upgrades") && <RevisionUpgradeWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} />}</ToolPanel>

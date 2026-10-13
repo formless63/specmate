@@ -40,6 +40,7 @@ function server({ authenticated = false, denyInventory = false, includePermissio
     if (path === "/api/v0/session/logout") { authenticated = false; return reply({ result: {} }); }
     if (path === "/api/v0/projects") return reply([{ project_id: "project-a", name: "Project A", ...(includePermissions ? { permissions } : {}) }, { project_id: "project-b", name: "Project B", ...(includePermissions ? { permissions } : {}) }]);
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
+    if (path.startsWith("/api/v0/knowledge/projects/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
     if (path.startsWith("/api/v0/inventory/projects/")) return denyInventory
       ? reply({ error: { message: "Project not found." } }, 404)
       : reply({ accounts: [], locations: [], lots: [] });
@@ -101,6 +102,9 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Connected views" }));
   await screen.findByRole("heading", { name: "Contextual inspection" });
   expect(screen.getByRole("button", { name: "Refresh contextual scene choices" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Notes & files" }));
+  await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
+  expect(screen.queryByRole("button", { name: "Create knowledge item" })).toBeNull();
 }, 10000);
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {
