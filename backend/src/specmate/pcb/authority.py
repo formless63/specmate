@@ -18,6 +18,7 @@ from django.db import IntegrityError, transaction
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from specmate.access.permissions import Perm, authorize
+from specmate.catalog_matching.queries import current_actor
 from specmate.contracts import check_package_path
 from specmate.design.operations import canonical_bytes
 from specmate.operations import (
@@ -237,6 +238,7 @@ def authority_state(authority: PropertyAuthority) -> str:
 
 def authorize_authority(user, authority: PropertyAuthority, permission=Perm.PROJECT_READ):
     """Complete current closure: owner head, every projected source and owner change."""
+    user = current_actor(user)
     authorize(user, authority.project_id, permission)
     authorize_revision(user, head_of(authority.owner_bundle_id), permission)
     revisions = set(authority.projections.values_list("source_revision_id", flat=True)) | set(
@@ -256,6 +258,7 @@ def authority_for(ctx, authority_id, permission=Perm.PROJECT_READ, lock=False):
     authorize_authority(ctx.user, authority, permission)
     if lock:
         authority = rows.select_for_update(of=("self",)).get(id=authority_id)
+        authorize_authority(ctx.user, authority, permission)
     return authority
 
 
@@ -280,9 +283,11 @@ def _non_owner_evidence(user, authority, projection) -> dict:
         )
         .order_by("created_at")[: MAX_EVIDENCE + 1]
     )
+    # The overflow row contributes to the disclosed truncation flag too.
+    for interpretation in rows:
+        authorize_revision(user, interpretation.attempt.intake.source_revision)
     items = []
     for interpretation in rows[:MAX_EVIDENCE]:
-        authorize_revision(user, interpretation.attempt.intake.source_revision)
         item = candidate(interpretation)
         item["bundle_id"] = str(interpretation.attempt.intake.source_revision.bundle_id)
         item["bundle_name"] = interpretation.attempt.intake.source_revision.bundle.name
@@ -294,6 +299,9 @@ def _non_owner_evidence(user, authority, projection) -> dict:
 
 
 def read_authority(user, authority: PropertyAuthority) -> dict:
+    user = current_actor(user)
+    authority = PropertyAuthority.objects.select_related("owner_bundle").get(id=authority.id)
+    authorize_authority(user, authority)
     head = head_of(authority.owner_bundle_id)
     file = head.files.select_related("blob").filter(path=authority.owner_path).first()
     projection = current_projection(authority)
@@ -422,9 +430,7 @@ def _replay(ctx, p, stored) -> None:
         raise NotFound("Property authority not found.")
     if (
         isinstance(p, Reconcile)
-        and not authority.projections.filter(
-            id=stored["projection_id"], interpretation_id=p.interpretation_id
-        ).exists()
+        and not authority.projections.filter(id=stored["projection_id"]).exists()
     ):
         raise NotFound("Property projection not found.")
     if (
@@ -481,6 +487,7 @@ def declare(ctx: Context, p: Declare) -> dict:
     revision = _owner_revision(ctx, p.owner_revision_id)
     bundle = SourceBundle.objects.select_for_update().get(id=revision.bundle_id)
     head = head_of(bundle.id)
+    authorize_revision(ctx.user, head, Perm.SOURCE_REGISTER)
     if head.id != revision.id:
         raise Conflict(
             "Declare ownership on the bundle's current revision.",
@@ -495,6 +502,7 @@ def declare(ctx: Context, p: Declare) -> dict:
         lineage_root=root, owner_path=p.path, property=p.property
     ).first()
     if existing is not None:
+        authorize_authority(ctx.user, existing, Perm.SOURCE_REGISTER)
         raise Conflict(
             "This property already has a designated owner in this source lineage. "
             "Transfer it deliberately instead of creating a competing owner.",
@@ -555,6 +563,7 @@ def reconcile(ctx: Context, p: Reconcile) -> dict:
     # Serialize with source writers so the reconciled head cannot move underneath.
     SourceBundle.objects.select_for_update().get(id=authority.owner_bundle_id)
     head = head_of(authority.owner_bundle_id)
+    authorize_revision(ctx.user, head, Perm.SOURCE_REGISTER)
     intake = interpretation.attempt.intake
     if (
         intake.source_revision.bundle_id != authority.owner_bundle_id
@@ -636,6 +645,7 @@ def transfer(ctx: Context, p: Transfer) -> dict:
     if revision.bundle.project_id != authority.project_id:
         raise NotFound("Source revision not found.")
     head = head_of(revision.bundle_id)
+    authorize_revision(ctx.user, head, Perm.SOURCE_REGISTER)
     if head.id != revision.id:
         raise Conflict(
             "Transfer ownership to the new bundle's current revision.",
@@ -646,6 +656,7 @@ def transfer(ctx: Context, p: Transfer) -> dict:
     if not revision.files.filter(path=authority.owner_path).exists():
         raise ValidationFailed("The new owner does not contain the owning file path.")
     owner_head = head_of(authority.owner_bundle_id)
+    authorize_revision(ctx.user, owner_head, Perm.SOURCE_REGISTER)
     if not descends(revision, owner_head.id):
         raise Conflict(
             "The new owner does not contain the current owner's latest revision, so it "
@@ -683,6 +694,7 @@ def read(ctx: Context, p: AuthorityRef) -> dict:
 
 
 def list_authorities(user, project_id) -> list[dict]:
+    user = current_actor(user)
     authorize(user, project_id, Perm.PROJECT_READ)
     result = []
     rows = PropertyAuthority.objects.select_related("owner_bundle").filter(project_id=project_id)

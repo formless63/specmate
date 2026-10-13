@@ -1,5 +1,6 @@
+import { StrictMode } from 'react';
 import { MantineProvider } from '@mantine/core';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { RevisionDetail } from '../sources/api';
 import type { Authority, Candidate, Projection } from './api';
@@ -51,8 +52,8 @@ function setup(reads: Authority[], commands: Response[] = [], canWrite = true, c
   vi.stubGlobal('fetch', fetchMock);
   const onOpenRevision = vi.fn();
   const onAuthorityFailure = vi.fn();
-  render(<MantineProvider><PropertyAuthorityPanel projectId="project-a" canWrite={canWrite} detail={currentDetail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
-  return { bodies, fetchMock, onOpenRevision, onAuthorityFailure };
+  const view = render(<MantineProvider><PropertyAuthorityPanel projectId="project-a" canWrite={canWrite} detail={currentDetail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
+  return { bodies, fetchMock, onOpenRevision, onAuthorityFailure, view };
 }
 async function openAuthority() {
   fireEvent.click(screen.getByRole('button', { name: 'Show property authorities' }));
@@ -141,4 +142,71 @@ test('authority loss clears retained authority data', async () => {
   await waitFor(() => expect(onAuthorityFailure).toHaveBeenCalled());
   expect(screen.queryByText('Board outline authority')).toBeNull();
   expect(screen.queryByText(/board-hash-1/)).toBeNull();
+});
+
+
+test('detached read denial must not gate replacement Sources workspace', async () => {
+  const { fetchMock, onAuthorityFailure } = setup([authority()]);
+  fireEvent.click(screen.getByRole('button', { name: 'Show property authorities' }));
+  await screen.findByRole('button', { name: 'Review board.kicad_pcb outline authority' });
+  let finish!: (value: Response) => void;
+  fetchMock.mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review board.kicad_pcb outline authority' }));
+  cleanup();
+  await act(async () => finish(reply({ error: { message: 'No longer authorized' } }, 404)));
+  expect(onAuthorityFailure).not.toHaveBeenCalled();
+});
+
+
+test('detached mutation completion does not launch reads or notify a recovered parent', async () => {
+  const { fetchMock, onAuthorityFailure } = setup([authority()]);
+  await openAuthority();
+  let finish!: (value: Response) => void;
+  fetchMock.mockImplementation((url: string) => {
+    if (url.endsWith('/operations')) return new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(reply({ error: { message: 'No longer authorized' } }, 404));
+  });
+  fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'Review before replacement' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Reconcile projection to interpretation interp-2' }));
+  const before = fetchMock.mock.calls.length;
+  cleanup();
+  await act(async () => finish(reply({ result: { authority_id: 'authority-1' } })));
+  expect(fetchMock.mock.calls.length).toBe(before);
+  expect(onAuthorityFailure).not.toHaveBeenCalled();
+});
+
+test('source replacement fences mutation success and preserves the new review basis', async () => {
+  const { fetchMock, onAuthorityFailure, onOpenRevision, view } = setup([authority()]);
+  await openAuthority();
+  let finish!: (value: Response) => void;
+  fetchMock.mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+  fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'Old context' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Reconcile projection to interpretation interp-2' }));
+  view.rerender(<MantineProvider><PropertyAuthorityPanel projectId="project-a" canWrite detail={{ ...detail, revision_id: 'replacement' }} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
+  fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'New context review' } });
+  const before = fetchMock.mock.calls.length;
+  await act(async () => finish(reply({ result: { authority_id: 'authority-1' } })));
+  expect(fetchMock.mock.calls.length).toBe(before);
+  expect((screen.getByLabelText('Basis') as HTMLTextAreaElement).value).toBe('New context review');
+});
+
+test('same-source later history selection does not suppress an earlier relevant denial', async () => {
+  const { fetchMock, onAuthorityFailure } = setup([authority()]);
+  await openAuthority();
+  let finish!: (value: Response) => void;
+  fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review board.kicad_pcb outline authority' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review board.kicad_pcb outline authority' }));
+  await screen.findByText('Board outline authority');
+  await act(async () => finish(reply({ error: { message: 'Source access lost' } }, 404)));
+  expect(onAuthorityFailure).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText('Board outline authority')).toBeNull();
+});
+
+test('StrictMode setup remains active for successful reads', async () => {
+  const { view, onOpenRevision, onAuthorityFailure } = setup([authority()]);
+  view.unmount();
+  render(<StrictMode><MantineProvider><PropertyAuthorityPanel projectId="project-a" canWrite detail={detail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider></StrictMode>);
+  await openAuthority();
+  expect(screen.getByText('Board outline authority')).toBeTruthy();
 });

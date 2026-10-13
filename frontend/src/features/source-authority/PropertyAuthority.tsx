@@ -57,42 +57,63 @@ export function PropertyAuthorityPanel({ projectId, canWrite, detail, onOpenRevi
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false);
   const generation = useRef(0);
+  const context = `${projectId}:${detail?.revision_id ?? ''}`;
+  const lifetime = useRef({ active: false, epoch: 0, context });
+  if (lifetime.current.context !== context) {
+    lifetime.current.context = context;
+    lifetime.current.epoch += 1;
+    generation.current += 1;
+  }
+  const current = (epoch: number) => lifetime.current.active && lifetime.current.epoch === epoch;
   const boards = detail?.manifest.files.map(f => f.path).filter(p => p.toLowerCase().endsWith('.kicad_pcb')) ?? [];
 
-  function failed(reason: unknown) {
+  function failed(reason: unknown, epoch: number) {
+    if (!current(epoch)) return;
     if (reason instanceof SourceError && [401, 403, 404].includes(reason.status)) {
-      generation.current += 1; setList([]); setSelected(null); setShown(false); onAuthorityFailure(reason); return;
+      lifetime.current.epoch += 1; generation.current += 1; setBusy(false); setList([]); setSelected(null); setShown(false); onAuthorityFailure(reason); return;
     }
     setMessage(reason instanceof Error ? reason.message : 'Property authority request failed.');
   }
   async function refresh() {
     const token = ++generation.current;
+    const epoch = lifetime.current.epoch;
     try {
       const result = await request<{ authorities: AuthoritySummary[] }>(`pcb/projects/${projectId}/property-authorities`);
-      if (token === generation.current) setList(Array.isArray(result.authorities) ? result.authorities : []);
-    } catch (reason) { failed(reason); }
+      if (!current(epoch) || token !== generation.current) return false;
+      setList(Array.isArray(result.authorities) ? result.authorities : []);
+      return true;
+    } catch (reason) { failed(reason, epoch); return false; }
   }
   async function open(id: string) {
     const token = ++generation.current;
+    const epoch = lifetime.current.epoch;
     setSelected(null);
     try {
       const result = await request<Authority>(`pcb/property-authorities/${id}`);
-      if (token === generation.current) setSelected(result);
-    } catch (reason) { failed(reason); }
+      if (current(epoch) && token === generation.current) setSelected(result);
+    } catch (reason) { failed(reason, epoch); }
   }
-  useEffect(() => () => { generation.current += 1; }, []);
+  useEffect(() => {
+    lifetime.current.active = true;
+    return () => { lifetime.current.active = false; lifetime.current.epoch += 1; generation.current += 1; };
+  }, []);
+  useEffect(() => { setSelected(null); setBasis(''); setBusy(false); setMessage(''); }, [context]);
   useEffect(() => { setBoardPath(boards.length === 1 ? boards[0]! : null); }, [detail?.revision_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function act(operation: string, payload: object, expectedState?: string) {
+    const epoch = lifetime.current.epoch;
     setBusy(true); setMessage('');
     try {
       const result = await command<{ authority_id: string }>(operation, payload, { expectedState, idempotencyKey: randomUUID() });
-      setBasis(''); await refresh(); await open(result.authority_id);
+      if (!current(epoch)) return;
+      setBasis('');
+      if (await refresh() && current(epoch)) await open(result.authority_id);
     } catch (reason) {
-      failed(reason);
+      if (!current(epoch)) return;
+      failed(reason, epoch);
       // A conflict leaves the typed basis; reread the current state so the next action is deliberate.
       if (reason instanceof SourceError && reason.status === 409 && selected) await open(selected.authority_id);
-    } finally { setBusy(false); }
+    } finally { if (current(epoch)) setBusy(false); }
   }
   const declare = () => detail && boardPath && act('source_property.declare', { owner_revision_id: detail.revision_id, path: boardPath, property: 'pcb.board_outline', basis: basis.trim() });
   const reconcile = (item: Candidate) => selected && act('source_property.reconcile', { authority_id: selected.authority_id, interpretation_id: item.interpretation_id, basis: basis.trim() }, selected.state);

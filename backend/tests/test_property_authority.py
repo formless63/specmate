@@ -17,6 +17,7 @@ from specmate.operations import (
     IdempotencyMismatch,
     NotFound,
     PermissionDenied,
+    Unauthenticated,
     Unsupported,
     ValidationFailed,
 )
@@ -403,3 +404,104 @@ def test_http_reads_refresh_actor_and_expose_provenance(users, project, owner):
         401,
         403,
     )
+
+
+def test_declare_existing_authority_checks_hidden_owner_closure(
+    users,
+    project,
+    owner,
+    source,  # noqa: F811
+):
+    authority = declare(users, owner["revision_id"])
+    other = op(users["outsider"], "project.create", {"name": "Hidden ownership evidence"})[
+        "project_id"
+    ]
+    register(users["outsider"], other, b"independent foreign ownership basis")
+    SourceBundleFile.objects.create(
+        revision_id=owner["revision_id"],
+        path="foreign.bin",
+        media_type="x",
+        rights="private",
+        blob=SourceBlob.objects.get(project_id=other),
+    )
+    with pytest.raises(NotFound):
+        read(users, authority["authority_id"])
+    # Original source remains visible, but its existing authority now has a hidden closure.
+    with pytest.raises(NotFound):
+        declare(users, source["revision_id"])
+
+
+def test_declare_checks_new_head_closure_before_diagnostic(users, project, owner):
+    edited = edit_owner(users, project, owner, EDITED)
+    other = op(users["outsider"], "project.create", {"name": "Hidden head evidence"})["project_id"]
+    register(users["outsider"], other, b"independent hidden new head")
+    SourceBundleFile.objects.create(
+        revision_id=edited["revision_id"],
+        path="foreign.bin",
+        media_type="x",
+        rights="private",
+        blob=SourceBlob.objects.get(project_id=other),
+    )
+    with pytest.raises(NotFound):
+        declare(users, owner["revision_id"])
+
+
+def test_direct_list_refreshes_current_actor(users, project, owner):
+    from specmate.pcb.authority import list_authorities
+
+    declare(users, owner["revision_id"])
+    type(users["viewer"]).objects.filter(pk=users["viewer"].pk).update(is_active=False)
+    with pytest.raises(Unauthenticated):
+        list_authorities(users["viewer"], project)
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_retained_projection_checks_its_own_pins_before_changed_request_diagnostics(
+    users, project, owner, legacy
+):
+    from specmate.operations.models import IdempotencyRecord
+    from specmate.operations.scope import LEGACY_SCOPE
+
+    authority = declare(users, owner["revision_id"])
+    first = accepted(users, project, owner["revision_id"], BOARD, key="retained-first")
+    other = accepted(users, project, owner["revision_id"], BOARD, key="retained-other")
+    reconcile(users, authority["authority_id"], first, "authority-v1", idempotency_key="retained")
+    if legacy:
+        IdempotencyRecord.objects.filter(
+            operation="source_property.reconcile", key="retained"
+        ).update(scope=LEGACY_SCOPE)
+    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+        reconcile(
+            users, authority["authority_id"], other, "authority-v1", idempotency_key="retained"
+        )
+    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    with pytest.raises(NotFound):
+        reconcile(
+            users, authority["authority_id"], other, "authority-v1", idempotency_key="retained"
+        )
+
+
+def test_non_owner_evidence_authorizes_overflow_before_truncated_flag(
+    users, project, owner, monkeypatch
+):
+    import specmate.pcb.authority as authority_module
+
+    monkeypatch.setattr(authority_module, "MAX_EVIDENCE", 1)
+    authority = declare(users, owner["revision_id"])
+    first = derive(users, owner["revision_id"], "First non-owner")
+    second = derive(users, owner["revision_id"], "Second non-owner")
+    accepted(users, project, first["revision_id"], BOARD, key="first-nonowner")
+    accepted(users, project, second["revision_id"], BOARD, key="second-nonowner")
+    other = op(users["outsider"], "project.create", {"name": "Hidden overflow evidence"})[
+        "project_id"
+    ]
+    register(users["outsider"], other, b"hidden non-owner evidence")
+    SourceBundleFile.objects.create(
+        revision_id=second["revision_id"],
+        path="foreign.bin",
+        media_type="x",
+        rights="private",
+        blob=SourceBlob.objects.get(project_id=other),
+    )
+    with pytest.raises(NotFound):
+        read(users, authority["authority_id"])
