@@ -45,7 +45,9 @@ Pack decisions are append-only with a database sequential-version guard and row-
 compare-and-set (`pack-v0`, `pack-v1`, …). Shared executor idempotency is scoped by
 actor/project/operation. Current authority covers all retained manifest versions,
 dependency versions and source files before reads, replay or conflict diagnostics.
-Dependency inspection has a declared 2,000-version closure bound. Inaccessible packs
+Dependency inspection has a declared 2,000-version closure bound. Adoption origins
+have a 32-record recursive-depth and 2,000-unique-record bound; cycle/depth failures
+reset their traversal context before the next request. Inaccessible packs
 are skipped in lists without private counts; cursors must remain authorized in the same
 project query. Adoption consumers are separately filtered by their current complete
 draft closure, so a private edited consumer cannot poison an authorized source-version

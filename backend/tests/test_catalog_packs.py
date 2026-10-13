@@ -586,3 +586,81 @@ def test_hidden_current_consumer_does_not_poison_source_version_read(users, proj
         get_version(users["editor"], version["version_id"])["version_id"] == version["version_id"]
     )
     assert history(users["editor"], version["pack_id"])["results"][1]["adoptions"] == []
+
+
+def test_nested_origin_bounds_and_cleanup_after_failure(users, project, revision, monkeypatch):
+    from specmate.catalog_packs import authoring
+
+    v1 = registered(users, project, revision)
+    install(users, v1)
+    adopt(users, v1)
+    first = AdoptionEntry.objects.get()
+    frozen = freeze(
+        users["owner"], str(first.draft_id), get_draft(users["owner"], first.draft_id)["state"]
+    )
+    v2 = op(
+        users["editor"],
+        "catalog_pack.register",
+        {
+            "project_id": project,
+            "pack_id": v1["pack_id"],
+            "manifest": manifest(frozen, version="2.0"),
+        },
+    )
+    current = install(users, v2, "pack-v2")
+    adopt(users, v2, current["state"])
+    second = AdoptionEntry.objects.exclude(pk=first.pk).get()
+    assert frozen["revision_id"] in {
+        str(pin) for pin in authoring.origin_revisions(users["owner"], second.definition)
+    }
+    monkeypatch.setattr(authoring, "MAX_ORIGIN_DEPTH", 1)
+    with pytest.raises(ValidationFailed, match="depth"):
+        authoring.origin_revisions(users["owner"], second.definition)
+    assert authoring._origin_path.get() == () and authoring._origin_records.get() is None
+    monkeypatch.setattr(authoring, "MAX_ORIGIN_DEPTH", 32)
+    monkeypatch.setattr(authoring, "MAX_ORIGIN_RECORDS", 1)
+    with pytest.raises(ValidationFailed, match="record bound"):
+        authoring.origin_revisions(users["owner"], second.definition)
+    assert authoring._origin_path.get() == () and authoring._origin_records.get() is None
+    monkeypatch.setattr(authoring, "MAX_ORIGIN_RECORDS", 2000)
+    assert authoring.origin_revisions(users["owner"], second.definition)
+
+
+def test_exact_origin_cycle_guard_resets_after_malformed_traversal(
+    users, project, revision, monkeypatch
+):
+    from specmate.catalog_packs import authoring
+
+    version = registered(users, project, revision)
+    install(users, version)
+    adopt(users, version)
+    adopted = AdoptionEntry.objects.get()
+    real = authoring.version_closure
+    monkeypatch.setattr(
+        authoring,
+        "version_closure",
+        lambda user, versions: authoring.origin_revisions(user, adopted.definition),
+    )
+    with pytest.raises(ValidationFailed, match="cycle"):
+        authoring.origin_revisions(users["owner"], adopted.definition)
+    assert authoring._origin_path.get() == () and authoring._origin_records.get() is None
+    monkeypatch.setattr(authoring, "version_closure", real)
+    assert authoring.origin_revisions(users["owner"], adopted.definition)
+
+
+@pytest.mark.parametrize("error", [NotFound, PermissionDenied])
+def test_copy_preflight_retains_current_authorization_failure(
+    users, project, revision, monkeypatch, error
+):
+    from specmate.catalog_packs import operations
+
+    version = registered(users, project, revision)
+    install(users, version)
+
+    def deny(*args):
+        raise error("Current copy authority changed.")
+
+    monkeypatch.setattr(operations, "authorize_design_content", deny)
+    with pytest.raises(error):
+        adopt(users, version)
+    assert not AdoptionEntry.objects.exists() and PackDecision.objects.count() == 1

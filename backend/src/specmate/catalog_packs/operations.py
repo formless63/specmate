@@ -41,7 +41,6 @@ from specmate.operations import (
     Conflict,
     Context,
     NotFound,
-    OperationError,
     Unsupported,
     ValidationFailed,
     operation,
@@ -335,7 +334,7 @@ def adopt(ctx: Context, payload: AdoptPack):
             try:
                 content = validate_content(prototype.kind, content)
                 authorize_design_content(ctx.user, prototype, content)
-            except (OperationError, PydanticValidationError):
+            except (ValidationFailed, Unsupported, PydanticValidationError):
                 raise Unsupported(
                     "A selected typed entry cannot be copied into this owning project.",
                     details={"entry_key": key},
