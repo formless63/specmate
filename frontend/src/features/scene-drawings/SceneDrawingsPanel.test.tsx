@@ -125,3 +125,36 @@ test('retained host tab deactivation revokes preview and returning starts a fres
   expect((screen.getByLabelText('Retained drawing ID') as HTMLInputElement).value).toBe('');
   expect(screen.queryByText('Retained inspection output')).toBeNull(); expect(screen.queryByRole('img')).toBeNull();
 });
+
+
+test('held generation hides cached scene controls until fresh authority succeeds and keeps selected occurrence and intent', async () => {
+  render(panel()); await inspect();
+  fireEvent.click(screen.getByRole('button', { name: 'right/board · known' }));
+  let finish: (value: Detail) => void = () => {};
+  const held = new Promise<Detail>(resolve => { finish = resolve; }); vi.mocked(createDrawing).mockReturnValueOnce(held);
+  fireEvent.click(screen.getByRole('button', { name: 'Generate inspection SVG and manifest' }));
+  await waitFor(() => expect(createDrawing).toHaveBeenCalledTimes(1));
+  const captured = vi.mocked(createDrawing).mock.calls[0]!;
+  expect(screen.queryByRole('button', { name: 'right/board · known' })).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Transient scene display arrangements' })).toBeNull();
+  expect(screen.queryByText(/Root revision root-r1/)).toBeNull();
+  await act(async () => { finish(output()); await held; });
+  await screen.findByText('Retained inspection output');
+  expect(screen.getByRole('button', { name: 'right/board · known' }).getAttribute('aria-pressed')).toBe('true');
+  expect(createDrawing).toHaveBeenCalledTimes(1);
+  expect(captured).toEqual(['project-one', 'root-snapshot', options(), expect.any(String)]);
+});
+
+test('held generation denial clears source controls and retains only the exact deliberate retry intent', async () => {
+  render(panel()); await inspect();
+  let deny: (reason: Error) => void = () => {};
+  const held = new Promise<Detail>((_resolve, reject) => { deny = reject; }); vi.mocked(createDrawing).mockReturnValueOnce(held);
+  fireEvent.click(screen.getByRole('button', { name: 'Generate inspection SVG and manifest' }));
+  await waitFor(() => expect(createDrawing).toHaveBeenCalledTimes(1));
+  const captured = vi.mocked(createDrawing).mock.calls[0]!;
+  expect(screen.queryByRole('button', { name: 'right/board · known' })).toBeNull();
+  await act(async () => { deny(new Error('Current source denied.')); await held.catch(() => {}); });
+  await screen.findByRole('alert'); expect(screen.queryByText(/Root revision root-r1/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry exact inspection request' })); await screen.findByText('Retained inspection output');
+  expect(vi.mocked(createDrawing).mock.calls[1]).toEqual(captured);
+});

@@ -97,7 +97,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Group align="end"><TextInput label="Retained drawing ID" value={retained} onChange={event => { invalidate(); setRetained(event.currentTarget.value); }} /><Button disabled={busy || !retained.trim()} onClick={() => void inspectRetained()}>Inspect retained drawing</Button></Group>
     {error && <Alert color="red" role="alert">{error}</Alert>}
     {retryAvailable && <Button disabled={busy} onClick={() => void generate(true)}>Retry exact inspection request</Button>}{busy && <Text>Checking current authority and drawing integrity…</Text>}
-    {scene && <Card withBorder><Stack><Text size="xs">Root revision {scene.root.revision_id} · snapshot {scene.snapshot_id} · SHA-256 {scene.sha256}</Text>
+    {scene && !busy && <Card withBorder><Stack><Text size="xs">Root revision {scene.root.revision_id} · snapshot {scene.snapshot_id} · SHA-256 {scene.sha256}</Text>
       <Select label="Drawing orthographic view" allowDeselect={false} data={['top', 'front', 'end', 'isometric']} value={view} onChange={value => changeOptions(() => setView(value as CameraView))} />
       <Text>Choose an exact occurrence to open its displayed branch. Unknown world placements stay unknown and cannot supply a pivot.</Text>
       {scene.nodes.map(node => <Button key={node.node_id} variant="light" aria-pressed={selected !== null && selectionKey(selected) === selectionKey(node.address)} onClick={() => setSelected(node.address)}>{node.address.path.join('/')} · {node.world_status}</Button>)}
