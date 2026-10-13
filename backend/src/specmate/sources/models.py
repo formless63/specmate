@@ -95,3 +95,23 @@ class SourceArchiveExpansion(models.Model):
     )
     archive_file = models.ForeignKey(SourceBundleFile, on_delete=models.PROTECT, related_name="+")
     parser = models.CharField(max_length=100)
+
+
+class SourceEditSubmission(models.Model):
+    """Immutable review provenance for a revision re-entered from an editing handoff."""
+
+    revision = models.OneToOneField(
+        SourceBundleRevision,
+        primary_key=True,
+        on_delete=models.PROTECT,
+        related_name="edit_submission",
+    )
+    baseline = models.ForeignKey(SourceBundleRevision, on_delete=models.PROTECT, related_name="+")
+    archive_file = models.ForeignKey(
+        SourceBundleFile, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    parser = models.CharField(max_length=100, blank=True)
+    marker = models.CharField(max_length=20)
+    root_prefix = models.CharField(max_length=512, blank=True)
+    review_sha256 = models.CharField(max_length=64)
+    summary = models.TextField(max_length=2000)

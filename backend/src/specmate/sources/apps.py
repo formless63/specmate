@@ -8,5 +8,6 @@ class SourcesConfig(AppConfig):
     def ready(self):
         from specmate.sources import (  # noqa: F401  (registers operations)
             archive_operations,
+            editing,
             operations,
         )

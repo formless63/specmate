@@ -3,13 +3,13 @@
 import json
 from uuid import UUID
 
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.utils.http import content_disposition_header
 from ninja import Router
 
 from specmate.access.permissions import Perm, authorize
 from specmate.operations import NotFound
-from specmate.sources import blobstore
+from specmate.sources import blobstore, editing
 from specmate.sources.authority import authorize_revision
 from specmate.sources.models import SourceArchiveExpansion, SourceBundleRevision
 
@@ -68,6 +68,7 @@ def read_revision(request, revision_id: UUID):
         "manifest_sha256": revision.manifest_sha256,
         "manifest": json.loads(bytes(revision.manifest)),
         "expansion": expansion_provenance(revision),
+        "edit_submission": editing.submission_provenance(revision),
     }
 
 
@@ -85,6 +86,21 @@ def download_file(request, revision_id: UUID, path: str):
     )
     response["Content-Disposition"] = content_disposition_header(True, file.path.rsplit("/", 1)[-1])
     response["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@router.get("/revisions/{revision_id}/handoff")
+def export_handoff(request, revision_id: UUID):
+    """Deterministic editing handoff ZIP of an exact revision; bytes stay inert."""
+    revision = SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
+    if revision is None:
+        raise NotFound("Source revision not found.")
+    authorize_revision(request.user, revision)
+    data, filename = editing.export_handoff(revision)
+    response = HttpResponse(data, content_type="application/zip")
+    response["Content-Disposition"] = content_disposition_header(True, filename)
+    response["X-Content-Type-Options"] = "nosniff"
+    response["X-Specmate-Baseline-Revision"] = str(revision.id)
     return response
 
 

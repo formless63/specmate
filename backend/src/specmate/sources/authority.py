@@ -2,7 +2,11 @@
 
 from specmate.access.permissions import Perm, authorize
 from specmate.operations import NotFound
-from specmate.sources.models import SourceArchiveExpansion, SourceBundleRevision
+from specmate.sources.models import (
+    SourceArchiveExpansion,
+    SourceBundleRevision,
+    SourceEditSubmission,
+)
 
 
 def authorize_revision(user, revision, permission=Perm.PROJECT_READ):
@@ -28,6 +32,18 @@ def authorize_revision(user, revision, permission=Perm.PROJECT_READ):
         if expansion:
             authorize(user, expansion.archive_file.blob.project_id, Perm.PROJECT_READ)
             pending.append(expansion.archive_file.revision)
+        submission = (
+            SourceEditSubmission.objects.select_related(
+                "baseline__bundle", "archive_file__revision__bundle", "archive_file__blob"
+            )
+            .filter(revision=current)
+            .first()
+        )
+        if submission:
+            pending.append(submission.baseline)
+            if submission.archive_file:
+                authorize(user, submission.archive_file.blob.project_id, Perm.PROJECT_READ)
+                pending.append(submission.archive_file.revision)
         if current.bundle.derived_from_id:
             pending.append(
                 SourceBundleRevision.objects.select_related("bundle").get(
