@@ -1,8 +1,8 @@
 export { command, read, type Definition, type Identity } from '../identity/api';
 export type FilePin = { source_revision_id: string; manifest_sha256: string; path: string; sha256: string; rights: string };
-export type Terminal = { local_id: string; component_ref: string; pin: string; native_component_id: string | null; native_terminal_id: string | null; net_state: 'assigned' | 'unconnected' | 'unknown'; net_name: string | null; basis: string };
+export type Terminal = { local_id: string; component_ref: string; pin: string; native_component_id: string | null; native_terminal_id: string | null; sheet_path?: string; unit?: string; net_state: 'assigned' | 'unconnected' | 'unknown'; net_name: string | null; basis: string };
 export type Assertion = { kind: 'pcb_assertion'; method: 'human_assertion'; source_role: 'pcb' | 'schematic' | 'netlist'; source: FilePin; coverage: 'partial' | 'declared_complete'; coverage_basis: string; terminals: Terminal[] };
-export type Input = { kind: 'assertion_revision'; revision_id: string; snapshot_sha256: string } | { kind: 'pcb_interpretation'; interpretation_id: string; report_sha256: string; source: FilePin };
+export type Input = { kind: 'assertion_revision'; revision_id: string; snapshot_sha256: string } | { kind: 'pcb_interpretation' | 'source_net_interpretation'; interpretation_id: string; report_sha256: string; source: FilePin };
 export type Correspondence = { local_id: string; left_terminal_id: string | null; right_terminal_id: string | null; basis: string };
 export type Review = { finding_id: string; status: 'acknowledged' | 'requires_source_correction' | 'not_comparable'; basis: string };
 export type Comparison = { kind: 'pcb_comparison'; left: Input; right: Input; correspondences: Correspondence[]; reviews: Review[] };
@@ -20,3 +20,6 @@ export const blankComparison = (): Comparison => ({ kind: 'pcb_comparison', left
 export const label = (value: string) => value.replaceAll('_', ' ');
 export const terminalLabel = (t: Terminal) => `${t.component_ref} / ${t.pin} · ${t.local_id}`;
 export const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+export type NativeAccepted = { interpretation_id: string; attempt_id: string; report_sha256: string; source: FilePin; report: { method: string; source_role: string; coverage: string; xml_sha256: string; adapter: string; tool_version: string; reported_source_tool: string | null; terminals: Terminal[]; unsupported: string[] } };
+export type NativeAttempts = { attempts: { attempt_id: string; build_id: string; source: FilePin; source_role: string; state: string; interpretation: { interpretation_id: string; report_sha256: string } | null }[]; limit: number };

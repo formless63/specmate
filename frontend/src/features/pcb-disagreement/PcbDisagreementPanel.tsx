@@ -1,6 +1,7 @@
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { NativeExtraction } from './NativeExtraction';
 import { AssertionEditor, AssertionTable, ComparisonEditor, SourceSummary } from './Editors';
 import { blankAssertion, blankComparison, command, label, read, terminalLabel, type Comparison, type Definition, type Draft, type Finding, type Frozen, type Identity, type Projection, type Review, type Value } from './api';
 
@@ -18,6 +19,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const rows = definitions.isError ? [] : definitions.data ?? [];
   const denied = definitions.isError || identity.isError;
   return <Stack><Title order={2}>PCB source disagreement</Title><Text>Compare independent exact-source assertions without choosing a correct source. Manual statements, accepted native board extraction, unresolved coverage and human review remain distinct.</Text>
+    <NativeExtraction projectId={projectId} />
     <Card withBorder><Stack><Title order={3}>New assertion or comparison</Title><TextInput label="Source review definition name" value={name} onChange={e => setName(e.currentTarget.value)} /><Select label="New source review kind" value={value.kind} data={[{ value: 'pcb_assertion', label: 'Human source assertion' }, { value: 'pcb_comparison', label: 'Independent source comparison' }]} onChange={kind => { setValue(kind === 'pcb_assertion' ? blankAssertion() : blankComparison()); setCreateDenied(false); }} />
       {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setCreateDenied} /> : <ComparisonEditor projectId={projectId} value={value} onChange={setValue} definitions={rows} sourcePinsCurrent={false} onDenied={setCreateDenied} />}
       <Button disabled={!name || definitions.isError || createDenied} loading={create.isPending} onClick={() => create.mutate()}>Create source review draft</Button>{create.isError && <Alert color="red">{create.error.message}</Alert>}
