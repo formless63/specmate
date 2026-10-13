@@ -22,14 +22,17 @@ from specmate.operations import NotFound, ValidationFailed
 _AUTHORIZING = ContextVar("bom_authorizing_snapshots", default=frozenset())
 
 
-def authorize_reference(user, revision):
+def authorize_reference(user, revision, *, _authorized=None):
     """Apply owning typed-content/source checks without unbounded BOM re-entry."""
     active = _AUTHORIZING.get()
     if revision.snapshot_id in active or len(active) >= 32:
         raise ValidationFailed("BOM authorization nesting limit or dependency cycle.")
     token = _AUTHORIZING.set(active | {revision.snapshot_id})
     try:
-        authorize_snapshot(user, revision.snapshot)
+        if _authorized is None:
+            authorize_snapshot(user, revision.snapshot)
+        else:
+            authorize_snapshot(user, revision.snapshot, _authorized=_authorized)
     finally:
         _AUTHORIZING.reset(token)
 
@@ -79,8 +82,9 @@ class Closure:
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         # Project membership alone does not authorize typed source-file references,
         # which need not be represented by design SnapshotDependency rows.
+        authorized_snapshots = set()
         for revision in self.revisions.values():
-            authorize_reference(user, revision)
+            authorize_reference(user, revision, _authorized=authorized_snapshots)
         self.root = self.revisions[self.plan.assembly_revision_id]
         content = json.loads(bytes(self.root.snapshot.canonical))["content"]
         if self.root.definition.kind != "assembly":
@@ -88,7 +92,7 @@ class Closure:
         self.assembly = AssemblyClosure(user, content, kind="assembly", dependencies=self.revisions)
         for rid, revision in self.assembly.revisions.items():
             if rid not in self.revisions:
-                authorize_reference(user, revision)
+                authorize_reference(user, revision, _authorized=authorized_snapshots)
         self.revisions.update(self.assembly.revisions)
         for policy in self.plan.policies:
             node = self.assembly.nodes.get(tuple(policy.path))
@@ -148,12 +152,17 @@ def dependency_revisions(user, definition, content):
 
 
 def read_revision(user, revision_id):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.catalog_packs.authoring import authorize_origin
+
+    user = current_actor(user)
     revision = (
         Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
     )
     if revision is None:
         raise NotFound("BOM plan unavailable.")
     authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    authorize_origin(user, revision.definition)
     closure = Closure(
         user,
         json.loads(bytes(revision.snapshot.canonical))["content"],

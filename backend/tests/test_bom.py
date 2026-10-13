@@ -465,7 +465,9 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
     }
     draft = create(user, project, plan, idempotency_key="source-backed-bom")
     frozen = capture(user, draft, "bom.freeze", idempotency_key="source-backed-freeze")
-    assert len(inspect_revision(user, frozen["revision_id"])["rows"]) == 1
+    before = inspect_revision(user, frozen["revision_id"])
+    assert len(before["rows"]) == 1
+    raw = bytes(Snapshot.objects.get(pk=frozen["snapshot_id"]).canonical)
     hidden_project = op(owner, "project.create", {"name": "Restricted provenance"})["project_id"]
     bundle.project_id = hidden_project
     bundle.save(update_fields=["project"])
@@ -497,6 +499,7 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
         lambda: create(user, project, malformed_count),
         lambda: create(user, project, plan, idempotency_key="source-backed-bom"),
         lambda: capture(user, draft, "bom.freeze", idempotency_key="source-backed-freeze"),
+        lambda: capture(user, frozen["draft"], "draft.freeze"),
         lambda: inspect_revision(user, frozen["revision_id"]),
         lambda: op(user, "bom.read", {"revision_id": frozen["revision_id"]}),
     ]
@@ -518,6 +521,13 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
         assert response.status_code == 404
         assert profile_revision["revision_id"].encode() not in response.content
         assert str(source_revision.id).encode() not in response.content
+    bundle.project_id = project
+    bundle.save(update_fields=["project"])
+    assert inspect_revision(user, frozen["revision_id"]) == before
+    assert capture(user, draft, "bom.freeze", idempotency_key="source-backed-freeze") == frozen
+    generic = capture(user, frozen["draft"], "draft.freeze")
+    assert generic["sha256"] == frozen["sha256"]
+    assert bytes(Snapshot.objects.get(pk=frozen["snapshot_id"]).canonical) == raw
 
 
 def test_nested_authorization_cycle_fails_bounded_and_resets_context(monkeypatch):

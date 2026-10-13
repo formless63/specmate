@@ -204,11 +204,12 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
     )
     found = {r.id: r for r in revisions}
     pins = []
+    authorized_snapshots = set()
     for rid in sorted(dependencies, key=str):
         revision = found.get(rid)
         if revision is None:
             raise NotFound("Dependency revision not found.")
-        authorize_snapshot(ctx.user, revision.snapshot)
+        authorize_snapshot(ctx.user, revision.snapshot, _authorized=authorized_snapshots)
         if revision.definition_id == draft.definition_id and derived is None:
             raise ValidationFailed("A definition cannot depend on its own revision.")
         pins.append({"revision_id": str(rid), "sha256": revision.snapshot.sha256})
@@ -420,10 +421,15 @@ def authorize_design_content(user, definition, content):
         interface_dependencies(user, definition, content)
 
 
-def authorize_snapshot(user, snapshot):
-    """Authorize every exact dependency before any retained canonical state is exposed."""
+def authorize_snapshot(user, snapshot, *, _authorized=None):
+    """Authorize exact dependencies, sharing completed work only within a caller batch.
+
+    The private set belongs to one synchronous traversal for one actor, never to a
+    request cache or retained object. Failed traversals publish no completed work.
+    Typed content and retained origins remain checked for each new snapshot.
+    """
     pending = [snapshot]
-    visited = set()
+    visited = set() if _authorized is None else set(_authorized)
     while pending:
         current = pending.pop()
         if current.pk in visited:
@@ -436,3 +442,5 @@ def authorize_snapshot(user, snapshot):
             "revision__definition", "revision__snapshot__definition"
         ):
             pending.append(dependency.revision.snapshot)
+    if _authorized is not None:
+        _authorized.update(visited)

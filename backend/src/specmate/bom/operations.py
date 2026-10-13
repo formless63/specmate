@@ -7,7 +7,6 @@ from specmate.bom.contracts import (
 )
 from specmate.bom.queries import (
     authorize_content,
-    dependency_revisions,
     inspect_revision,
     parse_content,
 )
@@ -29,10 +28,7 @@ def bom_draft(ctx, draft_id, permission, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "bom_plan":
         raise NotFound("BOM draft unavailable.")
-    # Incomplete generic drafts may omit the typed payload until their first edit.
-    # Present content always retains full closure validation and authorization.
-    if "bom" in draft.content:
-        dependency_revisions(ctx.user, draft.definition, draft.content)
+    # scoped_draft authorizes present typed content and its complete closure.
     return draft
 
 
@@ -95,10 +91,8 @@ def update(ctx: Context, p: UpdateBom):
 def capture_payload(ctx, p, permission):
     draft = bom_draft(ctx, p.draft_id, permission, lock=True)
     parse_content(draft.content, draft.definition.kind)
-    return CaptureDraft(
-        draft_id=p.draft_id,
-        dependencies=dependency_revisions(ctx.user, draft.definition, draft.content),
-    )
+    # Generic capture derives and verifies the exact typed dependency pins.
+    return CaptureDraft(draft_id=p.draft_id)
 
 
 @operation(
