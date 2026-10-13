@@ -7,7 +7,7 @@ class PcbConfig(AppConfig):
 
     def ready(self):
         from specmate.contracts import SCHEMAS
-        from specmate.pcb import operations  # noqa: F401
+        from specmate.pcb import authority, operations  # noqa: F401
         from specmate.pcb.population import Population
         from specmate.pcb.report import Report
 

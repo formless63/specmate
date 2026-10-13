@@ -195,3 +195,21 @@ def association_targets(request, project_id: UUID):
         "models": models,
         "truncated": {"revisions": len(revision_rows) > 2000, "models": len(model_rows) > 2000},
     }
+
+
+@router.get("/projects/{project_id}/property-authorities")
+def list_property_authorities(request, project_id: UUID):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.pcb.authority import list_authorities
+
+    return {"authorities": list_authorities(current_actor(request.user), project_id)}
+
+
+@router.get("/property-authorities/{authority_id}")
+def read_property_authority(request, authority_id: UUID):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.pcb.authority import authority_for, read_authority
+
+    user = current_actor(request.user)
+    context = Context(user=user, via="api", request_id="read-property-authority")
+    return read_authority(user, authority_for(context, authority_id))
