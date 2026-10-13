@@ -14,6 +14,7 @@ import { DiscoveryPanel } from "./features/discovery/DiscoveryPanel";
 import { PhysicalUnitsPanel } from "./features/physical-units/PhysicalUnitsPanel";
 import { BomPanel } from "./features/bom/BomPanel";
 import { CablePanel } from "./features/cables/CablePanel";
+import { MatchingWorkspace } from "./features/catalog-matching/MatchingWorkspace";
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
@@ -31,6 +32,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <Tabs.List aria-label="Project tools">
       <Tabs.Tab value="identity">Identities</Tabs.Tab>
       <Tabs.Tab value="discovery">Discovery</Tabs.Tab>
+      <Tabs.Tab value="matching">Reviewed matching</Tabs.Tab>
       <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
       <Tabs.Tab value="workshop-profiles">Workshop profiles</Tabs.Tab>
       <Tabs.Tab value="assemblies">Assemblies</Tabs.Tab>
@@ -45,6 +47,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     </Tabs.List>
     <Tabs.Panel value="identity" pt="lg">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="discovery" pt="lg">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="matching" pt="lg">{visited.has("matching") && <MatchingWorkspace projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="wire-stock" pt="lg">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="workshop-profiles" pt="lg">{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="assemblies" pt="lg">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</Tabs.Panel>

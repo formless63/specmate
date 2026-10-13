@@ -3,6 +3,8 @@ import io
 import json
 
 import pytest
+from django.db import connection, transaction
+from django.db.utils import DatabaseError
 from django.test import Client
 
 from specmate.operations import Conflict, NotFound, ValidationFailed
@@ -38,6 +40,23 @@ def files(data, path="src/source.txt"):
             "rights": "synthetic-original",
         }
     ]
+
+
+def test_registered_blob_identity_and_metadata_are_database_immutable(users, project):
+    result = register(users["editor"], project, ORIGINAL)
+    blob = SourceBlob.objects.get(project_id=project, sha256=sha(ORIGINAL))
+    for column, value in (("sha256", sha(EDITED)), ("size", 0), ("media_type", "changed/type")):
+        with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                f"UPDATE sources_sourceblob SET {column} = %s WHERE id = %s", [value, blob.id]
+            )
+    with pytest.raises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("DELETE FROM sources_sourceblob WHERE id = %s", [blob.id])
+    blob.refresh_from_db()
+    assert (blob.sha256, blob.size, blob.media_type) == (sha(ORIGINAL), len(ORIGINAL), "text/plain")
+    duplicate = register(users["editor"], project, ORIGINAL)
+    assert duplicate["blob_id"] == result["blob_id"]
+    assert duplicate["created"] is False
 
 
 def test_register_blob_over_api_stores_exact_bytes(users, project):

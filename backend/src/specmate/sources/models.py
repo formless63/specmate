@@ -1,6 +1,6 @@
 """Project-scoped source bytes and versioned original/derivative bundles.
 
-SourceBundleRevision and SourceBundleFile are immutable (database triggers).
+SourceBlob, SourceBundleRevision and SourceBundleFile are immutable (database triggers).
 """
 
 import uuid
