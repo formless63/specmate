@@ -238,12 +238,7 @@ class DeriveBundle(BaseModel):
     name: str = Field(min_length=1, max_length=200)
 
 
-@operation(
-    "source.derive_bundle",
-    DeriveBundle,
-    summary="Start an editable derivative bundle with its own identity from a revision.",
-)
-def derive_bundle(ctx: Context, p: DeriveBundle) -> dict:
+def _derive_source(ctx: Context, p: DeriveBundle) -> SourceBundleRevision:
     source = (
         SourceBundleRevision.objects.select_related("bundle")
         .filter(id=p.source_revision_id)
@@ -251,9 +246,48 @@ def derive_bundle(ctx: Context, p: DeriveBundle) -> dict:
     )
     if source is None:
         raise NotFound("Bundle revision not found.")
-    project = authorize(ctx.user, source.bundle.project_id, Perm.SOURCE_REGISTER)
+    authorize_revision(ctx.user, source, Perm.SOURCE_REGISTER)
+    return source
+
+
+def _derive_replay(ctx: Context, p: DeriveBundle, result) -> None:
+    source = _derive_source(ctx, p)
+    produced = (
+        SourceBundleRevision.objects.select_related("bundle")
+        .filter(id=result["revision_id"], bundle__derived_from=source)
+        .first()
+    )
+    if produced is None:
+        raise NotFound("Bundle revision not found.")
+    authorize_revision(ctx.user, produced)
+
+
+def _derive_scope(ctx: Context, p: DeriveBundle) -> str:
+    from specmate.operations.models import IdempotencyRecord
+    from specmate.operations.scope import LEGACY_SCOPE
+
+    source = _derive_source(ctx, p)
+    scope = f"project:{source.bundle.project_id}"
+    prior = IdempotencyRecord.objects.select_for_update().filter(
+        actor=ctx.user, operation="source.derive_bundle", key=ctx.idempotency_key
+    )
+    retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+    if retained is not None:
+        _derive_replay(ctx, p, retained.result)
+    return scope
+
+
+@operation(
+    "source.derive_bundle",
+    DeriveBundle,
+    summary="Start an editable derivative bundle with its own identity from a revision.",
+    idempotency_scope=_derive_scope,
+    authorize_replay=_derive_replay,
+)
+def derive_bundle(ctx: Context, p: DeriveBundle) -> dict:
+    source = _derive_source(ctx, p)
     bundle = SourceBundle.objects.create(
-        project=project,
+        project_id=source.bundle.project_id,
         name=p.name,
         role=SourceBundle.Role.DERIVATIVE,
         derived_from=source,

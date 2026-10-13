@@ -404,3 +404,43 @@ def test_revision_closure_and_retained_authority_precede_conflicts(users, projec
                 expected_state="bundle-r1",
                 **({"idempotency_key": key} if key else {}),
             )()
+
+
+def test_derivation_authorizes_source_closure_before_diagnostics_and_replay(users, project):
+    source = original(users, project)
+    derive = call(
+        users["editor"],
+        "source.derive_bundle",
+        {"source_revision_id": source["revision_id"], "name": "Keyed derivative"},
+        idempotency_key="derive",
+    )
+    created = derive()
+    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    for name in ("Keyed derivative", "Other name"):
+        with pytest.raises(PermissionDenied):
+            call(
+                users["editor"],
+                "source.derive_bundle",
+                {"source_revision_id": source["revision_id"], "name": name},
+                idempotency_key="derive",
+            )()
+    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="editor")
+    assert derive().result == created.result
+    other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
+    register(users["outsider"], other, b"foreign")
+    SourceBundleFile.objects.create(
+        revision_id=source["revision_id"],
+        path="foreign.native",
+        media_type="text/plain",
+        rights="private",
+        blob=SourceBlob.objects.get(project_id=other),
+    )
+    # A foreign blob hides the source rather than producing a registration diagnostic.
+    for key in (None, "derive"):
+        with pytest.raises(NotFound):
+            call(
+                users["editor"],
+                "source.derive_bundle",
+                {"source_revision_id": source["revision_id"], "name": "Keyed derivative"},
+                **({"idempotency_key": key} if key else {}),
+            )()
