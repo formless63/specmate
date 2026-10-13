@@ -199,3 +199,155 @@ def test_search_bounds_and_cycles_never_return_a_partial_definitive_answer():
         interpret(graph(), model([]), query())["reason"]
         == "no_modeled_path_is_not_physical_disconnection"
     )
+
+
+def conditional_model(passages, conditions=None):
+    return PassageModel(
+        root_revision_id=REVISION,
+        assumptions="ideal_lumped_components",
+        model_basis="Synthetic ideal contacts under one exclusive declared state per variable.",
+        conditions=conditions
+        if conditions is not None
+        else [
+            {"local_id": "selector", "states": ["left", "right"], "basis": "Exclusive positions."}
+        ],
+        passages=passages,
+    ).model_dump(mode="json")
+
+
+def contact(local_id, state, a=0, b=1, condition_id="selector", **extra):
+    return passage(
+        local_id,
+        "conditional",
+        a,
+        b,
+        conditional_contact={
+            "condition_id": condition_id,
+            "state": state,
+            "behavior": "ideal_contact",
+        },
+        **extra,
+    )
+
+
+def assignment(state, condition_id="selector"):
+    return [{"condition_id": condition_id, "state": state}]
+
+
+@pytest.mark.parametrize("meaning", ["dc_continuity", "shortness", "resistance", "signal"])
+def test_explicit_ideal_contact_assignment_opens_or_closes_only_the_declared_model(meaning):
+    circuit = conditional_model([contact("contact-left", "left")])
+    missing = interpret(graph(), circuit, query(meaning))
+    assert missing["status"] == "unknown"
+    assert missing["paths"][0]["reasons"] == ["condition_assignment_required"]
+    closed = interpret(graph(), circuit, query(meaning, condition_assignments=assignment("left")))
+    assert (
+        closed["status"]
+        == {
+            "dc_continuity": "modeled_dc_path",
+            "shortness": "modeled_ideal_short",
+            "resistance": "modeled_series_resistance",
+            "signal": "modeled_signal_candidate",
+        }[meaning]
+    )
+    assert closed["assumptions"]["condition_assignments"] == assignment("left")
+    assert closed["paths"][0]["steps"][0]["assigned_state"] == "left"
+    assert closed["physical_continuity"] == closed["signal_transfer"] == "not_evaluated"
+    opened = interpret(graph(), circuit, query(meaning, condition_assignments=assignment("right")))
+    assert opened["status"] == "modeled_blocked"
+    assert opened["paths"][0]["series_resistance_ohm"] is None
+    assert opened["paths"][0]["series_impedance_ohm"] is None
+    assert opened["paths"][0]["steps"][0]["status"] == "ideal_contact_open_under_assignment"
+
+
+@pytest.mark.parametrize("state", [None, "left", "right"])
+def test_two_positions_of_same_condition_never_form_a_satisfied_proof(state):
+    circuit = conditional_model(
+        [contact("left-leg", "left", 0, 1), contact("right-leg", "right", 1, 2)]
+    )
+    for meaning in ["dc_continuity", "shortness", "resistance", "signal"]:
+        assignments = assignment(state) if state else []
+        result = interpret(
+            graph(), circuit, query(meaning, 0, 2, condition_assignments=assignments)
+        )
+        assert result["status"] == "unknown"
+        path = result["paths"][0]
+        assert path["reasons"] == ["mutually_exclusive_condition_states"]
+        assert path["conflicting_condition_ids"] == ["selector"]
+        assert path["condition_requirements"] == [
+            {"condition_id": "selector", "states": ["left", "right"]}
+        ]
+        assert path["series_resistance_ohm"] is path["series_impedance_ohm"] is None
+        assert path["shortness"] == "not_evaluated"
+
+
+def test_repeated_same_state_is_valid_and_independent_conditions_are_not_conflated():
+    declarations = [
+        {"local_id": key, "states": ["left", "right"], "basis": "Independent switch."}
+        for key in ["selector", "other-selector"]
+    ]
+    circuit = conditional_model(
+        [
+            contact("one", "left", 0, 1),
+            contact("two", "left", 1, 2),
+            contact("three", "right", 2, 3, "other-selector"),
+        ],
+        declarations,
+    )
+    assigned = assignment("left") + assignment("right", "other-selector")
+    result = interpret(graph(), circuit, query(a=0, b=3, condition_assignments=assigned))
+    assert result["status"] == "modeled_dc_path"
+    assert result["paths"][0]["conflicting_condition_ids"] == []
+    assert (
+        interpret(graph(), circuit, query(a=3, b=0, condition_assignments=assigned))["status"]
+        == "modeled_dc_path"
+    )
+
+
+@pytest.mark.parametrize("kind", ["active", "diode", "unknown"])
+def test_supported_condition_assignment_never_resolves_active_nonlinear_or_missing_behavior(kind):
+    circuit = conditional_model(
+        [contact("closed", "left", 0, 1), passage("unresolved", kind, 1, 2)]
+    )
+    result = interpret(graph(), circuit, query(a=0, b=2, condition_assignments=assignment("left")))
+    assert result["status"] == "unknown"
+    assert result["paths"][0]["steps"][1]["status"] == "unknown"
+    # An open contact in series also cannot turn active behavior into a disconnection proof.
+    opened = interpret(graph(), circuit, query(a=0, b=2, condition_assignments=assignment("right")))
+    assert opened["status"] == "unknown"
+    assert opened["paths"][0]["series_resistance_ohm"] is None
+
+
+def test_extra_free_text_conditions_and_untyped_contacts_remain_unknown():
+    circuit = conditional_model([contact("one", "left", condition="Unmodeled supply state")])
+    assert (
+        interpret(graph(), circuit, query(condition_assignments=assignment("left")))["status"]
+        == "unknown"
+    )
+    assert (
+        interpret(graph(), model([passage("one", "conditional")]), query())["status"] == "unknown"
+    )
+
+
+@pytest.mark.parametrize("states", [["left", "left"], ["left"], []])
+def test_conditions_reject_duplicate_or_insufficient_states(states):
+    with pytest.raises(ValidationError):
+        conditional_model([], [{"local_id": "selector", "states": states, "basis": "Synthetic."}])
+
+
+def test_condition_contracts_reject_undeclared_references_duplicate_assignments_and_noncontacts():
+    with pytest.raises(ValidationError):
+        conditional_model([contact("one", "undeclared")])
+    with pytest.raises(ValidationError):
+        conditional_model([contact("one", "left", condition_id="missing")])
+    with pytest.raises(ValidationError):
+        conditional_model([{**contact("one", "left"), "kind": "active"}])
+    with pytest.raises(ValidationError):
+        query(condition_assignments=assignment("left") + assignment("right"))
+    with pytest.raises(ValidationError):
+        conditional_model(
+            [], [{"local_id": "selector", "states": ["left", "right"], "basis": "Synthetic."}] * 2
+        )
+    for assigned in [assignment("missing"), assignment("left", "missing")]:
+        with pytest.raises(ValueError, match="frozen model"):
+            interpret(graph(), conditional_model([]), query(condition_assignments=assigned))

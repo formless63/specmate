@@ -2,7 +2,7 @@
 
 from decimal import Decimal, DecimalException, Inexact, Rounded, localcontext
 
-from specmate.passive_passages.contracts import ELECTRICAL_CONTEXT
+from specmate.passive_passages.contracts import ELECTRICAL_CONTEXT, validate_assignments
 
 MAX_EXPANSIONS = 20000
 PI_APPROXIMATION = Decimal("3.1415926535897932384626433832795028841971693993751")
@@ -67,6 +67,15 @@ def enumerate_paths(graph, passages, start, end, max_paths, max_hops):
 
 def evaluate_path(terminals, links, records, query):
     steps, reasons, blocked = [], [], False
+    assignments = {a.condition_id: a.state for a in query.condition_assignments}
+    requirements = {}
+    for link in links:
+        contact = records[link].get("conditional_contact")
+        if contact:
+            requirements.setdefault(contact["condition_id"], set()).add(contact["state"])
+    conflicts = sorted(key for key, states in requirements.items() if len(states) > 1)
+    if conflicts:
+        reasons.append("mutually_exclusive_condition_states")
     real, imaginary = Decimal(0), Decimal(0)
     approximate = False
     for index, link in enumerate(links):
@@ -94,16 +103,34 @@ def evaluate_path(terminals, links, records, query):
             step["direction"] = (
                 "forward" if record["from_terminal_id"] == terminals[index] else "reverse"
             )
+            contact = record.get("conditional_contact")
+            if contact:
+                selected = assignments.get(contact["condition_id"])
+                step["condition_requirement"] = contact
+                step["assigned_state"] = selected
             if record.get("condition") or kind in {
                 "diode",
                 "inductor",
                 "transformer",
-                "conditional",
                 "active",
                 "unknown",
             }:
                 reasons.append("operating_condition_or_supported_behavior_model_required")
                 step["status"] = "unknown"
+            elif kind == "conditional":
+                if not contact:
+                    reasons.append("typed_conditional_contact_model_required")
+                    step["status"] = "unknown"
+                elif contact["condition_id"] in conflicts:
+                    step["status"] = "incompatible_condition_requirements"
+                elif selected is None:
+                    reasons.append("condition_assignment_required")
+                    step["status"] = "unknown"
+                elif selected != contact["state"]:
+                    blocked = True
+                    step["status"] = "ideal_contact_open_under_assignment"
+                else:
+                    step["status"] = "ideal_contact_closed_under_assignment"
             elif kind == "resistor":
                 resistance = record["resistance_ohm"]
                 if resistance is None:
@@ -153,6 +180,11 @@ def evaluate_path(terminals, links, records, query):
         "steps": steps,
         "status": status,
         "reasons": sorted(set(reasons)),
+        "condition_requirements": [
+            {"condition_id": key, "states": sorted(states)}
+            for key, states in sorted(requirements.items())
+        ],
+        "conflicting_condition_ids": conflicts,
         "series_resistance_ohm": str(real) if not reasons and not blocked else None,
         "series_impedance_ohm": {
             "real": str(real),
@@ -161,7 +193,7 @@ def evaluate_path(terminals, links, records, query):
             if approximate
             else "exact_declared_model_arithmetic",
         }
-        if query.query == "signal" and not reasons
+        if query.query == "signal" and not reasons and not blocked
         else None,
         "shortness": "not_evaluated"
         if reasons or query.query == "signal"
@@ -174,6 +206,7 @@ def evaluate_path(terminals, links, records, query):
 
 
 def interpret(graph, model, query):
+    validate_assignments(model, query)
     candidates, records, limited = enumerate_paths(
         graph,
         model["passages"],
@@ -219,7 +252,16 @@ def interpret(graph, model, query):
                 "series_impedance_does_not_establish_signal_transfer",
             )
     elif paths and not unknown:
-        status, reason = "modeled_blocked", "ideal_capacitor_steady_state_dc_only"
+        status = "modeled_blocked"
+        reason = (
+            "declared_ideal_contact_open_under_assignment"
+            if any(
+                step["status"] == "ideal_contact_open_under_assignment"
+                for path in paths
+                for step in path["steps"]
+            )
+            else "ideal_capacitor_steady_state_dc_only"
+        )
     elif unknown:
         reason = "missing_parameters_or_unsupported_behavior"
     return {
@@ -234,6 +276,10 @@ def interpret(graph, model, query):
             "model_basis": model["model_basis"],
             "copper": query.copper_assumption,
             "frequency_hz": str(query.frequency_hz) if query.frequency_hz is not None else None,
+            "condition_assignments": [
+                a.model_dump(mode="json") for a in query.condition_assignments
+            ],
+            "conditional_contacts": "ideal_zero_resistance_when_assigned_state_matches",
         },
         "unmodeled_boundaries": graph["boundaries"],
         "physical_continuity": "not_evaluated",

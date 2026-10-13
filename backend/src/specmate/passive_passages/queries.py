@@ -11,7 +11,7 @@ from specmate.catalog_matching.queries import authorize_file, current_actor, evi
 from specmate.copper.contracts import ReadGraph
 from specmate.copper.queries import inspect_graph
 from specmate.operations import ValidationFailed
-from specmate.passive_passages.contracts import PassageModel
+from specmate.passive_passages.contracts import PassageModel, validate_assignments
 from specmate.passive_passages.interpretation import interpret
 from specmate.passive_passages.models import PassageReview
 from specmate.queries import get_revision
@@ -147,6 +147,10 @@ def result(user, revision_id):
 
 def interpret_model(user, payload):
     revision, model, graph, reviews = rows(user, payload.revision_id)
+    try:
+        validate_assignments(model.model_dump(mode="json"), payload)
+    except ValueError as exc:
+        raise ValidationFailed(str(exc)) from None
     nodes = {n["id"] for n in graph["nodes"]}
     if payload.from_terminal_id not in nodes or payload.to_terminal_id not in nodes:
         raise ValidationFailed("Query terminals must belong to the model's exact pinned graph.")

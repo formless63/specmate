@@ -462,3 +462,91 @@ def test_assertion_source_hash_rights_survive_frozen_view_and_interpreted_steps(
     assert resolved["sha256"] and resolved["rights"] == " synthetic declared rights "
     result = interpretation(owner, sourced, terminals)
     assert result["paths"][0]["steps"][0]["evidence"] == resolved
+
+
+def test_condition_model_roundtrip_current_review_and_shared_query_assignments(users, circuit):
+    _root, terminals, model, draft, frozen = circuit
+    owner = users["owner"]
+    model["conditions"] = [
+        {
+            "local_id": "option",
+            "states": ["installed", "absent"],
+            "basis": "Exclusive fitted option.",
+        }
+    ]
+    model["passages"][0] = {
+        "local_id": "option-contact",
+        "from_terminal_id": terminals["a"],
+        "to_terminal_id": terminals["b"],
+        "kind": "conditional",
+        "conditional_contact": {
+            "condition_id": "option",
+            "state": "installed",
+            "behavior": "ideal_contact",
+        },
+        "basis": "Original synthetic ideal contact declaration.",
+    }
+    updated = op(
+        owner,
+        "passage.update",
+        {"draft_id": draft["draft_id"], "model": model},
+        expected_state=frozen["draft"]["state"],
+    )
+    saved = api(owner).get(f"/api/v0/drafts/{draft['draft_id']}").json()
+    assert saved["content"]["passages"]["conditions"] == model["conditions"]
+    conditional = op(
+        owner, "passage.freeze", {"draft_id": draft["draft_id"]}, expected_state=updated["state"]
+    )
+    selected = [{"condition_id": "option", "state": "installed"}]
+    assert (
+        interpretation(owner, conditional, terminals, condition_assignments=selected)["status"]
+        == "unknown"
+    )
+    inspected = review(owner, conditional)
+    assert inspected["model"]["conditions"] == model["conditions"]
+    payload = {
+        "revision_id": conditional["revision_id"],
+        "from_terminal_id": terminals["a"],
+        "to_terminal_id": terminals["b"],
+        "query": "dc_continuity",
+        "copper_assumption": "ideal_zero_resistance",
+        "condition_assignments": selected,
+    }
+    expected = interpretation(
+        users["viewer"], conditional, terminals, condition_assignments=selected
+    )
+    assert expected["status"] == "modeled_dc_path"
+    assert post_op(api(users["viewer"]), "passage.interpret", payload).json()["result"] == expected
+    assert (
+        execute(
+            "passage.interpret",
+            Context(user=users["viewer"], via="mcp", request_id="option-query"),
+            payload,
+        ).result
+        == expected
+    )
+    assert interpretation(users["viewer"], conditional, terminals)["status"] == "unknown"
+    assert (
+        interpretation(
+            users["viewer"],
+            conditional,
+            terminals,
+            condition_assignments=[{"condition_id": "option", "state": "absent"}],
+        )["status"]
+        == "modeled_blocked"
+    )
+    # No query changes captured bytes or applies to an earlier independent model revision.
+    assert (
+        op(owner, "passage.read", {"revision_id": conditional["revision_id"]})["sha256"]
+        == conditional["sha256"]
+    )
+    for invalid in [
+        [{"condition_id": "option", "state": "missing"}],
+        [{"condition_id": "missing", "state": "installed"}],
+    ]:
+        with pytest.raises(ValidationFailed):
+            interpretation(users["viewer"], conditional, terminals, condition_assignments=invalid)
+        with pytest.raises(NotFound):
+            interpretation(users["outsider"], conditional, terminals, condition_assignments=invalid)
+    with pytest.raises(ValidationFailed):
+        interpretation(owner, frozen, terminals, condition_assignments=selected)

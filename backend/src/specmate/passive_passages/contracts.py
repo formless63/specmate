@@ -38,6 +38,29 @@ TerminalId = Annotated[str, Field(pattern=r"^terminal-[a-f0-9]{64}$")]
 Basis = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
 
+class ConditionDeclaration(StrictModel):
+    """One model-local variable with mutually exclusive declared states."""
+
+    local_id: LocalId
+    states: list[LocalId] = Field(min_length=2, max_length=32)
+    basis: Basis
+
+    @model_validator(mode="after")
+    def unique(self):
+        if len(set(self.states)) != len(self.states):
+            raise ValueError("Condition states must be unique.")
+        return self
+
+
+class ConditionAssignment(StrictModel):
+    condition_id: LocalId
+    state: LocalId
+
+
+class ConditionalContact(ConditionAssignment):
+    behavior: Literal["ideal_contact"]
+
+
 class Passage(StrictModel):
     local_id: LocalId
     from_terminal_id: TerminalId
@@ -55,6 +78,7 @@ class Passage(StrictModel):
     resistance_ohm: ExactNumber | None = Field(default=None, ge=0)
     capacitance_f: ExactNumber | None = Field(default=None, gt=0)
     condition: str | None = Field(default=None, min_length=1, max_length=500)
+    conditional_contact: ConditionalContact | None = None
     native_candidate_boundary_id: str | None = Field(default=None, min_length=1, max_length=80)
     basis: Basis
     evidence: EvidenceInput = Field(default_factory=EvidenceInput)
@@ -67,6 +91,8 @@ class Passage(StrictModel):
             raise ValueError("Only resistor models may declare resistance in this adapter.")
         if self.capacitance_f is not None and self.kind != "capacitor":
             raise ValueError("Only capacitor models may declare capacitance in this adapter.")
+        if self.conditional_contact is not None and self.kind != "conditional":
+            raise ValueError("Only conditional passages may declare an ideal contact.")
         return self
 
 
@@ -75,6 +101,7 @@ class PassageModel(StrictModel):
     root_revision_id: UUID
     assumptions: Literal["ideal_lumped_components"]
     model_basis: Basis
+    conditions: list[ConditionDeclaration] = Field(default_factory=list, max_length=64)
     passages: list[Passage] = Field(default_factory=list, max_length=1000)
 
     @model_validator(mode="after")
@@ -82,6 +109,15 @@ class PassageModel(StrictModel):
         ids = [p.local_id for p in self.passages]
         if len(set(ids)) != len(ids):
             raise ValueError("Passage IDs must be unique.")
+        conditions = {c.local_id: set(c.states) for c in self.conditions}
+        if len(conditions) != len(self.conditions):
+            raise ValueError("Condition IDs must be unique within this frozen model.")
+        for passage in self.passages:
+            contact = passage.conditional_contact
+            if contact is not None and contact.state not in conditions.get(
+                contact.condition_id, ()
+            ):
+                raise ValueError("Contact requirements must name a declared condition and state.")
         return self
 
 
@@ -116,6 +152,7 @@ class InterpretModel(ReadModel):
     query: Literal["dc_continuity", "shortness", "resistance", "signal"]
     copper_assumption: Literal["unspecified", "ideal_zero_resistance"] = "unspecified"
     frequency_hz: ExactNumber | None = Field(default=None, gt=0)
+    condition_assignments: list[ConditionAssignment] = Field(default_factory=list, max_length=64)
     max_paths: int = Field(default=16, ge=1, le=32)
     max_hops: int = Field(default=32, ge=1, le=64)
 
@@ -123,4 +160,15 @@ class InterpretModel(ReadModel):
     def regime(self):
         if self.frequency_hz is not None and self.query != "signal":
             raise ValueError("Frequency applies only to the signal query.")
+        ids = [a.condition_id for a in self.condition_assignments]
+        if len(set(ids)) != len(ids):
+            raise ValueError("A query may assign each condition only once.")
         return self
+
+
+def validate_assignments(model, query):
+    """Validate only after the owning model/source closure has been authorized."""
+    conditions = {c["local_id"]: set(c["states"]) for c in model.get("conditions", [])}
+    for assignment in query.condition_assignments:
+        if assignment.state not in conditions.get(assignment.condition_id, ()):
+            raise ValueError("Assignments must name a condition and state in the frozen model.")
