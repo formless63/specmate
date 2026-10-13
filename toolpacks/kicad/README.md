@@ -89,3 +89,34 @@ KiCad's image and its dependencies retain their upstream licenses; the image
 labels KiCad GPL-3.0-or-later. These instructions fetch the upstream image without
 rebundling it. Releasing a bundled image requires the repository's separate
 licensing and publication review.
+
+## Independent source-net extraction pack
+
+`kicad-net-assertions-v1` is a separate, bounded source extraction program in
+`specmate.pcb_disagreement.native_script`. It exports a standalone schematic format
+20250114 with the pinned KiCad 10.0.6 CLI, or parses preserved KiCad XML version E.
+The parser rejects DTDs/entities, namespaces, unsupported versions, oversized/deep XML,
+missing identity fields and conflicting repeated assignments. Unknown metadata remains
+in retained XML and is listed as unsupported. Missing net membership remains unknown.
+
+The exact source hash, exported XML hash, adapter/tool version, source role, extraction
+method, reported source-tool metadata, actual component/sheet/unit/pin fields and
+coverage are retained in canonical JSON. Source-tool text in an uploaded netlist is a
+reported claim; parsing it does not establish that KiCad generated those bytes.
+Both JSON and XML are declared outputs. Derived terminal IDs are scoped to the exact
+source hash and native occurrence fields; no terminal UUID or PCB correspondence is
+invented. No native net membership is routed copper or physical continuity proof.
+
+Generate a proposed recipe without changing execution authority:
+
+```bash
+cd backend
+uv run python ../toolpacks/kicad/source_nets_recipe.py original.kicad_sch \
+  --source-role schematic --rights AGPL-3.0-only
+```
+
+The [original fixture](../../tests/fixtures/native/kicad-source-nets/README.md) passed
+an isolated actual CLI/program probe for schematic export and preserved netlist parsing.
+The approved runner/build acceptance checkpoint remains separate. No existing board
+intake recipe or report is changed; schematic parity, hierarchy, variants and automatic
+source precedence are not advertised by this pack.

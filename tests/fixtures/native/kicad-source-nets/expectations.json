@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "authorship": "Original standalone synthetic fixture with self-contained symbols; no imported design or library",
+  "nets": {"/SENSE": ["J1.1", "R1.1"], "/RETURN": ["J2.1", "R1.2"]},
+  "component_ids": {
+    "J1": "55fb0c3b-d689-55e7-af18-f24c594c2541",
+    "J2": "4d8042f4-a8c3-500f-a456-6188f0356d0b",
+    "R1": "075bacff-2ee4-56b6-a8b4-789610dc5a9f"
+  },
+  "terminal_count": 4,
+  "native_terminal_uuid_available": false,
+  "expected_unit": "A",
+  "expected_sheet_path": "/",
+  "source_format": "20250114",
+  "scope": "Native reported schematic net membership; no component conduction, parity, routing or physical qualification"
+}
