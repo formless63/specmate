@@ -183,3 +183,82 @@ test("registered assertion provenance is shown without turning source rights int
   expect(screen.getByText(/source-revision \/ declared.txt/).textContent).toContain("synthetic-original");
   expect(screen.getByText(/Model review and path reachability establish no physical continuity/)).toBeTruthy();
 });
+
+test("exclusive conditions and ideal contact requirements reopen and save with the model", async () => {
+  const condition = { local_id: "fitted-option", states: ["installed", "absent"], basis: "Exclusive synthetic fitting states" };
+  const conditional: Model = { ...model, conditions: [condition], passages: [{ ...model.passages[0]!, kind: "conditional", resistance_ohm: null, conditional_contact: { condition_id: "fitted-option", state: "installed", behavior: "ideal_contact" } }] };
+  let payload: Model | undefined;
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.includes("drafts/")) return reply({ ...draft, content: { passages: conditional } });
+    if (path.includes("copper/revisions")) return reply(graph);
+    const body = JSON.parse(String(init?.body)); payload = body.payload.model;
+    return reply({ result: { ...draft, state: "draft-v2", content: { passages: payload } } });
+  }));
+  render(view());
+  fireEvent.change(screen.getByLabelText("Existing passive draft ID"), { target: { value: "model-draft" } });
+  fireEvent.click(screen.getByRole("button", { name: "Open passive draft" }));
+  await screen.findByText(/Saved draft model-draft/);
+  expect((screen.getByLabelText("Condition 1 identity") as HTMLInputElement).value).toBe("fitted-option");
+  expect((screen.getByLabelText("Passage 1 ideal contact closed state") as HTMLSelectElement).value).toBe("installed");
+  fireEvent.change(screen.getByLabelText("Passage 1 ideal contact closed state"), { target: { value: "absent" } });
+  fireEvent.click(screen.getByRole("button", { name: "Update passive model draft" }));
+  await waitFor(() => expect(payload?.passages[0]?.conditional_contact?.state).toBe("absent"));
+  expect(payload?.conditions).toEqual([condition]);
+});
+
+test("frozen state assignments default unspecified and changing state fences delayed results", async () => {
+  const conditional: Model = { ...model, conditions: [{ local_id: "selector", states: ["left", "right"], basis: "Exclusive synthetic switch" }], passages: [{ ...model.passages[0]!, kind: "conditional", resistance_ohm: null, conditional_contact: { condition_id: "selector", state: "left", behavior: "ideal_contact" } }] };
+  const assigned: { condition_assignments: { condition_id: string; state: string }[] }[] = [];
+  let resolve: ((response: Response) => void) | undefined;
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.includes("passive-passages/revisions")) return reply({ ...inspection, model: conditional });
+    const body = JSON.parse(String(init?.body)); assigned.push(body.payload);
+    if (assigned.length === 1) return reply({ result: unknown });
+    return new Promise<Response>((r) => { resolve = r; });
+  }));
+  render(view()); await load(); selectQuery();
+  expect(screen.getByText("Exclusive condition selector: left / right")).toBeTruthy();
+  expect(screen.getByText(/Declared ideal contact: selector = left/)).toBeTruthy();
+  expect((screen.getByLabelText("Query state for selector") as HTMLSelectElement).value).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Interpret reviewed model" }));
+  await screen.findByText("Declared model query result");
+  expect(assigned[0]?.condition_assignments).toEqual([]);
+  fireEvent.change(screen.getByLabelText("Query state for selector"), { target: { value: "left" } });
+  expect(screen.queryByText("Declared model query result")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Interpret reviewed model" }));
+  expect(assigned[1]?.condition_assignments).toEqual([{ condition_id: "selector", state: "left" }]);
+  fireEvent.change(screen.getByLabelText("Query state for selector"), { target: { value: "right" } });
+  resolve?.(reply({ result: { ...unknown, status: "modeled_dc_path" } }));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Interpret reviewed model" }) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.queryByText("Declared model query result")).toBeNull();
+});
+
+test("new exclusive condition is authored explicitly before a contact model can save", async () => {
+  let saved: Model | undefined;
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.includes("copper/revisions")) return reply(graph);
+    const body = JSON.parse(String(init?.body)); saved = body.payload.model;
+    return reply({ result: { ...draft, content: { passages: saved } } });
+  }));
+  render(view());
+  fireEvent.change(screen.getByLabelText("Exact copper root revision ID"), { target: { value: "root-revision" } });
+  fireEvent.click(screen.getByRole("button", { name: "Inspect model root" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Declare separate passage for resistor candidate" }));
+  fireEvent.change(screen.getByLabelText("New passive model name"), { target: { value: "Synthetic switched model" } });
+  fireEvent.click(screen.getByLabelText("I am declaring an ideal lumped component model, separate from physical facts"));
+  fireEvent.change(screen.getByLabelText("Ideal model assumptions and basis"), { target: { value: "Declared ideal contacts only" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add exclusive condition" }));
+  fireEvent.change(screen.getByLabelText("Condition 1 identity"), { target: { value: "option" } });
+  fireEvent.change(screen.getByLabelText("Condition 1 exclusive states (comma separated)"), { target: { value: "installed, absent" } });
+  fireEvent.change(screen.getByLabelText("Condition 1 declaration basis"), { target: { value: "Exclusive original synthetic fitted states" } });
+  fireEvent.change(screen.getByLabelText("Passage 1 kind"), { target: { value: "conditional" } });
+  fireEvent.change(screen.getByLabelText("Passage 1 declaration basis"), { target: { value: "Explicit ideal contact assumption" } });
+  fireEvent.change(screen.getByLabelText("Passage 1 ideal contact condition identity"), { target: { value: "option" } });
+  expect((screen.getByRole("button", { name: "Save new passive model draft" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Passage 1 ideal contact closed state"), { target: { value: "installed" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save new passive model draft" }));
+  await screen.findByText(/Saved draft model-draft/);
+  expect(saved?.conditions).toEqual([{ local_id: "option", states: ["installed", "absent"], basis: "Exclusive original synthetic fitted states" }]);
+  expect(saved?.passages[0]?.conditional_contact).toEqual({ condition_id: "option", state: "installed", behavior: "ideal_contact" });
+  expect(saved?.passages[0]?.condition).toBeNull();
+});
