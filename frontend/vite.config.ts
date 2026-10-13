@@ -8,5 +8,6 @@ export default defineConfig({
     proxy: { "/api": process.env.SPECMATE_API_ORIGIN ?? "http://127.0.0.1:8000" },
   },
   build: { sourcemap: false },
-  test: { environment: "jsdom", setupFiles: ["./src/test/setup.ts"] },
+  // Bound concurrent DOM workers so resource contention does not consume assertion deadlines.
+  test: { environment: "jsdom", setupFiles: ["./src/test/setup.ts"], maxWorkers: 2 },
 });
