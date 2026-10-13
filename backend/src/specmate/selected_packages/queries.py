@@ -15,10 +15,11 @@ from specmate.cables.queries import inspect_revision as inspect_cable
 from specmate.catalog.models import Representation
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import canonical_bytes
-from specmate.operations import Conflict, NotFound, ValidationFailed
+from specmate.operations import Conflict, NotFound, Unsupported, ValidationFailed
 from specmate.queries import get_bundle_revision, get_revision
 from specmate.sources import blobstore
 from specmate.sources.authority import authorize_revision
+from specmate.sources.models import SourceArchiveExpansion, SourceEditSubmission
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_FILES = 4000
@@ -94,6 +95,13 @@ def captured_closure(user, root, selected, closure, selection):
                 for path, node in closure.nodes.items()
                 if len(path) < len(selection) and inside(selection, path)
             } - selected_ids
+    ancestor_definitions = {root.definition_id} if selection else set()
+    if closure and selection:
+        ancestor_definitions |= {
+            node.revision.definition_id
+            for path, node in closure.nodes.items()
+            if len(path) < len(selection) and inside(selection, path)
+        }
     pending = [selected.id]
     # Contextual firmware is independently assigned to repeated selected occurrences.
     if closure:
@@ -114,6 +122,9 @@ def captured_closure(user, root, selected, closure, selection):
         revision = get_revision(user, rid)
         if len(captured) >= MAX_REVISIONS:
             raise ValidationFailed("Selected package dependency limit exceeded.")
+        if revision.definition_id in ancestor_definitions and revision.id not in selected_ids:
+            excluded.add(rid)
+            continue
         captured[rid] = revision
         pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
     return captured, excluded
@@ -300,6 +311,33 @@ def collect_sources(user, captured):
     return files, opaque
 
 
+def source_ancestry(user, revision):
+    """Exact provenance identities/hashes only, never ancestor bundle contents or names."""
+    pending, seen, rows = [revision], set(), []
+    while pending:
+        current = pending.pop()
+        if current.id in seen:
+            continue
+        if len(seen) >= MAX_REVISIONS:
+            raise ValidationFailed("Selected source ancestry limit exceeded.")
+        seen.add(current.id)
+        authorize_revision(user, current)
+        rows.append(
+            {"source_revision_id": str(current.id), "manifest_sha256": current.manifest_sha256}
+        )
+        if current.bundle.derived_from_id:
+            pending.append(get_bundle_revision(user, current.bundle.derived_from_id))
+        expansion = SourceArchiveExpansion.objects.filter(revision=current).first()
+        if expansion:
+            pending.append(get_bundle_revision(user, expansion.archive_file.revision_id))
+        submission = SourceEditSubmission.objects.filter(revision=current).first()
+        if submission:
+            pending.append(get_bundle_revision(user, submission.baseline_id))
+            if submission.archive_file_id:
+                pending.append(get_bundle_revision(user, submission.archive_file.revision_id))
+    return sorted(rows, key=lambda row: row["source_revision_id"])
+
+
 def review_value(reviews, subject):
     review = reviews.get(subject)
     return (
@@ -317,6 +355,13 @@ def build_package(user, p):
     user, root, selected, closure, selection = selection_context(user, p)
     captured, excluded = captured_closure(user, root, selected, closure, selection)
     source_files, opaque = collect_sources(user, captured)
+    if excluded:
+        # Frozen pins can flatten a dependency's own closure. Omitting only its root
+        # would risk including unrelated parent data from that flattened closure.
+        raise Unsupported(
+            "Selected scope requires context-external design data; export an "
+            "independent boundary revision or review a different selection."
+        )
     # Frozen canonical bytes may preserve opaque extension/native references. They are
     # data, not evidence that a native tool or external dependency was reconstructed.
     unsupported = sorted(
@@ -390,6 +435,7 @@ def build_package(user, p):
             {
                 "source_revision_id": rid,
                 "manifest_sha256": file.revision.manifest_sha256,
+                "ancestry": source_ancestry(user, file.revision),
                 "source_path": source_path,
                 "sha256": file.blob.sha256,
                 "bytes": file.blob.size,
@@ -415,8 +461,6 @@ def build_package(user, p):
             unresolved.append(
                 {"subject": subject, "reason": "Required source bytes omitted for rights."}
             )
-    if excluded:
-        unresolved.append({"reason": "Context-external design dependencies are not included."})
     if opaque:
         unresolved.append(
             {"reason": "Source bundle reference lacks an exact selected file boundary."}
@@ -480,6 +524,8 @@ def build_package(user, p):
         for path, data in sorted(files.items())
     ]
     manifest_data = canonical_bytes(manifest)
+    if sum(len(data) for data in files.values()) + len(manifest_data) > MAX_BYTES:
+        raise ValidationFailed("Selected package exceeds the supported size limit.")
     files["manifest.json"] = manifest_data
     return manifest, files, digest(manifest_data)
 

@@ -4,7 +4,6 @@ import hashlib
 import json
 
 from specmate.contracts import check_file_tree
-from specmate.design.operations import canonical_bytes
 
 
 def verify_files(files, *, manifest_sha256=None):
@@ -36,7 +35,10 @@ def verify_files(files, *, manifest_sha256=None):
                 problems.append("Required design snapshot missing or changed.")
                 continue
             body = json.loads(data)
-            if data != canonical_bytes(body) or body["definition_id"] != entry["definition_id"]:
+            canonical = json.dumps(
+                body, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode()
+            if data != canonical or body["definition_id"] != entry["definition_id"]:
                 problems.append("Design canonical identity mismatch.")
             for pin in body["dependencies"]:
                 dependency = revisions.get(pin["revision_id"])
@@ -65,6 +67,6 @@ def verify_files(files, *, manifest_sha256=None):
                     problems.append("Required source bytes missing or changed.")
         if manifest["unresolved"]:
             problems.append("Declared package limitations remain unresolved.")
-    except (KeyError, TypeError, ValueError, UnicodeError):
+    except (KeyError, TypeError, ValueError, UnicodeError, AttributeError, RecursionError):
         problems.append("Malformed package manifest or canonical file.")
     return sorted(set(problems))

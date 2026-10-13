@@ -16,6 +16,7 @@ from specmate.operations import (
     NotFound,
     PermissionDenied,
     Unauthenticated,
+    Unsupported,
     ValidationFailed,
 )
 from specmate.operations.models import IdempotencyRecord
@@ -303,6 +304,12 @@ def test_exact_source_file_metadata_rights_review_and_no_unrelated_bundle_member
     assert source["path"] is None and initial["manifest"]["completeness"] == "limited"
     assert b"ATTACHMENT_SECRET" not in b"".join(files.values())
     assert b"SOURCE_BUNDLE_SECRET" not in b"".join(files.values())
+    assert source["ancestry"] == [
+        {
+            "source_revision_id": bundled["revision_id"],
+            "manifest_sha256": source["manifest_sha256"],
+        }
+    ]
     subject = source["rights_review"]["subject"]
     review = {
         "subject": subject,
@@ -475,3 +482,96 @@ def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(user
 
 def cable_project(cable):
     return Snapshot.objects.get(id=cable[0]["snapshot_id"]).definition.project_id
+
+
+def test_hidden_sibling_blocks_contextual_diagnostics_but_standalone_remains_readable(
+    users,
+    project,
+    cable,
+):
+    remote = op(users["outsider"], "project.create", {"name": "Restricted sibling"})["project_id"]
+    Membership.objects.create(project_id=remote, user=users["owner"], role="viewer")
+    _, sibling = part(users["outsider"], remote)
+    selected = cable[0]
+    root = freeze(
+        users["owner"],
+        create(
+            users["owner"],
+            project,
+            [
+                occ("chosen", selected),
+                occ("sibling", sibling),
+            ],
+        ),
+    )
+    # Viewer reads the parent project and selected cable but cannot read its sibling.
+    for path in (["chosen"], ["missing"]):
+        with pytest.raises(NotFound) as err:
+            op(users["viewer"], "selected_package.review", request(root, path))
+        assert err.value.details == {}
+    package(users["viewer"], request(selected))
+
+
+def test_offline_required_dependency_omission_and_size_failure_have_no_state_effects(
+    users,
+    cable,
+    monkeypatch,
+):
+    from specmate.selected_packages import queries
+
+    _, _, files = package(users["owner"], request(cable[0]))
+    required_path = f"designs/{cable[1][1]['revision_id']}.json"
+    omitted = dict(files)
+    del omitted[required_path]
+    assert "Required design snapshot missing or changed." in verify_files(omitted)
+    count = Snapshot.objects.count()
+    monkeypatch.setattr(queries, "MAX_BYTES", 1)
+    with pytest.raises(ValidationFailed, match="byte limit"):
+        op(users["owner"], "selected_package.review", request(cable[0]))
+    assert Snapshot.objects.count() == count
+    assert not IdempotencyRecord.objects.filter(operation__startswith="selected_package.").exists()
+
+
+def test_context_external_parent_dependency_blocks_instead_of_flattened_data_leak(users, project):
+    owner = users["owner"]
+    initial = create(owner, project)
+    historic_parent = freeze(owner, initial)
+    draft = op(
+        owner,
+        "definition.create",
+        {
+            "project_id": project,
+            "kind": "board",
+            "name": "Synthetic selected record",
+        },
+    )
+    selected = op(
+        owner,
+        "draft.freeze",
+        {
+            "draft_id": draft["draft_id"],
+            "dependencies": [historic_parent["revision_id"]],
+        },
+        expected_state=draft["state"],
+    )
+    _, sibling = part(owner, project)
+    updated = op(
+        owner,
+        "assembly.update",
+        {
+            "draft_id": initial["draft_id"],
+            "assembly": {
+                "occurrences": [occ("chosen", selected), occ("sibling", sibling)],
+            },
+        },
+        expected_state=historic_parent["draft"]["state"],
+    )
+    root = freeze(owner, updated)
+    with pytest.raises(Unsupported, match="context-external"):
+        op(owner, "selected_package.review", request(root, ["chosen"]))
+    # Explicit standalone scope retains only its own authorized dependency meaning.
+    standalone = op(owner, "selected_package.review", request(selected))
+    assert {row["revision_id"] for row in standalone["manifest"]["design_revisions"]} == {
+        selected["revision_id"],
+        historic_parent["revision_id"],
+    }
