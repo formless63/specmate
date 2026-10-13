@@ -40,15 +40,16 @@ const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurren
 const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/FirmwareImpactPanel").then((module) => ({ default: module.FirmwareImpactPanel })));
 const MechanicalSourcesPanel = lazy(() => import("./features/mechanical-sources/MechanicalSourcesPanel").then((module) => ({ default: module.MechanicalSourcesPanel })));
 const SharedScenePanel = lazy(() => import("./features/shared-scene/SharedScenePanel").then((module) => ({ default: module.SharedScenePanel })));
+const ContextualInspectionWorkspace = lazy(() => import("./features/context-selection/ContextualInspectionWorkspace").then((module) => ({ default: module.ContextualInspectionWorkspace })));
 
 export function App() {
-  return <WorkspaceShell>{(projectId, project, refreshProjects) =>
+  return <WorkspaceShell>{(projectId, project, refreshProjects, principalKey) =>
     <ProjectWorkspace key={`${projectId}:${project.permissions?.join(",") ?? ""}`}
-      projectId={projectId} permissions={project.permissions ?? []} onAccessChanged={refreshProjects} />
+      projectId={projectId} principalKey={principalKey} permissions={project.permissions ?? []} onAccessChanged={refreshProjects} />
   }</WorkspaceShell>;
 }
 
-function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { projectId: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
+function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChanged }: { projectId: string; principalKey: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
   const [active, setActive] = useState<string | null>("identity");
   const [visited, setVisited] = useState(() => new Set(["identity"]));
   return <Tabs keepMountedMode="display-none" value={active} onChange={(value) => {
@@ -71,6 +72,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="firmware-impact">Firmware impact</Tabs.Tab>
       <Tabs.Tab value="mechanical-sources">Mechanical sources</Tabs.Tab>
       <Tabs.Tab value="shared-scene">Shared scene</Tabs.Tab>
+      <Tabs.Tab value="context-selection">Connected views</Tabs.Tab>
       <Tabs.Tab value="selected-packages">Selected packages</Tabs.Tab>
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
       <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
@@ -102,6 +104,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="firmware-impact">{visited.has("firmware-impact") && <FirmwareImpactPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="mechanical-sources">{visited.has("mechanical-sources") && <MechanicalSourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="shared-scene">{visited.has("shared-scene") && <SharedScenePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="context-selection">{visited.has("context-selection") && <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />}</ToolPanel>
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} permissions={permissions} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="interfaces">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</ToolPanel>
