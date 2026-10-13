@@ -103,8 +103,11 @@ The adapter retains nullable per-element cut values and omits unresolved lead ge
 Explicit hidden groups hide their descendant material elements; global foil hiding uses
 only declared foil construction and never changes dimensions or electrical topology.
 Explicit hidden paths take precedence over global foil display. Unknown occlusion leaves
-all interiors available with a notice. Group cut rules, prepend cuts and illustration lay
-are currently reported as unsupported and are not silently applied or inferred.
+all interiors available with a notice. A group cutback applies to every descendant
+material element. Overlapping group and element cutbacks retain the farther removal
+from each tip; any applicable unknown cut leaves that material geometry unresolved.
+Group lead suggestions do not identify a single conductive feature and create no lead
+or electrical bond. Prepend cuts and illustration lay remain explicitly unsupported.
 
 ## Two-end cable assignments
 

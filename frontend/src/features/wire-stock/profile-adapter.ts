@@ -29,10 +29,20 @@ export function adaptFrozenProfile(revision: ProfileRevision, stockRevisionId: s
     ? 'Illustration lay length is unknown. Twist depiction is unsupported; no lay is inferred or applied.'
     : `Illustration lay length ${profile.illustration_lay_length_mm.value} mm is unsupported by this straight viewer and is not applied.`);
   const cuts: Record<string, ElementPreparation> = {};
+  const groupRules: [string, typeof profile.element_rules[string]][] = [];
   for (const [path, rule] of Object.entries(profile.element_rules)) {
     const node = nodes.get(path);
-    if (!node || node.kind === 'group') {
-      notices.push(`${path}: ${node ? 'group preparation' : 'absent target'} is unsupported; its cuts and leads are not applied.`);
+    if (!node) {
+      notices.push(`${path}: absent target; its cuts and leads are not applied.`);
+      continue;
+    }
+    if (node.kind === 'group') {
+      groupRules.push([path, rule]);
+      notices.push(`${path}: group cutbacks apply to every descendant; overlapping cuts retain the farther removal, and an unknown applicable cut remains unresolved.`);
+      for (const end of ['a', 'b'] as const) {
+        if (rule[end].lead) notices.push(`${path} end ${end.toUpperCase()}: group lead is not a single conductive feature; no lead or bond is inferred.`);
+        notices.push(`${path} end ${end.toUpperCase()}: prepend cut ${rule[end].prepend_cut_mm.value === null ? 'unknown' : `${rule[end].prepend_cut_mm.value} mm`} is unsupported and not applied.`);
+      }
       continue;
     }
     // Null is deliberately retained: the geometry must not turn an unknown cut into zero.
@@ -52,6 +62,20 @@ export function adaptFrozenProfile(revision: ProfileRevision, stockRevisionId: s
         reachMm: lead.reach_mm.value, angleDeg: lead.angle_deg.value,
       } };
     }
+  }
+  // Group cuts remove an entire physical subset. Child-specific stripping can remove
+  // more material, but cannot restore material already removed by an ancestor rule.
+  for (const [path, node] of nodes) {
+    if (node.kind === 'group') continue;
+    const inherited = groupRules.filter(([parent]) => path.startsWith(`${parent}.`));
+    if (!inherited.length) continue;
+    const existing = cuts[path];
+    const effective: ElementPreparation = existing ? { ...existing } : { a: 0, b: 0 };
+    for (const end of ['a', 'b'] as const) {
+      const values = [...inherited.map(([, rule]) => rule[end].cutback_mm.value), ...(existing ? [existing[end]] : [])];
+      effective[end] = values.some(value => value === null) ? null : Math.max(...values as number[]);
+    }
+    cuts[path] = effective;
   }
   return { display: { id: revision.revision_id, label: `${revision.name} · revision ${revision.number}`,
     cuts, hiddenPaths: [...hidden], omitOccluded: profile.omit_occluded.value === true }, notices };
