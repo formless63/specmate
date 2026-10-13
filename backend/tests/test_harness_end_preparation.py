@@ -234,3 +234,18 @@ def test_all_supplied_profile_authority_precedes_missing_section(users, project)
     Membership.objects.filter(project_id=other, user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(users["owner"], "end_preparation.apply_harness", request)
+
+
+def test_legacy_retained_owner_denied_even_when_all_stock_references_remain_visible(users, project):
+    owner = users["owner"]
+    other = op(owner, "project.create", {"name": "Synthetic former harness owner"})["project_id"]
+    _, _, _, harness = fixture(owner, project)
+    create(owner, other, harness, idempotency_key="old-owner")
+    IdempotencyRecord.objects.filter(
+        actor=owner, operation="harness.create", key="old-owner"
+    ).update(scope="legacy")
+    with pytest.raises(Conflict):
+        create(owner, project, harness, idempotency_key="old-owner")
+    Membership.objects.filter(project_id=other, user=owner).delete()
+    with pytest.raises(NotFound):
+        create(owner, project, harness, idempotency_key="old-owner")

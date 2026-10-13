@@ -75,6 +75,9 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
 
 
 def retained(ctx, stored):
+    draft = stored.get("draft", stored)
+    if draft.get("draft_id"):
+        harness_draft(ctx, draft["draft_id"], Perm.PROJECT_READ)
     if "content" in stored:
         authorize_content(ctx.user, stored["content"])
     if "revision_id" in stored:
