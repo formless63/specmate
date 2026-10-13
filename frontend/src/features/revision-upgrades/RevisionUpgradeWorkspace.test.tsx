@@ -30,7 +30,7 @@ async function reload() {
 test("selects one repeated occurrence and saves exact proposal pins", async () => {
   const calls: object[] = [];
   vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
-    if (path.includes("assemblies/snapshots")) return reply({ occurrences: ["left", "right"].map((side) => ({ address: { path: [side] }, revision_id: "old-one", name: "Connector", display_ref: "J1" })) });
+    if (path.includes("revision-upgrades/snapshots")) return reply({ occurrences: ["left", "right"].map((side) => ({ address: { path: [side] }, revision_id: "old-one", name: "Connector", display_ref: "J1" })) });
     if (path === "/api/v0/operations") {
       const body = JSON.parse(String(init?.body)); calls.push(body);
       expect(body.operation).toBe("upgrade.propose");
@@ -138,4 +138,43 @@ test("unchanged authorized focus refresh retains unsaved review basis", async ()
   fireEvent(window, new Event("focus"));
   await waitFor(() => expect((screen.getByRole("button", { name: "Reload proposal" }) as HTMLButtonElement).disabled).toBe(false));
   expect((screen.getByLabelText("Review basis") as HTMLTextAreaElement).value).toBe("Unsaved exact correspondence review");
+});
+
+test.each(["needs_evidence", "rejected"] as const)("%s review preserves required inputs for later accepted correspondence", async (initialDecision) => {
+  let current = proposal;
+  let submitted = 0;
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.includes("revision-upgrades/proposals")) return reply(current);
+    const body = JSON.parse(String(init?.body));
+    expect(body.operation).toBe("upgrade.review");
+    submitted += 1;
+    if (submitted === 1) {
+      expect(body.expected_state).toBe("upgrade-v0");
+      expect(body.payload.decision).toBe(initialDecision);
+      expect(body.payload.features).toEqual([]);
+      current = { ...proposal, decision: initialDecision, state: "upgrade-v1", reviews: [{ review_id: "initial-review", version: 1, decision: initialDecision, basis: "Additional correspondence review required", features: [], impacts, evidence: { status: "unknown" } }] };
+    } else {
+      expect(body.expected_state).toBe("upgrade-v1");
+      expect(body.payload.decision).toBe("accepted");
+      expect(body.payload.features).toEqual([{ path: ["left"], old_feature_id: "pin-a", candidate_feature_id: "pin-b", basis: "Compared exact contacts" }]);
+      current = { ...current, decision: "accepted", state: "upgrade-v2", reviews: [...current.reviews, { review_id: "accepted-review", version: 2, decision: "accepted", basis: "Correspondence reviewed", features: body.payload.features, impacts, evidence: { status: "unknown" } }] };
+    }
+    return reply({ result: current });
+  }));
+  render(view()); await reload();
+  fireEvent.change(screen.getByLabelText("Review decision"), { target: { value: initialDecision } });
+  fireEvent.change(screen.getByLabelText("Review basis"), { target: { value: "Additional correspondence review required" } });
+  fireEvent.click(screen.getByRole("button", { name: "Append review" }));
+  await screen.findByText(`Review 1: ${initialDecision} · Additional correspondence review required`);
+  expect(screen.getByLabelText("Candidate feature for left pin-a")).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Review decision"), { target: { value: "accepted" } });
+  fireEvent.change(screen.getByLabelText("Review basis"), { target: { value: "Correspondence reviewed" } });
+  expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Candidate feature for left pin-a"), { target: { value: " " } });
+  fireEvent.change(screen.getByLabelText("Correspondence basis for left pin-a"), { target: { value: "Compared exact contacts" } });
+  expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Candidate feature for left pin-a"), { target: { value: "pin-b" } });
+  fireEvent.click(screen.getByRole("button", { name: "Append review" }));
+  await screen.findByText("Review 2: accepted · Correspondence reviewed");
+  expect(submitted).toBe(2);
 });

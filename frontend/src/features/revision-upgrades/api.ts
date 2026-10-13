@@ -35,7 +35,7 @@ export type Proposal = {
 };
 export type Assembly = { occurrences: { address: { path: string[] }; revision_id: string; name: string; display_ref: string }[] };
 export type Applied = { proposal_id: string; application_id: string; draft_id: string; state: string; base_revision_id: string | null };
-export function inspectAssembly(snapshotId: string) { return request<Assembly>(`assemblies/snapshots/${snapshotId}`); }
+export function inspectAssembly(snapshotId: string) { return request<Assembly>(`revision-upgrades/snapshots/${snapshotId}`); }
 export function loadProposal(id: string) { return request<Proposal>(`revision-upgrades/proposals/${id}`); }
 export function proposeUpgrade(payload: object) { return command<Proposal>("upgrade.propose", payload); }
 export function reviewUpgrade(payload: object, state: string) { return command<Proposal>("upgrade.review", payload, state); }

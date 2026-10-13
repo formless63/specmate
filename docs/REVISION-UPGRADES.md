@@ -5,6 +5,9 @@ revision of the same definition, explicitly selected occurrence paths and a revi
 The proposal is a separate record. It never changes a frozen consumer or implies that
 an existing configuration is valid, compatible or qualified.
 
+`upgrade.inspect_owner` authorizes the owning snapshot and its current catalog origins
+before returning selector occurrences. The browser uses this same scoped query.
+
 The current adapter supports direct assembly occurrence paths. Repeated occurrences of
 one definition can be selected independently. Nested adoption requires a new owning
 subassembly draft and coordinated parent propagation; the adapter rejects that unsupported

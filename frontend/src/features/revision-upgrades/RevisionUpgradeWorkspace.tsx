@@ -55,7 +55,13 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
   function show(p: Proposal) {
     setProposal(p); setProposalId(p.proposal_id); setApplied(undefined);
     const latest = p.reviews.at(-1);
-    setFeatures(latest?.features ?? p.affected_features.map((f) => ({ path: f.path, old_feature_id: f.feature_id, candidate_feature_id: "", basis: "" })));
+    const key = (path: string[], feature: string) => JSON.stringify([path, feature]);
+    const reviewed = new Map((latest?.features ?? []).map((f) => [key(f.path, f.old_feature_id), f]));
+    const required = new Set(p.affected_features.map((f) => key(f.path, f.feature_id)));
+    setFeatures([
+      ...p.affected_features.map((f) => reviewed.get(key(f.path, f.feature_id)) ?? { path: f.path, old_feature_id: f.feature_id, candidate_feature_id: "", basis: "" }),
+      ...(latest?.features ?? []).filter((f) => !required.has(key(f.path, f.old_feature_id))),
+    ]);
     setImpacts(p.impacts); setReviewBasis(""); setEvidenceStatus("unknown"); setCitation(""); setBundleRevision(""); setSourcePath("");
   }
   async function run(action: () => Promise<void>) {
@@ -119,7 +125,7 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
       <NativeSelect label="Review evidence status" value={evidenceStatus} disabled={!canEdit} data={[{ value: "unknown", label: "Unknown evidence" }, { value: "unverified_citation", label: "Unverified citation" }, { value: "registered_file", label: "Exact registered source file" }]} onChange={(e) => setEvidenceStatus(e.currentTarget.value)} />
       {evidenceStatus === "unverified_citation" && <Textarea label="Review citation" value={citation} disabled={!canEdit} onChange={(e) => setCitation(e.currentTarget.value)} />}
       {evidenceStatus === "registered_file" && <Group grow><TextInput label="Review source bundle revision ID" value={bundleRevision} disabled={!canEdit} onChange={(e) => setBundleRevision(e.currentTarget.value)} /><TextInput label="Review exact source path" value={sourcePath} disabled={!canEdit} onChange={(e) => setSourcePath(e.currentTarget.value)} /></Group>}
-      <Button disabled={busy || !canEdit || !reviewBasis.trim() || (evidenceStatus === "unverified_citation" && !citation.trim()) || (evidenceStatus === "registered_file" && (!bundleRevision || !sourcePath)) || (decision === "accepted" && features.some((f) => !f.candidate_feature_id || !f.basis.trim()))} onClick={() => void run(() => receive(reviewUpgrade({ proposal_id: proposal.proposal_id, decision, basis: reviewBasis, features, impacts, evidence: { status: evidenceStatus, ...(evidenceStatus === "unverified_citation" ? { citation } : {}), ...(evidenceStatus === "registered_file" ? { source_bundle_revision_id: bundleRevision, source_path: sourcePath } : {}) } }, proposal.state), show))}>Append review</Button>
+      <Button disabled={busy || !canEdit || !reviewBasis.trim() || (evidenceStatus === "unverified_citation" && !citation.trim()) || (evidenceStatus === "registered_file" && (!bundleRevision || !sourcePath)) || (decision === "accepted" && features.some((f) => !f.candidate_feature_id.trim() || !f.basis.trim()))} onClick={() => void run(() => receive(reviewUpgrade({ proposal_id: proposal.proposal_id, decision, basis: reviewBasis, features: decision === "accepted" ? features : features.filter((f) => f.candidate_feature_id.trim() && f.basis.trim()), impacts, evidence: { status: evidenceStatus, ...(evidenceStatus === "unverified_citation" ? { citation } : {}), ...(evidenceStatus === "registered_file" ? { source_bundle_revision_id: bundleRevision, source_path: sourcePath } : {}) } }, proposal.state), show))}>Append review</Button>
       <Title order={3}>Immutable review history</Title>
       {!proposal.reviews.length && <Text>Unreviewed.</Text>}
       {proposal.reviews.map((r) => <Stack key={r.review_id} gap="xs"><Text>Review {r.version}: {r.decision} · {r.basis}</Text><Text>Evidence: {r.evidence.status}{r.evidence.citation ? ` · ${r.evidence.citation}` : ""}{r.evidence.source_bundle_revision_id ? ` · bundle revision ${r.evidence.source_bundle_revision_id} · ${r.evidence.source_path}` : ""}{r.evidence.sha256 ? ` · ${r.evidence.sha256}` : ""}{r.evidence.rights ? ` · rights ${r.evidence.rights}` : ""}</Text>{disciplines.map((d) => <Text key={d}>{d}: {r.impacts[d].status}{r.impacts[d].basis ? ` · ${r.impacts[d].basis}` : ""}</Text>)}{r.features.map((f) => <Text key={`${f.path.join("/")}:${f.old_feature_id}`}>{f.path.join(" / ")} · {f.old_feature_id} → {f.candidate_feature_id} · {f.basis}</Text>)}</Stack>)}

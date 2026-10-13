@@ -581,7 +581,15 @@ def test_owning_pack_origin_source_revocation_precedes_paths_and_key_mismatch(
     )
     supplied = {**payload, "owning_snapshot_id": capture["snapshot_id"]}
     proposal = op(editor, "upgrade.propose", supplied, idempotency_key="origin-proposal")
+    inspected = op(editor, "upgrade.inspect_owner", {"snapshot_id": capture["snapshot_id"]})
+    assert len(inspected["occurrences"]) == 2
     Membership.objects.filter(project_id=source_project, user=editor).delete()
+    with pytest.raises(NotFound):
+        op(editor, "upgrade.inspect_owner", {"snapshot_id": capture["snapshot_id"]})
+    assert (
+        api(editor).get(f"/api/v0/revision-upgrades/snapshots/{capture['snapshot_id']}").status_code
+        == 404
+    )
     for changed in [
         supplied,
         {**supplied, "paths": [["missing"]]},

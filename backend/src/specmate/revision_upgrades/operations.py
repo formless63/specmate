@@ -1,6 +1,7 @@
 import json
 
 from specmate.access.permissions import Perm
+from specmate.assemblies.contracts import ReadAssembly
 from specmate.catalog_matching.operations import evidence_fields
 from specmate.design.models import Draft, Revision
 from specmate.design.operations import authorize_design_content, draft_state, scoped_draft
@@ -191,3 +192,13 @@ def apply(ctx: Context, p: ApplyUpgrade):
         "existing_frozen_pins": "retained",
         **draft_state(target),
     }
+
+
+@operation(
+    "upgrade.inspect_owner",
+    ReadAssembly,
+    summary="Inspect exact owning assembly occurrences with current source-origin authority.",
+    supports_idempotency=False,
+)
+def inspect_owner(ctx: Context, p: ReadAssembly):
+    return queries.inspect_owning(ctx.user, p.snapshot_id)

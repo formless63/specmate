@@ -5,7 +5,7 @@ import json
 
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.contracts import OccurrenceRef
-from specmate.assemblies.queries import Closure, get_snapshot, refs
+from specmate.assemblies.queries import Closure, get_snapshot, read_assembly, refs
 from specmate.catalog_matching.queries import (
     authorize_file,
     current_actor,
@@ -20,6 +20,16 @@ from specmate.operations import NotFound, Unsupported, ValidationFailed
 from specmate.queries import get_revision
 from specmate.revision_upgrades.contracts import Impacts
 from specmate.revision_upgrades.models import UpgradeProposal
+
+
+def inspect_owning(user, snapshot_id):
+    """Upgrade selectors authorize owning origins as well as the assembly child closure."""
+    user = current_actor(user)
+    snapshot = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
+    if snapshot is None:
+        raise NotFound("Upgrade owning snapshot unavailable.")
+    authorize_snapshot(user, snapshot)
+    return read_assembly(user, snapshot_id)
 
 
 def references(
