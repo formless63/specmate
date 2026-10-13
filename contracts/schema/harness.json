@@ -212,6 +212,75 @@
       "title": "JointFate",
       "type": "object"
     },
+    "PhysicalEnd": {
+      "additionalProperties": false,
+      "description": "A declared material end, never derived from electrical relationships.",
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Review",
+          "type": "string"
+        },
+        "segment_ends": {
+          "items": {
+            "$ref": "#/$defs/SegmentEnd"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Segment Ends",
+          "type": "array"
+        }
+      },
+      "required": [
+        "local_id",
+        "segment_ends",
+        "basis"
+      ],
+      "title": "PhysicalEnd",
+      "type": "object"
+    },
     "Section": {
       "additionalProperties": false,
       "description": "One planned stock piece, even when several segments describe it.",
@@ -234,6 +303,14 @@
           "pattern": "^[a-z][a-z0-9_-]{0,79}$",
           "title": "Local Id",
           "type": "string"
+        },
+        "physical_ends": {
+          "items": {
+            "$ref": "#/$defs/PhysicalEnd"
+          },
+          "maxItems": 64,
+          "title": "Physical Ends",
+          "type": "array"
         },
         "planned_cut_length_mm": {
           "anyOf": [
