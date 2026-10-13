@@ -1,0 +1,9 @@
+export { read, type Definition, type Identity } from '../identity/api';
+export type Origin = { revision_id: string; snapshot_sha256: string; occurrence_path: string[]; local_id?: unknown; section_id?: string; stock_revision_id?: string; body_revision_id?: string; pinout_revision_id?: string; native_net?: string | null; native_net_name?: string; native_net_id?: string; interpretation?: { interpretation_id: string; source_revision_id: string; sha256: string }; declaration?: { basis?: string; condition?: string | null; review?: string; target_revision_id?: string; target_contact_id?: string; internal?: { path: string[]; revision_id: string; feature_id: string }; evidence?: { citation?: string | null; source_revision_id?: string | null; path?: string | null } } };
+export type Node = { id: string; occurrence_path: string[]; revision_id: string; terminal: Record<string, string>; label: string; feature_kind: string; provenance: Origin };
+export type Edge = { id: string; kind: string; evidence: 'declared_copper' | 'reported_net_membership'; members: string[]; basis: string; provenance: Origin };
+export type Boundary = { id: string; kind: string; members: string[]; status: string; reason: string; provenance: Origin };
+export type Component = { id: string; members: string[]; edge_ids: string[]; native_net_ids: string[]; evidence: string[] };
+export type Graph = { root_revision_id: string; snapshot_id: string; snapshot_sha256: string; occurrence_path: string[]; nodes: Node[]; edges: Edge[]; boundaries: Boundary[]; components: Component[]; selected_component_id: string | null; continuity: string; compatibility: string; physical_qualification: string; limitations: string[] };
+export const scopeLabel = (path: string[]) => path.length ? path.join(' / ') : 'Root';
+export const evidenceLabel = (value: string) => value === 'reported_net_membership' ? 'Reported net membership' : value === 'declared_copper' ? 'Declared copper' : value.replaceAll('_', ' ');

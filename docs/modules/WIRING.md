@@ -228,3 +228,9 @@ exceeding a bound produces an error instead of a partial connectivity conclusion
 Deterministic IDs describe the frozen graph and never update its source records.
 Continuity, compatibility and physical qualification remain `not_evaluated`. Passive,
 conditional and active path interpretation are separate capabilities.
+
+`CopperPanel(projectId)` selects exact frozen revisions and a contextual terminal.
+Its inspector lists the terminal's declared component, connection evidence, native
+net identities and non-merging boundaries with source provenance. Long terminal,
+connection and boundary lists paginate independently. Denied definition, revision
+identity or graph refreshes remove retained private results and source-derived choices.
