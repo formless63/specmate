@@ -3,10 +3,11 @@ from django.db import models
 
 
 class IdempotencyRecord(models.Model):
-    """Stored outcome of a keyed request, scoped to actor and operation."""
+    """Stored outcome of a keyed request, scoped to actor, project namespace and operation."""
 
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     operation = models.CharField(max_length=100)
+    scope = models.CharField(max_length=64)
     key = models.CharField(max_length=128)
     fingerprint = models.CharField(max_length=64)
     result = models.JSONField()
@@ -15,6 +16,14 @@ class IdempotencyRecord(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["actor", "operation", "key"], name="idempotency_actor_operation_key"
-            )
+                fields=["actor", "scope", "operation", "key"],
+                name="idempotency_actor_scope_operation_key",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(scope__in=["global", "legacy"])
+                | models.Q(
+                    scope__regex=r"^project:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                ),
+                name="idempotency_valid_scope",
+            ),
         ]

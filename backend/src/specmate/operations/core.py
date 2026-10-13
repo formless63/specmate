@@ -111,6 +111,7 @@ class OperationSpec:
     status: ResultStatus
     authorize_replay: Callable[[Context, BaseModel, Mapping[str, Any]], None] | None = None
     supports_idempotency: bool = True
+    idempotency_scope: Callable[[Context, BaseModel], str] | None = None
 
 
 registry: dict[str, OperationSpec] = {}
@@ -127,6 +128,7 @@ def operation(
     status: ResultStatus = "completed",
     authorize_replay: Callable[[Context, BaseModel, Mapping[str, Any]], None] | None = None,
     supports_idempotency: bool = True,
+    idempotency_scope: Callable[[Context, BaseModel], str] | None = None,
 ):
     def register(handler: Callable[[Context, Any], dict[str, Any]]):
         if name in registry:
@@ -142,6 +144,7 @@ def operation(
             status,
             authorize_replay,
             supports_idempotency,
+            idempotency_scope,
         )
         return handler
 
@@ -191,14 +194,30 @@ def execute(name: str, ctx: Context, payload: Mapping[str, Any]) -> OperationRes
     with transaction.atomic():
         if keyed:
             from specmate.operations.models import IdempotencyRecord
+            from specmate.operations.scope import LEGACY_SCOPE, builtin_scope, validated_scope
 
-            prior = (
-                IdempotencyRecord.objects.select_for_update()
-                .filter(actor=ctx.user, operation=name, key=ctx.idempotency_key)
-                .first()
+            scope = validated_scope(
+                spec.idempotency_scope(ctx, parsed)
+                if spec.idempotency_scope is not None
+                else builtin_scope(name, ctx, parsed)
             )
+            records = IdempotencyRecord.objects.select_for_update().filter(
+                actor=ctx.user, operation=name, key=ctx.idempotency_key
+            )
+            prior = records.filter(scope=scope).first()
+            legacy = False
+            if prior is None:
+                prior = records.filter(scope=LEGACY_SCOPE).first()
+                legacy = prior is not None
+                if prior is None:
+                    # A concurrent request may have just adopted the legacy row.
+                    prior = records.filter(scope=scope).first()
             if prior is not None:
                 if prior.fingerprint != fingerprint:
+                    if legacy:
+                        raise Conflict(
+                            "This key has an unresolved legacy outcome; use a new key for new work."
+                        )
                     raise IdempotencyMismatch("Idempotency key was used with a different request.")
                 if spec.authorize_replay is not None:
                     spec.authorize_replay(ctx, parsed, prior.result)
@@ -206,6 +225,11 @@ def execute(name: str, ctx: Context, payload: Mapping[str, Any]) -> OperationRes
                     from specmate.operations.replay import authorize_builtin_replay
 
                     authorize_builtin_replay(name, ctx, parsed, prior.result)
+                if legacy:
+                    # Adopt only after exact fingerprint and current authority checks.
+                    # Never execute the handler again for a retained legacy outcome.
+                    prior.scope = scope
+                    prior.save(update_fields=["scope"])
                 return OperationResult(
                     operation=name,
                     request_id=ctx.request_id,
@@ -219,6 +243,7 @@ def execute(name: str, ctx: Context, payload: Mapping[str, Any]) -> OperationRes
                 with transaction.atomic():
                     IdempotencyRecord.objects.create(
                         actor=ctx.user,
+                        scope=scope,
                         operation=name,
                         key=ctx.idempotency_key,
                         fingerprint=fingerprint,

@@ -23,6 +23,22 @@ never silently overwrite. An idempotency key is scoped to actor/project/operatio
 request fingerprint. Reusing it with a different payload is an error. Transactional
 operations either commit the intended invariants and outbox entries or neither.
 
+Keyed operations resolve their namespace on the server before looking up retained results.
+An explicit `idempotency_scope(context, validated_payload)` callback returns
+`project:<canonical UUID>` after checking current access to the owning project. The
+`operations.scope.project_scope` and `revision_scope` helpers provide this behavior.
+Project-independent operations such as project creation use the `global` namespace.
+Unknown operations without an explicit scope policy reject keyed requests before writing.
+Within one actor and operation, different projects may reuse the same key independently.
+Current replay authority is checked separately; a retained response never grants access.
+
+Existing unscoped development records migrate into a reserved `legacy` namespace. An
+exact fingerprint replay may adopt the resolved namespace only after current authorization,
+returning the original result without rerunning the mutation. A different request using an
+unresolved legacy key receives a conflict; the old effect is never silently repeated.
+After adoption, independent project namespaces behave normally. This is a bounded
+pre-1.0 transition for retained outcomes, not a historical API compatibility promise.
+
 Responses distinguish validation failure, permission denial, missing input, unsupported
 capability, unavailable tool, conflict, cancelled, failed, partial and completed. Detailed
 logs may remain private; errors do not echo secret source content or unauthorized names.

@@ -256,7 +256,17 @@ def test_cached_operator_action_cannot_replay_through_jobs(users, project, recip
 
 def test_new_operation_without_replay_guard_fails_closed(users, project, monkeypatch):
     name = "unguarded.create"
-    monkeypatch.setitem(registry, name, replace(registry["definition.create"], name=name))
+    from specmate.operations.scope import project_scope
+
+    monkeypatch.setitem(
+        registry,
+        name,
+        replace(
+            registry["definition.create"],
+            name=name,
+            idempotency_scope=lambda ctx, parsed: project_scope(ctx, parsed.project_id),
+        ),
+    )
     payload = {"project_id": project, "kind": "part", "name": "Guarded scope"}
     ctx = Context(user=users["owner"], via="job", request_id="custom", idempotency_key="custom")
     execute(name, ctx, payload)
