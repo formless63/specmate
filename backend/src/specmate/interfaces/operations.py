@@ -87,7 +87,7 @@ def authorize_stored(ctx, stored):
 @operation(
     "interface.create",
     CreateInterface,
-    summary="Create a body, pinout or boundary mapping.",
+    summary="Create a body, pinout, boundary mapping or separated assessment.",
     authorize_replay=replay,
     idempotency_scope=scope,
 )
@@ -156,7 +156,7 @@ def freeze(ctx: Context, p: CaptureInterface):
 @operation(
     "interface.read",
     ReadInterface,
-    summary="Read a frozen body, pinout or mapping.",
+    summary="Read a frozen interface and its separated declaration assessment.",
     supports_idempotency=False,
 )
 def read(ctx: Context, p: ReadInterface):

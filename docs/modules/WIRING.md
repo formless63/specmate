@@ -454,3 +454,50 @@ unsaved references; a newer server draft never supplies a replacement editing to
 Actual draft or project replacement fences requests belonging to the previous editor.
 All applications remain read-only; material issuance, measured cuts, actual bonds and
 physical qualification are separate records and checks.
+
+## Separate interface assessment dimensions
+
+An `interface_assessment` definition uses the existing `interface.create`, `.update`,
+`.snapshot`, `.freeze` and `.read` commands. It pins two exact logical pinout revisions
+and their bodies. Each proposed contact row retains its stable ID, left/right contact
+IDs, expected signal identity, basis and optional evidence. A missing contact, key,
+repeated contact or contradictory declared signal produces an invalid correspondence
+finding; the original proposal remains inspectable. Invalid findings can be frozen:
+a recorded assessment is useful evidence of an unresolved problem, not approval.
+
+Eight dimensions remain separate: mating, pin correspondence, levels, current,
+protocol, shielding, grounding and fit. Mating and fit are explicit declarations
+with a basis; neither is inferred from matching family names, opposite mating roles,
+scene geometry or a reviewed catalog identity match. They establish no measured fit,
+clearance, physical assembly success or qualification.
+
+For each valid proposed contact row, an explicit operating voltage envelope can be
+compared with both retained voltage limits, and an explicit current demand with both
+retained contact maxima. A current rating never supplies an assumed demand. Missing
+ratings and operating inputs remain unknown, including when demand is explicitly zero.
+A retained conditional rating is used only when its condition is explicitly selected.
+These comparisons do not evaluate driver/receiver signal thresholds, supply capacity,
+derating, heating or transfer. Required protocol text is compared with both retained
+protocol declarations; equal names do not prove timing, negotiation or interoperability.
+
+Shielding and grounding each retain separate exact contact selections and required
+versus declared bond/isolation intent. Known contrary electrical roles and contradictory
+intents produce invalid findings; absent role or intent remains unknown. A shield or
+shell selection is distinct from a return/chassis selection. These checks create no
+copper connection and establish no bond impedance, protective earth or safety approval.
+An invalid correspondence prevents electrical comparisons for that row while preserving
+unrelated row findings and independent mating/fit declarations. Omitted contacts remain
+outside the explicitly named row scope. No overall compatibility boolean is produced.
+
+Evidence reuses reviewed matching's unknown, unverified citation and exact registered-file
+contract. Registered evidence discloses retained file hash and rights only after current
+source access is checked. Reads, retries and conflicts recheck the actor, both full
+subject closures, retained catalog origins and exact receipt evidence; a later draft
+cannot erase a historical receipt's authority obligations. Frozen bytes and pins remain
+unchanged by later editing or authority recovery.
+
+`InterfaceAssessmentPanel(projectId, principalKey, canEdit, canFreeze)` is a reusable
+workspace for structured authoring, tokened edits, deliberate freezing and eight separate
+result cards. Current-authority refresh hides cached results and disables mutations while
+reads are pending or denied. Prepared edits keep their original token across fresh reads;
+changing the editing basis is deliberate. Project/principal changes clear editor state.

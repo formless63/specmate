@@ -7,6 +7,7 @@ from pydantic import Field, TypeAdapter, model_validator
 
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.contracts import FiniteNumber
+from specmate.interfaces.assessment_contracts import InterfaceAssessment
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
 Text = Annotated[str, Field(min_length=1, max_length=200)]
@@ -126,9 +127,11 @@ def unique(values):
         raise ValueError("Duplicate stable ID.")
 
 
-Interface = Annotated[ConnectorBody | Pinout | InterfaceMap, Field(discriminator="kind")]
+Interface = Annotated[
+    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment, Field(discriminator="kind")
+]
 INTERFACE_ADAPTER = TypeAdapter(Interface)
-KINDS = {"connector_body", "pinout", "interface_map"}
+KINDS = {"connector_body", "pinout", "interface_map", "interface_assessment"}
 
 
 class CreateInterface(StrictModel):

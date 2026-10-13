@@ -13,6 +13,7 @@ from specmate.interfaces.contracts import (
     INTERFACE_ADAPTER,
     KINDS,
     ConnectorBody,
+    InterfaceAssessment,
     InterfaceMap,
     Pinout,
 )
@@ -39,6 +40,8 @@ def validate_content(kind, content):
 
 
 def references(value):
+    if isinstance(value, InterfaceAssessment):
+        return [value.left_pinout_revision_id, value.right_pinout_revision_id]
     if isinstance(value, Pinout):
         return [value.body_revision_id]
     if isinstance(value, InterfaceMap):
@@ -84,6 +87,17 @@ class Closure:
                 assembly = AssemblyClosure(user, body, kind="assembly")
                 self.assemblies[rid] = assembly
                 pending.extend(assembly.revisions)
+        from specmate.design.operations import authorize_snapshot
+        from specmate.interfaces.assessments import authorize_evidence
+
+        self.assessment_evidence = {}
+        for value in [self.root, *self.values.values()]:
+            if isinstance(value, InterfaceAssessment):
+                self.assessment_evidence[id(value)] = authorize_evidence(user, value)
+        # Retained non-interface dependencies can own source evidence of their own.
+        for rid, value in self.values.items():
+            if value is None and self.revisions[rid].definition.kind != "assembly":
+                authorize_snapshot(user, self.revisions[rid].snapshot)
         # All referenced scopes are checked before reference-kind/contact diagnostics.
         for value in [self.root, *self.values.values()]:
             self.validate(value)
@@ -95,6 +109,10 @@ class Closure:
         return body
 
     def validate(self, value):
+        if isinstance(value, InterfaceAssessment):
+            from specmate.interfaces.assessments import subjects
+
+            subjects(value, self)
         if isinstance(value, Pinout):
             contacts = {c.contact_id: c for c in self.body_for(value).contacts}
             for assignment in value.assignments:
@@ -167,6 +185,10 @@ def inspect_revision(user, revision_id):
         "interface": closure.root.model_dump(mode="json"),
         "compatibility": "not_evaluated",
     }
+    if isinstance(closure.root, InterfaceAssessment):
+        from specmate.interfaces.assessments import assess
+
+        result["assessment"] = assess(closure.root, closure)
     if isinstance(closure.root, Pinout):
         body = closure.body_for(closure.root)
         assignments = {
