@@ -3,7 +3,14 @@ from uuid import UUID
 from ninja import Query, Router
 
 from specmate.catalog import queries
-from specmate.catalog.discovery import SearchCatalog, WhereUsed, search_catalog, where_used
+from specmate.catalog.discovery import (
+    RevisionImpact,
+    SearchCatalog,
+    WhereUsed,
+    revision_impact,
+    search_catalog,
+    where_used,
+)
 from specmate.operations import ValidationFailed
 
 router = Router(tags=["catalog"])
@@ -17,6 +24,11 @@ def search(request, payload: Query[SearchCatalog]):
 @router.get("/where-used")
 def uses(request, payload: Query[WhereUsed]):
     return where_used(request.user, payload)
+
+
+@router.get("/revision-impact")
+def impact(request, payload: Query[RevisionImpact]):
+    return revision_impact(request.user, payload)
 
 
 def page(offset, limit):

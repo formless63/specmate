@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useRef, useState, type FormEvent } from "react";
 import { revisionsOf, searchCatalog, whereUsed, type DefinitionRevisions, type SearchKind, type SearchPage, type SearchRecord, type UsePage } from "./api";
+import { RevisionImpact } from "./RevisionImpact";
 
 const kinds: { value: SearchKind; label: string }[] = [
   { value: "definition", label: "Reusable definitions" },
@@ -146,6 +147,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
         <Text size="xs">{revision.revision_id}</Text>
       </Group>)}
       {moreRevisions && <Button variant="light" disabled={busy} onClick={() => void loadRevisions()}>More revisions</Button>}
+      <RevisionImpact key={definition.definition_id} definition={definition} />
     </Stack></Card>}
     {uses && <Card withBorder><Stack><Title order={3}>Exact revision pins</Title>
       <Text size="xs">Revision {uses.revision_id}</Text>

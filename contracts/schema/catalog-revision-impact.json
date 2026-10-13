@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After"
+    },
+    "candidate_revision_id": {
+      "format": "uuid",
+      "title": "Candidate Revision Id",
+      "type": "string"
+    },
+    "limit": {
+      "default": 25,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id",
+    "candidate_revision_id"
+  ],
+  "title": "RevisionImpact",
+  "type": "object"
+}

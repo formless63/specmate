@@ -19,6 +19,20 @@ export type DefinitionRevisions = {
   definition_id: string; name: string; revisions: { revision_id: string; number: number }[];
 };
 
+export type ImpactPage = UsePage & {
+  definition_id: string; definition_kind: string; current_number: number;
+  candidate_revision_id: string; candidate_number: number;
+  current_sha256: string; candidate_sha256: string; content_changed: boolean;
+  dependency_pins_changed: boolean; adoption: "new_owning_draft_required";
+  compatibility: "not_evaluated"; existing_pins: "retained";
+};
+
+export function revisionImpact(revisionId: string, candidateRevisionId: string, after?: string) {
+  const params = new URLSearchParams({ revision_id: revisionId, candidate_revision_id: candidateRevisionId, limit: "25" });
+  if (after) params.set("after", after);
+  return read<ImpactPage>(`catalog/revision-impact?${params}`);
+}
+
 export function searchCatalog(kind: SearchKind, query: string, projectId?: string, after?: string) {
   const params = new URLSearchParams({ kind, query, limit: "25" });
   if (projectId) params.set("project_id", projectId);

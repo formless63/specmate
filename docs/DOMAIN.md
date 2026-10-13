@@ -21,6 +21,16 @@ ID are different identifiers. Matching candidates must carry evidence and review
 similar connector bodies need not be interchangeable or one identity. A symbol/model is
 a representation linked to a definition, not the stocked physical item itself.
 
+Discovery compares explicitly selected old and later revisions of one definition through
+`catalog.revision_impact`. It reports changed design content and dependency pins and
+lists currently accessible parent snapshots retaining the old exact pin. Both revisions
+and each disclosed parent's complete source closure are authorized before comparison or
+disclosure. Results are paginated; absence of a visible parent is not evidence that none
+exists elsewhere. Comparison does not establish compatibility, feature correspondence or
+release applicability. Adoption requires a new owning draft, explicit revised selections
+and review; no frozen consumer is rewritten. Automated typed upgrade proposals and
+reviewed feature correspondence remain separate work.
+
 ## Occurrences and composition
 
 An assembly revision contains stable local occurrence IDs, each pinned to a definition

@@ -1,5 +1,6 @@
 """Membership-filtered discovery and current-authority exact revision use queries."""
 
+import json
 from typing import Literal
 from uuid import UUID
 
@@ -11,7 +12,7 @@ from specmate.catalog.models import ManufacturerVariant, PhysicalLot
 from specmate.design.models import Definition, Snapshot
 from specmate.design.operations import authorize_snapshot
 from specmate.inventory.models import StockAccount
-from specmate.operations import Context, NotFound, operation
+from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.queries import get_revision
 from specmate.sources.models import SourceBundle
 
@@ -43,6 +44,10 @@ class WhereUsed(BaseModel):
     revision_id: UUID
     after: UUID | None = None
     limit: int = Field(default=25, ge=1, le=100)
+
+
+class RevisionImpact(WhereUsed):
+    candidate_revision_id: UUID
 
 
 def visible_page(queryset, payload, render):
@@ -186,6 +191,36 @@ def where_used(user, payload):
     return {"revision_id": str(payload.revision_id), **visible_page(query, payload, render)}
 
 
+def revision_impact(user, payload):
+    current = get_revision(user, payload.revision_id)
+    candidate = get_revision(user, payload.candidate_revision_id)
+    # Authorize both complete closures before comparing identities or numbering.
+    if current.definition_id != candidate.definition_id:
+        raise ValidationFailed("Upgrade candidate must belong to the same definition.")
+    if candidate.number <= current.number:
+        raise ValidationFailed("Upgrade candidate must be a later frozen revision.")
+    uses = where_used(user, payload)
+    return {
+        **uses,
+        "definition_id": str(current.definition_id),
+        "definition_kind": current.definition.kind,
+        "current_number": current.number,
+        "candidate_revision_id": str(candidate.id),
+        "candidate_number": candidate.number,
+        "current_sha256": current.snapshot.sha256,
+        "candidate_sha256": candidate.snapshot.sha256,
+        "content_changed": json.loads(bytes(current.snapshot.canonical))["content"]
+        != json.loads(bytes(candidate.snapshot.canonical))["content"],
+        "dependency_pins_changed": set(
+            current.snapshot.dependencies.values_list("revision_id", flat=True)
+        )
+        != set(candidate.snapshot.dependencies.values_list("revision_id", flat=True)),
+        "adoption": "new_owning_draft_required",
+        "compatibility": "not_evaluated",
+        "existing_pins": "retained",
+    }
+
+
 @operation(
     "catalog.search",
     SearchCatalog,
@@ -204,3 +239,13 @@ def search(ctx: Context, payload: SearchCatalog):
 )
 def uses(ctx: Context, payload: WhereUsed):
     return where_used(ctx.user, payload)
+
+
+@operation(
+    "catalog.revision_impact",
+    RevisionImpact,
+    supports_idempotency=False,
+    summary="Compare exact revisions and list current authorized retained parent pins.",
+)
+def impact(ctx: Context, payload: RevisionImpact):
+    return revision_impact(ctx.user, payload)
