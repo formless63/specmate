@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "accepted",
+        "rejected",
+        "needs_evidence"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "evidence": {
+      "$ref": "#/$defs/EvidenceInput"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id",
+    "decision",
+    "basis"
+  ],
+  "title": "ReviewModel",
+  "type": "object"
+}

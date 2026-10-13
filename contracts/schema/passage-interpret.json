@@ -1,0 +1,81 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "copper_assumption": {
+      "default": "unspecified",
+      "enum": [
+        "unspecified",
+        "ideal_zero_resistance"
+      ],
+      "title": "Copper Assumption",
+      "type": "string"
+    },
+    "frequency_hz": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "gt": 0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Frequency Hz"
+    },
+    "from_terminal_id": {
+      "pattern": "^terminal-[a-f0-9]{64}$",
+      "title": "From Terminal Id",
+      "type": "string"
+    },
+    "max_hops": {
+      "default": 32,
+      "maximum": 64,
+      "minimum": 1,
+      "title": "Max Hops",
+      "type": "integer"
+    },
+    "max_paths": {
+      "default": 16,
+      "maximum": 32,
+      "minimum": 1,
+      "title": "Max Paths",
+      "type": "integer"
+    },
+    "query": {
+      "enum": [
+        "dc_continuity",
+        "shortness",
+        "resistance",
+        "signal"
+      ],
+      "title": "Query",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "to_terminal_id": {
+      "pattern": "^terminal-[a-f0-9]{64}$",
+      "title": "To Terminal Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id",
+    "from_terminal_id",
+    "to_terminal_id",
+    "query"
+  ],
+  "title": "InterpretModel",
+  "type": "object"
+}

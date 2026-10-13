@@ -1,0 +1,241 @@
+{
+  "$defs": {
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceInput",
+      "type": "object"
+    },
+    "Passage": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "capacitance_f": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacitance F"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceInput"
+        },
+        "from_terminal_id": {
+          "pattern": "^terminal-[a-f0-9]{64}$",
+          "title": "From Terminal Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "resistor",
+            "capacitor",
+            "diode",
+            "inductor",
+            "transformer",
+            "conditional",
+            "active",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "native_candidate_boundary_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Candidate Boundary Id"
+        },
+        "resistance_ohm": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "ge": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resistance Ohm"
+        },
+        "to_terminal_id": {
+          "pattern": "^terminal-[a-f0-9]{64}$",
+          "title": "To Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "from_terminal_id",
+        "to_terminal_id",
+        "kind",
+        "basis"
+      ],
+      "title": "Passage",
+      "type": "object"
+    },
+    "PassageModel": {
+      "additionalProperties": false,
+      "properties": {
+        "assumptions": {
+          "const": "ideal_lumped_components",
+          "title": "Assumptions",
+          "type": "string"
+        },
+        "model_basis": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Model Basis",
+          "type": "string"
+        },
+        "passages": {
+          "items": {
+            "$ref": "#/$defs/Passage"
+          },
+          "maxItems": 1000,
+          "title": "Passages",
+          "type": "array"
+        },
+        "root_revision_id": {
+          "format": "uuid",
+          "title": "Root Revision Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1",
+          "default": "1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "root_revision_id",
+        "assumptions",
+        "model_basis"
+      ],
+      "title": "PassageModel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "draft_id": {
+      "format": "uuid",
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "model": {
+      "$ref": "#/$defs/PassageModel"
+    }
+  },
+  "required": [
+    "draft_id",
+    "model"
+  ],
+  "title": "UpdateModel",
+  "type": "object"
+}
