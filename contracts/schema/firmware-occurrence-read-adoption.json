@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "adoption_id": {
+      "format": "uuid",
+      "title": "Adoption Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "adoption_id"
+  ],
+  "title": "ReadAdoption",
+  "type": "object"
+}

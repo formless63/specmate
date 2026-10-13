@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "specmate.workshop_profiles",
     "specmate.material_accounting",
     "specmate.selected_packages",
+    "specmate.firmware_occurrences.apps.FirmwareOccurrencesConfig",
     "specmate.preparation",
     "specmate.end_preparation",
     "specmate.inventory",

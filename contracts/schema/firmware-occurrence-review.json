@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "draft_id": {
+      "format": "uuid",
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "firmware_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Firmware Revision Id"
+    },
+    "path": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Path",
+      "type": "array"
+    }
+  },
+  "required": [
+    "draft_id",
+    "path",
+    "firmware_revision_id"
+  ],
+  "title": "ReviewOccurrence",
+  "type": "object"
+}
