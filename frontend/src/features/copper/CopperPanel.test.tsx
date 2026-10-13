@@ -50,7 +50,7 @@ test('same-key graph denial removes retained terminal options, component rows an
   render(wrap(<CopperInspector revisionId="root" />, client));
   await choose('Inspect copper terminal', 'board-a · R1.1 (pad)');
   expect(screen.getByRole('table')).toBeTruthy();
-  denied = true; await act(async () => { await client.refetchQueries({ queryKey: ['copper-graph', 'root'] }); });
+  denied = true; fireEvent.click(screen.getByRole('button', { name: 'Refresh graph access' }));
   expect(await screen.findByText('Graph source access denied.')).toBeTruthy();
   expect(screen.queryByRole('table')).toBeNull(); expect(screen.queryByRole('combobox', { name: 'Inspect copper terminal' })).toBeNull();
   expect(screen.queryByText('Resistor passage keeps the nets separate.')).toBeNull();

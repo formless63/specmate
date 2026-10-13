@@ -234,3 +234,5 @@ Its inspector lists the terminal's declared component, connection evidence, nati
 net identities and non-merging boundaries with source provenance. Long terminal,
 connection and boundary lists paginate independently. Denied definition, revision
 identity or graph refreshes remove retained private results and source-derived choices.
+The explicit graph access refresh clears displayed evidence during the request and
+rechecks the same frozen revision; reselecting an already selected ID is not a refresh.

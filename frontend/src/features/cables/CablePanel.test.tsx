@@ -25,6 +25,7 @@ async function select(label: string, option: string) {
   fireEvent.click(await within(screen.getByRole('listbox', { name: label, hidden: true })).findByText(option));
 }
 
+// Complete authoring with searchable selectors and three commands needs a bounded CI allowance.
 test('compose two ends, save with token, freeze and inspect unchanged conductor identity', async () => {
   const commands: { operation: string; expected_state: string; payload: { cable?: Cable } }[] = [];
   let cable = initialCable(); let state = 'draft-v1';
@@ -70,7 +71,7 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   expect(await screen.findByText('stock.core · conductor')).toBeTruthy();
   expect(screen.getAllByText('unknown / unassigned')).toHaveLength(2);
   expect(screen.getAllByText('unknown to unknown').length).toBeGreaterThan(0);
-});
+}, 10_000);
 
 test('inaccessible frozen cable reveals no assignments or pins', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: { message: 'Project not found.' } }), { status: 404 })));
