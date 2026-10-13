@@ -40,6 +40,10 @@ Hidden candidates are skipped without counts; continuation cursors refer only to
 visible candidates. HTTP commands, discovered agent commands and trusted jobs call
 the same registered operations. The browser uses definition and exact-revision
 selectors, typed evidence fields and an append-review form; JSON editing is unnecessary.
+Continuations must identify a currently authorized row in the same query scope.
+The browser's explicit access refresh and window-focus refresh discard retained
+selections, forms and history before reading current authority. A denied candidate
+reread also clears old options and disables mutations until access is refreshed.
 
 Automatic similarity scoring, supplier import adapters, model-fit computation and
 candidate deduplication are further capability work. This implementation accepts
