@@ -60,6 +60,40 @@ def rep_payload(revision, source):
     }
 
 
+def test_representation_preserves_exact_source_path_including_spaces(users, project, revision):
+    register(users["editor"], project, ORIGINAL)
+    exact_path = "src/source.txt "
+    source = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {
+            "project_id": project,
+            "name": "Exact path fixture",
+            "files": files(ORIGINAL) + files(ORIGINAL, path=exact_path),
+        },
+    )
+    payload = {**rep_payload(revision, source), "source_path": exact_path}
+    result = op(
+        users["editor"],
+        "catalog.register_representation",
+        payload,
+        idempotency_key="exact-representation-path",
+    )
+    assert result["source_path"] == exact_path
+    assert (
+        op(
+            users["editor"],
+            "catalog.register_representation",
+            payload,
+            idempotency_key="exact-representation-path",
+        )
+        == result
+    )
+    ordinary = op(users["editor"], "catalog.register_representation", rep_payload(revision, source))
+    assert ordinary["representation_id"] != result["representation_id"]
+    assert ordinary["source_path"] == "src/source.txt"
+
+
 def test_one_definition_two_variants_two_lots_and_representation(
     users, definition, revision, source
 ):

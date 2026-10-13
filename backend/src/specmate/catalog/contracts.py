@@ -1,7 +1,7 @@
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 RepresentationKind = Literal["symbol", "footprint", "model", "drawing", "datasheet"]
 
@@ -20,7 +20,9 @@ class RegisterRepresentation(BaseModel):
     kind: RepresentationKind
     label: str = Field(min_length=1, max_length=200)
     source_bundle_revision_id: UUID
-    source_path: str = Field(min_length=1, max_length=512)
+    source_path: Annotated[str, StringConstraints(strip_whitespace=False)] = Field(
+        min_length=1, max_length=512
+    )
 
 
 class VariantResult(BaseModel):
