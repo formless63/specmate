@@ -143,3 +143,83 @@ def test_compiler_rejects_unpinned_sibling_even_when_firmware_subset_is_valid(
             users["owner"], FirmwareRef(firmware_revision_id=frozen["revision_id"])
         )
     assert BuildAttempt.objects.count() == before
+
+
+@pytest.mark.django_db(transaction=True)
+def test_shared_and_compiler_downloads_recheck_reader_context_independently_of_requester(
+    users, project, firmware, board, settings
+):
+    from specmate.builds.models import BuildAttempt
+    from specmate.builds.operations import _execution_allowed
+    from specmate.firmware_builds.contracts import FirmwareRef
+    from specmate.firmware_builds.pack import recipe_for
+
+    from .test_firmware_builds import IMAGE
+    from .test_transports import api
+
+    context_project = op(
+        users["owner"], "project.create", {"name": "Reader-specific compiler context"}
+    )["project_id"]
+    Membership.objects.create(project_id=context_project, user=users["viewer"], role="viewer")
+    assembly = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "project_id": context_project,
+            "name": "Independent contextual authority",
+            "assembly": {
+                "occurrences": [
+                    {
+                        "local_id": "board",
+                        "revision_id": board[0]["revision_id"],
+                        "assignments": {"firmware_revision_id": firmware["revision_id"]},
+                    }
+                ]
+            },
+        },
+    )
+    frozen = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=assembly["state"],
+    )
+    ref = FirmwareRef(
+        firmware_revision_id=firmware["revision_id"],
+        assembly_snapshot_id=frozen["snapshot_id"],
+        path=["board"],
+    )
+    _, _, spec = operations.inputs(users["owner"], ref)
+    approved = recipe_for(spec, IMAGE)
+    settings.SPECMATE_APPROVED_RECIPES = {approved["id"]: approved}
+    result = op(
+        users["owner"],
+        "firmware_build.request",
+        {**payload(firmware, approved), **ref.model_dump(mode="json")},
+        idempotency_key="reader-context",
+    )
+    stage = fake_outputs(result)
+    output = stage.outputs.get(path="handoff.json")
+    generic = f"/api/v0/builds/{stage.build_id}/outputs/{output.id}"
+    specific = f"/api/v0/firmware-builds/firmware/{firmware['revision_id']}/builds/{stage.build_id}"
+    query = f"?assembly_snapshot_id={frozen['snapshot_id']}&path=board"
+    viewer = api(users["viewer"])
+    response = viewer.get(generic)
+    assert response.status_code == 200
+    retained_bytes = b"".join(response.streaming_content)
+    response.close()
+    assert viewer.get(specific + query).status_code == 200
+    Membership.objects.filter(project_id=context_project, user=users["viewer"]).delete()
+    assert Membership.objects.filter(project_id=project, user=users["viewer"]).exists()
+    assert _execution_allowed(BuildAttempt.objects.get(id=stage.build_id))
+    with pytest.raises(NotFound):
+        op(users["viewer"], "build.get", {"build_id": stage.build_id})
+    for route in (generic, specific + query, specific + f"/outputs/{output.id}" + query):
+        denied = viewer.get(route)
+        assert denied.status_code == 404
+        assert b"source_execution" not in denied.content
+        assert b"main.c" not in denied.content
+    owner_response = api(users["owner"]).get(generic)
+    assert owner_response.status_code == 200
+    assert b"".join(owner_response.streaming_content) == retained_bytes
+    owner_response.close()
