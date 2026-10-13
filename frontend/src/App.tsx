@@ -20,6 +20,7 @@ const MatchingWorkspace = lazy(() => import("./features/catalog-matching/Matchin
 const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/CatalogPacksWorkspace").then((module) => ({ default: module.CatalogPacksWorkspace })));
 const HarnessPanel = lazy(() => import("./features/harnesses/HarnessPanel").then((module) => ({ default: module.HarnessPanel })));
 const CopperPanel = lazy(() => import("./features/copper/CopperPanel").then((module) => ({ default: module.CopperPanel })));
+const RevisionUpgradeWorkspace = lazy(() => import("./features/revision-upgrades/RevisionUpgradeWorkspace").then((module) => ({ default: module.RevisionUpgradeWorkspace })));
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
@@ -37,6 +38,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <Tabs.List aria-label="Project tools">
       <Tabs.Tab value="identity">Identities</Tabs.Tab>
       <Tabs.Tab value="discovery">Discovery</Tabs.Tab>
+      <Tabs.Tab value="revision-upgrades">Revision upgrades</Tabs.Tab>
       <Tabs.Tab value="matching">Reviewed matching</Tabs.Tab>
       <Tabs.Tab value="catalog-packs">Catalog packs</Tabs.Tab>
       <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
@@ -55,6 +57,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     </Tabs.List>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="revision-upgrades">{visited.has("revision-upgrades") && <RevisionUpgradeWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} />}</ToolPanel>
     <ToolPanel value="matching">{visited.has("matching") && <MatchingWorkspace projectId={projectId} />}</ToolPanel>
     <ToolPanel value="catalog-packs">{visited.has("catalog-packs") && <CatalogPacksWorkspace projectId={projectId} />}</ToolPanel>
     <ToolPanel value="wire-stock">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</ToolPanel>

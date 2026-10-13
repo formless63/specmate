@@ -28,8 +28,10 @@ and each disclosed parent's complete source closure are authorized before compar
 disclosure. Results are paginated; absence of a visible parent is not evidence that none
 exists elsewhere. Comparison does not establish compatibility, feature correspondence or
 release applicability. Adoption requires a new owning draft, explicit revised selections
-and review; no frozen consumer is rewritten. Automated typed upgrade proposals and
-reviewed feature correspondence remain separate work.
+and review; no frozen consumer is rewritten. [Revision upgrade proposals](REVISION-UPGRADES.md)
+retain exact assembly snapshots and selected direct occurrences, separate review history,
+explicit declared-contact correspondence and deliberate adoption into an owning draft.
+Nested adoption, other owning kinds and further feature adapters remain separate work.
 
 ## Occurrences and composition
 
