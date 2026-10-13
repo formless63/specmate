@@ -9,7 +9,7 @@ from uuid import UUID
 from specmate.access.models import Membership
 from specmate.access.permissions import Perm, authorize, permissions_for
 from specmate.design.models import Definition, Draft, Revision
-from specmate.design.operations import draft_state
+from specmate.design.operations import authorize_design_content, authorize_snapshot, draft_state
 from specmate.operations import NotFound
 from specmate.sources.models import SourceBundleRevision
 
@@ -42,6 +42,7 @@ def get_draft(user: Any, draft_id: UUID) -> dict:
     if draft is None:
         raise NotFound("Draft not found.")
     authorize(user, draft.definition.project_id, Perm.PROJECT_READ)
+    authorize_design_content(user, draft.definition, draft.content)
     return {"definition_id": str(draft.definition_id), **draft_state(draft)}
 
 
@@ -52,6 +53,7 @@ def get_revision(user: Any, revision_id: UUID) -> Revision:
     if revision is None:
         raise NotFound("Revision not found.")
     authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    authorize_snapshot(user, revision.snapshot)
     return revision
 
 

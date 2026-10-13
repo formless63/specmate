@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "feature_id": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Feature Id"
+    },
+    "path": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Path",
+      "type": "array"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "path"
+  ],
+  "title": "ResolveOccurrence",
+  "type": "object"
+}

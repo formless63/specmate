@@ -27,6 +27,7 @@ def scoped_draft(ctx: Context, draft_id: UUID, perm: Perm, *, lock: bool = False
     if draft is None:
         raise NotFound("Draft not found.")
     authorize(ctx.user, draft.definition.project_id, perm)  # NotFound for non-members
+    authorize_design_content(ctx.user, draft.definition, draft.content)
     return draft
 
 
@@ -66,6 +67,7 @@ def create_definition(ctx: Context, p: CreateDefinition) -> dict:
         project=project, kind=p.kind, name=p.name, created_by=ctx.user
     )
     content = validate_content(definition.kind, p.content)
+    authorize_design_content(ctx.user, definition, content)
     draft = Draft.objects.create(definition=definition, content=content, updated_by=ctx.user)
     return {"definition_id": str(definition.id), **draft_state(draft)}
 
@@ -91,7 +93,9 @@ def update_draft(ctx: Context, p: UpdateDraft) -> dict:
     check_state(ctx, draft)
     content = {k: v for k, v in draft.content.items() if k not in p.remove}
     content.update(p.changes)
-    draft.content = validate_content(draft.definition.kind, content)
+    content = validate_content(draft.definition.kind, content)
+    authorize_design_content(ctx.user, draft.definition, content)
+    draft.content = content
     draft.version += 1
     draft.updated_by = ctx.user
     draft.save(update_fields=["content", "version", "updated_by", "updated_at"])
@@ -110,17 +114,27 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
     validate_content(draft.definition.kind, draft.content)
     if len(set(p.dependencies)) != len(p.dependencies):
         raise ValidationFailed("Duplicate dependency.")
+    dependencies = p.dependencies
+    if draft.definition.kind == "assembly" and "assembly" in draft.content:
+        from specmate.assemblies.queries import dependency_revisions
+
+        derived = dependency_revisions(ctx.user, draft.definition, draft.content)
+        if dependencies and set(dependencies) != set(derived):
+            raise ValidationFailed("Assembly dependencies must match its exact content closure.")
+        dependencies = derived
     revisions = list(
-        Revision.objects.select_related("definition", "snapshot").filter(id__in=p.dependencies)
+        Revision.objects.select_related("definition", "snapshot").filter(id__in=dependencies)
     )
     found = {r.id: r for r in revisions}
     pins = []
-    for rid in sorted(p.dependencies, key=str):
+    for rid in sorted(dependencies, key=str):
         revision = found.get(rid)
         if revision is None:
             raise NotFound("Dependency revision not found.")
         authorize(ctx.user, revision.definition.project_id, Perm.PROJECT_READ)
-        if revision.definition_id == draft.definition_id:
+        if revision.definition_id == draft.definition_id and not (
+            draft.definition.kind == "assembly" and "assembly" in draft.content
+        ):
             raise ValidationFailed("A definition cannot depend on its own revision.")
         pins.append({"revision_id": str(rid), "sha256": revision.snapshot.sha256})
     definition = draft.definition
@@ -142,7 +156,7 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         created_by=ctx.user,
     )
     SnapshotDependency.objects.bulk_create(
-        SnapshotDependency(snapshot=snapshot, revision_id=rid) for rid in p.dependencies
+        SnapshotDependency(snapshot=snapshot, revision_id=rid) for rid in dependencies
     )
     return draft, snapshot
 
@@ -193,4 +207,34 @@ def validate_content(kind, content):
         from specmate.wire_stock.schemas import validate_stock_content
 
         return validate_stock_content(content)
+    if "assembly" in content:
+        from specmate.assemblies.queries import parse_content
+
+        assembly = parse_content(content, kind=kind)
+        return {**content, "assembly": assembly.model_dump(mode="json")}
     return content
+
+
+def authorize_design_content(user, definition, content):
+    if "assembly" in content:
+        from specmate.assemblies.queries import dependency_revisions
+
+        dependency_revisions(user, definition, content)
+
+
+def authorize_snapshot(user, snapshot):
+    """Authorize every exact dependency before any retained canonical state is exposed."""
+    pending = [snapshot]
+    visited = set()
+    while pending:
+        current = pending.pop()
+        if current.pk in visited:
+            continue
+        visited.add(current.pk)
+        authorize(user, current.definition.project_id, Perm.PROJECT_READ)
+        body = json.loads(bytes(current.canonical))
+        authorize_design_content(user, current.definition, body["content"])
+        for dependency in current.dependencies.select_related(
+            "revision__definition", "revision__snapshot__definition"
+        ):
+            pending.append(dependency.revision.snapshot)

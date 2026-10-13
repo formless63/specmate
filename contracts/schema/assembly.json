@@ -1,0 +1,539 @@
+{
+  "$defs": {
+    "Assignments": {
+      "additionalProperties": false,
+      "description": "Only occurrence-owned assignments; revision-owned geometry and wiring are excluded.",
+      "properties": {
+        "firmware_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Firmware Revision Id"
+        }
+      },
+      "title": "Assignments",
+      "type": "object"
+    },
+    "Containment": {
+      "additionalProperties": false,
+      "properties": {
+        "child": {
+          "$ref": "#/$defs/OccurrenceRef"
+        },
+        "kind": {
+          "const": "containment",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "parent": {
+          "$ref": "#/$defs/OccurrenceRef"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "parent",
+        "child"
+      ],
+      "title": "Containment",
+      "type": "object"
+    },
+    "ContextualAssignment": {
+      "additionalProperties": false,
+      "properties": {
+        "assignments": {
+          "$ref": "#/$defs/Assignments"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "assignments"
+      ],
+      "title": "ContextualAssignment",
+      "type": "object"
+    },
+    "Documentation": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "discriminator": {
+            "mapping": {
+              "occurrence": "#/$defs/OccurrenceRef",
+              "revision": "#/$defs/RevisionRef"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/OccurrenceRef"
+            },
+            {
+              "$ref": "#/$defs/RevisionRef"
+            }
+          ],
+          "title": "Document"
+        },
+        "kind": {
+          "const": "documentation",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "subject": {
+          "discriminator": {
+            "mapping": {
+              "occurrence": "#/$defs/OccurrenceRef",
+              "revision": "#/$defs/RevisionRef"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/OccurrenceRef"
+            },
+            {
+              "$ref": "#/$defs/RevisionRef"
+            }
+          ],
+          "title": "Subject"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "subject",
+        "document"
+      ],
+      "title": "Documentation",
+      "type": "object"
+    },
+    "Electrical": {
+      "additionalProperties": false,
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/OccurrenceRef"
+        },
+        "b": {
+          "$ref": "#/$defs/OccurrenceRef"
+        },
+        "kind": {
+          "const": "electrical",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "a",
+        "b"
+      ],
+      "title": "Electrical",
+      "type": "object"
+    },
+    "Mating": {
+      "additionalProperties": false,
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/OccurrenceRef"
+        },
+        "b": {
+          "$ref": "#/$defs/OccurrenceRef"
+        },
+        "kind": {
+          "const": "mating",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "a",
+        "b"
+      ],
+      "title": "Mating",
+      "type": "object"
+    },
+    "Mounting": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "mounting",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "mounted": {
+          "$ref": "#/$defs/OccurrenceRef"
+        },
+        "support": {
+          "$ref": "#/$defs/OccurrenceRef"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "mounted",
+        "support"
+      ],
+      "title": "Mounting",
+      "type": "object"
+    },
+    "Occurrence": {
+      "additionalProperties": false,
+      "properties": {
+        "assignments": {
+          "$ref": "#/$defs/Assignments"
+        },
+        "display_ref": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Display Ref",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "placement": {
+          "$ref": "#/$defs/Placement"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "revision_id"
+      ],
+      "title": "Occurrence",
+      "type": "object"
+    },
+    "OccurrenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Id"
+        },
+        "kind": {
+          "const": "occurrence",
+          "default": "occurrence",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "OccurrenceRef",
+      "type": "object"
+    },
+    "Placement": {
+      "additionalProperties": false,
+      "description": "A transform in the containing assembly's right-handed, z-up millimetre frame.",
+      "properties": {
+        "frame": {
+          "const": "right_handed_z_up",
+          "default": "right_handed_z_up",
+          "title": "Frame",
+          "type": "string"
+        },
+        "rotation_xyzw": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rotation Xyzw"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "translation": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Translation"
+        },
+        "unit": {
+          "const": "mm",
+          "default": "mm",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "Placement",
+      "type": "object"
+    },
+    "Procurement": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "procurement",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "orderable": {
+          "$ref": "#/$defs/RevisionRef"
+        },
+        "subject": {
+          "$ref": "#/$defs/OccurrenceRef"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "subject",
+        "orderable"
+      ],
+      "title": "Procurement",
+      "type": "object"
+    },
+    "RevisionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Id"
+        },
+        "kind": {
+          "const": "revision",
+          "default": "revision",
+          "title": "Kind",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision_id"
+      ],
+      "title": "RevisionRef",
+      "type": "object"
+    },
+    "SourceDerivation": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "source_derivation",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/RevisionRef"
+        },
+        "subject": {
+          "$ref": "#/$defs/OccurrenceRef"
+        }
+      },
+      "required": [
+        "kind",
+        "local_id",
+        "subject",
+        "source"
+      ],
+      "title": "SourceDerivation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assignments": {
+      "items": {
+        "$ref": "#/$defs/ContextualAssignment"
+      },
+      "maxItems": 1000,
+      "title": "Assignments",
+      "type": "array"
+    },
+    "occurrences": {
+      "items": {
+        "$ref": "#/$defs/Occurrence"
+      },
+      "maxItems": 1000,
+      "title": "Occurrences",
+      "type": "array"
+    },
+    "relationships": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "containment": "#/$defs/Containment",
+            "documentation": "#/$defs/Documentation",
+            "electrical": "#/$defs/Electrical",
+            "mating": "#/$defs/Mating",
+            "mounting": "#/$defs/Mounting",
+            "procurement": "#/$defs/Procurement",
+            "source_derivation": "#/$defs/SourceDerivation"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/Containment"
+          },
+          {
+            "$ref": "#/$defs/Electrical"
+          },
+          {
+            "$ref": "#/$defs/Mating"
+          },
+          {
+            "$ref": "#/$defs/Mounting"
+          },
+          {
+            "$ref": "#/$defs/SourceDerivation"
+          },
+          {
+            "$ref": "#/$defs/Documentation"
+          },
+          {
+            "$ref": "#/$defs/Procurement"
+          }
+        ]
+      },
+      "maxItems": 2000,
+      "title": "Relationships",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "title": "AssemblyContent",
+  "type": "object"
+}

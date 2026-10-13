@@ -11,12 +11,32 @@ def authorize_builtin_replay(name, ctx, payload, stored):
         authorize(ctx.user, stored["project_id"], Perm.PROJECT_READ)
     elif name == "definition.create":
         authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+        from specmate.assemblies.queries import authorize_content
+
+        authorize_content(ctx.user, stored["content"])
     elif name in {"draft.update", "draft.snapshot", "draft.freeze"}:
         from specmate.design.models import Revision
         from specmate.design.operations import scoped_draft
 
         permission = Perm.DESIGN_FREEZE if name == "draft.freeze" else Perm.DESIGN_EDIT
         scoped_draft(ctx, payload.draft_id, permission)
+        from specmate.assemblies.queries import authorize_content
+        from specmate.design.models import Snapshot
+        from specmate.design.operations import authorize_snapshot
+
+        if name == "draft.update":
+            authorize_content(ctx.user, stored["content"])
+        else:
+            snapshot = (
+                Snapshot.objects.select_related("definition")
+                .filter(id=stored["snapshot_id"])
+                .first()
+            )
+            if snapshot is None:
+                raise NotFound("Snapshot not found.")
+            authorize_snapshot(ctx.user, snapshot)
+            if name == "draft.freeze":
+                authorize_content(ctx.user, stored["draft"]["content"])
         for revision_id in getattr(payload, "dependencies", []):
             revision = Revision.objects.select_related("definition").filter(id=revision_id).first()
             if revision is None:
