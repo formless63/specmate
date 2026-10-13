@@ -540,6 +540,15 @@ def declare(ctx: Context, p: Declare) -> dict:
 
 def _locked(ctx, p, permission=Perm.SOURCE_REGISTER):
     authority = authority_for(ctx, p.authority_id, permission, lock=True)
+    # Match source writers' bundle lock and keep all disclosed heads stable through CAS.
+    bundle_ids = {authority.owner_bundle_id}
+    if isinstance(p, Transfer):
+        bundle_ids.add(_owner_revision(ctx, p.new_owner_revision_id).bundle_id)
+    list(SourceBundle.objects.select_for_update().filter(id__in=bundle_ids).order_by("id"))
+    authorize_authority(ctx.user, authority, permission)
+    if isinstance(p, Transfer):
+        for bundle_id in bundle_ids:
+            authorize_revision(ctx.user, head_of(bundle_id), permission)
     if ctx.expected_state != authority_state(authority):
         raise Conflict(
             "The property authority changed since it was reviewed.",
