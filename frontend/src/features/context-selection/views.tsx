@@ -98,7 +98,7 @@ function BoardView() {
       <Select label="Board feature display" value={role} allowDeselect={false} data={[{ value: 'native_component', label: 'Native components' }, { value: 'native_pad', label: 'Native pads' }]} onChange={value => setRole(value!)} />
       {polygons.length > 0 && width > 0 && height > 0 && <svg role="img" aria-label={`Native board plane for ${node.address.path.join('/')}`} viewBox={`${minX - radius * 2} ${minY - radius * 2} ${width + radius * 4} ${height + radius * 4}`} style={{ width: '100%', height: 260 }}>
         {polygons.map((polygon, i) => <polygon key={i} points={polygon.map(p => `${p[0]},${p[1]}`).join(' ')} fill="none" stroke="currentColor" strokeWidth={radius / 3} />)}
-        {features.slice(0, 50).map(feature => { const location = point(feature); return location && <circle role="button" tabIndex={0} aria-label={`Board marker ${feature.feature_id}`} aria-pressed={selected?.feature_id === feature.feature_id} key={feature.feature_id}
+        {features.slice(0, 50).map(feature => { const location = point(feature); return location && <circle role="button" tabIndex={0} pointerEvents="all" aria-label={`Board marker ${feature.feature_id}`} aria-pressed={selected?.feature_id === feature.feature_id} key={feature.feature_id}
           cx={location[0]} cy={location[1]} r={radius} stroke="currentColor" fill={selected?.feature_id === feature.feature_id ? 'currentColor' : 'none'} strokeWidth={radius / 3}
           onClick={() => controller.selectOccurrence(feature.address)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); controller.selectOccurrence(feature.address); } }}><title>{feature.label} · {feature.feature_id}</title></circle>; })}
       </svg>}

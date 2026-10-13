@@ -83,6 +83,22 @@ test('explicit cable endpoint and viewport callbacks update all views without la
   expect(region('Context inspector').getByText(/No occurrence inspector is selected/)).toBeTruthy();
 });
 
+test('hollow board markers include their interior hit area and retain exact keyboard selection', async () => {
+  installApi(); render(show()); await open();
+  fireEvent.click(screen.getByRole('button', { name: 'Tree right/board · J1' })); tab('Context board');
+  const marker = region('Context board').getByRole('button', { name: 'Board marker component:one' });
+  // jsdom checks the SVG hit-area declaration; actual browser center-click is separate evidence.
+  expect(marker.getAttribute('fill')).toBe('none'); expect(marker.getAttribute('pointer-events')).toBe('all');
+  fireEvent.keyDown(marker, { key: 'Enter' });
+  expect(selected().getByText('Selected occurrence: right/board')).toBeTruthy();
+  expect(selected().getByText('Stable feature: component:one')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Clear shared selection' }));
+  fireEvent.click(region('Context board').getByRole('button', { name: 'Board right/board · J1' }));
+  fireEvent.keyDown(region('Context board').getByRole('button', { name: 'Board marker component:one' }), { key: ' ' });
+  expect(selected().getByText('Stable feature: component:one')).toBeTruthy();
+  expect(region('Context board').getByRole('button', { name: 'Board left/board · J1' }).getAttribute('aria-pressed')).toBe('false');
+});
+
 test('current BOM authority denial clears every connected view and no old scene response can reopen it', async () => {
   const scene = contextScene(); let sceneReads = 0, finishOld: (value: Response) => void = () => {};
   const old = new Promise<Response>(resolve => { finishOld = resolve; });
