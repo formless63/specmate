@@ -16,6 +16,7 @@ from specmate.assemblies.api import router as assemblies_router
 from specmate.bom.api import router as bom_router
 from specmate.builds.api import artifacts_router
 from specmate.builds.api import router as runner_router
+from specmate.cable_test_intent.api import router as cable_test_intent_router
 from specmate.cables.api import router as cables_router
 from specmate.catalog.api import router as catalog_router
 from specmate.catalog_matching.api import router as matching_router
@@ -52,6 +53,7 @@ api.add_router("/v0/bom", bom_router)
 api.add_router("/v0/assemblies", assemblies_router)
 api.add_router("/v0/interfaces", interfaces_router)
 api.add_router("/v0/cables", cables_router)
+api.add_router("/v0/cable-test-intent", cable_test_intent_router)
 api.add_router("/v0/harnesses", harnesses_router)
 api.add_router("/v0/copper", copper_router)
 api.add_router("/v0/passive-passages", passages_router)

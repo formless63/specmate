@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "specmate.assemblies",
     "specmate.interfaces",
     "specmate.cables",
+    "specmate.cable_test_intent",
     "specmate.harnesses",
     "specmate.sources",
     "specmate.builds",

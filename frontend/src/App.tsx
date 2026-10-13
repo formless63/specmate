@@ -27,6 +27,8 @@ const PassivePassagesWorkspace = lazy(() => import("./features/passive-passages/
 
 const PreparationPanel = lazy(() => import("./features/preparation/PreparationPanel").then((module) => ({ default: module.PreparationPanel })));
 
+const CableTestIntentPanel = lazy(() => import("./features/cable-test-intent/CableTestIntentPanel").then((module) => ({ default: module.CableTestIntentPanel })));
+
 const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((module) => ({ default: module.SourcesPanel })));
 
 export function App() {
@@ -56,6 +58,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
       <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
       <Tabs.Tab value="cables">Cables</Tabs.Tab>
+      <Tabs.Tab value="cable-test-intent">Cable test intent</Tabs.Tab>
       <Tabs.Tab value="harnesses">Harness branches</Tabs.Tab>
       <Tabs.Tab value="copper">Copper graph</Tabs.Tab>
       <Tabs.Tab value="passive-passages">Passive models</Tabs.Tab>
@@ -79,6 +82,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="interfaces">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="cables">{visited.has("cables") && <CablePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="cable-test-intent">{visited.has("cable-test-intent") && <CableTestIntentPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="harnesses">{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="passive-passages">{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} />}</ToolPanel>
     <ToolPanel value="copper">{visited.has("copper") && <CopperPanel projectId={projectId} />}</ToolPanel>

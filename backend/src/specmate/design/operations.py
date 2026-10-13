@@ -140,6 +140,12 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         from specmate.bom.queries import dependency_revisions as bom_dependencies
 
         derived = bom_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "cable_test_plan":
+        from specmate.cable_test_intent.queries import (
+            dependency_revisions as test_plan_dependencies,
+        )
+
+        derived = test_plan_dependencies(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "cable":
         from specmate.cables.queries import dependency_revisions as cable_dependencies
 
@@ -250,6 +256,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind == "cable_test_plan" or "test_plan" in content:
+        from specmate.cable_test_intent.queries import validate_content as validate_test_plan
+
+        content = validate_test_plan(kind, content)
     if kind == "preparation_profile" or "preparation_profile" in content:
         from specmate.preparation.queries import validate_content as validate_preparation
 
@@ -307,6 +317,10 @@ def authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind == "cable_test_plan" or "test_plan" in content:
+        from specmate.cable_test_intent.queries import authorize_content as authorize_test_plan
+
+        authorize_test_plan(user, definition, content)
     if definition.kind == "preparation_profile" or "preparation_profile" in content:
         from specmate.preparation.queries import authorize_content as authorize_preparation
 
