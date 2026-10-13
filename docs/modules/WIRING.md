@@ -236,3 +236,36 @@ connection and boundary lists paginate independently. Denied definition, revisio
 identity or graph refreshes remove retained private results and source-derived choices.
 The explicit graph access refresh clears displayed evidence during the request and
 rechecks the same frozen revision; reselecting an already selected ID is not a refresh.
+
+## Exact path explanations
+
+The reviewed passive-model query view explains one bounded candidate path at a time.
+It exposes every step record identity, traversal, basis and evidence; exact terminal
+IDs resolve to occurrence paths, owning revisions and typed feature fields only when
+both the query root revision and snapshot hash match the inspected graph. Missing or
+mismatched graph metadata stays unavailable. Supplied query provenance is displayed
+without substituting metadata from another graph or joining repeated labels.
+
+Copper steps retain physical section and stock/body/pinout pins, native net identities,
+interpretation/source revisions and hashes. Independent component assertions retain
+the frozen model revision/hash, review identity and exact registered evidence path,
+hash and rights, or explicitly unknown/unverified evidence. The shared copper
+provenance display also exposes these identities in ordinary copper inspection.
+
+Query semantics, ideal copper/component assumptions, declared parameters, frequency,
+condition assignments, required exclusive states and contradictory requirements remain
+visible beside the result. Series impedance is a derived model approximation; series
+resistance is neither measured nor a parallel-network equivalent. Source boundaries
+remain visible independently of reviewed assertions. Steps and boundaries paginate in
+batches of 20; path selection does not silently truncate the query's candidate count.
+Search-limited results remain incomplete and unknown. Unsupported active behavior,
+physical continuity, signal transfer, compatibility and physical qualification are not
+established by path reachability or review acceptance. No returned path does not prove
+physical disconnection.
+
+An original synthetic harness-to-PCB test uses exact assembly occurrences, authored
+wire/termination/breakout relations and reported PCB membership. A separate reviewed
+ideal bridge is required between the harness and board; no mating or association is
+inferred. Independent resistor and unsupported-active assertions preserve the native
+candidate boundary and its source provenance. These fixtures exercise shared
+operations against PostgreSQL; they do not execute or qualify a native tool.

@@ -1,5 +1,5 @@
 import { command, read } from "../identity/api";
-import type { Graph } from "../copper/api";
+import type { Boundary, Graph, Origin } from "../copper/api";
 export type { Graph };
 export type Evidence = { status: "unknown" | "unverified_citation" | "registered_file"; citation?: string | null; source_bundle_revision_id?: string | null; source_path?: string | null; sha256?: string | null; rights?: string | null };
 export type ConditionDeclaration = { local_id: string; states: string[]; basis: string };
@@ -10,7 +10,31 @@ export type Model = { root_revision_id: string; assumptions: "ideal_lumped_compo
 export type Draft = { definition_id: string; draft_id: string; state: string; content: { passages: Model } };
 export type Frozen = { revision_id: string; snapshot_id: string; sha256: string; draft: Draft };
 export type Inspection = { revision_id: string; sha256: string; snapshot_id: string; model: Model; assertion_evidence?: { local_id: string; evidence: Evidence }[]; graph: Graph; state: string; decision: string; reviews: { review_id: string; version: number; decision: string; basis: string; evidence: Evidence }[] };
-export type Interpretation = { revision_id: string; sha256: string; review_id?: string; review_state: string; query: string; status: string; reason: string; series_resistance_ohm?: string | null; limited?: boolean; physical_continuity: string; signal_transfer: string; physical_qualification: string; paths: { terminal_ids: string[]; status: string; reasons: string[]; series_resistance_ohm: string | null; shortness: string; series_impedance_ohm: { real: string; imaginary: string; precision: string } | null; steps: { record_id: string; kind: string; from_terminal_id: string; to_terminal_id: string; status: string; basis: string; direction?: string; condition?: string | null; condition_requirement?: ConditionalContact; assigned_state?: string | null; evidence: string | Evidence }[] }[] };
+export type Interpretation = {
+  revision_id: string; sha256: string; review_id?: string; review_state: string;
+  root_revision_id?: string; root_snapshot_sha256?: string;
+  query: string; status: string; reason: string; series_resistance_ohm?: string | null;
+  limited?: boolean; physical_continuity: string; signal_transfer: string;
+  compatibility?: string; physical_qualification: string;
+  assumptions?: {
+    component_model: string; model_basis: string; copper: string; frequency_hz: string | null;
+    condition_assignments?: ConditionAssignment[]; conditional_contacts: string;
+  };
+  unmodeled_boundaries?: Boundary[];
+  paths: {
+    terminal_ids: string[]; condition_requirements?: ConditionalContact[];
+    conflicting_condition_ids?: string[]; status: string; reasons: string[];
+    series_resistance_ohm: string | null; shortness: string;
+    series_impedance_ohm: { real: string; imaginary: string; precision: string } | null;
+    steps: {
+      record_id: string; kind: string; from_terminal_id: string; to_terminal_id: string;
+      status: string; basis: string; direction?: string; provenance?: Origin | null;
+      resistance_ohm?: string; capacitance_f?: string; condition?: string | null;
+      condition_requirement?: ConditionalContact; assigned_state?: string | null;
+      evidence: string | Evidence;
+    }[];
+  }[];
+};
 export const inspectRoot = (revisionId: string) => read<Graph>(`copper/revisions/${revisionId}`);
 export const inspectModel = (revisionId: string) => read<Inspection>(`passive-passages/revisions/${revisionId}`);
 export async function inspectDraft(draftId: string) {

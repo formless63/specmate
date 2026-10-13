@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Checkbox, Group, NativeSelect, Stack, Table, Text, Textarea, TextInput, Title } from "@mantine/core";
+import { PathExplanation } from "./PathExplanation";
+import { Alert, Button, Card, Checkbox, Group, NativeSelect, Stack, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
-import { evidenceLabel, scopeLabel } from "../copper/api";
+import { scopeLabel } from "../copper/api";
 import { createModel, freezeModel, inspectDraft, inspectModel, inspectRoot, interpretModel, reviewModel, updateModel } from "./api";
 import type { ConditionDeclaration, Draft, Evidence, Graph, Inspection, Interpretation, Model, Passage } from "./api";
 
@@ -137,9 +138,7 @@ export function PassivePassagesWorkspace({ projectId, canEdit, canFreeze = false
       {query === "signal" && <TextInput label="Signal frequency in hertz (exact positive decimal; blank is unknown)" value={frequency} onChange={(e) => { setFrequency(e.currentTarget.value); clearQuery(); }} />}
       {(inspection.model.conditions ?? []).map((c) => <NativeSelect key={c.local_id} label={`Query state for ${c.local_id}`} value={conditionAssignments[c.local_id] ?? ""} data={[{ value: "", label: "Unspecified: affected path remains unknown" }, ...c.states.map((state) => ({ value: state, label: state }))]} onChange={(e) => { const state = e.currentTarget.value; setConditionAssignments((prior) => ({ ...prior, [c.local_id]: state })); clearQuery(); }} />)}
       <Button disabled={busy || !from || !to} onClick={submitQuery}>Interpret reviewed model</Button>
-      {result && <Stack><Title order={3}>Declared model query result</Title><Text fw={600}>{readable(result.status)} · {readable(result.reason)}</Text><Text>Model {result.revision_id} · {result.sha256} · review {result.review_id ?? "not accepted"}</Text><Text>Physical continuity: {readable(result.physical_continuity)}. Signal transfer: {readable(result.signal_transfer)}. Physical qualification: {readable(result.physical_qualification)}.</Text>{result.limited && <Alert color="yellow">Search limit reached. The aggregate result is unknown; returned paths are incomplete candidates.</Alert>}{result.series_resistance_ohm !== null && result.series_resistance_ohm !== undefined && <Text>Declared single-series-path resistance: {result.series_resistance_ohm} Ω. This is not measured or a parallel-network equivalent.</Text>}
-        {result.paths.map((p, index) => <Card key={index} withBorder><Title order={4}>Candidate path {index + 1} · {readable(p.status)}</Title><Text>{p.terminal_ids.map(displayTerminal).join(" → ")}</Text>{p.reasons.map((reason) => <Text key={reason}>{readable(reason)}</Text>)}<Text>Ideal shortness: {readable(p.shortness)}</Text>{p.series_resistance_ohm !== null && <Text>Series declared resistance: {p.series_resistance_ohm} Ω</Text>}{p.series_impedance_ohm && <Text>Series impedance: {p.series_impedance_ohm.real} + j({p.series_impedance_ohm.imaginary}) Ω · {readable(p.series_impedance_ohm.precision)}</Text>}<Table><Table.Thead><Table.Tr><Table.Th>Typed step</Table.Th><Table.Th>Basis and evidence</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{p.steps.map((s) => <Table.Tr key={s.record_id}><Table.Td>{readable(s.kind)} · {readable(s.status)}{s.direction ? ` · traversal ${s.direction}` : ""}<Text size="sm">{displayTerminal(s.from_terminal_id)} → {displayTerminal(s.to_terminal_id)}</Text></Table.Td><Table.Td>{s.basis}<Text size="sm">{typeof s.evidence === "string" ? evidenceLabel(s.evidence) : `${s.evidence.status}${s.evidence.sha256 ? ` · ${s.evidence.sha256} · rights ${s.evidence.rights}` : ""}`}</Text>{s.condition_requirement && <Text>Requires {s.condition_requirement.condition_id} = {s.condition_requirement.state}; query state {s.assigned_state ?? "unspecified"} · declared ideal contact.</Text>}{s.condition && <Text>Unevaluated condition: {s.condition}</Text>}</Table.Td></Table.Tr>)}</Table.Tbody></Table></Card>)}
-      </Stack>}
+      {result && <PathExplanation result={result} graph={inspection.graph} />}
     </Stack>}
   </Stack>;
 }
