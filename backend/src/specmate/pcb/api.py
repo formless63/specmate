@@ -213,3 +213,36 @@ def read_property_authority(request, authority_id: UUID):
     user = current_actor(request.user)
     context = Context(user=user, via="api", request_id="read-property-authority")
     return read_authority(user, authority_for(context, authority_id))
+
+@router.get("/projects/{project_id}/firmware")
+def list_project_firmware(request, project_id: UUID):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.pcb.firmware import list_firmware
+
+    return {"firmware": list_firmware(current_actor(request.user), project_id)}
+
+
+@router.get("/firmware-drafts/{draft_id}")
+def read_firmware_draft(request, draft_id: UUID):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.pcb.firmware import ReadFirmware, read_firmware
+
+    user = current_actor(request.user)
+    context = Context(user=user, via="api", request_id="read-firmware")
+    return read_firmware(context, ReadFirmware(draft_id=draft_id))
+
+
+@router.get("/firmware-revisions/{revision_id}")
+def read_firmware_revision(request, revision_id: UUID):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.pcb.firmware import read_revision
+
+    return read_revision(current_actor(request.user), revision_id)
+
+
+@router.get("/assemblies/{snapshot_id}/firmware-review")
+def read_firmware_assignment_review(request, snapshot_id: UUID):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.pcb.firmware import assignment_review
+
+    return assignment_review(current_actor(request.user), snapshot_id)
