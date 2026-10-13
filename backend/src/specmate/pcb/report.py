@@ -3,11 +3,11 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
-from specmate.contracts import SHA256
+from specmate.contracts import SHA256, FiniteNumber
 
-Point = tuple[FiniteFloat, FiniteFloat]
+Point = tuple[FiniteNumber, FiniteNumber]
 Label = Annotated[str, Field(max_length=1024)]
 
 
@@ -21,10 +21,10 @@ class Component(Record):
     value: Label
     footprint: Label
     position: Point
-    rotation_deg: FiniteFloat
+    rotation_deg: FiniteNumber
     side: Literal["front", "back"]
-    dnp: bool
-    exclude_from_bom: bool
+    dnp: StrictBool
+    exclude_from_bom: StrictBool
 
 
 class Pad(Record):
@@ -35,7 +35,7 @@ class Pad(Record):
     position: Point
     size: Point
     drill: Point
-    rotation_deg: FiniteFloat
+    rotation_deg: FiniteNumber
     type: Literal["smd", "pth", "npth", "connector", "unknown"]
     shape: Label
     net: Label
@@ -53,7 +53,7 @@ class Passage(Record):
     kind: Literal["resistor"]
     first: Label = Field(alias="from")
     to: Label
-    resistance_ohm: FiniteFloat = Field(ge=0)
+    resistance_ohm: FiniteNumber = Field(ge=0)
 
 
 class Coverage(Record):

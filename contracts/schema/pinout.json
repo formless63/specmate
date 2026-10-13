@@ -1,0 +1,255 @@
+{
+  "$defs": {
+    "Assignment": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "electrical": {
+          "$ref": "#/$defs/ElectricalContract"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "title": "Assignment",
+      "type": "object"
+    },
+    "ElectricalContract": {
+      "additionalProperties": false,
+      "description": "Declared limits and roles, never measured compatibility or conductor identity.",
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition"
+        },
+        "current_max_a": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Max A"
+        },
+        "direction": {
+          "default": "unknown",
+          "enum": [
+            "input",
+            "output",
+            "bidirectional",
+            "passive",
+            "unknown"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "protocol": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protocol"
+        },
+        "role": {
+          "default": "unknown",
+          "enum": [
+            "signal",
+            "power",
+            "return",
+            "shield",
+            "chassis",
+            "unused",
+            "unknown"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "signal": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signal"
+        },
+        "voltage_max_v": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voltage Max V"
+        },
+        "voltage_min_v": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voltage Min V"
+        }
+      },
+      "title": "ElectricalContract",
+      "type": "object"
+    },
+    "Orientation": {
+      "additionalProperties": false,
+      "properties": {
+        "datum": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datum"
+        },
+        "rotation_degrees": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 360,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rotation Degrees"
+        },
+        "viewing_side": {
+          "default": "unknown",
+          "enum": [
+            "mating",
+            "termination",
+            "unknown"
+          ],
+          "title": "Viewing Side",
+          "type": "string"
+        }
+      },
+      "title": "Orientation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assignments": {
+      "items": {
+        "$ref": "#/$defs/Assignment"
+      },
+      "maxItems": 1000,
+      "title": "Assignments",
+      "type": "array"
+    },
+    "body_revision_id": {
+      "format": "uuid",
+      "title": "Body Revision Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "pinout",
+      "default": "pinout",
+      "title": "Kind",
+      "type": "string"
+    },
+    "orientation": {
+      "$ref": "#/$defs/Orientation"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "body_revision_id"
+  ],
+  "title": "Pinout",
+  "type": "object"
+}

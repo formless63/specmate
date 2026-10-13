@@ -5,13 +5,16 @@ from __future__ import annotations
 
 import unicodedata
 from pathlib import PurePosixPath
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SCHEMA_VERSION = "0.1"
 SHA256 = r"^[0-9a-f]{64}$"
 IDENT = r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+
+# JSON numbers include integers, but never booleans or numeric strings.
+FiniteNumber = Annotated[float, Field(strict=True, allow_inf_nan=False)]
 
 
 class OperationEnvelope(BaseModel):

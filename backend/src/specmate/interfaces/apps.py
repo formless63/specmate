@@ -5,4 +5,20 @@ class InterfacesConfig(AppConfig):
     name = "specmate.interfaces"
 
     def ready(self):
+        from specmate.contracts import SCHEMAS
         from specmate.interfaces import operations  # noqa: F401
+        from specmate.interfaces.contracts import (
+            ConnectorBody,
+            InterfaceMap,
+            Pinout,
+            TraceInterface,
+        )
+
+        SCHEMAS.update(
+            {
+                "connector-body": ConnectorBody,
+                "pinout": Pinout,
+                "interface-map": InterfaceMap,
+                "interface-trace": TraceInterface,
+            }
+        )

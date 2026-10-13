@@ -1,0 +1,157 @@
+{
+  "$defs": {
+    "Contact": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Label",
+          "type": "string"
+        },
+        "physical_role": {
+          "default": "contact",
+          "enum": [
+            "contact",
+            "shell",
+            "key"
+          ],
+          "title": "Physical Role",
+          "type": "string"
+        },
+        "position_mm": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position Mm"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "title": "Contact",
+      "type": "object"
+    },
+    "Orientation": {
+      "additionalProperties": false,
+      "properties": {
+        "datum": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datum"
+        },
+        "rotation_degrees": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 360,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rotation Degrees"
+        },
+        "viewing_side": {
+          "default": "unknown",
+          "enum": [
+            "mating",
+            "termination",
+            "unknown"
+          ],
+          "title": "Viewing Side",
+          "type": "string"
+        }
+      },
+      "title": "Orientation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contacts": {
+      "items": {
+        "$ref": "#/$defs/Contact"
+      },
+      "maxItems": 1000,
+      "title": "Contacts",
+      "type": "array"
+    },
+    "drawing_orientation": {
+      "$ref": "#/$defs/Orientation"
+    },
+    "family": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Family"
+    },
+    "kind": {
+      "const": "connector_body",
+      "default": "connector_body",
+      "title": "Kind",
+      "type": "string"
+    },
+    "mating_role": {
+      "default": "unknown",
+      "enum": [
+        "plug",
+        "receptacle",
+        "hermaphroditic",
+        "unknown"
+      ],
+      "title": "Mating Role",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "title": "ConnectorBody",
+  "type": "object"
+}

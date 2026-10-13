@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "external_contact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^\\S+$",
+      "title": "External Contact Id",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id",
+    "external_contact_id"
+  ],
+  "title": "TraceInterface",
+  "type": "object"
+}

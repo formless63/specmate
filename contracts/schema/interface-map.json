@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "Passage": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Condition"
+        },
+        "external_contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "External Contact Id",
+          "type": "string"
+        },
+        "internal": {
+          "$ref": "#/$defs/Terminal"
+        },
+        "kind": {
+          "const": "declared_passage",
+          "default": "declared_passage",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "external_contact_id",
+        "internal",
+        "basis"
+      ],
+      "title": "Passage",
+      "type": "object"
+    },
+    "Terminal": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Path",
+          "type": "array"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "revision_id",
+        "feature_id"
+      ],
+      "title": "Terminal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assembly_revision_id": {
+      "format": "uuid",
+      "title": "Assembly Revision Id",
+      "type": "string"
+    },
+    "external_pinout_revision_id": {
+      "format": "uuid",
+      "title": "External Pinout Revision Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "interface_map",
+      "default": "interface_map",
+      "title": "Kind",
+      "type": "string"
+    },
+    "passages": {
+      "items": {
+        "$ref": "#/$defs/Passage"
+      },
+      "maxItems": 2000,
+      "title": "Passages",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "assembly_revision_id",
+    "external_pinout_revision_id"
+  ],
+  "title": "InterfaceMap",
+  "type": "object"
+}

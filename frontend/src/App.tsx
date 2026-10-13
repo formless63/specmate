@@ -3,6 +3,8 @@ import { useState } from "react";
 import { AssemblyPanel } from "./features/assemblies/AssemblyPanel";
 import { ProjectAccessPanel } from "./features/project-access/ProjectAccessPanel";
 import { IdentityPanel } from "./features/identity/IdentityPanel";
+import { FactsPanel } from "./features/facts/FactsPanel";
+import { InterfacePanel } from "./features/interfaces/InterfacePanel";
 import { InventoryPanel } from "./features/inventory/InventoryPanel";
 import { PcbPanel } from "./features/pcb/PcbPanel";
 import { WireStockPanel } from "./features/wire-stock/WireStockPanel";
@@ -25,6 +27,8 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="identity">Identities</Tabs.Tab>
       <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
       <Tabs.Tab value="assemblies">Assemblies</Tabs.Tab>
+      <Tabs.Tab value="facts">Facts</Tabs.Tab>
+      <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
       <Tabs.Tab value="pcb">PCB intake</Tabs.Tab>
       <Tabs.Tab value="inventory">Inventory</Tabs.Tab>
       <Tabs.Tab value="access">Project access</Tabs.Tab>
@@ -32,6 +36,8 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <Tabs.Panel value="identity" pt="lg">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="wire-stock" pt="lg">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="assemblies" pt="lg">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="facts" pt="lg">{visited.has("facts") && <FactsPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="interfaces" pt="lg">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="pcb" pt="lg">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</Tabs.Panel>
     <Tabs.Panel value="inventory" pt="lg">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="access" pt="lg">{visited.has("access") && <ProjectAccessPanel projectId={projectId} onAccessChanged={onAccessChanged} />}</Tabs.Panel>

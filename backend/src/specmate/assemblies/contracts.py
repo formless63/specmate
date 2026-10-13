@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from specmate.contracts import FiniteNumber
+
 LocalId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,79}$")]
 FeatureId = Annotated[str, Field(min_length=1, max_length=200)]
 Path = Annotated[list[LocalId], Field(max_length=32)]
@@ -18,8 +20,8 @@ class Placement(StrictModel):
     status: Literal["known", "unknown"] = "unknown"
     unit: Literal["mm"] = "mm"
     frame: Literal["right_handed_z_up"] = "right_handed_z_up"
-    translation: tuple[float, float, float] | None = None
-    rotation_xyzw: tuple[float, float, float, float] | None = None
+    translation: tuple[FiniteNumber, FiniteNumber, FiniteNumber] | None = None
+    rotation_xyzw: tuple[FiniteNumber, FiniteNumber, FiniteNumber, FiniteNumber] | None = None
 
     @model_validator(mode="after")
     def coherent(self):

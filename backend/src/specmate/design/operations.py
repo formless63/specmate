@@ -115,12 +115,20 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
     if len(set(p.dependencies)) != len(p.dependencies):
         raise ValidationFailed("Duplicate dependency.")
     dependencies = p.dependencies
+    derived = None
     if draft.definition.kind == "assembly" and "assembly" in draft.content:
         from specmate.assemblies.queries import dependency_revisions
 
         derived = dependency_revisions(ctx.user, draft.definition, draft.content)
+    from specmate.interfaces.contracts import KINDS as INTERFACE_KINDS
+
+    if draft.definition.kind in INTERFACE_KINDS:
+        from specmate.interfaces.queries import dependency_revisions as interface_dependencies
+
+        derived = interface_dependencies(ctx.user, draft.definition, draft.content)
+    if derived is not None:
         if dependencies and set(dependencies) != set(derived):
-            raise ValidationFailed("Assembly dependencies must match its exact content closure.")
+            raise ValidationFailed("Dependencies must match the exact typed content closure.")
         dependencies = derived
     revisions = list(
         Revision.objects.select_related("definition", "snapshot").filter(id__in=dependencies)
@@ -131,10 +139,8 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         revision = found.get(rid)
         if revision is None:
             raise NotFound("Dependency revision not found.")
-        authorize(ctx.user, revision.definition.project_id, Perm.PROJECT_READ)
-        if revision.definition_id == draft.definition_id and not (
-            draft.definition.kind == "assembly" and "assembly" in draft.content
-        ):
+        authorize_snapshot(ctx.user, revision.snapshot)
+        if revision.definition_id == draft.definition_id and derived is None:
             raise ValidationFailed("A definition cannot depend on its own revision.")
         pins.append({"revision_id": str(rid), "sha256": revision.snapshot.sha256})
     definition = draft.definition
@@ -203,6 +209,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if "interface" in content:
+        from specmate.interfaces.queries import validate_content as validate_interface_content
+
+        content = validate_interface_content(kind, content)
     if kind == "wire_stock":
         from specmate.wire_stock.schemas import validate_stock_content
 
@@ -220,6 +230,10 @@ def authorize_design_content(user, definition, content):
         from specmate.assemblies.queries import dependency_revisions
 
         dependency_revisions(user, definition, content)
+    if "interface" in content:
+        from specmate.interfaces.queries import dependency_revisions as interface_dependencies
+
+        interface_dependencies(user, definition, content)
 
 
 def authorize_snapshot(user, snapshot):

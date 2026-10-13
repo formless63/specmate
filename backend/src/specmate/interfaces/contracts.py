@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import Field, TypeAdapter, model_validator
 
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
+from specmate.contracts import FiniteNumber
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
 Text = Annotated[str, Field(min_length=1, max_length=200)]
@@ -13,7 +14,7 @@ Text = Annotated[str, Field(min_length=1, max_length=200)]
 
 class Orientation(StrictModel):
     viewing_side: Literal["mating", "termination", "unknown"] = "unknown"
-    rotation_degrees: float | None = Field(default=None, ge=0, lt=360)
+    rotation_degrees: FiniteNumber | None = Field(default=None, ge=0, lt=360)
     datum: Text | None = None
 
     @model_validator(mode="after")
@@ -29,7 +30,7 @@ class Contact(StrictModel):
     contact_id: ContactId
     physical_role: Literal["contact", "shell", "key"] = "contact"
     label: str = Field(default="", max_length=200)
-    position_mm: tuple[float, float] | None = None
+    position_mm: tuple[FiniteNumber, FiniteNumber] | None = None
 
 
 class ConnectorBody(StrictModel):
@@ -55,9 +56,9 @@ class ElectricalContract(StrictModel):
     signal: Text | None = None
     role: Literal["signal", "power", "return", "shield", "chassis", "unused", "unknown"] = "unknown"
     direction: Literal["input", "output", "bidirectional", "passive", "unknown"] = "unknown"
-    voltage_min_v: float | None = None
-    voltage_max_v: float | None = None
-    current_max_a: float | None = Field(default=None, ge=0)
+    voltage_min_v: FiniteNumber | None = None
+    voltage_max_v: FiniteNumber | None = None
+    current_max_a: FiniteNumber | None = Field(default=None, ge=0)
     protocol: Text | None = None
     condition: Text | None = None
     basis: Text | None = None

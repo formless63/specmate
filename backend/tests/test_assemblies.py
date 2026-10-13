@@ -4,7 +4,7 @@ from threading import Barrier
 from uuid import UUID
 
 import pytest
-from django.db import close_old_connections
+from django.db import close_old_connections, connections
 from django.test import Client
 
 from specmate.access.models import Membership
@@ -353,7 +353,7 @@ def test_competing_assembly_edits_have_one_winner(users, project):
         except Conflict:
             return "conflict"
         finally:
-            close_old_connections()
+            connections.close_all()
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: edit(), range(2)))

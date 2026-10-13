@@ -16,8 +16,8 @@ from specmate.assemblies.api import router as assemblies_router
 from specmate.builds.api import artifacts_router
 from specmate.builds.api import router as runner_router
 from specmate.catalog.api import router as catalog_router
-from specmate.facts.api import router as facts_router
 from specmate.contracts import OperationEnvelope
+from specmate.facts.api import router as facts_router
 from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
