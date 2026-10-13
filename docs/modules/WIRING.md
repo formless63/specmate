@@ -74,3 +74,19 @@ A full construction table remains available even for explicitly hidden elements.
 3D renderer preserves annular caps/bore walls, has bounded per-piece tessellation,
 renders on events, and disposes resources on close. A failed WebGL context leaves the
 section and dimensions available.
+
+## Versioned workshop practices
+
+The Workshop profiles workspace creates, edits and freezes a separate
+`workshop_profile` definition through `workshop_profile.create`, `.update` and
+`.freeze`. Each profile selects an exact stock revision and valid stable element
+paths; freezing retains that construction pin without changing the stock. Foil
+visibility, illustration lay length, per-end cut suggestions and lead depiction
+carry independent unknown, documented, inferred or preference bases. A practice
+value never becomes a measured dimension, rating, electrical bond or qualification.
+
+Documented practices cite a source. Registered source references retain their exact
+bundle revision, path, digest and rights, checked against the preserved file. Free
+text citations remain unverified. Reads, conflicts and retries recheck current
+access to both construction and original profile evidence. Later draft edits do
+not rewrite earlier profile revisions or their source declarations.

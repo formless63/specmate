@@ -9,6 +9,8 @@ import { InventoryPanel } from "./features/inventory/InventoryPanel";
 import { PcbPanel } from "./features/pcb/PcbPanel";
 import { WireStockPanel } from "./features/wire-stock/WireStockPanel";
 import { WorkspaceShell } from "./features/workspace";
+import { WorkshopProfilePanel } from "./features/workshop-profiles/WorkshopProfilePanel";
+import { DiscoveryPanel } from "./features/discovery/DiscoveryPanel";
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
@@ -25,7 +27,9 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
   }}>
     <Tabs.List aria-label="Project tools">
       <Tabs.Tab value="identity">Identities</Tabs.Tab>
+      <Tabs.Tab value="discovery">Discovery</Tabs.Tab>
       <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
+      <Tabs.Tab value="workshop-profiles">Workshop profiles</Tabs.Tab>
       <Tabs.Tab value="assemblies">Assemblies</Tabs.Tab>
       <Tabs.Tab value="facts">Facts</Tabs.Tab>
       <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
@@ -34,7 +38,9 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="access">Project access</Tabs.Tab>
     </Tabs.List>
     <Tabs.Panel value="identity" pt="lg">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="discovery" pt="lg">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="wire-stock" pt="lg">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="workshop-profiles" pt="lg">{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="assemblies" pt="lg">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="facts" pt="lg">{visited.has("facts") && <FactsPanel projectId={projectId} />}</Tabs.Panel>
     <Tabs.Panel value="interfaces" pt="lg">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</Tabs.Panel>

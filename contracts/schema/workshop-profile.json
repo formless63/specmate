@@ -1,0 +1,464 @@
+{
+  "$defs": {
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Citation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "citation",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "ElementPractice": {
+      "additionalProperties": false,
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/EndPractice"
+        },
+        "b": {
+          "$ref": "#/$defs/EndPractice"
+        }
+      },
+      "title": "ElementPractice",
+      "type": "object"
+    },
+    "EndPractice": {
+      "additionalProperties": false,
+      "properties": {
+        "cutback_mm": {
+          "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____"
+        },
+        "lead": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LeadDisplay"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "prepend_cut_mm": {
+          "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____"
+        }
+      },
+      "title": "EndPractice",
+      "type": "object"
+    },
+    "LeadDisplay": {
+      "additionalProperties": false,
+      "description": "Illustrative pigtail strand, with no electrical bond assertion.",
+      "properties": {
+        "angle_deg": {
+          "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_-360___Le_le_360____PydanticGeneralMetadata_allow_inf_nan_False_____"
+        },
+        "diameter_mm": {
+          "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____"
+        },
+        "length_mm": {
+          "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____"
+        },
+        "reach_mm": {
+          "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____"
+        }
+      },
+      "title": "LeadDisplay",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_revision_id": {
+          "format": "uuid",
+          "title": "Bundle Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locator": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Locator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_revision_id",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    },
+    "Suggestion_Annotated_bool__Strict_strict_True___": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "inferred",
+            "preference"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Suggestion[Annotated[bool, Strict(strict=True)]]",
+      "type": "object"
+    },
+    "Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_-360___Le_le_360____PydanticGeneralMetadata_allow_inf_nan_False_____": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "inferred",
+            "preference"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maximum": 360,
+              "minimum": -360,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Suggestion[Annotated[float, FieldInfo(annotation=NoneType, required=True, metadata=[Strict(strict=True), Ge(ge=-360), Le(le=360), _PydanticGeneralMetadata(allow_inf_nan=False)])]]",
+      "type": "object"
+    },
+    "Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "inferred",
+            "preference"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Suggestion[Annotated[float, FieldInfo(annotation=NoneType, required=True, metadata=[Strict(strict=True), Ge(ge=0), _PydanticGeneralMetadata(allow_inf_nan=False)])]]",
+      "type": "object"
+    },
+    "Suggestion_Literal__show____hide___": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "inferred",
+            "preference"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "show",
+                "hide"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Suggestion[Literal['show', 'hide']]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "element_rules": {
+      "maxProperties": 1024,
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]{0,63}(\\.[a-z][a-z0-9_-]{0,63}){0,12}$": {
+          "$ref": "#/$defs/ElementPractice"
+        }
+      },
+      "title": "Element Rules",
+      "type": "object"
+    },
+    "foil_visibility": {
+      "$ref": "#/$defs/Suggestion_Literal__show____hide___"
+    },
+    "hidden_element_paths": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,63}(\\.[a-z][a-z0-9_-]{0,63}){0,12}$",
+        "type": "string"
+      },
+      "maxItems": 1024,
+      "title": "Hidden Element Paths",
+      "type": "array"
+    },
+    "illustration_lay_length_mm": {
+      "$ref": "#/$defs/Suggestion_Annotated_float__FieldInfo_annotation_NoneType__required_True__metadata__Strict_strict_True___Ge_ge_0____PydanticGeneralMetadata_allow_inf_nan_False_____"
+    },
+    "omit_occluded": {
+      "$ref": "#/$defs/Suggestion_Annotated_bool__Strict_strict_True___"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stock_revision_id": {
+      "format": "uuid",
+      "title": "Stock Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stock_revision_id"
+  ],
+  "title": "WorkshopProfile",
+  "type": "object"
+}

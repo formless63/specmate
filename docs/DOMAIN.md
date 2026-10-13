@@ -152,3 +152,15 @@ Permissions are checked at submission, execution, result acceptance and disclosu
 Private reference presence must not leak through cache hits, hashes, autocomplete or
 unfiltered dependency counts. A release is frozen design state, not irrevocable public
 permission; current access and rights still govern disclosure.
+
+The Discovery workspace searches currently accessible projects, reusable definitions,
+source bundle names/paths, manufacturer associations, physical lots and stock accounts.
+`catalog.search` and `catalog.where_used` are live reads without idempotency keys;
+HTTP query adapters use the same scoped queries. Search labels do not establish reviewed
+matching, interchangeability or catalog adoption.
+
+Where-used reports exact captured snapshot pins for a selected revision. These pins
+describe retained dependency closure, not occurrence counts, electrical connections or
+compatibility. Current authorization covers each parent's complete closure before it
+appears. Pagination advances from visible records and discloses no inaccessible parent
+names, identifiers or aggregate counts. Updating a definition does not change these pins.
