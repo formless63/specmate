@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiError, requestJson, runOperation, type OperationResult, type Project, type SessionState } from "./api";
 
-export function WorkspaceShell({ children }: { children: (projectId: string, project: Project) => ReactNode }) {
+export function WorkspaceShell({ children }: { children: (projectId: string, project: Project, refreshProjects: () => Promise<void>) => ReactNode }) {
   const cache = useQueryClient();
   const [session, setSession] = useState<SessionState | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -34,11 +34,16 @@ export function WorkspaceShell({ children }: { children: (projectId: string, pro
       const list = await requestJson<Project[]>("/api/v0/projects");
       if (currentGeneration !== generation.current) return;
       setProjects(list);
-      setProjectId((selected) => list.some((p) => p.project_id === selected) ? selected : null);
+      setProjectId((selected) => {
+        if (selected && !list.some((p) => p.project_id === selected)) {
+          void cache.cancelQueries(); cache.clear(); return null;
+        }
+        return selected;
+      });
     } else {
       clearPrivate();
     }
-  }, [clearPrivate]);
+  }, [cache, clearPrivate]);
 
   useEffect(() => {
     let active = true;
@@ -136,7 +141,7 @@ export function WorkspaceShell({ children }: { children: (projectId: string, pro
         <TextInput label="New project name" value={projectName} onChange={(event) => setProjectName(event.currentTarget.value)} required disabled={busy} />
         <Button type="submit" loading={busy} disabled={!projectName.trim()}>Create project</Button>
       </Group></form>
-      {projectId && selectedProject ? <Fragment key={`${session.user.id}:${projectId}`}>{children(projectId, selectedProject)}</Fragment>
+      {projectId && selectedProject ? <Fragment key={`${session.user.id}:${projectId}`}>{children(projectId, selectedProject, refresh)}</Fragment>
         : <Text>Select or create a project to begin.</Text>}
     </>}
   </Stack></Container>;

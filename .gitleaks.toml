@@ -5,3 +5,14 @@ useDefault = true
 
 # Operator-specific names/domains belong in an external private denylist,
 # never in this configuration. Secret scanning does not prove confidentiality.
+
+# This exact test argument line passes a computed state and the literal retry
+# key "rename"; neither is a credential. Limit the false-positive exception to
+# this expression, this file and the generic detector; retain all default rules.
+[[allowlists]]
+description = "Test state argument and literal retry key are not credentials"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)backend/tests/test_project_access\.py$''']
+regexTarget = "line"
+regexes = ['''^\s*users\["owner"\], "project\.rename", payload, expected_state=token, idempotency_key="rename"\s*$''']
