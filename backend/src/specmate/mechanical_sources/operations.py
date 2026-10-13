@@ -408,29 +408,67 @@ def mechanical_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
     return draft
 
 
-def _scope_closure(ctx, payload, permission):
+def _scope_inputs(ctx, payload, permission):
+    """Resolve owning authority without pin diagnostics until retained inputs are known."""
+    from specmate.catalog_packs.authoring import authorize_origin
+
+    user = current_actor(ctx.user)
     if isinstance(payload, CreateMechanicalSource):
-        authorize(ctx.user, payload.project_id, permission)
+        authorize(user, payload.project_id, permission)
         definition = Definition(project_id=payload.project_id, kind=KIND)
+        contents = []
     else:
-        draft = mechanical_draft(ctx, payload.draft_id, permission)
+        draft = Draft.objects.select_related("definition").filter(id=payload.draft_id).first()
+        if draft is None or draft.definition.kind != KIND:
+            raise NotFound("Mechanical source draft not found.")
         definition = draft.definition
+        authorize(user, definition.project_id, permission)
+        authorize_origin(user, definition)
+        contents = [(definition, draft.content)]
     if hasattr(payload, KEY):
-        closure(ctx.user, definition, _content(payload.mechanical_source))
+        contents.append((definition, _content(payload.mechanical_source)))
+    return definition, contents
+
+
+def _check_contents(user, contents):
+    # Current, incoming and retained declarations form one authority boundary. Resolve
+    # every closure before reporting any hash/rights mismatch in any declaration.
+    resolved = []
+    for definition, content in contents:
+        declaration = parse_content(content, definition.kind)
+        if declaration is not None:
+            resolved.append((declaration, _resolve(user, declaration)))
+    for declaration, inputs in resolved:
+        _validate_exact(declaration, inputs)
+
+
+def _scope_closure(ctx, payload, permission):
+    definition, contents = _scope_inputs(ctx, payload, permission)
+    _check_contents(ctx.user, contents)
     return f"project:{definition.project_id}"
 
 
 def _replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
-    _scope_closure(ctx, payload, permission)
+    from specmate.catalog_packs.authoring import authorize_origin
+
+    _, contents = _scope_inputs(ctx, payload, permission)
     draft_id = stored.get("draft_id") or stored.get("draft", {}).get("draft_id")
     draft = Draft.objects.select_related("definition").filter(id=draft_id).first()
     if draft is None or draft.definition.kind != KIND:
         raise NotFound("Mechanical source draft not found.")
-    authorize(ctx.user, draft.definition.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, draft.definition.project_id, permission)
+    authorize_origin(ctx.user, draft.definition)
+    contents.append((draft.definition, draft.content))
     if "content" in stored:
-        closure(ctx.user, draft.definition, stored["content"])
+        contents.append((draft.definition, stored["content"]))
     if "revision_id" in stored:
-        read_revision(ctx.user, stored["revision_id"])
+        revision = get_revision(ctx.user, stored["revision_id"])
+        if revision.definition.kind != KIND:
+            raise NotFound("Mechanical source revision not found.")
+        contents.append(
+            (revision.definition, json.loads(bytes(revision.snapshot.canonical))["content"])
+        )
+    _check_contents(ctx.user, contents)
 
 
 def _scope(name, permission=Perm.DESIGN_EDIT):
@@ -438,13 +476,16 @@ def _scope(name, permission=Perm.DESIGN_EDIT):
         from specmate.operations.models import IdempotencyRecord
         from specmate.operations.scope import LEGACY_SCOPE
 
-        scope = _scope_closure(ctx, payload, permission)
+        definition, contents = _scope_inputs(ctx, payload, permission)
+        scope = f"project:{definition.project_id}"
         prior = IdempotencyRecord.objects.select_for_update().filter(
             actor=ctx.user, operation=name, key=ctx.idempotency_key
         )
         retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
         if retained:
             _replay(ctx, payload, retained.result, permission)
+        else:
+            _check_contents(ctx.user, contents)
         return scope
 
     return resolve
