@@ -1,0 +1,204 @@
+{
+  "$defs": {
+    "ExtractedTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "component_ref": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Component Ref",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "native_component_id": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Native Component Id",
+          "type": "string"
+        },
+        "native_terminal_id": {
+          "default": null,
+          "title": "Native Terminal Id",
+          "type": "null"
+        },
+        "net_name": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Net Name"
+        },
+        "net_state": {
+          "default": "unknown",
+          "enum": [
+            "assigned",
+            "unknown"
+          ],
+          "title": "Net State",
+          "type": "string"
+        },
+        "pin": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Pin",
+          "type": "string"
+        },
+        "sheet_path": {
+          "const": "/",
+          "title": "Sheet Path",
+          "type": "string"
+        },
+        "unit": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "component_ref",
+        "pin",
+        "native_component_id",
+        "basis",
+        "sheet_path",
+        "unit"
+      ],
+      "title": "ExtractedTerminal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "const": "kicad-net-assertions-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "coverage": {
+      "const": "root_unit_pin_inventory",
+      "title": "Coverage",
+      "type": "string"
+    },
+    "format_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "method": {
+      "enum": [
+        "native_schematic_export",
+        "preserved_netlist_parser"
+      ],
+      "title": "Method",
+      "type": "string"
+    },
+    "native_format_version": {
+      "enum": [
+        "20250114",
+        "E"
+      ],
+      "title": "Native Format Version",
+      "type": "string"
+    },
+    "physical_qualification": {
+      "const": false,
+      "default": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "reported_source_tool": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reported Source Tool"
+    },
+    "source_role": {
+      "enum": [
+        "schematic",
+        "netlist"
+      ],
+      "title": "Source Role",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "terminals": {
+      "items": {
+        "$ref": "#/$defs/ExtractedTerminal"
+      },
+      "maxItems": 2000,
+      "title": "Terminals",
+      "type": "array"
+    },
+    "tool_version": {
+      "const": "10.0.6",
+      "title": "Tool Version",
+      "type": "string"
+    },
+    "unsupported": {
+      "items": {
+        "maxLength": 500,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Unsupported",
+      "type": "array"
+    },
+    "xml_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Xml Sha256",
+      "type": "string"
+    },
+    "xml_version": {
+      "const": "E",
+      "title": "Xml Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "adapter",
+    "tool_version",
+    "source_role",
+    "method",
+    "source_sha256",
+    "xml_sha256",
+    "native_format_version",
+    "xml_version",
+    "reported_source_tool",
+    "coverage",
+    "terminals",
+    "unsupported"
+  ],
+  "title": "NativeReport",
+  "type": "object"
+}

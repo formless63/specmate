@@ -152,6 +152,10 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         from specmate.pcb_disagreement.queries import dependency_revisions as review_dependencies
 
         derived = review_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind == "passage_model":
+        from specmate.passive_passages.queries import dependency_revisions as passage_dependencies
+
+        derived = passage_dependencies(ctx.user, draft.definition, draft.content)
     if derived is not None:
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
@@ -242,6 +246,10 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if kind == "passage_model" or "passages" in content:
+        from specmate.passive_passages.queries import validate_content as validate_passages
+
+        content = validate_passages(kind, content)
     if kind in {"pcb_assertion", "pcb_comparison"} or {
         "pcb_assertion",
         "pcb_comparison",
@@ -291,6 +299,10 @@ def authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind == "passage_model" or "passages" in content:
+        from specmate.passive_passages.queries import authorize_content as authorize_passages
+
+        authorize_passages(user, definition, content)
     if definition.kind in {"pcb_assertion", "pcb_comparison"} or {
         "pcb_assertion",
         "pcb_comparison",

@@ -23,6 +23,8 @@ const CopperPanel = lazy(() => import("./features/copper/CopperPanel").then((mod
 const RevisionUpgradeWorkspace = lazy(() => import("./features/revision-upgrades/RevisionUpgradeWorkspace").then((module) => ({ default: module.RevisionUpgradeWorkspace })));
 const PcbDisagreementPanel = lazy(() => import("./features/pcb-disagreement/PcbDisagreementPanel").then((module) => ({ default: module.PcbDisagreementPanel })));
 
+const PassivePassagesWorkspace = lazy(() => import("./features/passive-passages/PassivePassagesWorkspace").then((module) => ({ default: module.PassivePassagesWorkspace })));
+
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
     <ProjectWorkspace key={`${projectId}:${project.permissions?.join(",") ?? ""}`}
@@ -50,6 +52,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="cables">Cables</Tabs.Tab>
       <Tabs.Tab value="harnesses">Harness branches</Tabs.Tab>
       <Tabs.Tab value="copper">Copper graph</Tabs.Tab>
+      <Tabs.Tab value="passive-passages">Passive models</Tabs.Tab>
       <Tabs.Tab value="pcb">PCB intake</Tabs.Tab>
       <Tabs.Tab value="pcb-disagreement">PCB source review</Tabs.Tab>
       <Tabs.Tab value="inventory">Inventory</Tabs.Tab>
@@ -69,6 +72,7 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
     <ToolPanel value="interfaces">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="cables">{visited.has("cables") && <CablePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="harnesses">{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="passive-passages">{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} />}</ToolPanel>
     <ToolPanel value="copper">{visited.has("copper") && <CopperPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="pcb">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="pcb-disagreement">{visited.has("pcb-disagreement") && <PcbDisagreementPanel projectId={projectId} />}</ToolPanel>

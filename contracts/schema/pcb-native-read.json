@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "interpretation_id": {
+      "format": "uuid",
+      "title": "Interpretation Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "interpretation_id"
+  ],
+  "title": "ReadNative",
+  "type": "object"
+}

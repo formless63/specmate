@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "FilePin": {
+      "additionalProperties": false,
+      "properties": {
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "source_revision_id": {
+          "format": "uuid",
+          "title": "Source Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_revision_id",
+        "manifest_sha256",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "FilePin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "recipe_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Recipe Id",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/FilePin"
+    },
+    "source_role": {
+      "enum": [
+        "schematic",
+        "netlist"
+      ],
+      "title": "Source Role",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "source",
+    "source_role",
+    "recipe_id"
+  ],
+  "title": "RequestNative",
+  "type": "object"
+}

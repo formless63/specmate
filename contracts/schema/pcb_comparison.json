@@ -149,6 +149,37 @@
       "title": "FilePin",
       "type": "object"
     },
+    "NativeInput": {
+      "additionalProperties": false,
+      "properties": {
+        "interpretation_id": {
+          "format": "uuid",
+          "title": "Interpretation Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_net_interpretation",
+          "default": "source_net_interpretation",
+          "title": "Kind",
+          "type": "string"
+        },
+        "report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Sha256",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/FilePin"
+        }
+      },
+      "required": [
+        "interpretation_id",
+        "report_sha256",
+        "source"
+      ],
+      "title": "NativeInput",
+      "type": "object"
+    },
     "Review": {
       "additionalProperties": false,
       "properties": {
@@ -202,7 +233,8 @@
       "discriminator": {
         "mapping": {
           "assertion_revision": "#/$defs/AssertionInput",
-          "pcb_interpretation": "#/$defs/BoardInput"
+          "pcb_interpretation": "#/$defs/BoardInput",
+          "source_net_interpretation": "#/$defs/NativeInput"
         },
         "propertyName": "kind"
       },
@@ -212,6 +244,9 @@
         },
         {
           "$ref": "#/$defs/BoardInput"
+        },
+        {
+          "$ref": "#/$defs/NativeInput"
         }
       ],
       "title": "Left"
@@ -228,7 +263,8 @@
       "discriminator": {
         "mapping": {
           "assertion_revision": "#/$defs/AssertionInput",
-          "pcb_interpretation": "#/$defs/BoardInput"
+          "pcb_interpretation": "#/$defs/BoardInput",
+          "source_net_interpretation": "#/$defs/NativeInput"
         },
         "propertyName": "kind"
       },
@@ -238,6 +274,9 @@
         },
         {
           "$ref": "#/$defs/BoardInput"
+        },
+        {
+          "$ref": "#/$defs/NativeInput"
         }
       ],
       "title": "Right"

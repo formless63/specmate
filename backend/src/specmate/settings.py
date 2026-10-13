@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "specmate.builds",
     "specmate.pcb",
     "specmate.pcb_disagreement",
+    "specmate.passive_passages",
 ]
 
 MIDDLEWARE = [

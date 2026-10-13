@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attempt_id": {
+      "format": "uuid",
+      "title": "Attempt Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "attempt_id"
+  ],
+  "title": "AcceptNative",
+  "type": "object"
+}
