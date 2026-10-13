@@ -50,6 +50,28 @@ export type AssociationTargets = {
   models: { representation_id: string; revision_id: string; label: string; rights: string; sha256: string }[];
   truncated: { revisions: boolean; models: boolean };
 };
+export type PopulationReview = {
+  name: string;
+  population: Population;
+  interpretation: {
+    interpretation_id: string; sha256: string; attempt_id: string; output_id: string;
+    source_revision_id: string; source_manifest_sha256: string; board_path: string;
+  };
+  report: NativeReport;
+  associations: {
+    association: Association;
+    target: {
+      revision_id: string; definition_name: string; definition_kind: string;
+      revision_number?: number; representation_id?: string; representation_label?: string;
+      source_revision_id?: string; source_path?: string; source_sha256?: string; source_rights?: string;
+    };
+  }[];
+};
+export type DraftPopulationReview = PopulationReview & { draft_id: string; definition_id: string; state: string };
+export type FrozenPopulationReview = PopulationReview & {
+  revision_id: string; definition_id: string; number: number;
+  snapshot_id: string; snapshot_sha256: string; frozen_at: string;
+};
 
 export class PcbRequestError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -78,6 +100,12 @@ export function listPopulations(intakeId: string, signal?: AbortSignal) {
 }
 export function associationTargets(projectId: string, signal?: AbortSignal) {
   return request<AssociationTargets>(`/api/v0/pcb/projects/${encodeURIComponent(projectId)}/association-targets`, {}, signal);
+}
+export function getPopulationDraftReview(draftId: string, signal?: AbortSignal) {
+  return request<DraftPopulationReview>(`/api/v0/pcb/population-drafts/${encodeURIComponent(draftId)}/review`, {}, signal);
+}
+export function getPopulationRevisionReview(revisionId: string, signal?: AbortSignal) {
+  return request<FrozenPopulationReview>(`/api/v0/pcb/population-revisions/${encodeURIComponent(revisionId)}/review`, {}, signal);
 }
 export async function command<T>(operation: string, payload: object, signal?: AbortSignal, expectedState?: string) {
   const result = await request<{ result: T }>("/api/v0/operations", {

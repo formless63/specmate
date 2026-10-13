@@ -5,6 +5,7 @@ import {
   type AssociationTargets, type Intake, type Population, type PopulationDecision,
   type PopulationDraft, type PopulationOption, PcbRequestError,
 } from "./api";
+import { PopulationReviewPanel } from "./PopulationReview";
 
 type Props = {
   projectId: string; intake: Intake; drafts: PopulationDraft[];
@@ -30,6 +31,7 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
   accessLost.current = onAccessLost;
   const [draftId, setDraftId] = useState<string | null>(null);
   const [optionId, setOptionId] = useState<string | null>(null);
+  const [revisionId, setRevisionId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newInterpretationId, setNewInterpretationId] = useState<string | null>(null);
   const [newOptionName, setNewOptionName] = useState("");
@@ -42,6 +44,7 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
   const draft = drafts.find((item) => item.draft_id === draftId) ?? drafts[0];
   const population = draft?.content.pcb_population;
   const activeOption = population?.options.find((item) => item.local_id === optionId) ?? population?.options[0];
+  const frozenRevision = draft?.revisions.find((item) => item.revision_id === revisionId) ?? draft?.revisions.at(-1);
   const report = intake.interpretations.find((item) => item.interpretation_id === population?.interpretation_id)?.report;
 
   useEffect(() => {
@@ -155,16 +158,20 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
       <Title order={4}>Port, model and library candidates</Title>
       {targets?.truncated && (targets.truncated.revisions || targets.truncated.models) && <Text size="sm">The selector shows the first 2,000 authorized {targets.truncated.revisions && targets.truncated.models ? "revisions and models" : targets.truncated.revisions ? "revisions" : "models"}. Additional targets are not shown in this selector.</Text>}
       {population.associations.map((association) => <Group key={association.local_id}>
-        <Text>{association.kind} · {report.components.find((item) => item.id === association.component_id)?.reference ?? association.component_id} · {association.review}</Text>
-        <Text size="xs">{association.basis ?? "Awaiting review"}</Text>
+        <Text>{association.local_id} · {association.review}</Text>
         {canEdit && <Button size="xs" variant="subtle" color="red" disabled={busy} onClick={() => void removeAssociation(association.local_id)}>Remove</Button>}
       </Group>)}
       {canEdit && <AssociationForm key={`${draft.draft_id}:${draft.state}`} report={report} intake={intake} population={population} targets={targets} disabled={busy} onSave={setAssociation} />}
+      <PopulationReviewPanel key={`draft:${draft.draft_id}:${draft.state}`} kind="draft" id={draft.draft_id} onAccessLost={onAccessLost} />
       {canFreeze && <Button variant="outline" disabled={busy} onClick={() => void work(async () => {
         await command("pcb.population_freeze", { draft_id: draft.draft_id }, undefined, draft.state);
         onChanged();
       })}>Freeze reviewed population revision</Button>}
-      {!!draft.revisions.length && <Text size="sm">Frozen revisions: {draft.revisions.map((item) => `#${item.number} ${item.revision_id}`).join(" · ")}</Text>}
+      {!!draft.revisions.length && <Stack>
+        <Select label="Inspect frozen population revision" value={frozenRevision?.revision_id ?? null}
+          onChange={setRevisionId} data={draft.revisions.map((item) => ({ value: item.revision_id, label: `Revision #${item.number} · ${item.revision_id}` }))} />
+        {frozenRevision && <PopulationReviewPanel key={`revision:${frozenRevision.revision_id}`} kind="revision" id={frozenRevision.revision_id} onAccessLost={onAccessLost} />}
+      </Stack>}
     </Stack>}
   </Stack>;
 }

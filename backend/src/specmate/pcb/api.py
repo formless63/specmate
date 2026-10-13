@@ -7,12 +7,13 @@ from ninja import Router
 
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog.models import Representation
-from specmate.design.models import Definition, Revision
+from specmate.design.models import Definition, Draft, Revision
 from specmate.design.operations import authorize_design_content, authorize_snapshot
 from specmate.operations import Context, NotFound
 from specmate.pcb.models import PcbIntake, PcbInterpretation
 from specmate.pcb.operations import IntakeRef, get_intake, intake_for
-from specmate.pcb.population import closure
+from specmate.pcb.population import closure, review_payload
+from specmate.queries import get_draft, get_revision
 from specmate.sources import blobstore
 
 router = Router(tags=["pcb"])
@@ -95,6 +96,39 @@ def list_populations(request, intake_id: UUID):
                 }
             )
     return rows
+
+
+@router.get("/population-drafts/{draft_id}/review")
+def read_population_draft(request, draft_id: UUID):
+    get_draft(request.user, draft_id)
+    draft = Draft.objects.select_related("definition").get(id=draft_id)
+    if draft.definition.kind != "pcb_population":
+        raise NotFound("PCB population draft not found.")
+    return {
+        "draft_id": str(draft.id),
+        "definition_id": str(draft.definition_id),
+        "name": draft.definition.name,
+        "state": draft.state_token,
+        **review_payload(request.user, draft.definition, draft.content),
+    }
+
+
+@router.get("/population-revisions/{revision_id}/review")
+def read_population_revision(request, revision_id: UUID):
+    revision = get_revision(request.user, revision_id)
+    if revision.definition.kind != "pcb_population":
+        raise NotFound("PCB population revision not found.")
+    canonical = json.loads(bytes(revision.snapshot.canonical))
+    return {
+        "revision_id": str(revision.id),
+        "definition_id": str(revision.definition_id),
+        "name": revision.definition.name,
+        "number": revision.number,
+        "snapshot_id": str(revision.snapshot_id),
+        "snapshot_sha256": revision.snapshot.sha256,
+        "frozen_at": revision.frozen_at.isoformat(),
+        **review_payload(request.user, revision.definition, canonical["content"]),
+    }
 
 
 @router.get("/projects/{project_id}/association-targets")

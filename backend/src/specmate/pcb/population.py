@@ -322,6 +322,71 @@ def dependency_revisions(user, definition, content) -> list[UUID]:
     return closure(user, definition, content)
 
 
+def review_payload(user, definition, content) -> dict:
+    """Resolve readable, currently authorized provenance for a draft or frozen revision."""
+    population = parse_content(content, definition.kind)
+    if population is None:
+        raise ValidationFailed("PCB population content is required.")
+    closure(user, definition, content)
+    interpretation = scoped_interpretation(
+        user, definition.project_id, population.interpretation_id
+    )
+    source = interpretation.attempt.intake.source_revision
+    report = Report.model_validate_json(bytes(interpretation.canonical))
+    associations = []
+    for association in population.associations:
+        if association.representation_id:
+            representation = (
+                Representation.objects.select_related(
+                    "revision__definition", "source_file__blob", "source_file__revision"
+                )
+                .filter(id=association.representation_id)
+                .first()
+            )
+            if representation is None:
+                raise NotFound("Model representation not found.")
+            target = {
+                "revision_id": str(representation.revision_id),
+                "definition_name": representation.revision.definition.name,
+                "definition_kind": representation.revision.definition.kind,
+                "representation_id": str(representation.id),
+                "representation_label": representation.label,
+                "source_revision_id": str(representation.source_file.revision_id),
+                "source_path": representation.source_file.path,
+                "source_sha256": representation.source_file.blob.sha256,
+                "source_rights": representation.source_file.rights,
+            }
+        else:
+            revision = (
+                Revision.objects.select_related("definition")
+                .filter(id=association.target_revision_id)
+                .first()
+            )
+            if revision is None:
+                raise NotFound("Association target not found.")
+            target = {
+                "revision_id": str(revision.id),
+                "definition_name": revision.definition.name,
+                "definition_kind": revision.definition.kind,
+                "revision_number": revision.number,
+            }
+        associations.append({"association": association.model_dump(mode="json"), "target": target})
+    return {
+        "population": population.model_dump(mode="json"),
+        "interpretation": {
+            "interpretation_id": str(interpretation.id),
+            "sha256": interpretation.sha256,
+            "attempt_id": str(interpretation.attempt_id),
+            "output_id": str(interpretation.output_id),
+            "source_revision_id": str(source.id),
+            "source_manifest_sha256": source.manifest_sha256,
+            "board_path": interpretation.attempt.intake.board_path,
+        },
+        "report": report.model_dump(mode="json", by_alias=True),
+        "associations": associations,
+    }
+
+
 def project_population(population: Population, report: Report, option_id: str) -> dict:
     option = next((row for row in population.options if row.local_id == option_id), None)
     if option is None:

@@ -614,7 +614,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
 ):
     from specmate.pcb.population import closure
 
-    created, _, component_ids, pad_id = population
+    created, interpretation, component_ids, pad_id = population
     body = op(
         users["owner"],
         "interface.create",
@@ -755,6 +755,18 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
     ) == {UUID(pinout_revision), UUID(part_revision)}
     client = Client()
     client.force_login(users["viewer"])
+    frozen_review = client.get(f"/api/v0/pcb/population-revisions/{frozen['revision_id']}/review")
+    assert frozen_review.status_code == 200
+    reviewed = frozen_review.json()
+    assert reviewed["snapshot_id"] == frozen["snapshot_id"]
+    assert reviewed["interpretation"]["interpretation_id"] == interpretation["interpretation_id"]
+    assert reviewed["report"]["components"][0]["dnp"] is True
+    assert reviewed["associations"][0]["association"]["target_contact_id"] == "1"
+    assert reviewed["associations"][1]["target"]["source_path"] == "source.py"
+    assert reviewed["associations"][1]["target"]["source_rights"] == RIGHTS
+    assert reviewed["associations"][2]["association"]["evidence"]["citation"] == (
+        "Synthetic package review note."
+    )
     target_response = client.get(f"/api/v0/pcb/projects/{project}/association-targets")
     assert target_response.status_code == 200
     pinout_target = next(
@@ -1061,3 +1073,62 @@ def test_population_snapshot_guard_allows_older_revision_in_acyclic_history(user
         )["state"]
         == a2["draft"]["state"]
     )
+
+
+def test_frozen_population_review_reopens_old_state_after_draft_edit_and_revocation(
+    users, project, population
+):
+    created, interpretation, component_ids, _ = population
+    content = copy.deepcopy(created["content"]["pcb_population"])
+    content["options"][0]["decisions"][0] = {
+        "component_id": component_ids[0],
+        "status": "omit",
+        "basis": "Leave R1 out.",
+    }
+    updated = op(
+        users["editor"],
+        "pcb.population_update",
+        {
+            "draft_id": created["draft_id"],
+            "population": content,
+        },
+        expected_state=created["state"],
+    )
+    frozen = op(
+        users["owner"],
+        "pcb.population_freeze",
+        {
+            "draft_id": created["draft_id"],
+        },
+        expected_state=updated["state"],
+    )
+    current = copy.deepcopy(content)
+    current["options"][0]["decisions"][0] = {
+        "component_id": component_ids[0],
+        "status": "populate",
+        "basis": "Later alternative.",
+    }
+    op(
+        users["editor"],
+        "pcb.population_update",
+        {
+            "draft_id": created["draft_id"],
+            "population": current,
+        },
+        expected_state=frozen["draft"]["state"],
+    )
+    client = Client()
+    client.force_login(users["viewer"])
+    frozen_path = f"/api/v0/pcb/population-revisions/{frozen['revision_id']}/review"
+    draft_path = f"/api/v0/pcb/population-drafts/{created['draft_id']}/review"
+    old = client.get(frozen_path)
+    live = client.get(draft_path)
+    assert old.status_code == live.status_code == 200
+    assert old.json()["population"]["options"][0]["decisions"][0]["status"] == "omit"
+    assert live.json()["population"]["options"][0]["decisions"][0]["status"] == "populate"
+    assert old.json()["interpretation"]["interpretation_id"] == interpretation["interpretation_id"]
+    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    for path in (frozen_path, draft_path):
+        response = client.get(path)
+        assert response.status_code == 404
+        assert b"Leave R1 out" not in response.content

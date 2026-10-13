@@ -2,11 +2,11 @@ import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PopulationEditor } from "./PopulationEditor";
-import { associationTargets, command, PcbRequestError, type Intake, type PopulationDraft } from "./api";
+import { associationTargets, command, getPopulationDraftReview, PcbRequestError, type Intake, type PopulationDraft } from "./api";
 
 vi.mock("./api", async (original) => ({
   ...(await original<typeof import("./api")>()),
-  associationTargets: vi.fn(), command: vi.fn(),
+  associationTargets: vi.fn(), command: vi.fn(), getPopulationDraftReview: vi.fn(),
 }));
 
 const componentId = "11111111-1111-4111-8111-111111111111";
@@ -42,6 +42,12 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.mocked(associationTargets).mockResolvedValue({ revisions: [], models: [], truncated: { revisions: false, models: false } });
+  vi.mocked(getPopulationDraftReview).mockResolvedValue({
+    draft_id: "draft", definition_id: "definition", name: "Bench options", state: "draft-v1",
+    population: draft.content.pcb_population,
+    interpretation: { interpretation_id: interpretationId, sha256: "b".repeat(64), attempt_id: "attempt", output_id: "output", source_revision_id: sourceId, source_manifest_sha256: "a".repeat(64), board_path: "board.kicad_pcb" },
+    report: intake.interpretations[0]!.report, associations: [],
+  });
   vi.mocked(command).mockResolvedValue({});
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });

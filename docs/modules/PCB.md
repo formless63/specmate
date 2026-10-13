@@ -84,6 +84,18 @@ registered models, and explicitly reports truncation. It does not claim complete
 discovery beyond that limit. The option and association UI is an authoring and review
 surface; physical and native-tool qualification remain separate checkpoints.
 
+Read-only PCB review endpoints resolve the current draft and each frozen population
+revision through the shared design authorization path. A frozen review loads its own
+canonical snapshot and the exact accepted interpretation it pins, independently of
+later draft edits or the currently selected intake report. The inspector shows native
+DNP beside each option decision, and shows exact component/pad/contact, target
+revision or model representation, model source path/hash/rights, review basis and
+evidence citation or preserved file. The UI pages long component and association
+tables and clears cached review data before each focus recheck. Revoked access removes
+the retained review; there is no fallback to current draft state for an unavailable
+frozen revision. This is engineering review visibility, not native or physical
+qualification.
+
 ## Authoring and builds
 
 Native editing is a controlled source handoff with expected revision checks. Use KiCad
