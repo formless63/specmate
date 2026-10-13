@@ -46,6 +46,263 @@
       "title": "BoardPin",
       "type": "object"
     },
+    "ConnectorEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "maximum": 1000000,
+                  "minimum": -1000000,
+                  "type": "number"
+                },
+                {
+                  "maximum": 1000000,
+                  "minimum": -1000000,
+                  "type": "number"
+                },
+                {
+                  "maximum": 1000000,
+                  "minimum": -1000000,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "maximum": 1000000,
+                  "minimum": -1000000,
+                  "type": "number"
+                },
+                {
+                  "maximum": 1000000,
+                  "minimum": -1000000,
+                  "type": "number"
+                },
+                {
+                  "maximum": 1000000,
+                  "minimum": -1000000,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "declared",
+            "not_applicable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "target_local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Target Local Id",
+          "type": "string"
+        },
+        "units": {
+          "const": "mm",
+          "default": "mm",
+          "title": "Units",
+          "type": "string"
+        },
+        "usage": {
+          "enum": [
+            "body",
+            "mated",
+            "installation",
+            "cable_route"
+          ],
+          "title": "Usage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "target_local_id",
+        "usage"
+      ],
+      "title": "ConnectorEnvelope",
+      "type": "object"
+    },
+    "MaterialAssumption": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "behavior": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Behavior"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "specification": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Specification"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "declared",
+            "not_applicable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "target_local_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Local Id"
+        }
+      },
+      "required": [
+        "local_id"
+      ],
+      "title": "MaterialAssumption",
+      "type": "object"
+    },
+    "MechanicalUncertainty": {
+      "additionalProperties": false,
+      "properties": {
+        "connector_envelopes": {
+          "items": {
+            "$ref": "#/$defs/ConnectorEnvelope"
+          },
+          "maxItems": 100,
+          "title": "Connector Envelopes",
+          "type": "array"
+        },
+        "materials": {
+          "items": {
+            "$ref": "#/$defs/MaterialAssumption"
+          },
+          "maxItems": 100,
+          "title": "Materials",
+          "type": "array"
+        },
+        "processes": {
+          "items": {
+            "$ref": "#/$defs/ProcessAssumption"
+          },
+          "maxItems": 100,
+          "title": "Processes",
+          "type": "array"
+        },
+        "tolerances": {
+          "items": {
+            "$ref": "#/$defs/ToleranceAssumption"
+          },
+          "maxItems": 100,
+          "title": "Tolerances",
+          "type": "array"
+        }
+      },
+      "title": "MechanicalUncertainty",
+      "type": "object"
+    },
     "ModelPin": {
       "additionalProperties": false,
       "properties": {
@@ -158,6 +415,96 @@
         "basis"
       ],
       "title": "ModelPin",
+      "type": "object"
+    },
+    "ProcessAssumption": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "behavior": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Behavior"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method"
+        },
+        "parameters": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Parameters",
+          "type": "array"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "declared",
+            "not_applicable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "target_local_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Local Id"
+        }
+      },
+      "required": [
+        "local_id"
+      ],
+      "title": "ProcessAssumption",
       "type": "object"
     },
     "SourceFile": {
@@ -319,6 +666,112 @@
       ],
       "title": "TargetPin",
       "type": "object"
+    },
+    "ToleranceAssumption": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "dimension": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "lower_deviation": {
+          "anyOf": [
+            {
+              "maximum": 1000000,
+              "minimum": -1000000,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lower Deviation"
+        },
+        "model_local_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Local Id"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "declared",
+            "not_applicable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "target_local_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Local Id"
+        },
+        "units": {
+          "const": "mm",
+          "default": "mm",
+          "title": "Units",
+          "type": "string"
+        },
+        "upper_deviation": {
+          "anyOf": [
+            {
+              "maximum": 1000000,
+              "minimum": -1000000,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upper Deviation"
+        }
+      },
+      "required": [
+        "local_id",
+        "dimension"
+      ],
+      "title": "ToleranceAssumption",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -370,6 +823,9 @@
       "maxItems": 100,
       "title": "Targets",
       "type": "array"
+    },
+    "uncertainty": {
+      "$ref": "#/$defs/MechanicalUncertainty"
     }
   },
   "required": [
