@@ -11,6 +11,27 @@ from specmate.interfaces.contracts import ContactId, Text, unique
 from specmate.inventory.contracts import Amount
 
 
+class SegmentEnd(StrictModel):
+    segment_id: LocalId
+    end: Literal["a", "b"]
+
+
+class PhysicalEnd(StrictModel):
+    """A declared material end, never derived from electrical relationships."""
+
+    local_id: LocalId
+    label: Text | None = None
+    segment_ends: list[SegmentEnd] = Field(min_length=1, max_length=256)
+    endpoint_id: LocalId | None = None
+    basis: Text
+    review: Literal["unreviewed", "reviewed"] = "unreviewed"
+
+    @model_validator(mode="after")
+    def distinct(self):
+        unique([(end.segment_id, end.end) for end in self.segment_ends])
+        return self
+
+
 class Section(StrictModel):
     """One planned stock piece, even when several segments describe it."""
 
@@ -18,6 +39,12 @@ class Section(StrictModel):
     stock_revision_id: UUID
     planned_cut_length_mm: Amount | None = None
     cut_basis: Text | None = None
+    physical_ends: list[PhysicalEnd] = Field(default_factory=list, max_length=64)
+
+    @model_validator(mode="after")
+    def distinct_ends(self):
+        unique([end.local_id for end in self.physical_ends])
+        return self
 
 
 class Segment(StrictModel):
@@ -32,11 +59,6 @@ class Segment(StrictModel):
         if self.element_paths is not None:
             unique(self.element_paths)
         return self
-
-
-class SegmentEnd(StrictModel):
-    segment_id: LocalId
-    end: Literal["a", "b"]
 
 
 class SegmentTerminal(SegmentEnd):

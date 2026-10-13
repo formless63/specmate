@@ -58,7 +58,7 @@ def validate_content(kind, content):
 
 
 class Closure:
-    def __init__(self, user, content, kind=None, dependencies=()):
+    def __init__(self, user, content, kind=None, dependencies=(), authority_only=False):
         self.harness = parse_content(content, kind)
         self.revisions = {}
         if self.harness is None:
@@ -85,6 +85,8 @@ class Closure:
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         for revision in self.revisions.values():
             authorize_reference(user, revision)
+        if authority_only:
+            return
         for section in self.harness.sections:
             amount = section.planned_cut_length_mm
             if amount is not None:
@@ -165,6 +167,26 @@ class Closure:
                 }
         if len(self.terminals) > 20000:
             raise ValidationFailed("Harness terminal limit exceeded.")
+        for section in self.harness.sections:
+            assigned = set()
+            for physical_end in section.physical_ends:
+                if (
+                    physical_end.endpoint_id is not None
+                    and physical_end.endpoint_id not in self.endpoints
+                ):
+                    raise ValidationFailed("Physical end endpoint is absent from the harness.")
+                for reference in physical_end.segment_ends:
+                    segment = self.segments.get(reference.segment_id)
+                    if segment is None or segment.section_id != section.local_id:
+                        raise ValidationFailed(
+                            "Physical end references must belong to their exact section."
+                        )
+                    key = (reference.segment_id, reference.end)
+                    if key in assigned:
+                        raise ValidationFailed(
+                            "A segment end cannot identify multiple physical ends of a section."
+                        )
+                    assigned.add(key)
         self.joints = {j.local_id: j for j in self.harness.joints}
         self.owners = {}
         self.relationships = []
@@ -284,8 +306,8 @@ class Closure:
         self.owners[key] = owner
 
 
-def authorize_content(user, content):
-    Closure(user, content)
+def authorize_content(user, content, authority_only=False):
+    Closure(user, content, authority_only=authority_only)
 
 
 def dependency_revisions(user, definition, content):
@@ -293,12 +315,11 @@ def dependency_revisions(user, definition, content):
 
 
 def read_revision(user, revision_id):
-    revision = (
-        Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
-    )
-    if revision is None:
-        raise NotFound("Harness revision unavailable.")
-    authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.queries import get_revision
+
+    user = current_actor(user)
+    revision = get_revision(user, revision_id)
     closure = Closure(
         user,
         json.loads(bytes(revision.snapshot.canonical))["content"],

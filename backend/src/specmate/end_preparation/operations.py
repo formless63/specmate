@@ -13,8 +13,9 @@ from specmate.design.operations import (
     scoped_draft,
     update_draft,
 )
-from specmate.end_preparation.application import apply_profile
+from specmate.end_preparation.application import apply_harness_profile, apply_profile
 from specmate.end_preparation.contracts import (
+    ApplyHarnessProfile,
     ApplyProfile,
     CaptureProfile,
     CreateProfile,
@@ -172,3 +173,13 @@ def check_authority(ctx: Context, payload: EndPreparationProfile):
         ctx.user, {"end_preparation_profile": payload.model_dump(mode="json")}, authority_only=True
     )
     return {"authorized": True}
+
+
+@operation(
+    "end_preparation.apply_harness",
+    ApplyHarnessProfile,
+    summary="Project instructions onto explicitly mapped physical ends of a harness section.",
+    supports_idempotency=False,
+)
+def calculate_harness(ctx: Context, payload: ApplyHarnessProfile):
+    return apply_harness_profile(ctx.user, payload)

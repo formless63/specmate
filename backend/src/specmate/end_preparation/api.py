@@ -3,8 +3,12 @@ from uuid import UUID
 from ninja import Router
 
 from specmate.design.operations import draft_state
-from specmate.end_preparation.application import apply_profile
-from specmate.end_preparation.contracts import ApplyProfile, EndPreparationProfile
+from specmate.end_preparation.application import apply_harness_profile, apply_profile
+from specmate.end_preparation.contracts import (
+    ApplyHarnessProfile,
+    ApplyProfile,
+    EndPreparationProfile,
+)
 from specmate.end_preparation.operations import profile_draft
 from specmate.end_preparation.queries import closure, inspect_profile
 from specmate.operations import Context
@@ -36,3 +40,8 @@ def authority(request, payload: EndPreparationProfile):
         authority_only=True,
     )
     return {"authorized": True}
+
+
+@router.post("/apply-harness")
+def calculate_harness(request, payload: ApplyHarnessProfile):
+    return apply_harness_profile(request.user, payload)

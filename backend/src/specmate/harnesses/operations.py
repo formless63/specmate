@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 from specmate.access.permissions import Perm, authorize
+from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import (
     CaptureDraft,
     CreateDefinition,
@@ -24,10 +27,12 @@ from specmate.harnesses.queries import (
     parse_content,
 )
 from specmate.operations import Context, NotFound, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.models import IdempotencyRecord
+from specmate.operations.scope import LEGACY_SCOPE, project_scope
 
 
 def harness_draft(ctx, draft_id, permission, lock=False):
+    ctx = replace(ctx, user=current_actor(ctx.user))
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "harness":
         raise NotFound("Harness draft unavailable.")
@@ -43,13 +48,33 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
         project = p.project_id
     else:
         project = harness_draft(ctx, p.draft_id, permission).definition.project_id
-    return project_scope(ctx, project, permission)
-
-
-def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
-    scope(ctx, p, permission)
+    namespace = project_scope(ctx, project, permission)
     if isinstance(p, (CreateHarness, UpdateHarness)):
-        authorize_content(ctx.user, {"harness": p.harness.model_dump(mode="json")})
+        authorize_content(
+            ctx.user, {"harness": p.harness.model_dump(mode="json")}, authority_only=True
+        )
+    if ctx.idempotency_key:
+        name = (
+            "harness.create"
+            if isinstance(p, CreateHarness)
+            else "harness.update"
+            if isinstance(p, UpdateHarness)
+            else "harness.freeze"
+            if permission == Perm.DESIGN_FREEZE
+            else "harness.snapshot"
+        )
+        records = IdempotencyRecord.objects.select_for_update().filter(
+            actor=ctx.user, operation=name, key=ctx.idempotency_key
+        )
+        prior = (
+            records.filter(scope=namespace).first() or records.filter(scope=LEGACY_SCOPE).first()
+        )
+        if prior:
+            retained(ctx, prior.result)
+    return namespace
+
+
+def retained(ctx, stored):
     if "content" in stored:
         authorize_content(ctx.user, stored["content"])
     if "revision_id" in stored:
@@ -60,6 +85,11 @@ def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
 
         snapshot = Snapshot.objects.select_related("definition").get(id=stored["snapshot_id"])
         authorize_snapshot(ctx.user, snapshot)
+
+
+def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
+    scope(ctx, p, permission)
+    retained(ctx, stored)
 
 
 @operation(

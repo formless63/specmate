@@ -142,3 +142,14 @@ class ApplyProfile(StrictModel):
     b_endpoint_id: LocalId
     mapping_basis: Text
     mapping_review: Literal["unreviewed", "reviewed"] = "unreviewed"
+
+
+class ApplyHarnessProfile(StrictModel):
+    schema_version: Literal["0.1"] = "0.1"
+    harness_revision_id: UUID
+    section_id: LocalId
+    profile_revision_id: UUID
+    a_physical_end_id: LocalId | None = None
+    b_physical_end_id: LocalId | None = None
+    mapping_basis: Text
+    mapping_review: Literal["unreviewed", "reviewed"] = "unreviewed"

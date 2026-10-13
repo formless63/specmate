@@ -3,12 +3,24 @@ from uuid import UUID
 from ninja import Router
 
 from specmate.access.permissions import Perm
+from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import draft_state
+from specmate.harnesses.contracts import Harness
 from specmate.harnesses.operations import harness_draft
-from specmate.harnesses.queries import inspect_revision
+from specmate.harnesses.queries import authorize_content, inspect_revision
 from specmate.operations import Context
 
 router = Router(tags=["harnesss"])
+
+
+@router.post("/authority")
+def authority(request, payload: Harness):
+    authorize_content(
+        current_actor(request.user),
+        {"harness": payload.model_dump(mode="json")},
+        authority_only=True,
+    )
+    return {"authorized": True}
 
 
 @router.get("/drafts/{draft_id}")
