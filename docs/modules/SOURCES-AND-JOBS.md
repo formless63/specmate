@@ -4,6 +4,25 @@ Keep engineering transactions independent of native subprocess duration. Commit 
 snapshots/attempt/outbox together; dispatch stable workflows afterward. The jobs process
 is part of the application codebase, not an alternative persistence layer.
 
+The implemented foundation uses `build.request` with an immutable source-bundle revision
+and an operator-approved single-stage recipe. Its asynchronous result identifies a
+durable build and outbox. Temporal dispatch uses a stable workflow ID with duplicate
+reuse rejected; short activities use the shared Django operation layer. Recipes and
+source identities are preserved in application records, and workflow history carries IDs.
+
+Runner credentials are issued locally by the installation operator and restricted to
+one project and a list of approved recipes. Only the matching fenced stage may download
+inputs or register output bytes. A recipe's execution limits and manifest paths must be
+supported before a build is accepted. Changes to current authority or recipe approval
+prevent further execution and successful result acceptance.
+
+An expired lease becomes interrupted and requires reconciliation of the original
+execution. The foundation does not reassign it or automatically rerun a tool; a new
+build request creates a distinct attempt while prior evidence remains immutable.
+Successful output is available only after verified terminal acceptance and a current
+project access check. Mixed source-rights policies and artifact caching remain future
+capabilities; matching hashes alone grant no disclosure permission.
+
 ## Pipeline
 
 Preserve/import source -> extract -> review -> generate/modify -> validate/route/compile ->

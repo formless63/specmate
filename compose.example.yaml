@@ -1,0 +1,210 @@
+name: specmate
+
+x-app-environment: &app-environment
+  SPECMATE_ENVIRONMENT: production
+  SPECMATE_SECRET_KEY: ${SPECMATE_SECRET_KEY:?Generate secrets with deploy/configure.py}
+  SPECMATE_ALLOWED_HOSTS: ${SPECMATE_ALLOWED_HOSTS:-localhost,127.0.0.1,app}
+  SPECMATE_CSRF_TRUSTED_ORIGINS: ${SPECMATE_CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+  SPECMATE_SECURE_COOKIES: ${SPECMATE_SECURE_COOKIES:-false}
+  SPECMATE_DB_HOST: postgres
+  SPECMATE_DB_PORT: '5432'
+  SPECMATE_DB_NAME: specmate
+  SPECMATE_DB_USER: specmate
+  SPECMATE_DB_PASSWORD: ${SPECMATE_DB_PASSWORD:?Generate secrets with deploy/configure.py}
+  SPECMATE_ARTIFACT_ROOT: /var/lib/specmate/artifacts
+  SPECMATE_TEMPORAL_ADDRESS: temporal:7233
+  SPECMATE_TEMPORAL_NAMESPACE: specmate
+  SPECMATE_TEMPORAL_TASK_QUEUE: specmate-builds
+  SPECMATE_STARTUP_TIMEOUT: '120'
+  SPECMATE_APPROVED_RECIPES_FILE: /etc/specmate/recipes.json
+
+services:
+  web:
+    container_name: specmate-web
+    image: specmate-web:local
+    build:
+      context: ${SPECMATE_SOURCE_DIR:-.}
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - '${SPECMATE_BIND_IP:-127.0.0.1}:${SPECMATE_PORT:-8080}:80'
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1/api/ready']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [frontend]
+
+  app:
+    container_name: specmate-app
+    image: specmate-app:local
+    build:
+      context: ${SPECMATE_SOURCE_DIR:-.}
+      dockerfile: deploy/Dockerfile.app
+    restart: unless-stopped
+    environment: *app-environment
+    volumes:
+      - artifacts:/var/lib/specmate/artifacts
+      - type: bind
+        source: ./recipes.json
+        target: /etc/specmate/recipes.json
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/api/ready", timeout=4).read()']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks: [frontend, backend]
+
+  postgres:
+    container_name: specmate-postgres
+    image: specmate-postgres:local
+    build:
+      context: ${SPECMATE_SOURCE_DIR:-.}
+      dockerfile: deploy/Dockerfile.postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: specmate_admin
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate secrets with deploy/configure.py}
+      SPECMATE_DB_PASSWORD: ${SPECMATE_DB_PASSWORD:?Generate secrets with deploy/configure.py}
+      TEMPORAL_DB_PASSWORD: ${TEMPORAL_DB_PASSWORD:?Generate secrets with deploy/configure.py}
+      TEMPORAL_VISIBILITY_DB_PASSWORD: ${TEMPORAL_VISIBILITY_DB_PASSWORD:?Generate secrets with deploy/configure.py}
+    command: ['postgres', '-c', 'shared_preload_libraries=pg_stat_statements']
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      # TCP is unavailable during the upstream image's temporary initialization server.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    networks: [backend]
+
+  temporal:
+    container_name: specmate-temporal
+    image: specmate-temporal:local
+    build:
+      context: ${SPECMATE_SOURCE_DIR:-.}
+      dockerfile: deploy/Dockerfile.temporal
+    restart: unless-stopped
+    environment:
+      DB: postgres12
+      DB_PORT: '5432'
+      POSTGRES_SEEDS: postgres
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:?Generate secrets with deploy/configure.py}
+      DBNAME: temporal
+      VISIBILITY_POSTGRES_USER: temporal_visibility
+      VISIBILITY_POSTGRES_PWD: ${TEMPORAL_VISIBILITY_DB_PASSWORD:?Generate secrets with deploy/configure.py}
+      VISIBILITY_DBNAME: temporal_visibility
+      TEMPORAL_NAMESPACE: specmate
+      TEMPORAL_ADDRESS: 127.0.0.1:7233
+      NUM_HISTORY_SHARDS: '4'
+      SQL_MAX_CONNS: '5'
+      SQL_MAX_IDLE_CONNS: '2'
+      SQL_VIS_MAX_CONNS: '2'
+      SQL_VIS_MAX_IDLE_CONNS: '1'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'temporal operator cluster health >/dev/null && temporal operator namespace describe --namespace "$$TEMPORAL_NAMESPACE" >/dev/null']
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 120s
+    networks: [backend]
+
+  jobs:
+    container_name: specmate-jobs
+    image: specmate-app:local
+    build:
+      context: ${SPECMATE_SOURCE_DIR:-.}
+      dockerfile: deploy/Dockerfile.app
+    command: ['jobs']
+    restart: unless-stopped
+    environment: *app-environment
+    volumes:
+      - artifacts:/var/lib/specmate/artifacts
+      - type: bind
+        source: ./recipes.json
+        target: /etc/specmate/recipes.json
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      app:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    networks: [backend]
+
+  temporal-ui:
+    container_name: specmate-temporal-ui
+    image: temporalio/ui:2.55.0@sha256:3899d5cf749b5555c9f798d46f2423b1d6190ea391ca713db5d1bba961759e58
+    restart: unless-stopped
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_DEFAULT_NAMESPACE: specmate
+    ports:
+      - '${SPECMATE_OPERATOR_BIND_IP:-127.0.0.1}:${SPECMATE_TEMPORAL_UI_PORT:-8081}:8080'
+    depends_on:
+      temporal:
+        condition: service_healthy
+    networks: [backend, operator]
+
+  runner:
+    profiles: [runner]
+    container_name: specmate-runner
+    image: specmate-runner:local
+    build:
+      context: ${SPECMATE_SOURCE_DIR:-.}
+      dockerfile: runner/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPECMATE_APP_URL: http://app:8000
+      SPECMATE_RUNNER_TOKEN_FILE: /run/secrets/runner-token
+      SPECMATE_RUNNER_STATE_DIR: /runner-state
+      SPECMATE_RUNNER_HOST_STATE_DIR: ${SPECMATE_RUNNER_HOST_STATE_DIR:-}
+    volumes:
+      - type: bind
+        source: ${SPECMATE_RUNNER_HOST_STATE_DIR:-./runner-state}
+        target: /runner-state
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./runner-token
+        target: /run/secrets/runner-token
+        read_only: true
+        bind:
+          create_host_path: false
+      - ${SPECMATE_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [frontend]
+
+volumes:
+  postgres:
+    name: specmate-postgres
+  artifacts:
+    name: specmate-artifacts
+
+networks:
+  frontend:
+    name: specmate-frontend
+  backend:
+    name: specmate-backend
+    internal: true
+  operator:
+    name: specmate-operator

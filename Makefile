@@ -1,7 +1,7 @@
-.PHONY: help check-guidance check-public dev-db-up dev-db-down backend-sync backend-lint backend-test frontend-install frontend-typecheck frontend-test frontend-build
+.PHONY: help check-guidance check-public dev-db-up dev-db-down backend-sync backend-lint backend-test frontend-install frontend-typecheck frontend-test frontend-build runner-test
 help:
 	@printf '%s\n' 'Targets: check-guidance check-public dev-db-up dev-db-down backend-sync backend-lint backend-test' \
-	  'frontend-install frontend-typecheck frontend-test frontend-build'
+	  'frontend-install frontend-typecheck frontend-test frontend-build runner-test'
 check-guidance:
 	python3 scripts/check_guidance.py
 check-public:
@@ -25,3 +25,5 @@ frontend-test:
 	bun run test
 frontend-build:
 	bun run build
+runner-test:
+	PYTHONPATH=runner python3 -m unittest discover -s runner/tests -v

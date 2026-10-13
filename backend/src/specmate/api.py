@@ -9,10 +9,14 @@ from ninja.files import UploadedFile
 from ninja.security import django_auth
 
 from specmate import queries
+from specmate.builds.api import artifacts_router
+from specmate.builds.api import router as runner_router
 from specmate.contracts import OperationEnvelope
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
+api.add_router("/v0/runner", runner_router)
+api.add_router("/v0/builds", artifacts_router)
 
 
 @api.exception_handler(OperationError)
@@ -29,6 +33,18 @@ class Health(Schema):
 def health(request):
     """Process liveness only. It does not report schema readiness or tool availability."""
     return {"status": "ok", "version": version("specmate")}
+
+
+@api.get("/ready", response={200: Health, 503: Health}, auth=None, tags=["system"])
+def ready(request):
+    """Application schema readiness; no secrets or database diagnostics are exposed."""
+    from specmate.operations.startup import schema_ready
+
+    available = schema_ready()
+    return (200 if available else 503), {
+        "status": "ready" if available else "unavailable",
+        "version": version("specmate"),
+    }
 
 
 def _context(request, envelope: OperationEnvelope, **extra) -> Context:

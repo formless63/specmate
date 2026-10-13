@@ -1,5 +1,6 @@
 """Django settings. Configuration comes from SPECMATE_* environment variables."""
 
+import json
 import os
 from pathlib import Path
 
@@ -33,6 +34,7 @@ INSTALLED_APPS = [
     "specmate.access",
     "specmate.design",
     "specmate.sources",
+    "specmate.builds",
 ]
 
 MIDDLEWARE = [
@@ -76,6 +78,16 @@ DATABASES = {
 SPECMATE_ARTIFACT_ROOT = env("ARTIFACT_ROOT", str(BASE_DIR.parents[1] / ".artifacts"))
 SPECMATE_MAX_SOURCE_BYTES = int(env("MAX_SOURCE_BYTES", str(256 * 1024 * 1024)) or 0)
 
+# Operator-installed recipes are explicit capabilities; no recipe is enabled by default.
+_recipes_file = env("APPROVED_RECIPES_FILE")
+SPECMATE_APPROVED_RECIPES = json.loads(
+    Path(_recipes_file).read_text() if _recipes_file else (env("APPROVED_RECIPES", "{}") or "{}")
+)
+SPECMATE_LEASE_SECONDS = int(env("LEASE_SECONDS", "60") or 60)
+SPECMATE_TEMPORAL_ADDRESS = env("TEMPORAL_ADDRESS", "temporal:7233")
+SPECMATE_TEMPORAL_NAMESPACE = env("TEMPORAL_NAMESPACE", "specmate")
+SPECMATE_TEMPORAL_TASK_QUEUE = env("TEMPORAL_TASK_QUEUE", "specmate-builds")
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LANGUAGE_CODE = "en-us"
@@ -86,8 +98,9 @@ USE_TZ = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = not DEVELOPMENT
-CSRF_COOKIE_SECURE = not DEVELOPMENT
+SESSION_COOKIE_SECURE = env("SECURE_COOKIES", "false" if DEVELOPMENT else "true") == "true"
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+CSRF_TRUSTED_ORIGINS = [o for o in (env("CSRF_TRUSTED_ORIGINS", "") or "").split(",") if o]
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 

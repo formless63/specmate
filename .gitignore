@@ -16,6 +16,10 @@ sessions/
 .env.*
 !.env.example
 !*.env.example
+/compose.yaml
+/recipes.json
+/runner-token
+/runner-state/
 *.local.*
 !*.local.example.*
 .venv/

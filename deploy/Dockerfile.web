@@ -1,0 +1,13 @@
+FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS bun
+FROM node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS build
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+WORKDIR /app
+COPY package.json bun.lock bunfig.toml ./
+COPY frontend ./frontend
+COPY packages ./packages
+RUN bun install --frozen-lockfile && bun run build
+
+FROM caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+COPY --from=build /app/frontend/dist /srv
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY LICENSE NOTICE /usr/share/doc/specmate/

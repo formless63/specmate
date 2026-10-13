@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
 
 Via = Literal["api", "job", "mcp", "internal"]
+ResultStatus = Literal["completed", "accepted_async"]
 
 
 class OperationError(Exception):
@@ -93,7 +94,7 @@ class OperationResult(BaseModel):
 
     operation: str
     request_id: str
-    status: Literal["completed"] = "completed"
+    status: ResultStatus = "completed"
     replayed: bool = False
     result: dict[str, Any]
 
@@ -107,6 +108,7 @@ class OperationSpec:
     requires_expected_state: bool
     public: bool
     attachments: tuple[str, ...]
+    status: ResultStatus
 
 
 registry: dict[str, OperationSpec] = {}
@@ -120,12 +122,13 @@ def operation(
     requires_expected_state: bool = False,
     public: bool = False,
     attachments: tuple[str, ...] = (),
+    status: ResultStatus = "completed",
 ):
     def register(handler: Callable[[Context, Any], dict[str, Any]]):
         if name in registry:
             raise RuntimeError(f"Duplicate operation {name}")
         registry[name] = OperationSpec(
-            name, summary, payload, handler, requires_expected_state, public, attachments
+            name, summary, payload, handler, requires_expected_state, public, attachments, status
         )
         return handler
 
@@ -170,7 +173,11 @@ def execute(name: str, ctx: Context, payload: Mapping[str, Any]) -> OperationRes
                 if prior.fingerprint != fingerprint:
                     raise IdempotencyMismatch("Idempotency key was used with a different request.")
                 return OperationResult(
-                    operation=name, request_id=ctx.request_id, replayed=True, result=prior.result
+                    operation=name,
+                    request_id=ctx.request_id,
+                    status=spec.status,
+                    replayed=True,
+                    result=prior.result,
                 )
         result = spec.handler(ctx, parsed)
         if keyed:
@@ -186,4 +193,6 @@ def execute(name: str, ctx: Context, payload: Mapping[str, Any]) -> OperationRes
             except IntegrityError:
                 # A concurrent request with the same key committed first; undo this one.
                 raise Conflict("A concurrent request with this idempotency key won.") from None
-    return OperationResult(operation=name, request_id=ctx.request_id, result=result)
+    return OperationResult(
+        operation=name, request_id=ctx.request_id, status=spec.status, result=result
+    )

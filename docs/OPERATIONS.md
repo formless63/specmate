@@ -1,8 +1,9 @@
 # Installation and operations contract
 
-This is the target packaged experience. The bootstrap deliberately ships no pretend
-working Compose file or untested image tags. Implement and test the deployment as a
-complete early workflow, not an assortment of containers copied from demonstrations.
+This describes the target packaged experience. The current source-built foundation is
+documented in [deployment instructions](../deploy/README.md): six core services with
+startup-managed schemas and optional scoped runner execution. Published installation
+bundles, native pack qualification and restore acceptance remain separate obligations.
 
 ## Installation surface
 

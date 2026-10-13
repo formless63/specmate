@@ -5,7 +5,8 @@ firmware, assemblies, and the physical things built from them.
 
 **Repository state: early implementation.** This checkout contains the accepted
 product specification, architecture, engineering contracts, synthetic acceptance
-examples, repository checks, and a locked Django/React development skeleton. It is not
+examples, a locked Django/React foundation, and a source-built six-service deployment
+with durable dispatch and optional isolated execution. It is not
 yet a usable Specmate application. Planned functionality is not represented as implemented.
 
 ## Intended product
@@ -31,8 +32,9 @@ python3 scripts/check_public_tree.py
 
 These commands check guidance integrity and common publication hazards. They do not
 certify application behavior or guarantee that all confidential information has been found.
-Skeleton build and test commands are listed in [AGENTS.md](AGENTS.md) and
-[development policy](docs/DEVELOPMENT.md); deployment commands will be documented when they exist.
+Build and test commands are listed in [AGENTS.md](AGENTS.md) and
+[development policy](docs/DEVELOPMENT.md). See [deployment instructions](deploy/README.md)
+for local source builds; published installation bundles and native tool packs remain separate work.
 
 ## Foundation
 

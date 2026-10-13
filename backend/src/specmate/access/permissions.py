@@ -15,6 +15,7 @@ class Perm(StrEnum):
     DESIGN_EDIT = "design.edit"
     DESIGN_FREEZE = "design.freeze"
     SOURCE_REGISTER = "source.register"
+    BUILD_EXECUTE = "build.execute"
 
 
 # Freezing is separate engineering authority: editors need an explicit grant.

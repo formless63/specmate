@@ -21,8 +21,11 @@ def run_operation(
     expected_state: str | None = None,
     attachments: Mapping[str, IO[bytes]] | None = None,
 ) -> OperationResult:
-    user = get_user_model().objects.filter(pk=on_behalf_of, is_active=True).first()
-    if user is None:
+    user = get_user_model().objects.filter(pk=on_behalf_of).first()
+    # These internal build operations recheck the original actor and execution
+    # authority, then cancel revoked work. Deactivation must not disable cleanup.
+    cleanup_operation = operation in {"build.poll", "build.dispatch"}
+    if user is None or (not user.is_active and not cleanup_operation):
         raise Unauthenticated("Job actor is not an active user.")
     ctx = Context(
         user=user,

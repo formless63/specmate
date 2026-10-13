@@ -1,0 +1,3 @@
+# Deliberately retain the pinned server's defaults. Deployment-specific overrides
+# belong here only after qualification; the embedded configuration requires a file.
+{}

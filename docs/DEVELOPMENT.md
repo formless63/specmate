@@ -18,6 +18,12 @@ frontend is a static Vite build; there is no JavaScript application server.
 Backend tests use `tests.settings` (development profile). Tests that touch the database
 need a real PostgreSQL configured with `SPECMATE_DB_HOST/PORT/NAME/USER/PASSWORD`.
 
+The source-built Compose example and one-time configuration generator are documented
+in [deploy/README.md](../deploy/README.md). Keep the running stack's environment, recipe
+registry, runner token and durable receipts outside the source checkout. Builds use only
+the public repository as their Docker context. Runner tests and explicit real-container
+checks are documented in [runner/README.md](../runner/README.md).
+
 ## Pre-1.0 means no supported production users
 
 Until v1.0.0 is deliberately released, historical development databases, Temporal histories,

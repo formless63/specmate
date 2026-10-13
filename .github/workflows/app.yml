@@ -5,6 +5,11 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'packages/**'
+      - 'runner/**'
+      - 'deploy/**'
+      - 'compose.example.yaml'
+      - '.dockerignore'
+      - '.env.example'
       - 'package.json'
       - 'bun.lock'
       - 'bunfig.toml'
@@ -50,6 +55,13 @@ jobs:
       - run: uv run --frozen ruff check . && uv run --frozen ruff format --check .
       - run: uv run --frozen python manage.py makemigrations --check --dry-run
       - run: uv run --frozen pytest
+      - name: Runner and deployment source checks
+        working-directory: .
+        run: |
+          uv run --project backend --frozen ruff check runner deploy/configure.py
+          uv run --project backend --frozen ruff format --check runner deploy/configure.py
+          PYTHONPATH=runner uv run --project backend --frozen python -m unittest discover -s runner/tests -v
+        # Real Docker/native-pack cases require explicit cached-image opt-in at a checkpoint.
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 10

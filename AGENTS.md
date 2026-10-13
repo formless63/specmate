@@ -64,8 +64,15 @@ Application skeleton (toolchain in `docs/DEVELOPMENT.md`; `make help` lists targ
 - `cd backend && uv run python manage.py export_contract_schemas ../contracts/schema` —
   regenerate JSON Schema from the Pydantic contracts (a test fails when stale).
 
-There is no runnable Compose stack yet. Add real commands when implemented. The skeleton
-tests cover only what exists; they do not test Temporal, CAD tools, or engineering features.
+- `python3 deploy/configure.py --output <stack-directory>/.env` — create private secrets
+  and an empty approved-recipe registry once; see `deploy/README.md` for Compose startup.
+- `PYTHONPATH=runner python3 -m unittest discover -s runner/tests -v` — runner checks;
+  actual Docker cases require the explicit cached digest described in `runner/README.md`.
+
+`compose.example.yaml` provides six core services and an optional `runner` profile.
+Backend tests include PostgreSQL concurrency and outbox failure handling; a test double
+does not establish Temporal/server or native CAD compatibility. Native packs, rootless
+Podman and release installation/restore require their own integration evidence.
 
 ## Completion report
 
