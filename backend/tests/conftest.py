@@ -18,8 +18,10 @@ def artifact_root(settings, tmp_path):
 @pytest.fixture
 def users(db):
     User = get_user_model()
+    # Permission fixtures use job actors or force_login, never password authentication.
+    # Session/account tests create their own users with real passwords and production hashing.
     return {
-        name: User.objects.create_user(username=name, password="unused-test-password")
+        name: User.objects.create_user(username=name, password=None)
         for name in ("owner", "editor", "viewer", "outsider")
     }
 
