@@ -55,9 +55,14 @@ version number. Never delete original sources or private reference material.
 
 Application skeleton (toolchain in `docs/DEVELOPMENT.md`; `make help` lists targets):
 
-- `make backend-sync backend-lint backend-test` — uv environment, Ruff, pytest (Django).
+- `make dev-db-up` / `make dev-db-down` — disposable tmpfs PostgreSQL for tests (Docker).
+- `make backend-sync backend-lint backend-test` — uv environment, Ruff, pytest (Django,
+  real PostgreSQL via `SPECMATE_DB_*`).
 - `make frontend-install frontend-typecheck frontend-test frontend-build` — Bun frozen
   install, TypeScript, Vitest, Vite static build.
+
+- `cd backend && uv run python manage.py export_contract_schemas ../contracts/schema` —
+  regenerate JSON Schema from the Pydantic contracts (a test fails when stale).
 
 There is no runnable Compose stack yet. Add real commands when implemented. The skeleton
 tests cover only what exists; they do not test Temporal, CAD tools, or engineering features.

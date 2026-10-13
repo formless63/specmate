@@ -41,4 +41,9 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "DJ", "S", "RUF"]
-ignore = ["S101"]
+# RUF012/DJ008: Django Meta lists and model __str__ are idiomatic/optional here.
+ignore = ["S101", "RUF012", "DJ008"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/*" = ["E501"]
+"tests/*" = ["S105", "S106", "S608"]

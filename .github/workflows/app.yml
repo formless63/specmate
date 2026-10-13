@@ -23,6 +23,22 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:18.6-trixie@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+        env:
+          POSTGRES_USER: specmate
+          POSTGRES_PASSWORD: specmate-ci
+          POSTGRES_DB: specmate
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U specmate" --health-interval 5s --health-retries 10
+    env:
+      SPECMATE_ENVIRONMENT: development
+      SPECMATE_DB_HOST: 127.0.0.1
+      SPECMATE_DB_PORT: '5432'
+      SPECMATE_DB_PASSWORD: specmate-ci
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -32,6 +48,7 @@ jobs:
           version: '0.13.0'
       - run: uv sync --frozen
       - run: uv run --frozen ruff check . && uv run --frozen ruff format --check .
+      - run: uv run --frozen python manage.py makemigrations --check --dry-run
       - run: uv run --frozen pytest
   frontend:
     runs-on: ubuntu-latest

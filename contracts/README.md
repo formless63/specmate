@@ -11,3 +11,10 @@ maintained Python/TypeScript/schema definitions. DOMAIN and CONTRACTS set the in
 Do not treat a claimed actor inside a payload as authority. The operation example omits
 server-authenticated context deliberately. Scene transforms and occurrence addresses remain
 separate from view arrangements. Sample names must never be mistaken for discoverable APIs.
+
+## Implemented
+
+Authoritative models: `backend/src/specmate/contracts.py` (operation envelope, source-bundle
+manifest). Generated schemas: `schema/`, rewritten by `manage.py export_contract_schemas`;
+backend tests validate the retained examples and fail when generated schemas are stale.
+Scene and stage contracts are not yet promoted.

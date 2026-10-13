@@ -28,6 +28,11 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
+    "django.contrib.postgres",
+    "specmate.operations",
+    "specmate.access",
+    "specmate.design",
+    "specmate.sources",
 ]
 
 MIDDLEWARE = [
@@ -37,6 +42,16 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
 ROOT_URLCONF = "specmate.urls"
@@ -51,10 +66,15 @@ DATABASES = {
         "NAME": env("DB_NAME", "specmate"),
         "USER": env("DB_USER", "specmate"),
         "PASSWORD": env("DB_PASSWORD", ""),
+        "ATOMIC_REQUESTS": False,
         "CONN_MAX_AGE": 60,
         "CONN_HEALTH_CHECKS": True,
     }
 }
+
+# Application-owned content-addressed storage for source and artifact bytes.
+SPECMATE_ARTIFACT_ROOT = env("ARTIFACT_ROOT", str(BASE_DIR.parents[1] / ".artifacts"))
+SPECMATE_MAX_SOURCE_BYTES = int(env("MAX_SOURCE_BYTES", str(256 * 1024 * 1024)) or 0)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
