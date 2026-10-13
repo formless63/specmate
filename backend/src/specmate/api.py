@@ -11,10 +11,12 @@ from ninja.security import django_auth
 from specmate import queries
 from specmate.builds.api import artifacts_router
 from specmate.builds.api import router as runner_router
+from specmate.catalog.api import router as catalog_router
 from specmate.contracts import OperationEnvelope
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
+api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/runner", runner_router)
 api.add_router("/v0/builds", artifacts_router)
 

@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "specmate.operations",
     "specmate.access",
     "specmate.design",
+    "specmate.catalog",
     "specmate.sources",
     "specmate.builds",
 ]
