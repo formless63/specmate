@@ -56,4 +56,39 @@ Source manifests reject case-insensitive duplicates and file/directory collision
 before committing an original or revised bundle. Shared directory prefixes remain
 valid. Blob lookup is bounded to the requested hashes within the owning project.
 Imported archive bytes remain inert: there is no automatic decompression or link
-reconstruction, and this does not establish hostile archive extraction safety.
+reconstruction. The separately invoked bounded ZIP derivation below is the only
+implemented expansion path; other formats remain opaque.
+
+## Deliberate ZIP derivation
+
+The Sources panel first preserves an uploaded file as an original bundle. Its separate
+`source.expand_zip` command selects an exact original revision and path, with explicit
+`format: "zip"`, to create a distinct derivative. Rejection leaves the original intact.
+The immutable expansion record pins the exact archive file and parser identity; the
+manifest pins member hashes and parent revision. Member rights inherit the archive's
+**declared** rights, including unknown; this does not verify licensing. Reopening shows
+that exact provenance. A plain derivative or later edited revision does not claim to be
+fresh parser output. Current project/blob/parent closure is checked before diagnostics,
+expansion, replay, source inspection and downloads. No state token is required to create
+a new derivative from an immutable revision; revising a bundle still uses its state token.
+
+The `specmate-classic-zip-v1` parser supports classic single-disk stored/deflated ZIPs
+with DOS or Unix creators. It rejects encrypted entries, links/special files, ZIP64,
+data descriptors, unknown flags and metadata extensions, path traversal and inconsistent
+local/central records. Supported timestamp and uid/gid metadata are ignored, not restored.
+Input is bounded to 16 MiB, central metadata to 1 MiB, entries to 1000, individual expanded
+members to 16 MiB, total expansion to 64 MiB, ratio to 200:1 and file depth to 32.
+Declared limits are checked before decompression; each output allocation is bounded and
+actual size, complete deflate stream and CRC must match before a derivative is accepted.
+
+Members stream only into application-owned content-addressed staging, never paths chosen
+by the archive. No nested archives are expanded. Safe unknown file formats and scripts
+remain inert octet-stream bytes; no file permissions, links or execution authority are
+restored. Explicit empty directories are validated but omitted from the file-only manifest.
+Original bytes retain all original metadata. If persistence fails after blob promotion,
+unreferenced blobs can remain for the existing bounded reconciliation process; engineering
+rows and idempotency outcomes roll back together.
+
+These explicit limits intentionally reject some valid ZIP files. Other archive formats
+can be preserved but have no expansion operation. Bounded in-process parsing does not
+establish general hostile-format isolation or qualification of native tools and previews.

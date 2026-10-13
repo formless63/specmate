@@ -6,4 +6,7 @@ class SourcesConfig(AppConfig):
     label = "sources"
 
     def ready(self):
-        from specmate.sources import operations  # noqa: F401  (registers operations)
+        from specmate.sources import (  # noqa: F401  (registers operations)
+            archive_operations,
+            operations,
+        )

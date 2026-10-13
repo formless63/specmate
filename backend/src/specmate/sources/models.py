@@ -82,3 +82,16 @@ class SourceBundleFile(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["revision", "path"], name="source_bundle_file_path")
         ]
+
+
+class SourceArchiveExpansion(models.Model):
+    """Exact immutable parser provenance for the revision produced by ZIP expansion."""
+
+    revision = models.OneToOneField(
+        SourceBundleRevision,
+        primary_key=True,
+        on_delete=models.PROTECT,
+        related_name="archive_expansion",
+    )
+    archive_file = models.ForeignKey(SourceBundleFile, on_delete=models.PROTECT, related_name="+")
+    parser = models.CharField(max_length=100)
