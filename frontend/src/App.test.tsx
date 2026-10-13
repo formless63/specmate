@@ -1,37 +1,106 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  Element.prototype.scrollIntoView = vi.fn();
 });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function renderApp() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <MantineProvider>
-      <QueryClientProvider client={client}>
-        <App />
-      </QueryClientProvider>
-    </MantineProvider>,
-  );
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={cache}><App /></QueryClientProvider></MantineProvider>);
+  return cache;
 }
 
-test("shows backend status from the health endpoint", async () => {
-  const fetchMock = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ status: "ok", version: "0.0.0" }), { status: 200 }),
-  );
+function reply(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status });
+}
+
+function server({ authenticated = false, denyInventory = false, includePermissions = true, permissions = ["project.read", "source.register"] } = {}) {
+  const fetchMock = vi.fn(async (path: string, options?: RequestInit) => {
+    if (path === "/api/v0/session") return reply({ user: authenticated ? { id: "7", username: "local-user" } : null, owner_setup_required: false });
+    if (path === "/api/v0/session/login") { authenticated = true; return reply({ result: {} }); }
+    if (path === "/api/v0/session/logout") { authenticated = false; return reply({ result: {} }); }
+    if (path === "/api/v0/projects") return reply([{ project_id: "project-a", name: "Project A", ...(includePermissions ? { permissions } : {}) }, { project_id: "project-b", name: "Project B", ...(includePermissions ? { permissions } : {}) }]);
+    if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
+    if (path.startsWith("/api/v0/inventory/projects/")) return denyInventory
+      ? reply({ error: { message: "Project not found." } }, 404)
+      : reply({ accounts: [], locations: [], lots: [] });
+    throw new Error(`Unexpected request ${path} ${options?.method ?? "GET"}`);
+  });
   vi.stubGlobal("fetch", fetchMock);
-  renderApp();
-  expect(await screen.findByText(/ok · v0\.0\.0/)).toBeTruthy();
-  expect(fetchMock).toHaveBeenCalledWith("/api/health", expect.anything());
+  return fetchMock;
+}
+
+async function selectProject(name: string) {
+  fireEvent.click(screen.getByRole("combobox", { name: "Project" }));
+  fireEvent.click(await screen.findByRole("option", { name, hidden: true }));
+}
+
+test("sign-in opens scoped project tools and mounts each real feature on its first selection", async () => {
+  const fetchMock = server(); renderApp();
+  await screen.findByRole("heading", { name: "Sign in" });
+  expect(screen.queryByRole("tablist")).toBeNull();
+  fireEvent.change(screen.getByLabelText(/^Username/), { target: { value: "local-user" } });
+  fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "synthetic-password" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await screen.findByText("Signed in as local-user");
+  await selectProject("Project A");
+  await screen.findByRole("heading", { name: "Reusable identities" });
+  expect(screen.getByRole("tablist", { name: "Project tools" })).toBeTruthy();
+  expect(fetchMock).toHaveBeenCalledWith("/api/v0/projects/project-a/definitions", expect.anything());
+  expect(fetchMock.mock.calls.some(([path]) => path.includes("/stocks") || path.includes("/intakes") || path.includes("/inventory/"))).toBe(false);
+  fireEvent.click(screen.getByRole("tab", { name: "Wire stock" }));
+  await screen.findByRole("heading", { name: "Wire stock" });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/projects/project-a/stocks", expect.anything()));
+  expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
+  fireEvent.click(screen.getByRole("tab", { name: "PCB intake" }));
+  await screen.findByRole("heading", { name: "PCB intake" });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/projects/project-a/intakes", expect.anything()));
+  expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  await screen.findByRole("heading", { name: "Inventory" });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-a?offset=0&limit=50", expect.anything()));
 });
 
-test("reports an unreachable backend instead of a healthy state", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 503 })));
-  renderApp();
-  expect(await screen.findByText("unreachable")).toBeTruthy();
+test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {
+  const fetchMock = server({ authenticated: true });
+  const cache = renderApp();
+  await screen.findByText("Signed in as local-user");
+  await selectProject("Project A");
+  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  fireEvent.change(await screen.findByLabelText("New location name"), { target: { value: "Private shelf draft" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Identities" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  expect((screen.getByLabelText("New location name") as HTMLInputElement).value).toBe("Private shelf draft");
+  cache.setQueryData(["private", "project-a"], "synthetic-private-data");
+  await selectProject("Project B");
+  await screen.findByRole("heading", { name: "Reusable identities" });
+  expect(screen.queryByLabelText("New location name")).toBeNull();
+  expect(cache.getQueryData(["private", "project-a"])).toBeUndefined();
+  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  expect((await screen.findByLabelText("New location name") as HTMLInputElement).value).toBe("");
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-b?offset=0&limit=50", expect.anything()));
+  fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+  await screen.findByRole("heading", { name: "Sign in" });
+  expect(screen.queryByRole("tablist")).toBeNull();
+  expect(screen.queryByLabelText("New location name")).toBeNull();
+  expect(cache.getQueryData(["inventory", "project-b", 0])).toBeUndefined();
+});
+
+test.each([true, false])("PCB controls require explicit grants (permissions supplied: %s), and scoped read denial is visible", async (includePermissions) => {
+  server({ authenticated: true, permissions: ["project.read"], includePermissions, denyInventory: true }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  await selectProject("Project A");
+  fireEvent.click(screen.getByRole("tab", { name: "PCB intake" }));
+  await screen.findByRole("heading", { name: "PCB intake" });
+  expect(screen.queryByRole("button", { name: "Preserve sources" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Request native extraction" })).toBeNull();
+  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  expect(await screen.findByText("Project not found.")).toBeTruthy();
+  expect(screen.queryByText("Inventory operation completed.")).toBeNull();
 });

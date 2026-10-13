@@ -1,27 +1,33 @@
-import { Badge, Container, Group, Stack, Text, Title } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { fetchHealth } from "./api";
+import { Tabs } from "@mantine/core";
+import { useState } from "react";
+import { IdentityPanel } from "./features/identity/IdentityPanel";
+import { InventoryPanel } from "./features/inventory/InventoryPanel";
+import { PcbPanel } from "./features/pcb/PcbPanel";
+import { WireStockPanel } from "./features/wire-stock/WireStockPanel";
+import { WorkspaceShell } from "./features/workspace";
 
 export function App() {
-  const health = useQuery({ queryKey: ["health"], queryFn: ({ signal }) => fetchHealth(signal) });
-  return (
-    <Container size="sm" py="xl">
-      <Stack>
-        <Title order={1}>Specmate</Title>
-        <Text c="dimmed">
-          Development skeleton. Engineering features are not implemented in this build.
-        </Text>
-        <Group>
-          <Text>Backend</Text>
-          {health.isPending && <Badge color="gray">checking</Badge>}
-          {health.isError && <Badge color="red">unreachable</Badge>}
-          {health.isSuccess && (
-            <Badge color="green">
-              {health.data.status} · v{health.data.version}
-            </Badge>
-          )}
-        </Group>
-      </Stack>
-    </Container>
-  );
+  return <WorkspaceShell>{(projectId, project) =>
+    <ProjectWorkspace key={`${projectId}:${project.permissions?.join(",") ?? ""}`}
+      projectId={projectId} permissions={project.permissions ?? []} />
+  }</WorkspaceShell>;
+}
+
+function ProjectWorkspace({ projectId, permissions }: { projectId: string; permissions: string[] }) {
+  const [active, setActive] = useState<string | null>("identity");
+  const [visited, setVisited] = useState(() => new Set(["identity"]));
+  return <Tabs value={active} onChange={(value) => {
+    if (value) { setActive(value); setVisited((current) => new Set([...current, value])); }
+  }}>
+    <Tabs.List aria-label="Project tools">
+      <Tabs.Tab value="identity">Identities</Tabs.Tab>
+      <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
+      <Tabs.Tab value="pcb">PCB intake</Tabs.Tab>
+      <Tabs.Tab value="inventory">Inventory</Tabs.Tab>
+    </Tabs.List>
+    <Tabs.Panel value="identity" pt="lg">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="wire-stock" pt="lg">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</Tabs.Panel>
+    <Tabs.Panel value="pcb" pt="lg">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</Tabs.Panel>
+    <Tabs.Panel value="inventory" pt="lg">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</Tabs.Panel>
+  </Tabs>;
 }
