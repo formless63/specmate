@@ -9,6 +9,7 @@ from specmate.access.permissions import Perm, authorize
 from specmate.catalog.models import Representation
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Definition, Revision
+from specmate.design.operations import authorize_snapshot
 from specmate.mechanical_sources.contracts import KIND, ReadMechanicalSource
 from specmate.mechanical_sources.operations import mechanical_draft, read, read_revision
 from specmate.operations import Context
@@ -129,7 +130,7 @@ def list_targets(request, project_id: UUID, after: UUID | None = None):
     authorize(user, project_id, Perm.PROJECT_READ)
     # Reuse may cross currently accessible projects; no copying or privilege grant implied.
     query = (
-        Revision.objects.select_related("definition", "snapshot")
+        Revision.objects.select_related("definition", "snapshot", "snapshot__definition")
         .filter(definition__project__memberships__user=user)
         .order_by("id")
     )
@@ -137,8 +138,12 @@ def list_targets(request, project_id: UUID, after: UUID | None = None):
         query = query.filter(id__gt=after)
     candidates = list(query[:51])
     rows = []
+    # Share only completed closure work within this synchronous read for this actor.
+    # Nothing survives the call, and a failed closure never adds partial authority.
+    authorized_snapshots = set()
     for candidate in candidates:
-        revision = get_revision(user, candidate.id)
+        authorize_snapshot(user, candidate.snapshot, _authorized=authorized_snapshots)
+        revision = candidate
         rows.append(
             {
                 "revision_id": str(revision.id),
