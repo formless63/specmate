@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "association_kind": {
+      "enum": [
+        "import",
+        "supplier",
+        "model"
+      ],
+      "title": "Association Kind",
+      "type": "string"
+    },
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "evidence": {
+      "$ref": "#/$defs/EvidenceInput"
+    },
+    "observed_source_identifier": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Observed Source Identifier",
+      "type": "string"
+    },
+    "observed_target_identifier": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Observed Target Identifier",
+      "type": "string"
+    },
+    "source_revision_id": {
+      "format": "uuid",
+      "title": "Source Revision Id",
+      "type": "string"
+    },
+    "target_revision_id": {
+      "format": "uuid",
+      "title": "Target Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_revision_id",
+    "target_revision_id",
+    "association_kind",
+    "observed_source_identifier",
+    "observed_target_identifier",
+    "basis"
+  ],
+  "title": "ProposeMatch",
+  "type": "object"
+}

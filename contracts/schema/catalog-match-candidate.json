@@ -1,0 +1,278 @@
+{
+  "$defs": {
+    "EvidenceResult": {
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Media Type"
+        },
+        "rights": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "EvidenceResult",
+      "type": "object"
+    },
+    "ReviewResult": {
+      "properties": {
+        "basis": {
+          "title": "Basis",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "needs_evidence"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceResult"
+        },
+        "review_id": {
+          "format": "uuid",
+          "title": "Review Id",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "title": "Reviewed At",
+          "type": "string"
+        },
+        "reviewed_by_id": {
+          "title": "Reviewed By Id",
+          "type": "integer"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "review_id",
+        "version",
+        "decision",
+        "basis",
+        "evidence",
+        "reviewed_at",
+        "reviewed_by_id"
+      ],
+      "title": "ReviewResult",
+      "type": "object"
+    },
+    "RevisionIdentity": {
+      "properties": {
+        "definition_id": {
+          "format": "uuid",
+          "title": "Definition Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision_id",
+        "definition_id",
+        "project_id",
+        "name",
+        "kind",
+        "number",
+        "sha256"
+      ],
+      "title": "RevisionIdentity",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "association_kind": {
+      "enum": [
+        "import",
+        "supplier",
+        "model"
+      ],
+      "title": "Association Kind",
+      "type": "string"
+    },
+    "basis": {
+      "title": "Basis",
+      "type": "string"
+    },
+    "candidate_id": {
+      "format": "uuid",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "unreviewed",
+        "accepted",
+        "rejected",
+        "needs_evidence"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "evidence": {
+      "$ref": "#/$defs/EvidenceResult"
+    },
+    "meaning": {
+      "const": "reviewed_correspondence_only",
+      "default": "reviewed_correspondence_only",
+      "title": "Meaning",
+      "type": "string"
+    },
+    "observed_source_identifier": {
+      "title": "Observed Source Identifier",
+      "type": "string"
+    },
+    "observed_target_identifier": {
+      "title": "Observed Target Identifier",
+      "type": "string"
+    },
+    "proposed_by_id": {
+      "title": "Proposed By Id",
+      "type": "integer"
+    },
+    "reviews": {
+      "items": {
+        "$ref": "#/$defs/ReviewResult"
+      },
+      "title": "Reviews",
+      "type": "array"
+    },
+    "source": {
+      "$ref": "#/$defs/RevisionIdentity"
+    },
+    "state": {
+      "title": "State",
+      "type": "string"
+    },
+    "target": {
+      "$ref": "#/$defs/RevisionIdentity"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "source",
+    "target",
+    "association_kind",
+    "observed_source_identifier",
+    "observed_target_identifier",
+    "basis",
+    "evidence",
+    "state",
+    "decision",
+    "created_at",
+    "proposed_by_id",
+    "reviews"
+  ],
+  "title": "CandidateResult",
+  "type": "object"
+}
