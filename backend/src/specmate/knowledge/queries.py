@@ -13,7 +13,7 @@ from specmate.facts.contracts import (
 )
 from specmate.facts.queries import resolve_target
 from specmate.knowledge.models import KnowledgeAttachment, KnowledgeItem, KnowledgeLink
-from specmate.operations import NotFound, OperationError, PermissionDenied, ValidationFailed
+from specmate.operations import NotFound, OperationError, ValidationFailed
 from specmate.sources.authority import authorize_revision
 
 MAX_ENTRIES = 500
@@ -88,7 +88,8 @@ def describe_target(user, target):
 def visible_link(user, link):
     try:
         description = describe_target(user, link_target(link))
-    except (NotFound, PermissionDenied):
+    except OperationError:
+        # Unreadable or no longer resolvable targets are omitted, never described.
         return None
     result = {
         "link_id": str(link.id),
