@@ -78,6 +78,23 @@ def create(users, project, body, **ctx):
     )
 
 
+def test_profile_requires_typed_frozen_stock_before_writing(users, project):
+    draft = op(
+        users["owner"],
+        "definition.create",
+        {"project_id": project, "kind": "wire_stock", "name": "Unspecified construction"},
+    )
+    revision = op(
+        users["owner"],
+        "draft.freeze",
+        {"draft_id": draft["draft_id"]},
+        expected_state=draft["state"],
+    )
+    with pytest.raises(ValidationFailed, match="typed stock revision"):
+        create(users, project, profile(revision["revision_id"]))
+    assert not Definition.objects.filter(kind="workshop_profile").exists()
+
+
 def test_profile_has_separate_identity_exact_stock_pin_and_immutable_revision(users, project):
     stock_id, stock = stock_revision(users, project)
     original = profile(stock_id)

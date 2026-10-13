@@ -9,6 +9,7 @@ from specmate.design.operations import draft_state, scoped_draft
 from specmate.operations import Context, NotFound, ValidationFailed
 from specmate.queries import get_bundle_revision, get_revision
 from specmate.sources.models import SourceBundleFile
+from specmate.wire_stock.schemas import validate_stock_content
 from specmate.workshop_profiles.schemas import SourceFile, WorkshopProfile
 
 
@@ -29,7 +30,10 @@ def authorize_profile_content(user, definition, content: dict) -> None:
         raise ValidationFailed(
             "Profile construction must be an exact stock revision in this project."
         )
-    stock_content = json.loads(bytes(stock.snapshot.canonical))["content"]["stock"]
+    content = json.loads(bytes(stock.snapshot.canonical))["content"]
+    if "stock" not in content:
+        raise ValidationFailed("Profile construction requires a typed stock revision.")
+    stock_content = validate_stock_content(content)["stock"]
     paths = _paths(stock_content["structure"])
     invalid = set(profile.element_rules) | set(profile.hidden_element_paths)
     if invalid - paths:
