@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Card, Checkbox, Group, Select, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useState } from 'react';
 import { command, preserve, registerBlob, SourceError, type EditReview, type RevisionDetail } from './api';
+import { randomUUID } from '../../lib/random-id';
 
 const MAX_FILES = 1000;
 const MAX_FILE = 16 * 1024 * 1024;
@@ -30,7 +31,11 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
   const [rights, setRights] = useState<Record<string, string>>({});
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [reviewedWith, setReviewedWith] = useState('');
-  const [target, setTarget] = useState<Target>('new_derivative');
+  const [target, setTarget] = useState<Target | null>('new_derivative');
+  // Set when a submission conflicted: everything is kept, but a fresh review is required.
+  const [stale, setStale] = useState('');
+  // One key per reviewed submission, so retrying a lost response replays instead of duplicating.
+  const [submitKey, setSubmitKey] = useState('');
   const [name, setName] = useState(`${detail.name} edited`);
   const [summary, setSummary] = useState('');
   const [error, setError] = useState('');
@@ -41,11 +46,12 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
 
   function failed(reason: unknown) {
     if (reason instanceof SourceError && [401, 403, 404].includes(reason.status)) { onAuthorityFailure(reason); return; }
+    // A conflict means the baseline or reviewed change set moved. Keep the prepared files and
+    // every decision, but require a fresh review; never retry or merge blindly.
+    if (reason instanceof SourceError && reason.status === 409) { setStale(reason.message); return; }
     setError(reason instanceof Error ? reason.message : 'Editing handoff request failed.');
-    // A conflict means the baseline or reviewed change set moved: review again, never retry blindly.
-    if (reason instanceof SourceError && reason.status === 409) setReview(null);
   }
-  function resetInput() { setPrepared(null); setReview(null); setRights({}); setExcluded(new Set()); setError(''); }
+  function resetInput() { setPrepared(null); setReview(null); setRights({}); setExcluded(new Set()); setError(''); setStale(''); }
   function declarations(current: EditReview | null, values: Record<string, string>) {
     const baseline = new Map(current?.files.map(row => [row.path, row.rights_source === 'baseline' ? row.rights : null]) ?? []);
     return Object.entries(values).filter(([path, value]) => value.trim() && value.trim() !== baseline.get(path) && !excluded.has(path))
@@ -79,15 +85,16 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
       }, { idempotent: false });
       const nextRights = Object.fromEntries(result.files.map(row => [row.path, values[row.path] ?? row.rights ?? '']));
       for (const row of result.excluded) nextRights[row.path] = values[row.path] ?? '';
-      setReview(result); setRights(nextRights);
+      setReview(result); setRights(nextRights); setStale(''); setSubmitKey(randomUUID());
       const nextExcluded = firstPass ? new Set(result.files.filter(row => row.suggested_exclusion).map(row => row.path)) : exclusions;
       setExcluded(nextExcluded);
       setReviewedWith(firstPass && nextExcluded.size ? '' : JSON.stringify({ rights: nextRights, excluded: [...nextExcluded].sort() }));
-      if (!result.next_revision_allowed) setTarget('new_derivative');
+      // Never silently switch a stale next-revision submission into another target.
+      if (!result.next_revision_allowed && target === 'next_revision') setTarget(firstPass ? 'new_derivative' : null);
     } catch (reason) { failed(reason); } finally { setBusy(false); }
   }
   async function submit() {
-    if (!review || !prepared) return;
+    if (!review || !prepared || !target || stale) return;
     setBusy(true); setError('');
     try {
       const result = await command<{ revision_id: string }>('source.submit_edit', {
@@ -95,7 +102,7 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
         rights: declarations(review, rights), exclude_paths: [...excluded].sort(),
         target, summary: summary.trim(), reviewed_sha256: review.review_sha256,
         ...(target === 'new_derivative' ? { name: name.trim() } : {}),
-      }, { expectedState: review.state });
+      }, { expectedState: review.state, idempotencyKey: submitKey });
       await onSubmitted(result.revision_id);
     } catch (reason) { failed(reason); } finally { setBusy(false); }
   }
@@ -121,7 +128,7 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
         <Text size="xs">{folder.length} files, {folderTotal} bytes. Up to {MAX_FILES} files, 16 MiB each and 64 MiB total.</Text>
         {folderTooLarge && <Text c="red">This folder exceeds the editing handoff limits.</Text>}
       </>}
-      <Button disabled={busy || (mode === 'zip' ? !archive || !archiveRights.trim() : !folder.length || folderTooLarge)} onClick={() => void runReview(true)}>Review changes</Button>
+      {!review && <Button disabled={busy || (mode === 'zip' ? !archive || !archiveRights.trim() : !folder.length || folderTooLarge)} onClick={() => void runReview(true)}>Review changes</Button>}
       {review && <Stack>
         <Text fw={600}>Review against revision {review.baseline.number} ({review.baseline.revision_id})</Text>
         <Text size="sm">Baseline manifest SHA-256: {review.baseline.manifest_sha256}</Text>
@@ -141,8 +148,10 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
         </Table.Tbody></Table></Table.ScrollContainer>
         {missing > 0 && <Text c="red" size="sm">Declare rights for every added file; use unknown when they have not been established.</Text>}
         {review.reasons.filter(reason => !reason.startsWith('Declare rights')).map(reason => <Text key={reason} c="red" size="sm">{reason}</Text>)}
-        {dirty && <Button variant="light" disabled={busy || missing > 0} onClick={() => void runReview(false)}>Review again with these decisions</Button>}
+        {stale && <Alert color="yellow">Not submitted: {stale} Your prepared files, rights, exclusions, name and summary are kept. Review again against the current state before submitting.</Alert>}
+        {(dirty || stale) && <Button variant="light" disabled={busy || missing > 0} onClick={() => void runReview(false)}>Review again with these decisions</Button>}
         <Text size="xs">Review SHA-256: {review.review_sha256} · state {review.state}</Text>
+        {!target && <Text c="red" size="sm">The next revision is no longer available. Choose how to submit.</Text>}
         <Select label="Submit as" allowDeselect={false} value={target} disabled={busy} onChange={value => value && setTarget(value as Target)} data={[
           { value: 'new_derivative', label: 'Separate derivative bundle' },
           { value: 'next_revision', label: 'Next revision of this derivative', disabled: !review.next_revision_allowed },
@@ -150,7 +159,7 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
         {!review.next_revision_allowed && <Text size="xs">{review.baseline.role === 'original' ? 'Originals are never revised by edits.' : 'Only the current head of a derivative can receive the next revision.'}</Text>}
         {target === 'new_derivative' && <TextInput label="Derivative bundle name" value={name} disabled={busy} onChange={event => setName(event.currentTarget.value)} />}
         <Textarea label="Change summary" description="Recorded with the reviewed change set." value={summary} maxLength={2000} disabled={busy} onChange={event => setSummary(event.currentTarget.value)} />
-        <Button disabled={busy || dirty || !review.ready || !summary.trim() || (target === 'new_derivative' && !name.trim())} onClick={() => void submit()}>Submit reviewed derivative</Button>
+        <Button disabled={busy || dirty || !!stale || !target || !review.ready || !summary.trim() || (target === 'new_derivative' && !name.trim())} onClick={() => void submit()}>Submit reviewed derivative</Button>
       </Stack>}
     </Stack>}
   </Stack></Card>;

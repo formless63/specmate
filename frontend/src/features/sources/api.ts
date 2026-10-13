@@ -38,9 +38,9 @@ export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) throw new SourceError(response.status, body?.error?.message ?? `Request failed (${response.status})`);
   return body as T;
 }
-export async function command<T>(operation: string, payload: object, options: { expectedState?: string; idempotent?: boolean } = {}): Promise<T> {
+export async function command<T>(operation: string, payload: object, options: { expectedState?: string; idempotent?: boolean; idempotencyKey?: string } = {}): Promise<T> {
   const envelope: Record<string, unknown> = { operation, payload, request_id: randomUUID() };
-  if (options.idempotent !== false) envelope.idempotency_key = randomUUID();
+  if (options.idempotent !== false) envelope.idempotency_key = options.idempotencyKey ?? randomUUID();
   if (options.expectedState) envelope.expected_state = options.expectedState;
   return (await request<{ result: T }>('operations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },

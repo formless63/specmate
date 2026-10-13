@@ -141,3 +141,36 @@ checked before diagnostics, retained idempotency outcomes, inspection and downlo
 Re-entry is not native validation, conversion, regeneration or physical qualification.
 Specmate does not interpret the edited formats, detect semantic conflicts inside native
 files, or reconcile parallel edits; reconciling two derivatives is a later explicit edit.
+
+## Concurrent source authoring
+
+Every write that appends to an existing bundle, `source.revise_bundle` and
+`source.submit_edit` with either target, takes the bundle row lock and rereads the head
+under it before comparing the caller's `expected_state` (`bundle-r<n>`). Two writers from
+one base therefore produce exactly one new revision; the other receives a conflict that
+names the current head revision, number and manifest hash. Nothing is merged,
+overwritten or reordered, and earlier revisions stay immutable. Separate derivatives from
+an immutable revision need no lock.
+
+A conflict loses no writer data. Registered bytes and preserved uploaded archives were
+committed before the attempt and remain in the project; staged archive members are
+discarded and can be regenerated from the preserved archive. A conflicted request stores
+no idempotency outcome, so the same key may carry a deliberate retry with the reported
+state. A completed keyed request replays its retained result instead of writing again,
+including a duplicate sent concurrently, after current authority is rechecked.
+
+Before any stale-state detail, retained outcome or keyed mismatch is disclosed, the
+current head's complete source closure is authorized with source registration
+permission; a retained result is authorized against its produced revision as well.
+Direct source reads refresh the current actor.
+
+Recovery is a fresh, deliberate review. An agent rereads the head and resubmits its
+complete file list with the new state. In the Sources panel a conflicted submission keeps
+the prepared upload, per-file rights, exclusions, target, name and summary visible; submit
+stays disabled until the writer reviews again against the current state. A next-revision
+target that is no longer available must be chosen again rather than silently becoming a
+separate derivative. Reviewing edited files against the winning revision instead of their
+exported baseline requires deliberately omitting the handoff marker, and the review then
+shows exactly which of the winner's files the submission would replace. Each reviewed
+submission reuses one idempotency key, so retrying after a lost response replays rather
+than duplicating. Specmate never merges opaque native files.

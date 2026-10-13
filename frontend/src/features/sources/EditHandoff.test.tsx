@@ -101,19 +101,56 @@ test('stale baseline explains separate derivative and disables next revision', a
   expect(screen.getByText('Only the current head of a derivative can receive the next revision.')).toBeTruthy();
 });
 
-test('submit conflict requires a fresh review instead of retrying', async () => {
-  const { onSubmitted } = setup([
-    reply({ result: { ...ready, files: ready.files, excluded: [] } }),
-    reply({ error: { message: 'The baseline\'s bundle changed since it was reviewed.' } }, 409),
+test('losing writer keeps files and decisions and must deliberately re-review', async () => {
+  const conflict = 'The baseline\'s bundle changed since it was reviewed.';
+  const { bodies, preserved, onSubmitted } = setup([
+    reply({ result: review() }), reply({ result: ready }), reply({ error: { message: conflict } }, 409),
+    reply({ result: { ...ready, baseline_is_head: false, next_revision_allowed: false, head_number: 2, state: 'bundle-r2', review_sha256: 'review-3' } }),
+    reply({ result: { revision_id: 'separate-id' } }),
   ]);
   await chooseAndReview();
   fireEvent.change(screen.getByLabelText('Rights for added.native'), { target: { value: 'unknown' } });
-  fireEvent.change(screen.getByLabelText('Change summary'), { target: { value: 'edit' } });
-  // The pre-filled rights equal the reviewed declaration, so no re-review is needed.
+  fireEvent.click(screen.getByRole('button', { name: 'Review again with these decisions' }));
+  await screen.findByText('Review SHA-256: review-2 · state bundle-r1');
+  fireEvent.change(screen.getByLabelText('Derivative bundle name'), { target: { value: 'Writer copy' } });
+  fireEvent.click(screen.getByRole('option', { name: 'Next revision of this derivative', hidden: true }));
+  fireEvent.change(screen.getByLabelText('Change summary'), { target: { value: 'Synthetic losing edit' } });
   fireEvent.click(screen.getByRole('button', { name: 'Submit reviewed derivative' }));
-  expect(await screen.findByText('The baseline\'s bundle changed since it was reviewed.')).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Submit reviewed derivative' })).toBeNull();
-  expect(onSubmitted).not.toHaveBeenCalled();
+  expect(await screen.findByText(new RegExp(`Not submitted: ${conflict}`))).toBeTruthy();
+  expect(bodies[2]).toMatchObject({ expected_state: 'bundle-r1', payload: { target: 'next_revision', reviewed_sha256: 'review-2' } });
+  // Nothing is discarded: the reviewed table, declared rights, exclusions and text remain.
+  expect((screen.getByLabelText('Rights for added.native') as HTMLInputElement).value).toBe('unknown');
+  expect((screen.getByLabelText('Exclude .DS_Store') as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByLabelText('Change summary') as HTMLTextAreaElement).value).toBe('Synthetic losing edit');
+  expect((screen.getByRole('button', { name: 'Submit reviewed derivative' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Review changes' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Review again with these decisions' }));
+  await screen.findByText('Review SHA-256: review-3 · state bundle-r2');
+  expect(bodies[3]).toMatchObject({ operation: 'source.preview_edit', payload: { archive: { revision_id: 'upload-id' }, rights: [{ path: 'added.native', rights: 'unknown' }], exclude_paths: ['.DS_Store'] } });
+  expect(preserved).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(/This bundle now has revision 2/)).toBeTruthy();
+  // The stale next-revision target is not silently converted into another submission.
+  expect(screen.getByText('The next revision is no longer available. Choose how to submit.')).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'Submit reviewed derivative' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('option', { name: 'Separate derivative bundle', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'Submit reviewed derivative' }));
+  await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith('separate-id'));
+  expect(bodies[4]).toMatchObject({ expected_state: 'bundle-r2', payload: { target: 'new_derivative', name: 'Writer copy', summary: 'Synthetic losing edit', reviewed_sha256: 'review-3' } });
+  expect(bodies[4]!.idempotency_key).not.toBe(bodies[2]!.idempotency_key);
+});
+
+test('retrying a lost submission response reuses its key so the server can replay it', async () => {
+  const { bodies, onSubmitted } = setup([
+    reply({ result: { ...ready, excluded: [] } }), new Response('gateway failure', { status: 502 }), reply({ result: { revision_id: 'edited-id' } }),
+  ]);
+  await chooseAndReview();
+  fireEvent.change(screen.getByLabelText('Change summary'), { target: { value: 'edit' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit reviewed derivative' }));
+  await waitFor(() => expect(bodies).toHaveLength(2));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Submit reviewed derivative' }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Submit reviewed derivative' }));
+  await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith('edited-id'));
+  expect(bodies[2]!.idempotency_key).toBe(bodies[1]!.idempotency_key);
 });
 
 test('authority loss is delegated so the panel clears retained source data', async () => {
