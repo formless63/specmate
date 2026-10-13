@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "RightsReview": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Basis",
+          "type": "string"
+        },
+        "decision": {
+          "default": "unknown",
+          "enum": [
+            "permitted",
+            "withheld",
+            "unknown"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "subject": {
+          "maxLength": 650,
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject"
+      ],
+      "title": "RightsReview",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "occurrence_path": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Occurrence Path",
+      "type": "array"
+    },
+    "purpose": {
+      "default": "authorized_review",
+      "enum": [
+        "authorized_review",
+        "distribution"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "reviewed_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Reviewed Sha256",
+      "type": "string"
+    },
+    "rights_reviews": {
+      "items": {
+        "$ref": "#/$defs/RightsReview"
+      },
+      "maxItems": 4000,
+      "title": "Rights Reviews",
+      "type": "array"
+    },
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_revision_id",
+    "reviewed_sha256"
+  ],
+  "title": "Download",
+  "type": "object"
+}

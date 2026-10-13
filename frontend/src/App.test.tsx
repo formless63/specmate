@@ -80,6 +80,9 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
   await screen.findByRole("heading", { name: "Inventory" }, { timeout: 5000 });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-a?offset=0&limit=50", expect.anything()));
+  fireEvent.click(screen.getByRole("tab", { name: "Selected packages" }));
+  await screen.findByRole("heading", { name: "Selected assembly packages" });
+  expect(await screen.findByRole("button", { name: "Review exact selected package" })).toBeTruthy();
 }, 10000);
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {

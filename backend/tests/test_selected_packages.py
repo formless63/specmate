@@ -443,7 +443,8 @@ def test_distribution_requires_explicit_all_subject_reviews_and_separate_authori
         )
 
 
-def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(users, cable):
+@pytest.mark.parametrize("urlconf", ["tests.selected_packages_urls", "specmate.urls"])
+def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(users, cable, urlconf):
     payload = request(cable[0])
     reviewed = op(users["viewer"], "selected_package.review", payload)
     response = post_op(api(users["viewer"]), "selected_package.review", payload)
@@ -453,7 +454,7 @@ def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(user
     for name in ("selected_package.review", "selected_package.download"):
         with pytest.raises(ValidationFailed, match="fresh evaluation"):
             op(users["viewer"], name, payload, idempotency_key="no-cached-authority")
-    with override_settings(ROOT_URLCONF="tests.selected_packages_urls"):
+    with override_settings(ROOT_URLCONF=urlconf):
         client = Client()
         client.force_login(users["viewer"])
         download_payload = {**payload, "reviewed_sha256": reviewed["sha256"]}
