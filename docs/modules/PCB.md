@@ -254,6 +254,50 @@ This flow records engineering declarations. It does not compile, resolve a binar
 artifact, flash hardware or observe device operation; those remain separate capabilities
 and evidence. Sharing a board revision does not establish firmware compatibility.
 
+## Firmware change and observation review
+
+`firmware_impact.compare` derives a read-only assessment of an exact frozen baseline
+and candidate firmware revision. Each side can additionally name its exact frozen
+assembly snapshot and contextual board path; that firmware must actually be assigned
+to the selected occurrence. Repeated boards remain distinct even when their labels,
+board revision and firmware match. The selected project scopes both sides.
+
+The assessment compares firmware identity, contextual occurrence, exact population
+target and option, accepted native interpretation and MCU identity, preserved sources
+and rights, toolchain declarations, each configuration entry and each signal's pin
+assumptions. Pin hardware anchors retain the interpretation hash, population pin and
+actual reported pad/net. Changed, unchanged and unknown findings carry reasons.
+Matching secret references, absent values or unresolved native nets remain unknown;
+matching declarations do not establish MCU capabilities or toolchain compatibility.
+
+Existing fact assertions on the exact baseline firmware/population revisions, selected
+contextual occurrence and physical units with those design pins are discovered without
+registering another subject or ledger. Callers may deliberately select up to 100
+additional assertion IDs. Results preserve the original subject, recorded value,
+method, conditions and evidence. An unrelated assertion has unknown applicability.
+Actual-unit observations always require review because the installed firmware and
+candidate device state are not established by a design pin. Changes require review
+of related observations; historical results are never invalidated, deleted, reassigned
+or automatically transferred to the candidate. No candidate test result is created.
+
+Both frozen input closures, parent assembly inputs and all selected/discovered fact
+and source-input closures are authorized under current permissions before comparison
+diagnostics. Review is fresh and accepts no idempotency key or mutable draft state
+token. Up to 5,000 assertions are supported, with 100 rows per page, explicit total,
+offset, continuation and partial-review status. Each page rechecks the complete
+current closure. The comparison hash identifies the derived response; it is not a
+persistent approval, observation or qualification record.
+
+The firmware impact panel selects authorized frozen firmware by name and revision,
+optionally selects frozen assembly occurrences and additional fact subjects, and
+shows exact hashes, native IDs, assumptions and historical applicability. Focus,
+scope changes and denial discard retained evidence; late asynchronous responses cannot
+restore stale private findings. HTTP inspection is available at
+`/api/v0/firmware-impact/compare`; GUI, agents and trusted jobs share the same operation.
+This workflow performs no compilation or flashing. Compiler receipts remain separate
+build evidence and cannot establish working-device observations, compatibility or
+physical qualification.
+
 ## Acceptance emphasis
 
 Create a small original synthetic native board fixture with independently specified net
