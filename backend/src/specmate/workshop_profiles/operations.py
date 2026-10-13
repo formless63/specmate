@@ -43,12 +43,33 @@ def profile_scope(ctx, p) -> str:
     return project_scope(ctx, draft.definition.project_id, permission)
 
 
+def authorize_profile_replay(ctx, p, stored) -> None:
+    """Retained responses must pass current checks on their original references."""
+    scope = profile_scope(ctx, p)
+    if isinstance(p, FreezeProfile):
+        from specmate.queries import get_revision
+
+        revision = get_revision(ctx.user, stored["revision_id"])
+        if (
+            revision.definition.kind != "workshop_profile"
+            or scope != f"project:{revision.definition.project_id}"
+        ):
+            raise NotFound("Workshop profile revision not found.")
+        return
+    definition = Definition.objects.filter(
+        id=stored["definition_id"], kind="workshop_profile"
+    ).first()
+    if definition is None or scope != f"project:{definition.project_id}":
+        raise NotFound("Workshop profile not found.")
+    authorize_profile_content(ctx.user, definition, stored["content"])
+
+
 @operation(
     "workshop_profile.create",
     CreateProfile,
     summary="Create an independently versioned workshop preparation/display profile.",
     idempotency_scope=profile_scope,
-    authorize_replay=lambda ctx, p, stored: profile_scope(ctx, p),
+    authorize_replay=authorize_profile_replay,
 )
 def create_profile(ctx: Context, p: CreateProfile) -> dict:
     project = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
@@ -68,7 +89,7 @@ def create_profile(ctx: Context, p: CreateProfile) -> dict:
     summary="Replace profile suggestions on a draft with optimistic state checking.",
     requires_expected_state=True,
     idempotency_scope=profile_scope,
-    authorize_replay=lambda ctx, p, stored: profile_scope(ctx, p),
+    authorize_replay=authorize_profile_replay,
 )
 def update_profile(ctx: Context, p: UpdateProfile) -> dict:
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -94,7 +115,7 @@ def update_profile(ctx: Context, p: UpdateProfile) -> dict:
     summary="Freeze exact profile suggestions and their stock revision dependency.",
     requires_expected_state=True,
     idempotency_scope=profile_scope,
-    authorize_replay=lambda ctx, p, stored: profile_scope(ctx, p),
+    authorize_replay=authorize_profile_replay,
 )
 def freeze_profile(ctx: Context, p: FreezeProfile) -> dict:
     from specmate.design.operations import CaptureDraft, freeze_draft

@@ -354,7 +354,7 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(users, 
     documented = profile(
         stock_id, foil_visibility={"value": "hide", "basis": "documented", "source": source}
     )
-    draft = create(users, project, documented)
+    draft = create(users, project, documented, idempotency_key="documented-profile")
     assert (
         get_profile(users["viewer"], draft["draft_id"])["content"]["profile"]["foil_visibility"][
             "source"
@@ -398,6 +398,17 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(users, 
                 },
             ),
         )
+    op(
+        users["editor"],
+        "workshop_profile.update",
+        {"draft_id": draft["draft_id"], "profile": profile(stock_id)},
+        expected_state=draft["state"],
+    )
+    other_project = op(users["owner"], "project.create", {"name": "Separate project"})["project_id"]
+    bundle.project_id = other_project
+    bundle.save(update_fields=["project"])
+    with pytest.raises(ValidationFailed):
+        create(users, project, documented, idempotency_key="documented-profile")
 
 
 def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
