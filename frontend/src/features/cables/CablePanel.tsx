@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
 import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
@@ -15,6 +15,8 @@ function Workspace({ projectId }: { projectId: string }) {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  const [createSourceDenied, setCreateSourceDenied] = useState(false);
+  const [draftSourceDenied, setDraftSourceDenied] = useState(false);
   const definitions = useQuery({ queryKey: ["cable-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
   const identity = useQuery({ queryKey: ["cable-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["cable-draft", draftId], queryFn: () => read<Draft>(`cables/drafts/${draftId}`), enabled: !!draftId });
@@ -27,41 +29,45 @@ function Workspace({ projectId }: { projectId: string }) {
     await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] });
     await cache.invalidateQueries({ queryKey: ["cable-identity", definitionId] });
   } });
+  const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
+  const workspaceDenied = definitions.isError || identity.isError;
   return <Stack>
     <Title order={2}>Cable endpoints and terminations</Title>
     <Text>Compose exact stock, body and pinout revisions. Assignments preserve each conductor, shield and drain identity. Review records declared terminations; continuity and physical qualification remain unevaluated.</Text>
     <Card withBorder><Stack>
       <Title order={3}>New reusable definition</Title>
       <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <CableEditor value={value} onChange={setValue} definitions={definitions.data ?? []} />
-      <Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create cable draft</Button>
+      <CableEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} />
+      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} onClick={() => create.mutate()}>Create cable draft</Button>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Select label="Existing cable definition" searchable data={(definitions.data ?? []).filter((d) => d.kind === "cable").map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitionId} onChange={(id) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
+    <Select label="Existing cable definition" searchable data={currentDefinitions.filter((d) => d.kind === "cable").map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitions.isError ? null : definitionId} disabled={definitions.isError} onChange={(id) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {identity.data && <>
+    {identity.data && !workspaceDenied && <>
       <Select label="Edit cable draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
       <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} /><Button loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze cable revision</Button></>}
+    {draft.data && !draft.isError && !workspaceDenied && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={currentDefinitions} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} /><Button disabled={draftSourceDenied} loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze cable revision</Button></>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-    {revisionId && <CableInspector key={revisionId} revisionId={revisionId} />}
+    {revisionId && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} />}
   </Stack>;
 }
 
-function DraftEditor({ draft, definitions, onSaved }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void> }) {
+function DraftEditor({ draft, definitions, onSaved, onAuthorityChange }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void }) {
+  const [sourceDenied, setSourceDenied] = useState(false);
+  useEffect(() => onAuthorityChange(sourceDenied), [sourceDenied, onAuthorityChange]);
   const [value, setValue] = useState(() => draft.content.cable ?? initialCable());
   const save = useMutation({ mutationFn: () => command("cable.update", { draft_id: draft.draft_id, cable: value }, draft.state), onSuccess: onSaved });
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><CableEditor value={value} onChange={setValue} definitions={definitions} /><Button loading={save.isPending} onClick={() => save.mutate()}>Save cable draft</Button>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><CableEditor value={value} onChange={setValue} definitions={definitions} onAuthorityChange={setSourceDenied} /><Button disabled={sourceDenied} loading={save.isPending} onClick={() => save.mutate()}>Save cable draft</Button>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
 function RevisionPicker({ label, kind, value, onChange, definitions }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[] }) {
   const [definition, setDefinition] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const identity = useQuery({ queryKey: ["cable-reference", definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
-  return <Stack gap="xs"><Select label={`${label} definition`} searchable value={definition} data={definitions.filter((d) => d.kind === kind).map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setDefinition(v); setOffset(0); }} /><Select label={`${label} revision`} value={value || null} onChange={(v) => onChange(v ?? "")} data={(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} />{identity.data && <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}<TextInput label={`${label} exact revision ID`} description="An accessible revision from another project can also be supplied." value={value} onChange={(e) => onChange(e.currentTarget.value)} />{identity.isError && <Alert color="red">{identity.error.message}</Alert>}</Stack>;
+  return <Stack gap="xs"><Select label={`${label} definition`} searchable value={definitions.some(d => d.definition_id === definition) ? definition : null} data={definitions.filter((d) => d.kind === kind).map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setDefinition(v); setOffset(0); }} /><Select label={`${label} revision`} value={identity.isError ? null : value || null} disabled={identity.isError} onChange={(v) => onChange(v ?? "")} data={(identity.isError ? [] : identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} />{identity.data && !identity.isError && <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}<TextInput label={`${label} exact revision ID`} description="An accessible revision from another project can also be supplied." value={value} onChange={(e) => onChange(e.currentTarget.value)} />{identity.isError && <Alert color="red">{identity.error.message}</Alert>}</Stack>;
 }
 
 function elements(node: StockElement, prefix = ''): { value: string; label: string }[] {
@@ -69,9 +75,21 @@ function elements(node: StockElement, prefix = ''): { value: string; label: stri
   if (node.kind === 'group') return node.children.flatMap(child => elements(child, path));
   return ['conductor', 'shield', 'drain'].includes(node.kind) ? [{ value: path, label: `${path} · ${node.label} (${node.kind})` }] : [];
 }
-export function CableEditor({ value, onChange, definitions }: { value: Cable; onChange: (value: Cable) => void; definitions: Definition[] }) {
+export function CableEditor({ value, onChange, definitions, onAuthorityChange }: { value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
   const stock = useQuery({ queryKey: ['cable-stock', value.stock_revision_id], queryFn: () => loadFrozenStock(value.stock_revision_id), enabled: !!value.stock_revision_id });
-  const choices = stock.data ? elements(stock.data.structure) : [];
+  const references = [...new Map(value.endpoints.flatMap(endpoint => [
+    { key: 'cable-body', id: endpoint.body_revision_id },
+    { key: 'cable-pinout', id: endpoint.pinout_revision_id },
+  ]).map(reference => [`${reference.key}:${reference.id}`, reference])).values()];
+  const sources = useQueries({ queries: references.map(reference => ({
+    queryKey: [reference.key, reference.id],
+    queryFn: () => read<InterfaceInspection>(`interfaces/revisions/${reference.id}`),
+    enabled: !!reference.id,
+  })) });
+  const sourceFor = (key: string, id: string) => sources[references.findIndex(reference => reference.key === key && reference.id === id)]!;
+  const denied = stock.isError || sources.some(source => source.isError);
+  useEffect(() => onAuthorityChange?.(denied), [denied, onAuthorityChange]);
+  const choices = stock.data && !denied ? elements(stock.data.structure) : [];
   return <Stack>
     <RevisionPicker label="Cable stock" kind="wire_stock" value={value.stock_revision_id} onChange={stock_revision_id => onChange({ ...value, stock_revision_id })} definitions={definitions} />
     {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
@@ -81,31 +99,29 @@ export function CableEditor({ value, onChange, definitions }: { value: Cable; on
       <TextInput label={`Endpoint ${index + 1} label`} value={endpoint.label ?? ''} onChange={event => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, label: event.currentTarget.value || null } : e) })} />
       <RevisionPicker label={`Endpoint ${index + 1} body`} kind="connector_body" value={endpoint.body_revision_id} onChange={body_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, body_revision_id } : e) })} definitions={definitions} />
       <RevisionPicker label={`Endpoint ${index + 1} pinout`} kind="pinout" value={endpoint.pinout_revision_id} onChange={pinout_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, pinout_revision_id } : e) })} definitions={definitions} />
-      <TerminationEditor value={value} index={index} choices={choices} onChange={onChange} />
+      <TerminationEditor value={value} index={index} choices={choices} onChange={onChange} denied={denied} body={sourceFor('cable-body', endpoint.body_revision_id)} pinout={sourceFor('cable-pinout', endpoint.pinout_revision_id)} />
     </Stack></Card>)}
     <Select label="Cable review" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Cable['review'] })} />
     <TextInput label="Cable review basis" value={value.review_basis ?? ''} onChange={event => onChange({ ...value, review_basis: event.currentTarget.value || null })} />
   </Stack>;
 }
-function TerminationEditor({ value, index, choices, onChange }: { value: Cable; index: number; choices: { value: string; label: string }[]; onChange: (value: Cable) => void }) {
+function TerminationEditor({ value, index, choices, onChange, denied, body, pinout }: { value: Cable; index: number; choices: { value: string; label: string }[]; onChange: (value: Cable) => void; denied: boolean; body: UseQueryResult<InterfaceInspection>; pinout: UseQueryResult<InterfaceInspection> }) {
   const endpoint = value.endpoints[index]!;
   const [element, setElement] = useState<string | null>(null);
   const [contact, setContact] = useState<string | null>(null);
   const [basis, setBasis] = useState('');
-  const body = useQuery({ queryKey: ['cable-body', endpoint.body_revision_id], queryFn: () => read<InterfaceInspection>(`interfaces/revisions/${endpoint.body_revision_id}`), enabled: !!endpoint.body_revision_id });
-  const pinout = useQuery({ queryKey: ['cable-pinout', endpoint.pinout_revision_id], queryFn: () => read<InterfaceInspection>(`interfaces/revisions/${endpoint.pinout_revision_id}`), enabled: !!endpoint.pinout_revision_id });
-  const contacts = body.data?.interface.kind === 'connector_body' ? body.data.interface.contacts.filter(c => c.physical_role !== 'key') : [];
-  const sameBody = pinout.data?.interface.kind === 'pinout' && pinout.data.interface.body_revision_id === endpoint.body_revision_id;
-  const own = value.assignments.filter(a => a.endpoint_id === endpoint.local_id);
+  const contacts = !denied && body.data?.interface.kind === 'connector_body' ? body.data.interface.contacts.filter(c => c.physical_role !== 'key') : [];
+  const sameBody = !denied && pinout.data?.interface.kind === 'pinout' && pinout.data.interface.body_revision_id === endpoint.body_revision_id;
+  const own = denied ? [] : value.assignments.filter(a => a.endpoint_id === endpoint.local_id);
   const availableElements = choices.filter(c => !own.some(a => a.element_path === c.value));
   const availableContacts = contacts.filter(c => !own.some(a => a.contact_id === c.contact_id));
   const canAdd = sameBody && availableElements.some(e => e.value === element) && availableContacts.some(c => c.contact_id === contact) && basis.trim();
   return <Stack>
     {body.isError && <Alert color="red">{body.error.message}</Alert>}{pinout.isError && <Alert color="red">{pinout.error.message}</Alert>}
-    {pinout.data && !sameBody && <Alert color="orange">The pinout must reference this exact body revision.</Alert>}
+    {pinout.data && !denied && !sameBody && <Alert color="orange">The pinout must reference this exact body revision.</Alert>}
     {own.map(a => <Group key={a.element_path}><Text>{a.element_path} → {a.contact_id} · {a.basis}</Text><Button variant="subtle" onClick={() => onChange({ ...value, assignments: value.assignments.filter(other => other !== a) })}>Remove {endpoint.local_id} {a.element_path}</Button></Group>)}
-    <Select label={`Endpoint ${index + 1} conductive element`} data={availableElements} value={element} onChange={setElement} />
-    <Select label={`Endpoint ${index + 1} physical contact`} data={availableContacts.map(c => ({ value: c.contact_id, label: `${c.contact_id} (${c.physical_role})` }))} value={contact} onChange={setContact} />
+    <Select label={`Endpoint ${index + 1} conductive element`} data={availableElements} disabled={denied} value={denied ? null : element} onChange={setElement} />
+    <Select label={`Endpoint ${index + 1} physical contact`} data={availableContacts.map(c => ({ value: c.contact_id, label: `${c.contact_id} (${c.physical_role})` }))} disabled={denied} value={denied ? null : contact} onChange={setContact} />
     <TextInput label={`Endpoint ${index + 1} termination basis`} value={basis} onChange={event => setBasis(event.currentTarget.value)} />
     <Button disabled={!canAdd} onClick={() => { if (element && contact) { onChange({ ...value, assignments: [...value.assignments, { endpoint_id: endpoint.local_id, element_path: element, contact_id: contact, basis }] }); setElement(null); setContact(null); } }}>Assign endpoint {index + 1} terminal</Button>
   </Stack>;
