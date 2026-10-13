@@ -15,6 +15,7 @@ from specmate.builds.api import artifacts_router
 from specmate.builds.api import router as runner_router
 from specmate.catalog.api import router as catalog_router
 from specmate.contracts import OperationEnvelope
+from specmate.inventory.api import router as inventory_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
 from specmate.wire_stock.api import router as stock_router
 from specmate.pcb.api import router as pcb_router
@@ -22,6 +23,7 @@ from specmate.pcb.api import router as pcb_router
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/session", session_router)
+api.add_router("/v0/inventory", inventory_router)
 api.add_router("/v0/runner", runner_router)
 api.add_router("/v0/builds", artifacts_router)
 api.add_router("/v0/pcb", pcb_router)

@@ -16,6 +16,8 @@ class Perm(StrEnum):
     DESIGN_FREEZE = "design.freeze"
     SOURCE_REGISTER = "source.register"
     BUILD_EXECUTE = "build.execute"
+    INVENTORY_MANAGE = "inventory.manage"
+    INVENTORY_RESERVE = "inventory.reserve"
 
 
 # Freezing is separate engineering authority: editors need an explicit grant.
@@ -28,7 +30,10 @@ ROLE_PERMISSIONS: dict[str, frozenset[Perm]] = {
 
 def permissions_for(membership: Membership) -> frozenset[Perm]:
     granted = {Perm(g) for g in membership.grants if g in Perm._value2member_map_}
-    return ROLE_PERMISSIONS[membership.role] | granted
+    permissions = ROLE_PERMISSIONS[membership.role] | granted
+    if Perm.INVENTORY_MANAGE in permissions:
+        permissions |= {Perm.INVENTORY_RESERVE}
+    return frozenset(permissions)
 
 
 def visible_projects(user: Any):
