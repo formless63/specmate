@@ -51,8 +51,8 @@ Operation payload and result models live in `specmate.catalog.contracts`.
 The identity panel supports creating a definition, explicitly freezing its current draft,
 selecting a revision and registering associations. Source representations require a
 previously registered source bundle revision and package path; source upload remains a
-separate operation. Catalog lists have page controls. The definition picker shows the
-existing project definition list; revision/draft selection currently shows the first page.
+separate operation. Catalog and revision lists have page controls. The definition picker shows the
+existing project definition list.
 
 ## Verification boundary
 
