@@ -37,11 +37,19 @@ export default function WireViewport({ model }: { model: WireModel }) {
       const bounds = live.current?.object ? new THREE.Box3().setFromObject(live.current.object.group) : new THREE.Box3();
       const center = bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3());
       const radius = bounds.isEmpty() ? 1 : Math.max(bounds.getSize(new THREE.Vector3()).length() / 2, 0.001);
-      // Fit the bounding sphere to the narrower viewport angle, including portrait panels.
-      const halfFov = Math.atan(Math.tan(camera.fov * Math.PI / 360) * Math.min(1, camera.aspect));
-      const distance = radius / Math.sin(halfFov) * 1.15;
-      const direction = end ? new THREE.Vector3(end === 'a' ? -1 : 1, 0.03, 0.02) : new THREE.Vector3(-0.35, 0.8, 1);
-      camera.position.copy(center).addScaledVector(direction.normalize(), distance);
+      const direction = (end ? new THREE.Vector3(end === 'a' ? -1 : 1, 0.03, 0.02) : new THREE.Vector3(-0.35, 0.8, 1)).normalize();
+      const right = new THREE.Vector3(0, 1, 0).cross(direction).normalize();
+      const up = direction.clone().cross(right).normalize();
+      const tanV = Math.tan(camera.fov * Math.PI / 360), tanH = tanV * camera.aspect;
+      let distance = radius;
+      // Fit every box corner in camera space: a long stock need not fit its length
+      // into the viewport's height, and end-on views can show the actual cut face.
+      if (!bounds.isEmpty()) for (const x of [bounds.min.x, bounds.max.x])
+        for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
+          const point = new THREE.Vector3(x, y, z).sub(center);
+          distance = Math.max(distance, point.dot(direction) + Math.max(Math.abs(point.dot(right)) / tanH, Math.abs(point.dot(up)) / tanV) * 1.15);
+        }
+      camera.position.copy(center).addScaledVector(direction, distance);
       camera.near = Math.max(radius / 1000, 0.00001); camera.far = distance + radius * 10;
       camera.updateProjectionMatrix(); controls.target.copy(center); controls.update(); render();
     };
