@@ -9,8 +9,10 @@ on:
       - 'deploy/**'
       - 'tests/fixtures/**'
       - 'tests/native/**'
+      - 'tests/portable/**'
       - 'toolpacks/kicad/**'
       - 'scripts/check_native_fixtures.py'
+      - 'scripts/verify_selected_package.py'
       - 'Makefile'
       - 'compose.example.yaml'
       - '.dockerignore'
@@ -67,6 +69,9 @@ jobs:
           uv run --project backend --frozen ruff format --check runner deploy/configure.py scripts/check_native_fixtures.py tests/native toolpacks/kicad
           PYTHONPATH=runner uv run --project backend --frozen python -m unittest discover -s runner/tests -v
           make check-fixtures
+          uv run --project backend --frozen ruff check --config backend/pyproject.toml scripts/verify_selected_package.py tests/portable
+          uv run --project backend --frozen ruff format --check --config backend/pyproject.toml scripts/verify_selected_package.py tests/portable
+          make portable-test
         # Real Docker/native-pack cases require explicit cached-image opt-in at a checkpoint.
   frontend:
     runs-on: ubuntu-latest

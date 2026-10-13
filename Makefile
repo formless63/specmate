@@ -1,7 +1,7 @@
-.PHONY: help check-guidance check-public check-fixtures native-fixture-check dev-db-up dev-db-down backend-sync backend-lint backend-test frontend-install frontend-typecheck frontend-test frontend-build runner-test
+.PHONY: help check-guidance check-public check-fixtures native-fixture-check dev-db-up dev-db-down backend-sync backend-lint backend-test frontend-install frontend-typecheck frontend-test frontend-build runner-test portable-test
 help:
 	@printf '%s\n' 'Targets: check-guidance check-public dev-db-up dev-db-down backend-sync backend-lint backend-test' \
-	  'frontend-install frontend-typecheck frontend-test frontend-build runner-test' \
+	  'frontend-install frontend-typecheck frontend-test frontend-build runner-test portable-test' \
 	  'check-fixtures native-fixture-check (requires NATIVE_EVIDENCE_DIR outside checkout)'
 check-guidance:
 	python3 scripts/check_guidance.py
@@ -35,3 +35,5 @@ frontend-build:
 	bun run build
 runner-test:
 	PYTHONPATH=runner python3 -m unittest discover -s runner/tests -v
+portable-test:
+	python3 -I -S -m unittest discover -s tests/portable -v
