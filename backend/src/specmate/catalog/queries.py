@@ -97,9 +97,13 @@ def lot_result(lot):
 
 
 def draft_summary(user, draft):
+    from specmate.design.operations import authorize_design_content
+    from specmate.queries import get_revision
+
+    authorize_design_content(user, draft.definition, draft.content)
     dependencies = []
     if draft.base_revision_id:
+        get_revision(user, draft.base_revision_id)
         for pin in draft.base_revision.snapshot.dependencies.all():
-            authorize(user, pin.revision.definition.project_id, Perm.PROJECT_READ)
             dependencies.append(str(pin.revision_id))
     return {"draft_id": str(draft.id), "state": draft.state_token, "dependencies": dependencies}
