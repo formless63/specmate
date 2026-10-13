@@ -47,10 +47,12 @@ bundles keep their existing immutable bytes, manifests and ancestry; editing a d
 does not edit its native files. Use the Sources edit handoff and reviewed submission to
 create a derivative, then deliberately update the declaration to its exact new revision.
 
-Each target pins a frozen design revision and snapshot hash. PCB targets additionally pin
+Each target pins a frozen design revision and snapshot hash. Typed PCB population targets additionally pin
 the accepted interpretation hash, native source revision and manifest. A board population
 option and a native component UUID are explicit choices; reference labels never establish
 identity. An ordinary part/hardware target may pin its own reusable catalog revision.
+A board revision without an accepted interpretation may still be pinned with explicit
+unknown geometry; its declaration cannot supply native component or clearance evidence.
 References may cross currently accessible projects without transferring ownership or granting
 new access. The owning project requires design edit/freeze authority while all referenced
 source/model/target closures require current read authority, including retained ancestors.

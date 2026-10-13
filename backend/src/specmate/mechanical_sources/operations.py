@@ -242,6 +242,16 @@ def evaluate(user, definition, declaration):
             "component": None,
             "board_geometry": None,
         }
+        if pin.role == "board" and pin.board is None:
+            findings.append(
+                finding(
+                    "board_geometry",
+                    "unknown",
+                    "This exact revision has no accepted board geometry pins; "
+                    "clearance and component envelopes are unknown.",
+                    pin.local_id,
+                )
+            )
         if pin.board is not None:
             report = Report.model_validate_json(bytes(boards[pin.local_id].canonical))
             population = Population.model_validate(

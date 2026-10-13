@@ -63,8 +63,6 @@ class TargetPin(Strict):
     def native_scope(self):
         if self.native_component_id is not None and (self.role != "component" or not self.board):
             raise ValueError("A native component needs a component target and exact board pins.")
-        if self.role == "board" and not self.board:
-            raise ValueError("A board target needs exact board interpretation/source pins.")
         return self
 
 

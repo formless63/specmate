@@ -455,3 +455,109 @@ def test_read_adapters_authorize_derivative_ancestry_before_disclosure(
     ):
         with pytest.raises(NotFound):
             query()
+
+
+def test_unauthorized_retained_outcome_precedes_key_mismatch(
+    users, project, mec_sources, mec_target
+):
+    from specmate.sources.models import SourceBundle
+
+    original = declaration(mec_sources, mec_target)
+    created = create(users["editor"], project, original, idempotency_key="retained-outcome")
+    # Create a separate currently readable source set with the same inert bytes.
+    replacement = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {
+            "project_id": project,
+            "name": "Replacement source",
+            "files": [
+                {
+                    "path": "case.py",
+                    "sha256": digest(DATA),
+                    "media_type": "text/plain",
+                    "rights": "MIT",
+                }
+            ],
+        },
+    )
+    changed = copy.deepcopy(original)
+    changed["sources"][0].update(
+        source_revision_id=replacement["revision_id"],
+        source_manifest_sha256=replacement["manifest_sha256"],
+    )
+    changed["sources"][0]["files"] = [changed["sources"][0]["files"][0]]
+    op(
+        users["owner"],
+        "mechanical_source.update",
+        {"draft_id": created["draft_id"], "mechanical_source": changed},
+        expected_state=created["state"],
+    )
+    hidden = op(users["outsider"], "project.create", {"name": "Revoked original origin"})[
+        "project_id"
+    ]
+    SourceBundle.objects.filter(id=mec_sources["bundle_id"]).update(project_id=hidden)
+    assert op(users["editor"], "mechanical_source.read", {"draft_id": created["draft_id"]})
+    with pytest.raises(NotFound):
+        create(users["editor"], project, changed, idempotency_key="retained-outcome")
+
+
+def test_full_source_closure_precedes_mismatch_diagnostics(users, project, mec_sources, mec_target):
+    from specmate.sources.models import SourceBundle
+
+    content = declaration(mec_sources, mec_target)
+    inaccessible = op(
+        users["editor"],
+        "source.derive_bundle",
+        {"source_revision_id": mec_sources["revision_id"], "name": "Second source"},
+    )
+    content["sources"].append(
+        {
+            **copy.deepcopy(content["sources"][0]),
+            "local_id": "second",
+            "source_revision_id": inaccessible["revision_id"],
+            "source_manifest_sha256": inaccessible["manifest_sha256"],
+        }
+    )
+    content["sources"][0]["files"][0]["sha256"] = "0" * 64
+    hidden = op(users["outsider"], "project.create", {"name": "Hidden second source"})["project_id"]
+    SourceBundle.objects.filter(id=inaccessible["bundle_id"]).update(project_id=hidden)
+    with pytest.raises(NotFound):
+        create(users["editor"], project, content)
+
+
+def test_uninterpreted_board_revision_is_reusable_with_explicit_unknown_geometry(
+    users, project, mec_sources
+):
+    board = op(
+        users["owner"],
+        "definition.create",
+        {
+            "project_id": project,
+            "kind": "board",
+            "name": "Unsupported native board",
+            "content": {"geometry": "unknown"},
+        },
+    )
+    frozen_board = op(
+        users["owner"],
+        "draft.freeze",
+        {"draft_id": board["draft_id"]},
+        expected_state=board["state"],
+    )
+    content = declaration(mec_sources, frozen_board)
+    content["targets"][0]["role"] = "board"
+    created = create(users["editor"], project, content)
+    frozen = op(
+        users["owner"],
+        "mechanical_source.freeze",
+        {"draft_id": created["draft_id"]},
+        expected_state=created["state"],
+    )
+    read = op(users["viewer"], "mechanical_source.read", {"revision_id": frozen["revision_id"]})
+    assert read["evaluation"]["targets"][0]["board_geometry"] is None
+    assert any(
+        f["code"] == "board_geometry" and f["status"] == "unknown"
+        for f in read["evaluation"]["findings"]
+    )
+    assert read["evaluation"]["clearance"] == "not_evaluated"

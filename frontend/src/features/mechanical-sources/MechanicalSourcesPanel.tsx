@@ -49,6 +49,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
   const [form, setForm] = useState<MechanicalSource | null>(null);
   const [name, setName] = useState('');
   const [sourceId, setSourceId] = useState('');
+  const [sourcePath, setSourcePath] = useState('');
   const [targetId, setTargetId] = useState('');
   const [modelRevision, setModelRevision] = useState<TargetChoice | null>(null);
   const [modelId, setModelId] = useState('');
@@ -58,11 +59,12 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
   const generation = useRef(0);
   const mounted = useRef(false);
   const refreshSerial = useRef(0);
+  const modelSerial = useRef(0);
   const pendingSave = useRef<{ fingerprint: string; key: string } | null>(null);
   useEffect(() => {
     mounted.current = true; generation.current += 1;
     setRecords({ records: [], next_after: null }); setSources({ revisions: [], next_after: null }); setTargets({ targets: [], next_after: null });
-    setRead(null); setForm(null); setName(''); setSourceId(''); setTargetId(''); setModelRevision(null); setModelId(''); setModelTarget(''); setShown(true); setBusy(false); setMessage(''); pendingSave.current = null;
+    setRead(null); setForm(null); setName(''); setSourceId(''); setSourcePath(''); setTargetId(''); setModelRevision(null); setModelId(''); setModelTarget(''); setShown(true); setBusy(false); setMessage(''); pendingSave.current = null;
     return () => { mounted.current = false; generation.current += 1; };
   }, [projectId]);
   const active = (token: number) => mounted.current && token === generation.current;
@@ -75,23 +77,27 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
       onAccessLost?.();
     }
   }
+  async function loadChoices(declaration: MechanicalSource | null) {
+    const ids = new Set([...(declaration?.targets ?? []).map(t => t.revision_id), ...(declaration?.models ?? []).map(m => m.revision_id)]);
+    return Promise.all([...ids].map(id => request<TargetChoice>(`mechanical-sources/targets/${id}`)));
+  }
   async function checkRetained() {
-    return Promise.all([
+    const [, , choices] = await Promise.all([
       read ? request<MechanicalRead>(currentPath(read)) : Promise.resolve(null),
-      ...(form?.sources ?? []).map(source => request(`sources/revisions/${source.source_revision_id}`)),
-      ...(form?.targets ?? []).map(target => request(`mechanical-sources/targets/${target.revision_id}`)),
-      ...(form?.models ?? []).map(model => request(`mechanical-sources/targets/${model.revision_id}`)),
+      Promise.all((form?.sources ?? []).map(source => request(`sources/revisions/${source.source_revision_id}`))),
+      loadChoices(form ?? read?.content.mechanical_source ?? null),
     ]);
+    return choices;
   }
   async function refresh() {
     const token = generation.current; const serial = ++refreshSerial.current;
     try {
-      const [nextRecords, nextSources, nextTargets] = await Promise.all([
+      const [nextRecords, nextSources, nextTargets, retainedChoices] = await Promise.all([
         request<RecordPage>(`mechanical-sources/projects/${projectId}/records`), request<SourcePage>(`sources/projects/${projectId}/revisions`),
         request<TargetPage>(`mechanical-sources/projects/${projectId}/targets`), checkRetained(),
       ]);
       if (!active(token) || serial !== refreshSerial.current) return;
-      setRecords(nextRecords); setSources(nextSources); setTargets(nextTargets); setShown(true); setMessage('');
+      setRecords(nextRecords); setSources(nextSources); setTargets({ ...nextTargets, targets: [...nextTargets.targets.filter(t => !retainedChoices.some(c => c.revision_id === t.revision_id)), ...retainedChoices] }); setShown(true); setMessage('');
       // Retain the original state token when an unsaved form is open.
     } catch (reason) { if (active(token) && serial === refreshSerial.current) failed(reason); }
   }
@@ -115,18 +121,35 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
   async function open(path: string) {
     generation.current += 1; const token = generation.current;
     setRead(null); setForm(null); setBusy(false); setMessage(''); setModelRevision(null); pendingSave.current = null;
-    try { const result = await request<MechanicalRead>(path); if (active(token)) { setRead(result); setShown(true); } }
+    try {
+      const result = await request<MechanicalRead>(path);
+      if (!active(token)) return;
+      const choices = await loadChoices(result.content.mechanical_source);
+      if (active(token)) {
+        setTargets(prior => ({ ...prior, targets: [...prior.targets.filter(t => !choices.some(c => c.revision_id === t.revision_id)), ...choices] }));
+        setRead(result); setShown(true);
+      }
+    }
     catch (reason) { if (active(token)) failed(reason); }
   }
-  const pinSource = (detail: RevisionDetail, prior: MechanicalSource): MechanicalSourcePin => ({
+  const pinSource = (detail: RevisionDetail, prior: MechanicalSource, files = detail.manifest.files): MechanicalSourcePin => ({
     local_id: keyFor('source', prior.sources), source_revision_id: detail.revision_id, source_manifest_sha256: detail.manifest_sha256,
-    files: detail.manifest.files.map(file => ({ path: file.path, sha256: file.sha256, rights: file.rights, role: 'supporting', format: 'other' })),
+    files: files.map(file => ({ path: file.path, sha256: file.sha256, rights: file.rights, role: 'supporting', format: 'other' })),
   });
   async function addSource(id: string) {
     const token = generation.current;
     try { const detail = await request<RevisionDetail>(`sources/revisions/${id}`);
       if (!active(token)) return;
-      setForm(prior => prior && !prior.sources.some(s => s.source_revision_id === id) ? { ...prior, sources: [...prior.sources, pinSource(detail, prior)] } : prior);
+      const selected = sourcePath.trim() ? detail.manifest.files.filter(f => f.path === sourcePath.trim()) : detail.manifest.files;
+      if (!selected.length) throw new Error('The exact source path is absent from this revision.');
+      if (selected.length > 200) throw new Error('Choose an exact source file path for a bundle with more than 200 files.');
+      setForm(prior => {
+        if (!prior) return prior;
+        const existing = prior.sources.find(s => s.source_revision_id === id);
+        const pin = pinSource(detail, prior, selected);
+        return existing ? { ...prior, sources: prior.sources.map(s => s.local_id === existing.local_id ? { ...s, files: [...s.files, ...pin.files.filter(f => !s.files.some(old => old.path === f.path))] } : s) }
+          : { ...prior, sources: [...prior.sources, pin] };
+      });
     } catch (reason) { if (active(token)) failed(reason); }
   }
   async function addTarget(id: string) {
@@ -134,7 +157,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
     try { const detail = await request<TargetChoice>(`mechanical-sources/targets/${id}`);
       if (!active(token)) return;
       setTargets(prior => prior.targets.some(t => t.revision_id === id) ? prior : { ...prior, targets: [...prior.targets, detail] });
-      setForm(prior => prior ? { ...prior, targets: [...prior.targets, { local_id: keyFor('target', prior.targets), role: detail.board ? 'board' : 'hardware',
+      setForm(prior => prior ? { ...prior, targets: [...prior.targets, { local_id: keyFor('target', prior.targets), role: detail.board || ['board', 'pcb'].includes(detail.kind) ? 'board' : 'hardware',
         revision_id: detail.revision_id, snapshot_sha256: detail.snapshot_sha256, board: detail.board ? {
           interpretation_id: detail.board.interpretation_id, interpretation_sha256: detail.board.interpretation_sha256,
           source_revision_id: detail.board.source_revision_id, source_manifest_sha256: detail.board.source_manifest_sha256, option_id: null,
@@ -142,9 +165,9 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
     } catch (reason) { if (active(token)) failed(reason); }
   }
   async function inspectModel(id: string) {
-    const token = generation.current; setModelRevision(null);
-    try { const result = await request<TargetChoice>(`mechanical-sources/targets/${id}`); if (active(token)) setModelRevision(result); }
-    catch (reason) { if (active(token)) failed(reason); }
+    const token = generation.current; const serial = ++modelSerial.current; setModelRevision(null);
+    try { const result = await request<TargetChoice>(`mechanical-sources/targets/${id}`); if (active(token) && serial === modelSerial.current) setModelRevision(result); }
+    catch (reason) { if (active(token) && serial === modelSerial.current) failed(reason); }
   }
   async function addModel(choice: ModelChoice) {
     const token = generation.current;
@@ -153,7 +176,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
       setForm(prior => {
         if (!prior || !prior.targets.some(t => t.local_id === modelTarget)) return prior;
         const existing = prior.sources.find(s => s.source_revision_id === choice.source_revision_id);
-        const source = existing ?? pinSource(detail, prior);
+        const source = existing ?? pinSource(detail, prior, detail.manifest.files.filter(f => f.path === choice.path));
         const selected = detail.manifest.files.find(f => f.path === choice.path);
         if (!selected) return prior;
         const files = source.files.some(f => f.path === choice.path) ? source.files : [...source.files, { path: selected.path, sha256: selected.sha256, rights: selected.rights, role: 'model' as const, format: 'other' as const }];
@@ -202,13 +225,14 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
         {record.revisions.map(revision => <Button key={revision.revision_id} size="xs" variant="subtle" onClick={() => void open(`mechanical-sources/revisions/${revision.revision_id}`)}>Revision {revision.number}</Button>)}
       </Group></Card>)}
       {records.next_after && <Button variant="subtle" onClick={() => void more('records')}>More mechanical records</Button>}
-      {read && <Card withBorder><Stack><Title order={4}>{read.name}{read.revision_number ? ` revision ${read.revision_number}` : ' draft'}</Title><MechanicalEvaluation read={read} />
+      {read && <Card withBorder><Stack><Title order={4}>{read.name}{read.revision_number ? ` revision ${read.revision_number}` : ' draft'}</Title><Text size="xs">Definition {read.definition_id} · {read.revision_id ? `revision ${read.revision_id} · frozen snapshot ${read.snapshot_sha256}` : `state ${read.state}`}</Text><MechanicalEvaluation read={read} />
         {edit && read.draft_id && !form && <Button onClick={() => { generation.current += 1; setBusy(false); setForm(structuredClone(read.content.mechanical_source)); pendingSave.current = null; }}>Edit mechanical draft</Button>}
         {permissions.includes('design.freeze') && read.draft_id && !form && <Button disabled={busy || read.evaluation.readiness === 'blocked'} onClick={() => void freeze()}>Freeze mechanical declarations</Button>}
       </Stack></Card>}
       {edit && form && <Stack>
         {!read?.draft_id && <TextInput label="Mechanical source name" value={name} onChange={e => setName(e.currentTarget.value)} />}
         <Select label="Mechanical item role" value={form.item_role} data={['enclosure', 'part', 'hardware']} onChange={value => value && setForm({ ...form, item_role: value as MechanicalSource['item_role'] })} />
+        <TextInput label="Exact source file path (optional)" description="Leave empty to pin all files in a bundle of up to 200 files. Set one package-relative path to add only that file." value={sourcePath} onChange={e => setSourcePath(e.currentTarget.value)} />
         <Select label="Preserved source revision" data={sources.revisions.map(s => ({ value: s.revision_id, label: `${s.name} revision ${s.number} (${s.role})` }))} onChange={value => value && void addSource(value)} value={null} searchable />
         {sources.next_after && <Button variant="subtle" onClick={() => void more('sources')}>More source revisions</Button>}
         <Group align="end"><TextInput label="Exact accessible source revision ID" value={sourceId} onChange={e => setSourceId(e.currentTarget.value)} /><Button disabled={!sourceId} onClick={() => void addSource(sourceId)}>Add exact source</Button></Group>
@@ -223,7 +247,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
         {targets.next_after && <Button variant="subtle" onClick={() => void more('targets')}>More target revisions</Button>}
         <Group align="end"><TextInput label="Exact accessible target revision ID" value={targetId} onChange={e => setTargetId(e.currentTarget.value)} /><Button disabled={!targetId} onClick={() => void addTarget(targetId)}>Add exact target</Button></Group>
         {form.targets.map(target => { const detail = targets.targets.find(t => t.revision_id === target.revision_id); return <Card withBorder key={target.local_id}><Stack gap="xs"><Text>{target.local_id} · revision {target.revision_id} · snapshot {target.snapshot_sha256}</Text>
-          <Select label={`Target role for ${target.local_id}`} value={target.role} data={target.board ? ['board', 'component'] : ['component', 'hardware']} onChange={value => value && changeTarget(target.local_id, { role: value as TargetPin['role'], native_component_id: null })} />
+          <Select label={`Target role for ${target.local_id}`} value={target.role} data={target.board ? ['board', 'component'] : ['board', 'component', 'hardware']} onChange={value => value && changeTarget(target.local_id, { role: value as TargetPin['role'], native_component_id: null })} />
           <TextInput label={`Target basis for ${target.local_id}`} value={target.basis} onChange={e => changeTarget(target.local_id, { basis: e.currentTarget.value })} />
           {target.board && <Select label={`Board option for ${target.local_id}`} clearable value={target.board.option_id} data={detail?.board?.options.map(o => ({ value: o.local_id, label: o.name })) ?? []} onChange={value => changeTarget(target.local_id, { board: { ...target.board!, option_id: value } })} />}
           {target.board && target.role === 'component' && <Select label={`Native component for ${target.local_id}`} clearable value={target.native_component_id} data={detail?.components.map(c => ({ value: c.id, label: `${c.reference}: ${c.value}` })) ?? []} onChange={value => changeTarget(target.local_id, { native_component_id: value })} />}

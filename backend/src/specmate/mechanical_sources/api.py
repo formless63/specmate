@@ -136,7 +136,22 @@ def list_targets(request, project_id: UUID, after: UUID | None = None):
     if after:
         query = query.filter(id__gt=after)
     candidates = list(query[:51])
-    rows = [target_result(user, get_revision(user, r.id)) for r in candidates]
+    rows = []
+    for candidate in candidates:
+        revision = get_revision(user, candidate.id)
+        rows.append(
+            {
+                "revision_id": str(revision.id),
+                "snapshot_sha256": revision.snapshot.sha256,
+                "name": revision.definition.name,
+                "number": revision.number,
+                "kind": revision.definition.kind,
+                "board": None,
+                "components": [],
+                "models": [],
+                "models_truncated": False,
+            }
+        )
     return {
         "targets": rows[:50],
         "next_after": str(candidates[49].id) if len(candidates) > 50 else None,

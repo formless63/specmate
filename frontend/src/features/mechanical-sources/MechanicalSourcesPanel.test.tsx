@@ -25,17 +25,17 @@ function read(extra: Partial<MechanicalRead> = {}): MechanicalRead {
 function reply(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status }); }
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
-function setup(options: { permissions?: string[]; strict?: boolean; draft?: MechanicalRead; operations?: Response[]; lost?: () => void } = {}) {
+function setup(options: { permissions?: string[]; strict?: boolean; draft?: MechanicalRead; operations?: Response[]; lost?: () => void; target?: TargetChoice } = {}) {
   const bodies: any[] = [];
   let denied = false;
   const mock = vi.fn(async (url: string, init?: RequestInit) => {
     if (denied && url.includes('/sources/revisions/')) return reply({ error: { message: 'Source access unavailable' } }, 404);
     if (url.endsWith('/records')) return reply({ records: [{ definition_id: 'definition', name: 'Synthetic enclosure', drafts: [{ draft_id: 'draft' }], revisions: [{ revision_id: 'frozen', number: 1 }] }], next_after: null });
-    if (url.endsWith('/mechanical-sources/projects/project/targets')) return reply({ targets: [target], next_after: null });
+    if (url.endsWith('/mechanical-sources/projects/project/targets')) return reply({ targets: [options.target ?? target], next_after: null });
     if (url.endsWith('/sources/projects/project/revisions')) return reply({ revisions: [{ revision_id: 'source-rev', name: 'Synthetic native sources', role: 'derivative', number: 1 }], next_after: null });
     if (url.endsWith('/sources/revisions/source-rev')) return reply({ revision_id: 'source-rev', name: 'Synthetic native sources', role: 'derivative', number: 1,
       manifest_sha256: 'a'.repeat(64), manifest: { ancestry: ['original-rev'], files: [{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT' }] } });
-    if (url.endsWith('/mechanical-sources/targets/hardware-rev')) return reply(target);
+    if (url.endsWith('/mechanical-sources/targets/hardware-rev')) return reply(options.target ?? target);
     if (url.endsWith('/mechanical-sources/drafts/draft')) return reply(options.draft ?? read());
     if (url.endsWith('/mechanical-sources/revisions/frozen')) return reply(read({ draft_id: null, state: null, revision_id: 'frozen', revision_number: 1, snapshot_sha256: 'd'.repeat(64) }));
     if (url.endsWith('/operations')) { bodies.push(JSON.parse(String(init?.body))); return options.operations?.shift() ?? reply({ result: { draft_id: 'draft', revision_id: 'frozen' } }); }
@@ -125,4 +125,23 @@ test('freezing sends the current token and opens immutable revision history', as
   fireEvent.click(screen.getByRole('button', { name: 'Freeze mechanical declarations' }));
   await screen.findByRole('heading', { name: 'Synthetic enclosure revision 1' });
   expect(bodies[0]).toMatchObject({ operation: 'mechanical_source.freeze', expected_state: 'draft-v1', payload: { draft_id: 'draft' } });
+});
+
+test('a selected model pins its represented revision and source, preserving unknown quality', async () => {
+  const model = { representation_id: 'model-representation', label: 'Declared model', revision_id: 'hardware-rev', snapshot_sha256: 'c'.repeat(64),
+    source_revision_id: 'source-rev', source_manifest_sha256: 'a'.repeat(64), path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT' };
+  const { bodies } = setup({ target: { ...target, models: [model] } }); await openDraft();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit mechanical draft' }));
+  fireEvent.click(screen.getByLabelText('Model owning revision', { selector: 'input' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Synthetic hardware revision 1', hidden: true }));
+  await screen.findByRole('button', { name: 'Pin model Declared model' });
+  fireEvent.click(screen.getByLabelText('Model applies to target', { selector: 'input' }));
+  fireEvent.click(screen.getAllByRole('option', { name: 'hardware', hidden: true }).at(-1)!);
+  fireEvent.click(screen.getByRole('button', { name: 'Pin model Declared model' }));
+  await screen.findByText(/model1 · representation model-representation/);
+  expect((screen.getByLabelText('Model accuracy for model1') as HTMLInputElement).value).toBe('');
+  fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' })); await screen.findByRole('button', { name: 'Edit mechanical draft' });
+  expect(bodies[0].payload.mechanical_source.models[0]).toMatchObject({ representation_id: 'model-representation', revision_id: 'hardware-rev',
+    snapshot_sha256: 'c'.repeat(64), source_local_id: 'native', path: 'body.step', target_local_id: 'hardware', units: null, frame: null, accuracy: null });
+  expect(bodies[0].payload.mechanical_source.sources[0].files[0].role).toBe('model');
 });
