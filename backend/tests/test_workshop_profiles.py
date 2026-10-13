@@ -444,12 +444,14 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(
     other_project = op(users["owner"], "project.create", {"name": "Separate project"})["project_id"]
     bundle.project_id = other_project
     bundle.save(update_fields=["project"])
-    with pytest.raises(ValidationFailed):
+    # The moved bundle now references another project's blobs. Source authority
+    # rejects that inconsistent closure before exposing profile-specific diagnostics.
+    with pytest.raises(NotFound):
         create(users, project, documented, idempotency_key="documented-profile")
 
     with pytest.raises(NotFound):
         revision_result(users["viewer"], frozen["revision_id"])
-    with pytest.raises(ValidationFailed):
+    with pytest.raises(NotFound):
         op(
             users["owner"],
             "workshop_profile.freeze",
