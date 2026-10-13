@@ -218,6 +218,42 @@ the same population revision and invalid for a different one or an untyped place
 It is unknown when the occurrence is not a PCB population revision. The PCB panel offers
 structured authoring, evaluation, freezing and assignment review on request.
 
+### Reviewed firmware for repeated board occurrences
+
+`firmware_occurrence.inspect` projects an assembly draft or exact frozen snapshot,
+including nested occurrence paths and each effective firmware revision. Repeated uses
+of one PCB population revision retain the same board/native interpretation pins while
+selecting independent frozen firmware configurations. A display reference is never the
+occurrence address.
+
+`firmware_occurrence.review` compares one exact draft occurrence with a selected frozen
+firmware revision. The preview shows the previous and proposed declarations, exact
+source manifests/files/rights, configuration, toolchain, population option, native
+component and pin assumptions. Its digest binds the complete owning draft state and
+the exact reviewed evidence. A different population target is visible as ineligible;
+no target correspondence or compatibility is inferred.
+
+`firmware_occurrence.adopt` requires that digest, the owning draft state token and an
+explicit review basis. It adds or replaces only the selected outer contextual assignment;
+other occurrences and frozen child/firmware/assembly revisions retain their pins. A
+reviewed explicit unassignment masks inherited firmware for that occurrence. Concurrent
+edits conflict, and evidence/assignment writes commit together. Immutable adoption rows
+retain both the before/after content and reviewed declarations, independently of later
+draft changes. `firmware_occurrence.read_adoption` reopens this evidence under current
+authority; draft inspection lists the latest 100 records and declares truncation.
+
+Reads, previews, mutations and retained keyed outcomes recheck the owning design,
+candidate firmware, displaced declarations and their complete source/dependency closure,
+including ancestor inputs. Current and retained outcome authority precedes keyed
+mismatch or unresolved legacy conflicts. Read operations require a fresh evaluation
+without an idempotency key. The occurrence panel supports deliberate review/adoption,
+frozen inspection and a stable keyed retry after response loss; denied reads, focus
+rechecks and scope changes discard retained private evidence.
+
+This flow records engineering declarations. It does not compile, resolve a binary
+artifact, flash hardware or observe device operation; those remain separate capabilities
+and evidence. Sharing a board revision does not establish firmware compatibility.
+
 ## Acceptance emphasis
 
 Create a small original synthetic native board fixture with independently specified net

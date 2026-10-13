@@ -1,0 +1,477 @@
+"""ACC-FW-002: synthetic declarations, simulated PCB report acceptance, no compiler.
+
+Real PostgreSQL verifies contextual identity, immutable evidence and shared operations.
+"""
+
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
+import pytest
+from django.db import IntegrityError, close_old_connections, connections, transaction
+
+from specmate.access.models import Membership
+from specmate.design.models import Draft, Revision, SnapshotDependency
+from specmate.firmware_occurrences.models import FirmwareAdoption
+from specmate.operations import (
+    Conflict,
+    IdempotencyMismatch,
+    NotFound,
+    PermissionDenied,
+    ValidationFailed,
+)
+from specmate.operations.models import IdempotencyRecord
+from specmate.sources.models import SourceBlob, SourceBundleFile
+
+from .conftest import op
+from .test_firmware import (  # noqa: F401
+    CONFIG,
+    MAIN,
+    attempt,
+    board,
+    declaration,
+    digest,
+    intake,
+    recipe,
+    source,
+    sources,
+)
+from .test_sources import register
+from .test_transports import api, post_op
+
+
+def frozen_firmware(users, project, sources, board, *, value="500"):  # noqa: F811
+    content = declaration(sources, board)
+    content["configuration"][0]["value"] = value
+    draft = op(
+        users["owner"],
+        "firmware.create",
+        {
+            "project_id": project,
+            "name": f"Synthetic blink {value}",
+            "firmware": content,
+        },
+    )
+    return op(
+        users["owner"],
+        "firmware.freeze",
+        {"draft_id": draft["draft_id"]},
+        expected_state=draft["state"],
+    )
+
+
+@pytest.fixture
+def pair(users, project, sources, board):  # noqa: F811
+    first = frozen_firmware(users, project, sources, board)
+    second = frozen_firmware(users, project, sources, board, value="900")
+    module = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "project_id": project,
+            "name": "Synthetic controller module",
+            "assembly": {
+                "occurrences": [
+                    {
+                        "local_id": "board",
+                        "display_ref": "A1",
+                        "revision_id": board[0]["revision_id"],
+                        "assignments": {"firmware_revision_id": first["revision_id"]},
+                    }
+                ]
+            },
+        },
+    )
+    module_revision = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": module["draft_id"]},
+        expected_state=module["state"],
+    )
+    assembly = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "project_id": project,
+            "name": "Synthetic repeated controllers",
+            "assembly": {
+                "occurrences": [
+                    {
+                        "local_id": local,
+                        "display_ref": "A1",
+                        "revision_id": module_revision["revision_id"],
+                    }
+                    for local in ("left", "right")
+                ]
+            },
+        },
+    )
+    return assembly, first, second
+
+
+def preview(users, assembly, firmware, path=None):
+    return op(
+        users["viewer"],
+        "firmware_occurrence.review",
+        {
+            "draft_id": assembly["draft_id"],
+            "path": path if path is not None else ["right", "board"],
+            "firmware_revision_id": firmware,
+        },
+    )
+
+
+def adoption_payload(preview):
+    return {
+        key: preview[key] for key in ("draft_id", "path", "firmware_revision_id", "review_sha256")
+    } | {"basis": "Reviewed independent synthetic occurrence configuration"}
+
+
+def adopt(users, reviewed, **kwargs):
+    return op(
+        users["editor"],
+        "firmware_occurrence.adopt",
+        adoption_payload(reviewed),
+        expected_state=reviewed["state"],
+        **kwargs,
+    )
+
+
+def rows(user, **owner):
+    return op(user, "firmware_occurrence.inspect", owner)
+
+
+def test_nested_repeated_boards_keep_independent_configs_and_frozen_copper(users, pair, board):  # noqa: F811
+    assembly, first, second = pair
+    historic = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=assembly["state"],
+    )
+    before_canonical = bytes(Revision.objects.get(id=historic["revision_id"]).snapshot.canonical)
+    reviewed = preview(users, assembly, second["revision_id"])
+    assert reviewed["eligible"] and reviewed["previous"]["revision_id"] == first["revision_id"]
+    assert reviewed["candidate"]["content"]["firmware"]["configuration"][0]["value"] == "900"
+    result = adopt(users, reviewed)
+    inspected = rows(users["viewer"], draft_id=assembly["draft_id"])
+    resolved = {tuple(row["path"]): row for row in inspected["occurrences"]}
+    left, right = resolved[("left", "board")], resolved[("right", "board")]
+    assert left["revision_id"] == right["revision_id"] == board[0]["revision_id"]
+    assert left["snapshot_sha256"] == right["snapshot_sha256"]
+    assert left["firmware_revision_id"] == first["revision_id"]
+    assert right["firmware_revision_id"] == second["revision_id"]
+    assert (
+        result["content"]["assembly"]["occurrences"]
+        == assembly["content"]["assembly"]["occurrences"]
+    )
+    frozen = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=result["state"],
+    )
+    review = op(
+        users["viewer"],
+        "firmware.assignment_review",
+        {"assembly_snapshot_id": frozen["snapshot_id"]},
+    )
+    assert {tuple(row["path"]): row["firmware_revision_id"] for row in review["assignments"]} == {
+        ("left", "board"): first["revision_id"],
+        ("right", "board"): second["revision_id"],
+    }
+    assert {row["status"] for row in review["assignments"]} == {"valid"}
+    old = rows(users["viewer"], snapshot_id=historic["snapshot_id"])
+    assert {
+        row["firmware_revision_id"] for row in old["occurrences"] if row["kind"] == "pcb_population"
+    } == {first["revision_id"]}
+    assert (
+        bytes(Revision.objects.get(id=historic["revision_id"]).snapshot.canonical)
+        == before_canonical
+    )
+    evidence = op(
+        users["viewer"], "firmware_occurrence.read_adoption", {"adoption_id": result["adoption_id"]}
+    )
+    assert evidence["review"]["candidate"]["evaluation"]["sources"][0]["manifest_sha256"]
+    assert (
+        evidence["review"]["previous"]["content"]["firmware"]["configuration"][0]["value"] == "500"
+    )
+    assert inspected["adoptions"][0]["adoption_id"] == result["adoption_id"]
+    assert evidence["compilation"] == "not_performed" and evidence["flashing"] == "not_performed"
+
+
+def test_explicit_unassignment_masks_nested_inheritance(users, pair):
+    assembly, first, _ = pair
+    result = adopt(users, preview(users, assembly, None))
+    paths = {
+        tuple(row["path"]): row["firmware_revision_id"]
+        for row in rows(users["viewer"], draft_id=assembly["draft_id"])["occurrences"]
+    }
+    assert paths[("left", "board")] == first["revision_id"]
+    assert paths[("right", "board")] is None
+    assert result["review"]["candidate"] is None
+
+
+def test_wrong_population_is_reviewed_but_cannot_be_adopted(users, pair, project, sources, board):  # noqa: F811
+    assembly, _, _ = pair
+    changed_board = op(
+        users["owner"],
+        "pcb.population_freeze",
+        {"draft_id": board[1]["draft_id"]},
+        expected_state=Draft.objects.get(id=board[1]["draft_id"]).state_token,
+    )
+    wrong = frozen_firmware(users, project, sources, (changed_board, board[1]))
+    reviewed = preview(users, assembly, wrong["revision_id"])
+    assert not reviewed["eligible"]
+    with pytest.raises(ValidationFailed, match="does not match"):
+        adopt(users, reviewed)
+    assert Draft.objects.get(id=assembly["draft_id"]).state_token == assembly["state"]
+    assert not FirmwareAdoption.objects.exists()
+
+
+def test_stale_review_and_changed_digest_roll_back(users, pair):
+    assembly, _, second = pair
+    reviewed = preview(users, assembly, second["revision_id"])
+    with pytest.raises(Conflict, match="review this occurrence"):
+        op(
+            users["editor"],
+            "firmware_occurrence.adopt",
+            {**adoption_payload(reviewed), "review_sha256": "0" * 64},
+            expected_state=reviewed["state"],
+        )
+    assert not FirmwareAdoption.objects.exists()
+    adopt(users, reviewed)
+    with pytest.raises(Conflict, match="Draft changed"):
+        adopt(users, reviewed)
+    assert FirmwareAdoption.objects.count() == 1
+
+
+def test_scoped_replay_mismatch_and_edit_permission(users, pair):
+    assembly, _, second = pair
+    reviewed = preview(users, assembly, second["revision_id"])
+    saved = adopt(users, reviewed, idempotency_key="independent")
+    assert adopt(users, reviewed, idempotency_key="independent") == saved
+    with pytest.raises(IdempotencyMismatch):
+        op(
+            users["editor"],
+            "firmware_occurrence.adopt",
+            {**adoption_payload(reviewed), "basis": "Changed review"},
+            expected_state=reviewed["state"],
+            idempotency_key="independent",
+        )
+    with pytest.raises(PermissionDenied):
+        op(
+            users["viewer"],
+            "firmware_occurrence.adopt",
+            adoption_payload(reviewed),
+            expected_state=reviewed["state"],
+        )
+    Membership.objects.filter(
+        user=users["editor"], project=Draft.objects.get(id=assembly["draft_id"]).definition.project
+    ).update(role="viewer")
+    with pytest.raises(PermissionDenied):
+        adopt(users, reviewed, idempotency_key="independent")
+    with pytest.raises(NotFound):
+        rows(users["outsider"], draft_id=assembly["draft_id"])
+    with pytest.raises(NotFound):
+        op(
+            users["outsider"],
+            "firmware_occurrence.read_adoption",
+            {"adoption_id": saved["adoption_id"]},
+        )
+
+
+def test_retained_source_authority_precedes_changed_request_and_legacy_conflict(
+    users,
+    project,
+    sources,  # noqa: F811
+    board,  # noqa: F811
+):
+    firmware = frozen_firmware(users, project, sources, board)
+    assembly = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "project_id": project,
+            "name": "Synthetic direct controller",
+            "assembly": {
+                "occurrences": [{"local_id": "board", "revision_id": board[0]["revision_id"]}]
+            },
+        },
+    )
+    reviewed = preview(users, assembly, firmware["revision_id"], ["board"])
+    saved = adopt(users, reviewed, idempotency_key="retained")
+    # Remove the assigned firmware from current design; immutable evidence retains its pins.
+    updated = op(
+        users["editor"],
+        "assembly.update",
+        {"draft_id": assembly["draft_id"], "assembly": assembly["content"]["assembly"]},
+        expected_state=saved["state"],
+    )
+    clean_review = preview(users, updated, None, ["board"])
+    foreign = op(users["outsider"], "project.create", {"name": "Hidden source owner"})["project_id"]
+    register(users["outsider"], foreign, b"unavailable origin")
+    SourceBundleFile.objects.create(
+        revision_id=sources["revision_id"],
+        path="retained-origin.bin",
+        media_type="application/octet-stream",
+        rights="private",
+        blob=SourceBlob.objects.get(project_id=foreign),
+    )
+    for legacy in (False, True):
+        if legacy:
+            IdempotencyRecord.objects.filter(
+                operation="firmware_occurrence.adopt", key="retained"
+            ).update(scope="legacy")
+        with pytest.raises(NotFound):
+            adopt(users, clean_review, idempotency_key="retained")
+        with pytest.raises(NotFound):
+            op(
+                users["viewer"],
+                "firmware_occurrence.read_adoption",
+                {"adoption_id": saved["adoption_id"]},
+            )
+    assert FirmwareAdoption.objects.count() == 1
+
+
+def test_full_retained_ancestor_dependency_precedes_paths(users, pair):
+    assembly, _, second = pair
+    foreign = op(users["outsider"], "project.create", {"name": "Hidden ancestor"})["project_id"]
+    definition = op(
+        users["outsider"],
+        "definition.create",
+        {"project_id": foreign, "name": "Ancestor", "kind": "board"},
+    )
+    origin = op(
+        users["outsider"],
+        "draft.freeze",
+        {"draft_id": definition["draft_id"]},
+        expected_state=definition["state"],
+    )
+    SnapshotDependency.objects.create(
+        snapshot=Revision.objects.get(id=second["revision_id"]).snapshot,
+        revision_id=origin["revision_id"],
+    )
+    with pytest.raises(NotFound):
+        preview(users, assembly, second["revision_id"], ["missing"])
+
+
+def test_invalid_payload_and_missing_path_never_write(users, pair):
+    assembly, _, second = pair
+    for path in ([], ["BAD"]):
+        with pytest.raises(ValidationFailed):
+            preview(users, assembly, second["revision_id"], path)
+    with pytest.raises(NotFound):
+        preview(users, assembly, second["revision_id"], ["missing"])
+    reviewed = preview(users, assembly, second["revision_id"])
+    for basis in ("", "   "):
+        with pytest.raises(ValidationFailed):
+            op(
+                users["editor"],
+                "firmware_occurrence.adopt",
+                {**adoption_payload(reviewed), "basis": basis},
+                expected_state=reviewed["state"],
+            )
+    assert not FirmwareAdoption.objects.exists()
+
+
+def test_database_evidence_is_immutable_and_invalid_links_rejected(users, pair):
+    assembly, _, second = pair
+    saved = adopt(users, preview(users, assembly, second["revision_id"]))
+    row = FirmwareAdoption.objects.get(id=saved["adoption_id"])
+    for mutate in (
+        lambda: FirmwareAdoption.objects.filter(pk=row.id).update(basis="changed"),
+        lambda: FirmwareAdoption.objects.filter(pk=row.id).delete(),
+    ):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            mutate()
+    values = {
+        field.name: getattr(row, field.name)
+        for field in row._meta.fields
+        if field.name not in {"id", "created_at"}
+    }
+    values["path"] = ["other"]
+    with pytest.raises(IntegrityError), transaction.atomic():
+        FirmwareAdoption.objects.create(**values)
+
+
+def test_http_and_jobs_share_review_adoption_and_denial(users, pair):
+    assembly, _, second = pair
+    payload = {
+        "draft_id": assembly["draft_id"],
+        "path": ["right", "board"],
+        "firmware_revision_id": second["revision_id"],
+    }
+    reviewed = post_op(api(users["viewer"]), "firmware_occurrence.review", payload)
+    assert reviewed.status_code == 200
+    body = reviewed.json()["result"]
+    denied = post_op(
+        api(users["viewer"]),
+        "firmware_occurrence.adopt",
+        adoption_payload(body),
+        expected_state=body["state"],
+    )
+    assert denied.status_code == 403
+    saved = post_op(
+        api(users["editor"]),
+        "firmware_occurrence.adopt",
+        adoption_payload(body),
+        expected_state=body["state"],
+        idempotency_key="http",
+    )
+    assert saved.status_code == 200 and saved.json()["result"]["adoption_id"]
+    assert FirmwareAdoption.objects.count() == 1
+    assert (
+        post_op(
+            api(users["viewer"]), "firmware_occurrence.inspect", {"draft_id": assembly["draft_id"]}
+        ).status_code
+        == 200
+    )
+    assert post_op(api(users["outsider"]), "firmware_occurrence.review", payload).status_code == 404
+    assert (
+        post_op(
+            api(users["viewer"]),
+            "firmware_occurrence.inspect",
+            {"draft_id": assembly["draft_id"]},
+            idempotency_key="read",
+        ).status_code
+        == 422
+    )
+
+
+def test_adoption_failure_rolls_back_assignment(users, pair, monkeypatch):
+    assembly, _, second = pair
+    reviewed = preview(users, assembly, second["revision_id"])
+
+    def fail(**kwargs):
+        raise IntegrityError("Synthetic evidence failure")
+
+    monkeypatch.setattr(FirmwareAdoption.objects, "create", fail)
+    with pytest.raises(IntegrityError):
+        adopt(users, reviewed, idempotency_key="rollback")
+    assert Draft.objects.get(id=assembly["draft_id"]).state_token == reviewed["state"]
+    assert not IdempotencyRecord.objects.filter(operation="firmware_occurrence.adopt").exists()
+    assert not FirmwareAdoption.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_competing_reviewed_adoptions_have_one_winner(users, pair):
+    assembly, _, second = pair
+    reviewed = preview(users, assembly, second["revision_id"])
+    barrier = Barrier(2)
+
+    def attempt_adoption(_):
+        close_old_connections()
+        barrier.wait(timeout=10)
+        try:
+            adopt(users, reviewed)
+            return "adopted"
+        except Conflict:
+            return "conflict"
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(attempt_adoption, range(2)))
+    assert sorted(outcomes) == ["adopted", "conflict"]
+    assert FirmwareAdoption.objects.count() == 1
+    assert Draft.objects.get(id=assembly["draft_id"]).version == 2
