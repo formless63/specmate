@@ -6,6 +6,8 @@ import { unpreparedProfile, wireModel } from '../../../../packages/wire-geometry
 import { buildWireObject } from '../../../../packages/wire-geometry/src/scene';
 import type { Address, Geometry, Matrix, SharedScene, Vec3 } from './api';
 import { selectionKey } from './api';
+import { closedDisplay, displayMatrix } from './display';
+import type { Display } from './display';
 
 export type Arrangement = 'canonical' | 'inspection';
 export interface SceneObject {
@@ -14,7 +16,6 @@ export interface SceneObject {
   unknown: string[];
   dispose: () => void;
 }
-const matrix = (value: Matrix) => new THREE.Matrix4().set(...value.flat() as [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number]);
 
 function geometryObject(resource: Geometry): { group: THREE.Group; unknown: string[]; dispose: () => void } {
   const group = new THREE.Group();
@@ -55,7 +56,7 @@ function geometryObject(resource: Geometry): { group: THREE.Group; unknown: stri
 /** One resource's geometry is shared by clones, but selection stays occurrence-specific.
  * Inspection layout is ephemeral and never fills in an unknown canonical placement.
  */
-export function buildSceneObject(scene: SharedScene, arrangement: Arrangement): SceneObject {
+export function buildSceneObject(scene: SharedScene, arrangement: Arrangement, display: Display = closedDisplay()): SceneObject {
   const group = new THREE.Group(), objects = new Map<string, THREE.Object3D>(), unknown: string[] = [];
   const resources = new Map(scene.geometry.map(g => [g.geometry_id, g]));
   const built = new Map<string, ReturnType<typeof geometryObject>>();
@@ -74,12 +75,15 @@ export function buildSceneObject(scene: SharedScene, arrangement: Arrangement): 
     const object = original.group.clone(true);
     object.traverse(child => { child.userData.address = address; });
     if (arrangement === 'canonical' && transform) {
-      object.matrixAutoUpdate = false; object.matrix.copy(matrix(transform)); object.matrixWorldNeedsUpdate = true;
+      object.matrixAutoUpdate = false; object.matrix.copy(displayMatrix(scene, address, transform, display)!); object.matrixWorldNeedsUpdate = true;
     } else {
       const bounds = new THREE.Box3().setFromObject(object);
       const width = bounds.max.x - bounds.min.x;
       object.position.set(nextX - bounds.min.x, -bounds.min.y, -bounds.min.z);
       nextX += width + 10;  // Explicit display-only spacing, not an engineering dimension.
+      object.updateMatrix();
+      const base = [0, 1, 2, 3].map(row => [0, 1, 2, 3].map(column => object.matrix.elements[column * 4 + row]!));
+      object.matrix.copy(displayMatrix(scene, address, base, display, false)!); object.matrixAutoUpdate = false; object.matrixWorldNeedsUpdate = true;
     }
     objects.set(selectionKey(address), object); group.add(object);
   };

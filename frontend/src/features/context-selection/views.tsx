@@ -143,7 +143,7 @@ function SceneView() {
     <Text>Scene selection: {node?.address.path.join('/') ?? 'No occurrence'} · feature {feature?.feature_id ?? 'Whole occurrence'}</Text>
     {feature && !drawable && <Text>The selected feature has no drawable 3D geometry. The containing occurrence illustration is highlighted; the exact feature selection remains unchanged.</Text>}
     <Group><Button onClick={() => setOpen(v => !v)}>{open ? 'Close connected scene' : 'Open connected scene'}</Button><Select label="Connected scene arrangement" value={arrangement} allowDeselect={false} data={[{ value: 'canonical', label: 'Canonical' }, { value: 'inspection', label: 'Local inspection' }]} onChange={next => setArrangement(next as 'canonical' | 'inspection')} /></Group>
-    {open && <ViewerBoundary><Suspense fallback={<Text>Loading connected scene…</Text>}><Viewport scene={state.scene!} arrangement={arrangement} selected={visualAddress} onSelect={address => controller.selectOccurrence(address)} /></Suspense></ViewerBoundary>}
+    {open && <ViewerBoundary><Suspense fallback={<Text>Loading connected scene…</Text>}><Viewport scene={state.scene!} arrangement={arrangement} selected={visualAddress} onSelect={address => controller.selectOccurrence(address)} onRestoreCanonical={() => setArrangement('canonical')} /></Suspense></ViewerBoundary>}
   </Stack>;
 }
 function InspectorView() {

@@ -101,6 +101,39 @@ authorized projection, without a persistent cross-project disclosure cache. A dr
 mesh or outline does not establish fit, clearance, manufacturing approval or physical
 qualification.
 
+### Transient view arrangements
+
+The lazy shared and connected scene viewports offer exploded root branches, chosen
+open/closed display rotations, uncapped section clipping and orthographic isometric,
+top, front and end views. These are illustration controls with no engineering write
+path. The underlying frozen occurrence and feature addresses, geometry dimensions,
+source pins, canonical matrices and engineering measurements remain identical.
+
+Explosion uses explicitly chosen display spacing along a world display axis. Every
+nested descendant shares its exact root branch offset. A canonical occurrence with
+unknown placement stays omitted and unknown; spacing never assigns it a placement.
+Local inspection can still show its separate illustration, without establishing a
+canonical world frame. Opening applies to a deliberately selected whole occurrence
+branch, composing a chosen local axis, angle and pivot through its known canonical
+world frame. It is disabled in local inspection or for unknown frames. The default
+pivot is the explicitly displayed local origin, not an inferred physical hinge.
+Opening records no motion envelope, measured closed condition or manufacturing claim.
+
+Section clipping retains the chosen positive or negative half-space of the displayed
+world-axis plane. Rendering and pointer picking use the same plane, so clipped-away
+geometry cannot be selected through invisible fragments. Cuts have no generated caps,
+native cross-section geometry or inferred thickness. A fully clipped occurrence or
+feature remains selected and inspectable through its exact contextual address.
+
+Restore canonical display resets explosion, opening, section controls and camera,
+selects the canonical base arrangement and rebuilds from untouched frozen matrices.
+Closing the opened branch also derives its closed display directly from the canonical
+inputs, without accumulating inverse-transform roundoff. Neither action selects a
+different use or feature. Replacing the snapshot/hash disposes old geometry and resets
+transient controls; existing host project/principal/access boundaries discard the
+viewport when authority changes. Changes draw on demand, hidden views stay paused,
+and close/context-loss cleanup retains the existing resource lifecycle.
+
 ### Connected contextual inspection
 
 The contextual inspection workspace connects tree, native board plane, cable/harness,

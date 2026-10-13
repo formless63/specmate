@@ -75,7 +75,7 @@ function Workspace({ projectId }: { projectId: string }) {
       <Text size="sm">Fit, clearance and manufacturing: not evaluated. Physical qualification: false.</Text>
       <Group><Button onClick={() => setShow3d(v => !v)}>{show3d ? 'Close scene view' : 'Open scene view'}</Button><Select label="Display arrangement" value={arrangement} allowDeselect={false} data={[{ value: 'canonical', label: 'Canonical placed illustrations' }, { value: 'inspection', label: 'Separate local illustrations for inspection' }]} onChange={value => setArrangement(value as 'canonical' | 'inspection')} /></Group>
       <Text size="sm">The inspection arrangement uses separate display spacing. It does not assign missing placements, route wires, establish model correspondence or change frozen state. Board drawings have unknown depth; stock illustrations have unknown installed routes.</Text>
-      {show3d && <ViewerBoundary><Suspense fallback={<Text>Loading scene viewer…</Text>}><Viewport scene={scene} arrangement={arrangement} selected={selected} onSelect={setSelected} /></Suspense></ViewerBoundary>}
+      {show3d && <ViewerBoundary><Suspense fallback={<Text>Loading scene viewer…</Text>}><Viewport scene={scene} arrangement={arrangement} selected={selected} onSelect={setSelected} onRestoreCanonical={() => setArrangement('canonical')} /></Suspense></ViewerBoundary>}
       <OccurrenceList scene={scene} selected={selected} onSelect={setSelected} />
       {node && <SceneInspector key={node.node_id} node={node} selected={selected} geometry={scene.geometry} onSelect={setSelected} />}
       <Title order={3}>Contextual relationships</Title>
