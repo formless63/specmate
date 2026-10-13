@@ -546,7 +546,9 @@ def test_competing_fact_appends_have_one_winner(users, ledger):
         except Conflict:
             return "conflict"
         finally:
-            close_old_connections()
+            # Healthy connections survive close_old_connections(); worker threads
+            # must release their sessions before PostgreSQL test database teardown.
+            connection.close()
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(record, ("10", "12")))
