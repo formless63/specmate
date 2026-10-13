@@ -269,3 +269,38 @@ ideal bridge is required between the harness and board; no mating or association
 inferred. Independent resistor and unsupported-active assertions preserve the native
 candidate boundary and its source provenance. These fixtures exercise shared
 operations against PostgreSQL; they do not execute or qualify a native tool.
+
+## Independent cable length declarations
+
+A cable's optional length plan stores independent route, finished, planned stock-cut
+and conductive-feature cut declarations in exact millimetres. Every known value
+requires a human declaration and explanation; blank values remain unknown. Conductor
+cuts retain the cable's exact stock revision, conductive kind and full stable element
+path. A cut for a shield or drain is distinct from a core cut. These planned lengths
+never update stock construction, stock ledger quantities, workshop profiles or saved
+preparation geometry. Harness section cuts remain separately owned declarations.
+
+An optional explicit model relates finished length to route, stock cut to route or
+finished length, and individual conductive cuts to route, finished or stock cut.
+Reviewed models add declared slack/preparation allowances and subtract explicit trim
+allowances. Each allowance identifies its whole-target or exact endpoint scope and
+basis. Null is unknown; zero is a deliberate zero allowance. Empty allowance lists
+explicitly add zero. Unreviewed relationships are inspectable but produce no suggestion.
+A modeled source uses its model result, so unknown inputs propagate through downstream
+models even when an independent saved declaration exists. Suggestions and declaration
+mismatches are visible; applying a suggestion requires a deliberate draft edit.
+
+Existing cable create/update/snapshot/freeze commands preserve the plan under the same
+state token, permissions, source closure and immutable history as terminations. The
+structured cable editor records declarations and reviewed models; frozen inspection
+shows their independent values and bases. `cable.length_impact` and the cable HTTP
+length-impact query compare two exact revisions of one definition, including hashes,
+changed declarations/model suggestions and preparation/document review requirements.
+A route change requires review even without a model. Comparison performs no stock or
+cut-declaration writes. Current source access is rechecked before both revisions are
+shown, and denied browser refreshes hide retained results.
+
+This length model is an explicitly reviewed arithmetic relationship, not a geometric
+routing solver or a measurement. It does not derive physical conductor length from a
+helical illustration, infer longest-leg cuts, interpret prepend/profile semantics,
+produce manufacturing documents, or establish clearance or physical qualification.

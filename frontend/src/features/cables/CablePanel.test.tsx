@@ -57,16 +57,21 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
     fireEvent.change(screen.getByLabelText(`Endpoint ${index} termination basis`), { target: { value: 'Synthetic table' } });
     fireEvent.click(screen.getByText(`Assign endpoint ${index} terminal`));
   }
+  fireEvent.click(screen.getByLabelText('Record independent cable lengths'));
+  fireEvent.change(screen.getByLabelText('Route declared mm'), { target: { value: '1000.000001' } });
+  fireEvent.change(screen.getByLabelText('Route declaration basis'), { target: { value: 'Synthetic route' } });
   fireEvent.click(screen.getByText('Create cable draft'));
   const heading = await screen.findByText('Edit draft');
   const editor = within(heading.closest('.mantine-Card-root')! as HTMLElement);
   fireEvent.change(editor.getByLabelText('Cable review basis'), { target: { value: 'Independent review' } });
+  expect((editor.getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('1000.000001');
+  fireEvent.change(editor.getByLabelText('Route declared mm'), { target: { value: '1100.000001' } });
   fireEvent.click(editor.getByText('Save cable draft'));
   await screen.findByText('draft-v2');
   fireEvent.click(screen.getByText('Freeze cable revision'));
   await screen.findByText('Exact revision cable-rev');
   expect(commands[0]).toMatchObject({ operation: 'cable.create', payload: { cable: { stock_revision_id: 'stock-rev', assignments: [{ endpoint_id: 'a', element_path: 'stock.core', contact_id: 'one' }, { endpoint_id: 'b', element_path: 'stock.core', contact_id: 'two' }] } } });
-  expect(commands[1]).toMatchObject({ operation: 'cable.update', expected_state: 'draft-v1' });
+  expect(commands[1]).toMatchObject({ operation: 'cable.update', expected_state: 'draft-v1', payload: { cable: { lengths: { route: { amount_mm: '1100.000001' } } } } });
   expect(commands[2]).toMatchObject({ operation: 'cable.freeze', expected_state: 'draft-v2' });
   expect(await screen.findByText('stock.core · conductor')).toBeTruthy();
   expect(screen.getAllByText('unknown / unassigned')).toHaveLength(2);
@@ -97,6 +102,7 @@ async function openRetainedDraft() {
   const cable = initialCable();
   cable.stock_revision_id = 'stock-rev';
   cable.endpoints.forEach(e => { e.body_revision_id = 'body-rev'; e.pinout_revision_id = 'pinout-rev'; });
+  cable.lengths = { route: { amount_mm: '1234', basis: 'human_declaration', explanation: 'Private route basis' }, finished: { declaration: { amount_mm: null, basis: 'unknown', explanation: null }, model: null }, stock_cut: { declaration: { amount_mm: null, basis: 'unknown', explanation: null }, model: null }, conductor_cuts: [] };
   cable.assignments = [{ endpoint_id: 'a', element_path: 'stock.core', contact_id: 'one', basis: 'Private assignment basis' }];
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let deniedPath = '';
@@ -131,6 +137,7 @@ test.each([
   await act(async () => { await cache.refetchQueries({ queryKey: key as (string | number)[] }); });
   expect(await screen.findByText('Current access denied.')).toBeTruthy();
   expect(screen.queryByText('stock.core → one · Private assignment basis')).toBeNull();
+  expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Save cable draft' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Freeze cable revision' })).toBeNull();
   if (_name !== 'draft') expect(screen.queryByRole('combobox', { name: 'Inspect frozen cable' })).toBeNull();
@@ -160,6 +167,7 @@ test.each([
   await act(async () => { await cache.refetchQueries({ queryKey: key }); });
   expect((await screen.findAllByText('Current access denied.')).length).toBeGreaterThan(0);
   expect(screen.queryByText('stock.core → one · Private assignment basis')).toBeNull();
+  expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
   for (const input of [conductive, contact] as HTMLInputElement[]) {
     expect(input.disabled).toBe(true);
     expect(input.value).toBe('');

@@ -1,3 +1,4 @@
+import { LengthsEditor, LengthInspection, LengthImpactView } from "./Lengths";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -52,7 +53,7 @@ function Workspace({ projectId }: { projectId: string }) {
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     {draft.data && !draft.isError && !workspaceDenied && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={currentDefinitions} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} /><Button disabled={draftSourceDenied} loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze cable revision</Button></>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-    {revisionId && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} />}
+    {revisionId && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
   </Stack>;
 }
 
@@ -101,6 +102,7 @@ export function CableEditor({ value, onChange, definitions, onAuthorityChange }:
       <RevisionPicker label={`Endpoint ${index + 1} pinout`} kind="pinout" value={endpoint.pinout_revision_id} onChange={pinout_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, pinout_revision_id } : e) })} definitions={definitions} />
       <TerminationEditor value={value} index={index} choices={choices} onChange={onChange} denied={denied} body={sourceFor('cable-body', endpoint.body_revision_id)} pinout={sourceFor('cable-pinout', endpoint.pinout_revision_id)} />
     </Stack></Card>)}
+    {!denied && <LengthsEditor value={value.lengths} onChange={lengths => onChange({ ...value, lengths })} choices={choices} endpoints={value.endpoints.map(e => e.local_id)} />}
     <Select label="Cable review" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Cable['review'] })} />
     <TextInput label="Cable review basis" value={value.review_basis ?? ''} onChange={event => onChange({ ...value, review_basis: event.currentTarget.value || null })} />
   </Stack>;
@@ -126,12 +128,14 @@ function TerminationEditor({ value, index, choices, onChange, denied, body, pino
     <Button disabled={!canAdd} onClick={() => { if (element && contact) { onChange({ ...value, assignments: [...value.assignments, { endpoint_id: endpoint.local_id, element_path: element, contact_id: contact, basis }] }); setElement(null); setContact(null); } }}>Assign endpoint {index + 1} terminal</Button>
   </Stack>;
 }
-export function CableInspector({ revisionId }: { revisionId: string }) {
+export function CableInspector({ revisionId, revisions = [] }: { revisionId: string; revisions?: { revision_id: string; number: number }[] }) {
   const result = useQuery({ queryKey: ['cable-inspection', revisionId], queryFn: () => read<Inspection>(`cables/revisions/${revisionId}`) });
   return <Card withBorder><Stack><Title order={3}>Frozen cable inspection</Title><Text>Exact revision {revisionId}</Text>
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {result.data && !result.isError && <><Text>Stock revision: {result.data.cable.stock_revision_id}</Text><Text>Review: {result.data.cable.review}; basis: {result.data.cable.review_basis ?? 'unknown'}</Text>
       <Text>Continuity: {result.data.continuity}. Compatibility: {result.data.compatibility}. Physical qualification: {result.data.physical_qualification}.</Text>
+      {result.data.lengths && <LengthInspection projection={result.data.lengths} />}
+      <LengthImpactView key={`impact:${revisionId}`} afterRevision={revisionId} revisions={revisions} />
       <Table><Table.Thead><Table.Tr><Table.Th>Stable stock feature</Table.Th>{result.data.cable.endpoints.map(e => <Table.Th key={e.local_id}>{e.label ?? e.local_id} ({e.local_id})</Table.Th>)}</Table.Tr></Table.Thead><Table.Tbody>
         {result.data.conductors.map(row => <Table.Tr key={row.element_path}><Table.Td>{row.element_path} · {row.kind}</Table.Td>{row.ends.map(end => <Table.Td key={end.endpoint_id}>{end.assignment ? `${end.assignment.contact_id} · ${end.assignment.basis}` : 'unknown / unassigned'}</Table.Td>)}</Table.Tr>)}
       </Table.Tbody></Table>
