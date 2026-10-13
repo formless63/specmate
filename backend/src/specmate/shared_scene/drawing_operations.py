@@ -38,7 +38,7 @@ def drawing_record(user, drawing_id, project_id=None):
     if drawing is None:
         raise NotFound("Drawing unavailable.")
     authorize(user, drawing.project_id, Perm.PROJECT_READ)
-    authorized_scene(user, drawing.snapshot_id)
+    authorized_scene(user, drawing.snapshot_id, drawing.project_id)
     if hashlib.sha256(bytes(drawing.svg)).hexdigest() != drawing.svg_sha256 or (
         hashlib.sha256(bytes(drawing.manifest)).hexdigest() != drawing.manifest_sha256
     ):

@@ -624,3 +624,23 @@ def test_render_budgets_fail_atomically_even_when_every_segment_would_be_clipped
     with pytest.raises(ValidationFailed, match="output byte limit"):
         drawing(users["viewer"], project, frozen)
     assert SceneDrawing.objects.count() == 0 and IdempotencyRecord.objects.count() == before
+
+
+def test_retained_record_root_project_match_is_current_even_when_actor_reads_both(users, project):
+    from specmate.design.models import Definition
+
+    owner = users["owner"]
+    frozen = freeze(owner, create(owner, project))
+    created = drawing(owner, project, frozen)
+    expected = read(owner, created)
+    other = op(owner, "project.create", {"name": "Other readable root scope"})["project_id"]
+    definition_id = Snapshot.objects.get(id=frozen["snapshot_id"]).definition_id
+    # Trusted DB-state simulation only: no normal engineering ownership command.
+    # Definition metadata is mutable; no immutable row/guard is changed or disabled.
+    Definition.objects.filter(id=definition_id).update(project_id=other)
+    with pytest.raises(NotFound):
+        read(owner, created)
+    with pytest.raises(NotFound):
+        drawing(owner, project, frozen)
+    Definition.objects.filter(id=definition_id).update(project_id=project)
+    assert read(owner, created) == expected
