@@ -1,0 +1,200 @@
+{
+  "$defs": {
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceInput",
+      "type": "object"
+    },
+    "FeatureCorrespondence": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "candidate_feature_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Candidate Feature Id",
+          "type": "string"
+        },
+        "old_feature_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Old Feature Id",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "old_feature_id",
+        "candidate_feature_id",
+        "basis"
+      ],
+      "title": "FeatureCorrespondence",
+      "type": "object"
+    },
+    "ImpactAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "status": {
+          "default": "not_evaluated",
+          "enum": [
+            "not_evaluated",
+            "unknown",
+            "reviewed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "ImpactAssessment",
+      "type": "object"
+    },
+    "Impacts": {
+      "additionalProperties": false,
+      "properties": {
+        "electrical": {
+          "$ref": "#/$defs/ImpactAssessment"
+        },
+        "evidence": {
+          "$ref": "#/$defs/ImpactAssessment"
+        },
+        "firmware": {
+          "$ref": "#/$defs/ImpactAssessment"
+        },
+        "manufacturing": {
+          "$ref": "#/$defs/ImpactAssessment"
+        },
+        "mechanical": {
+          "$ref": "#/$defs/ImpactAssessment"
+        }
+      },
+      "title": "Impacts",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "accepted",
+        "rejected",
+        "needs_evidence"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "evidence": {
+      "$ref": "#/$defs/EvidenceInput"
+    },
+    "features": {
+      "items": {
+        "$ref": "#/$defs/FeatureCorrespondence"
+      },
+      "maxItems": 2000,
+      "title": "Features",
+      "type": "array"
+    },
+    "impacts": {
+      "$ref": "#/$defs/Impacts"
+    },
+    "proposal_id": {
+      "format": "uuid",
+      "title": "Proposal Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "proposal_id",
+    "decision",
+    "basis"
+  ],
+  "title": "ReviewUpgrade",
+  "type": "object"
+}

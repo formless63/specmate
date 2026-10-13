@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "draft_expected_state": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Draft Expected State"
+    },
+    "draft_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Draft Id"
+    },
+    "mode": {
+      "enum": [
+        "new_draft",
+        "existing_draft"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "proposal_id": {
+      "format": "uuid",
+      "title": "Proposal Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "proposal_id",
+    "mode"
+  ],
+  "title": "ApplyUpgrade",
+  "type": "object"
+}

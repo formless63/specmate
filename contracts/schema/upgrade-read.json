@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "proposal_id": {
+      "format": "uuid",
+      "title": "Proposal Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "proposal_id"
+  ],
+  "title": "ReadUpgrade",
+  "type": "object"
+}

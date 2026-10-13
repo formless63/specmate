@@ -1,0 +1,49 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "candidate_revision_id": {
+      "format": "uuid",
+      "title": "Candidate Revision Id",
+      "type": "string"
+    },
+    "old_revision_id": {
+      "format": "uuid",
+      "title": "Old Revision Id",
+      "type": "string"
+    },
+    "owning_snapshot_id": {
+      "format": "uuid",
+      "title": "Owning Snapshot Id",
+      "type": "string"
+    },
+    "paths": {
+      "items": {
+        "items": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "type": "string"
+        },
+        "maxItems": 32,
+        "type": "array"
+      },
+      "maxItems": 1000,
+      "minItems": 1,
+      "title": "Paths",
+      "type": "array"
+    }
+  },
+  "required": [
+    "owning_snapshot_id",
+    "old_revision_id",
+    "candidate_revision_id",
+    "paths",
+    "basis"
+  ],
+  "title": "ProposeUpgrade",
+  "type": "object"
+}
