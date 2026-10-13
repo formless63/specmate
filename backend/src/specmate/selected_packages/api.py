@@ -6,6 +6,7 @@ from ninja import Router
 from specmate.operations import Context, execute
 from specmate.selected_packages.contracts import Download
 
+
 def download(request, payload: Download):
     result = execute(
         "selected_package.download",
