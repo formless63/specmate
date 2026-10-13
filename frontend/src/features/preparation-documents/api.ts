@@ -1,6 +1,7 @@
 import { sha256Hex } from '../../lib/sha256';
-import { ApiError, runOperation } from '../workspace/api';
-export { requestJson, ApiError } from '../workspace/api';
+import { ApiError, requestJson as request, runOperation } from '../workspace/api';
+export { ApiError } from '../workspace/api';
+export const requestJson = <T,>(path: string) => request<T>(path, { cache: 'no-store' });
 export type RightsReview = { subject: string; decision: 'unknown' | 'permitted' | 'withheld'; basis: string };
 export type EndBinding = { section_id: string | null; profile_revision_id: string; a_end_id: string | null; b_end_id: string | null; mapping_review: 'unreviewed' | 'reviewed'; mapping_basis: string };
 export type Binding = { occurrence_path: string[]; cut_profiles: { section_id: string | null; profile_revision_id: string }[]; end_profiles: EndBinding[]; test_plan_revision_id: string | null };
@@ -16,7 +17,7 @@ export async function generate(config: Configuration, state: string, key: string
 export async function receipt(id: string) { return (await runOperation<Receipt>('preparation_documents.read', { document_set_id: id })).result; }
 export async function download(id: string, output: Output): Promise<Blob> {
   const token = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('csrftoken='))?.slice(10) ?? '';
-  const response = await fetch('/api/v0/preparation-documents/download', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(token) }, body: JSON.stringify({ document_set_id: id, filename: output.filename }) });
+  const response = await fetch('/api/v0/preparation-documents/download', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(token) }, body: JSON.stringify({ document_set_id: id, filename: output.filename }) });
   if (!response.ok) { const body = await response.json().catch(() => null); throw new ApiError(response.status, body?.error?.message ?? `Document download failed (${response.status}).`); }
   const bytes = await response.arrayBuffer();
   if (bytes.byteLength !== output.size || await sha256Hex(bytes) !== output.sha256) throw new Error('Retained document hash or size mismatch.');

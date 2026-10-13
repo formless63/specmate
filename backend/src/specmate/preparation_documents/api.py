@@ -3,7 +3,7 @@
 import base64
 from uuid import UUID
 
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from ninja import Router
 
 from specmate.access.permissions import Perm, authorize
@@ -30,12 +30,17 @@ def records(request, project_id: UUID):
         except OperationError:
             continue
         visible.append(result(record))
-    return {"document_sets": visible, "listing": "latest_50_candidates_no_hidden_total"}
+    return JsonResponse(
+        {"document_sets": visible, "listing": "latest_50_candidates_no_hidden_total"},
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 @router.get("/sets/{set_id}")
 def receipt(request, set_id: UUID):
-    return result(authorized_set(request.user, set_id))
+    return JsonResponse(
+        result(authorized_set(request.user, set_id)), headers={"Cache-Control": "private, no-store"}
+    )
 
 
 @router.post("/download")

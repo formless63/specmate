@@ -557,8 +557,13 @@ def test_new_root_revision_keeps_old_frozen_bytes_and_exact_binary_adapter(users
     assert response["Cache-Control"] == "private, no-store"
     assert response["X-Content-Type-Options"] == "nosniff"
     assert "sandbox" in response["Content-Security-Policy"]
-    assert documents_api.receipt(request, saved["document_set_id"])["sha256"] == saved["sha256"]
-    assert len(documents_api.records(request, project)["document_sets"]) == 2
+    assert (
+        json.loads(documents_api.receipt(request, saved["document_set_id"]).content)["sha256"]
+        == saved["sha256"]
+    )
+    listed = documents_api.records(request, project)
+    assert listed["Cache-Control"] == "private, no-store"
+    assert len(json.loads(listed.content)["document_sets"]) == 2
 
 
 def test_output_metadata_cannot_depart_from_immutable_manifest(users, project):
