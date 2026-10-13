@@ -2,13 +2,26 @@ import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { App } from "./App";
+import { lazy } from "react";
+import { App, ToolLoadingBoundary } from "./App";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   Element.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+test("a rejected deferred tool stays contained with explicit reload guidance", async () => {
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  const Unavailable = lazy(() => Promise.reject(new Error("Synthetic module unavailable")));
+  try {
+    render(<MantineProvider><ToolLoadingBoundary><Unavailable /></ToolLoadingBoundary></MantineProvider>);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByText(/unsaved edits will be lost/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reload page" })).toBeTruthy();
+    expect(screen.queryByText("Synthetic module unavailable")).toBeNull();
+  } finally { errors.mockRestore(); }
+});
 
 function renderApp() {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });

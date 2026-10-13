@@ -32,7 +32,9 @@ export default function WireViewport({ model }: { model: WireModel }) {
     const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 10000);
     const controls = new OrbitControls(camera, element);
     controls.enableDamping = false;
-    const render = () => renderer.render(scene, camera);
+    const render = () => {
+      if (container.clientWidth > 0 && document.visibilityState !== 'hidden') renderer.render(scene, camera);
+    };
     const frame = (end?: 'a' | 'b') => {
       const bounds = live.current?.object ? new THREE.Box3().setFromObject(live.current.object.group) : new THREE.Box3();
       const center = bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3());
@@ -56,16 +58,18 @@ export default function WireViewport({ model }: { model: WireModel }) {
     live.current = { scene, frame };
     reset.current = frame;
     const resize = () => {
-      const width = Math.max(container.clientWidth, 1), height = 360;
+      const width = container.clientWidth, height = 360;
+      if (width <= 0) return;
       renderer.setSize(width, height, false); camera.aspect = width / height; frame();
     };
     controls.addEventListener('change', render);
     const observer = new ResizeObserver(resize); observer.observe(container); resize();
+    document.addEventListener('visibilitychange', render);
     const lost = (event: Event) => { event.preventDefault(); setProblem('The WebGL context was lost. Close and reopen the 3D preview to retry.'); };
     element.addEventListener('webglcontextlost', lost);
     return () => {
       reset.current = () => {};
-      observer.disconnect(); element.removeEventListener('webglcontextlost', lost);
+      observer.disconnect(); document.removeEventListener('visibilitychange', render); element.removeEventListener('webglcontextlost', lost);
       controls.removeEventListener('change', render); controls.dispose(); live.current?.object?.dispose(); live.current = null;
       renderer.dispose(); renderer.forceContextLoss(); element.remove();
     };

@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, render } from '@testing-library/react';
-import { afterEach, expect, test, vi } from 'vitest';
+import { act, cleanup, render } from '@testing-library/react';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { sectionLayout } from '../../../../packages/section-layout/src';
 import { unpreparedProfile, wireModel } from '../../../../packages/wire-geometry/src/model';
 import { stockPresets } from './presets';
@@ -15,7 +15,8 @@ vi.mock('three', async original => ({ ...await original<typeof import('three')>(
   dispose = lifecycle.dispose;
   forceContextLoss = lifecycle.loss;
 } }));
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+beforeEach(() => { vi.clearAllMocks(); vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(600); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 test('reuses one context across model edits, renders on demand, and cleans up on close', () => {
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect = lifecycle.disconnected; });
@@ -37,4 +38,42 @@ test('reuses one context across model edits, renders on demand, and cleans up on
   expect(lifecycle.loss).toHaveBeenCalledTimes(1);
   expect(lifecycle.disconnected).toHaveBeenCalledTimes(1);
   raf.mockRestore();
+});
+
+test('hidden tabs and documents suppress drawing and reveal renders the retained model', () => {
+  let width = 600;
+  let resize = () => {};
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width);
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: () => void) { resize = callback; }
+    observe() {} disconnect = lifecycle.disconnected;
+  });
+  const section = sectionLayout(stockPresets.coax!);
+  const show = (length: number) => <MantineProvider><WireViewport model={wireModel(section, length, unpreparedProfile())} /></MantineProvider>;
+  const view = render(show(50));
+  const drawn = lifecycle.render.mock.calls.length;
+  expect(drawn).toBeGreaterThan(0);
+  width = 0;
+  act(() => resize());
+  view.rerender(show(75));
+  expect(lifecycle.render).toHaveBeenCalledTimes(drawn);
+  expect(lifecycle.construct).toHaveBeenCalledTimes(1);
+  width = 600;
+  act(() => resize());
+  expect(lifecycle.render.mock.calls.length).toBeGreaterThan(drawn);
+  const revealed = lifecycle.render.mock.calls.length;
+  visibility.mockReturnValue('hidden');
+  act(() => document.dispatchEvent(new Event('visibilitychange')));
+  view.rerender(show(100));
+  expect(lifecycle.render).toHaveBeenCalledTimes(revealed);
+  visibility.mockReturnValue('visible');
+  act(() => document.dispatchEvent(new Event('visibilitychange')));
+  expect(lifecycle.render).toHaveBeenCalledTimes(revealed + 1);
+  view.unmount();
+  const closed = lifecycle.render.mock.calls.length;
+  act(() => document.dispatchEvent(new Event('visibilitychange')));
+  expect(lifecycle.render).toHaveBeenCalledTimes(closed);
+  expect(lifecycle.dispose).toHaveBeenCalledTimes(1);
+  expect(lifecycle.loss).toHaveBeenCalledTimes(1);
 });

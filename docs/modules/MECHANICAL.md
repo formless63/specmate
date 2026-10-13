@@ -22,6 +22,14 @@ Repeated instances may share geometry without sharing selection or firmware assi
 Maintain mappings across tree/board/cable/BOM/inspector views. Wire-local coordinates can
 be adapted without rewriting retained geometry conventions; document the frame transform.
 
+Project tools load their code on the first tab visit. Visited panels retain unsaved
+draft state while hidden; project changes and sign-out discard that state. A tool that
+cannot load displays a contained error and an explicit page reload action. The wire
+viewer draws on control, resize or model changes without an animation loop, suppresses
+draws in zero-width hidden tabs and hidden documents, and draws the retained model when
+visible again. Closing it disposes scene resources and releases its WebGL context.
+These lifecycle rules do not establish hardware performance or physical qualification.
+
 ## Acceptance emphasis
 
 Use occurrence/transform fixtures and an independently dimensioned synthetic board/enclosure.

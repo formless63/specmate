@@ -1,22 +1,24 @@
-import { Tabs } from "@mantine/core";
-import { useState } from "react";
-import { AssemblyPanel } from "./features/assemblies/AssemblyPanel";
-import { ProjectAccessPanel } from "./features/project-access/ProjectAccessPanel";
-import { IdentityPanel } from "./features/identity/IdentityPanel";
-import { FactsPanel } from "./features/facts/FactsPanel";
-import { InterfacePanel } from "./features/interfaces/InterfacePanel";
-import { InventoryPanel } from "./features/inventory/InventoryPanel";
-import { PcbPanel } from "./features/pcb/PcbPanel";
-import { WireStockPanel } from "./features/wire-stock/WireStockPanel";
+import { Alert, Button, Tabs, Text } from "@mantine/core";
+import { Component, lazy, Suspense, useState, type ReactNode } from "react";
+
 import { WorkspaceShell } from "./features/workspace";
-import { WorkshopProfilePanel } from "./features/workshop-profiles/WorkshopProfilePanel";
-import { DiscoveryPanel } from "./features/discovery/DiscoveryPanel";
-import { PhysicalUnitsPanel } from "./features/physical-units/PhysicalUnitsPanel";
-import { BomPanel } from "./features/bom/BomPanel";
-import { CablePanel } from "./features/cables/CablePanel";
-import { MatchingWorkspace } from "./features/catalog-matching/MatchingWorkspace";
-import { CatalogPacksWorkspace } from "./features/catalog-packs/CatalogPacksWorkspace";
-import { HarnessPanel } from "./features/harnesses/HarnessPanel";
+
+const AssemblyPanel = lazy(() => import("./features/assemblies/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel })));
+const ProjectAccessPanel = lazy(() => import("./features/project-access/ProjectAccessPanel").then((module) => ({ default: module.ProjectAccessPanel })));
+const IdentityPanel = lazy(() => import("./features/identity/IdentityPanel").then((module) => ({ default: module.IdentityPanel })));
+const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
+const InterfacePanel = lazy(() => import("./features/interfaces/InterfacePanel").then((module) => ({ default: module.InterfacePanel })));
+const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
+const PcbPanel = lazy(() => import("./features/pcb/PcbPanel").then((module) => ({ default: module.PcbPanel })));
+const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
+const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
+const DiscoveryPanel = lazy(() => import("./features/discovery/DiscoveryPanel").then((module) => ({ default: module.DiscoveryPanel })));
+const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/PhysicalUnitsPanel").then((module) => ({ default: module.PhysicalUnitsPanel })));
+const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
+const CablePanel = lazy(() => import("./features/cables/CablePanel").then((module) => ({ default: module.CablePanel })));
+const MatchingWorkspace = lazy(() => import("./features/catalog-matching/MatchingWorkspace").then((module) => ({ default: module.MatchingWorkspace })));
+const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/CatalogPacksWorkspace").then((module) => ({ default: module.CatalogPacksWorkspace })));
+const HarnessPanel = lazy(() => import("./features/harnesses/HarnessPanel").then((module) => ({ default: module.HarnessPanel })));
 
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects) =>
@@ -49,21 +51,37 @@ function ProjectWorkspace({ projectId, permissions, onAccessChanged }: { project
       <Tabs.Tab value="physical-units">Physical units</Tabs.Tab>
       <Tabs.Tab value="access">Project access</Tabs.Tab>
     </Tabs.List>
-    <Tabs.Panel value="identity" pt="lg">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="discovery" pt="lg">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="matching" pt="lg">{visited.has("matching") && <MatchingWorkspace projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="catalog-packs" pt="lg">{visited.has("catalog-packs") && <CatalogPacksWorkspace projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="wire-stock" pt="lg">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="workshop-profiles" pt="lg">{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="assemblies" pt="lg">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="facts" pt="lg">{visited.has("facts") && <FactsPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="interfaces" pt="lg">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="cables" pt="lg">{visited.has("cables") && <CablePanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="harnesses" pt="lg">{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="pcb" pt="lg">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</Tabs.Panel>
-    <Tabs.Panel value="inventory" pt="lg">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="bom" pt="lg">{visited.has("bom") && <BomPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="physical-units" pt="lg">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</Tabs.Panel>
-    <Tabs.Panel value="access" pt="lg">{visited.has("access") && <ProjectAccessPanel projectId={projectId} onAccessChanged={onAccessChanged} />}</Tabs.Panel>
+    <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="matching">{visited.has("matching") && <MatchingWorkspace projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="catalog-packs">{visited.has("catalog-packs") && <CatalogPacksWorkspace projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="wire-stock">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="workshop-profiles">{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="interfaces">{visited.has("interfaces") && <InterfacePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="cables">{visited.has("cables") && <CablePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="harnesses">{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="pcb">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="inventory">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="bom">{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="physical-units">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="access">{visited.has("access") && <ProjectAccessPanel projectId={projectId} onAccessChanged={onAccessChanged} />}</ToolPanel>
   </Tabs>;
+}
+
+function ToolPanel({ value, children }: { value: string; children: ReactNode }) {
+  return <Tabs.Panel value={value} pt="lg"><ToolLoadingBoundary><Suspense fallback={<Text role="status">Loading tool…</Text>}>{children}</Suspense></ToolLoadingBoundary></Tabs.Panel>;
+}
+
+export class ToolLoadingBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <Alert color="red" role="alert">
+      <Text>This tool could not be opened. Reload the page to try again; unsaved edits will be lost.</Text>
+      <Button mt="sm" onClick={() => window.location.reload()}>Reload page</Button>
+    </Alert>;
+  }
 }
