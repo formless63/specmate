@@ -475,3 +475,189 @@ def test_competing_reviewed_adoptions_have_one_winner(users, pair):
     assert sorted(outcomes) == ["adopted", "conflict"]
     assert FirmwareAdoption.objects.count() == 1
     assert Draft.objects.get(id=assembly["draft_id"]).version == 2
+
+
+@pytest.mark.parametrize("corruption", ["review_hash", "before_content", "candidate", "previous"])
+def test_sql_rejects_forged_review_provenance_and_rolls_back(users, pair, monkeypatch, corruption):
+    import copy
+    import hashlib
+
+    from specmate.design.operations import canonical_bytes
+
+    assembly, _, second = pair
+    reviewed = preview(users, assembly, second["revision_id"])
+    create_evidence = FirmwareAdoption.objects.create
+
+    def corrupted(**values):
+        values = copy.deepcopy(values)
+        if corruption == "before_content":
+            values["before_content"] = {}
+        elif corruption == "review_hash":
+            values["review_sha256"] = values["review"]["review_sha256"] = "0" * 64
+        else:
+            values["review"][corruption]["content"]["firmware"]["configuration"][0]["value"] = (
+                "forged"
+            )
+            # Even internally consistent hashes cannot authorize different frozen content.
+            raw = canonical_bytes(
+                {k: v for k, v in values["review"].items() if k != "review_sha256"}
+            )
+            values["review_sha256"] = values["review"]["review_sha256"] = hashlib.sha256(
+                raw
+            ).hexdigest()
+            if "review_canonical" in values:
+                values["review_canonical"] = raw
+        return create_evidence(**values)
+
+    monkeypatch.setattr(FirmwareAdoption.objects, "create", corrupted)
+    with pytest.raises(IntegrityError):
+        adopt(users, reviewed, idempotency_key="forged")
+    assert Draft.objects.get(id=assembly["draft_id"]).content == assembly["content"]
+    assert not FirmwareAdoption.objects.exists()
+    assert not IdempotencyRecord.objects.filter(operation="firmware_occurrence.adopt").exists()
+
+
+def test_retained_adoption_rechecks_original_base_after_new_freeze(users, pair):
+    assembly, _, second = pair
+    foreign = op(users["outsider"], "project.create", {"name": "Original base authority"})[
+        "project_id"
+    ]
+    for actor in (users["owner"], users["editor"], users["viewer"]):
+        Membership.objects.create(project_id=foreign, user=actor, role="viewer")
+    original = op(
+        users["outsider"],
+        "definition.create",
+        {"project_id": foreign, "kind": "board", "name": "Historic provenance"},
+    )
+    dependency = op(
+        users["outsider"],
+        "draft.freeze",
+        {"draft_id": original["draft_id"]},
+        expected_state=original["state"],
+    )
+    historic = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=assembly["state"],
+    )
+    SnapshotDependency.objects.create(
+        snapshot_id=historic["snapshot_id"], revision_id=dependency["revision_id"]
+    )
+    reviewed = preview(users, assembly, second["revision_id"])
+    saved = adopt(users, reviewed, idempotency_key="original-base")
+    op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=saved["state"],
+    )
+    Membership.objects.filter(project_id=foreign).exclude(user=users["outsider"]).delete()
+    with pytest.raises(NotFound):
+        op(
+            users["viewer"],
+            "firmware_occurrence.read_adoption",
+            {"adoption_id": saved["adoption_id"]},
+        )
+    with pytest.raises(NotFound):
+        adopt(users, reviewed, idempotency_key="original-base")
+
+
+@pytest.mark.django_db(transaction=True)
+def test_distinct_competing_adoptions_preserve_only_the_winners_change(users, pair):
+    assembly, first, second = pair
+    reviews = [
+        preview(users, assembly, second["revision_id"]),
+        preview(users, assembly, None, ["left", "board"]),
+    ]
+    barrier = Barrier(2)
+
+    def compete(index):
+        close_old_connections()
+        barrier.wait(timeout=10)
+        try:
+            result = adopt(users, reviews[index], idempotency_key=f"competing-{index}")
+            return index, result
+        except Conflict:
+            return index, None
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(compete, range(2)))
+    winners = [(index, result) for index, result in results if result is not None]
+    assert len(winners) == 1
+    winner, result = winners[0]
+    stored = Draft.objects.get(id=assembly["draft_id"])
+    assert stored.content == result["content"] and stored.version == 2
+    evidence = FirmwareAdoption.objects.get()
+    assert evidence.after_content == stored.content
+    assert evidence.before_content == assembly["content"]
+    assert evidence.path == reviews[winner]["path"]
+    assert IdempotencyRecord.objects.filter(operation="firmware_occurrence.adopt").count() == 1
+    actual = {
+        tuple(row["path"]): row["firmware_revision_id"]
+        for row in rows(users["viewer"], draft_id=assembly["draft_id"])["occurrences"]
+    }
+    assert actual[("left", "board")] == (first["revision_id"] if winner == 0 else None)
+    assert actual[("right", "board")] == (
+        second["revision_id"] if winner == 0 else first["revision_id"]
+    )
+
+
+def test_unknown_configuration_and_toolchain_are_retained_as_declarations(users, pair):
+    import copy
+
+    assembly, _, second = pair
+    revision = Revision.objects.get(id=second["revision_id"])
+    draft = Draft.objects.get(definition=revision.definition)
+    value = copy.deepcopy(draft.content["firmware"])
+    value["toolchain"]["version"] = None
+    value["configuration"].append({"key": "SENSOR", "status": "unknown", "value": None})
+    edited = op(
+        users["owner"],
+        "firmware.update",
+        {"draft_id": str(draft.id), "firmware": value},
+        expected_state=draft.state_token,
+    )
+    frozen = op(
+        users["owner"],
+        "firmware.freeze",
+        {"draft_id": str(draft.id)},
+        expected_state=edited["state"],
+    )
+    reviewed = preview(users, assembly, frozen["revision_id"])
+    assert reviewed["eligible"]
+    assert reviewed["candidate"]["evaluation"]["readiness"] == "declared_with_unknowns"
+    saved = adopt(users, reviewed)
+    retained = op(
+        users["viewer"], "firmware_occurrence.read_adoption", {"adoption_id": saved["adoption_id"]}
+    )
+    assert retained["review"]["candidate"]["content"]["firmware"]["toolchain"]["version"] is None
+    assert retained["compilation"] == retained["flashing"] == "not_performed"
+
+
+def test_inactive_actor_cannot_read_review_adopt_or_replay_retained_evidence(users, pair):
+    from specmate.operations import Unauthenticated
+
+    assembly, _, second = pair
+    reviewed = preview(users, assembly, second["revision_id"])
+    saved = adopt(users, reviewed, idempotency_key="actor")
+    type(users["editor"]).objects.filter(pk=users["editor"].pk).update(is_active=False)
+    assert users["editor"].is_active
+    for name, payload, context in (
+        ("firmware_occurrence.inspect", {"draft_id": assembly["draft_id"]}, {}),
+        (
+            "firmware_occurrence.review",
+            {k: reviewed[k] for k in ("draft_id", "path", "firmware_revision_id")},
+            {},
+        ),
+        (
+            "firmware_occurrence.adopt",
+            adoption_payload(reviewed),
+            {"expected_state": reviewed["state"], "idempotency_key": "actor"},
+        ),
+        ("firmware_occurrence.read_adoption", {"adoption_id": saved["adoption_id"]}, {}),
+    ):
+        with pytest.raises(Unauthenticated):
+            op(users["editor"], name, payload, **context)

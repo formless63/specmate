@@ -11,18 +11,38 @@ CREATE TRIGGER firmware_adoption_immutable BEFORE UPDATE OR DELETE
 ON firmware_occurrences_firmwareadoption FOR EACH ROW
 EXECUTE FUNCTION specmate_reject_mutation();
 CREATE FUNCTION specmate_firmware_adoption_links() RETURNS trigger AS $$
+DECLARE retained jsonb;
 BEGIN
   IF jsonb_typeof(NEW.path) != 'array' OR jsonb_array_length(NEW.path) NOT BETWEEN 1 AND 32
      OR NEW.review->'path' IS DISTINCT FROM NEW.path
      OR NEW.review->>'review_sha256' IS DISTINCT FROM NEW.review_sha256
      OR NEW.review->>'eligible' IS DISTINCT FROM 'true'
      OR NEW.review->>'draft_id' IS DISTINCT FROM NEW.draft_id::text
+     OR NEW.review->>'state' IS DISTINCT FROM 'draft-v' || (NEW.draft_version - 1)::text
+     OR NEW.review->>'base_revision_id' IS DISTINCT FROM NEW.base_revision_id::text
+     OR NEW.review->>'firmware_revision_id' IS DISTINCT FROM NEW.firmware_revision_id::text
+     OR convert_from(NEW.review_canonical, 'UTF8')::jsonb IS DISTINCT FROM
+        (NEW.review - 'review_sha256')
+     OR encode(sha256(NEW.review_canonical), 'hex') IS DISTINCT FROM NEW.review_sha256
+     OR convert_from(NEW.before_canonical, 'UTF8')::jsonb IS DISTINCT FROM NEW.before_content
+     OR encode(sha256(NEW.before_canonical), 'hex') IS DISTINCT FROM
+        NEW.review->>'content_sha256'
+     OR (NEW.before_content - 'assembly') IS DISTINCT FROM (NEW.after_content - 'assembly')
+     OR ((NEW.before_content->'assembly') - 'assignments') IS DISTINCT FROM
+        ((NEW.after_content->'assembly') - 'assignments')
+     OR (SELECT coalesce(jsonb_agg(a ORDER BY a->'path'), '[]'::jsonb)
+         FROM jsonb_array_elements(NEW.before_content->'assembly'->'assignments') a
+         WHERE a->'path' IS DISTINCT FROM NEW.path) IS DISTINCT FROM
+        (SELECT coalesce(jsonb_agg(a ORDER BY a->'path'), '[]'::jsonb)
+         FROM jsonb_array_elements(NEW.after_content->'assembly'->'assignments') a
+         WHERE a->'path' IS DISTINCT FROM NEW.path)
      OR NEW.review_sha256 !~ '^[0-9a-f]{64}$'
      OR NEW.basis !~ '\\S'
      OR NOT EXISTS (
        SELECT 1 FROM design_draft d JOIN design_definition def ON def.id = d.definition_id
        WHERE d.id = NEW.draft_id AND def.kind = 'assembly'
        AND d.version = NEW.draft_version AND d.content = NEW.after_content
+       AND d.base_revision_id IS NOT DISTINCT FROM NEW.base_revision_id
      )
      OR NOT EXISTS (
        SELECT 1 FROM jsonb_array_elements(NEW.after_content->'assembly'->'assignments') a
@@ -31,6 +51,24 @@ BEGIN
      ) THEN
     RAISE EXCEPTION 'invalid contextual firmware adoption evidence' USING ERRCODE = 'check_violation';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM design_revision r JOIN design_snapshot s ON s.id = r.snapshot_id
+    WHERE r.id::text = NEW.review->>'occurrence_revision_id'
+    AND s.sha256 = NEW.review->>'occurrence_snapshot_sha256'
+  ) THEN
+    RAISE EXCEPTION 'invalid occurrence revision evidence' USING ERRCODE = 'check_violation';
+  END IF;
+  FOREACH retained IN ARRAY ARRAY[NEW.review->'previous', NEW.review->'candidate'] LOOP
+    IF retained IS DISTINCT FROM 'null'::jsonb AND NOT EXISTS (
+      SELECT 1 FROM design_revision r JOIN design_definition d ON d.id = r.definition_id
+      JOIN design_snapshot s ON s.id = r.snapshot_id
+      WHERE r.id::text = retained->>'revision_id' AND d.kind = 'firmware'
+      AND s.sha256 = retained->>'snapshot_sha256'
+      AND convert_from(s.canonical, 'UTF8')::jsonb->'content' = retained->'content'
+    ) THEN
+      RAISE EXCEPTION 'invalid retained firmware declaration' USING ERRCODE = 'check_violation';
+    END IF;
+  END LOOP;
   IF NEW.firmware_revision_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM design_revision r JOIN design_definition d ON d.id = r.definition_id
     JOIN design_snapshot s ON s.id = r.snapshot_id
@@ -82,7 +120,9 @@ class Migration(migrations.Migration):
                 ("path", models.JSONField()),
                 ("review_sha256", models.CharField(max_length=64)),
                 ("review", models.JSONField()),
+                ("review_canonical", models.BinaryField()),
                 ("before_content", models.JSONField()),
+                ("before_canonical", models.BinaryField()),
                 ("after_content", models.JSONField()),
                 ("basis", models.TextField()),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
@@ -96,6 +136,15 @@ class Migration(migrations.Migration):
                     "draft",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT, to="design.draft"
+                    ),
+                ),
+                (
+                    "base_revision",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="+",
+                        to="design.revision",
                     ),
                 ),
                 (

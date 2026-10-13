@@ -145,7 +145,7 @@ function OccurrenceWorkspace({ owner, firmware, canEdit }: { owner: Owner; firmw
       <Button disabled={!canEdit || !preview.eligible || !basis.trim() || busy} onClick={() => { void adopt(); }}>Adopt reviewed firmware selection</Button>
       {!canEdit && <Text>This account may review selections; editing permission is required to adopt.</Text>}
     </Stack></Card>}
-    {submission && error && canEdit && <Button disabled={busy} onClick={() => { void adopt(true); }}>Retry reviewed firmware adoption</Button>}
+    {submission && canEdit && <Button disabled={busy} onClick={() => { void adopt(true); }}>Retry reviewed firmware adoption</Button>}
     {adoption && <Card withBorder><Stack><Text>Immutable adoption basis: {adoption.basis}</Text><Text>Context: {adoption.path.join('/')}</Text>
       {adoption.review.previous && <Declaration label="Historical previous firmware" value={adoption.review.previous} />}
       {adoption.review.candidate && <Declaration label="Historical adopted firmware" value={adoption.review.candidate} />}

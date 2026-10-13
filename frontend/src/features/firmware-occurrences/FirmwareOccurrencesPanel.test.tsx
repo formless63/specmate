@@ -1,5 +1,6 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { FirmwareRead } from '../firmware/api';
 import type { OccurrenceInspection, SelectionReview } from './api';
@@ -24,7 +25,7 @@ function response(value: unknown, status = 200) { return new Response(JSON.strin
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: boolean } = {}) {
+function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: boolean; strict?: boolean } = {}) {
   const bodies: Record<string, any>[] = [];
   let denied = false;
   let adoptionCalls = 0;
@@ -47,8 +48,9 @@ function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: 
     throw new Error(`Unexpected request ${url}`);
   });
   vi.stubGlobal('fetch', mock);
-  const rendered = render(<MantineProvider><FirmwareOccurrencesPanel projectId="project-a" permissions={options.canEdit === false ? ['project.read'] : ['design.edit']} /></MantineProvider>);
-  return { bodies, mock, deny: () => { denied = true; }, rendered };
+  const panel = <MantineProvider><FirmwareOccurrencesPanel projectId="project-a" permissions={options.canEdit === false ? ['project.read'] : ['design.edit']} /></MantineProvider>;
+  const rendered = render(options.strict ? <StrictMode>{panel}</StrictMode> : panel);
+  return { bodies, mock, deny: () => { denied = true; }, restore: () => { denied = false; }, rendered };
 }
 async function open(frozen = false) {
   fireEvent.click(screen.getByRole('button', { name: 'Show occurrence firmware' }));
@@ -134,4 +136,68 @@ test('project changes unmount retained selections and evidence', async () => {
   rendered.rerender(<MantineProvider><FirmwareOccurrencesPanel projectId="project-b" permissions={['design.edit']} /></MantineProvider>);
   expect(screen.queryByText('BLINK_MS=900')).toBeNull();
   expect(screen.getByRole('button', { name: 'Show occurrence firmware' })).toBeTruthy();
+});
+
+
+test('response-loss retry survives denied refresh and later authority restoration', async () => {
+  const { bodies, deny, restore } = setup({ lostResponse: true }); await open(); await review();
+  fireEvent.change(screen.getByLabelText('Firmware adoption review basis'), { target: { value: 'Retained deliberate review' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Adopt reviewed firmware selection' }));
+  await screen.findByText('Response unavailable');
+  deny(); fireEvent(window, new Event('focus'));
+  await screen.findByText('Source authority unavailable');
+  expect(screen.queryByText('BLINK_MS=900')).toBeNull();
+  expect(screen.queryByRole('cell', { name: 'left/board · A1' })).toBeNull();
+  restore(); fireEvent.click(screen.getByRole('button', { name: 'Refresh occurrence firmware' }));
+  await screen.findByRole('cell', { name: 'left/board · A1' });
+  fireEvent.click(screen.getByRole('button', { name: 'Retry reviewed firmware adoption' }));
+  await waitFor(() => expect(bodies.filter(body => body.operation === 'firmware_occurrence.adopt')).toHaveLength(2));
+  const calls = bodies.filter(body => body.operation === 'firmware_occurrence.adopt');
+  expect(calls[1]!.payload).toEqual(calls[0]!.payload);
+  expect(calls[1]!.expected_state).toEqual(calls[0]!.expected_state);
+  expect(calls[1]!.idempotency_key).toEqual(calls[0]!.idempotency_key);
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh occurrence firmware' }) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.queryByRole('button', { name: 'Retry reviewed firmware adoption' })).toBeNull();
+});
+
+function delayed() {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test.each([200, 404])('a delayed previous selection review (%s) does not restore data or block the new path', async status => {
+  const { mock } = setup(); await open();
+  const pending = delayed();
+  const allowed = mock.getMockImplementation()!;
+  mock.mockImplementation((url, init) => {
+    const body = url.endsWith('/operations') ? JSON.parse(String(init?.body)) : null;
+    return body?.operation === 'firmware_occurrence.review' ? pending.promise : allowed(url, init);
+  });
+  fireEvent.change(screen.getByLabelText('Exact board occurrence'), { target: { value: JSON.stringify(['right', 'board']) } });
+  fireEvent.change(screen.getByLabelText('Frozen firmware for this occurrence'), { target: { value: 'fw-900' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Review occurrence firmware selection' }));
+  fireEvent.change(screen.getByLabelText('Exact board occurrence'), { target: { value: JSON.stringify(['left', 'board']) } });
+  await act(async () => { pending.resolve(status === 200 ? response({ result: preview }) : response({ error: { message: 'Old selection denied' } }, 404)); await pending.promise; });
+  expect(screen.queryByText('BLINK_MS=900')).toBeNull();
+  expect(screen.queryByText('Old selection denied')).toBeNull();
+  expect((screen.getByLabelText('Exact board occurrence') as HTMLSelectElement).value).toBe(JSON.stringify(['left', 'board']));
+  expect((screen.getByRole('button', { name: 'Refresh occurrence firmware' }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+test('StrictMode cleanup fences the first delayed inspection and keeps the current workspace usable', async () => {
+  const { mock } = setup({ strict: true });
+  const pending = delayed();
+  const allowed = mock.getMockImplementation()!;
+  let inspections = 0;
+  mock.mockImplementation((url, init) => {
+    const body = url.endsWith('/operations') ? JSON.parse(String(init?.body)) : null;
+    if (body?.operation === 'firmware_occurrence.inspect' && ++inspections === 1) return pending.promise;
+    return allowed(url, init);
+  });
+  await open();
+  await act(async () => { pending.resolve(response({ error: { message: 'Detached inspection denied' } }, 404)); await pending.promise; });
+  expect(screen.queryByText('Detached inspection denied')).toBeNull();
+  expect(screen.getByRole('cell', { name: 'left/board · A1' })).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'Refresh occurrence firmware' }) as HTMLButtonElement).disabled).toBe(false);
 });

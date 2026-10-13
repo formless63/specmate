@@ -69,6 +69,7 @@ def planned_review(ctx, p, draft, closure, candidate):
     result = {
         "draft_id": str(draft.id),
         "state": draft.state_token,
+        "base_revision_id": str(draft.base_revision_id) if draft.base_revision_id else None,
         "content_sha256": hashlib.sha256(canonical_bytes(draft.content)).hexdigest(),
         "path": list(p.path),
         "firmware_revision_id": str(p.firmware_revision_id) if p.firmware_revision_id else None,
@@ -98,6 +99,8 @@ def adoption_result(ctx, adoption_id, *, edit=False):
     if row is None:
         raise NotFound("Firmware adoption unavailable.")
     draft, _ = owning_draft(ctx, row.draft_id, Perm.DESIGN_EDIT if edit else Perm.PROJECT_READ)
+    if row.base_revision_id:
+        authorize_snapshot(ctx.user, row.base_revision.snapshot)
     # Displaced declarations and ancestors remain part of retained evidence authority.
     for content in (row.before_content, row.after_content):
         authorize_design_content(ctx.user, draft.definition, content)
@@ -231,11 +234,16 @@ def adopt(ctx: Context, p: AdoptOccurrence):
     evidence = FirmwareAdoption.objects.create(
         draft=draft,
         draft_version=draft.version,
+        base_revision_id=draft.base_revision_id,
         firmware_revision_id=p.firmware_revision_id,
         path=list(p.path),
         review_sha256=p.review_sha256,
         review=preview,
+        review_canonical=canonical_bytes(
+            {key: value for key, value in preview.items() if key != "review_sha256"}
+        ),
         before_content=before,
+        before_canonical=canonical_bytes(before),
         after_content=result["content"],
         basis=p.basis,
         adopted_by=ctx.user,
