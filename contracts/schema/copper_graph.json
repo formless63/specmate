@@ -1,0 +1,485 @@
+{
+  "$defs": {
+    "Boundary": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Members",
+          "type": "array"
+        },
+        "provenance": {
+          "additionalProperties": true,
+          "title": "Provenance",
+          "type": "object"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "not_evaluated",
+            "unknown",
+            "declared_unconnected"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "members",
+        "status",
+        "reason",
+        "provenance"
+      ],
+      "title": "Boundary",
+      "type": "object"
+    },
+    "CableTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "element_path": {
+          "title": "Element Path",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "cable_conductor",
+          "default": "cable_conductor",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "element_path"
+      ],
+      "title": "CableTerminal",
+      "type": "object"
+    },
+    "Component": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "evidence": {
+          "items": {
+            "enum": [
+              "declared_copper",
+              "reported_net_membership"
+            ],
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Members",
+          "type": "array"
+        },
+        "native_net_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Native Net Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "members",
+        "edge_ids",
+        "native_net_ids",
+        "evidence"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "ContactTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "contact",
+          "default": "contact",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "title": "ContactTerminal",
+      "type": "object"
+    },
+    "Edge": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "title": "Basis",
+          "type": "string"
+        },
+        "evidence": {
+          "enum": [
+            "declared_copper",
+            "reported_net_membership"
+          ],
+          "title": "Evidence",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "wire",
+            "termination",
+            "splice",
+            "shield_bond",
+            "through",
+            "native_net"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20000,
+          "minItems": 2,
+          "title": "Members",
+          "type": "array"
+        },
+        "provenance": {
+          "additionalProperties": true,
+          "title": "Provenance",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "evidence",
+        "members",
+        "basis",
+        "provenance"
+      ],
+      "title": "Edge",
+      "type": "object"
+    },
+    "EndpointTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "endpoint",
+          "default": "endpoint",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "contact_id"
+      ],
+      "title": "EndpointTerminal",
+      "type": "object"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_kind": {
+          "title": "Feature Kind",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "occurrence_path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Occurrence Path",
+          "type": "array"
+        },
+        "provenance": {
+          "additionalProperties": true,
+          "title": "Provenance",
+          "type": "object"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "terminal": {
+          "discriminator": {
+            "mapping": {
+              "cable_conductor": "#/$defs/CableTerminal",
+              "contact": "#/$defs/ContactTerminal",
+              "endpoint": "#/$defs/EndpointTerminal",
+              "pad": "#/$defs/PadTerminal",
+              "segment": "#/$defs/SegmentTerminal"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SegmentTerminal"
+            },
+            {
+              "$ref": "#/$defs/EndpointTerminal"
+            },
+            {
+              "$ref": "#/$defs/CableTerminal"
+            },
+            {
+              "$ref": "#/$defs/ContactTerminal"
+            },
+            {
+              "$ref": "#/$defs/PadTerminal"
+            }
+          ],
+          "title": "Terminal"
+        }
+      },
+      "required": [
+        "id",
+        "occurrence_path",
+        "revision_id",
+        "terminal",
+        "label",
+        "feature_kind",
+        "provenance"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "PadTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "component_id": {
+          "format": "uuid",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "pad",
+          "default": "pad",
+          "title": "Kind",
+          "type": "string"
+        },
+        "pad_id": {
+          "format": "uuid",
+          "title": "Pad Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pad_id",
+        "component_id"
+      ],
+      "title": "PadTerminal",
+      "type": "object"
+    },
+    "SegmentTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "element_path": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)*$",
+          "title": "Element Path",
+          "type": "string"
+        },
+        "end": {
+          "enum": [
+            "a",
+            "b"
+          ],
+          "title": "End",
+          "type": "string"
+        },
+        "kind": {
+          "const": "segment",
+          "default": "segment",
+          "title": "Kind",
+          "type": "string"
+        },
+        "segment_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Segment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "end",
+        "element_path"
+      ],
+      "title": "SegmentTerminal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "boundaries": {
+      "items": {
+        "$ref": "#/$defs/Boundary"
+      },
+      "title": "Boundaries",
+      "type": "array"
+    },
+    "compatibility": {
+      "const": "not_evaluated",
+      "default": "not_evaluated",
+      "title": "Compatibility",
+      "type": "string"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/Component"
+      },
+      "title": "Components",
+      "type": "array"
+    },
+    "continuity": {
+      "const": "not_evaluated",
+      "default": "not_evaluated",
+      "title": "Continuity",
+      "type": "string"
+    },
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/Edge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/Node"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "occurrence_path": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Occurrence Path",
+      "type": "array"
+    },
+    "physical_qualification": {
+      "const": "not_evaluated",
+      "default": "not_evaluated",
+      "title": "Physical Qualification",
+      "type": "string"
+    },
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "selected_component_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Selected Component Id"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "snapshot_sha256": {
+      "title": "Snapshot Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_revision_id",
+    "snapshot_id",
+    "snapshot_sha256",
+    "occurrence_path",
+    "nodes",
+    "edges",
+    "boundaries",
+    "components",
+    "selected_component_id",
+    "limitations"
+  ],
+  "title": "Graph",
+  "type": "object"
+}

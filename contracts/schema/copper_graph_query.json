@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "occurrence_path": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Occurrence Path",
+      "type": "array"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "terminal_id": {
+      "anyOf": [
+        {
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Terminal Id"
+    }
+  },
+  "required": [
+    "revision_id"
+  ],
+  "title": "ReadGraph",
+  "type": "object"
+}
