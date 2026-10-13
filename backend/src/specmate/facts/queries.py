@@ -28,6 +28,10 @@ MAX_EVIDENCE_CLOSURE = 5000
 
 
 def resolve_target(user, target, permission=Perm.PROJECT_READ):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.catalog_packs.authoring import authorize_origin
+
+    user = current_actor(user)
     fields = {"kind": target.kind, "feature_id": getattr(target, "feature_id", None)}
     if isinstance(target, ProjectTarget):
         project_id = target.project_id
@@ -36,6 +40,8 @@ def resolve_target(user, target, permission=Perm.PROJECT_READ):
         if definition is None:
             raise NotFound("Subject unavailable.")
         project_id = definition.project_id
+        authorize(user, project_id, permission)
+        authorize_origin(user, definition)
         fields["definition"] = definition
     elif isinstance(target, RevisionTarget):
         revision = get_revision(user, target.revision_id)

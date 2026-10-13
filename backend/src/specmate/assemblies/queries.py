@@ -232,10 +232,16 @@ def authorize_content(user, content):
 
 
 def get_snapshot(user, snapshot_id):
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.catalog_packs.authoring import authorize_origin
+
+    user = current_actor(user)
     snapshot = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
     if snapshot is None:
         raise NotFound("Assembly unavailable.")
     authorize(user, snapshot.definition.project_id, Perm.PROJECT_READ)
+    # The root's retained adoption pack is independent of its child/dependency closure.
+    authorize_origin(user, snapshot.definition)
     body = json.loads(bytes(snapshot.canonical))
     # Historical or manually supplied pins are authorized before graph diagnostics too.
     closure = Closure(
