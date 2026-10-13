@@ -24,7 +24,9 @@ def recipe_for(source_path: str, rights: str, source_role: str) -> dict:
         "argv": [
             "/usr/bin/python3",
             "-c",
-            SCRIPT,
+            "import sys; program=str().join(sys.argv[1:-4]); "
+            "sys.argv=sys.argv[:1]+sys.argv[-4:]; exec(program)",
+            *[SCRIPT[i : i + 6000] for i in range(0, len(SCRIPT), 6000)],
             source_role,
             f"/inputs/{source_path}",
             f"/outputs/{REPORT_PATH}",

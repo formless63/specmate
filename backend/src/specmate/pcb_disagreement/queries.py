@@ -18,6 +18,7 @@ from specmate.pcb_disagreement.contracts import (
     Assertion,
     AssertionInput,
     Comparison,
+    NativeInput,
 )
 from specmate.sources.models import SourceBundleFile
 
@@ -112,6 +113,12 @@ class Closure:
                     else None
                 )
                 pending[side] = (pin, revision, assertion, file)
+            elif isinstance(pin, NativeInput):
+                from specmate.pcb_disagreement.native_operations import scoped_interpretation
+
+                interpretation = scoped_interpretation(user, pin.interpretation_id)
+                file = read_source(user, pin.source)
+                pending[side] = (pin, interpretation, file, interpretation.attempt.source_file)
             else:
                 interpretation = (
                     PcbInterpretation.objects.select_related(
@@ -153,6 +160,13 @@ class Closure:
                 self.inputs[side] = self.assertion(item)
                 self.inputs[side]["revision_id"] = str(owner.id)
                 self.inputs[side]["snapshot_sha256"] = owner.snapshot.sha256
+            elif isinstance(pin, NativeInput):
+                from specmate.pcb_disagreement.native_operations import project_interpretation
+
+                validate_source(pin.source, item)
+                if item.id != file.id or owner.sha256 != pin.report_sha256:
+                    raise ValidationFailed("Source net input differs from exact accepted evidence.")
+                self.inputs[side] = project_interpretation(owner)
             else:
                 validate_source(pin.source, item)
                 if (

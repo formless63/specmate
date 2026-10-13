@@ -28,3 +28,27 @@ def revision(request, revision_id: UUID):
 @router.get("/sources/{revision_id}")
 def sources(request, revision_id: UUID):
     return source_files(request.user, revision_id)
+
+
+@router.get("/native")
+def native_list(request, project_id: UUID):
+    from specmate.pcb_disagreement.native_operations import list_native
+
+    return list_native(request.user, project_id)
+
+
+@router.get("/native/{interpretation_id}")
+def native_read(request, interpretation_id: UUID):
+    from specmate.pcb_disagreement.native_operations import (
+        interpretation_result,
+        scoped_interpretation,
+    )
+
+    return interpretation_result(scoped_interpretation(request.user, interpretation_id))
+
+
+@router.get("/native-options")
+def native_available(request, source_revision_id: UUID, path: str, role: str):
+    from specmate.pcb_disagreement.native_operations import native_options
+
+    return native_options(request.user, source_revision_id, path, role)

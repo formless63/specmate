@@ -164,3 +164,34 @@ Comparison output additionally has a cumulative 20,000-reference bound across fi
 anchors, terminal details and repeated membership lists. A large split/merge partition
 that exceeds it fails without saving a partial conclusion; compare a smaller explicitly
 selected subset. Complete current source authorization still precedes this diagnostic.
+
+### Controlled independent native extraction
+
+`pcb_disagreement.request_native` pins the exact preserved file and source role to
+an approved `kicad-net-assertions-v1` recipe through the shared build operation.
+`pcb_disagreement.accept_native` accepts only registered successful JSON/XML output
+pairs whose receipt, source, hashes, rights, image and exact program match that request.
+It accepts no client report payload. The app validates bounded JSON and registered
+bytes; XML parsing and schematic export occur only inside the isolated native program.
+Accepted attempts and interpretations have database immutability guards.
+
+The supported subset is standalone schematic format 20250114 exported by KiCad 10.0.6,
+or preserved KiCad XML version E. Methods remain `native_schematic_export` and
+`preserved_netlist_parser`; a netlist's source-tool string is retained as reported
+metadata. Native component UUID, actual root sheet path, unit and pin fields combine
+with the exact source hash to derive terminal occurrence IDs. Terminal UUIDs are not
+exported. Duplicate labels or multiunit pin ambiguity remain unresolved, missing net
+membership stays unknown, and no board-pad correspondence is inferred.
+
+Comparison inputs can pin an exact accepted `source_net_interpretation` alongside a
+human assertion or an existing immutable board report. Every correspondence and review
+remains explicit. Existing board intake and reported-net graph evidence are unchanged.
+The UI offers approved extraction request, status, acceptance, exact evidence inspection
+and deliberate comparison selection. Read APIs under `/v0/pcb-disagreement/native`
+return currently authorized metadata or exact interpretations; denied refreshes hide
+cached rows and terminal choices.
+
+The original fixture, contradictory variant, malformed input and trusted program were
+checked with the exact isolated KiCad image. Full approved runner transport, cancellation,
+fencing/recovery and application acceptance remain an integration checkpoint. Hierarchy,
+variants, other formats, schematic parity and physical qualification remain unsupported.

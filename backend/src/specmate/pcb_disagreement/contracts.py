@@ -67,7 +67,14 @@ class BoardInput(StrictModel):
     source: FilePin
 
 
-Input = Annotated[AssertionInput | BoardInput, Field(discriminator="kind")]
+class NativeInput(StrictModel):
+    kind: Literal["source_net_interpretation"] = "source_net_interpretation"
+    interpretation_id: UUID
+    report_sha256: Digest
+    source: FilePin
+
+
+Input = Annotated[AssertionInput | BoardInput | NativeInput, Field(discriminator="kind")]
 
 
 class Correspondence(StrictModel):

@@ -89,6 +89,8 @@ def normalize_xml(raw, source_sha256):
             raise ValueError("XML structural bound exceeded")
         if not isinstance(node.tag, str) or "{" in node.tag or ":" in node.tag:
             raise ValueError("XML namespaces are unsupported")
+        if any("{" in key or ":" in key for key in node.attrib):
+            raise ValueError("XML attribute namespaces are unsupported")
         if len(node.tag) > 100 or len(node.attrib) > 30:
             raise ValueError("XML name/attribute bound exceeded")
         if any(len(k) > 100 or len(v) > 2000 for k, v in node.attrib.items()):

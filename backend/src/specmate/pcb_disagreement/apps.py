@@ -6,7 +6,7 @@ class PcbDisagreementConfig(AppConfig):
 
     def ready(self):
         from specmate.contracts import SCHEMAS
-        from specmate.pcb_disagreement import operations  # noqa: F401
+        from specmate.pcb_disagreement import native_operations, operations  # noqa: F401
         from specmate.pcb_disagreement.contracts import Assertion, Comparison
 
         SCHEMAS["pcb_assertion"] = Assertion

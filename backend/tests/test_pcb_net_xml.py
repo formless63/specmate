@@ -76,6 +76,10 @@ def test_duplicate_labels_and_multiunit_pin_numbers_never_guess_node_assignment(
         b'<export version="E">&bad;</export>',
         document().replace(b'<export version="E">', b'<export xmlns="urn:untrusted" version="E">'),
         document().replace(b'version="E"', b'version="D"'),
+        document().replace(
+            b'<net code="1"', b'<net xmlns:x="urn:untrusted" x:meaning="net" code="1"'
+        ),
+        document().decode().encode("utf-16"),
         document().replace(b'<unit name="A">', b"<unit>"),
         document().replace(b'tstamps="/"', b'tstamps="/unknown/"'),
         document().replace(
@@ -102,6 +106,10 @@ def test_unsafe_unsupported_ambiguous_and_bounded_inputs_fail(raw):
 
 def test_recipe_pins_program_outputs_source_role_and_no_network():
     recipe = recipe_for("original.kicad_sch", "test-only", "schematic")
+    from specmate.builds.recipes import Recipe
+
+    Recipe.model_validate(recipe)
+    compile(recipe["argv"][2], "<trusted-loader>", "exec")
     assert recipe["network"] == "none"
     assert "@sha256:" in recipe["image"]
     assert recipe["argv"][-4:] == [
