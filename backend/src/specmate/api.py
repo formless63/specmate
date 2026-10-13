@@ -19,6 +19,7 @@ from specmate.builds.api import router as runner_router
 from specmate.cables.api import router as cables_router
 from specmate.catalog.api import router as catalog_router
 from specmate.catalog_matching.api import router as matching_router
+from specmate.catalog_packs.api import router as packs_router
 from specmate.contracts import OperationEnvelope
 from specmate.facts.api import router as facts_router
 from specmate.harnesses.api import router as harnesses_router
@@ -34,6 +35,7 @@ api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_
 api.add_router("/v0/access", access_router)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/catalog-matching", matching_router)
+api.add_router("/v0/catalog-packs", packs_router)
 api.add_router("/v0/facts", facts_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)

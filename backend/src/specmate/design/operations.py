@@ -152,6 +152,13 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
         dependencies = derived
+    from specmate.catalog_packs.authoring import origin_revisions
+
+    dependencies = sorted(
+        set(dependencies) | set(origin_revisions(ctx.user, draft.definition)), key=str
+    )
+    if len(dependencies) > 2000:
+        raise ValidationFailed("Captured engineering and origin dependencies exceed the limit.")
     revisions = list(
         Revision.objects.select_related("definition", "snapshot").filter(id__in=dependencies)
     )
@@ -270,6 +277,9 @@ def validate_content(kind, content):
 
 
 def authorize_design_content(user, definition, content):
+    from specmate.catalog_packs.authoring import authorize_origin
+
+    authorize_origin(user, definition)
     if "harness" in content:
         from specmate.harnesses.queries import dependency_revisions as harness_dependencies
 

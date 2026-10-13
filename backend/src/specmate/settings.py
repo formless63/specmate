@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "specmate.design",
     "specmate.catalog",
     "specmate.catalog_matching",
+    "specmate.catalog_packs",
     "specmate.facts",
     "specmate.wire_stock",
     "specmate.workshop_profiles",
