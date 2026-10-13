@@ -14,8 +14,12 @@ from specmate.pcb.pack import recipe_for
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("board_path", help="Exact relative board path in the source bundle")
-    parser.add_argument("--rights", required=True, help="Rights declared by every source file")
+    parser.add_argument(
+        "board_path", help="Exact relative board path in the source bundle"
+    )
+    parser.add_argument(
+        "--rights", required=True, help="Rights declared by every source file"
+    )
     args = parser.parse_args()
     path = check_package_path(args.board_path)
     if not path.lower().endswith(".kicad_pcb") or not 1 <= len(args.rights) <= 200:

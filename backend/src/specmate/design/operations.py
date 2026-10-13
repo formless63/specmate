@@ -105,7 +105,7 @@ def update_draft(ctx: Context, p: UpdateDraft) -> dict:
 class CaptureDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
     draft_id: UUID
-    dependencies: list[UUID] = Field(default_factory=list, max_length=1000)
+    dependencies: list[UUID] = Field(default_factory=list, max_length=2000)
 
 
 def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot]:
