@@ -176,6 +176,7 @@ def test_intake_preserves_exact_sources_and_reports_unparsed_coverage(users, sou
     assert files["source.py"]["coverage"] == "preserved-unparsed"
     assert files["schematic.kicad_sch"]["unsupported"]
     assert not intake["support"]["version_verified"]
+    assert intake["available_recipe_id"] is None
     with blobstore.open_blob(files["board.kicad_pcb"]["sha256"]) as stream:
         assert stream.read() == BOARD
     client = Client()
@@ -209,6 +210,8 @@ def test_intake_scope_and_selection(users, project, source):
 
 def test_request_uses_one_shared_build_outbox_and_idempotency(users, intake, recipe, attempt):
     payload = {"intake_id": intake["intake_id"], "recipe_id": recipe["id"]}
+    read = op(users["viewer"], "pcb.get", {"intake_id": intake["intake_id"]})
+    assert read["available_recipe_id"] == recipe["id"]
     assert (
         op(users["owner"], "pcb.request_extraction", payload, idempotency_key="pcb-extract-one")
         == attempt
@@ -416,3 +419,39 @@ def test_replay_accept_guard_rechecks_scope_and_pinned_provenance(users, project
     Membership.objects.filter(project_id=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         authorize_pcb_replay(ctx, payload, accepted)
+
+
+def test_failed_native_diagnostic_is_scoped_and_never_an_accepted_interpretation(
+    users, intake, attempt
+):
+    diagnostic = {
+        "status": "failed",
+        "error": "Unsupported board format; original source retained.",
+    }
+    content = json.dumps(diagnostic).encode()
+    staged = blobstore.stage(io.BytesIO(content), 1024)
+    blobstore.promote(staged)
+    stage = BuildStage.objects.get(build_id=attempt["build_id"])
+    output = StageOutput.objects.create(
+        stage=stage,
+        path="pcb-intake.json",
+        sha256=digest(content),
+        size=len(content),
+        media_type="application/json",
+        rights=RIGHTS,
+        source_revision_id=stage.build.source_revision_id,
+    )
+    stage.state = "failed"
+    stage.receipt = {
+        "outcome": "failed",
+        "exit_code": 1,
+        "outputs": [{"path": output.path, "sha256": output.sha256}],
+    }
+    stage.save()
+    read = op(users["viewer"], "pcb.get", {"intake_id": intake["intake_id"]})
+    assert read["attempts"][0]["diagnostic"] == diagnostic["error"]
+    assert read["interpretations"] == []
+    with pytest.raises(ValidationFailed):
+        op(users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
+    with pytest.raises(NotFound):
+        op(users["outsider"], "pcb.get", {"intake_id": intake["intake_id"]})

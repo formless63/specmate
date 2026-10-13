@@ -49,6 +49,17 @@ def intake_result(intake):
         PcbInterpretation.objects.filter(attempt__intake=intake).order_by("-created_at").first()
     )
     report = json.loads(bytes(interpretation.canonical)) if interpretation else None
+    available_recipe_id = None
+    board = intake.source_revision.files.filter(path=intake.board_path).first()
+    if board is not None:
+        expected = recipe_for(intake.board_path, board.rights)
+        try:
+            approved = approved_recipe(expected["id"])
+            validate_recipe(intake, approved)
+            available_recipe_id = approved.id
+        except (Unsupported, ValidationFailed):
+            # Preserved-source reads remain usable without native execution configured.
+            pass
     files = []
     for file in intake.source_revision.files.select_related("blob").order_by("path"):
         selected = file.path == intake.board_path
@@ -75,6 +86,7 @@ def intake_result(intake):
         "source_revision_id": str(intake.source_revision_id),
         "source_manifest_sha256": intake.source_revision.manifest_sha256,
         "board_path": intake.board_path,
+        "available_recipe_id": available_recipe_id,
         "files": files,
         "support": {
             "tool_version": "10.0.6",
