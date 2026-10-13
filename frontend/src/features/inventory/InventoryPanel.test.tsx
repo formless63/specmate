@@ -37,6 +37,7 @@ function fakeServer(initial = account, fail = false) {
       }
       return new Response(JSON.stringify({ result: { account: current } }), { status: 200 });
     }
+    if (url.includes("/definitions")) return new Response("[]", { status: 200 });
     const body = url.includes("/accounts/") ? { account: current, reservations, entries: [{ entry_id: "entry-1", kind: "opening", amount: "10", unit: "ea", after: "10", reason: "Receipt", assertion_source: "Synthetic receipt", assertion_status: "declared", created_at: "2026-01-01T00:00:00Z" }] } : { accounts: [current], locations: [{ location_id: "location-1", name: "Shelf A" }], lots: [{ lot_id: "lot-1", label: "Synthetic batch" }] };
     return new Response(JSON.stringify(body), { status: 200 });
   }));
