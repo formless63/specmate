@@ -90,3 +90,18 @@ bundle revision, path, digest and rights, checked against the preserved file. Fr
 text citations remain unverified. Reads, conflicts and retries recheck current
 access to both construction and original profile evidence. Later draft edits do
 not rewrite earlier profile revisions or their source declarations.
+
+## Frozen profile viewing
+
+The frozen-stock viewer selects a definition and exact historical stock revision,
+loads its canonical construction, and lists only frozen workshop profile revisions
+pinned to that stock revision. Applying a profile is read-only and never substitutes
+the current editable stock draft. Clearing the profile returns to a local illustration
+of the same frozen construction. Profile suggestion sources remain inspectable.
+
+The adapter retains nullable per-element cut values and omits unresolved lead geometry.
+Explicit hidden groups hide their descendant material elements; global foil hiding uses
+only declared foil construction and never changes dimensions or electrical topology.
+Explicit hidden paths take precedence over global foil display. Unknown occlusion leaves
+all interiors available with a notice. Group cut rules, prepend cuts and illustration lay
+are currently reported as unsupported and are not silently applied or inferred.

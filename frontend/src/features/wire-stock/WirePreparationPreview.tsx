@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Alert, Button, Checkbox, Group, NumberInput, Select, Stack, Text, Title } from '@mantine/core';
+import type { AppliedProfile } from './profile-adapter';
 import type { Section } from '../../../../packages/section-layout/src';
 import { unpreparedProfile, wireModel } from '../../../../packages/wire-geometry/src/model';
 import type { DisplayProfile, ElementPreparation, End, LeadDisplay } from '../../../../packages/wire-geometry/src/model';
@@ -12,8 +13,9 @@ class ViewBoundary extends Component<{ children: ReactNode }, { failed: boolean 
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? <Alert color="yellow">The 3D viewer could not load. Close and reopen to retry; the section remains available.</Alert> : this.props.children; }
 }
-export function WirePreparationPreview({ section, lengthMm }: { section: Section; lengthMm: number }) {
-  const [profile, setProfile] = useState<DisplayProfile>(unpreparedProfile);
+export function WirePreparationPreview({ section, lengthMm, appliedProfile }: { section: Section; lengthMm: number; appliedProfile?: AppliedProfile }) {
+  const [localProfile, setProfile] = useState<DisplayProfile>(unpreparedProfile);
+  const profile = appliedProfile?.display ?? localProfile;
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const path = section.rows.some(r => r.path === selected) ? selected! : section.rows[0]?.path;
@@ -26,13 +28,14 @@ export function WirePreparationPreview({ section, lengthMm }: { section: Section
   const value = (v: string | number) => typeof v === 'number' ? v : null;
   return <Stack>
     <Title order={3}>Layered preparation preview</Title>
-    <Text>Profile: {profile.label}. Cuts, lead dimensions and hidden elements apply only to this local illustration. They are not saved stock facts, a versioned preparation record, or electrical bonds.</Text>
+    <Text>Profile: {profile.label}. {appliedProfile ? 'Frozen suggestions are read-only. Their depiction does not alter construction or establish electrical bonds.' : 'Cuts, lead dimensions and hidden elements apply only to this local illustration. They are not saved stock facts, a versioned preparation record, or electrical bonds.'}</Text>
+    {appliedProfile && appliedProfile.notices.length > 0 && <Alert color="yellow">{appliedProfile.notices.map((notice, i) => <Text size="sm" key={i}>{notice}</Text>)}</Alert>}
     <Group><Button variant="light" onClick={() => setOpen(v => !v)}>{open ? 'Close 3D preview' : 'Open 3D preview'}</Button>
-      <Button variant="subtle" onClick={() => setProfile(unpreparedProfile())}>Reset preview profile</Button>
-      <Checkbox label="Omit occluded interiors" checked={profile.omitOccluded} onChange={e => change({ omitOccluded: e.currentTarget.checked })} />
+      {!appliedProfile && <Button variant="subtle" onClick={() => setProfile(unpreparedProfile())}>Reset preview profile</Button>}
+      <Checkbox disabled={!!appliedProfile} label="Omit occluded interiors" checked={profile.omitOccluded} onChange={e => change({ omitOccluded: e.currentTarget.checked })} />
     </Group>
     <Select label="Preview element" data={section.rows.map(r => ({ value: r.path, label: r.path }))} value={path ?? null} onChange={setSelected} />
-    {path && <>
+    {path && <fieldset disabled={!!appliedProfile} style={{ border: 0, padding: 0, margin: 0 }}>
       <Checkbox label="Hide selected element in preview" checked={profile.hiddenPaths.includes(path)} onChange={e => change({ hiddenPaths: e.currentTarget.checked ? [...profile.hiddenPaths, path] : profile.hiddenPaths.filter(p => p !== path) })} />
       <Group>{(['a', 'b'] as const).map(end => <NumberInput key={end} label={`End ${end.toUpperCase()} cut mm`} min={0} max={lengthMm} value={cut[end] ?? ''} placeholder="Unknown" onChange={v => editCut({ [end]: value(v) })} />)}</Group>
       {(row?.kind === 'shield' || row?.kind === 'drain') && (['a', 'b'] as const).map(end => <Stack key={end} gap="xs">
@@ -49,7 +52,7 @@ export function WirePreparationPreview({ section, lengthMm }: { section: Section
           <NumberInput label={`Lead ${end.toUpperCase()} angle degrees`} value={cut.leads[end]!.angleDeg} onChange={v => typeof v === 'number' && editLead(end, { angleDeg: v })} />
         </Group>}
       </Stack>)}
-    </>}
+    </fieldset>}
     {model.unknown.length > 0 && <Alert color="yellow">Preview incomplete: {model.unknown.join('; ')}</Alert>}
     <Text size="sm">{model.pieces.length} displayed pieces from {section.rows.length} material elements. Mesh counts are not stock quantities.</Text>
     {model.omitted.map(item => <Text size="xs" key={`${item.path}:${item.reason}`}>{item.path}: {item.reason}</Text>)}

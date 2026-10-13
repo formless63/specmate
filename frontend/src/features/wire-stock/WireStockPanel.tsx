@@ -6,6 +6,7 @@ import { freezeStock, listStocks, saveStock } from './api';
 import type { StockRecord } from './api';
 import { stockPresets } from './presets';
 import { WirePreparationPreview } from './WirePreparationPreview';
+import { FrozenWirePreview } from './FrozenWirePreview';
 
 const clone = <T,>(value: T): T => structuredClone(value);
 const dimension = (value: number | null): string => value === null ? 'Unknown' : `${Number(value.toFixed(4))} mm`;
@@ -138,6 +139,7 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
       {section.rows.map(row => <Table.Tr key={row.path}><Table.Td>{row.tag} · {row.path}<br />{row.label} ({row.kind})</Table.Td><Table.Td>{row.material ?? 'Unknown'} / {row.color ?? 'Unknown'}</Table.Td><Table.Td>{dimension(row.widthMm)} × {dimension(row.heightMm)}{row.outerDiameterMm !== null && ` · bore ${dimension(row.innerDiameterMm)}`}</Table.Td><Table.Td>{row.source ?? 'Unknown'}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
     <Text>{Object.entries(stock.facts).map(([key, fact]) => `${key}: ${fact.value ?? 'Unknown'}${fact.unit ? ` ${fact.unit}` : ''} (${fact.status})`).join(' · ')}</Text>
+    {projectId && <FrozenWirePreview key={projectId} projectId={projectId} />}
     <Title order={3}>Engineering facts</Title>
     {Object.entries(stock.facts).map(([key, fact]) => <Group key={key} align="flex-end">
       <Text>{key}{fact.unit ? ` (${fact.unit})` : ''}</Text>
