@@ -13,6 +13,7 @@ from specmate.contracts import SHA256, SourceBundleManifest, check_package_path
 from specmate.design.operations import canonical_bytes
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.sources import blobstore
+from specmate.sources.authority import authorize_revision
 from specmate.sources.models import (
     SourceBlob,
     SourceBundle,
@@ -159,21 +160,74 @@ class ReviseBundle(BaseModel):
     files: list[FileRef] = Field(min_length=1, max_length=10000)
 
 
+def authorized_head(ctx: Context, bundle_id) -> SourceBundleRevision:
+    """Current head after full closure authorization; never reveals state before it."""
+    bundle = SourceBundle.objects.filter(id=bundle_id).first()
+    if bundle is None:
+        raise NotFound("Bundle not found.")
+    authorize(ctx.user, bundle.project_id, Perm.SOURCE_REGISTER)
+    head = bundle.revisions.select_related("bundle").order_by("-number").first()
+    authorize_revision(ctx.user, head, Perm.SOURCE_REGISTER)
+    return head
+
+
+def head_details(head: SourceBundleRevision) -> dict:
+    return {
+        "current": bundle_state(head.bundle, head.number),
+        "head_revision_id": str(head.id),
+        "head_number": head.number,
+        "head_manifest_sha256": head.manifest_sha256,
+    }
+
+
+def _revise_replay(ctx: Context, p: ReviseBundle, result) -> None:
+    authorized_head(ctx, p.bundle_id)
+    produced = (
+        SourceBundleRevision.objects.select_related("bundle")
+        .filter(id=result["revision_id"], bundle_id=p.bundle_id)
+        .first()
+    )
+    if produced is None:
+        raise NotFound("Bundle revision not found.")
+    authorize_revision(ctx.user, produced)
+
+
+def _revise_scope(ctx: Context, p: ReviseBundle) -> str:
+    from specmate.operations.models import IdempotencyRecord
+    from specmate.operations.scope import LEGACY_SCOPE
+
+    head = authorized_head(ctx, p.bundle_id)
+    scope = f"project:{head.bundle.project_id}"
+    # Current authority over a retained outcome precedes even a keyed mismatch.
+    prior = IdempotencyRecord.objects.select_for_update().filter(
+        actor=ctx.user, operation="source.revise_bundle", key=ctx.idempotency_key
+    )
+    retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+    if retained is not None:
+        _revise_replay(ctx, p, retained.result)
+    return scope
+
+
 @operation(
     "source.revise_bundle",
     ReviseBundle,
     summary="Add a revision (re-import of an original, or an edit of a derivative).",
     requires_expected_state=True,
+    idempotency_scope=_revise_scope,
+    authorize_replay=_revise_replay,
 )
 def revise_bundle(ctx: Context, p: ReviseBundle) -> dict:
-    bundle = SourceBundle.objects.select_for_update().filter(id=p.bundle_id).first()
-    if bundle is None:
-        raise NotFound("Bundle not found.")
-    authorize(ctx.user, bundle.project_id, Perm.SOURCE_REGISTER)
-    previous = bundle.revisions.order_by("-number").first()
-    current = bundle_state(bundle, previous.number)
-    if ctx.expected_state != current:
-        raise Conflict("Bundle changed since expected state.", details={"current": current})
+    authorized_head(ctx, p.bundle_id)
+    # Serialize writers on the bundle row; the head is reread under the lock.
+    bundle = SourceBundle.objects.select_for_update().get(id=p.bundle_id)
+    previous = bundle.revisions.select_related("bundle").order_by("-number").first()
+    if ctx.expected_state != bundle_state(bundle, previous.number):
+        authorize_revision(ctx.user, previous, Perm.SOURCE_REGISTER)
+        raise Conflict(
+            "Bundle changed since expected state. Nothing was overwritten; review the "
+            "current head and submit again.",
+            details=head_details(previous),
+        )
     ancestry = [str(previous.id)]
     return revision_result(_write_revision(ctx, bundle, p.files, ancestry=ancestry))
 
