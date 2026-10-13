@@ -505,3 +505,66 @@ def test_non_owner_evidence_authorizes_overflow_before_truncated_flag(
     )
     with pytest.raises(NotFound):
         read(users, authority["authority_id"])
+
+
+@pytest.mark.parametrize("invalid", ["self", "missing_previous", "source_hash", "value_hash"])
+def test_projection_insert_rejects_invalid_history_or_hash(users, project, owner, invalid):
+    import uuid
+
+    authority = declare(users, owner["revision_id"])
+    result = reconcile(
+        users,
+        authority["authority_id"],
+        accepted(users, project, owner["revision_id"], BOARD),
+        "authority-v1",
+    )
+    row = PropertyProjection.objects.get(id=result["projection_id"])
+    clone = {
+        field.attname: getattr(row, field.attname)
+        for field in PropertyProjection._meta.fields
+        if field.name not in ("id", "created_at")
+    }
+    next_id = uuid.uuid4()
+    clone.update(id=next_id, previous_id=row.id, version=3)
+    if invalid == "self":
+        clone["previous_id"] = next_id
+    elif invalid == "missing_previous":
+        clone["previous_id"] = None
+    elif invalid == "source_hash":
+        clone["source_sha256"] = "0" * 64
+    else:
+        clone["value_sha256"] = "0" * 64
+    with pytest.raises(DatabaseError), transaction.atomic():
+        PropertyAuthority.objects.filter(id=authority["authority_id"]).update(version=3)
+        PropertyProjection.objects.create(**clone)
+
+
+def test_projection_history_allows_transfer_version_gap(users, project, owner):
+    authority = declare(users, owner["revision_id"])
+    first = reconcile(
+        users,
+        authority["authority_id"],
+        accepted(users, project, owner["revision_id"], BOARD, key="before-transfer"),
+        "authority-v1",
+    )
+    successor = derive(users, owner["revision_id"], "Successor owner")
+    moved = op(
+        users["editor"],
+        "source_property.transfer",
+        {
+            "authority_id": authority["authority_id"],
+            "new_owner_revision_id": successor["revision_id"],
+            "basis": "Deliberate owner transfer",
+        },
+        expected_state="authority-v2",
+    )
+    final = reconcile(
+        users,
+        authority["authority_id"],
+        accepted(users, project, successor["revision_id"], BOARD, key="after-transfer"),
+        moved["state"],
+    )
+    projection = PropertyProjection.objects.get(id=final["projection_id"])
+    assert projection.version == 4
+    assert str(projection.previous_id) == first["projection_id"]
+    assert read(users, authority["authority_id"])["status"] == "current"
