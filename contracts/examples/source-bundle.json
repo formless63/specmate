@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1",
+  "synthetic": true,
+  "bundle_id": "bundle-synthetic",
+  "source_revision": "source-r1",
+  "ancestry": [],
+  "files": [
+    {
+      "path": "source.txt",
+      "sha256": "a5997cd88839d1cda1e9398054816dd4e0e1bb17e39a9421f0df203c257066a4",
+      "bytes": 85,
+      "media_type": "text/plain",
+      "rights": "synthetic-original"
+    }
+  ]
+}

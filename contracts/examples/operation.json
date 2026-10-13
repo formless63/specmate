@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1",
+  "synthetic": true,
+  "operation": "draft.update",
+  "request_id": "request-synthetic",
+  "idempotency_key": "synthetic-update-1",
+  "expected_state": "draft-version-3",
+  "payload": {
+    "draft_id": "draft-synthetic",
+    "changes": {
+      "label": "Demonstration stock"
+    }
+  }
+}

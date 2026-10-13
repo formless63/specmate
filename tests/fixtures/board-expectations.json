@@ -1,0 +1,72 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "units": "mm",
+  "outline": [
+    [
+      0,
+      0
+    ],
+    [
+      40,
+      0
+    ],
+    [
+      40,
+      25
+    ],
+    [
+      0,
+      25
+    ]
+  ],
+  "mounting_holes": [
+    [
+      3,
+      3
+    ],
+    [
+      37,
+      3
+    ],
+    [
+      3,
+      22
+    ],
+    [
+      37,
+      22
+    ]
+  ],
+  "terminals": [
+    "J1.1",
+    "J1.2",
+    "R1.1",
+    "R1.2"
+  ],
+  "copper_nets": {
+    "N1": [
+      "J1.1",
+      "R1.1"
+    ],
+    "N2": [
+      "J1.2",
+      "R1.2"
+    ]
+  },
+  "component_passages": [
+    {
+      "kind": "resistor",
+      "from": "R1.1",
+      "to": "R1.2",
+      "resistance_ohm": 1000
+    }
+  ],
+  "expected": {
+    "copper_net_count": 2,
+    "mounting_hole_count": 4,
+    "procurement_mode": "make-unless-explicitly-bought"
+  },
+  "native_fixture": "To be authored and checked with pinned KiCad during implementation; no native file is claimed here."
+}

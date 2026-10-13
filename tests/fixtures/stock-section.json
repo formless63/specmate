@@ -1,0 +1,46 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "construction": "synthetic single coax",
+  "units": "mm",
+  "layers": [
+    {
+      "id": "center",
+      "kind": "conductor",
+      "r_inner": 0,
+      "r_outer": 0.5
+    },
+    {
+      "id": "dielectric",
+      "kind": "dielectric",
+      "r_inner": 0.5,
+      "r_outer": 1.0
+    },
+    {
+      "id": "screen",
+      "kind": "shield",
+      "r_inner": 1.0,
+      "r_outer": 1.2
+    },
+    {
+      "id": "jacket",
+      "kind": "jacket",
+      "r_inner": 1.2,
+      "r_outer": 1.5
+    }
+  ],
+  "facts": {
+    "voltage_rating": {
+      "status": "unknown"
+    },
+    "impedance": {
+      "status": "unknown"
+    }
+  },
+  "expected": {
+    "outer_diameter_mm": 3.0,
+    "layer_count": 4,
+    "electrical_bonds_from_display": 0
+  }
+}

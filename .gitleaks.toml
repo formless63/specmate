@@ -1,0 +1,7 @@
+title = "Specmate public source secret scan"
+
+[extend]
+useDefault = true
+
+# Operator-specific names/domains belong in an external private denylist,
+# never in this configuration. Secret scanning does not prove confidentiality.

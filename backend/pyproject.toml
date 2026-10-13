@@ -1,0 +1,44 @@
+[project]
+name = "specmate"
+version = "0.0.0"
+description = "Specmate application backend: Django operations, API and shared engineering modules."
+license = "AGPL-3.0-only"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "django>=5.2,<5.3",
+  "django-ninja>=1.5,<2",
+  "pydantic>=2.12,<3",
+  "psycopg[binary]>=3.3,<4",
+  "uvicorn>=0.40,<1",
+  "temporalio>=1.30,<2",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=9,<10",
+  "pytest-django>=4.11,<5",
+  "ruff>=0.15,<0.18",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv]
+# Supply-chain guard: newly published releases are not resolved until they have aged.
+exclude-newer = "7 days"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+django_find_project = false
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "DJ", "S", "RUF"]
+ignore = ["S101"]

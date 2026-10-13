@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "profile": "synthetic-additive-cut-v1",
+  "inputs_mm": {
+    "finished": 1000,
+    "route_slack": 20,
+    "end_a_allowance": 10,
+    "end_b_allowance": 5
+  },
+  "formula_terms": [
+    "finished",
+    "route_slack",
+    "end_a_allowance",
+    "end_b_allowance"
+  ],
+  "expected": {
+    "stock_cut_mm": 1035
+  },
+  "unknown_case": {
+    "replace_term": "end_b_allowance",
+    "status": "unknown",
+    "expected_stock_cut_mm": null
+  }
+}

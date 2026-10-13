@@ -1,0 +1,52 @@
+{
+  "schema_version": "0.1",
+  "synthetic": true,
+  "snapshot_id": "snapshot-synthetic-1",
+  "units": "mm",
+  "handedness": "right",
+  "matrix_convention": "row-major; column vectors; parent-from-local",
+  "nodes": [
+    {
+      "occurrence_path": [
+        "module-right",
+        "board-local"
+      ],
+      "revision_id": "board-r1",
+      "feature_id": "body",
+      "geometry_id": "geom-synthetic",
+      "geometry_role": "illustration",
+      "accuracy": "illustrative",
+      "canonical_transform": [
+        [
+          1,
+          0,
+          0,
+          50
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "view_offset": [
+        0,
+        0,
+        25
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "specmate",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "packageManager": "bun@1.4.3",
+  "engines": {
+    "node": "24.21.0"
+  },
+  "workspaces": [
+    "frontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --cwd frontend dev",
+    "build": "bun run --cwd frontend build",
+    "typecheck": "bun run --cwd frontend typecheck",
+    "test": "bun run --cwd frontend test"
+  }
+}

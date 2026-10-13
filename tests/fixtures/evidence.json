@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "observations": [
+    {
+      "id": "observation-1",
+      "subject_unit": "unit-A",
+      "design_revision": "cable-r1",
+      "procedure": "synthetic-continuity-v1",
+      "result": "pass",
+      "not_a_real_measurement": true
+    }
+  ],
+  "units": [
+    "unit-A",
+    "unit-B"
+  ],
+  "new_design_revision": "cable-r2",
+  "changed_property": "termination",
+  "expected": {
+    "unit_B_qualified_by_observation_1": false,
+    "new_revision_auto_qualified": false,
+    "original_observation_unchanged": true
+  }
+}

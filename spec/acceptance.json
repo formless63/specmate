@@ -1,0 +1,2034 @@
+{
+  "format_version": 1,
+  "purpose": "Acceptance obligations, not claims of executable tests or passes.",
+  "scenarios": [
+    {
+      "id": "ACC-FND-001",
+      "capabilities": [
+        "FND-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Distinguish definitions, representations, manufacturer variants and physical lots.",
+      "expect": [
+        "Two uses retain one definition while separate orderable variants and lots remain linked but distinct."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FND-002",
+      "capabilities": [
+        "FND-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Save incomplete drafts; freeze exact state and dependencies without mutating recorded revisions.",
+      "expect": [
+        "A stale edit conflicts; a new edit leaves the earlier frozen record and its dependency pins byte-for-byte retrievable."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FND-003",
+      "capabilities": [
+        "FND-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Address nested repeated assemblies and their features independently of display references.",
+      "expect": [
+        "Selecting J1 in the second copy does not select or assign firmware to J1 in the first copy."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FND-004",
+      "capabilities": [
+        "FND-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Compose reusable assemblies with typed containment, mating, wiring and mounting edges.",
+      "expect": [
+        "Containment cycles are rejected while a permitted documentary reference cycle is not mistaken for physical recursion."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FND-005",
+      "capabilities": [
+        "FND-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Keep source observations, reviewed associations, calculations and measurements distinct with units/conditions.",
+      "expect": [
+        "An absent allowance stays unknown; conflicting dimensions are presented for review instead of one silently winning."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FND-006",
+      "capabilities": [
+        "FND-006"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "GUI, API, MCP and trusted jobs enforce the same business/permission/concurrency rules.",
+      "expect": [
+        "The same unauthorized mutation is rejected through every transport and no hidden direct-table path succeeds."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FND-007",
+      "capabilities": [
+        "FND-007"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Provide private personal projects and optional teams without separate engineering models.",
+      "expect": [
+        "An uninvited user cannot enumerate project names, membership, private search matches or dependency counts."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FND-008",
+      "capabilities": [
+        "FND-008"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Trace typed dependencies and deliberate adoption of revised library items.",
+      "expect": [
+        "Updating a catalog offers an upgrade and impact report but existing assemblies/releases retain old revision pins."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-LIB-001",
+      "capabilities": [
+        "LIB-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Maintain parts, boards, connectors, stock, hardware, materials and assemblies.",
+      "expect": [
+        "A board and stock record are usable without creating a complete device or importing hidden internals."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-LIB-002",
+      "capabilities": [
+        "LIB-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Link datasheets, symbols, footprints, models and source identifiers with explicit rights.",
+      "expect": [
+        "The UI identifies the actual model revision and missing rights without confusing the model with a purchasable part."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-LIB-003",
+      "capabilities": [
+        "LIB-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Review candidates from imports, supplier records and model associations.",
+      "expect": [
+        "A similar identifier creates a candidate rather than merging engineering identities automatically."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-LIB-004",
+      "capabilities": [
+        "LIB-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Version catalog content, rules, profiles, models and recipe references.",
+      "expect": [
+        "A pack update does not silently replace consumers; downgrade/disable retains referenced historical content."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-LIB-005",
+      "capabilities": [
+        "LIB-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Search approved libraries/projects/sources/stock and traverse use relationships.",
+      "expect": [
+        "A permitted part lists visible uses without revealing names or counts of inaccessible parents."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INT-001",
+      "capabilities": [
+        "INT-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Separate connector body, pinout, electrical contract, orientation and placement.",
+      "expect": [
+        "One connector body supports two reviewed pinouts without claiming the two cables are electrically interchangeable."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INT-002",
+      "capabilities": [
+        "INT-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Map device boundary ports to internal board connector/terminal features.",
+      "expect": [
+        "Tracing from an external pin reaches the identified internal terminal and preserves the exact board occurrence."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INT-003",
+      "capabilities": [
+        "INT-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Explain mating, pin correspondence, levels, currents, protocol, shielding, grounding and fit separately.",
+      "expect": [
+        "Physical mating success coexists visibly with unknown electrical ratings and an invalid pin correspondence."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INT-004",
+      "capabilities": [
+        "INT-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Express viewing side, contact numbering, polarity and conditional limits.",
+      "expect": [
+        "Mating-side mirroring does not silently reverse pin identity; a temperature-dependent rating is applied only in scope."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-WST-001",
+      "capabilities": [
+        "WST-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Describe stock without complete cable/device endpoints.",
+      "expect": [
+        "A reusable stock specification, table, section and preview can be produced without a connector or PCB."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-WST-002",
+      "capabilities": [
+        "WST-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Represent conductors, dielectric, insulation, shields, drains, filler, web and jackets.",
+      "expect": [
+        "Coax/pair/ribbon/figure-eight fixtures retain nested material and conductor identities through save and export."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-WST-003",
+      "capabilities": [
+        "WST-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Drive dimensions, color tables, callouts, legends and geometry from one section definition.",
+      "expect": [
+        "The independent synthetic section dimensions and feature counts are met by both drawing and preview."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-WST-004",
+      "capabilities": [
+        "WST-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Preserve capable layered wire/strip/pigtail geometry and lazy interactive viewing.",
+      "expect": [
+        "Distinct screen leads, hidden layers and per-end cuts are shown under an explicit profile without changing construction."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-WST-005",
+      "capabilities": [
+        "WST-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Version workshop preparation/display practices separately from engineering facts.",
+      "expect": [
+        "Changing foil visibility or illustration lay length does not establish a bond, rating or measured dimension."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CAB-001",
+      "capabilities": [
+        "CAB-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Compose body/pinout/stock selections and terminal assignments.",
+      "expect": [
+        "A reviewed two-end cable preserves conductor identity and rejects duplicate conflicting terminal assignments."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CAB-002",
+      "capabilities": [
+        "CAB-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Model splices, branches, shared sections, breakouts and bonded shields.",
+      "expect": [
+        "A branched harness expands segment quantities correctly and traces only declared joint/bond relationships."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CAB-003",
+      "capabilities": [
+        "CAB-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Separate route, finished, stock cut and conductor cut lengths with applicable slack.",
+      "expect": [
+        "Changing route length identifies preparation/document impacts without replacing unrelated stock facts."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CAB-004",
+      "capabilities": [
+        "CAB-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Assign continuity/isolation intent and labels to exact cable revisions/occurrences.",
+      "expect": [
+        "A portable cable package states expected terminal pairs and does not claim a physical test was performed."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CAB-005",
+      "capabilities": [
+        "CAB-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Freeze cable revisions and reuse them in assemblies or independent packages.",
+      "expect": [
+        "A selected cable package remains understandable without access to its private parent device."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-TOP-001",
+      "capabilities": [
+        "TOP-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Unify wires, joints, copper nets and exposed terminals while preserving net identities.",
+      "expect": [
+        "A resistor between two nets leaves two copper components rather than merging them."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-TOP-002",
+      "capabilities": [
+        "TOP-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Interpret passive paths distinctly for DC continuity, resistance and signal queries.",
+      "expect": [
+        "A capacitor candidate path is not DC continuity; a resistor path is labelled resistive rather than copper."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-TOP-003",
+      "capabilities": [
+        "TOP-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Keep switch state, active devices and unknown behavior explicit.",
+      "expect": [
+        "A path cannot combine mutually exclusive switch positions into one satisfied proof."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-TOP-004",
+      "capabilities": [
+        "TOP-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Explain exact features, boundaries, assumptions, query semantics and unsupported portions.",
+      "expect": [
+        "A harness-to-PCB trace identifies occurrence/terminal/net and marks unmodelled active behavior as unknown."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRE-001",
+      "capabilities": [
+        "PRE-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Compute segment/conductor cuts from explicit profile formulas and allowances.",
+      "expect": [
+        "The synthetic 1000+20+10+5 mm example yields 1035 mm; an unknown allowance yields no numeric cut."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRE-002",
+      "capabilities": [
+        "PRE-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Describe per-end layer strips, drain treatment, shield leads, bonds and preparation tolerances.",
+      "expect": [
+        "A reviewed per-end profile yields distinct instructions; a missing preparation fact is not filled from display defaults."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRE-003",
+      "capabilities": [
+        "PRE-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Track consumables, retained material, waste and procurement quantities separately.",
+      "expect": [
+        "A build sheet distinguishes installed cable length from waste and consumables without double procurement."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRE-004",
+      "capabilities": [
+        "PRE-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Produce specifications, schematics, cut/prep lists, build sheets, terminations and tests.",
+      "expect": [
+        "Every output references the same input revision and independently expected pin/cut quantities."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRE-005",
+      "capabilities": [
+        "PRE-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Produce labels and full-scale formboards with explicit calibration/page rules.",
+      "expect": [
+        "A known reference span prints at its declared scale with tiling and print-to-fit warnings, not a misleading 1:1 claim."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PCB-001",
+      "capabilities": [
+        "PCB-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Import supported native sources, netlists, fabrication/BOM/placement inputs without losing originals.",
+      "expect": [
+        "Original bytes reconstruct; unsupported semantics and parsed coverage appear in an intake report."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PCB-002",
+      "capabilities": [
+        "PCB-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Extract components, pad/net identities, outlines, holes and placements.",
+      "expect": [
+        "A synthetic board matches independently listed net memberships and geometry features."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PCB-003",
+      "capabilities": [
+        "PCB-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Represent population options and reviewed port/model/library candidates.",
+      "expect": [
+        "An unpopulated part is excluded in the selected population and a candidate model is not silently trusted."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PCB-004",
+      "capabilities": [
+        "PCB-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Expose schematic/PCB/netlist discrepancies.",
+      "expect": [
+        "An intentionally inconsistent net produces a reviewable conflict rather than choosing one silently."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PCB-005",
+      "capabilities": [
+        "PCB-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Use exact tool adapters for generation/modification, ERC/DRC, optional routing and fabrication/assembly output.",
+      "expect": [
+        "A real pinned tool stage produces checked source and fabrication artifacts; a routing failure remains a failed stage."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PCB-006",
+      "capabilities": [
+        "PCB-006"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Represent bought boards by declared ports and reuse board revisions independently.",
+      "expect": [
+        "A bought board participates in a device without an invented schematic or separate purchase of its internals."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-MEC-001",
+      "capabilities": [
+        "MEC-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Manage native enclosure/part/hardware sources against exact board/component revisions.",
+      "expect": [
+        "An enclosure remains reusable with traceable board geometry inputs and preserved native sources."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-MEC-002",
+      "capabilities": [
+        "MEC-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Propose outlines, bosses, holes, openings, vents and fastener/cable-guide arrangements.",
+      "expect": [
+        "A supported board fixture drives a real proposal with explicitly unresolved connector/tolerance inputs."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-MEC-003",
+      "capabilities": [
+        "MEC-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Separate manufacturing/clearance/illustration geometry and material/process assumptions.",
+      "expect": [
+        "Missing tolerance or connector envelope prevents an unqualified fit conclusion despite a valid mesh."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-MEC-004",
+      "capabilities": [
+        "MEC-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Place boards, enclosures, hardware and internal wiring with typed relationships.",
+      "expect": [
+        "Mounting constraints and canonical placement persist when the user opens or explodes a display view."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SCN-001",
+      "capabilities": [
+        "SCN-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Represent all disciplines in one scene with source/model identities and units/frames.",
+      "expect": [
+        "Repeated parts share geometry efficiently but retain separate occurrence addresses."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SCN-002",
+      "capabilities": [
+        "SCN-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Synchronize tree, schematic, board, cable, scene, inspector and BOM context.",
+      "expect": [
+        "Selecting the second repeated board selects only that contextual use in every connected view."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SCN-003",
+      "capabilities": [
+        "SCN-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Support sectioning, open/closed, exploded and orthographic views without editing physical placement.",
+      "expect": [
+        "Closing an exploded view restores identical canonical transforms and engineering measurements."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SCN-004",
+      "capabilities": [
+        "SCN-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Generate images/drawings with declared scene revisions and limitations.",
+      "expect": [
+        "A render carries its scene/source provenance and does not label missing models as validated fit."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SCN-005",
+      "capabilities": [
+        "SCN-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Lazy-load viewers, cap geometry and render static scenes on demand.",
+      "expect": [
+        "A static hidden view stops unnecessary drawing activity and repeated scene loads release unused resources."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CFG-001",
+      "capabilities": [
+        "CFG-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Resolve parts, populations, firmware, material/process choices and requirements.",
+      "expect": [
+        "A build receives an exact resolved snapshot rather than mutable option defaults."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CFG-002",
+      "capabilities": [
+        "CFG-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Evaluate with valid/invalid/unknown/not-evaluated outcomes and fact/rule reasons.",
+      "expect": [
+        "Missing current rating remains unknown rather than solver-assumed compatibility."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CFG-003",
+      "capabilities": [
+        "CFG-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Link adapter-board/cable/enclosure work to otherwise unmet requirements.",
+      "expect": [
+        "A proposal does not turn an invalid current combination into a valid completed design."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CFG-004",
+      "capabilities": [
+        "CFG-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Show electrical/mechanical/firmware/manufacturing/evidence impact before adoption.",
+      "expect": [
+        "Accepting one upgrade changes only selected consumers; old releases retain original pins."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SRC-001",
+      "capabilities": [
+        "SRC-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Preserve originals, derivatives and ancestry with reconstructed supported packages.",
+      "expect": [
+        "Original hashes survive edit/reimport; an authored derivative has separate identity."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SRC-002",
+      "capabilities": [
+        "SRC-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Declare source-owned properties and extracted projections.",
+      "expect": [
+        "An outline edit goes through its owner and reconciles extracted geometry rather than competing table/file edits."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SRC-003",
+      "capabilities": [
+        "SRC-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Protect human and agent edits with expected state tokens.",
+      "expect": [
+        "Two edits from one base cause a conflict for the stale writer without data loss."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SRC-004",
+      "capabilities": [
+        "SRC-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Validate paths/types/size and isolate active/hostile source handling.",
+      "expect": [
+        "Traversal, unsafe links, excessive expansion and unauthorized execution are rejected before host access."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-SRC-005",
+      "capabilities": [
+        "SRC-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Allow exported source editing and reviewed re-entry without requiring Git.",
+      "expect": [
+        "A user can edit a supported native bundle and submit a derivative with ancestry/conflict handling."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-BLD-001",
+      "capabilities": [
+        "BLD-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Atomically record attempts/outbox and start stable Temporal workflow identities.",
+      "expect": [
+        "Crash after commit but before dispatch eventually starts one logical workflow, not zero or duplicate attempts."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-BLD-002",
+      "capabilities": [
+        "BLD-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Record configuration, source snapshots, recipe, tools/libraries/images and limits.",
+      "expect": [
+        "Every artifact can identify its actual pinned inputs even when defaults changed after submission."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-BLD-003",
+      "capabilities": [
+        "BLD-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Use scoped authenticated runner leases, bounded tool containers and stale-result fencing.",
+      "expect": [
+        "A stale runner cannot register output; imported code cannot reach DB or runtime socket."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-BLD-004",
+      "capabilities": [
+        "BLD-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Cancel actual subprocesses, retain failure/partial history and reconcile interrupted work.",
+      "expect": [
+        "Lost completion acknowledgment does not silently launch duplicate side effects or label running work cancelled."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-BLD-005",
+      "capabilities": [
+        "BLD-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Verify hashes/types/rights before promotion and reuse only applicable authorized results.",
+      "expect": [
+        "A partial file stays incomplete and a revoked user cannot retrieve it through a cache hit."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-BLD-006",
+      "capabilities": [
+        "BLD-006"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Distinguish provenance, rerun, semantic equality and demonstrated byte reproducibility.",
+      "expect": [
+        "A tool-success result does not display byte-reproducible until independent repeated outputs establish it."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-DOC-001",
+      "capabilities": [
+        "DOC-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Generate system/cable/PCB/mechanical/spreadsheet/test packages from exact records.",
+      "expect": [
+        "Document sets cite identical intended revisions and independently correct scope quantities."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-DOC-002",
+      "capabilities": [
+        "DOC-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Export self-contained selected assemblies with boundary interfaces.",
+      "expect": [
+        "A cable-only viewer/document pack opens without private parent data and includes required boundary meaning."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-DOC-003",
+      "capabilities": [
+        "DOC-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Include identities, hashes, permitted dependencies, provenance and unresolved items.",
+      "expect": [
+        "A changed byte fails package verification and an omitted required dependency is reported."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-DOC-004",
+      "capabilities": [
+        "DOC-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Review complete export dependency closure before sharing/publication.",
+      "expect": [
+        "Unknown model rights block affected distribution without banning an otherwise permitted private preview."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-DOC-005",
+      "capabilities": [
+        "DOC-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Retain capable existing document generators and explicitly report unsupported output semantics.",
+      "expect": [
+        "A supported legacy generator passes relevant oracles; WireViz limitations do not reduce canonical cable data."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INV-001",
+      "capabilities": [
+        "INV-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Track lots, locations, receipts and adjustments with count/length/mass units.",
+      "expect": [
+        "A length receipt cannot satisfy a count reservation through implicit unit conversion."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INV-002",
+      "capabilities": [
+        "INV-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Reserve available stock transactionally without consuming it.",
+      "expect": [
+        "Two competing 7-unit reservations against 10 available units cannot both succeed."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INV-003",
+      "capabilities": [
+        "INV-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Record actual usage, returns and partial completion by plan/unit/batch.",
+      "expect": [
+        "A replayed consume command is idempotent and unused returned material restores availability once."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INV-004",
+      "capabilities": [
+        "INV-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Separate contents, procurement, PCB fabrication/population and consumables.",
+      "expect": [
+        "A purchased populated board contributes one board procurement item, not its component purchases too."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INV-005",
+      "capabilities": [
+        "INV-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Combine frozen need with live stock and dated reviewed supplier offers.",
+      "expect": [
+        "Missing prices/currency never block a build sheet; unknown offer freshness and substitutions remain visible."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-INV-006",
+      "capabilities": [
+        "INV-006"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Link actual obtained/assembled subjects to design and release separately from plans.",
+      "expect": [
+        "A partially completed batch records actual members and usage without pretending all planned units were built."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FW-001",
+      "capabilities": [
+        "FW-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Tie sources/configuration/toolchains to board population and pin assignments.",
+      "expect": [
+        "A wrong target or incompatible pin assignment fails validation before being described as a working build."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FW-002",
+      "capabilities": [
+        "FW-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Allow separate firmware configuration on repeated instances of one board revision.",
+      "expect": [
+        "Two occurrences resolve distinct firmware artifacts without forking identical board copper."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FW-003",
+      "capabilities": [
+        "FW-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Compile with pinned supported toolchains and retain build provenance; flashing is separate.",
+      "expect": [
+        "Compile success produces a handoff artifact but no claim that a device was flashed or operates."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-FW-004",
+      "capabilities": [
+        "FW-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Expose affected firmware assumptions and observation applicability after changes.",
+      "expect": [
+        "A hardware/pin change marks affected firmware/test evidence for review while preserving historical results."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EVD-001",
+      "capabilities": [
+        "EVD-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Keep requirements, calculations, generated checks, review and physical measurements distinct.",
+      "expect": [
+        "A manually entered rating is not displayed as a measured physical test or trusted imported fact."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EVD-002",
+      "capabilities": [
+        "EVD-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Record procedures, instruments, conditions and exact units/batches/configurations.",
+      "expect": [
+        "A continuity test on unit A does not qualify unit B of the same cable revision."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EVD-003",
+      "capabilities": [
+        "EVD-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Link changed design state to stale/inapplicable evidence without rewriting observations.",
+      "expect": [
+        "A changed termination preserves the old result and flags its limited applicability to the new revision."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EVD-004",
+      "capabilities": [
+        "EVD-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Freeze revisions/configurations/dependencies/artifacts/rights and unresolved items.",
+      "expect": [
+        "A release is reconstructable and cannot silently adopt a new model or pack update."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EVD-005",
+      "capabilities": [
+        "EVD-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Attach later contradictions/security/engineering warnings to historical releases.",
+      "expect": [
+        "A new warning is visible alongside, not edited into or erased from, the original approval record."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-KNW-001",
+      "capabilities": [
+        "KNW-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Link notes/photos/PDFs/files/decisions to multiple objects without duplicate identity.",
+      "expect": [
+        "One authorized attachment is referenced by several relevant objects without duplicate blob ownership."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-KNW-002",
+      "capabilities": [
+        "KNW-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Support team review, comparisons, notifications and proposed upgrades.",
+      "expect": [
+        "A reviewer sees exact changed facts and affected parents while forbidden project names stay hidden."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-KNW-003",
+      "capabilities": [
+        "KNW-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Search permitted text/metadata and inspect safe previews.",
+      "expect": [
+        "A private attachment does not leak through snippets, previews, autocomplete or counts."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-KNW-004",
+      "capabilities": [
+        "KNW-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Keep projects private and make sharing/export authority explicit.",
+      "expect": [
+        "A shared subassembly review does not disclose its private parent or automatically publish all dependencies."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EXT-001",
+      "capabilities": [
+        "EXT-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Declare publisher/integrity/compatibility/dependencies/authority for packs and adapters.",
+      "expect": [
+        "An update requesting execution/network authority cannot be accepted as an unnoticed catalog-only update."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EXT-002",
+      "capabilities": [
+        "EXT-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Separate declarative content from executable/in-process code and enforce permissions.",
+      "expect": [
+        "A template cannot execute code under a content-only grant."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EXT-003",
+      "capabilities": [
+        "EXT-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Preserve referenced engineering history while controlling future use.",
+      "expect": [
+        "A quarantined adapter stops execution but its previous build evidence remains retrievable."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-EXT-004",
+      "capabilities": [
+        "EXT-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Connect external ERP/invoicing/suppliers through explicit field ownership and authority.",
+      "expect": [
+        "A disconnected optional integration leaves normal engineering work functional and does not create a competing stock ledger."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-001",
+      "capabilities": [
+        "OPS-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Provide prebuilt managed installation with generated secrets and local sign-in.",
+      "expect": [
+        "A fresh local install reaches owner setup without mail, IdP, ERP or AI credentials."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-002",
+      "capabilities": [
+        "OPS-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Apply checked-in app/upstream Temporal schemas within existing service startup.",
+      "expect": [
+        "Empty and already-initialized starts work without separate init/migration services; a migration failure fails readiness visibly."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-003",
+      "capabilities": [
+        "OPS-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Enable pinned tool images explicitly with capability/architecture/download information.",
+      "expect": [
+        "Import/view works without native execution authority; an unsupported pack operation reports unavailable."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-004",
+      "capabilities": [
+        "OPS-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Run heavy tools only for jobs, bound pools/concurrency and measure actual resource use.",
+      "expect": [
+        "Repeated native jobs return to a measured idle baseline with no lingering CAD/compiler/render processes."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-005",
+      "capabilities": [
+        "OPS-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Distinguish tools/storage/permissions/stale evidence and safely stop/reconcile work.",
+      "expect": [
+        "Closing the browser does not cancel work; explicit interruption and restart show honest stage states."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-006",
+      "capabilities": [
+        "OPS-006"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Coordinate database/bytes/secrets/manifests and prevent side-effect replay on restore.",
+      "expect": [
+        "Same-version restore into empty state retrieves exact source/artifact hashes and starts with external execution disabled."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-007",
+      "capabilities": [
+        "OPS-007"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Permit safe pre-1.0 resets only inside verified disposable installations.",
+      "expect": [
+        "An unknown database target or private-data path is refused while a declared synthetic dev install can recreate its baseline."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-OPS-008",
+      "capabilities": [
+        "OPS-008"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Support remote runners, shared storage and qualified platform/availability growth.",
+      "expect": [
+        "A remote runner executes a supported pack with scoped access; multi-platform claims are backed by tested image/operation combinations."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-AGT-001",
+      "capabilities": [
+        "AGT-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Expose supported API/MCP capabilities and permissions from the real instance.",
+      "expect": [
+        "An external agent discovers actual operation schemas and cannot use guessed endpoint names as authority."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-AGT-002",
+      "capabilities": [
+        "AGT-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Allow scoped reversible edits with budgets, deadlines, allowed actions and checkpoints.",
+      "expect": [
+        "A permitted draft sequence proceeds without field-by-field approval but stops at an ungranted execution/release boundary."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-AGT-003",
+      "capabilities": [
+        "AGT-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Use maker preferences for defaults while preserving unknown engineering facts.",
+      "expect": [
+        "A preferred connector has no invented rating merely because it is familiar."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-AGT-004",
+      "capabilities": [
+        "AGT-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Record agent proposals/changes, checkpoint, cancel, resume and prepare review packages.",
+      "expect": [
+        "A resumed run retains exact prior changes/results and does not repeat consumed budget or external actions silently."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-AGT-005",
+      "capabilities": [
+        "AGT-005"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Separate source execution, inventory, release, sharing, purchase, flash and print permissions.",
+      "expect": [
+        "Coding-agent reset privileges never become runtime PCB/CAD agent privileges; device operations remain separately authorized."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRT-001",
+      "capabilities": [
+        "PRT-001"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Model FDM/resin process/material parameters and manufacturing variants.",
+      "expect": [
+        "A process-specific variant references the same part identity and retains its parameter provenance."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRT-002",
+      "capabilities": [
+        "PRT-002"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Track orientation, supports, slicer inputs/tools and output semantics.",
+      "expect": [
+        "A slice result identifies exact profile/tool and is not called printable or physically qualified solely from successful generation."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRT-003",
+      "capabilities": [
+        "PRT-003"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Record print batches, usage, partial outcomes and post-processing.",
+      "expect": [
+        "Failed/partial parts and returns are recorded without inventing successful units."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-PRT-004",
+      "capabilities": [
+        "PRT-004"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Attach measured results to actual printed units; printer operation is separate.",
+      "expect": [
+        "Preparation never submits to a printer without a distinct enabled integration/grant."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    }
+  ],
+  "journeys": [
+    {
+      "id": "JRN-STOCK",
+      "title": "Standalone stock and coax geometry",
+      "groups": [
+        "WST",
+        "LIB"
+      ],
+      "fixtures": [
+        "tests/fixtures/stock-section.json"
+      ],
+      "expect": "Create stock without endpoints; reconcile independently known section dimensions, table identities, layered preview and unknown ratings."
+    },
+    {
+      "id": "JRN-CABLE",
+      "title": "Cable review, documents and a changed termination",
+      "groups": [
+        "CAB",
+        "PRE",
+        "INT",
+        "TOP",
+        "DOC",
+        "EVD"
+      ],
+      "fixtures": [
+        "tests/fixtures/preparation.json",
+        "tests/fixtures/topology.json"
+      ],
+      "expect": "Review/freeze a cable, produce coordinated output, record one synthetic unit result, change termination and show affected evidence without rewriting history."
+    },
+    {
+      "id": "JRN-BOARD",
+      "title": "Preserved board import and real-tool output",
+      "groups": [
+        "PCB",
+        "SRC",
+        "BLD"
+      ],
+      "fixtures": [
+        "tests/fixtures/board-expectations.json"
+      ],
+      "expect": "A licensed synthetic native-board source survives intake, review, supported authoring/checks and real fabrication output."
+    },
+    {
+      "id": "JRN-DEVICE",
+      "title": "Repeated boards in a shared device",
+      "groups": [
+        "FND",
+        "SCN",
+        "MEC",
+        "CFG",
+        "FW"
+      ],
+      "fixtures": [
+        "tests/fixtures/occurrences.json"
+      ],
+      "expect": "Two board occurrences retain separate location, port mapping and firmware through all views and portable subassembly export."
+    },
+    {
+      "id": "JRN-MAKE",
+      "title": "Make/buy, stock and measured unit",
+      "groups": [
+        "INV",
+        "EVD",
+        "PRE"
+      ],
+      "fixtures": [
+        "tests/fixtures/inventory.json"
+      ],
+      "expect": "Reserve stock, build partially, record actual use/returns and unit-scoped evidence while optional costs remain absent."
+    },
+    {
+      "id": "JRN-UPGRADE",
+      "title": "Explicit reuse and impact",
+      "groups": [
+        "LIB",
+        "CFG",
+        "EVD",
+        "FW"
+      ],
+      "fixtures": [
+        "tests/fixtures/evidence.json"
+      ],
+      "expect": "Adopt a selected replacement after impact review; existing releases and observations retain their exact historical basis."
+    },
+    {
+      "id": "JRN-AGENT",
+      "title": "Scoped external agent workflow",
+      "groups": [
+        "AGT",
+        "FND",
+        "SRC",
+        "BLD"
+      ],
+      "fixtures": [],
+      "expect": "Discover schemas, perform bounded draft work, request authorized build, inspect results and prepare review; deny ungranted side effects."
+    },
+    {
+      "id": "JRN-RECOVERY",
+      "title": "Lost receipt, cancellation and runner fencing",
+      "groups": [
+        "BLD",
+        "OPS"
+      ],
+      "fixtures": [],
+      "expect": "Interrupt actual native execution and recover without duplicate logical attempts, false cancellation or acceptance from stale leases."
+    },
+    {
+      "id": "JRN-PRIVACY",
+      "title": "Access/export/public-source boundary",
+      "groups": [
+        "KNW",
+        "DOC",
+        "EXT",
+        "AGT"
+      ],
+      "fixtures": [
+        "tests/fixtures/export-rights.json"
+      ],
+      "expect": "Reject private traversal/export leaks including hidden closure; published code/examples contain no confidential operator material."
+    },
+    {
+      "id": "JRN-INSTALL",
+      "title": "Fresh startup, idle and same-version restore",
+      "groups": [
+        "OPS"
+      ],
+      "fixtures": [],
+      "expect": "Install without external dependencies, initialize within existing services, run a real job, measure idle and restore records plus bytes."
+    },
+    {
+      "id": "JRN-PRINT",
+      "title": "Later process preparation and measured outcome",
+      "groups": [
+        "PRT",
+        "EVD"
+      ],
+      "fixtures": [],
+      "expect": "Prepare a supported manufacturing variant, record actual post-processing/test results and keep printer control separately authorized."
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "copper_edges": [
+    [
+      "A1",
+      "N1"
+    ],
+    [
+      "N2",
+      "B1"
+    ]
+  ],
+  "passages": [
+    {
+      "id": "R1",
+      "from": "N1",
+      "to": "N2",
+      "kind": "resistor",
+      "ohm": 1000
+    },
+    {
+      "id": "C1",
+      "from": "N2",
+      "to": "N3",
+      "kind": "capacitor"
+    },
+    {
+      "id": "S-a",
+      "from": "N3",
+      "to": "N4",
+      "kind": "switch",
+      "requires": {
+        "switch_1": "a"
+      }
+    },
+    {
+      "id": "S-b",
+      "from": "N4",
+      "to": "N5",
+      "kind": "switch",
+      "requires": {
+        "switch_1": "b"
+      }
+    }
+  ],
+  "expected": {
+    "copper_component_A1": [
+      "A1",
+      "N1"
+    ],
+    "A1_to_B1": "resistive-not-copper",
+    "N2_to_N3_dc": "blocked",
+    "N3_to_N5_joint_condition": "unsatisfiable",
+    "unmodelled_active_behavior": "unknown"
+  }
+}

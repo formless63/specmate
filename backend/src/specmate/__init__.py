@@ -1,0 +1,1 @@
+"""Specmate application backend."""

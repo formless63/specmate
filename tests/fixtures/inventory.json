@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "unit": "ea",
+  "receipt": 10,
+  "competing_reservations": [
+    7,
+    7
+  ],
+  "accepted_reservation": 7,
+  "consume": 4,
+  "release_unused": 3,
+  "return_consumed": 1,
+  "expected": {
+    "both_reservations_succeed": false,
+    "physical_after_consume": 6,
+    "available_with_remaining_reservation": 3,
+    "available_after_release": 6,
+    "available_after_return": 7
+  },
+  "procurement": {
+    "board": {
+      "quantity": 1,
+      "mode": "buy-populated",
+      "internal_component_count": 8
+    },
+    "expected_procurement_board_count": 1,
+    "expected_procurement_internal_count": 0,
+    "price": null
+  }
+}

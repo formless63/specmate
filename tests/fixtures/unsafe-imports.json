@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "reject_paths": [
+    "../outside.txt",
+    "/absolute.txt",
+    "folder/../../outside.txt",
+    "C:\\absolute.txt"
+  ],
+  "reject_link_target": "../../host-data",
+  "max_unpacked_bytes": 1048576,
+  "declared_unpacked_bytes": 2097152,
+  "expected": {
+    "all_paths_rejected": true,
+    "link_rejected": true,
+    "size_rejected": true,
+    "implicit_script_execution": false
+  }
+}

@@ -1,0 +1,9 @@
+Specmate implementation bootstrap
+
+No predecessor application source, company-specific catalog, font file, or third-party
+engineering model has been bundled. Proposed dependencies are selections, not installed
+or redistributed implementations. Imports must add their applicable notices here or
+in clearly referenced per-package notice files.
+
+The GNU Affero General Public License version 3 text in LICENSE retains the Free
+Software Foundation's license-document copyright and verbatim-copy notice.

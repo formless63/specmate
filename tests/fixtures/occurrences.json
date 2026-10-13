@@ -1,0 +1,52 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "root_snapshot": "snapshot-synthetic-1",
+  "revision": "board-r1",
+  "paths": [
+    [
+      "module-left",
+      "board-local"
+    ],
+    [
+      "module-right",
+      "board-local"
+    ]
+  ],
+  "feature": "J1.pin2",
+  "firmware_assignments": [
+    "fw-config-left",
+    "fw-config-right"
+  ],
+  "canonical_translations_mm": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      50,
+      0,
+      0
+    ]
+  ],
+  "view_offsets_mm": [
+    [
+      0,
+      0,
+      25
+    ],
+    [
+      0,
+      0,
+      25
+    ]
+  ],
+  "expected": {
+    "distinct_occurrence_addresses": 2,
+    "distinct_board_revisions": 1,
+    "canonical_distance_mm": 50,
+    "view_changes_canonical": false
+  }
+}

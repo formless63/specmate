@@ -1,0 +1,1361 @@
+{
+  "format_version": 1,
+  "purpose": "Stable product scope; not task status.",
+  "groups": [
+    {
+      "id": "FND",
+      "title": "Engineering foundation",
+      "document": "docs/DOMAIN.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "LIB",
+      "title": "Library and catalogs",
+      "document": "docs/PRODUCT.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "INT",
+      "title": "Interfaces and compatibility",
+      "document": "docs/modules/WIRING.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "WST",
+      "title": "Wire stock and section model",
+      "document": "docs/modules/WIRING.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "CAB",
+      "title": "Cable and harness design",
+      "document": "docs/modules/WIRING.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "TOP",
+      "title": "Electrical tracing",
+      "document": "docs/modules/WIRING.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "PRE",
+      "title": "Preparation and bench documents",
+      "document": "docs/modules/WIRING.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "PCB",
+      "title": "PCB and electronics",
+      "document": "docs/modules/PCB.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "MEC",
+      "title": "Mechanical design",
+      "document": "docs/modules/MECHANICAL.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "SCN",
+      "title": "Shared viewing and rendering",
+      "document": "docs/modules/MECHANICAL.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "CFG",
+      "title": "Configuration and exploration",
+      "document": "docs/DOMAIN.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "SRC",
+      "title": "Controlled sources",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "BLD",
+      "title": "Builds and jobs",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "DOC",
+      "title": "Manufacturing and portable output",
+      "document": "docs/CONTRACTS.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "INV",
+      "title": "Inventory and making",
+      "document": "docs/modules/WORKSHOP.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "FW",
+      "title": "Firmware and commissioning",
+      "document": "docs/modules/PCB.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "EVD",
+      "title": "Evidence and releases",
+      "document": "docs/DOMAIN.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "KNW",
+      "title": "Collaboration and knowledge",
+      "document": "docs/UX.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "EXT",
+      "title": "Extensions and integrations",
+      "document": "docs/EXTENSIONS.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "OPS",
+      "title": "Installation and operation",
+      "document": "docs/OPERATIONS.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "AGT",
+      "title": "Human and agent operations",
+      "document": "agent-guides/README.md",
+      "horizon": "baseline"
+    },
+    {
+      "id": "PRT",
+      "title": "Later printing preparation",
+      "document": "docs/EXTENSIONS.md",
+      "horizon": "later"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "FND-001",
+      "group": "FND",
+      "title": "Reusable identity",
+      "requirement": "Distinguish definitions, representations, manufacturer variants and physical lots.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-001"
+      ]
+    },
+    {
+      "id": "FND-002",
+      "group": "FND",
+      "title": "Draft and immutable revision",
+      "requirement": "Save incomplete drafts; freeze exact state and dependencies without mutating recorded revisions.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-002"
+      ]
+    },
+    {
+      "id": "FND-003",
+      "group": "FND",
+      "title": "Contextual occurrences",
+      "requirement": "Address nested repeated assemblies and their features independently of display references.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-003"
+      ]
+    },
+    {
+      "id": "FND-004",
+      "group": "FND",
+      "title": "Typed assembly relationships",
+      "requirement": "Compose reusable assemblies with typed containment, mating, wiring and mounting edges.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-004"
+      ]
+    },
+    {
+      "id": "FND-005",
+      "group": "FND",
+      "title": "Facts and unknowns",
+      "requirement": "Keep source observations, reviewed associations, calculations and measurements distinct with units/conditions.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-005"
+      ]
+    },
+    {
+      "id": "FND-006",
+      "group": "FND",
+      "title": "One command layer",
+      "requirement": "GUI, API, MCP and trusted jobs enforce the same business/permission/concurrency rules.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-006"
+      ]
+    },
+    {
+      "id": "FND-007",
+      "group": "FND",
+      "title": "Projects and workspaces",
+      "requirement": "Provide private personal projects and optional teams without separate engineering models.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-007"
+      ]
+    },
+    {
+      "id": "FND-008",
+      "group": "FND",
+      "title": "Impact and upgrades",
+      "requirement": "Trace typed dependencies and deliberate adoption of revised library items.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-FND-008"
+      ]
+    },
+    {
+      "id": "LIB-001",
+      "group": "LIB",
+      "title": "Reusable records",
+      "requirement": "Maintain parts, boards, connectors, stock, hardware, materials and assemblies.",
+      "horizon": "baseline",
+      "document": "docs/PRODUCT.md",
+      "acceptance_ids": [
+        "ACC-LIB-001"
+      ]
+    },
+    {
+      "id": "LIB-002",
+      "group": "LIB",
+      "title": "Representations and references",
+      "requirement": "Link datasheets, symbols, footprints, models and source identifiers with explicit rights.",
+      "horizon": "baseline",
+      "document": "docs/PRODUCT.md",
+      "acceptance_ids": [
+        "ACC-LIB-002"
+      ]
+    },
+    {
+      "id": "LIB-003",
+      "group": "LIB",
+      "title": "Reviewed matching",
+      "requirement": "Review candidates from imports, supplier records and model associations.",
+      "horizon": "baseline",
+      "document": "docs/PRODUCT.md",
+      "acceptance_ids": [
+        "ACC-LIB-003"
+      ]
+    },
+    {
+      "id": "LIB-004",
+      "group": "LIB",
+      "title": "Catalog pack adoption",
+      "requirement": "Version catalog content, rules, profiles, models and recipe references.",
+      "horizon": "baseline",
+      "document": "docs/PRODUCT.md",
+      "acceptance_ids": [
+        "ACC-LIB-004"
+      ]
+    },
+    {
+      "id": "LIB-005",
+      "group": "LIB",
+      "title": "Authorized search and where-used",
+      "requirement": "Search approved libraries/projects/sources/stock and traverse use relationships.",
+      "horizon": "baseline",
+      "document": "docs/PRODUCT.md",
+      "acceptance_ids": [
+        "ACC-LIB-005"
+      ]
+    },
+    {
+      "id": "INT-001",
+      "group": "INT",
+      "title": "Bodies pinouts and contracts",
+      "requirement": "Separate connector body, pinout, electrical contract, orientation and placement.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-INT-001"
+      ]
+    },
+    {
+      "id": "INT-002",
+      "group": "INT",
+      "title": "External/internal mapping",
+      "requirement": "Map device boundary ports to internal board connector/terminal features.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-INT-002"
+      ]
+    },
+    {
+      "id": "INT-003",
+      "group": "INT",
+      "title": "Multidimensional checks",
+      "requirement": "Explain mating, pin correspondence, levels, currents, protocol, shielding, grounding and fit separately.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-INT-003"
+      ]
+    },
+    {
+      "id": "INT-004",
+      "group": "INT",
+      "title": "Orientation and conditions",
+      "requirement": "Express viewing side, contact numbering, polarity and conditional limits.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-INT-004"
+      ]
+    },
+    {
+      "id": "WST-001",
+      "group": "WST",
+      "title": "Standalone stock",
+      "requirement": "Describe stock without complete cable/device endpoints.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-WST-001"
+      ]
+    },
+    {
+      "id": "WST-002",
+      "group": "WST",
+      "title": "Hierarchical construction",
+      "requirement": "Represent conductors, dielectric, insulation, shields, drains, filler, web and jackets.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-WST-002"
+      ]
+    },
+    {
+      "id": "WST-003",
+      "group": "WST",
+      "title": "Shared section layout",
+      "requirement": "Drive dimensions, color tables, callouts, legends and geometry from one section definition.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-WST-003"
+      ]
+    },
+    {
+      "id": "WST-004",
+      "group": "WST",
+      "title": "Layered 3D visualization",
+      "requirement": "Preserve capable layered wire/strip/pigtail geometry and lazy interactive viewing.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-WST-004"
+      ]
+    },
+    {
+      "id": "WST-005",
+      "group": "WST",
+      "title": "Profiles not universal defaults",
+      "requirement": "Version workshop preparation/display practices separately from engineering facts.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-WST-005"
+      ]
+    },
+    {
+      "id": "CAB-001",
+      "group": "CAB",
+      "title": "Endpoints and terminations",
+      "requirement": "Compose body/pinout/stock selections and terminal assignments.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-CAB-001"
+      ]
+    },
+    {
+      "id": "CAB-002",
+      "group": "CAB",
+      "title": "Branches joints and breakouts",
+      "requirement": "Model splices, branches, shared sections, breakouts and bonded shields.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-CAB-002"
+      ]
+    },
+    {
+      "id": "CAB-003",
+      "group": "CAB",
+      "title": "Routing and lengths",
+      "requirement": "Separate route, finished, stock cut and conductor cut lengths with applicable slack.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-CAB-003"
+      ]
+    },
+    {
+      "id": "CAB-004",
+      "group": "CAB",
+      "title": "Test intent and labels",
+      "requirement": "Assign continuity/isolation intent and labels to exact cable revisions/occurrences.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-CAB-004"
+      ]
+    },
+    {
+      "id": "CAB-005",
+      "group": "CAB",
+      "title": "Review and standalone reuse",
+      "requirement": "Freeze cable revisions and reuse them in assemblies or independent packages.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-CAB-005"
+      ]
+    },
+    {
+      "id": "TOP-001",
+      "group": "TOP",
+      "title": "Copper graph",
+      "requirement": "Unify wires, joints, copper nets and exposed terminals while preserving net identities.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-TOP-001"
+      ]
+    },
+    {
+      "id": "TOP-002",
+      "group": "TOP",
+      "title": "Passage interpretation",
+      "requirement": "Interpret passive paths distinctly for DC continuity, resistance and signal queries.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-TOP-002"
+      ]
+    },
+    {
+      "id": "TOP-003",
+      "group": "TOP",
+      "title": "Conditional and active behavior",
+      "requirement": "Keep switch state, active devices and unknown behavior explicit.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-TOP-003"
+      ]
+    },
+    {
+      "id": "TOP-004",
+      "group": "TOP",
+      "title": "Path explanation",
+      "requirement": "Explain exact features, boundaries, assumptions, query semantics and unsupported portions.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-TOP-004"
+      ]
+    },
+    {
+      "id": "PRE-001",
+      "group": "PRE",
+      "title": "Quantity and cut arithmetic",
+      "requirement": "Compute segment/conductor cuts from explicit profile formulas and allowances.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-PRE-001"
+      ]
+    },
+    {
+      "id": "PRE-002",
+      "group": "PRE",
+      "title": "Stripping and shielding",
+      "requirement": "Describe per-end layer strips, drain treatment, shield leads, bonds and preparation tolerances.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-PRE-002"
+      ]
+    },
+    {
+      "id": "PRE-003",
+      "group": "PRE",
+      "title": "Consumables and waste",
+      "requirement": "Track consumables, retained material, waste and procurement quantities separately.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-PRE-003"
+      ]
+    },
+    {
+      "id": "PRE-004",
+      "group": "PRE",
+      "title": "Coordinated document set",
+      "requirement": "Produce specifications, schematics, cut/prep lists, build sheets, terminations and tests.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-PRE-004"
+      ]
+    },
+    {
+      "id": "PRE-005",
+      "group": "PRE",
+      "title": "Scale labels and formboards",
+      "requirement": "Produce labels and full-scale formboards with explicit calibration/page rules.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-PRE-005"
+      ]
+    },
+    {
+      "id": "PCB-001",
+      "group": "PCB",
+      "title": "Preserved reviewed import",
+      "requirement": "Import supported native sources, netlists, fabrication/BOM/placement inputs without losing originals.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-PCB-001"
+      ]
+    },
+    {
+      "id": "PCB-002",
+      "group": "PCB",
+      "title": "Components pads nets and outlines",
+      "requirement": "Extract components, pad/net identities, outlines, holes and placements.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-PCB-002"
+      ]
+    },
+    {
+      "id": "PCB-003",
+      "group": "PCB",
+      "title": "Population and associations",
+      "requirement": "Represent population options and reviewed port/model/library candidates.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-PCB-003"
+      ]
+    },
+    {
+      "id": "PCB-004",
+      "group": "PCB",
+      "title": "Source disagreement",
+      "requirement": "Expose schematic/PCB/netlist discrepancies.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-PCB-004"
+      ]
+    },
+    {
+      "id": "PCB-005",
+      "group": "PCB",
+      "title": "Supported native authoring and outputs",
+      "requirement": "Use exact tool adapters for generation/modification, ERC/DRC, optional routing and fabrication/assembly output.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-PCB-005"
+      ]
+    },
+    {
+      "id": "PCB-006",
+      "group": "PCB",
+      "title": "Black-box and reusable boards",
+      "requirement": "Represent bought boards by declared ports and reuse board revisions independently.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-PCB-006"
+      ]
+    },
+    {
+      "id": "MEC-001",
+      "group": "MEC",
+      "title": "Mechanical sources and reuse",
+      "requirement": "Manage native enclosure/part/hardware sources against exact board/component revisions.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-MEC-001"
+      ]
+    },
+    {
+      "id": "MEC-002",
+      "group": "MEC",
+      "title": "Parametric proposals",
+      "requirement": "Propose outlines, bosses, holes, openings, vents and fastener/cable-guide arrangements.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-MEC-002"
+      ]
+    },
+    {
+      "id": "MEC-003",
+      "group": "MEC",
+      "title": "Geometry and process uncertainty",
+      "requirement": "Separate manufacturing/clearance/illustration geometry and material/process assumptions.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-MEC-003"
+      ]
+    },
+    {
+      "id": "MEC-004",
+      "group": "MEC",
+      "title": "Assembly placement and mounting",
+      "requirement": "Place boards, enclosures, hardware and internal wiring with typed relationships.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-MEC-004"
+      ]
+    },
+    {
+      "id": "SCN-001",
+      "group": "SCN",
+      "title": "Occurrence-aware scene",
+      "requirement": "Represent all disciplines in one scene with source/model identities and units/frames.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-SCN-001"
+      ]
+    },
+    {
+      "id": "SCN-002",
+      "group": "SCN",
+      "title": "Cross-view selection",
+      "requirement": "Synchronize tree, schematic, board, cable, scene, inspector and BOM context.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-SCN-002"
+      ]
+    },
+    {
+      "id": "SCN-003",
+      "group": "SCN",
+      "title": "View arrangements",
+      "requirement": "Support sectioning, open/closed, exploded and orthographic views without editing physical placement.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-SCN-003"
+      ]
+    },
+    {
+      "id": "SCN-004",
+      "group": "SCN",
+      "title": "Rendering and drawings",
+      "requirement": "Generate images/drawings with declared scene revisions and limitations.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-SCN-004"
+      ]
+    },
+    {
+      "id": "SCN-005",
+      "group": "SCN",
+      "title": "Idle/browser performance",
+      "requirement": "Lazy-load viewers, cap geometry and render static scenes on demand.",
+      "horizon": "baseline",
+      "document": "docs/modules/MECHANICAL.md",
+      "acceptance_ids": [
+        "ACC-SCN-005"
+      ]
+    },
+    {
+      "id": "CFG-001",
+      "group": "CFG",
+      "title": "Options and resolved choices",
+      "requirement": "Resolve parts, populations, firmware, material/process choices and requirements.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-CFG-001"
+      ]
+    },
+    {
+      "id": "CFG-002",
+      "group": "CFG",
+      "title": "Explainable constraints",
+      "requirement": "Evaluate with valid/invalid/unknown/not-evaluated outcomes and fact/rule reasons.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-CFG-002"
+      ]
+    },
+    {
+      "id": "CFG-003",
+      "group": "CFG",
+      "title": "Development proposals",
+      "requirement": "Link adapter-board/cable/enclosure work to otherwise unmet requirements.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-CFG-003"
+      ]
+    },
+    {
+      "id": "CFG-004",
+      "group": "CFG",
+      "title": "Upgrade and substitution review",
+      "requirement": "Show electrical/mechanical/firmware/manufacturing/evidence impact before adoption.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-CFG-004"
+      ]
+    },
+    {
+      "id": "SRC-001",
+      "group": "SRC",
+      "title": "Original and derivative bundles",
+      "requirement": "Preserve originals, derivatives and ancestry with reconstructed supported packages.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-SRC-001"
+      ]
+    },
+    {
+      "id": "SRC-002",
+      "group": "SRC",
+      "title": "Explicit property authority",
+      "requirement": "Declare source-owned properties and extracted projections.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-SRC-002"
+      ]
+    },
+    {
+      "id": "SRC-003",
+      "group": "SRC",
+      "title": "Concurrent authoring",
+      "requirement": "Protect human and agent edits with expected state tokens.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-SRC-003"
+      ]
+    },
+    {
+      "id": "SRC-004",
+      "group": "SRC",
+      "title": "Safe intake",
+      "requirement": "Validate paths/types/size and isolate active/hostile source handling.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-SRC-004"
+      ]
+    },
+    {
+      "id": "SRC-005",
+      "group": "SRC",
+      "title": "Native editing handoff",
+      "requirement": "Allow exported source editing and reviewed re-entry without requiring Git.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-SRC-005"
+      ]
+    },
+    {
+      "id": "BLD-001",
+      "group": "BLD",
+      "title": "Durable dispatch",
+      "requirement": "Atomically record attempts/outbox and start stable Temporal workflow identities.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-BLD-001"
+      ]
+    },
+    {
+      "id": "BLD-002",
+      "group": "BLD",
+      "title": "Exact staged inputs",
+      "requirement": "Record configuration, source snapshots, recipe, tools/libraries/images and limits.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-BLD-002"
+      ]
+    },
+    {
+      "id": "BLD-003",
+      "group": "BLD",
+      "title": "Runner isolation and leases",
+      "requirement": "Use scoped authenticated runner leases, bounded tool containers and stale-result fencing.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-BLD-003"
+      ]
+    },
+    {
+      "id": "BLD-004",
+      "group": "BLD",
+      "title": "Cancellation retry and recovery",
+      "requirement": "Cancel actual subprocesses, retain failure/partial history and reconcile interrupted work.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-BLD-004"
+      ]
+    },
+    {
+      "id": "BLD-005",
+      "group": "BLD",
+      "title": "Artifact acceptance and caching",
+      "requirement": "Verify hashes/types/rights before promotion and reuse only applicable authorized results.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-BLD-005"
+      ]
+    },
+    {
+      "id": "BLD-006",
+      "group": "BLD",
+      "title": "Reproducibility levels",
+      "requirement": "Distinguish provenance, rerun, semantic equality and demonstrated byte reproducibility.",
+      "horizon": "baseline",
+      "document": "docs/modules/SOURCES-AND-JOBS.md",
+      "acceptance_ids": [
+        "ACC-BLD-006"
+      ]
+    },
+    {
+      "id": "DOC-001",
+      "group": "DOC",
+      "title": "Coherent exports",
+      "requirement": "Generate system/cable/PCB/mechanical/spreadsheet/test packages from exact records.",
+      "horizon": "baseline",
+      "document": "docs/CONTRACTS.md",
+      "acceptance_ids": [
+        "ACC-DOC-001"
+      ]
+    },
+    {
+      "id": "DOC-002",
+      "group": "DOC",
+      "title": "Selected subassembly packages",
+      "requirement": "Export self-contained selected assemblies with boundary interfaces.",
+      "horizon": "baseline",
+      "document": "docs/CONTRACTS.md",
+      "acceptance_ids": [
+        "ACC-DOC-002"
+      ]
+    },
+    {
+      "id": "DOC-003",
+      "group": "DOC",
+      "title": "Manifests and verification",
+      "requirement": "Include identities, hashes, permitted dependencies, provenance and unresolved items.",
+      "horizon": "baseline",
+      "document": "docs/CONTRACTS.md",
+      "acceptance_ids": [
+        "ACC-DOC-003"
+      ]
+    },
+    {
+      "id": "DOC-004",
+      "group": "DOC",
+      "title": "Rights and access closure",
+      "requirement": "Review complete export dependency closure before sharing/publication.",
+      "horizon": "baseline",
+      "document": "docs/CONTRACTS.md",
+      "acceptance_ids": [
+        "ACC-DOC-004"
+      ]
+    },
+    {
+      "id": "DOC-005",
+      "group": "DOC",
+      "title": "Output reuse and formats",
+      "requirement": "Retain capable existing document generators and explicitly report unsupported output semantics.",
+      "horizon": "baseline",
+      "document": "docs/CONTRACTS.md",
+      "acceptance_ids": [
+        "ACC-DOC-005"
+      ]
+    },
+    {
+      "id": "INV-001",
+      "group": "INV",
+      "title": "Stock ledger and units",
+      "requirement": "Track lots, locations, receipts and adjustments with count/length/mass units.",
+      "horizon": "baseline",
+      "document": "docs/modules/WORKSHOP.md",
+      "acceptance_ids": [
+        "ACC-INV-001"
+      ]
+    },
+    {
+      "id": "INV-002",
+      "group": "INV",
+      "title": "Reservations and concurrency",
+      "requirement": "Reserve available stock transactionally without consuming it.",
+      "horizon": "baseline",
+      "document": "docs/modules/WORKSHOP.md",
+      "acceptance_ids": [
+        "ACC-INV-002"
+      ]
+    },
+    {
+      "id": "INV-003",
+      "group": "INV",
+      "title": "Consumption returns and partial work",
+      "requirement": "Record actual usage, returns and partial completion by plan/unit/batch.",
+      "horizon": "baseline",
+      "document": "docs/modules/WORKSHOP.md",
+      "acceptance_ids": [
+        "ACC-INV-003"
+      ]
+    },
+    {
+      "id": "INV-004",
+      "group": "INV",
+      "title": "BOM purpose and make/buy",
+      "requirement": "Separate contents, procurement, PCB fabrication/population and consumables.",
+      "horizon": "baseline",
+      "document": "docs/modules/WORKSHOP.md",
+      "acceptance_ids": [
+        "ACC-INV-004"
+      ]
+    },
+    {
+      "id": "INV-005",
+      "group": "INV",
+      "title": "Sourcing and optional costs",
+      "requirement": "Combine frozen need with live stock and dated reviewed supplier offers.",
+      "horizon": "baseline",
+      "document": "docs/modules/WORKSHOP.md",
+      "acceptance_ids": [
+        "ACC-INV-005"
+      ]
+    },
+    {
+      "id": "INV-006",
+      "group": "INV",
+      "title": "Physical units and batches",
+      "requirement": "Link actual obtained/assembled subjects to design and release separately from plans.",
+      "horizon": "baseline",
+      "document": "docs/modules/WORKSHOP.md",
+      "acceptance_ids": [
+        "ACC-INV-006"
+      ]
+    },
+    {
+      "id": "FW-001",
+      "group": "FW",
+      "title": "Firmware dependencies and targets",
+      "requirement": "Tie sources/configuration/toolchains to board population and pin assignments.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-FW-001"
+      ]
+    },
+    {
+      "id": "FW-002",
+      "group": "FW",
+      "title": "Per-occurrence firmware",
+      "requirement": "Allow separate firmware configuration on repeated instances of one board revision.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-FW-002"
+      ]
+    },
+    {
+      "id": "FW-003",
+      "group": "FW",
+      "title": "Compile and handoff",
+      "requirement": "Compile with pinned supported toolchains and retain build provenance; flashing is separate.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-FW-003"
+      ]
+    },
+    {
+      "id": "FW-004",
+      "group": "FW",
+      "title": "Change and commissioning impact",
+      "requirement": "Expose affected firmware assumptions and observation applicability after changes.",
+      "horizon": "baseline",
+      "document": "docs/modules/PCB.md",
+      "acceptance_ids": [
+        "ACC-FW-004"
+      ]
+    },
+    {
+      "id": "EVD-001",
+      "group": "EVD",
+      "title": "Evidence types",
+      "requirement": "Keep requirements, calculations, generated checks, review and physical measurements distinct.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-EVD-001"
+      ]
+    },
+    {
+      "id": "EVD-002",
+      "group": "EVD",
+      "title": "Actual-subject tests",
+      "requirement": "Record procedures, instruments, conditions and exact units/batches/configurations.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-EVD-002"
+      ]
+    },
+    {
+      "id": "EVD-003",
+      "group": "EVD",
+      "title": "Applicability and history",
+      "requirement": "Link changed design state to stale/inapplicable evidence without rewriting observations.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-EVD-003"
+      ]
+    },
+    {
+      "id": "EVD-004",
+      "group": "EVD",
+      "title": "Reviewed release closure",
+      "requirement": "Freeze revisions/configurations/dependencies/artifacts/rights and unresolved items.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-EVD-004"
+      ]
+    },
+    {
+      "id": "EVD-005",
+      "group": "EVD",
+      "title": "Later warnings",
+      "requirement": "Attach later contradictions/security/engineering warnings to historical releases.",
+      "horizon": "baseline",
+      "document": "docs/DOMAIN.md",
+      "acceptance_ids": [
+        "ACC-EVD-005"
+      ]
+    },
+    {
+      "id": "KNW-001",
+      "group": "KNW",
+      "title": "Notes and multi-links",
+      "requirement": "Link notes/photos/PDFs/files/decisions to multiple objects without duplicate identity.",
+      "horizon": "baseline",
+      "document": "docs/UX.md",
+      "acceptance_ids": [
+        "ACC-KNW-001"
+      ]
+    },
+    {
+      "id": "KNW-002",
+      "group": "KNW",
+      "title": "Collaboration and changes",
+      "requirement": "Support team review, comparisons, notifications and proposed upgrades.",
+      "horizon": "baseline",
+      "document": "docs/UX.md",
+      "acceptance_ids": [
+        "ACC-KNW-002"
+      ]
+    },
+    {
+      "id": "KNW-003",
+      "group": "KNW",
+      "title": "Search and attachments",
+      "requirement": "Search permitted text/metadata and inspect safe previews.",
+      "horizon": "baseline",
+      "document": "docs/UX.md",
+      "acceptance_ids": [
+        "ACC-KNW-003"
+      ]
+    },
+    {
+      "id": "KNW-004",
+      "group": "KNW",
+      "title": "Sharing and publication",
+      "requirement": "Keep projects private and make sharing/export authority explicit.",
+      "horizon": "baseline",
+      "document": "docs/UX.md",
+      "acceptance_ids": [
+        "ACC-KNW-004"
+      ]
+    },
+    {
+      "id": "EXT-001",
+      "group": "EXT",
+      "title": "Versioned manifests",
+      "requirement": "Declare publisher/integrity/compatibility/dependencies/authority for packs and adapters.",
+      "horizon": "baseline",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-EXT-001"
+      ]
+    },
+    {
+      "id": "EXT-002",
+      "group": "EXT",
+      "title": "Trust boundaries",
+      "requirement": "Separate declarative content from executable/in-process code and enforce permissions.",
+      "horizon": "baseline",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-EXT-002"
+      ]
+    },
+    {
+      "id": "EXT-003",
+      "group": "EXT",
+      "title": "Disable rollback and quarantine",
+      "requirement": "Preserve referenced engineering history while controlling future use.",
+      "horizon": "baseline",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-EXT-003"
+      ]
+    },
+    {
+      "id": "EXT-004",
+      "group": "EXT",
+      "title": "Optional business integrations",
+      "requirement": "Connect external ERP/invoicing/suppliers through explicit field ownership and authority.",
+      "horizon": "baseline",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-EXT-004"
+      ]
+    },
+    {
+      "id": "OPS-001",
+      "group": "OPS",
+      "title": "Simple ownership and login",
+      "requirement": "Provide prebuilt managed installation with generated secrets and local sign-in.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-001"
+      ]
+    },
+    {
+      "id": "OPS-002",
+      "group": "OPS",
+      "title": "Startup-managed initialization",
+      "requirement": "Apply checked-in app/upstream Temporal schemas within existing service startup.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-002"
+      ]
+    },
+    {
+      "id": "OPS-003",
+      "group": "OPS",
+      "title": "Optional native tools",
+      "requirement": "Enable pinned tool images explicitly with capability/architecture/download information.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-003"
+      ]
+    },
+    {
+      "id": "OPS-004",
+      "group": "OPS",
+      "title": "Idle and load behavior",
+      "requirement": "Run heavy tools only for jobs, bound pools/concurrency and measure actual resource use.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-004"
+      ]
+    },
+    {
+      "id": "OPS-005",
+      "group": "OPS",
+      "title": "Diagnostics and safe stop",
+      "requirement": "Distinguish tools/storage/permissions/stale evidence and safely stop/reconcile work.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-005"
+      ]
+    },
+    {
+      "id": "OPS-006",
+      "group": "OPS",
+      "title": "Backup and restore",
+      "requirement": "Coordinate database/bytes/secrets/manifests and prevent side-effect replay on restore.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-006"
+      ]
+    },
+    {
+      "id": "OPS-007",
+      "group": "OPS",
+      "title": "Disposable development and release baseline",
+      "requirement": "Permit safe pre-1.0 resets only inside verified disposable installations.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-007"
+      ]
+    },
+    {
+      "id": "OPS-008",
+      "group": "OPS",
+      "title": "Organization and portability",
+      "requirement": "Support remote runners, shared storage and qualified platform/availability growth.",
+      "horizon": "baseline",
+      "document": "docs/OPERATIONS.md",
+      "acceptance_ids": [
+        "ACC-OPS-008"
+      ]
+    },
+    {
+      "id": "AGT-001",
+      "group": "AGT",
+      "title": "Discoverable scoped operations",
+      "requirement": "Expose supported API/MCP capabilities and permissions from the real instance.",
+      "horizon": "baseline",
+      "document": "agent-guides/README.md",
+      "acceptance_ids": [
+        "ACC-AGT-001"
+      ]
+    },
+    {
+      "id": "AGT-002",
+      "group": "AGT",
+      "title": "Bounded draft autonomy",
+      "requirement": "Allow scoped reversible edits with budgets, deadlines, allowed actions and checkpoints.",
+      "horizon": "baseline",
+      "document": "agent-guides/README.md",
+      "acceptance_ids": [
+        "ACC-AGT-002"
+      ]
+    },
+    {
+      "id": "AGT-003",
+      "group": "AGT",
+      "title": "Preferences not evidence",
+      "requirement": "Use maker preferences for defaults while preserving unknown engineering facts.",
+      "horizon": "baseline",
+      "document": "agent-guides/README.md",
+      "acceptance_ids": [
+        "ACC-AGT-003"
+      ]
+    },
+    {
+      "id": "AGT-004",
+      "group": "AGT",
+      "title": "Run lifecycle and review",
+      "requirement": "Record agent proposals/changes, checkpoint, cancel, resume and prepare review packages.",
+      "horizon": "baseline",
+      "document": "agent-guides/README.md",
+      "acceptance_ids": [
+        "ACC-AGT-004"
+      ]
+    },
+    {
+      "id": "AGT-005",
+      "group": "AGT",
+      "title": "Authority separation",
+      "requirement": "Separate source execution, inventory, release, sharing, purchase, flash and print permissions.",
+      "horizon": "baseline",
+      "document": "agent-guides/README.md",
+      "acceptance_ids": [
+        "ACC-AGT-005"
+      ]
+    },
+    {
+      "id": "PRT-001",
+      "group": "PRT",
+      "title": "Process and material profiles",
+      "requirement": "Model FDM/resin process/material parameters and manufacturing variants.",
+      "horizon": "later",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-PRT-001"
+      ]
+    },
+    {
+      "id": "PRT-002",
+      "group": "PRT",
+      "title": "Preparation and slicing",
+      "requirement": "Track orientation, supports, slicer inputs/tools and output semantics.",
+      "horizon": "later",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-PRT-002"
+      ]
+    },
+    {
+      "id": "PRT-003",
+      "group": "PRT",
+      "title": "Print batches and consumption",
+      "requirement": "Record print batches, usage, partial outcomes and post-processing.",
+      "horizon": "later",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-PRT-003"
+      ]
+    },
+    {
+      "id": "PRT-004",
+      "group": "PRT",
+      "title": "Measured outcomes and control boundary",
+      "requirement": "Attach measured results to actual printed units; printer operation is separate.",
+      "horizon": "later",
+      "document": "docs/EXTENSIONS.md",
+      "acceptance_ids": [
+        "ACC-PRT-004"
+      ]
+    }
+  ]
+}

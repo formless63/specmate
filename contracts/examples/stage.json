@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.1",
+  "synthetic": true,
+  "attempt_id": "attempt-synthetic",
+  "stage_id": "stage-synthetic",
+  "lease_token": "nonfunctional-example-token",
+  "recipe_id": "recipe-synthetic-r1",
+  "image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "input_bundle_id": "bundle-synthetic",
+  "configuration_id": "config-synthetic",
+  "authority": [
+    "read-scoped-inputs",
+    "write-scoped-output"
+  ],
+  "limits": {
+    "cpu": 1,
+    "memory_mib": 512,
+    "timeout_seconds": 60,
+    "network": "deny"
+  },
+  "note": "The all-zero image digest is deliberately non-executable example data."
+}

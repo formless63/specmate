@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Independent semantic expectation, not an actual qualified design or measured unit.",
+  "target": "cable-r1",
+  "dependencies": [
+    {
+      "id": "stock-r1",
+      "access": "allowed",
+      "distribution": "allowed"
+    },
+    {
+      "id": "model-r1",
+      "access": "allowed",
+      "distribution": "unknown"
+    }
+  ],
+  "private_parent": "not-in-export-closure",
+  "expected": {
+    "public_export_status": "blocked-unknown-rights",
+    "private_preview_requires_separate_access_check": true,
+    "include_private_parent": false
+  }
+}
