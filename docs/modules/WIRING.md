@@ -447,5 +447,10 @@ lists exact Harness sections and declared end IDs from current authorized inspec
 Denials hide retained preparation evidence across the panel; restoration preserves
 unsaved mapping fields. Harness draft reads do not replace unsaved declarations or
 their original compare-and-set token, and accepted saves advance only their own token.
+A frozen-inspector authority denial gates the retained draft as well, including a late
+response after revision or quantity browsing. Restoring access freshly checks the
+selected and denied frozen revisions, identity, project, saved draft and retained
+unsaved references; a newer server draft never supplies a replacement editing token.
+Actual draft or project replacement fences requests belonging to the previous editor.
 All applications remain read-only; material issuance, measured cuts, actual bonds and
 physical qualification are separate records and checks.
