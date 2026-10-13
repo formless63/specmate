@@ -68,7 +68,8 @@ rewriting history or appending another entry.
 Previews are not rendered; attachments download as inert bytes. Rich-text collaboration,
 search, notifications and review workflows are KNW-002/KNW-003 scope. The panel chooses
 targets with a picker; discipline views can embed `KnowledgePanel` with a fixed `target`
-for their current selection. Global navigation mounting is left to integration.
+for their current selection. The development workspace mounts it lazily in the
+Notes & files tab with the current principal and project permissions.
 
 The reusable panel accepts `principalKey` and `onAccessLost` from its workspace.
 Project, principal, permission and fixed-target changes discard retained results and
