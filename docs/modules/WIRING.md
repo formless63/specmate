@@ -57,3 +57,20 @@ Original synthetic coax, pair, ribbon and figure-eight fixtures exercise these
 contracts. The coax's four layers and 3 mm overall diameter remain independently
 anchored to `tests/fixtures/stock-section.json`. Geometry reuse retains TypeScript
 and attribution; no upstream catalog, private design or font is bundled.
+
+## Layered preparation preview
+
+The stock panel can open a lazy interactive 3D view using `packages/wire-geometry`.
+Its explicitly named local display profile controls per-element cuts at ends A and B,
+hidden elements and occluded interior suppression. Screen and drain leads have distinct
+identities and explicit illustrative diameter, axial/radial reach and direction. They
+never imply an electrical bond, conserved braid area, finished lead length or physical
+preparation qualification. Unknown dimensions and invalid/overlapping cuts are reported;
+no missing geometry is filled with guessed engineering values.
+
+Profile edits do not alter saved stock, source facts, section/SVG export or the straight
+preview. Local preview state is not a persistent versioned workshop practice record.
+A full construction table remains available even for explicitly hidden elements. The
+3D renderer preserves annular caps/bore walls, has bounded per-piece tessellation,
+renders on events, and disposes resources on close. A failed WebGL context leaves the
+section and dimensions available.
