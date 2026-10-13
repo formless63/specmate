@@ -53,6 +53,7 @@ export function WirePreparationPreview({ section, lengthMm, appliedProfile }: { 
         </Group>}
       </Stack>)}
     </fieldset>}
+    <Text size="sm">{model.illustration.message}</Text>
     {model.unknown.length > 0 && <Alert color="yellow">Preview incomplete: {model.unknown.join('; ')}</Alert>}
     <Text size="sm">{model.pieces.length} displayed pieces from {section.rows.length} material elements. Mesh counts are not stock quantities.</Text>
     {model.omitted.map(item => <Text size="xs" key={`${item.path}:${item.reason}`}>{item.path}: {item.reason}</Text>)}

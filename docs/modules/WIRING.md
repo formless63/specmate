@@ -81,7 +81,7 @@ The Workshop profiles workspace creates, edits and freezes a separate
 `workshop_profile` definition through `workshop_profile.create`, `.update` and
 `.freeze`. Each profile selects an exact stock revision and valid stable element
 paths; freezing retains that construction pin without changing the stock. Foil
-visibility, illustration lay length, per-end cut suggestions and lead depiction
+visibility, illustration lay length and direction, per-end cut suggestions and lead depiction
 carry independent unknown, documented, inferred or preference bases. A practice
 value never becomes a measured dimension, rating, electrical bond or qualification.
 
@@ -107,7 +107,20 @@ all interiors available with a notice. A group cutback applies to every descenda
 material element. Overlapping group and element cutbacks retain the farther removal
 from each tip; any applicable unknown cut leaves that material geometry unresolved.
 Group lead suggestions do not identify a single conductive feature and create no lead
-or electrical bond. Prepend cuts and illustration lay remain explicitly unsupported.
+or electrical bond. Prepend cuts remain inspectable but unsupported: the renderer does
+not assign an undocumented manufacturing meaning to that suggestion.
+
+Round pair/bundle illustrations can apply an explicit positive lay period together with
+an independent `positive`/`negative` direction practice. Positive is right-hand rotation
+about display +x as x increases, with phase zero at end A. Stock group ring ordering is
+not a twist direction. The projection uses a single global display-axis rotation and
+retains material paths, cut spans, annular caps and separate lead anchors. It does not
+model nested engineering lays or transform ribbon, figure-eight or web constructions.
+Unknown construction, period or direction, invalid settings and exceeded tessellation
+budgets retain the straight depiction with a visible reason. Existing frozen profiles
+with no direction remain unknown. The budget is 24 segments per turn, at most 256 per
+piece and 16,384 total; excessive requests are refused rather than undersampled. These
+illustrations establish no physical wire length, BOM quantity, clearance or qualification.
 
 ## Two-end cable assignments
 

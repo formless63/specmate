@@ -25,9 +25,6 @@ export function adaptFrozenProfile(revision: ProfileRevision, stockRevisionId: s
   } else if (profile.foil_visibility.value === null) notices.push('Foil visibility is unknown; no global foil hiding applied.');
   if (profile.foil_visibility.value === 'show' && profile.hidden_element_paths.length) notices.push('Explicit hidden paths take precedence over the global foil display preference.');
   if (profile.omit_occluded.value === null) notices.push('Occlusion preference is unknown; all interior geometry is retained for inspection.');
-  notices.push(profile.illustration_lay_length_mm.value === null
-    ? 'Illustration lay length is unknown. Twist depiction is unsupported; no lay is inferred or applied.'
-    : `Illustration lay length ${profile.illustration_lay_length_mm.value} mm is unsupported by this straight viewer and is not applied.`);
   const cuts: Record<string, ElementPreparation> = {};
   const groupRules: [string, typeof profile.element_rules[string]][] = [];
   for (const [path, rule] of Object.entries(profile.element_rules)) {
@@ -77,6 +74,12 @@ export function adaptFrozenProfile(revision: ProfileRevision, stockRevisionId: s
     }
     cuts[path] = effective;
   }
+  const unsupported = [...nodes.values()].some(node => node.kind === 'web' || (node.kind === 'group' &&
+    (['ribbon', 'figure-eight'].includes(node.role) || node.arrangement === 'figure-eight')));
   return { display: { id: revision.revision_id, label: `${revision.name} · revision ${revision.number}`,
-    cuts, hiddenPaths: [...hidden], omitOccluded: profile.omit_occluded.value === true }, notices };
+    cuts, hiddenPaths: [...hidden], omitOccluded: profile.omit_occluded.value === true,
+    illustrationLay: { lengthMm: profile.illustration_lay_length_mm.value,
+      direction: profile.illustration_lay_direction?.value ?? null, construction: stock.construction,
+      ...(unsupported ? { unsupportedReason: 'ribbon, figure-eight or web element present' } : {}) },
+  }, notices };
 }

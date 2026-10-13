@@ -1,5 +1,7 @@
 /** Pure display projection. This profile is not an engineering preparation record. */
 import type { Section, SectionFeature } from '../../section-layout/src';
+import { illustrateLay } from './lay';
+import type { IllustrationLay, IllustrationStatus } from './lay';
 
 export type Vec3 = readonly [number, number, number];
 export type End = 'a' | 'b';
@@ -23,6 +25,7 @@ export interface DisplayProfile {
   cuts: Record<string, ElementPreparation>;
   hiddenPaths: string[];
   omitOccluded: boolean;
+  illustrationLay?: IllustrationLay;
 }
 export const unpreparedProfile = (): DisplayProfile => ({
   id: 'unprepared', label: 'Unprepared stock', cuts: {}, hiddenPaths: [], omitOccluded: true,
@@ -51,6 +54,7 @@ export interface WebPiece extends PieceBase {
 export type WirePiece = TubePiece | WebPiece;
 export interface WireModel {
   profileId: string;
+  illustration: IllustrationStatus;
   lengthMm: number;
   pieces: WirePiece[];
   omitted: { path: string; reason: string }[];
@@ -77,7 +81,7 @@ function subtract(intervals: Interval[], hidden: Interval): Interval[] {
 /** Axis +x; section x/y map to world y/z. No stock or section object is modified. */
 export function wireModel(section: Section, lengthMm: number, profile: DisplayProfile): WireModel {
   if (!finitePositive(lengthMm)) throw new Error('Preview length must be finite and positive.');
-  const model: WireModel = { profileId: profile.id, lengthMm, pieces: [], omitted: [], unknown: [...section.unknown], bounds: null, electricalBonds: [] };
+  const model: WireModel = { profileId: profile.id, illustration: { layApplied: false, message: 'Straight illustration.' }, lengthMm, pieces: [], omitted: [], unknown: [...section.unknown], bounds: null, electricalBonds: [] };
   const paths = new Set(section.rows.map(r => r.path));
   for (const path of [...Object.keys(profile.cuts), ...profile.hiddenPaths]) {
     if (!paths.has(path)) model.unknown.push(`${path}: profile element is absent from construction`);
@@ -150,6 +154,9 @@ export function wireModel(section: Section, lengthMm: number, profile: DisplayPr
         rOuter: lead.diameterMm / 2, rInner: 0, points, radialSegments: 16, caps: { start: 'disk', end: 'disk' } });
     }
   }
+  const illustrated = illustrateLay(section, model.pieces, lengthMm, profile.illustrationLay);
+  model.pieces = illustrated.pieces;
+  model.illustration = illustrated.status;
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
   const include = (point: Vec3, extents: Vec3) => point.forEach((v, axis) => {
     min[axis] = Math.min(min[axis]!, v - extents[axis]!);

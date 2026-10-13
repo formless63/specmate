@@ -19,8 +19,9 @@ Layered wire geometry and its lazy viewport also adapt WireHub by formless63 at
 cbf919edf30a9d906a791971d3a40e22cb78b67e (AGPL-3.0-only):
 - packages/editor-react/src/wire-scene.ts: parallel-transport annular sweep,
   inner/outer winding, ring and disk caps, retained in packages/wire-geometry/src/scene.ts.
-- packages/layout/src/wire-model.ts: hidden interval clipping, adapted in
-  packages/wire-geometry/src/model.ts with explicit per-element preview profiles.
+- packages/layout/src/wire-model.ts: hidden interval clipping and helix phase/sampling,
+  adapted in packages/wire-geometry/src/model.ts and lay.ts with explicit per-element
+  preview profiles, independently declared rotation, and bounded sample budgets.
 - packages/editor-react/src/panels/WireModel3d.tsx and wire-model-lazy.tsx:
   lazy event-driven viewer lifecycle, adapted in frontend/src/features/wire-stock.
 Workshop-specific preparation defaults and inferred stock dimensions are excluded.

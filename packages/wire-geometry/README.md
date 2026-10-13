@@ -16,6 +16,28 @@ Known enclosing opaque layers can suppress hidden interior mesh spans. The cut f
 remain and artificial interior clipping faces have no caps. Explicit hidden paths affect
 only the display and do not delete stock. Flat webs retain rectangular extrusion.
 
+An optional `illustrationLay` uses a positive axial period and an independently declared
+`positive` or `negative` rotation. Positive follows the right-hand rule about display +x
+as x increases; phase is zero at end A, including when end material is cut away. Stock
+ring placement direction is never interpreted as twist handedness. This first projection
+supports round pair/bundle constructions only, with a single global rotation about the
+display axis. It does not model nested engineering lays, ribbons, figure-eight sections
+or webs. Unknown construction, period or direction retains the straight depiction with
+an explicit status. Existing frozen profiles without direction remain unknown.
+
+Sampling uses 24 segments per turn, at most 256 segments per displayed piece and 16,384
+total centerline segments. A period requiring more samples is refused before allocating
+curves, not clamped to an aliased coarse helix. More than one million turns over the full
+preview is also refused to bound phase arithmetic. Unresolved, invalid and over-budget
+requests retain the entire straight model. Cut intervals, identities and occlusion caps
+are retained; screen lead anchors lie on their rotated annular cap plane, preserving the
+lip radius. Entirely occluded body anchors use the known centerline tangent. Lead display
+extent remains an illustration parameter, not a physical length or a manufacturing claim.
+
+`prepend_cut_mm` remains a stored, inspectable suggestion that this renderer does not
+apply: its manufacturing meaning is not defined by this geometry contract. It is not
+silently treated as strip-back, slid insulation or an additional material allowance.
+
 `src/scene.ts` adapts the AGPL WireHub annular sweep: parallel-transport frames, inward
 bore walls, outward shells, and separately normaled ring/disk caps. Resource disposal is
 idempotent. It is imported only by the lazy viewport and geometry tests; the pure model

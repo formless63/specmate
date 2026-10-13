@@ -6,6 +6,30 @@ import { stockPresets } from './presets';
 import { endPractice, profileRevision, suggestion } from './profile-test-fixtures';
 
 describe('frozen workshop profile projection', () => {
+  it('takes illustration direction only from immutable practice, never ring ordering', () => {
+    const stock = structuredClone(stockPresets.pair!), revision = profileRevision();
+    revision.content.profile.illustration_lay_length_mm = suggestion(24);
+    stock.structure.direction = 'cw';
+    const old = adaptFrozenProfile(revision, 'stock-r1', stock);
+    expect(old.display.illustrationLay?.direction).toBeNull();
+    expect(wireModel(sectionLayout(stock), 50, old.display).illustration.layApplied).toBe(false);
+    revision.content.profile.illustration_lay_direction = suggestion('negative');
+    const before = structuredClone({ stock, revision });
+    const applied = adaptFrozenProfile(revision, 'stock-r1', stock);
+    expect(applied.display.illustrationLay).toEqual({ lengthMm: 24, direction: 'negative', construction: 'pair' });
+    expect(wireModel(sectionLayout(stock), 50, applied.display).illustration.layApplied).toBe(true);
+    expect({ stock, revision }).toEqual(before);
+  });
+  it('rejects nested flat constructions even when their display elements are hidden', () => {
+    const stock = structuredClone(stockPresets['figure-eight']!), revision = profileRevision();
+    stock.construction = 'bundle';
+    revision.content.profile.illustration_lay_length_mm = suggestion(24);
+    revision.content.profile.illustration_lay_direction = suggestion('positive');
+    revision.content.profile.hidden_element_paths = ['stock'];
+    const applied = adaptFrozenProfile(revision, 'stock-r1', stock);
+    expect(applied.display.illustrationLay?.unsupportedReason).toContain('web element');
+    expect(wireModel(sectionLayout(stock), 50, applied.display).illustration.layApplied).toBe(false);
+  });
   it('pins exact stock, preserves immutable inputs and does not substitute zero for an unknown cut', () => {
     const stock = structuredClone(stockPresets.coax!), revision = profileRevision();
     revision.content.profile.element_rules['stock.screen'] = { a: endPractice(null), b: endPractice(6) };
@@ -42,7 +66,7 @@ describe('frozen workshop profile projection', () => {
     expect(stock).toEqual(before);
     expect(sectionLayout(stock).rows).toHaveLength(8);
   });
-  it('applies group cuts while retaining unsupported lay/prepend notices', () => {
+  it('applies group cuts while retaining unknown lay direction and unsupported prepend notices', () => {
     const revision = profileRevision();
     revision.content.profile.illustration_lay_length_mm = suggestion(25);
     revision.content.profile.element_rules['stock'] = { a: endPractice(20), b: endPractice(20) };
@@ -52,7 +76,8 @@ describe('frozen workshop profile projection', () => {
     expect(adapted.display.cuts.stock).toBeUndefined();
     expect(adapted.display.cuts['stock.jacket']!.a).toBe(20);
     expect(adapted.display.cuts['stock.center']).toEqual({ a: 20, b: 20 });
-    expect(adapted.notices.join()).toContain('25 mm is unsupported');
+    expect(adapted.display.illustrationLay).toMatchObject({ lengthMm: 25, direction: null });
+    expect(wireModel(sectionLayout(stockPresets.coax!), 50, adapted.display).illustration.message).toContain('direction is unknown');
     expect(adapted.notices.join()).toContain('prepend cut 7 mm is unsupported');
     expect(adapted.notices.join()).toContain('group cutbacks apply to every descendant');
     expect(adapted.notices.join()).toContain('Occlusion preference is unknown');
