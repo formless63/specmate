@@ -480,3 +480,154 @@ def test_uninterpreted_board_unknowns_require_retained_dependency_authority(
     content["targets"][0]["role"] = "board"
     with pytest.raises(NotFound):
         evaluate(users["editor"], target.definition, MechanicalSource.model_validate(content))
+
+
+@pytest.mark.parametrize(
+    "command", ["definition.create", "draft.update", "draft.snapshot", "draft.freeze"]
+)
+@pytest.mark.parametrize("legacy", [False, True])
+def test_generic_replay_denies_retained_source_before_changed_request(
+    users, project, mec_sources, mec_target, command, legacy
+):
+    foreign_project, original = foreign_source(users)
+    Membership.objects.create(project_id=foreign_project, user=users["owner"], role="viewer")
+    old = declaration(original, mec_target)
+    old["sources"][0]["files"] = old["sources"][0]["files"][:1]
+    payload = {
+        "project_id": project,
+        "kind": "mechanical_source",
+        "name": "Generic retained source",
+        "content": {"mechanical_source": old},
+    }
+    created = op(
+        users["owner"],
+        "definition.create",
+        payload,
+        idempotency_key="generic-retained" if command == "definition.create" else None,
+    )
+    state = created["state"]
+    if command != "definition.create":
+        payload = {"draft_id": created["draft_id"]}
+        if command == "draft.update":
+            payload["changes"] = {"mechanical_source": old}
+        stored = op(
+            users["owner"],
+            command,
+            payload,
+            expected_state=state,
+            idempotency_key="generic-retained",
+        )
+        if command == "draft.update":
+            state = stored["state"]
+        elif command == "draft.freeze":
+            state = stored["draft"]["state"]
+    new = declaration(mec_sources, mec_target)
+    current = op(
+        users["owner"],
+        "draft.update",
+        {"draft_id": created["draft_id"], "changes": {"mechanical_source": new}},
+        expected_state=state,
+    )
+    Membership.objects.filter(project_id=foreign_project, user=users["owner"]).delete()
+    from .test_transports import api
+
+    client = api(users["owner"])
+    assert client.get(f"/api/v0/drafts/{created['draft_id']}").status_code == 200
+    assert client.get(f"/api/v0/mechanical-sources/drafts/{created['draft_id']}").status_code == 200
+    if command == "draft.freeze":
+        assert client.get(f"/api/v0/revisions/{stored['revision_id']}/snapshot").status_code == 404
+        assert (
+            client.get(f"/api/v0/mechanical-sources/revisions/{stored['revision_id']}").status_code
+            == 404
+        )
+    if command == "definition.create":
+        payload["kind"] = "hardware"
+        payload["content"] = {}
+    elif command == "draft.update":
+        payload["changes"] = {"mechanical_source": new}
+    if command == "draft.update":
+        unrelated = op(
+            users["owner"],
+            "definition.create",
+            {
+                "project_id": project,
+                "kind": "hardware",
+                "name": "Unrelated incoming draft",
+            },
+        )
+        payload["draft_id"] = unrelated["draft_id"]
+    if legacy:
+        from specmate.operations.models import IdempotencyRecord
+
+        IdempotencyRecord.objects.filter(
+            actor=users["owner"], operation=command, key="generic-retained"
+        ).update(scope="legacy")
+    # The source command's retained result still carries the old origin, even
+    # when current draft and a changed request are fully readable.
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            command,
+            payload,
+            expected_state=current["state"] if command != "definition.create" else None,
+            idempotency_key="generic-retained",
+        )
+
+    # With origin access restored, the same changed request may report the
+    # documented key mismatch (or legacy conflict); it must never execute again.
+    from specmate.operations import Conflict, IdempotencyMismatch
+
+    Membership.objects.create(project_id=foreign_project, user=users["owner"], role="viewer")
+    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+        op(
+            users["owner"],
+            command,
+            payload,
+            expected_state=current["state"] if command != "definition.create" else None,
+            idempotency_key="generic-retained",
+        )
+
+
+def test_generic_firmware_retained_source_denial_precedes_key_mismatch(users, project, board):
+    from specmate.sources.models import SourceBundle
+
+    from .test_firmware import CONFIG, MAIN
+    from .test_firmware import declaration as firmware_declaration
+
+    files = []
+    for path, data in (("src/main.cpp", MAIN), ("platformio.ini", CONFIG)):
+        register(users["owner"], project, data)
+        files.append(
+            {"path": path, "sha256": digest(data), "rights": "MIT", "media_type": "text/plain"}
+        )
+    original = op(
+        users["owner"],
+        "source.create_original_bundle",
+        {"project_id": project, "name": "Firmware retained origin", "files": files},
+    )
+    payload = {
+        "project_id": project,
+        "kind": "firmware",
+        "name": "Generic firmware retained source",
+        "content": {"firmware": firmware_declaration(original, board)},
+    }
+    created = op(users["owner"], "definition.create", payload, idempotency_key="firmware-retained")
+    replacement = op(
+        users["owner"],
+        "source.create_original_bundle",
+        {"project_id": project, "name": "Readable firmware replacement", "files": files},
+    )
+    new = {"firmware": firmware_declaration(replacement, board)}
+    op(
+        users["owner"],
+        "draft.update",
+        {"draft_id": created["draft_id"], "changes": new},
+        expected_state=created["state"],
+    )
+    hidden = op(users["outsider"], "project.create", {"name": "Revoked firmware origin"})[
+        "project_id"
+    ]
+    SourceBundle.objects.filter(id=original["bundle_id"]).update(project_id=hidden)
+    payload["content"] = new
+    with pytest.raises(NotFound):
+        op(users["owner"], "definition.create", payload, idempotency_key="firmware-retained")
