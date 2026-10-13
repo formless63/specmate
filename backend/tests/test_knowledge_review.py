@@ -8,6 +8,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections, connections
 
+from specmate.access.models import Membership
 from specmate.facts.contracts import ProjectTarget
 from specmate.knowledge.models import KnowledgeEntry, KnowledgeItem, KnowledgeLink
 from specmate.knowledge.queries import items_for_target, project_items, read_item
@@ -54,8 +55,8 @@ def test_captured_inactive_plain_note_actor_is_rejected_before_disclosure(users,
 def test_retained_target_origin_hides_links_but_preserves_owned_note_and_history(
     users,
     project,
-    adopted_assembly,
-    kind,  # noqa: F811
+    adopted_assembly,  # noqa: F811
+    kind,
 ):
     remote, adopted, frozen = adopted_assembly
     if kind == "definition":
@@ -162,3 +163,72 @@ def test_invalid_later_link_rolls_back_complete_item_and_entry(users, project):
         KnowledgeEntry.objects.count(),
         KnowledgeLink.objects.count(),
     ) == before
+
+
+@pytest.mark.parametrize("receipt_kind", ["create", "revise", "removed"])
+def test_receipt_replay_cannot_restore_a_now_hidden_foreign_link(users, project, receipt_kind):
+    remote = op(users["owner"], "project.create", {"name": "Independent foreign target"})[
+        "project_id"
+    ]
+    Membership.objects.create(project_id=remote, user=users["editor"], role="viewer")
+    create_payload = {
+        "project_id": project,
+        "kind": "note",
+        "content": {"title": "Own note", "body": "Synthetic own note."},
+        "links": [{"kind": "project", "project_id": remote}],
+    }
+    note = op(users["editor"], "knowledge.create", create_payload, idempotency_key="initial-item")
+    if receipt_kind == "create":
+        receipt = note
+        operation, payload, context = (
+            "knowledge.create",
+            create_payload,
+            {"idempotency_key": "initial-item"},
+        )
+    else:
+        if receipt_kind == "removed":
+            op(
+                users["editor"],
+                "knowledge.unlink",
+                {"link_id": note["links"][0]["link_id"], "reason": "Synthetic deliberate removal."},
+            )
+        payload = {
+            "item_id": note["item_id"],
+            "content": {"title": "Own revision", "body": "Synthetic own revision."},
+        }
+        operation, context = (
+            "knowledge.revise",
+            {"expected_state": note["state"], "idempotency_key": "exact-revision-receipt"},
+        )
+        receipt = op(users["editor"], operation, payload, **context)
+    rows = receipt["removed_links"] if receipt_kind == "removed" else receipt["links"]
+    assert rows[0]["project_id"] == remote
+    Membership.objects.filter(project_id=remote, user=users["editor"]).delete()
+    current = read_item(users["editor"], note["item_id"])
+    assert (
+        current["current"] == receipt["current"]
+        and current["links"] == current["removed_links"] == []
+    )
+    assert api(users["editor"]).get("/api/v0/knowledge/items/" + note["item_id"]).json() == current
+    # Editing the owned note stays available; replay cannot return old target metadata.
+    fresh = op(
+        users["editor"],
+        "knowledge.revise",
+        {
+            "item_id": note["item_id"],
+            "content": {"title": "Own later entry", "body": "Still an owned synthetic note."},
+        },
+        expected_state=current["state"],
+    )
+    assert fresh["links"] == fresh["removed_links"] == []
+    assert fresh["history"][:-1] == current["history"]
+    count = KnowledgeEntry.objects.filter(item_id=note["item_id"]).count()
+    with pytest.raises(NotFound):
+        op(users["editor"], operation, payload, **context)
+    denied = post_op(api(users["editor"]), operation, payload, **context)
+    assert denied.status_code == 404 and remote.encode() not in denied.content
+    assert KnowledgeEntry.objects.filter(item_id=note["item_id"]).count() == count
+    Membership.objects.create(project_id=remote, user=users["editor"], role="viewer")
+    assert op(users["editor"], operation, payload, **context) == receipt
+    assert post_op(api(users["editor"]), operation, payload, **context).json()["result"] == receipt
+    assert KnowledgeEntry.objects.filter(item_id=note["item_id"]).count() == count

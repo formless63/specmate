@@ -1,6 +1,8 @@
 from django.utils import timezone
+from pydantic import TypeAdapter
 
 from specmate.access.permissions import Perm, authorize
+from specmate.facts.contracts import Target
 from specmate.facts.queries import resolve_target, source_file
 from specmate.knowledge.contracts import (
     CreateItem,
@@ -100,6 +102,12 @@ def _item_project(ctx, item_id):
 
 def _authorize_stored_item(ctx, stored):
     get_item(ctx.user, stored["item_id"], Perm.DESIGN_EDIT)
+    # A receipt preserves the targets visible at its original creation. An owned
+    # note may remain readable after another target becomes hidden, but replay
+    # cannot return that target's historical label or identity without authority.
+    adapter = TypeAdapter(Target)
+    for link in [*stored.get("links", []), *stored.get("removed_links", [])]:
+        resolve_target(ctx.user, adapter.validate_python(link["target"]))
 
 
 def _create_scope(ctx, p):
