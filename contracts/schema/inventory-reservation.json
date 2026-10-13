@@ -1,0 +1,72 @@
+{
+  "properties": {
+    "account_id": {
+      "format": "uuid",
+      "title": "Account Id",
+      "type": "string"
+    },
+    "actor_id": {
+      "title": "Actor Id",
+      "type": "integer"
+    },
+    "amount": {
+      "title": "Amount",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "purpose": {
+      "title": "Purpose",
+      "type": "string"
+    },
+    "quantity": {
+      "title": "Quantity",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "reservation_id": {
+      "format": "uuid",
+      "title": "Reservation Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "released"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "unit": {
+      "enum": [
+        "ea",
+        "m",
+        "cm",
+        "mm",
+        "kg",
+        "g"
+      ],
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reservation_id",
+    "account_id",
+    "quantity",
+    "amount",
+    "unit",
+    "purpose",
+    "status",
+    "actor_id",
+    "request_id",
+    "created_at"
+  ],
+  "title": "ReservationResult",
+  "type": "object"
+}

@@ -1,0 +1,41 @@
+{
+  "properties": {
+    "association_basis": {
+      "title": "Association Basis",
+      "type": "string"
+    },
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "manufacturer": {
+      "title": "Manufacturer",
+      "type": "string"
+    },
+    "part_number": {
+      "title": "Part Number",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "variant_id": {
+      "format": "uuid",
+      "title": "Variant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "variant_id",
+    "revision_id",
+    "definition_id",
+    "manufacturer",
+    "part_number",
+    "association_basis"
+  ],
+  "title": "VariantResult",
+  "type": "object"
+}

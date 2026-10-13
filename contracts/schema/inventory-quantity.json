@@ -1,0 +1,35 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "amount": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,15}|(?=[\\d.]{1,25}0*$)\\d{0,15}\\.\\d{0,9}0*$)",
+          "type": "string"
+        }
+      ],
+      "title": "Amount"
+    },
+    "unit": {
+      "enum": [
+        "ea",
+        "m",
+        "cm",
+        "mm",
+        "kg",
+        "g"
+      ],
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "amount",
+    "unit"
+  ],
+  "title": "Quantity",
+  "type": "object"
+}

@@ -17,7 +17,13 @@ class CreateStock(StrictModel):
     stock: StockSpecification
 
 
-@operation("wire_stock.create", CreateStock, summary="Create standalone typed wire stock.")
+@operation(
+    "wire_stock.create",
+    CreateStock,
+    summary="Create standalone typed wire stock.",
+    idempotency_scope=lambda ctx, p: stock_scope(ctx, p),
+    authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
+)
 def create_stock(ctx: Context, p: CreateStock) -> dict:
     project = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
     definition = Definition.objects.create(
@@ -41,6 +47,8 @@ class UpdateStock(StrictModel):
     UpdateStock,
     summary="Replace typed stock construction.",
     requires_expected_state=True,
+    idempotency_scope=lambda ctx, p: stock_scope(ctx, p),
+    authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
 )
 def update_stock(ctx: Context, p: UpdateStock) -> dict:
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -67,6 +75,8 @@ class FreezeStock(StrictModel):
     FreezeStock,
     summary="Freeze a typed stock as an exact revision.",
     requires_expected_state=True,
+    idempotency_scope=lambda ctx, p: stock_scope(ctx, p),
+    authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
 )
 def freeze_stock(ctx: Context, p: FreezeStock) -> dict:
     from specmate.design.operations import CaptureDraft, freeze_draft
@@ -80,4 +90,21 @@ def freeze_stock(ctx: Context, p: FreezeStock) -> dict:
     if "stock" not in draft.content:
         raise ValidationFailed("Stock construction is required to freeze typed stock.")
     validate_stock_content(draft.content)
-    return freeze_draft(ctx, CaptureDraft(draft_id=p.draft_id))
+    dependencies = (
+        list(draft.base_revision.snapshot.dependencies.values_list("revision_id", flat=True))
+        if draft.base_revision_id
+        else []
+    )
+    return freeze_draft(ctx, CaptureDraft(draft_id=p.draft_id, dependencies=dependencies))
+
+
+def stock_scope(ctx, payload):
+    from specmate.operations.scope import project_scope
+
+    permission = Perm.DESIGN_FREEZE if isinstance(payload, FreezeStock) else Perm.DESIGN_EDIT
+    if isinstance(payload, CreateStock):
+        return project_scope(ctx, payload.project_id, permission)
+    draft = scoped_draft(ctx, payload.draft_id, permission)
+    if draft.definition.kind != "wire_stock":
+        raise NotFound("Stock draft not found.")
+    return project_scope(ctx, draft.definition.project_id, permission)

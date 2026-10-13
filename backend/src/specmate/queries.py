@@ -6,7 +6,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from specmate.access.permissions import Perm, authorize, visible_projects
+from specmate.access.models import Membership
+from specmate.access.permissions import Perm, authorize, permissions_for
 from specmate.design.models import Definition, Draft, Revision
 from specmate.design.operations import draft_state
 from specmate.operations import NotFound
@@ -14,9 +15,17 @@ from specmate.sources.models import SourceBundleRevision
 
 
 def list_projects(user: Any) -> list[dict]:
+    if user is None or not user.is_authenticated:
+        return []
     return [
-        {"project_id": str(p.id), "name": p.name}
-        for p in visible_projects(user).order_by("created_at")
+        {
+            "project_id": str(m.project_id),
+            "name": m.project.name,
+            "permissions": sorted(p.value for p in permissions_for(m)),
+        }
+        for m in Membership.objects.select_related("project")
+        .filter(user=user)
+        .order_by("project__created_at")
     ]
 
 

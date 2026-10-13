@@ -1,0 +1,69 @@
+{
+  "properties": {
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "symbol",
+        "footprint",
+        "model",
+        "drawing",
+        "datasheet"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "media_type": {
+      "title": "Media Type",
+      "type": "string"
+    },
+    "representation_id": {
+      "format": "uuid",
+      "title": "Representation Id",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "rights": {
+      "title": "Rights",
+      "type": "string"
+    },
+    "sha256": {
+      "title": "Sha256",
+      "type": "string"
+    },
+    "source_bundle_revision_id": {
+      "format": "uuid",
+      "title": "Source Bundle Revision Id",
+      "type": "string"
+    },
+    "source_path": {
+      "title": "Source Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "representation_id",
+    "revision_id",
+    "definition_id",
+    "kind",
+    "label",
+    "source_bundle_revision_id",
+    "source_path",
+    "sha256",
+    "media_type",
+    "rights"
+  ],
+  "title": "RepresentationResult",
+  "type": "object"
+}

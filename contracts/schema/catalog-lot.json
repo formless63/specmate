@@ -1,0 +1,44 @@
+{
+  "properties": {
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "lot_id": {
+      "format": "uuid",
+      "title": "Lot Id",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "variant_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Variant Id"
+    }
+  },
+  "required": [
+    "lot_id",
+    "revision_id",
+    "definition_id",
+    "variant_id",
+    "label"
+  ],
+  "title": "LotResult",
+  "type": "object"
+}

@@ -24,7 +24,9 @@ class Migration(migrations.Migration):
             model_name="idempotencyrecord",
             constraint=models.CheckConstraint(
                 condition=models.Q(scope__in=["global", "legacy"])
-                | models.Q(scope__regex=r"^project:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
+                | models.Q(
+                    scope__regex=r"^project:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                ),
                 name="idempotency_valid_scope",
             ),
         ),

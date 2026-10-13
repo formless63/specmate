@@ -260,3 +260,91 @@ def test_committed_stock_schema_matches_authoritative_contract():
 
     schema = FIXTURES.parents[1] / "contracts" / "schema" / "wire-stock.json"
     assert schema.read_text() == render(StockSpecification)
+
+
+def test_generic_mutations_cannot_bypass_present_stock_validation(users, project):
+    invalid = fixture()
+    invalid["structure"]["children"][0]["outer_diameter_mm"] = -1
+    with pytest.raises(ValidationFailed):
+        op(
+            users["owner"],
+            "definition.create",
+            {
+                "project_id": project,
+                "kind": "wire_stock",
+                "name": "Invalid",
+                "content": {"stock": invalid},
+            },
+        )
+    assert not Definition.objects.exists()
+    record = create(users, project)
+    with pytest.raises(ValidationFailed):
+        op(
+            users["owner"],
+            "draft.update",
+            {
+                "draft_id": record["draft_id"],
+                "changes": {"stock": invalid},
+            },
+            expected_state=record["state"],
+        )
+    assert get_stock(users["owner"], record["draft_id"])["state"] == record["state"]
+    Draft.objects.filter(id=record["draft_id"]).update(content={"stock": invalid})
+    with pytest.raises(ValidationFailed):
+        op(
+            users["owner"],
+            "draft.freeze",
+            {"draft_id": record["draft_id"]},
+            expected_state=record["state"],
+        )
+    assert not Snapshot.objects.exists()
+
+
+def test_stock_freeze_preserves_existing_exact_dependency_pins(users, project):
+    record = create(users, project)
+    child = op(
+        users["owner"],
+        "definition.create",
+        {
+            "project_id": project,
+            "kind": "part",
+            "name": "Declared stock evidence",
+        },
+    )
+    child_revision = op(
+        users["owner"],
+        "draft.freeze",
+        {"draft_id": child["draft_id"]},
+        expected_state=child["state"],
+    )
+    first = op(
+        users["owner"],
+        "draft.freeze",
+        {
+            "draft_id": record["draft_id"],
+            "dependencies": [child_revision["revision_id"]],
+        },
+        expected_state=record["state"],
+    )
+    second = op(
+        users["owner"],
+        "wire_stock.freeze",
+        {"draft_id": record["draft_id"]},
+        expected_state=first["draft"]["state"],
+    )
+    snapshot = Snapshot.objects.get(id=second["snapshot_id"])
+    assert [str(rid) for rid in snapshot.dependencies.values_list("revision_id", flat=True)] == [
+        child_revision["revision_id"],
+    ]
+
+
+def test_stock_key_namespace_and_current_edit_authority(users, project):
+    from specmate.access.models import Membership
+
+    first = create(users, project, idempotency_key="same-stock-key")
+    other = op(users["owner"], "project.create", {"name": "Separate stock project"})
+    second = create(users, other["project_id"], idempotency_key="same-stock-key")
+    assert first["definition_id"] != second["definition_id"]
+    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    with pytest.raises(PermissionDenied):
+        create(users, project, idempotency_key="same-stock-key")

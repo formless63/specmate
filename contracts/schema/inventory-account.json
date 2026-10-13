@@ -1,0 +1,135 @@
+{
+  "properties": {
+    "account_id": {
+      "format": "uuid",
+      "title": "Account Id",
+      "type": "string"
+    },
+    "assertion_source": {
+      "title": "Assertion Source",
+      "type": "string"
+    },
+    "assertion_status": {
+      "enum": [
+        "declared",
+        "observed",
+        "measured"
+      ],
+      "title": "Assertion Status",
+      "type": "string"
+    },
+    "available_quantity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Available Quantity"
+    },
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "dimension": {
+      "enum": [
+        "count",
+        "length",
+        "mass"
+      ],
+      "title": "Dimension",
+      "type": "string"
+    },
+    "location_id": {
+      "format": "uuid",
+      "title": "Location Id",
+      "type": "string"
+    },
+    "location_name": {
+      "title": "Location Name",
+      "type": "string"
+    },
+    "lot_id": {
+      "format": "uuid",
+      "title": "Lot Id",
+      "type": "string"
+    },
+    "lot_label": {
+      "title": "Lot Label",
+      "type": "string"
+    },
+    "physical_quantity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Physical Quantity"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "quantity_status": {
+      "enum": [
+        "known",
+        "unknown"
+      ],
+      "title": "Quantity Status",
+      "type": "string"
+    },
+    "reserved_quantity": {
+      "title": "Reserved Quantity",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "state": {
+      "title": "State",
+      "type": "string"
+    },
+    "unit": {
+      "enum": [
+        "ea",
+        "m",
+        "cm",
+        "mm",
+        "kg",
+        "g"
+      ],
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "account_id",
+    "project_id",
+    "lot_id",
+    "lot_label",
+    "revision_id",
+    "definition_id",
+    "location_id",
+    "location_name",
+    "dimension",
+    "unit",
+    "quantity_status",
+    "physical_quantity",
+    "reserved_quantity",
+    "available_quantity",
+    "state",
+    "assertion_source",
+    "assertion_status"
+  ],
+  "title": "AccountResult",
+  "type": "object"
+}

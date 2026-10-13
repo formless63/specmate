@@ -65,7 +65,8 @@ def create_definition(ctx: Context, p: CreateDefinition) -> dict:
     definition = Definition.objects.create(
         project=project, kind=p.kind, name=p.name, created_by=ctx.user
     )
-    draft = Draft.objects.create(definition=definition, content=p.content, updated_by=ctx.user)
+    content = validate_content(definition.kind, p.content)
+    draft = Draft.objects.create(definition=definition, content=content, updated_by=ctx.user)
     return {"definition_id": str(definition.id), **draft_state(draft)}
 
 
@@ -90,7 +91,7 @@ def update_draft(ctx: Context, p: UpdateDraft) -> dict:
     check_state(ctx, draft)
     content = {k: v for k, v in draft.content.items() if k not in p.remove}
     content.update(p.changes)
-    draft.content = content
+    draft.content = validate_content(draft.definition.kind, content)
     draft.version += 1
     draft.updated_by = ctx.user
     draft.save(update_fields=["content", "version", "updated_by", "updated_at"])
@@ -106,6 +107,7 @@ class CaptureDraft(BaseModel):
 def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot]:
     draft = scoped_draft(ctx, p.draft_id, perm, lock=True)
     check_state(ctx, draft)
+    validate_content(draft.definition.kind, draft.content)
     if len(set(p.dependencies)) != len(p.dependencies):
         raise ValidationFailed("Duplicate dependency.")
     revisions = list(
@@ -184,3 +186,11 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
         "sha256": snapshot.sha256,
         "draft": draft_state(draft),
     }
+
+
+def validate_content(kind, content):
+    if kind == "wire_stock":
+        from specmate.wire_stock.schemas import validate_stock_content
+
+        return validate_stock_content(content)
+    return content

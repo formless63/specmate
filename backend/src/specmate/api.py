@@ -17,8 +17,8 @@ from specmate.catalog.api import router as catalog_router
 from specmate.contracts import OperationEnvelope
 from specmate.inventory.api import router as inventory_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
-from specmate.wire_stock.api import router as stock_router
 from specmate.pcb.api import router as pcb_router
+from specmate.wire_stock.api import router as stock_router
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
 api.add_router("/v0/catalog", catalog_router)
@@ -79,6 +79,7 @@ def list_operations(request):
             "operation": spec.name,
             "summary": spec.summary,
             "requires_expected_state": spec.requires_expected_state,
+            "supports_idempotency": spec.supports_idempotency,
             "attachments": list(spec.attachments),
             "payload_schema": spec.payload.model_json_schema(),
         }

@@ -102,6 +102,8 @@ def intake_result(intake):
 @operation(
     "pcb.register_intake",
     RegisterIntake,
+    idempotency_scope=lambda ctx, p: pcb_scope(ctx, p),
+    authorize_replay=lambda ctx, p, stored: authorize_pcb_replay(ctx, p, stored),
     summary="Preserve a source revision for PCB intake without parsing or executing it.",
 )
 def register_intake(ctx: Context, p: RegisterIntake):
@@ -146,6 +148,8 @@ def validate_recipe(intake, recipe):
 @operation(
     "pcb.request_extraction",
     RequestExtraction,
+    idempotency_scope=lambda ctx, p: pcb_scope(ctx, p),
+    authorize_replay=lambda ctx, p, stored: authorize_pcb_replay(ctx, p, stored),
     status="accepted_async",
     summary="Request the pinned isolated PCB interpretation from an exact preserved revision.",
 )
@@ -171,6 +175,8 @@ class AttemptRef(Payload):
 @operation(
     "pcb.accept_extraction",
     AttemptRef,
+    idempotency_scope=lambda ctx, p: pcb_scope(ctx, p),
+    authorize_replay=lambda ctx, p, stored: authorize_pcb_replay(ctx, p, stored),
     summary="Validate a successful native report and retain its immutable source/build provenance.",
 )
 def accept_extraction(ctx: Context, p: AttemptRef):
@@ -240,7 +246,10 @@ def interpretation_result(interpretation):
 
 
 @operation(
-    "pcb.get", IntakeRef, summary="Read preserved PCB intake and scoped native interpretations."
+    "pcb.get",
+    IntakeRef,
+    summary="Read preserved PCB intake and scoped native interpretations.",
+    supports_idempotency=False,
 )
 def get_intake(ctx: Context, p: IntakeRef):
     intake = intake_for(ctx, p.intake_id)
@@ -347,3 +356,25 @@ def authorize_pcb_replay(ctx: Context, payload: Payload, stored_result: dict):
         intake_for(ctx, payload.intake_id)
     else:
         raise Unsupported("PCB replay payload is unsupported.")
+
+
+def pcb_scope(ctx, payload):
+    from specmate.operations.scope import project_scope
+
+    if isinstance(payload, RegisterIntake):
+        scope = project_scope(ctx, payload.project_id, Perm.SOURCE_REGISTER)
+        if not SourceBundleRevision.objects.filter(
+            id=payload.source_revision_id, bundle__project_id=payload.project_id
+        ).exists():
+            raise NotFound("Source revision not found.")
+        return scope
+    if isinstance(payload, RequestExtraction):
+        intake = intake_for(ctx, payload.intake_id, Perm.BUILD_EXECUTE)
+    elif isinstance(payload, AttemptRef):
+        attempt = PcbExtractionAttempt.objects.filter(id=payload.attempt_id).first()
+        if attempt is None:
+            raise NotFound("PCB extraction attempt not found.")
+        intake = intake_for(ctx, attempt.intake_id, Perm.SOURCE_REGISTER)
+    else:
+        raise Unsupported("PCB scope payload is unsupported.")
+    return project_scope(ctx, intake.source_revision.bundle.project_id)
