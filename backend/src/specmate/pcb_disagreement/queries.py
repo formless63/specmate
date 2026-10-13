@@ -48,6 +48,9 @@ def validate_content(kind, content):
 
 
 def read_source(user, pin):
+    from specmate.queries import get_bundle_revision
+
+    get_bundle_revision(user, pin.source_revision_id)
     file = (
         SourceBundleFile.objects.select_related("revision__bundle", "blob")
         .filter(revision_id=pin.source_revision_id, path=pin.path)

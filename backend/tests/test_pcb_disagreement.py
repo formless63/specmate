@@ -466,3 +466,35 @@ def test_source_file_picker_is_current_scoped_metadata_without_parsing_originals
     assert result.json()["coverage"] == "preserved_unparsed"
     client.force_login(users["outsider"])
     assert client.get(path).status_code == 404
+
+
+def test_hidden_bundle_authority_precedes_file_presence_and_pin_diagnostics(users, project):
+    owner, editor = users["owner"], users["editor"]
+    pin = source_pin(owner, project)
+    hidden = op(owner, "project.create", {"name": "Hidden original owner"})["project_id"]
+    SourceBundle.objects.filter(revisions__id=pin["source_revision_id"]).update(project_id=hidden)
+    client = Client()
+    client.force_login(editor)
+    errors = []
+    responses = []
+    for path in (pin["path"], "absent-original.kicad_sch"):
+        value = assertion({**pin, "path": path, "sha256": "0" * 64, "rights": "wrong"})
+        with pytest.raises(NotFound) as denied:
+            create(editor, project, value)
+        errors.append(str(denied.value))
+        response = client.post(
+            "/api/v0/operations",
+            data=json.dumps(
+                {
+                    "operation": "pcb_disagreement.create",
+                    "request_id": "hidden-file",
+                    "payload": {"project_id": str(project), "name": "Hidden", "value": value},
+                    "idempotency_key": "hidden-" + path,
+                }
+            ),
+            content_type="application/json",
+        )
+        responses.append((response.status_code, response.json()))
+    assert errors == ["Project not found.", "Project not found."]
+    assert responses[0] == responses[1]
+    assert responses[0][0] == 404
