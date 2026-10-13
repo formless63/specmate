@@ -771,6 +771,14 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
             },
             expected_state=frozen["draft"]["state"],
         )
+    wrong["associations"][0]["evidence"]["rights"] = " " + RIGHTS
+    with pytest.raises(ValidationFailed):
+        op(
+            users["editor"],
+            "pcb.population_update",
+            {"draft_id": created["draft_id"], "population": wrong},
+            expected_state=frozen["draft"]["state"],
+        )
 
 
 def test_population_authorizes_later_hidden_targets_before_provenance_or_anchor_errors(
@@ -869,3 +877,76 @@ def test_population_access_and_api_reads_recheck_scope(users, project, intake, p
     Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
     assert client.get(f"/api/v0/pcb/intakes/{intake['intake_id']}/populations").status_code == 404
     assert client.get(f"/api/v0/pcb/projects/{project}/association-targets").status_code == 404
+
+
+def test_generic_design_commands_apply_pcb_population_contract(users, project, population):
+    from specmate.design.models import Draft
+    from specmate.queries import get_draft, get_revision
+
+    created, _, component_ids, _ = population
+    content = copy.deepcopy(created["content"]["pcb_population"])
+    content["options"][0]["decisions"][0] = {
+        "component_id": component_ids[0],
+        "status": "omit",
+        "basis": "Do not fit this option.",
+    }
+    updated = op(
+        users["editor"],
+        "draft.update",
+        {
+            "draft_id": created["draft_id"],
+            "changes": {"pcb_population": content},
+        },
+        expected_state=created["state"],
+    )
+    assert updated["content"]["pcb_population"]["options"][0]["decisions"][0]["status"] == "omit"
+    assert get_draft(users["viewer"], created["draft_id"])["state"] == updated["state"]
+    snapshot = op(
+        users["editor"],
+        "draft.snapshot",
+        {
+            "draft_id": created["draft_id"],
+        },
+        expected_state=updated["state"],
+    )
+    assert snapshot["snapshot_id"]
+    frozen = op(
+        users["owner"],
+        "draft.freeze",
+        {
+            "draft_id": created["draft_id"],
+        },
+        expected_state=updated["state"],
+    )
+    assert get_revision(users["viewer"], frozen["revision_id"]).id == UUID(frozen["revision_id"])
+    bad = copy.deepcopy(content)
+    bad["options"][0]["decisions"] = []
+    with pytest.raises(ValidationFailed):
+        op(
+            users["editor"],
+            "draft.update",
+            {
+                "draft_id": created["draft_id"],
+                "changes": {"pcb_population": bad},
+            },
+            expected_state=frozen["draft"]["state"],
+        )
+    with pytest.raises(ValidationFailed):
+        op(
+            users["editor"],
+            "definition.create",
+            {
+                "project_id": project,
+                "kind": "part",
+                "name": "Wrong typed content",
+                "content": {"pcb_population": content},
+            },
+        )
+    Draft.objects.filter(id=created["draft_id"]).update(
+        content={
+            "pcb_population": {**content, "interpretation_sha256": "0" * 64},
+        }
+    )
+    with pytest.raises(ValidationFailed):
+        get_draft(users["viewer"], created["draft_id"])
+    assert get_revision(users["viewer"], frozen["revision_id"]).id == UUID(frozen["revision_id"])
