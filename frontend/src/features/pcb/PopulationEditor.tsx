@@ -31,13 +31,14 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
   const [draftId, setDraftId] = useState<string | null>(null);
   const [optionId, setOptionId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [newInterpretationId, setNewInterpretationId] = useState<string | null>(null);
   const [newOptionName, setNewOptionName] = useState("");
   const [targets, setTargets] = useState<AssociationTargets | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const canEdit = !permissions || permissions.includes("design.edit");
   const canFreeze = !permissions || permissions.includes("design.freeze");
-  const interpretation = intake.interpretations.at(-1);
+  const interpretation = intake.interpretations.find((item) => item.interpretation_id === newInterpretationId) ?? intake.interpretations.at(-1);
   const draft = drafts.find((item) => item.draft_id === draftId) ?? drafts[0];
   const population = draft?.content.pcb_population;
   const activeOption = population?.options.find((item) => item.local_id === optionId) ?? population?.options[0];
@@ -127,6 +128,7 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
     <Text size="sm">Options pin this interpretation and its original source. Native DNP remains a separate source flag. Association review records a human decision; it does not approve compatibility or manufacture.</Text>
     {error && <Alert color="red" role="alert">{error}</Alert>}
     {canEdit && interpretation && <Group align="end">
+      <Select label="Exact interpretation for new set" value={interpretation.interpretation_id} onChange={setNewInterpretationId} data={intake.interpretations.map((item) => ({ value: item.interpretation_id, label: `${item.interpretation_id.slice(0, 8)} · ${item.report.source_sha256.slice(0, 12)}` }))} />
       <TextInput label="New population set" placeholder="Assembly choices" value={newName} onChange={(event) => setNewName(event.currentTarget.value)} />
       <Button disabled={!newName.trim() || busy} onClick={() => void work(async () => {
         const result = await command<{ draft_id: string }>("pcb.population_create", { interpretation_id: interpretation.interpretation_id, name: newName.trim() });
