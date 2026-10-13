@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { MechanicalSourcesPanel } from './MechanicalSourcesPanel';
@@ -178,4 +178,85 @@ test('an exact path pins only its file from a larger source bundle', async () =>
   fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' }));
   await screen.findByRole('button', { name: 'Edit mechanical draft' });
   expect(bodies[0].payload.mechanical_source.sources[0].files).toEqual([{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT', role: 'supporting', format: 'other' }]);
+});
+
+async function choice(label: string, value: string) {
+  fireEvent.click(screen.getByLabelText(label, { selector: 'input' }));
+  fireEvent.click(within(screen.getByRole('listbox', { name: label, hidden: true })).getByRole('option', { name: value, hidden: true }));
+}
+
+test('scoped uncertainty sends explicit zero tolerance and full envelope bounds; stale retry retains CAS and exact key', async () => {
+  const { bodies } = setup({ operations: [reply({ error: { message: 'Uncertainty conflict' } }, 409), reply({ error: { message: 'Uncertainty conflict' } }, 409)] });
+  await openDraft(); fireEvent.click(screen.getByRole('button', { name: 'Edit mechanical draft' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add material assumption' }));
+  await choice('Status for materials material1', 'declared');
+  fireEvent.change(screen.getByLabelText('Basis for materials material1'), { target: { value: 'Original hypothetical material basis' } });
+  fireEvent.change(screen.getByLabelText('Material specification for material1'), { target: { value: 'Synthetic polymer' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add tolerance assumption' }));
+  await choice('Scope for tolerances tolerance1', 'hardware');
+  await choice('Status for tolerances tolerance1', 'declared');
+  fireEvent.change(screen.getByLabelText('Basis for tolerances tolerance1'), { target: { value: 'Hypothetical width deviation' } });
+  fireEvent.change(screen.getByLabelText('Dimension or stable feature for tolerance1'), { target: { value: 'opening width' } });
+  fireEvent.change(screen.getByLabelText('Lower deviation (mm) for tolerance1'), { target: { value: '0' } });
+  fireEvent.change(screen.getByLabelText('Upper deviation (mm) for tolerance1'), { target: { value: '0.25' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add connector envelope scope' }));
+  await choice('Status for connector_envelopes envelope1', 'declared');
+  await choice('Connector usage for envelope1', 'mated');
+  fireEvent.change(screen.getByLabelText('Basis for connector_envelopes envelope1'), { target: { value: 'Hypothetical mated state; no other coverage' } });
+  fireEvent.change(screen.getByLabelText('Envelope frame for envelope1'), { target: { value: 'declared_local' } });
+  for (const [bound, values] of [['minimum', [-1, 0, 1]], ['maximum', [2, 3, 4]]] as const) {
+    for (let i = 0; i < 3; i++) fireEvent.change(screen.getByLabelText(`${bound} ${['X', 'Y', 'Z'][i]} (mm) for envelope1`), { target: { value: String(values[i]) } });
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' })); await screen.findByText('Uncertainty conflict');
+  expect(bodies[0].expected_state).toBe('draft-v1');
+  expect(bodies[0].payload.mechanical_source.uncertainty).toMatchObject({
+    materials: [{ target_local_id: null, status: 'declared', specification: 'Synthetic polymer', behavior: null, basis: 'Original hypothetical material basis' }],
+    tolerances: [{ target_local_id: 'hardware', dimension: 'opening width', status: 'declared', units: 'mm', lower_deviation: 0, upper_deviation: 0.25 }],
+    connector_envelopes: [{ target_local_id: 'hardware', usage: 'mated', minimum: [-1, 0, 1], maximum: [2, 3, 4], units: 'mm', frame: 'declared_local' }],
+  });
+  expect(screen.getByText(/Clearance, fit and manufacturability: not evaluated/)).toBeTruthy();
+  expect((screen.getByLabelText('Lower deviation (mm) for tolerance1') as HTMLInputElement).value).toBe('0');
+  fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' }));
+  await vi.waitFor(() => expect(bodies).toHaveLength(2));
+  expect(bodies[1].payload).toEqual(bodies[0].payload); expect(bodies[1].idempotency_key).toBe(bodies[0].idempotency_key);
+});
+
+test('unknown and justified not applicable scopes invent no bounds; source denial hides and restores retained uncertainty', async () => {
+  const { bodies, deny } = setup({ operations: [reply({ error: { message: 'Retained uncertainty' } }, 409)] });
+  await openDraft(); fireEvent.click(screen.getByRole('button', { name: 'Edit mechanical draft' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add tolerance assumption' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add connector envelope scope' }));
+  await choice('Status for connector_envelopes envelope1', 'not_applicable');
+  fireEvent.change(screen.getByLabelText('Basis for connector_envelopes envelope1'), { target: { value: 'No body-envelope usage in this declared scope' } });
+  expect(screen.queryByLabelText('minimum X (mm) for envelope1')).toBeNull();
+  expect(screen.queryByLabelText('Lower deviation (mm) for tolerance1')).toBeNull();
+  deny(true); fireEvent.click(screen.getByRole('button', { name: 'Refresh mechanical sources' })); await screen.findByText(/Declarations are hidden/);
+  expect(screen.queryByLabelText('Basis for connector_envelopes envelope1')).toBeNull();
+  deny(false); await refresh();
+  expect((screen.getByLabelText('Basis for connector_envelopes envelope1') as HTMLTextAreaElement).value).toBe('No body-envelope usage in this declared scope');
+  fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' })); await screen.findByText('Retained uncertainty');
+  const u = bodies[0].payload.mechanical_source.uncertainty;
+  expect(u.tolerances[0]).toMatchObject({ status: 'unknown', lower_deviation: null, upper_deviation: null });
+  expect(u.connector_envelopes[0]).toMatchObject({ status: 'not_applicable', minimum: null, maximum: null, frame: null });
+  expect(bodies[0].expected_state).toBe('draft-v1');
+});
+
+test('read-only assessment shows exact declared scopes and missing prerequisites without manufacturing or fit approval', async () => {
+  const detail = read();
+  detail.evaluation.uncertainty_assessment = {
+    kind: 'declared_prerequisites', coverage: 'explicit_scopes_only', readiness: 'missing_declared_inputs',
+    assumptions: { materials: [{ local_id: 'polymer', target_local_id: null, status: 'declared', specification: 'Original hypothetical polymer', behavior: null, basis: 'Original experiment assumption' }],
+      processes: [], tolerances: [{ local_id: 'width', target_local_id: 'hardware', model_local_id: null, dimension: 'opening width', units: 'mm', status: 'declared', lower_deviation: 0, upper_deviation: 0, basis: 'Declared synthetic zero' }], connector_envelopes: [] },
+    geometry: [], prerequisites: [{ code: 'connector_scope', status: 'unknown', scope: { target_local_id: 'hardware', model_local_id: null }, assumption_local_id: null, message: 'Connector relevance and mating scope are unassessed; no coverage is inferred.' }],
+    missing_prerequisites: [], fit: 'not_evaluated', clearance: 'not_evaluated', manufacturability: 'not_evaluated', physical_qualification: false,
+  };
+  setup({ permissions: ['project.read'], draft: detail }); await refresh();
+  fireEvent.click(screen.getByRole('button', { name: 'Open draft' }));
+  await screen.findByRole('heading', { name: 'Geometry and process prerequisites' });
+  expect(screen.getByText(/Material polymer · mechanical item · declared · Original hypothetical polymer · behavior unknown/)).toBeTruthy();
+  expect(screen.getByText(/deviation 0 to 0 mm · basis Declared synthetic zero/)).toBeTruthy();
+  expect(screen.getByText(/hardware · Connector relevance and mating scope are unassessed/)).toBeTruthy();
+  expect(screen.getByText(/Native geometry is not validated; fit, clearance and manufacturability are not evaluated/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Edit mechanical draft' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Freeze mechanical declarations' })).toBeNull();
 });

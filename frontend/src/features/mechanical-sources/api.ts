@@ -9,8 +9,19 @@ export type TargetPin = { local_id: string; role: 'board' | 'component' | 'hardw
 export type ModelPin = { local_id: string; representation_id: string; revision_id: string; snapshot_sha256: string;
   source_local_id: string; path: string; target_local_id: string; purpose: 'manufacturing' | 'clearance' | 'illustration';
   units: 'mm' | 'm' | 'in' | null; frame: string | null; accuracy: string | null; basis: string };
+export type AssumptionStatus = 'unknown' | 'declared' | 'not_applicable';
+export type ScopedAssumption = { local_id: string; target_local_id: string | null; status: AssumptionStatus; basis: string | null };
+export type MaterialAssumption = ScopedAssumption & { specification: string | null; behavior: string | null };
+export type ProcessAssumption = ScopedAssumption & { method: string | null; parameters: string[]; behavior: string | null };
+export type ToleranceAssumption = ScopedAssumption & { model_local_id: string | null; dimension: string; units: 'mm'; lower_deviation: number | null; upper_deviation: number | null };
+export type ConnectorEnvelope = Omit<ScopedAssumption, 'target_local_id'> & { target_local_id: string; usage: 'body' | 'mated' | 'installation' | 'cable_route'; units: 'mm'; minimum: [number, number, number] | null; maximum: [number, number, number] | null; frame: string | null };
+export type MechanicalUncertainty = { materials: MaterialAssumption[]; processes: ProcessAssumption[]; tolerances: ToleranceAssumption[]; connector_envelopes: ConnectorEnvelope[] };
+export type Prerequisite = { code: string; status: AssumptionStatus | 'unsuitable' | 'not_evaluated'; message: string; scope: { target_local_id: string | null; model_local_id: string | null }; assumption_local_id: string | null };
+export type UncertaintyAssessment = { kind: 'declared_prerequisites'; coverage: 'explicit_scopes_only'; readiness: 'missing_declared_inputs' | 'declared_inputs_only'; assumptions: MechanicalUncertainty;
+  geometry: { local_id: string; target_local_id: string; purpose: ModelPin['purpose']; format: MechanicalFile['format']; representation_id: string; revision_id: string; snapshot_sha256: string; source_revision_id: string; path: string; source_sha256: string; rights: string; reasons: string[] }[];
+  prerequisites: Prerequisite[]; missing_prerequisites: Prerequisite[]; fit: 'not_evaluated'; clearance: 'not_evaluated'; manufacturability: 'not_evaluated'; physical_qualification: false };
 export type MechanicalSource = { schema_version?: '1'; item_role: 'enclosure' | 'part' | 'hardware';
-  sources: MechanicalSourcePin[]; targets: TargetPin[]; models: ModelPin[]; limitations: string[] };
+  sources: MechanicalSourcePin[]; targets: TargetPin[]; models: ModelPin[]; uncertainty?: MechanicalUncertainty; limitations: string[] };
 export type ModelChoice = { representation_id: string; label: string; revision_id: string; snapshot_sha256: string;
   source_revision_id: string; source_manifest_sha256: string; path: string; sha256: string; rights: string };
 export type TargetChoice = { revision_id: string; snapshot_sha256: string; name: string; number: number; kind: string;
@@ -20,6 +31,7 @@ export type Finding = { code: string; status: 'valid' | 'invalid' | 'unknown' | 
 export type MechanicalRead = { definition_id: string; name: string; draft_id: string | null; state: string | null;
   revision_id: string | null; revision_number: number | null; snapshot_sha256: string | null;
   content: { mechanical_source: MechanicalSource }; evaluation: {
+    uncertainty_assessment?: UncertaintyAssessment;
     sources: (MechanicalSourcePin & { name: string; number: number; role: string; derived_from: string | null; ancestry: string[] })[];
     targets: (TargetPin & { name: string; number: number; kind: string; component: { reference: string } | null;
       board_geometry: { outline: number[][][]; coverage: { outline: string }; coordinate_frame: string; units: string;

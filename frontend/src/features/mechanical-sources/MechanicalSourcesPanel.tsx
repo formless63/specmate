@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Group, Select, Stack, Table, Text, Textarea
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command, request, SourceError, type RevisionDetail, type SourcePage } from '../sources/api';
+import { MechanicalUncertaintyEditor, MechanicalUncertaintyRead } from './MechanicalUncertainty';
 import type { MechanicalFile, MechanicalRead, MechanicalSource, MechanicalSourcePin, ModelChoice, ModelPin, RecordPage, TargetChoice, TargetPage, TargetPin } from './api';
 
 const keyFor = (prefix: string, rows: { local_id: string }[]) => {
@@ -34,6 +35,7 @@ export function MechanicalEvaluation({ read }: { read: MechanicalRead }) {
       <Text size="xs">Representation {model.representation_id} · revision {model.revision_id} · snapshot {model.snapshot_sha256} · source {model.source_local_id}/{model.path} · {model.sha256} · rights {model.rights}</Text>
       <Text size="sm">Units {model.units ?? 'unknown'} · frame {model.frame ?? 'unknown'} · accuracy {model.accuracy ?? 'unknown'} · {model.basis}</Text>
     </Card>)}
+    <MechanicalUncertaintyRead assessment={read.evaluation.uncertainty_assessment} />
     {read.evaluation.findings.map((finding, i) => <Text size="sm" key={i}>{finding.status.replace(/_/g, ' ')} · {finding.local_id ? `${finding.local_id}: ` : ''}{finding.message}</Text>)}
     {read.evaluation.limitations.map((text, i) => <Text size="sm" key={i}>Limitation: {text}</Text>)}
   </Stack>;
@@ -251,7 +253,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
           <TextInput label={`Target basis for ${target.local_id}`} value={target.basis} onChange={e => changeTarget(target.local_id, { basis: e.currentTarget.value })} />
           {target.board && <Select label={`Board option for ${target.local_id}`} clearable value={target.board.option_id} data={detail?.board?.options.map(o => ({ value: o.local_id, label: o.name })) ?? []} onChange={value => changeTarget(target.local_id, { board: { ...target.board!, option_id: value } })} />}
           {target.board && target.role === 'component' && <Select label={`Native component for ${target.local_id}`} clearable value={target.native_component_id} data={detail?.components.map(c => ({ value: c.id, label: `${c.reference}: ${c.value}` })) ?? []} onChange={value => changeTarget(target.local_id, { native_component_id: value })} />}
-          <Button variant="subtle" disabled={form.models.some(m => m.target_local_id === target.local_id)} onClick={() => setForm({ ...form, targets: form.targets.filter(t => t.local_id !== target.local_id) })}>Unpin target</Button>
+          <Button variant="subtle" disabled={form.models.some(m => m.target_local_id === target.local_id) || Object.values(form.uncertainty ?? {}).some(rows => rows.some((r: { target_local_id: string | null }) => r.target_local_id === target.local_id))} onClick={() => setForm({ ...form, targets: form.targets.filter(t => t.local_id !== target.local_id) })}>Unpin target</Button>
         </Stack></Card>; })}
         <Select label="Model owning revision" searchable value={modelId || null} data={targets.targets.map(t => ({ value: t.revision_id, label: `${t.name} revision ${t.number}` }))} onChange={value => { setModelId(value ?? ''); if (value) void inspectModel(value); }} />
         <Select label="Model applies to target" value={modelTarget || null} data={form.targets.map(t => ({ value: t.local_id, label: t.local_id }))} onChange={value => setModelTarget(value ?? '')} />
@@ -263,8 +265,9 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
           <TextInput label={`Model frame for ${model.local_id}`} value={model.frame ?? ''} placeholder="Unknown" onChange={e => changeModel(model.local_id, { frame: nullable(e.currentTarget.value) })} />
           <TextInput label={`Model accuracy for ${model.local_id}`} value={model.accuracy ?? ''} placeholder="Unknown" onChange={e => changeModel(model.local_id, { accuracy: nullable(e.currentTarget.value) })} />
           <TextInput label={`Model correspondence basis for ${model.local_id}`} value={model.basis} onChange={e => changeModel(model.local_id, { basis: e.currentTarget.value })} />
-          <Button variant="subtle" onClick={() => setForm({ ...form, models: form.models.filter(m => m.local_id !== model.local_id) })}>Unpin model</Button>
+          <Button variant="subtle" disabled={form.uncertainty?.tolerances.some(t => t.model_local_id === model.local_id)} onClick={() => setForm({ ...form, models: form.models.filter(m => m.local_id !== model.local_id) })}>Unpin model</Button>
         </Stack></Card>)}
+        <MechanicalUncertaintyEditor source={form} onChange={uncertainty => setForm({ ...form, uncertainty })} />
         <Textarea label="Mechanical limitations, one per line" value={form.limitations.join('\n')} onChange={e => setForm({ ...form, limitations: e.currentTarget.value.split('\n').filter(Boolean) })} />
         <Group><Button disabled={busy || !form.sources.length || (!read?.draft_id && !name.trim())} onClick={() => void save()}>Save mechanical draft</Button>
           <Button variant="default" onClick={() => { generation.current += 1; setForm(null); setBusy(false); pendingSave.current = null; }}>Cancel mechanical edit</Button></Group>

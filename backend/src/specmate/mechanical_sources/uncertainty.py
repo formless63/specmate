@@ -42,6 +42,14 @@ def assess(declaration: MechanicalSource):
                     row.target_local_id,
                     assumption=row.local_id,
                 )
+            if code == "process" and row.status == "declared" and not row.parameters:
+                add(
+                    "process_parameters",
+                    "unknown",
+                    "Process parameters are unassessed; no operating settings are inferred.",
+                    row.target_local_id,
+                    assumption=row.local_id,
+                )
     if not inputs.tolerances:
         add("tolerance", "unknown", "No dimension/feature tolerance scope is assessed.")
     for row in inputs.tolerances:
@@ -93,13 +101,17 @@ def assess(declaration: MechanicalSource):
         if model.purpose == "illustration":
             reasons.append("Illustration geometry supplies no clearance or manufacturing geometry.")
             add(
-                "geometry_purpose", "unsuitable", reasons[-1], model.target_local_id, model.local_id
+                "purpose_transfer_limit",
+                "not_evaluated",
+                reasons[-1],
+                model.target_local_id,
+                model.local_id,
             )
         elif model.purpose == "clearance":
             reasons.append("Clearance-purpose geometry supplies no manufacturing geometry.")
             add(
-                "manufacturing_purpose",
-                "unsuitable",
+                "purpose_transfer_limit",
+                "not_evaluated",
                 reasons[-1],
                 model.target_local_id,
                 model.local_id,

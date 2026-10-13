@@ -262,7 +262,9 @@ and one declared usage does not cover another usage or operating configuration.
 The shared read operation and its HTTP view return an `uncertainty_assessment` with
 exact purpose-specific model/source hashes and rights, declared scopes and structured
 missing prerequisites. It identifies missing model units/frame/accuracy, missing
-model tolerance scope, unassessed connector scope and unsuitable geometry purpose.
+model tolerance scope, unassessed connector scope and unsuitable manufacturing format.
+Purpose-transfer limits are informational: a clearance or illustration model is not
+inherently unsuitable for its own declared purpose and need not supply manufacturing geometry.
 Illustration geometry supplies no manufacturing/clearance evidence; a mesh or a recipe
 labelled manufacturing is not validated B-rep. Even a complete set of listed declarations
 has only `declared_inputs_only` readiness with explicit scope coverage. Native validation,

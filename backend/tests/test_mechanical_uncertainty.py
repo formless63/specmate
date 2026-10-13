@@ -2,14 +2,17 @@
 
 import copy
 import hashlib
+import math
 from collections import Counter
 
 import pytest
 from pydantic import ValidationError
 
+from specmate.access.models import Membership
 from specmate.design.models import Draft, Revision
 from specmate.mechanical_sources.contracts import MechanicalSource
 from specmate.operations import Conflict, NotFound, ValidationFailed
+from specmate.sources.models import SourceBundleRevision
 
 from .conftest import op
 from .test_mechanical_sources import mec_target  # noqa: F401
@@ -19,10 +22,20 @@ from .test_transports import api
 # Original dimensioned tetrahedron: volume 2*3*4/6 = 4 mm³, each edge used twice.
 VERTICES = [(0, 0, 0), (2, 0, 0), (0, 3, 0), (0, 0, 4)]
 FACES = [(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)]
+
+
+def normal(face):
+    a, b, c = (VERTICES[i] for i in face)
+    u, v = ([b[i] - a[i] for i in range(3)], [c[i] - a[i] for i in range(3)])
+    vector = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+    length = math.sqrt(sum(value**2 for value in vector))
+    return [value / length for value in vector]
+
+
 MESH = (
     "solid original\n"
     + "".join(
-        "facet normal 0 0 0\nouter loop\n"
+        "facet normal {} {} {}\nouter loop\n".format(*normal(face))
         + "".join("vertex {} {} {}\n".format(*VERTICES[index]) for index in face)
         + "endloop\nendfacet\n"
         for face in FACES
@@ -33,12 +46,17 @@ MESH = (
 
 @pytest.fixture
 def mesh_declaration(users, project, mec_target):  # noqa: F811
-    register(users["owner"], project, MESH)
+    source_project = op(users["owner"], "project.create", {"name": "Scoped original mesh sources"})[
+        "project_id"
+    ]
+    for role in ("viewer", "editor"):
+        Membership.objects.create(project_id=source_project, user=users[role], role="viewer")
+    register(users["owner"], source_project, MESH)
     source = op(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "project_id": source_project,
             "name": "Original closed illustration tetrahedron",
             "files": [
                 {
@@ -50,11 +68,26 @@ def mesh_declaration(users, project, mec_target):  # noqa: F811
             ],
         },
     )
+    represented_draft = op(
+        users["owner"],
+        "definition.create",
+        {
+            "project_id": source_project,
+            "kind": "hardware",
+            "name": "Original model owner",
+        },
+    )
+    represented = op(
+        users["owner"],
+        "draft.freeze",
+        {"draft_id": represented_draft["draft_id"]},
+        expected_state=represented_draft["state"],
+    )
     representation = op(
         users["owner"],
         "catalog.register_representation",
         {
-            "revision_id": mec_target["revision_id"],
+            "revision_id": represented["revision_id"],
             "kind": "model",
             "label": "Original illustration",
             "source_bundle_revision_id": source["revision_id"],
@@ -92,8 +125,8 @@ def mesh_declaration(users, project, mec_target):  # noqa: F811
             {
                 "local_id": "body",
                 "representation_id": representation["representation_id"],
-                "revision_id": mec_target["revision_id"],
-                "snapshot_sha256": mec_target["sha256"],
+                "revision_id": represented["revision_id"],
+                "snapshot_sha256": represented["sha256"],
                 "source_local_id": "mesh",
                 "path": "tetrahedron.stl",
                 "target_local_id": "connector",
@@ -179,9 +212,13 @@ def test_closed_mesh_cannot_supply_missing_tolerance_connector_or_manufacturing_
         "process",
         "tolerance",
         "connector_scope",
-        "geometry_purpose",
         "model_tolerance",
     }
+    transfer = next(p for p in assessment["prerequisites"] if p["code"] == "purpose_transfer_limit")
+    assert (
+        transfer["status"] == "not_evaluated"
+        and "no clearance or manufacturing" in transfer["message"]
+    )
     assert assessment["geometry"][0]["source_sha256"] == hashlib.sha256(MESH).hexdigest()
     assert (
         assessment["fit"]
@@ -311,3 +348,68 @@ def test_invalid_generic_content_rolls_back_and_unknown_has_no_numeric_defaults(
         with pytest.raises(ValidationFailed):
             op(users["owner"], operation, payload, expected_state=draft["state"])
     assert Draft.objects.get(id=draft["draft_id"]).state_token == draft["state"]
+
+
+def test_precise_model_metadata_and_foreign_source_authority(users, project, mesh_declaration):
+    content = copy.deepcopy(mesh_declaration)
+    content["uncertainty"] = assumptions()
+    content["models"][0].update(units=None, frame=None, accuracy=None)
+    draft = create(users["owner"], project, content)
+    before = op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]})
+    assessment = before["evaluation"]["uncertainty_assessment"]
+    metadata = [
+        p
+        for p in assessment["missing_prerequisites"]
+        if p["code"] in {"model_units", "model_frame", "model_accuracy"}
+    ]
+    assert len(metadata) == 3 and all(
+        p["scope"] == {"target_local_id": "connector", "model_local_id": "body"} for p in metadata
+    )
+    bundle = SourceBundleRevision.objects.get(id=content["sources"][0]["source_revision_id"])
+    Membership.objects.filter(project=bundle.bundle.project, user=users["viewer"]).delete()
+    client = api(users["viewer"])
+    assert client.get(f"/api/v0/projects/{project}/definitions").status_code == 200
+    denied = client.get(f"/api/v0/mechanical-sources/drafts/{draft['draft_id']}")
+    assert denied.status_code == 404
+    assert (
+        b"Original hypothetical" not in denied.content and b"tetrahedron.stl" not in denied.content
+    )
+    with pytest.raises(NotFound):
+        op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]})
+    Membership.objects.create(project=bundle.bundle.project, user=users["viewer"], role="viewer")
+    assert op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]}) == before
+
+
+def test_mixed_clearance_and_illustration_purposes_need_no_manufacturing_geometry(
+    users, project, mesh_declaration
+):
+    content = copy.deepcopy(mesh_declaration)
+    content["uncertainty"] = assumptions()
+    content["models"][0]["purpose"] = "clearance"
+    preview = {**content["models"][0], "local_id": "preview", "purpose": "illustration"}
+    content["models"].append(preview)
+    content["uncertainty"]["tolerances"].append(
+        {
+            **content["uncertainty"]["tolerances"][0],
+            "local_id": "preview-width",
+            "model_local_id": "preview",
+        }
+    )
+    draft = create(users["owner"], project, content)
+    assessment = op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]})[
+        "evaluation"
+    ]["uncertainty_assessment"]
+    assert (
+        assessment["readiness"] == "declared_inputs_only"
+        and assessment["missing_prerequisites"] == []
+    )
+    transfers = [p for p in assessment["prerequisites"] if p["code"] == "purpose_transfer_limit"]
+    assert len(transfers) == 2 and all(p["status"] == "not_evaluated" for p in transfers)
+    assert {g["purpose"] for g in assessment["geometry"]} == {"clearance", "illustration"}
+    assert (
+        assessment["fit"]
+        == assessment["clearance"]
+        == assessment["manufacturability"]
+        == "not_evaluated"
+    )
+    assert assessment["physical_qualification"] is False
