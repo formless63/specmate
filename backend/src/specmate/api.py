@@ -23,6 +23,7 @@ from specmate.inventory.api import router as inventory_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
 from specmate.pcb.api import router as pcb_router
 from specmate.wire_stock.api import router as stock_router
+from specmate.workshop_profiles.api import router as workshop_profile_router
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
 api.add_router("/v0/access", access_router)
@@ -37,6 +38,7 @@ api.add_router("/v0/builds", artifacts_router)
 api.add_router("/v0/pcb", pcb_router)
 
 api.add_router("/v0", stock_router)
+api.add_router("/v0", workshop_profile_router)
 
 
 @api.exception_handler(OperationError)
