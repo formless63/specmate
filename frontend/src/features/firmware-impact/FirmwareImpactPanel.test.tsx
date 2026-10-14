@@ -59,7 +59,7 @@ async function select() {
 test('authorized named frozen choices produce exact review and preserve actual unit result', async () => {
   render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
   await screen.findByText('Exact change assessment');
-  expect(compareImpact).toHaveBeenCalledWith({ project_id: 'project-one', baseline: { firmware_revision_id: 'firmware-one' }, candidate: { firmware_revision_id: 'firmware-two' }, assertion_ids: [], observation_offset: 0 });
+  expect(compareImpact).toHaveBeenCalledWith({ workspace_id: 'project-one', baseline: { firmware_revision_id: 'firmware-one' }, candidate: { firmware_revision_id: 'firmware-two' }, assertion_ids: [], observation_offset: 0 });
   expect(screen.getByText(/Physical unit SYNTH-UNIT/)).toBeTruthy();
   expect(screen.getByText(/original subject original-subject/)).toBeTruthy();
   expect(screen.getByText(/Hardware compatibility: not evaluated/)).toBeTruthy();
@@ -196,9 +196,9 @@ test('assembly occurrence-first choices inspect exact assigned readable library 
   expect(screen.queryByLabelText('Baseline firmware revision')).toBeNull();
   expect(screen.queryAllByRole('option', { name: 'unassigned · A1' })).toHaveLength(0);
   fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
-  await waitFor(() => expect(compareImpact).toHaveBeenCalledWith({ project_id: 'project-one', baseline: { firmware_revision_id: 'library-one', assembly_snapshot_id: 'consumer-snapshot', path: ['left'] }, candidate: { firmware_revision_id: 'library-two', assembly_snapshot_id: 'consumer-snapshot', path: ['right'] }, assertion_ids: [], observation_offset: 0 }));
+  await waitFor(() => expect(compareImpact).toHaveBeenCalledWith({ workspace_id: 'project-one', baseline: { firmware_revision_id: 'library-one', assembly_snapshot_id: 'consumer-snapshot', path: ['left'] }, candidate: { firmware_revision_id: 'library-two', assembly_snapshot_id: 'consumer-snapshot', path: ['right'] }, assertion_ids: [], observation_offset: 0 }));
   expect(vi.mocked(read).mock.calls.some(([path]) => path.includes('projects/library'))).toBe(false);
-  expect(screen.getByText(/physical-unit and additional observations remain scoped to this project/)).toBeTruthy();
+  expect(screen.getByText(/additional observations are included only when you select them/)).toBeTruthy();
 });
 
 test('changing from assigned context to standalone removes foreign firmware and its retained metadata', async () => {

@@ -6,14 +6,13 @@ from uuid import uuid4
 
 import pytest
 
-from specmate.access.models import WorkspaceMember
+from specmate.access.models import Project
 from specmate.design.models import Revision
 from specmate.facts.models import FactAssertion
 from specmate.firmware_impact import operations  # noqa: F401
 from specmate.operations import NotFound, ValidationFailed
-from specmate.sources.models import SourceBundle
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
 from .test_facts import append, fact, subject
 from .test_firmware import (  # noqa: F401
     OPT,
@@ -51,9 +50,15 @@ def freeze_firmware(users, project, content):
     )
 
 
+def workspace_of(scope):
+    """The workspace id of a project fixture (workspace ids pass through unchanged)."""
+    row = Project.objects.filter(id=scope).first()
+    return str(row.workspace_id) if row else str(scope)
+
+
 def payload(project, baseline, candidate, **extra):
     return {
-        "project_id": project,
+        "workspace_id": workspace_of(project),
         "baseline": {"firmware_revision_id": baseline["revision_id"]},
         "candidate": {"firmware_revision_id": candidate["revision_id"]},
         **extra,
@@ -233,10 +238,10 @@ def test_contextual_occurrences_remain_distinct_and_sibling_facts_excluded(users
 
 def test_revoked_source_denies_before_unknown_path_diagnostics(users, project, sources, board):  # noqa: F811
     frozen = frozen_firmware(users, project, sources, board)
-    other = op(users["owner"], "project.create", {"name": "Restricted synthetic sources"})
-    SourceBundle.objects.filter(id=sources["bundle_id"]).update(project_id=other["project_id"])
     data = payload(project, frozen, frozen)
     data["candidate"].update(assembly_snapshot_id=str(uuid4()), path=["missing"])
+    # Membership loss is the only revocation: it hides everything before path diagnostics.
+    remove_member(users["viewer"], project=project)
     with pytest.raises(NotFound):
         compare(users, data)
 
@@ -252,7 +257,7 @@ def test_http_operation_and_scope_denial(users, project, sources, board):  # noq
     denied = post_op(api(users["outsider"]), "firmware_impact.compare", data)
     assert denied.status_code == 404
     assert "findings" not in denied.json()
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    remove_member(users["viewer"], project=project)
     with pytest.raises(NotFound):
         compare(users, data)
 
@@ -355,8 +360,7 @@ def test_selected_fact_input_source_closure_is_authorized_before_diagnostics(
         compare(users, data)["observations"][0]["assertion"]["assertion_id"]
         == derived["assertion_id"]
     )
-    other = op(users["owner"], "project.create", {"name": "Restricted observation sources"})
-    SourceBundle.objects.filter(id=bundle["bundle_id"]).update(project_id=other["project_id"])
+    remove_member(users["viewer"], project=project)
     data["candidate"].update(assembly_snapshot_id=str(uuid4()), path=["private-path"])
     with pytest.raises(NotFound) as error:
         compare(users, data)
@@ -367,17 +371,29 @@ def test_selected_fact_input_source_closure_is_authorized_before_diagnostics(
 def test_foreign_project_assertion_and_revision_are_scoped_even_for_shared_actor(
     users,
     project,
+    other_workspace,
     sources,  # noqa: F811
     board,  # noqa: F811
 ):
     frozen = frozen_firmware(users, project, sources, board)
-    other = op(users["owner"], "project.create", {"name": "Another synthetic project"})
-    ensure_member(users["viewer"], "viewer", project=other["project_id"])
-    recorded = observation(users, {"kind": "project", "project_id": other["project_id"]})
+    # The outsider records an assertion in a foreign workspace; even an actor who is a
+    # member of both workspaces cannot select it or compare in the foreign workspace
+    # with this workspace's pins.
+    foreign = op(users["outsider"], "project.create", {"name": "Foreign synthetic project"})
+    member(users["viewer"], "viewer", workspace=other_workspace)
+    ledger = subject(users["outsider"], {"kind": "project", "project_id": foreign["project_id"]})
+    recorded = append(users["outsider"], ledger, fact("device_test"))["assertion"]
     with pytest.raises(NotFound):
         compare(users, payload(project, frozen, frozen, assertion_ids=[recorded["assertion_id"]]))
     with pytest.raises(NotFound):
-        compare(users, payload(other["project_id"], frozen, frozen))
+        compare(users, payload(other_workspace, frozen, frozen))
+    # A non-member never learns whether the foreign workspace exists or holds the item.
+    with pytest.raises(NotFound):
+        op(
+            users["contributor"],
+            "firmware_impact.compare",
+            payload(other_workspace, frozen, frozen),
+        )
 
 
 def test_contextual_assignment_mismatch_cannot_borrow_sibling_firmware(users, project, pair):  # noqa: F811

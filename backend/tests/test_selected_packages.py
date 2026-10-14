@@ -4,12 +4,10 @@ import base64
 import hashlib
 import io
 import zipfile
-from uuid import UUID
 
 import pytest
 from django.test import Client, override_settings
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.operations import (
     Conflict,
@@ -25,9 +23,8 @@ from specmate.selected_packages.contracts import Download, Selection
 from specmate.selected_packages.queries import archive, build_package
 from specmate.selected_packages.verification import verify_files
 from specmate.sources import blobstore
-from specmate.sources.models import SourceBundle
 
-from .conftest import ensure_member, op
+from .conftest import op, remove_member
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_cables import capture as freeze_cable
 from .test_cables import create as create_cable
@@ -211,12 +208,15 @@ def test_contextual_authority_denial_before_bad_selection_stale_review_and_stand
     cable,
 ):
     selected, _ = cable
-    remote = op(users["outsider"], "project.create", {"name": "Private context"})["project_id"]
-    ensure_member(users["owner"], "owner", project=remote)
-    ensure_member(users["outsider"], "viewer", project=project)
-    root = freeze(users["outsider"], create(users["outsider"], remote, [occ("chosen", selected)]))
+    root = freeze(users["editor"], create(users["editor"], project, [occ("chosen", selected)]))
     review = op(users["owner"], "selected_package.review", request(root, ["chosen"]))
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
+    # Non-members of the workspace get the identical empty NotFound for every path.
+    for path in (["chosen"], ["missing"]):
+        with pytest.raises(NotFound) as err:
+            op(users["outsider"], "selected_package.review", request(root, path))
+        assert err.value.details == {}
+    # Workspace membership loss is the revocation: it precedes selection diagnostics.
+    remove_member(users["owner"], project=project)
     for path in (["chosen"], ["missing"]):
         payload = request(root, path, rights_reviews=[{"subject": "wrong", "decision": "unknown"}])
         with pytest.raises(NotFound) as err:
@@ -341,7 +341,6 @@ def test_exact_source_file_metadata_rights_review_and_no_unrelated_bundle_member
 
 
 def test_source_ancestry_revocation_hides_diagnostics_and_retained_download(users, project, cable):
-    remote = op(users["outsider"], "project.create", {"name": "Restricted original"})["project_id"]
     original = source_evidence(users, project)
     derivative = op(
         users["owner"],
@@ -366,12 +365,9 @@ def test_source_ancestry_revocation_hides_diagnostics_and_retained_download(user
     )
     payload = request(profile)
     retained = op(users["owner"], "selected_package.review", payload)
-    # Transfer the original's authority scope after capture. The derivative itself and
-    # its exact selected file stay readable; revoked ancestry must still block export.
-    original_bundle = SourceBundle.objects.get(revisions__id=original["source_bundle_revision_id"])
-    original_bundle.project_id = UUID(remote)
-    original_bundle.save(update_fields=["project"])
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
+    # The derivative and its ancestry share the workspace: members export, and losing
+    # membership blocks the retained download and every diagnostic.
+    remove_member(users["owner"], project=project)
     for sha256 in (retained["sha256"], "0" * 64):
         with pytest.raises(NotFound) as err:
             op(
@@ -470,9 +466,7 @@ def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(user
         raw, _, _ = archive(users["viewer"], Download(**download_payload))
         assert response.content == raw
         assert response["Cache-Control"] == "private, no-store"
-        WorkspaceMember.objects.filter(
-            workspace__projects=cable_project(cable), user=users["viewer"]
-        ).delete()
+        remove_member(users["viewer"], workspace=str(cable_workspace(cable)))
         denied = client.post(
             "/api/v0/selected-packages/download", download_payload, content_type="application/json"
         )
@@ -488,34 +482,34 @@ def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(user
         )
 
 
-def cable_project(cable):
-    return Snapshot.objects.get(id=cable[0]["snapshot_id"]).definition.project_id
+def cable_workspace(cable):
+    return Snapshot.objects.get(id=cable[0]["snapshot_id"]).definition.workspace_id
 
 
-def test_hidden_sibling_blocks_contextual_diagnostics_but_standalone_remains_readable(
+def test_workspace_siblings_are_readable_and_non_members_get_identical_not_found(
     users,
     project,
     cable,
 ):
-    remote = op(users["outsider"], "project.create", {"name": "Restricted sibling"})["project_id"]
-    ensure_member(users["owner"], "viewer", project=remote)
-    _, sibling = part(users["outsider"], remote)
+    foreign_project = op(users["outsider"], "project.create", {"name": "Foreign sibling"})
+    _, foreign_sibling = part(users["outsider"], foreign_project["project_id"])
+    _, sibling = part(users["owner"], project)
     selected = cable[0]
+    # An exact pin never crosses workspaces: a foreign sibling cannot join the context.
+    with pytest.raises(NotFound):
+        freeze(
+            users["owner"],
+            create(users["owner"], project, [occ("chosen", selected), occ("x", foreign_sibling)]),
+        )
     root = freeze(
         users["owner"],
-        create(
-            users["owner"],
-            project,
-            [
-                occ("chosen", selected),
-                occ("sibling", sibling),
-            ],
-        ),
+        create(users["owner"], project, [occ("chosen", selected), occ("sibling", sibling)]),
     )
-    # Viewer reads the parent project and selected cable but cannot read its sibling.
+    # Every member reads the siblings; the contextual selection is reviewable.
+    assert op(users["viewer"], "selected_package.review", request(root, ["chosen"]))
     for path in (["chosen"], ["missing"]):
         with pytest.raises(NotFound) as err:
-            op(users["viewer"], "selected_package.review", request(root, path))
+            op(users["outsider"], "selected_package.review", request(root, path))
         assert err.value.details == {}
     package(users["viewer"], request(selected))
 

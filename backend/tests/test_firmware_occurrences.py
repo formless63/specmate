@@ -9,7 +9,6 @@ from threading import Barrier
 import pytest
 from django.db import IntegrityError, close_old_connections, connections, transaction
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Revision, SnapshotDependency
 from specmate.firmware_occurrences.models import FirmwareAdoption
 from specmate.operations import (
@@ -20,9 +19,8 @@ from specmate.operations import (
     ValidationFailed,
 )
 from specmate.operations.models import IdempotencyRecord
-from specmate.sources.models import SourceBlob, SourceBundleFile
 
-from .conftest import ensure_member, op
+from .conftest import op, remove_member, set_role
 from .test_firmware import (  # noqa: F401
     CONFIG,
     MAIN,
@@ -35,7 +33,6 @@ from .test_firmware import (  # noqa: F401
     source,
     sources,
 )
-from .test_sources import register
 from .test_transports import api, post_op
 
 
@@ -265,10 +262,11 @@ def test_scoped_replay_mismatch_and_edit_permission(users, pair):
             adoption_payload(reviewed),
             expected_state=reviewed["state"],
         )
-    WorkspaceMember.objects.filter(
-        user=users["editor"],
-        workspace__projects=Draft.objects.get(id=assembly["draft_id"]).definition.project,
-    ).update(role="viewer")
+    set_role(
+        users["editor"],
+        "viewer",
+        workspace=str(Draft.objects.get(id=assembly["draft_id"]).definition.workspace_id),
+    )
     with pytest.raises(PermissionDenied):
         adopt(users, reviewed, idempotency_key="independent")
     with pytest.raises(NotFound):
@@ -281,7 +279,7 @@ def test_scoped_replay_mismatch_and_edit_permission(users, pair):
         )
 
 
-def test_retained_source_authority_precedes_changed_request_and_legacy_conflict(
+def test_retained_source_authority_precedes_changed_request(
     users,
     project,
     sources,  # noqa: F811
@@ -309,50 +307,53 @@ def test_retained_source_authority_precedes_changed_request_and_legacy_conflict(
         expected_state=saved["state"],
     )
     clean_review = preview(users, updated, None, ["board"])
-    foreign = op(users["outsider"], "project.create", {"name": "Hidden source owner"})["project_id"]
-    register(users["outsider"], foreign, b"unavailable origin")
-    SourceBundleFile.objects.create(
-        revision_id=sources["revision_id"],
-        path="retained-origin.bin",
-        media_type="application/octet-stream",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=foreign),
-    )
-    for legacy in (False, True):
-        if legacy:
-            IdempotencyRecord.objects.filter(
-                operation="firmware_occurrence.adopt", key="retained"
-            ).update(scope="legacy")
-        with pytest.raises(NotFound):
-            adopt(users, clean_review, idempotency_key="retained")
-        with pytest.raises(NotFound):
-            op(
-                users["viewer"],
-                "firmware_occurrence.read_adoption",
-                {"adoption_id": saved["adoption_id"]},
-            )
+    # Retained results are authorized afresh: a role downgrade denies, and workspace
+    # membership loss hides the key and the adoption before the changed-request conflict.
+    set_role(users["editor"], "viewer", project=project)
+    with pytest.raises(PermissionDenied):
+        adopt(users, clean_review, idempotency_key="retained")
+    remove_member(users["editor"], project=project)
+    remove_member(users["viewer"], project=project)
+    with pytest.raises(NotFound):
+        adopt(users, clean_review, idempotency_key="retained")
+    with pytest.raises(NotFound):
+        op(
+            users["viewer"],
+            "firmware_occurrence.read_adoption",
+            {"adoption_id": saved["adoption_id"]},
+        )
     assert FirmwareAdoption.objects.count() == 1
 
 
-def test_full_retained_ancestor_dependency_precedes_paths(users, pair):
+def test_full_retained_ancestor_dependency_precedes_paths(users, pair, workspace, other_workspace):
     assembly, _, second = pair
-    foreign = op(users["outsider"], "project.create", {"name": "Hidden ancestor"})["project_id"]
-    definition = op(
-        users["outsider"],
-        "definition.create",
-        {"project_id": foreign, "name": "Ancestor", "kind": "board"},
-    )
-    origin = op(
-        users["outsider"],
-        "draft.freeze",
-        {"draft_id": definition["draft_id"]},
-        expected_state=definition["state"],
-    )
-    SnapshotDependency.objects.create(
-        snapshot=Revision.objects.get(id=second["revision_id"]).snapshot,
-        revision_id=origin["revision_id"],
-    )
+    snapshot = Revision.objects.get(id=second["revision_id"]).snapshot
+
+    def board_revision(user, workspace_id, name):
+        definition = op(
+            user,
+            "definition.create",
+            {"workspace_id": workspace_id, "name": name, "kind": "board"},
+        )
+        return op(
+            user,
+            "draft.freeze",
+            {"draft_id": definition["draft_id"]},
+            expected_state=definition["state"],
+        )
+
+    # Retained pins never cross workspaces: the database rejects a foreign ancestor.
+    foreign = board_revision(users["outsider"], other_workspace, "Foreign ancestor")
+    with pytest.raises(IntegrityError), transaction.atomic():
+        SnapshotDependency.objects.create(snapshot=snapshot, revision_id=foreign["revision_id"])
+    # A same-workspace retained ancestor is part of the full dependency authority.
+    origin = board_revision(users["owner"], workspace, "Retained ancestor")
+    SnapshotDependency.objects.create(snapshot=snapshot, revision_id=origin["revision_id"])
     with pytest.raises(NotFound):
+        preview(users, assembly, second["revision_id"], ["missing"])
+    # Authority is checked before the path diagnostic, so losing the workspace hides both.
+    remove_member(users["viewer"])
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         preview(users, assembly, second["revision_id"], ["missing"])
 
 
@@ -518,20 +519,15 @@ def test_sql_rejects_forged_review_provenance_and_rolls_back(users, pair, monkey
     assert not IdempotencyRecord.objects.filter(operation="firmware_occurrence.adopt").exists()
 
 
-def test_retained_adoption_rechecks_original_base_after_new_freeze(users, pair):
+def test_retained_adoption_rechecks_original_base_after_new_freeze(users, pair, workspace):
     assembly, _, second = pair
-    foreign = op(users["outsider"], "project.create", {"name": "Original base authority"})[
-        "project_id"
-    ]
-    for actor in (users["owner"], users["editor"], users["viewer"]):
-        ensure_member(actor, "viewer", project=foreign)
     original = op(
-        users["outsider"],
+        users["owner"],
         "definition.create",
-        {"project_id": foreign, "kind": "board", "name": "Historic provenance"},
+        {"workspace_id": workspace, "kind": "board", "name": "Historic provenance"},
     )
     dependency = op(
-        users["outsider"],
+        users["owner"],
         "draft.freeze",
         {"draft_id": original["draft_id"]},
         expected_state=original["state"],
@@ -553,9 +549,12 @@ def test_retained_adoption_rechecks_original_base_after_new_freeze(users, pair):
         {"draft_id": assembly["draft_id"]},
         expected_state=saved["state"],
     )
-    WorkspaceMember.objects.filter(workspace__projects=foreign).exclude(
-        user=users["outsider"]
-    ).delete()
+    assert op(
+        users["viewer"], "firmware_occurrence.read_adoption", {"adoption_id": saved["adoption_id"]}
+    )
+    # Membership loss hides the retained adoption and its key; a later freeze changes nothing.
+    for actor in ("editor", "viewer"):
+        remove_member(users[actor])
     with pytest.raises(NotFound):
         op(
             users["viewer"],

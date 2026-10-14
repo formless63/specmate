@@ -4,7 +4,6 @@ import json
 
 import pytest
 
-from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildAttempt, BuildOutbox
 from specmate.builds.operations import _execution_allowed
 from specmate.firmware_builds.contracts import FirmwareRef
@@ -12,7 +11,7 @@ from specmate.firmware_builds.operations import inputs
 from specmate.firmware_builds.pack import recipe_for
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 
-from .conftest import op
+from .conftest import op, remove_member
 from .test_firmware_builds import (  # noqa: F401
     IMAGE,
     attempt,
@@ -66,7 +65,7 @@ def test_shared_lease_rechecks_exact_frozen_occurrence_parent_authority(
     settings,
 ):
     owner = users["owner"]
-    auxiliary = op(owner, "project.create", {"name": "Synthetic compiler parent"})["project_id"]
+    auxiliary = project
     draft = op(
         owner,
         "assembly.create",
@@ -111,9 +110,8 @@ def test_shared_lease_rechecks_exact_frozen_occurrence_parent_authority(
     build = BuildAttempt.objects.get(id=compiled_request["build_id"])
     assert _execution_allowed(build)
     assert op(owner, "build.get", {"build_id": compiled_request["build_id"]})["state"]
-    # Fixture revocation isolates contextual parent authority from readable source/project.
-    WorkspaceMember.objects.filter(workspace__projects=auxiliary, user=owner).delete()
-    assert WorkspaceMember.objects.filter(workspace__projects=project, user=owner).exists()
+    # Losing the workspace revokes the requester's retained execution authority and reads.
+    remove_member(owner, project=auxiliary)
     assert not _execution_allowed(build)
     with pytest.raises(NotFound):
         op(owner, "build.get", {"build_id": compiled_request["build_id"]})

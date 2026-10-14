@@ -4,7 +4,6 @@ import copy
 import hashlib
 import io
 import zipfile
-from uuid import UUID
 
 import pytest
 from django.test import Client
@@ -14,9 +13,8 @@ from specmate.selected_packages.contracts import Selection
 from specmate.selected_packages.queries import build_package, source_pins
 from specmate.selected_packages.verification import verify_files
 from specmate.sources import blobstore
-from specmate.sources.models import SourceBundle
 
-from .conftest import op
+from .conftest import op, remove_member
 from .test_assemblies import create, firmware_part, freeze, occ
 from .test_selected_packages import package, request
 from .test_sources import register
@@ -302,13 +300,9 @@ def test_firmware_source_ancestry_denial_precedes_selection_rights_and_review_di
     context = firmware_context
     payload = {**context["payload"], "rights_reviews": context["rights"]}
     review = op(users["owner"], "selected_package.review", payload)
-    remote = op(users["outsider"], "project.create", {"name": "Hidden original authority"})[
-        "project_id"
-    ]
-    # Transfer the original's scope after review; the derivative's scope is unchanged.
-    origin = SourceBundle.objects.get(id=context["original"]["bundle_id"])
-    origin.project_id = UUID(remote)
-    origin.save(update_fields=["project"])
+    # Authority over the whole source ancestry is the workspace role: losing membership
+    # after review denies before selection, rights or review-hash diagnostics.
+    remove_member(users["owner"])
     for sha, path in ((review["sha256"], ["b"]), ("0" * 64, ["missing"])):
         with pytest.raises(NotFound) as failure:
             op(

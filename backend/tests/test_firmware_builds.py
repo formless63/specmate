@@ -30,7 +30,7 @@ from specmate.operations import (
 )
 from specmate.sources import blobstore
 
-from .conftest import op
+from .conftest import op, remove_member
 from .test_firmware import (  # noqa: F401
     attempt,
     board,
@@ -232,11 +232,9 @@ def test_generic_request_hook_rejects_consent_bypass(users, firmware, compiler_r
         operations.authorize_request(
             Context(user=users["owner"], via="job", request_id="hook"),
             RequestBuild(
-                project_id=firmware["project_id"]
-                if "project_id" in firmware
-                else operations.inputs(
+                project_id=operations.inputs(
                     users["owner"], FirmwareRef(firmware_revision_id=firmware["revision_id"])
-                )[0].definition.project_id,
+                )[0].definition.workspace_id,
                 source_revision_id=source_id,
                 recipe_id=compiler_recipe["id"],
             ),
@@ -312,7 +310,7 @@ def test_exact_frozen_occurrence_binding(users, firmware, compiler_recipe, board
         {
             "project_id": operations.inputs(
                 users["owner"], FirmwareRef(firmware_revision_id=firmware["revision_id"])
-            )[0].definition.project_id,
+            )[0].definition.workspace_id,
             "name": "Synthetic repeated compiler targets",
             "assembly": {
                 "occurrences": [
@@ -359,15 +357,46 @@ def test_exact_frozen_occurrence_binding(users, firmware, compiler_recipe, board
     assert spec["firmware_revision_id"] == firmware["revision_id"]
 
 
-def test_hidden_output_ancestor_precedes_hash_diagnostic_and_replay(
-    users, sources, firmware, compiler_recipe, requested
-):
-    from .test_pcb_fabrication import derived_record, other_source
+def retained_derivative(user, source_revision_id):
+    """Synthetic retained derivative in the source's own workspace; no bytes fabricated."""
+    from specmate.sources.models import SourceBundle, SourceBundleFile, SourceBundleRevision
 
-    parent_project, parent = other_source(users)
-    derivative = derived_record(users["owner"], sources["revision_id"], parent)
+    origin = SourceBundleRevision.objects.select_related("bundle").get(id=source_revision_id)
+    bundle = SourceBundle.objects.create(
+        workspace_id=origin.bundle.workspace_id,
+        name="Synthetic retained derivative",
+        role="derivative",
+        derived_from_id=origin.id,
+        created_by=user,
+    )
+    revision = SourceBundleRevision.objects.create(
+        bundle=bundle,
+        number=1,
+        manifest=origin.manifest,
+        manifest_sha256=origin.manifest_sha256,
+        created_by=user,
+    )
+    for file in origin.files.all():
+        SourceBundleFile.objects.create(
+            revision=revision,
+            path=file.path,
+            blob=file.blob,
+            rights=file.rights,
+            media_type=file.media_type,
+        )
+    return revision
+
+
+def test_hidden_output_ancestor_precedes_hash_diagnostic_and_replay(
+    users, project, sources, firmware, compiler_recipe, requested
+):
+    derivative = retained_derivative(users["owner"], sources["revision_id"])
     fake_outputs(requested, output_source=derivative.id)
-    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
+    # The derivative's hash diagnostic is reachable only while the workspace is.
+    with pytest.raises(ValidationFailed):
+        op(users["owner"], "firmware_build.read", reference(requested))
+    # Losing workspace membership hides the whole retained ancestry before any diagnostic.
+    remove_member(users["owner"], project=project)
     with pytest.raises(NotFound):
         op(users["owner"], "firmware_build.read", reference(requested))
     with pytest.raises(NotFound):

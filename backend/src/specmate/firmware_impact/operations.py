@@ -65,7 +65,7 @@ def authorize_evidence(user, rows):
 
 def authorized_inputs(ctx, p):
     user = current_actor(ctx.user)
-    workspace_id = authorize(user, p.project_id, Perm.WORKSPACE_READ).id
+    workspace_id = authorize(user, p.workspace_id, Perm.WORKSPACE_READ).id
     # Resolve both complete frozen closures before kind, path or comparison diagnostics.
     revisions, snapshots = [], []
     for ref in (p.baseline, p.candidate):
@@ -78,23 +78,23 @@ def authorized_inputs(ctx, p):
     selected = list(FactAssertion.objects.select_related("subject").filter(id__in=p.assertion_ids))
     authorize_evidence(user, selected)
     for revision, snapshot in zip(revisions, snapshots, strict=True):
-        # A consumer owns the assembly context, while the assigned exact firmware
-        # may retain its readable library ownership. Standalone reads stay local.
+        # Items are workspace-wide and exact pins stay inside one workspace; a
+        # standalone read must still be the authorized workspace's own firmware.
         if snapshot is None and revision.definition.workspace_id != workspace_id:
-            raise NotFound("Firmware revision unavailable in this project.")
+            raise NotFound("Firmware revision unavailable in this workspace.")
     if any(snapshot and snapshot.definition.workspace_id != workspace_id for snapshot in snapshots):
-        raise NotFound("Assembly snapshot unavailable in this project.")
+        raise NotFound("Assembly snapshot unavailable in this workspace.")
     if any(row.subject.workspace_id != workspace_id for row in selected):
-        raise NotFound("Historical assertion unavailable in this project.")
+        raise NotFound("Historical assertion unavailable in this workspace.")
     if len(selected) != len(p.assertion_ids):
         raise NotFound("Historical assertion unavailable.")
     baseline_content = json.loads(bytes(revisions[0].snapshot.canonical))["content"]
     target = baseline_content.get("firmware", {}).get("target", {})
     population_id = target.get("population_revision_id")
     revision_ids = [revisions[0].id, *([population_id] if population_id else [])]
-    # Revision evidence belongs to the exact readable library subjects. Unit and
-    # occurrence evidence belongs to the selected consumer; reuse never imports
-    # other projects' actual-unit results or unrelated project assertions.
+    # Revision evidence belongs to the exact baseline revision subjects. Unit and
+    # occurrence evidence belongs to the exact baseline context; reuse never imports
+    # unrelated units' results or unrelated assertions unless deliberately selected.
     revision_evidence = Q(subject__kind="revision", subject__revision_id__in=revision_ids)
     contextual_evidence = Q(
         subject__kind="physical_unit", subject__physical_unit__revision_id__in=revision_ids
@@ -282,7 +282,7 @@ def compare(ctx: Context, p: CompareImpact):
     rows = findings(baseline, candidate)
     changed = [row["key"] for row in rows if row["status"] == "changed"]
     result = {
-        "project_id": str(p.project_id),
+        "workspace_id": str(p.workspace_id),
         "baseline": {
             "reference": p.baseline.model_dump(mode="json"),
             "inputs": baseline[2],
@@ -302,7 +302,7 @@ def compare(ctx: Context, p: CompareImpact):
         "observation_offset": p.observation_offset,
         "observations_truncated": len(assertions) > 100,
         "observations_has_more": len(assertions) > p.observation_offset + 100,
-        "observation_scope": "exact_readable_baseline_revision_subjects_and_selected_project_"
+        "observation_scope": "exact_readable_baseline_revision_subjects_and_selected_workspace_"
         "contexts_units_extras",
         "review_required": bool(changed) or any(row["status"] == "unknown" for row in rows),
         "hardware_compatibility": "not_evaluated",

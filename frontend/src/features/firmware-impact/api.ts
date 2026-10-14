@@ -3,7 +3,7 @@ import type { Evaluation, Firmware } from '../firmware/api';
 import { operation } from '../firmware-occurrences/api';
 
 export type FirmwareReference = { firmware_revision_id: string; assembly_snapshot_id?: string; path?: string[] };
-export type ImpactRequest = { project_id: string; baseline: FirmwareReference; candidate: FirmwareReference; assertion_ids?: string[]; observation_offset?: number };
+export type ImpactRequest = { workspace_id: string; baseline: FirmwareReference; candidate: FirmwareReference; assertion_ids?: string[]; observation_offset?: number };
 export type ImpactInputs = Firmware & { firmware_revision_id: string; firmware_snapshot_sha256: string;
   occurrence: { assembly_snapshot_id: string; assembly_snapshot_sha256: string; path: string[]; population_revision_id: string } | null };
 export type ImpactResult = {

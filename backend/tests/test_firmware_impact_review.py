@@ -1,16 +1,14 @@
 """Independent authority and bounded-discovery checks for inert impact review."""
 
 import copy
-from uuid import UUID
 
 import pytest
 
 from specmate.facts.models import FactAssertion
 from specmate.firmware_impact import operations
 from specmate.operations import NotFound, ValidationFailed
-from specmate.sources.models import SourceBundle
 
-from .conftest import op
+from .conftest import member, op, remove_member
 from .test_facts import append, fact, subject
 from .test_firmware import attempt, board, digest, intake, recipe, source, sources  # noqa: F401
 from .test_firmware_impact import compare, observation, payload
@@ -118,14 +116,14 @@ def test_automatic_fact_input_ancestor_denial_precedes_assignment_diagnostic(
     wrong["candidate"].update(assembly_snapshot_id=snapshot, path=["left", "board"])
     with pytest.raises(ValidationFailed, match="not assigned"):
         compare(users, wrong)
-    private = op(users["owner"], "project.create", {"name": "Restricted evidence ancestor"})
-    SourceBundle.objects.filter(id=original["bundle_id"]).update(project_id=private["project_id"])
-    assert SourceBundle.objects.get(id=derivative["bundle_id"]).project_id == UUID(project)
-    with pytest.raises(NotFound, match=r"^Project not found\.$"):
+    # Workspace membership loss hides the retained ancestry before the assignment
+    # diagnostic and for the valid request alike; restoring it restores the exact result.
+    remove_member(users["viewer"], project=project)
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         compare(users, wrong)
     with pytest.raises(NotFound):
         compare(users, valid)
-    SourceBundle.objects.filter(id=original["bundle_id"]).update(project_id=project)
+    member(users["viewer"], "viewer", project=project)
     assert compare(users, valid) == initial
     assert list(FactAssertion.objects.order_by("id").values()) == before
 
