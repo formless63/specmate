@@ -10,7 +10,7 @@ from specmate.cables.contracts import Cable
 from specmate.cables.lengths import project_lengths
 from specmate.design.closure_reads import closure_reads
 from specmate.design.models import Revision, SnapshotDependency
-from specmate.design.operations import authorize_snapshot
+from specmate.design.operations import authorize_snapshots
 from specmate.design.pins import check_pin
 from specmate.interfaces.contracts import ConnectorBody, Pinout
 from specmate.interfaces.queries import parse_content as parse_interface
@@ -20,13 +20,19 @@ from specmate.wire_stock.schemas import StockSpecification
 _AUTHORIZING = ContextVar("cable_authorizing_snapshots", default=frozenset())
 
 
-def authorize_reference(user, revision, *, _authorized=None):
+def authorize_references(user, revisions):
+    """Authorize every revision's closure in one batched traversal.
+
+    Each revision is checked against the active nesting set, which then only deepens by
+    one level (siblings are not marked active, so nested typed content may revisit them).
+    """
+    revisions = list(revisions)
     active = _AUTHORIZING.get()
-    if revision.snapshot_id in active or len(active) >= 32:
+    if len(active) >= 32 or any(r.snapshot_id in active for r in revisions):
         raise ValidationFailed("Cable authorization nesting limit or dependency cycle.")
-    token = _AUTHORIZING.set(active | {revision.snapshot_id})
+    token = _AUTHORIZING.set(active | {object()})
     try:
-        authorize_snapshot(user, revision.snapshot, _authorized=_authorized)
+        authorize_snapshots(user, [r.snapshot for r in revisions])
     finally:
         _AUTHORIZING.reset(token)
 
@@ -99,9 +105,7 @@ class Closure:
                 ).values_list("revision_id", flat=True)
             )
         # Recheck typed source evidence, not just membership or snapshot dependency rows.
-        authorized = set()
-        for revision in self.revisions.values():
-            authorize_reference(user, revision, _authorized=authorized)
+        authorize_references(user, self.revisions.values())
         if authority_only:
             return
         stock_revision = self.revisions[self.cable.stock_revision_id]

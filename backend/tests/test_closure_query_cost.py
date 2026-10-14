@@ -232,3 +232,40 @@ def test_configuration_history_cost_does_not_grow_with_resolved_records(users, p
             queries(lambda: op(owner, "configuration.resolve", {"draft_id": draft["draft_id"]}))
         )
     assert cost[1] <= cost[0] + SLACK, cost
+
+
+def test_harness_closure_cost_does_not_grow_with_sections(users, project):
+    from .test_cables import STOCK
+    from .test_cables import capture as capture_stock
+    from .test_harnesses import create as create_harness
+    from .test_harnesses import fixture as harness_fixture
+
+    owner = users["owner"]
+    _, _, _, base = harness_fixture(owner, project)
+    cost = []
+    for size in (3, 12):
+        harness = {**base, "sections": list(base["sections"][:2])}
+        for i in range(size - 2):
+            stock = capture_stock(
+                owner,
+                op(
+                    owner,
+                    "wire_stock.create",
+                    {
+                        "workspace_id": workspace_of(project),
+                        "name": f"Stock {size}-{i}",
+                        "stock": STOCK,
+                    },
+                ),
+                "wire_stock.freeze",
+            )
+            harness["sections"].append(
+                {
+                    "local_id": f"extra-{i}",
+                    "stock_revision_id": stock["revision_id"],
+                    "planned_cut_length_mm": 10,
+                    "cut_basis": "Explicit extra cut",
+                }
+            )
+        cost.append(queries(lambda harness=harness: create_harness(owner, project, harness)))
+    assert cost[1] <= cost[0] + SLACK, cost
