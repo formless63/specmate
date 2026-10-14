@@ -33,8 +33,9 @@ close or explicit reopen against a compare-and-set token. A conflict preserves t
 prepared response. `collaboration.propose_upgrade` appends a separately created exact
 upgrade proposal against the same token. Supported proposals use the existing
 `revision_upgrades` contracts: later revisions of one definition and explicitly selected
-direct assembly occurrences. Replacement identities and other owning contexts require
-an explicit reviewed adoption adapter; comparison does not infer one. Upgrade review,
+direct assembly occurrences of the owning snapshot. Declared replacement identities and
+nested consuming contexts are proposed through `upgrade.propose` with an explicit
+reviewer declaration ([revision upgrades](REVISION-UPGRADES.md)); comparison never infers one. Upgrade review,
 feature correspondence and application to an explicitly selected/new owning draft remain
 separate controlled operations. Frozen consumers are never rewritten by this module.
 

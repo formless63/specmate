@@ -1,5 +1,6 @@
 {
   "additionalProperties": false,
+  "description": "Selected occurrences of one exact consuming context and one explicit identity pair.\n\n`later_revision` keeps the same definition. `declared_replacement` names a different\ndefinition of the same kind; its human declaration is the only correspondence basis,\nnever label equality or a catalog matching association. `context_path` reaches a\nnested consuming subassembly in the owning snapshot; `paths` are relative to it.",
   "properties": {
     "basis": {
       "maxLength": 4000,
@@ -11,6 +12,15 @@
       "format": "uuid",
       "title": "Candidate Revision Id",
       "type": "string"
+    },
+    "context_path": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Context Path",
+      "type": "array"
     },
     "old_revision_id": {
       "format": "uuid",
@@ -35,6 +45,29 @@
       "minItems": 1,
       "title": "Paths",
       "type": "array"
+    },
+    "relation": {
+      "default": "later_revision",
+      "enum": [
+        "later_revision",
+        "declared_replacement"
+      ],
+      "title": "Relation",
+      "type": "string"
+    },
+    "replacement_basis": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Replacement Basis"
     }
   },
   "required": [

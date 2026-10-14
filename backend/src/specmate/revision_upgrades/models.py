@@ -7,11 +7,20 @@ from specmate.catalog_matching.models import EvidenceRecord
 
 
 class UpgradeProposal(models.Model):
+    """Immutable proposal; DB triggers guard identity relation and consumer linkage."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owning_snapshot = models.ForeignKey("design.Snapshot", on_delete=models.PROTECT)
     old_revision = models.ForeignKey("design.Revision", on_delete=models.PROTECT, related_name="+")
     candidate_revision = models.ForeignKey(
         "design.Revision", on_delete=models.PROTECT, related_name="+"
+    )
+    relation = models.CharField(max_length=30, default="later_revision")
+    replacement_basis = models.TextField(blank=True, default="")
+    # Empty for the owning snapshot itself; otherwise the exact nested consumer pin.
+    context_path = models.JSONField(default=list)
+    consumer_snapshot = models.ForeignKey(
+        "design.Snapshot", null=True, on_delete=models.PROTECT, related_name="+"
     )
     paths = models.JSONField()
     basis = models.TextField()
@@ -26,6 +35,8 @@ class UpgradeReview(EvidenceRecord):
     decision = models.CharField(max_length=20)
     basis = models.TextField()
     features = models.JSONField(default=list)
+    relationship_decisions = models.JSONField(default=list)
+    assignment_decisions = models.JSONField(default=list)
     impacts = models.JSONField()
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)

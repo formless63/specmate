@@ -2,7 +2,7 @@ from uuid import UUID
 
 from ninja import Router
 
-from specmate.revision_upgrades.queries import inspect_owning, result
+from specmate.revision_upgrades.queries import consumers, inspect_owning, result
 
 router = Router(tags=["revision upgrades"])
 
@@ -15,3 +15,8 @@ def proposal(request, proposal_id: UUID):
 @router.get("/snapshots/{snapshot_id}")
 def owning_snapshot(request, snapshot_id: UUID):
     return inspect_owning(request.user, snapshot_id)
+
+
+@router.get("/consumers")
+def revision_consumers(request, project_id: UUID, revision_id: UUID):
+    return consumers(request.user, project_id, revision_id)

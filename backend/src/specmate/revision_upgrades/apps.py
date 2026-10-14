@@ -11,6 +11,7 @@ class RevisionUpgradesConfig(AppConfig):
         from specmate.revision_upgrades.contracts import (
             ApplyUpgrade,
             ProposeUpgrade,
+            ReadConsumers,
             ReadUpgrade,
             ReviewUpgrade,
         )
@@ -21,5 +22,6 @@ class RevisionUpgradesConfig(AppConfig):
                 "upgrade-review": ReviewUpgrade,
                 "upgrade-apply": ApplyUpgrade,
                 "upgrade-read": ReadUpgrade,
+                "upgrade-consumers": ReadConsumers,
             }
         )
