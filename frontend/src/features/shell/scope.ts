@@ -26,7 +26,8 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   cables: definitions(["cable"], "Cables", "cable"),
   harnesses: definitions(["harness"], "Harnesses", "harness"),
   "passive-passages": definitions(["passage_model"], "Passive models", "passive model"),
-  pcb: definitions(["pcb_population"], "Board populations", "board population"),
+  // Boards and their populations as workspace items; PCB intake below works on one native source.
+  pcb: definitions(["board", "pcb_population"], "Boards", "board record"),
   "pcb-disagreement": definitions(["pcb_assertion", "pcb_comparison"], "PCB source reviews", "PCB review"),
   "occurrence-firmware": definitions(["firmware"], "Firmware", "firmware definition"),
   configurations: definitions(["option_set", "configuration"], "Options and configurations", "configuration"),

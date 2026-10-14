@@ -9,8 +9,8 @@ from uuid import UUID
 from ninja import Query, Router
 
 from specmate.queries import list_definitions
-from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects
-from specmate.workspace.queries import list_library, list_projects, project_detail
+from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects, ResolveLibraryRecord
+from specmate.workspace.queries import library_record, list_library, list_projects, project_detail
 
 router = Router(tags=["workspace"])
 
@@ -18,6 +18,12 @@ router = Router(tags=["workspace"])
 @router.get("/library")
 def library(request, payload: Query[ListLibrary]):
     return list_library(request.user, payload)
+
+
+@router.get("/library/{record_id}")
+def library_item(request, record_id: UUID, payload: Query[ResolveLibraryRecord]):
+    """One library record of any family; unreadable and missing records look the same."""
+    return library_record(request.user, record_id, payload)
 
 
 @router.get("/definitions")

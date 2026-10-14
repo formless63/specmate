@@ -49,6 +49,7 @@ from specmate.workspace.contracts import (
     ListWorkspaceProjects,
     ProjectDetail,
     ResolvedReference,
+    ResolveLibraryRecord,
     UsedIn,
     WorkspaceProject,
     WorkspaceProjectPage,
@@ -330,30 +331,10 @@ def _page_after(query, after: str | None, with_context: bool):
     return query.filter(Q(referenced=False) & older)
 
 
-def list_library(user, payload: ListLibrary) -> dict:
-    """One workspace collection family; a context project's references come first."""
-    actor = _actor(user)
-    workspace = _workspace(actor, payload.workspace_id)
-    context = _context(workspace, payload.project_id)
-    query, referenced, render, loader = FAMILIES[payload.family](workspace, payload, context)
-    if context is not None:
-        flag = (
-            Exists(referenced)
-            if referenced is not None
-            else Value(False, output_field=BooleanField())
-        )
-        query = query.annotate(referenced=flag)
-        if payload.referenced_only:
-            query = query.filter(referenced=True)
-        query = query.order_by("-referenced", "-created_at", "-id")
-    else:
-        query = query.order_by("-created_at", "-id")
-    query = _page_after(query, payload.after, context is not None)
-    rows = list(query[: payload.limit + 1])
-    page = rows[: payload.limit]
-    used = _used_in(loader, [row.id for row in page])
+def _records(rows, render, loader, context) -> list[LibraryRecord]:
+    used = _used_in(loader, [row.id for row in rows])
     results = []
-    for row in page:
+    for row in rows:
         uses = used.get(row.id, [])
         results.append(
             LibraryRecord(
@@ -364,6 +345,32 @@ def list_library(user, payload: ListLibrary) -> dict:
                 used_in_total=len(uses),
             )
         )
+    return results
+
+
+def _referenced_flag(referenced):
+    if referenced is None:
+        return Value(False, output_field=BooleanField())
+    return Exists(referenced)
+
+
+def list_library(user, payload: ListLibrary) -> dict:
+    """One workspace collection family; a context project's references come first."""
+    actor = _actor(user)
+    workspace = _workspace(actor, payload.workspace_id)
+    context = _context(workspace, payload.project_id)
+    query, referenced, render, loader = FAMILIES[payload.family](workspace, payload, context)
+    if context is not None:
+        query = query.annotate(referenced=_referenced_flag(referenced))
+        if payload.referenced_only:
+            query = query.filter(referenced=True)
+        query = query.order_by("-referenced", "-created_at", "-id")
+    else:
+        query = query.order_by("-created_at", "-id")
+    query = _page_after(query, payload.after, context is not None)
+    rows = list(query[: payload.limit + 1])
+    page = rows[: payload.limit]
+    results = _records(page, render, loader, context)
     next_after = None
     if len(rows) > payload.limit and page:
         last = page[-1]
@@ -530,3 +537,22 @@ def project_detail(user, project_id: UUID, *, include_removed: bool = False) -> 
         dependents=blocking,
         can_delete=may_delete(actor, project, held) and not blocking,
     ).model_dump(mode="json")
+
+
+def library_record(user, record_id: UUID, payload: ResolveLibraryRecord) -> dict:
+    """One workspace collection record by id, whatever its family (deep links, probes).
+
+    A record outside the actor's workspace and a missing record raise the same NotFound,
+    so a link never confirms that something exists elsewhere. Context never changes access.
+    """
+    actor = _actor(user)
+    workspace = _workspace(actor, payload.workspace_id)
+    context = _context(workspace, payload.project_id)
+    for factory in FAMILIES.values():
+        query, referenced, render, loader = factory(workspace, ListLibrary(), context)
+        if context is not None:
+            query = query.annotate(referenced=_referenced_flag(referenced))
+        row = query.filter(id=record_id).first()
+        if row is not None:
+            return _records([row], render, loader, context)[0].model_dump(mode="json")
+    raise NotFound("Item not found.")

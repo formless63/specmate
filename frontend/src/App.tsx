@@ -9,7 +9,9 @@ import { ProjectOverview } from "./features/overview/ProjectOverview";
 import { ChooseProject } from "./features/scope/ChooseProject";
 import { RecordFocusContext, type RecordFocus } from "./features/scope/focus";
 import { LibraryView } from "./features/scope/LibraryView";
-import { AREAS, DEFAULT_TOOL, SbShell, toolLabel } from "./features/shell";
+import { NavigationProvider, useWorkspaceUrl } from "./features/navigation";
+import { ProbeInspector, ProbeProvider } from "./features/probe";
+import { AREAS, SbShell, toolLabel } from "./features/shell";
 import { libraryView } from "./features/shell/scope";
 import { WorkspaceShell, type LibraryRecord, type Project, type ShellChrome, type WorkspaceScope } from "./features/workspace";
 
@@ -65,7 +67,7 @@ const MechanicalProposalsPanel = lazy(() => import("./features/mechanical-propos
 const SceneDrawingsPanel = lazy(() => import("./features/scene-drawings/SceneDrawingsPanel").then((module) => ({ default: module.SceneDrawingsPanel })));
 
 export function App() {
-  return <WorkspaceShell>{(scope) => <ScopedWorkspace scope={scope} />}</WorkspaceShell>;
+  return <NavigationProvider><WorkspaceShell>{(scope) => <ScopedWorkspace scope={scope} />}</WorkspaceShell></NavigationProvider>;
 }
 
 const ALL_TOOLS = AREAS.flatMap((area) => area.tools);
@@ -74,37 +76,46 @@ const ALL_TOOLS = AREAS.flatMap((area) => area.tools);
  * The one shell for a signed-in member. The selected area and lens survive scope changes;
  * everything below a scope (panels, their state, cached reads) is keyed to it and discarded
  * when the scope or the member's permissions change. Scope changes navigation, never access.
+ * Area, lens, project context and the probe (shared selection) live in the URL.
  */
 function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
-  const [active, setActiveTool] = useState<string>(DEFAULT_TOOL);
+  const url = useWorkspaceUrl(scope);
+  const active = url.lens;
   const [focus, setFocus] = useState<RecordFocus | null>(null);
   const [statusTick, setStatusTick] = useState(0);
   const [upgradeProposalId, setUpgradeProposalId] = useState<string | null>(null);
   const scopeKey = `${scope.projectId ?? "library"}:${scope.role}:${scope.permissions.join(",")}`;
-  const [visited, setVisited] = useState(() => ({ key: scopeKey, tools: new Set([DEFAULT_TOOL]) }));
+  const [visited, setVisited] = useState(() => ({ key: scopeKey, tools: new Set([active]) }));
   // A new scope mounts only the lens in view; other lenses mount on first visit again.
   const tools = visited.key === scopeKey ? visited.tools : new Set([active]);
-  if (visited.key !== scopeKey) setVisited({ key: scopeKey, tools });
+  if (visited.key !== scopeKey || !tools.has(active)) setVisited({ key: scopeKey, tools: new Set([...tools, active]) });
   // Opening any tool (from an area, a lens, the command palette or a deep link) mounts it once and keeps it mounted while hidden.
+  const { openLens } = url;
   const setActive = useCallback((value: string) => {
-    setActiveTool(value);
+    openLens(value);
     setVisited((current) => current.tools.has(value) ? current : { key: current.key, tools: new Set([...current.tools, value]) });
-  }, []);
+  }, [openLens]);
   const { selectProject } = scope;
   const changeScope = useCallback((projectId: string | null) => { setFocus(null); selectProject(projectId); }, [selectProject]);
+  const { openInProject: openUrlInProject } = url;
   const openInProject = useCallback((projectId: string, toolId: string, record?: LibraryRecord) => {
-    setActive(toolId);
     setFocus(record ? { projectId, toolId, record } : null);
-    selectProject(projectId);
-  }, [selectProject, setActive]);
+    openUrlInProject(projectId, toolId, record?.record_id);
+  }, [openUrlInProject]);
   const scopeActions = useMemo<SpotlightActionGroupData[]>(() => [{ group: "Scope", actions: [
     { id: "scope:library", label: "Library", description: "Whole workspace library", onClick: () => changeScope(null) },
     ...scope.projects.filter((project) => !project.archived).map((project) => ({ id: `scope:${project.project_id}`, label: project.name, description: "Open project", onClick: () => changeScope(project.project_id) })),
   ] }], [scope.projects, changeScope]);
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
-  const chrome: ShellChrome = activeFocus ? { ...scope.chrome, alert: <>{scope.chrome.alert}<FocusNote focus={activeFocus} onDismiss={() => setFocus(null)} /></> } : scope.chrome;
+  const showProbe = !!url.probe || url.malformed;
+  const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
+    {scope.chrome.alert}
+    {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
+    {activeFocus && <FocusNote focus={activeFocus} onDismiss={() => setFocus(null)} />}
+    {showProbe && <ProbeInspector principalKey={scope.principalKey} projectId={scope.projectId} malformed={url.malformed} />}
+  </> };
 
-  return <PermissionsProvider permissions={scope.permissions}>
+  return <PermissionsProvider permissions={scope.permissions}><ProbeProvider probe={url.probe} onProbe={url.setProbe}>
     <SbShell projectName={scope.project?.name ?? "Library"} permissions={scope.permissions} role={scope.role} libraryScope={!scope.project}
       activeTool={active} onToolChange={setActive} chrome={chrome} extraActions={scopeActions}
       statusIndicator={scope.projectId ? <StatusIndicator workspaceId={scope.workspaceId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} /> : undefined}>
@@ -119,7 +130,15 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
             lens={{ scope, projectId: null, active, setActive, onStatusChanged: () => setStatusTick((n) => n + 1), upgradeProposalId, setUpgradeProposalId }} />}
         </ToolPanel>)}</Fragment>}
     </SbShell>
-  </PermissionsProvider>;
+  </ProbeProvider></PermissionsProvider>;
+}
+
+function ProjectLostNote({ onDismiss }: { onDismiss: () => void }) {
+  return <div className="sb-focus-note" role="status">
+    <span className="sb-dash-row-title">The project in this link is not available. You are in the Library.</span>
+    <span style={{ flex: 1 }} />
+    <Button variant="quiet" size="xs" onClick={onDismiss}>Dismiss</Button>
+  </div>;
 }
 
 function FocusNote({ focus, onDismiss }: { focus: RecordFocus; onDismiss: () => void }) {

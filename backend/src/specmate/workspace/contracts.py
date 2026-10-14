@@ -60,6 +60,16 @@ class ListLibrary(Query):
         return sorted(set(value))
 
 
+class ResolveLibraryRecord(Query):
+    """Resolve one record of any library family by id (a deep link or a probe target).
+
+    ``project_id`` is navigation context only: it sets ``referenced`` and never grants access.
+    """
+
+    workspace_id: UUID | None = None
+    project_id: UUID | None = None
+
+
 class UsedIn(BaseModel):
     reference_id: UUID
     project_id: UUID

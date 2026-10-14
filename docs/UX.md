@@ -40,6 +40,49 @@ reachable at both scopes. Scope changes navigation and filtering only, never acc
   automatically after sign-in. Sign-out, session expiry, loss of membership or a role change
   clear or refresh private data and return to a safe state with a plain explanation.
 
+## Links and selection
+
+Status: implemented for the shell and library lists; discipline views join by contributing
+relations and reading the probe.
+
+Items are addressed in the workspace, never through an owning project. One URL carries the
+area, lens, optional project context and the probe (the shared selection):
+
+```
+/                                       Project area, Overview lens, Library scope
+/<area>                                 an area at its default (first) lens
+/<area>/<object>                        probe on a workspace item, following its latest revision
+/<area>/<object>@<rev>                  probe on an exact frozen revision number
+/<area>/<object>@<rev>/~/<seg>/<seg>    probe on a path inside the item (occurrence, pin, feature)
+  ?lens=<tool>                          lens, omitted when it is the area's default
+  &project=<project id>                 optional navigation context
+```
+
+- `<object>` is an opaque workspace record id of any library family; path segments are
+  percent-encoded. A lens named for another area selects that area; unknown areas or lenses
+  fall back to defaults and the address is rewritten to its canonical form in place.
+- Back/forward and reload restore area, lens, scope and selection. Area, lens, scope and a
+  newly selected item are history entries; moving to another path inside the same item and
+  revision replaces the current entry. Explicit sign-out clears the address; an expired
+  session keeps it so signing in again resumes the link.
+- Authorization stays on the server. The probe is resolved with
+  `GET /api/v0/workspace/library/{record_id}`, which answers alike for missing items and items
+  outside the member's workspace. A target that cannot be read, or an address that is not
+  well formed, shows "Selection not available" without naming the target. A project context
+  the workspace does not have returns to Library scope with a plain note that does not name it.
+- The probe is shared by tree rows, tables, diagrams and the inspector. Selecting in any of
+  them selects everywhere; a library row stands for the whole item, so any revision or path
+  of it marks the row selected. The selection header shows one fact per cell: the item,
+  kind, revision (exact, latest or draft only, unknown hatched), path, use count and related
+  count.
+- Relations come from a registry that modules contribute to while they are mounted
+  (`features/probe`). Every address has built-in containment (a path is contained by its
+  ancestors and its item; an exact revision belongs to its item). A view marks related
+  targets with a rule and a "related" tag, not color alone. Contributors describe records
+  already read; they never fetch or authorize.
+- The Design area's PCB lens lists boards and board populations from the workspace library;
+  PCB intake (one native source) stays below the list at project scope.
+
 ## Editing and evidence
 
 Allow incomplete drafts and useful output without requiring a formal review at every edit.

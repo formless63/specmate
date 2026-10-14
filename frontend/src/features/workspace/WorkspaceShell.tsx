@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { HomeFrame } from "../home/HomeFrame";
 import { forgetLastProject, readLastProject, writeLastProject } from "../home/lastProject";
+import { HOME, useNavigation } from "../navigation";
 import { ApiError, listWorkspaceProjects, requestJson, runOperation, type OperationResult, type Project, type SessionState } from "./api";
 
 /** Controls the shell places in its top bar: scope switching, account and request alerts. */
@@ -68,6 +69,7 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
   const [expired, setExpired] = useState(false);
   const generation = useRef(0);
   const known = useRef<Membership | null>(null);
+  const navigation = useNavigation();
 
   const clearCache = useCallback(() => {
     generation.current += 1;
@@ -182,6 +184,8 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
         method: "POST", body: JSON.stringify({ request_id: randomUUID() }),
       });
       clearPrivate();
+      // Signing out leaves no project or selection in the address for the next sign-in.
+      navigation?.navigate({ area: HOME.area, lens: HOME.lens, project: null, probe: null }, { replace: true });
       setUsername("");
       setPassword("");
       setToken("");

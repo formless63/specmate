@@ -25,3 +25,6 @@ Object.defineProperty(window, "matchMedia", {
 import { afterEach } from "vitest";
 import { clearRevisionLabels } from "../lib/revision-labels";
 afterEach(() => clearRevisionLabels());
+
+// The shell keeps area, lens, project context and selection in the URL; every test starts at "/".
+afterEach(() => window.history.replaceState(null, "", "/"));

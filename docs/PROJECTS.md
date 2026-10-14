@@ -45,6 +45,9 @@ collection family at a time with no owning project. Each row reports where it is
 the projects whose active references name it, floating or pinned to an exact revision.
 With a project as navigation context the project's referenced items come first. Every
 read is one bounded page served by a fixed number of queries; non-members get NotFound.
+`/api/v0/workspace/library/{record_id}` resolves one record of any family (deep links and
+the shared selection); a missing record and one outside the member's workspace get the
+same NotFound.
 `/api/v0/workspace/definitions` (or `/api/v0/workspaces/{id}/definitions`) is the flat
 definition list pickers use.
 
