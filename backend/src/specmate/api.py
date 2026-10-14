@@ -24,6 +24,7 @@ from specmate.catalog_packs.api import router as packs_router
 from specmate.collaboration.api import router as collaboration_router
 from specmate.contracts import OperationEnvelope
 from specmate.copper.api import router as copper_router
+from specmate.discovery.api import router as discovery_router
 from specmate.end_preparation.api import router as end_preparation_router
 from specmate.evidence.api import router as evidence_router
 from specmate.facts.api import router as facts_router
@@ -52,6 +53,7 @@ from specmate.workshop_profiles.api import router as workshop_profile_router
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
 api.add_router("/v0/access", access_router)
+api.add_router("/v0/discovery", discovery_router)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/sources", sources_router)
 api.add_router("/v0/catalog-matching", matching_router)
