@@ -111,9 +111,9 @@
       ],
       "kind": "scenario-specification",
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
-      "when": "Provide private personal projects and optional teams without separate engineering models.",
+      "when": "Provide a private workspace whose collections all members share, with projects as reference contexts, for individuals and teams alike.",
       "expect": [
-        "An uninvited user cannot enumerate project names, membership, private search matches or dependency counts."
+        "A user who is not a workspace member cannot enumerate its projects, items, membership, search matches or dependency counts; members see every project and item without per-project grants."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -215,7 +215,7 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Search approved libraries/projects/sources/stock and traverse use relationships.",
       "expect": [
-        "A permitted part lists visible uses without revealing names or counts of inaccessible parents."
+        "A permitted part lists its uses by workspace items and project references without revealing anything outside the workspace."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -1490,7 +1490,7 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Support team review, comparisons, notifications and proposed upgrades.",
       "expect": [
-        "A reviewer sees exact changed facts and affected parents while forbidden project names stay hidden."
+        "A reviewer sees exact changed facts and affected parents while records outside the reviewer's workspace stay hidden."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -1522,9 +1522,9 @@
       ],
       "kind": "scenario-specification",
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
-      "when": "Keep projects private and make sharing/export authority explicit.",
+      "when": "Keep workspaces private and make sharing/export authority explicit.",
       "expect": [
-        "A shared subassembly review does not disclose its private parent or automatically publish all dependencies."
+        "An exported or published subassembly package does not disclose its parent or automatically include all dependencies."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

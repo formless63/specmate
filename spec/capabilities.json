@@ -206,7 +206,7 @@
       "id": "FND-007",
       "group": "FND",
       "title": "Projects and workspaces",
-      "requirement": "Provide private personal projects and optional teams without separate engineering models.",
+      "requirement": "Provide a private workspace whose collections all members share, with projects as reference contexts, for individuals and teams alike.",
       "horizon": "baseline",
       "document": "docs/DOMAIN.md",
       "acceptance_ids": [
@@ -1119,7 +1119,7 @@
       "id": "KNW-004",
       "group": "KNW",
       "title": "Sharing and publication",
-      "requirement": "Keep projects private and make sharing/export authority explicit.",
+      "requirement": "Keep workspaces private and make sharing/export authority explicit.",
       "horizon": "baseline",
       "document": "docs/UX.md",
       "acceptance_ids": [
