@@ -5,7 +5,12 @@ import json
 from django.contrib.auth import get_user_model
 
 from specmate.access.permissions import Perm, authorize
-from specmate.catalog_packs.contracts import PackManifest, PackResult, VersionResult
+from specmate.catalog_packs.contracts import (
+    SUPPORTED_CONTRACT_VERSIONS,
+    PackManifest,
+    PackResult,
+    VersionResult,
+)
 from specmate.catalog_packs.models import CatalogPack, PackVersion
 from specmate.operations import NotFound, PermissionDenied, Unauthenticated, ValidationFailed
 from specmate.queries import get_bundle_revision, get_draft, get_revision
@@ -24,6 +29,13 @@ def authorize_file(user, file):
     if file is not None:
         get_bundle_revision(user, file.revision_id)
         authorize(user, file.blob.workspace_id, Perm.WORKSPACE_READ)
+
+
+def supported(manifest):
+    return manifest.contract_version in SUPPORTED_CONTRACT_VERSIONS and any(
+        declared in SUPPORTED_CONTRACT_VERSIONS
+        for declared in manifest.compatible_contract_versions
+    )
 
 
 def manifest_of(version):
@@ -84,6 +96,33 @@ def active_version(decisions):
     return latest.version_id if latest and latest.action == "install" else None
 
 
+def requested_keys(manifest):
+    return sorted(request.key for request in manifest.requested_authority)
+
+
+def accepted_authority(decisions):
+    """Authority accepted with the currently enabled version; empty once disabled."""
+    active = active_version(decisions)
+    if active is None:
+        return []
+    install = next(
+        row for row in reversed(decisions) if row.action == "install" and row.version_id == active
+    )
+    return sorted(install.accepted_authority)
+
+
+def authority_review(version, decisions):
+    requested = requested_keys(manifest_of(version))
+    baseline = accepted_authority(decisions)
+    new = sorted(set(requested) - set(baseline))
+    return {
+        "requested": requested,
+        "baseline": baseline,
+        "new": new,
+        "requires_acceptance": bool(new),
+    }
+
+
 def pack_result(pack, versions, decisions):
     result = {
         "pack_id": str(pack.id),
@@ -103,7 +142,8 @@ def pack_result(pack, versions, decisions):
             }
             for version in versions
         ],
-        "execution_authority": "none",
+        "execution_authority": "accepted_declaration" if accepted_authority(decisions) else "none",
+        "accepted_authority": accepted_authority(decisions),
         "consumer_adoption": "explicit_new_drafts_only",
     }
     return PackResult.model_validate(result).model_dump(mode="json")
@@ -115,6 +155,7 @@ def get_pack(user, pack_id):
 
 def version_result(version):
     manifest = manifest_of(version)
+    decisions = list(version.pack.decisions.order_by("sequence"))
     source = version.manifest_source
     result = {
         "version_id": str(version.id),
@@ -131,10 +172,20 @@ def version_result(version):
         else None,
         "signature_status": "unverified_claim" if manifest.signature_claim else "unsigned",
         "publisher_status": "unverified_claim",
-        "compatibility": "supported_contract"
-        if manifest.contract_version == "1"
-        else "unsupported_contract",
-        "execution_authority": "none",
+        "compatibility": "supported_contract" if supported(manifest) else "unsupported_contract",
+        "execution_authority": "declared_not_granted" if manifest.requested_authority else "none",
+        "authority_review": authority_review(version, decisions),
+        "dependency_versions": [
+            {
+                "version_id": str(pin.dependency_id),
+                "package_key": pin.dependency.pack.package_key,
+                "version": pin.dependency.version,
+                "sha256": pin.dependency.sha256,
+                "enabled": pin.dependency_id
+                in {active_version(list(pin.dependency.pack.decisions.order_by("sequence")))},
+            }
+            for pin in version.dependencies.select_related("dependency__pack")
+        ],
         "registered_by_id": version.registered_by_id,
         "registered_at": version.created_at.isoformat(),
         "entries": [
@@ -219,6 +270,7 @@ def history(user, pack_id, *, after=0, limit=25):
                 "version_id": str(row.version_id),
                 "version": by_id[row.version_id].version,
                 "basis": row.basis,
+                "accepted_authority": sorted(row.accepted_authority),
                 "decided_by_id": row.decided_by_id,
                 "decided_at": row.created_at.isoformat(),
                 "adoptions": [

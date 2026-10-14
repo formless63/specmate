@@ -11,6 +11,17 @@ status, compatible contract versions, dependencies, capabilities, requested auth
 license/rights and migration/rollback behavior. Expose unknown trust rather than a false
 verified badge. Acceptance of new privileges is distinct from acceptance of a content update.
 
+Catalog packs (`catalog_packs`) implement this manifest. Packs and adapters share one
+format: `kind` (`catalog` or `adapter`), `contract_version` plus `compatible_contract_versions`,
+exact-version `dependencies`, pinned entry hashes, an unverified `signature_claim`, and
+`requested_authority`, a list of `{kind, scope, reason}` with kinds `execution`,
+`network_egress` and `in_process_code`. An adapter must reference its exact inert recipe and
+declare execution. Declaring authority grants nothing: installing a version whose request
+exceeds the enabled version's accepted authority fails until the install lists exactly the
+new keys (`accept_authority`), the decision records the accepted set, and a database trigger
+refuses an install whose accepted set differs from the manifest. Disabling resets the
+baseline. Running a recipe still needs the separate approved recipe registry.
+
 ## History
 
 Installing a new pack version does not change design pins. Users review adoption and

@@ -57,16 +57,36 @@ class SignatureClaim(Contract):
     signature: ExactText = Field(min_length=1, max_length=4000)
 
 
+AUTHORITY_KINDS = ("execution", "network_egress", "in_process_code")
+SUPPORTED_CONTRACT_VERSIONS = ("1",)
+
+
+class AuthorityRequest(Contract):
+    """A declared privilege. Declaring it grants nothing; installation must accept it."""
+
+    kind: Literal["execution", "network_egress", "in_process_code"]
+    scope: ExactText = Field(min_length=1, max_length=200, pattern=r"^[^\s:][^:\n]*$")
+    reason: ExactText = Field(min_length=1, max_length=500)
+
+    @property
+    def key(self) -> str:
+        return f"{self.kind}:{self.scope}"
+
+
 class PackManifest(Contract):
     format: Literal["specmate.catalog-pack"] = "specmate.catalog-pack"
+    kind: Literal["catalog", "adapter"] = "catalog"
     contract_version: str = Field(default="1", min_length=1, max_length=100)
+    compatible_contract_versions: list[str] = Field(
+        default_factory=lambda: ["1"], min_length=1, max_length=20
+    )
     package_key: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,99}$")
     label: ExactText = Field(min_length=1, max_length=200)
     version: str = Field(min_length=1, max_length=100)
     publisher: ExactText = Field(min_length=1, max_length=200)
     rights: ExactText = Field(min_length=1, max_length=200)
     capabilities: list[str] = Field(default_factory=list, max_length=50)
-    requested_authority: list[str] = Field(default_factory=list, max_length=0)
+    requested_authority: list[AuthorityRequest] = Field(default_factory=list, max_length=20)
     dependencies: list[UUID] = Field(default_factory=list, max_length=50)
     signature_claim: SignatureClaim | None = None
     entries: list[PackEntry] = Field(min_length=1, max_length=100)
@@ -79,6 +99,19 @@ class PackManifest(Contract):
             raise ValueError("Pack dependencies must be unique exact versions.")
         if any(not capability.strip() or len(capability) > 100 for capability in self.capabilities):
             raise ValueError("Capability claims must be bounded nonempty labels.")
+        keys = [request.key for request in self.requested_authority]
+        if len(set(keys)) != len(keys):
+            raise ValueError("Requested authority entries must be unique.")
+        if any(
+            not version.strip() or len(version) > 100
+            for version in self.compatible_contract_versions
+        ):
+            raise ValueError("Compatible contract versions must be bounded nonempty labels.")
+        if self.kind == "adapter":
+            if not any(entry.category == "recipe_reference" for entry in self.entries):
+                raise ValueError("An adapter manifest must reference its exact inert recipe.")
+            if not any(request.kind == "execution" for request in self.requested_authority):
+                raise ValueError("An adapter must declare the execution authority it requests.")
         return self
 
 
@@ -94,6 +127,9 @@ class InstallPack(Contract):
     pack_id: UUID
     version_id: UUID
     basis: str = Field(min_length=1, max_length=4000)
+    # Exactly the authority keys this version adds over the enabled version. Content-only
+    # updates leave it empty; new privileges can never ride in on a content acceptance.
+    accept_authority: list[str] = Field(default_factory=list, max_length=20)
 
 
 class DisablePack(Contract):
@@ -123,6 +159,21 @@ class EngineeringPin(Contract):
     sha256: str
 
 
+class AuthorityReview(Contract):
+    requested: list[str]
+    baseline: list[str]
+    new: list[str]
+    requires_acceptance: bool
+
+
+class DependencyResult(Contract):
+    version_id: UUID
+    package_key: str
+    version: str
+    sha256: str
+    enabled: bool
+
+
 class EntryResult(PackEntry):
     engineering: EngineeringPin | None
     interpretation: Literal["draft_copy_available", "inert_unparsed_not_executed"]
@@ -137,7 +188,9 @@ class VersionResult(Contract):
     signature_status: Literal["unsigned", "unverified_claim"]
     publisher_status: Literal["unverified_claim"]
     compatibility: Literal["supported_contract", "unsupported_contract"]
-    execution_authority: Literal["none"]
+    execution_authority: Literal["none", "declared_not_granted"]
+    authority_review: AuthorityReview
+    dependency_versions: list[DependencyResult]
     registered_by_id: int
     registered_at: str
     entries: list[EntryResult]
@@ -158,5 +211,6 @@ class PackResult(Contract):
     installed_version_id: UUID | None
     enabled: bool
     versions: list[VersionSummary]
-    execution_authority: Literal["none"]
+    execution_authority: Literal["none", "accepted_declaration"]
+    accepted_authority: list[str]
     consumer_adoption: Literal["explicit_new_drafts_only"]

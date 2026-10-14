@@ -21,12 +21,14 @@ from specmate.catalog_packs.models import (
 )
 from specmate.catalog_packs.queries import (
     active_version,
+    authority_review,
     authorize_file,
     get_pack,
     get_version,
     manifest_of,
     pack_rows,
     pack_state,
+    supported,
     version_closure,
     version_result,
 )
@@ -262,18 +264,19 @@ def selected_version(ctx, versions, version_id):
             raise NotFound("Pack version not found.")
         version_closure(ctx.user, [other])
         raise ValidationFailed("Selected version does not belong to this pack.")
-    if manifest_of(version).contract_version != "1":
+    if not supported(manifest_of(version)):
         raise Unsupported("This pack contract version cannot be installed or adopted.")
     return version
 
 
-def append_decision(ctx, pack, version, decisions, action, basis):
+def append_decision(ctx, pack, version, decisions, action, basis, accepted=()):
     return PackDecision.objects.create(
         pack=pack,
         version=version,
         sequence=len(decisions) + 1,
         action=action,
         basis=basis,
+        accepted_authority=sorted(accepted),
         decided_by=ctx.user,
     )
 
@@ -291,7 +294,18 @@ def install(ctx: Context, payload: InstallPack):
     get_version(ctx.user, payload.version_id)
     pack, versions, decisions = editable_state(ctx, payload.pack_id)
     version = selected_version(ctx, versions, payload.version_id)
-    append_decision(ctx, pack, version, decisions, "install", payload.basis)
+    review = authority_review(version, decisions)
+    if set(payload.accept_authority) != set(review["new"]) or len(payload.accept_authority) != len(
+        review["new"]
+    ):
+        raise ValidationFailed(
+            "New requested authority must be accepted explicitly, separately from the content "
+            "update, and exactly as listed.",
+            details={"new_authority": review["new"], "accepted": payload.accept_authority},
+        )
+    append_decision(
+        ctx, pack, version, decisions, "install", payload.basis, accepted=review["requested"]
+    )
     return get_pack(ctx.user, pack.id)
 
 
