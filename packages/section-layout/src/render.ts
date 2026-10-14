@@ -1,6 +1,9 @@
 /** Standalone SVG drawing and axial preview consume the exact shared section. */
 import { appearanceOf, edgeColor, mixHex } from './appearance';
 import type { Appearance } from './appearance';
+import { layoutCallouts } from './callouts';
+import type { CalloutItem, CalloutOptions } from './callouts';
+import { placeOnFace } from './end-face';
 import type { Section, SectionFeature, StockGeometry } from './model';
 
 const esc = (text: string): string => text.replace(/[&<>"']/g, c =>
@@ -95,6 +98,28 @@ export function viewBounds(section: Section, mirrored: boolean, rotationDeg: num
   return { minX: Math.min(...pts.map(p => p.x)), maxX: Math.max(...pts.map(p => p.x)), minY: Math.min(...pts.map(p => p.y)), maxY: Math.max(...pts.map(p => p.y)) };
 }
 
+/** Circle (in screen coordinates) around every element: callout labels sit just outside it. */
+function calloutRing(section: Section, mirrored: boolean, rotationDeg: number, span: number): CalloutOptions {
+  const fontSize = span / 12;
+  const bounds = viewBounds(section, mirrored, rotationDeg);
+  if (bounds === null) return { cx: 0, cy: 0, radius: span / 2, fontSize };
+  const cx = (bounds.minX + bounds.maxX) / 2, cy = (bounds.minY + bounds.maxY) / 2;
+  let radius = 0;
+  for (const f of section.features) {
+    const p = placeOnFace(f.x, f.y, mirrored, rotationDeg);
+    const reach = f.shape.type === 'ring' ? f.shape.rOuter : Math.hypot(f.shape.width, f.shape.height) / 2;
+    radius = Math.max(radius, Math.hypot(p.x - cx, p.y - cy) + reach);
+  }
+  return { cx, cy, radius, fontSize };
+}
+
+/** Leader start: mid-wall of the element, on the side facing its label. */
+function featureAnchor(f: SectionFeature, angle: number): { x: number; y: number } {
+  if (f.shape.type === 'web') return { x: f.x, y: f.y };
+  const mid = (f.shape.rOuter + f.shape.rInner) / 2;
+  return { x: f.x + mid * Math.cos(angle), y: f.y + mid * Math.sin(angle) };
+}
+
 function reticle(f: SectionFeature, span: number): string {
   const r = (f.shape.type === 'ring' ? f.shape.rOuter : Math.max(f.shape.width, f.shape.height) / 2) + span * 0.02;
   const tick = span * 0.025;
@@ -144,24 +169,31 @@ export function renderSectionSvg(section: Section, title: string, options: Secti
   });
   const selected = options.selected ? section.features.find(f => f.path === options.selected) : undefined;
   if (selected) parts.push(reticle(selected, span));
-  if (options.callouts !== false && !options.view) for (const row of section.rows) {
-    const f = section.features.find(item => item.path === row.path);
-    if (f === undefined) continue;
-    const radius = f.shape.type === 'ring' ? f.shape.rOuter : f.shape.width / 2;
-    const side = Number(row.tag) % 2 === 0 ? -1 : 1;
-    const sx = f.x + side * radius;
-    const ex = sx + side * pad * 0.7;
-    const ey = f.y + (Number(row.tag) - section.rows.length / 2) * span * 0.09;
-    parts.push(`<g data-callout="${esc(row.path)}" color="currentColor"><path d="M${n(sx)} ${n(f.y)}L${n(ex)} ${n(ey)}" stroke="currentColor" stroke-width="${n(span / 180)}" fill="none"/><text x="${n(ex)}" y="${n(ey)}" font-size="${n(span / 12)}" fill="currentColor" text-anchor="${side > 0 ? 'start' : 'end'}">${row.tag}</text></g>`);
+  const frame = options.view ?? { mirrored: false, rotationDeg: 0 };
+  const ring = calloutRing(section, frame.mirrored, frame.rotationDeg, span);
+  const calloutStroke = n(span / 180);
+  if (options.callouts !== false && !options.view) {
+    const items: CalloutItem[] = [];
+    for (const row of section.rows) {
+      const f = section.features.find(item => item.path === row.path);
+      if (f === undefined) continue;
+      items.push({ key: row.path, x: f.x, y: f.y, chars: row.tag.length, anchor: angle => featureAnchor(f, angle) });
+    }
+    const tags = new Map(section.rows.map(r => [r.path, r.tag]));
+    for (const c of layoutCallouts(items, ring)) {
+      parts.push(`<g data-callout="${esc(c.key)}" color="currentColor"><path d="M${n(c.anchor.x)} ${n(c.anchor.y)}L${n(c.end.x)} ${n(c.end.y)}" stroke="currentColor" stroke-width="${calloutStroke}" fill="none"/><circle cx="${n(c.anchor.x)}" cy="${n(c.anchor.y)}" r="${n(span / 140)}" fill="currentColor"/><text x="${n(c.text.x)}" y="${n(c.text.y)}" font-size="${n(ring.fontSize)}" fill="currentColor" text-anchor="${c.text.anchor}">${esc(tags.get(c.key) ?? '')}</text></g>`);
+    }
   }
   const unknownFills = section.features.filter(f => appearanceOf(f).fillSource === 'unknown').length;
   const body = options.view
     ? `<g data-view="end-face" transform="rotate(${n(-options.view.rotationDeg)}) scale(${options.view.mirrored ? -1 : 1} 1)">${parts.join('')}</g>`
     : parts.join('');
+  const markerR = span * 0.014;
+  const placed = layoutCallouts((options.markers ?? []).map(m => ({ key: m.tag, x: m.x, y: m.y, chars: m.tag.length })), ring);
   const markers = (options.markers ?? []).map(m => {
-    const r = span * 0.022;
     const fill = m.role === 'conductor' ? '#ffffff' : m.role === 'shield' ? '#cfd6dd' : '#e9d3b0';
-    return `<g data-terminal="${esc(m.tag)}" data-role="${m.role}"><circle cx="${n(m.x)}" cy="${n(m.y)}" r="${n(r)}" fill="${fill}" stroke="#14181d" stroke-width="${n(span / 300)}"/><text x="${n(m.x)}" y="${n(m.y + r * 0.38)}" font-size="${n(r * 1.15)}" text-anchor="middle" fill="#14181d" font-weight="600">${esc(m.tag)}</text></g>`;
+    const c = placed.find(p => p.key === m.tag)!;
+    return `<g data-terminal="${esc(m.tag)}" data-role="${m.role}" color="currentColor"><path d="M${n(m.x)} ${n(m.y)}L${n(c.end.x)} ${n(c.end.y)}" stroke="currentColor" stroke-width="${calloutStroke}" fill="none"/><circle cx="${n(m.x)}" cy="${n(m.y)}" r="${n(markerR)}" fill="${fill}" stroke="#14181d" stroke-width="${n(span / 300)}"/><text x="${n(c.text.x)}" y="${n(c.text.y)}" font-size="${n(ring.fontSize)}" text-anchor="${c.text.anchor}" fill="currentColor" font-weight="600">${esc(m.tag)}</text></g>`;
   }).join('');
   const description = (section.unknown.length > 0 ? `Incomplete geometry: ${section.unknown.join('; ')}` :
     `${n(section.widthMm!)} × ${n(section.heightMm!)} mm. ${section.features.length} material elements. Viewed from ${section.viewedFrom}.`)
