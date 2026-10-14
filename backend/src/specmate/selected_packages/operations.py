@@ -6,6 +6,7 @@ from specmate.access.permissions import Perm
 from specmate.operations import Context, operation
 from specmate.selected_packages.contracts import Download, Selection
 from specmate.selected_packages.queries import archive, build_package, digest
+from specmate.sharing.operations import record_share
 
 
 @operation(
@@ -29,6 +30,14 @@ def review(ctx: Context, p: Selection):
 )
 def download(ctx: Context, p: Download):
     data, manifest_sha256, _ = archive(ctx.user, p)
+    record_share(
+        ctx,
+        kind="selected_package",
+        root_revision_id=p.root_revision_id,
+        purpose=p.purpose,
+        archive_sha256=digest(data),
+        manifest_sha256=manifest_sha256,
+    )
     return {
         "archive_base64": base64.b64encode(data).decode(),
         "sha256": digest(data),
