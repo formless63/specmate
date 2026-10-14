@@ -21,6 +21,7 @@ from specmate.design.operations import (
     update_draft,
 )
 from specmate.operations import Context, NotFound, Unsupported, ValidationFailed, operation
+from specmate.operations.scope import WorkspacePayload
 from specmate.pcb.models import PcbExtractionAttempt, PcbIntake, PcbInterpretation
 from specmate.pcb.pack import MAX_REPORT_BYTES, REPORT_PATH, recipe_for
 from specmate.pcb.population import Population, closure, project_population, scoped_interpretation
@@ -33,8 +34,7 @@ class Payload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class RegisterIntake(Payload):
-    project_id: UUID
+class RegisterIntake(WorkspacePayload):
     source_revision_id: UUID
     board_path: str = Field(default="", max_length=512)
 
@@ -117,7 +117,7 @@ def intake_result(intake):
     summary="Preserve a source revision for PCB intake without parsing or executing it.",
 )
 def register_intake(ctx: Context, p: RegisterIntake):
-    workspace = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.scope_id, Perm.SOURCE_REGISTER)
     source = SourceBundleRevision.objects.filter(
         id=p.source_revision_id, bundle__workspace=workspace
     ).first()
@@ -169,7 +169,7 @@ def request_extraction(ctx: Context, p: RequestExtraction):
     build = request_build(
         ctx,
         RequestBuild(
-            project_id=intake.source_revision.bundle.workspace_id,
+            workspace_id=intake.source_revision.bundle.workspace_id,
             source_revision_id=intake.source_revision_id,
             recipe_id=p.recipe_id,
         ),
@@ -308,7 +308,7 @@ def failure_diagnostic(attempt):
 def authorize_pcb_replay(ctx: Context, payload: Payload, stored_result: dict):
     """Recheck scope before the shared layer returns a saved command response."""
     if isinstance(payload, RegisterIntake):
-        workspace = authorize(ctx.user, payload.project_id, Perm.SOURCE_REGISTER)
+        workspace = authorize(ctx.user, payload.scope_id, Perm.SOURCE_REGISTER)
         if not SourceBundleRevision.objects.filter(
             id=payload.source_revision_id, bundle__workspace=workspace
         ).exists():
@@ -372,7 +372,7 @@ def pcb_scope(ctx, payload):
     from specmate.operations.scope import workspace_scope
 
     if isinstance(payload, RegisterIntake):
-        scope = workspace_scope(ctx, payload.project_id, Perm.SOURCE_REGISTER)
+        scope = workspace_scope(ctx, payload.scope_id, Perm.SOURCE_REGISTER)
         if not SourceBundleRevision.objects.filter(
             id=payload.source_revision_id, bundle__workspace_id=scope.removeprefix("workspace:")
         ).exists():

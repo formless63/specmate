@@ -7,6 +7,7 @@ from pydantic import Field, TypeAdapter, field_validator, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
 from specmate.contracts import SHA256, check_package_path
+from specmate.operations.scope import WorkspacePayload
 
 Text = Annotated[str, Field(min_length=1, max_length=500)]
 Digest = Annotated[str, Field(pattern=SHA256)]
@@ -110,8 +111,7 @@ VALUE_ADAPTER = TypeAdapter(Value)
 KINDS = {"pcb_assertion", "pcb_comparison"}
 
 
-class CreateReview(StrictModel):
-    project_id: UUID
+class CreateReview(StrictModel, WorkspacePayload):
     name: Text
     value: Value
 

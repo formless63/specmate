@@ -13,15 +13,15 @@ const faceData = [{ value: 'lid', label: 'Lid' }, { value: 'floor', label: 'Floo
 const choiceData = [{ value: 'undecided', label: 'Not decided (candidate only)' }, { value: 'mount', label: 'Mounting boss' }, { value: 'declined', label: 'Not a mount' }];
 
 /** Root keyed by principal and project, so no draft, board identity or unsaved text crosses either. */
-export function MechanicalProposalsPanel({ projectId, principalKey = '' }: { projectId: string; principalKey?: string }) {
-  return <Workspace key={JSON.stringify([principalKey, projectId])} projectId={projectId} />;
+export function MechanicalProposalsPanel({ workspaceId, principalKey = '' }: { workspaceId: string; principalKey?: string }) {
+  return <Workspace key={JSON.stringify([principalKey, workspaceId])} workspaceId={workspaceId} />;
 }
 
 function Field({ label, value, onChange, unit = 'mm', disabled }: { label: string; value: string; onChange: (value: string) => void; unit?: string; disabled?: boolean }) {
   return <TextInput label={label} description={`${unit}; blank means unknown`} value={value} inputMode="decimal" disabled={disabled} onChange={event => onChange(event.currentTarget.value)} />;
 }
 
-function Workspace({ projectId }: { projectId: string }) {
+function Workspace({ workspaceId }: { workspaceId: string }) {
   const edit = usePermission('design.edit');
   const [boards, setBoards] = useState<BoardChoice[]>([]);
   const [rows, setRows] = useState<DraftRow[]>([]);
@@ -51,10 +51,10 @@ function Workspace({ projectId }: { projectId: string }) {
     setError(reason instanceof Error ? reason.message : 'Request failed.');
   }, []);
   const refreshLists = useCallback(async (signal?: AbortSignal) => {
-    const [choices, drafts] = await Promise.all([listBoards(projectId, signal), listDrafts(projectId, signal)]);
+    const [choices, drafts] = await Promise.all([listBoards(workspaceId, signal), listDrafts(workspaceId, signal)]);
     if (!mounted.current || signal?.aborted) return;
     setBoards(choices.boards); setRows(drafts.drafts); setDenied(false);
-  }, [projectId]);
+  }, [workspaceId]);
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
@@ -67,9 +67,9 @@ function Workspace({ projectId }: { projectId: string }) {
     setBusy(true); setError(''); setStale(false); setRetained(null);
     try {
       const next = await readDraft(id);
-      const choices = await boardInputs(projectId, next.interpretation_id);
+      const choices = await boardInputs(workspaceId, next.interpretation_id);
       if (!mounted.current || ticket !== generation.current) return;
-      if (next.project_id !== projectId || choices.interpretation_id !== next.interpretation_id) throw new Error('Response does not match the selected project or board.');
+      if (next.workspace_id !== workspaceId || choices.interpretation_id !== next.interpretation_id) throw new Error('Response does not match the selected project or board.');
       setDraft(next); setInputs(choices); setForm(toForm(next.parameters)); setDirty(false);
     } catch (reason) { setDraft(null); setInputs(null); outcome(reason); } finally { if (mounted.current) setBusy(false); }
   }
@@ -77,7 +77,7 @@ function Workspace({ projectId }: { projectId: string }) {
     if (!board || !name.trim()) return;
     setBusy(true); setError('');
     try {
-      const created = await createDraft(projectId, board, name.trim(), fromForm(emptyForm()).parameters, keyFor(JSON.stringify(['create', projectId, board, name.trim()])));
+      const created = await createDraft(workspaceId, board, name.trim(), fromForm(emptyForm()).parameters, keyFor(JSON.stringify(['create', workspaceId, board, name.trim()])));
       await refreshLists(); intent.current = null; setName('');
       await open(created.draft_id);
     } catch (reason) { outcome(reason); } finally { if (mounted.current) setBusy(false); }
@@ -100,12 +100,12 @@ function Workspace({ projectId }: { projectId: string }) {
       const record = await retainDraft(draft.draft_id, draft.state, keyFor(JSON.stringify(['retain', draft.draft_id, draft.state])));
       intent.current = null;
       await open(draft.draft_id);
-      if (mounted.current) setRetained(await readRetained(record.revision_id, projectId));
+      if (mounted.current) setRetained(await readRetained(record.revision_id, workspaceId));
     } catch (reason) { outcome(reason); } finally { if (mounted.current) setBusy(false); }
   }
   async function showRetained(id: string) {
     setBusy(true); setError('');
-    try { const record = await readRetained(id, projectId); if (mounted.current) setRetained(record); }
+    try { const record = await readRetained(id, workspaceId); if (mounted.current) setRetained(record); }
     catch (reason) { setRetained(null); outcome(reason); } finally { if (mounted.current) setBusy(false); }
   }
   const change = (apply: (current: FormState) => FormState) => { setForm(apply); setDirty(true); intent.current = null; };

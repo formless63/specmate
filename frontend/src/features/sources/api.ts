@@ -48,18 +48,18 @@ export async function command<T>(operation: string, payload: object, options: { 
   })).result;
 }
 /** Register exact bytes in the project after hashing them locally; returns the SHA-256. */
-export async function registerBlob(projectId: string, file: Blob) {
+export async function registerBlob(workspaceId: string, file: Blob) {
   const content = await file.arrayBuffer();
   const sha256 = await sha256Hex(content);
   const form = new FormData();
   for (const [key, value] of Object.entries({ request_id: randomUUID(), sha256, size: `${file.size}`, media_type: 'application/octet-stream' })) form.set(key, value);
   form.set('content', file);
-  await request(`projects/${encodeURIComponent(projectId)}/blobs`, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form });
+  await request(`workspaces/${encodeURIComponent(workspaceId)}/blobs`, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form });
   return sha256;
 }
-export async function preserve(projectId: string, file: File, name: string, rights: string) {
-  const sha256 = await registerBlob(projectId, file);
+export async function preserve(workspaceId: string, file: File, name: string, rights: string) {
+  const sha256 = await registerBlob(workspaceId, file);
   return command<{ revision_id: string }>('source.create_original_bundle', {
-    project_id: projectId, name, files: [{ path: file.name, sha256, media_type: 'application/octet-stream', rights }],
+    workspace_id: workspaceId, name, files: [{ path: file.name, sha256, media_type: 'application/octet-stream', rights }],
   });
 }

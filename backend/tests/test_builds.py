@@ -30,7 +30,7 @@ from specmate.operations import (
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleRevision
 
-from .conftest import op
+from .conftest import member, op
 
 SOURCE = b"synthetic source\n"
 OUTPUT = b"synthetic result\n"
@@ -62,12 +62,12 @@ def recipe(settings):
 
 
 @pytest.fixture
-def source(users, project):
+def source(users, workspace):
     op(
         users["owner"],
         "source.register_blob",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "sha256": digest(SOURCE),
             "size": len(SOURCE),
             "media_type": "text/plain",
@@ -78,7 +78,7 @@ def source(users, project):
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Synthetic input",
             "files": [
                 {
@@ -93,8 +93,8 @@ def source(users, project):
 
 
 @pytest.fixture
-def build_payload(project, source, recipe):
-    return {"project_id": project, "source_revision_id": source, "recipe_id": recipe["id"]}
+def build_payload(workspace, source, recipe):
+    return {"workspace_id": workspace, "source_revision_id": source, "recipe_id": recipe["id"]}
 
 
 @pytest.fixture
@@ -103,13 +103,13 @@ def build(users, build_payload):
 
 
 @pytest.fixture
-def credential(users, project, recipe):
+def credential(users, workspace, recipe):
     Installation.objects.create(owner=users["owner"])
     return execute(
         "runner.enroll",
         Context(user=users["owner"], via="internal", request_id="enroll"),
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Synthetic runner",
             "recipe_ids": [recipe["id"]],
         },
@@ -423,9 +423,9 @@ def test_cancel_after_lost_upload_receipt_preserves_verified_incomplete_outputs(
 
 
 def test_revoked_execution_stops_new_inputs_and_requests_cancellation(
-    users, project, build, credential, lease
+    users, workspace, build, credential, lease
 ):
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["owner"]).update(
         role="viewer"
     )
     assert runner_op(credential, "runner.heartbeat", fence(lease))["cancellation_requested"] is True
@@ -494,7 +494,7 @@ def test_api_requests_use_operations_and_runner_auth_is_separate(users, build_pa
             "operation": "runner.enroll",
             "request_id": "bad",
             "payload": {
-                "project_id": build_payload["project_id"],
+                "workspace_id": build_payload["workspace_id"],
                 "name": "bad",
                 "recipe_ids": [build_payload["recipe_id"]],
             },
@@ -512,7 +512,7 @@ def test_api_requests_use_operations_and_runner_auth_is_separate(users, build_pa
     assert response.json()["result"] == {"lease": None}
 
 
-def test_artifact_download_rechecks_current_project_membership(users, project, credential, lease):
+def test_artifact_download_rechecks_current_project_membership(users, workspace, credential, lease):
     output = upload(credential, lease)
     runner_op(credential, "runner.complete", success_receipt(lease))
     client = Client()
@@ -521,7 +521,7 @@ def test_artifact_download_rechecks_current_project_membership(users, project, c
     response = client.get(url)
     assert response.status_code == 200, response.content
     assert b"".join(response.streaming_content) == OUTPUT
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["viewer"]).delete()
     assert client.get(url).status_code == 404
 
 
@@ -553,11 +553,11 @@ def test_inactive_requester_can_only_be_polled_for_safe_cleanup(users, build, cr
         op(users["owner"], "build.get", {"build_id": build["build_id"]})
 
 
-def test_another_runner_cannot_read_or_complete_existing_lease(users, project, recipe, lease):
+def test_another_runner_cannot_read_or_complete_existing_lease(users, workspace, recipe, lease):
     other = execute(
         "runner.enroll",
         Context(user=users["owner"], via="internal", request_id="enroll-other"),
-        {"project_id": project, "name": "Other runner", "recipe_ids": [recipe["id"]]},
+        {"workspace_id": workspace, "name": "Other runner", "recipe_ids": [recipe["id"]]},
     ).result
     assert runner_op(other, "runner.lease") == {"lease": None}
     with pytest.raises(NotFound):
@@ -627,7 +627,7 @@ def test_build_rejects_recipe_shapes_unsupported_by_runner(users, build_payload,
 )
 def test_build_rejects_oversized_or_colliding_source_bundles_before_outbox(
     users,
-    project,
+    workspace,
     recipe,
     sizes,
     paths,
@@ -638,7 +638,7 @@ def test_build_rejects_oversized_or_colliding_source_bundles_before_outbox(
     for size in set(sizes):
         sha256 = digest(f"synthetic declared size {size}".encode())
         SourceBlob.objects.create(
-            project_id=project,
+            workspace_id=workspace,
             sha256=sha256,
             size=size,
             media_type="application/octet-stream",
@@ -649,7 +649,7 @@ def test_build_rejects_oversized_or_colliding_source_bundles_before_outbox(
         # Deliberately invalid metadata retains build defense-in-depth coverage;
         # normal source intake now rejects this tree before committing a revision.
         bundle = SourceBundle.objects.create(
-            project_id=project,
+            workspace_id=workspace,
             name="Invalid metadata fixture",
             role="original",
             created_by=users["owner"],
@@ -680,7 +680,7 @@ def test_build_rejects_oversized_or_colliding_source_bundles_before_outbox(
             users["owner"],
             "source.create_original_bundle",
             {
-                "project_id": project,
+                "workspace_id": workspace,
                 "name": "Unsupported execution input",
                 "files": [
                     {
@@ -701,7 +701,7 @@ def test_build_rejects_oversized_or_colliding_source_bundles_before_outbox(
             users["owner"],
             "build.request",
             {
-                "project_id": project,
+                "workspace_id": workspace,
                 "source_revision_id": source["revision_id"],
                 "recipe_id": recipe["id"],
             },
@@ -709,3 +709,65 @@ def test_build_rejects_oversized_or_colliding_source_bundles_before_outbox(
         )
     assert not BuildAttempt.objects.exists()
     assert not BuildOutbox.objects.exists()
+
+
+def test_build_is_a_workspace_record_with_optional_project_context(
+    users, workspace, project, build_payload, build
+):
+    attempt = BuildAttempt.objects.get(id=build["build_id"])
+    assert str(attempt.workspace_id) == workspace and attempt.project_id is None
+    listed = op(users["viewer"], "build.list", {"workspace_id": workspace})
+    assert listed["workspace_id"] == workspace
+    assert [b["build_id"] for b in listed["builds"]] == [build["build_id"]]
+    contextual = op(
+        users["owner"],
+        "build.request",
+        {**build_payload, "project_id": project},
+        idempotency_key="build-context",
+    )
+    assert str(BuildAttempt.objects.get(id=contextual["build_id"]).project_id) == project
+    filtered = op(users["viewer"], "build.list", {"workspace_id": workspace, "project_id": project})
+    assert [b["build_id"] for b in filtered["builds"]] == [contextual["build_id"]]
+    assert filtered["builds"][0]["project_id"] == project
+    # Context grants and limits nothing: any workspace member reads the build.
+    history = op(users["viewer"], "build.history", {"build_id": contextual["build_id"]})
+    assert history["workspace_id"] == workspace and history["project_id"] == project
+
+
+def test_project_context_must_belong_to_the_workspace(users, build_payload, other_workspace):
+    foreign = op(
+        users["outsider"], "project.create", {"workspace_id": other_workspace, "name": "F"}
+    )
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            "build.request",
+            {**build_payload, "project_id": foreign["project_id"]},
+            idempotency_key="foreign-context",
+        )
+
+
+def test_build_execute_is_a_grant_held_by_admins_by_default(users, build_payload):
+    for name in ("editor", "contributor", "viewer"):
+        with pytest.raises(PermissionDenied):
+            op(users[name], "build.request", build_payload, idempotency_key=f"deny-{name}")
+    member(users["editor"], "editor", grants=["build.execute"])
+    granted = op(users["editor"], "build.request", build_payload, idempotency_key="granted")
+    assert granted["state"] == "waiting_dispatch"
+    with pytest.raises(NotFound):
+        op(users["outsider"], "build.request", build_payload, idempotency_key="outsider")
+
+
+def test_runner_credential_is_scoped_to_its_workspace_and_recipes(
+    users, build, credential, workspace, other_workspace
+):
+    assert credential["workspace_id"] == workspace
+    op(users["owner"], "build.dispatch", {"build_id": build["build_id"]})
+    leased = runner_op(credential, "runner.lease")["lease"]
+    assert leased["build_id"] == build["build_id"]
+    with pytest.raises(NotFound):
+        execute(
+            "runner.enroll",
+            Context(user=users["owner"], via="internal", request_id="foreign-enroll"),
+            {"workspace_id": other_workspace, "name": "x", "recipe_ids": ["synthetic-check-r1"]},
+        )

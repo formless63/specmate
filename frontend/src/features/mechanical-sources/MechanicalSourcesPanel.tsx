@@ -43,7 +43,7 @@ export function MechanicalEvaluation({ read }: { read: MechanicalRead }) {
 }
 
 /** Exact source management only. Native tools and geometry checks require separate execution. */
-export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }: { projectId: string; permissions: string[]; onAccessLost?: () => void }) {
+export function MechanicalSourcesPanel({ workspaceId, permissions, onAccessLost }: { workspaceId: string; permissions: string[]; onAccessLost?: () => void }) {
   const [shown, setShown] = useState(true);
   const [records, setRecords] = useState<RecordPage>({ records: [], next_after: null });
   const [sources, setSources] = useState<SourcePage>({ revisions: [], next_after: null });
@@ -69,7 +69,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
     setRecords({ records: [], next_after: null }); setSources({ revisions: [], next_after: null }); setTargets({ targets: [], next_after: null });
     setRead(null); setForm(null); setName(''); setSourceId(''); setSourcePath(''); setTargetId(''); setModelRevision(null); setModelId(''); setModelTarget(''); setShown(true); setBusy(false); setMessage(''); pendingSave.current = null;
     return () => { mounted.current = false; generation.current += 1; };
-  }, [projectId]);
+  }, [workspaceId]);
   const active = (token: number) => mounted.current && token === generation.current;
   function failed(reason: unknown) {
     setMessage(reason instanceof Error ? reason.message : 'Mechanical source request failed.');
@@ -96,8 +96,8 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
     const token = generation.current; const serial = ++refreshSerial.current;
     try {
       const [nextRecords, nextSources, nextTargets, retainedChoices] = await Promise.all([
-        request<RecordPage>(`mechanical-sources/projects/${projectId}/records`), request<SourcePage>(`sources/projects/${projectId}/revisions`),
-        request<TargetPage>(`mechanical-sources/projects/${projectId}/targets`), checkRetained(),
+        request<RecordPage>(`mechanical-sources/workspaces/${workspaceId}/records`), request<SourcePage>(`sources/workspaces/${workspaceId}/revisions`),
+        request<TargetPage>(`mechanical-sources/workspaces/${workspaceId}/targets`), checkRetained(),
       ]);
       if (!active(token) || serial !== refreshSerial.current) return;
       setRecords(nextRecords); setSources(nextSources); setTargets({ ...nextTargets, targets: [...nextTargets.targets.filter(t => !retainedChoices.some(c => c.revision_id === t.revision_id)), ...retainedChoices] }); setShown(true); setMessage('');
@@ -110,13 +110,13 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
     if (!after) return;
     try {
       if (kind === 'sources') {
-        const page = await request<SourcePage>(`sources/projects/${projectId}/revisions?after=${after}`);
+        const page = await request<SourcePage>(`sources/workspaces/${workspaceId}/revisions?after=${after}`);
         if (active(token)) setSources(prior => ({ ...page, revisions: [...prior.revisions, ...page.revisions] }));
       } else if (kind === 'records') {
-        const page = await request<RecordPage>(`mechanical-sources/projects/${projectId}/records?after=${after}`);
+        const page = await request<RecordPage>(`mechanical-sources/workspaces/${workspaceId}/records?after=${after}`);
         if (active(token)) setRecords(prior => ({ ...page, records: [...prior.records, ...page.records] }));
       } else {
-        const page = await request<TargetPage>(`mechanical-sources/projects/${projectId}/targets?after=${after}`);
+        const page = await request<TargetPage>(`mechanical-sources/workspaces/${workspaceId}/targets?after=${after}`);
         if (active(token)) setTargets(prior => ({ ...page, targets: [...prior.targets, ...page.targets] }));
       }
     } catch (reason) { if (active(token)) failed(reason); }
@@ -194,7 +194,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
     if (!form) return;
     const token = generation.current; setBusy(true); setMessage('');
     const updating = !!read?.draft_id;
-    const payload = updating ? { draft_id: read!.draft_id, mechanical_source: form } : { project_id: projectId, name, mechanical_source: form };
+    const payload = updating ? { draft_id: read!.draft_id, mechanical_source: form } : { workspace_id: workspaceId, name, mechanical_source: form };
     const fingerprint = JSON.stringify({ payload, state: read?.state });
     if (pendingSave.current?.fingerprint !== fingerprint) pendingSave.current = { fingerprint, key: randomUUID() };
     try {

@@ -39,13 +39,13 @@ from .test_pcb import (
 
 
 @pytest.fixture
-def source(users, project):
-    return pcb_fixture.source.__wrapped__(users, project)
+def source(users, workspace):
+    return pcb_fixture.source.__wrapped__(users, workspace)
 
 
 @pytest.fixture
-def intake(users, project, source):
-    return pcb_fixture.intake.__wrapped__(users, project, source)
+def intake(users, workspace, source):
+    return pcb_fixture.intake.__wrapped__(users, workspace, source)
 
 
 @pytest.fixture
@@ -277,10 +277,10 @@ def test_keyed_mismatch_rechecks_current_authority(users, intake, requested):
 
 
 def derived_record(user, source_id, parent_id):
-    """Synthetic retained cross-project ancestry; no source bytes are fabricated."""
+    """Synthetic retained same-workspace ancestry; no source bytes are fabricated."""
     source = SourceBundleRevision.objects.select_related("bundle").get(id=source_id)
     bundle = SourceBundle.objects.create(
-        project_id=source.bundle.project_id,
+        workspace_id=source.bundle.workspace_id,
         name="Synthetic retained derivative",
         role="derivative",
         derived_from_id=parent_id,
@@ -304,51 +304,14 @@ def derived_record(user, source_id, parent_id):
     return revision
 
 
-def other_source(users):
-    project_id = op(users["owner"], "project.create", {"name": "Synthetic source parent"})[
-        "project_id"
-    ]
-    content = b"preserved synthetic parent bytes"
-    digest = hashlib.sha256(content).hexdigest()
-    op(
-        users["owner"],
-        "source.register_blob",
-        {
-            "project_id": project_id,
-            "sha256": digest,
-            "size": len(content),
-            "media_type": "text/plain",
-        },
-        attachments={"content": io.BytesIO(content)},
-    )
-    source = op(
-        users["owner"],
-        "source.create_original_bundle",
-        {
-            "project_id": project_id,
-            "name": "Synthetic parent",
-            "files": [
-                {
-                    "path": "parent.txt",
-                    "sha256": digest,
-                    "media_type": "text/plain",
-                    "rights": RIGHTS,
-                }
-            ],
-        },
-    )
-    return project_id, source["revision_id"]
-
-
-def test_hidden_source_parent_blocks_request_and_options_before_missing_report(
+def test_lost_membership_blocks_request_and_options_before_missing_report(
     users, source, fabrication_recipe
 ):
-    parent_project, parent_id = other_source(users)
-    derived = derived_record(users["owner"], source["revision_id"], parent_id)
+    derived = derived_record(users["owner"], source["revision_id"], source["revision_id"])
     item = PcbIntake.objects.create(
         source_revision=derived, board_path="board.kicad_pcb", created_by=users["owner"]
     )
-    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
+    WorkspaceMember.objects.filter(user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(
             users["owner"],
@@ -360,13 +323,12 @@ def test_hidden_source_parent_blocks_request_and_options_before_missing_report(
         read_options(read_request(users["owner"]), item.id)
 
 
-def test_hidden_output_parent_precedes_provenance_diagnostics_and_keyed_mismatch(
+def test_lost_membership_precedes_provenance_diagnostics_and_keyed_mismatch(
     users, intake, source, requested
 ):
-    parent_project, parent_id = other_source(users)
-    derived = derived_record(users["owner"], source["revision_id"], parent_id)
+    derived = derived_record(users["owner"], source["revision_id"], source["revision_id"])
     stage = register_test_outputs(requested, source_revision_id=derived.id)
-    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
+    WorkspaceMember.objects.filter(user=users["owner"]).delete()
     with pytest.raises(NotFound):
         read_build(read_request(users["owner"]), intake["intake_id"], requested["build_id"])
     with pytest.raises(NotFound):

@@ -15,8 +15,9 @@ remain reconstructible through scoped downloads. Intake examines manifest metada
 only. It creates no build and does not parse or execute source contents.
 
 `pcb.register_intake`, `pcb.request_extraction`, `pcb.accept_extraction` and `pcb.get`
-use the shared command authority. Reads under `/api/v0/pcb` enforce current project
-membership. A request requires `build.execute`, an idempotency key and an installed
+use the shared command authority. Reads under `/api/v0/pcb` enforce current workspace
+membership. Payloads and list routes are workspace-scoped (`workspace_id`,
+`/api/v0/pcb/workspaces/{id}/...`); creating a firmware item needs `item.create`. A request requires `build.execute`, an idempotency key and an installed
 operator-approved recipe with the exact adapter program, image, limits and outputs.
 The existing build/outbox/lease/receipt engine performs execution. Source-registration
 authority validates the accepted bounded JSON report after successful native execution.

@@ -19,7 +19,7 @@ const history = (over: Partial<BuildHistory> = {}): BuildHistory => ({
   cancel_available: true, retry_available: false, abandon_available: false, awaiting_runner_confirmation: false, ...over,
 });
 const panel = (permissions?: string[]) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}>
-  <PermissionsProvider permissions={permissions}><BuildsPanel projectId="p1" /></PermissionsProvider></MantineProvider>;
+  <PermissionsProvider permissions={permissions}><BuildsPanel workspaceId="p1" /></PermissionsProvider></MantineProvider>;
 const open = async () => { render(panel(['project.read', 'build.execute'])); fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' })); await screen.findByLabelText('Build history'); };
 
 beforeEach(() => {

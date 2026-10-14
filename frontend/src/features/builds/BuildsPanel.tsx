@@ -18,7 +18,7 @@ const EXPLAIN: Record<string, string> = {
 const pretty = (value: string) => value.replaceAll('_', ' ');
 const badge = (state: string) => state === 'succeeded' ? 'frozen' : state === 'failed' || state === 'cancelled' ? 'occurrence' : 'draft';
 
-export function BuildsPanel({ projectId }: { projectId: string }) {
+export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
   const execute = usePermission('build.execute');
   const [list, setList] = useState<BuildList>();
   const [detail, setDetail] = useState<BuildHistory>();
@@ -34,7 +34,7 @@ export function BuildsPanel({ projectId }: { projectId: string }) {
     const token = ++generation.current;
     setBusy(true); setError(''); setList(undefined); setDetail(undefined);
     try {
-      const [builds, history] = await Promise.all([listBuilds(projectId), buildId ? readHistory(buildId) : Promise.resolve(undefined)]);
+      const [builds, history] = await Promise.all([listBuilds(workspaceId), buildId ? readHistory(buildId) : Promise.resolve(undefined)]);
       if (!alive.current || token !== generation.current) return;
       selected.current = buildId; setList(builds); setDetail(history);
     } catch (reason) {
@@ -42,7 +42,7 @@ export function BuildsPanel({ projectId }: { projectId: string }) {
       if (!alive.current || token !== generation.current) return;
       selected.current = null; setError(reason instanceof Error ? reason.message : 'Build evidence unavailable.');
     } finally { if (alive.current && token === generation.current) setBusy(false); }
-  }, [projectId]);
+  }, [workspaceId]);
 
   useEffect(() => {
     alive.current = true; selected.current = null; keys.current.clear(); void load(null);

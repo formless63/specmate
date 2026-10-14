@@ -128,7 +128,7 @@ def authorize_request(ctx, p, recipe):
             raise PermissionDenied(
                 "Use firmware_build.request with explicit source-execution consent."
             )
-        workspace = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
+        workspace = authorize(ctx.user, p.scope_id, Perm.BUILD_EXECUTE)
         if source.id != p.source_revision_id or source.bundle.workspace_id != workspace.id:
             raise ValidationFailed("Compiler build source differs from its exact firmware pin.")
 

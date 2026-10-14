@@ -21,12 +21,11 @@ from specmate.sources.api import read_revision
 from specmate.sources.models import (
     SourceBlob,
     SourceBundle,
-    SourceBundleFile,
     SourceBundleRevision,
     SourceEditSubmission,
 )
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
 from .test_sources import register, sha
 
 ORIGINAL = {
@@ -39,12 +38,12 @@ ORIGINAL = {
 @pytest.mark.parametrize(
     "entry", ["export_handoff", "read_revision", "download_file", "list_revisions"]
 )
-def test_source_read_adapters_recheck_current_actor(users, project, entry):
+def test_source_read_adapters_recheck_current_actor(users, workspace, entry):
     user = users["owner"]
-    source = original(users, project)
+    source = original(users, workspace)
     request = RequestFactory().get("/")
     request.user = user
-    args = (project,) if entry == "list_revisions" else (source["revision_id"],)
+    args = (workspace,) if entry == "list_revisions" else (source["revision_id"],)
     if entry == "download_file":
         args += ("board/main.native",)
     callback = getattr(api, entry)
@@ -59,30 +58,19 @@ def test_source_read_adapters_recheck_current_actor(users, project, entry):
             result.close()
 
 
-def hide_archive_member(users, revision_id):
-    """A retained source closure may become inaccessible independently of its owner."""
-    user = users["owner"]
-    project = op(user, "project.create", {"name": "Private retained source"})["project_id"]
-    content = b"synthetic private retained source"
-    register(user, project, content)
-    SourceBundleFile.objects.create(
-        revision_id=revision_id,
-        path="private-evidence.txt",
-        blob=SourceBlob.objects.get(project_id=project, sha256=sha(content)),
-        media_type="text/plain",
-        rights="unknown",
-    )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=user).delete()
+def lose_access(users, user_name="owner"):
+    """The actor loses workspace membership; the retained closure itself is unchanged."""
+    remove_member(users[user_name])
 
 
-def original(users, project, contents=ORIGINAL, rights="synthetic-original"):
+def original(users, workspace, contents=ORIGINAL, rights="synthetic-original"):
     for data in contents.values():
-        register(users["editor"], project, data)
+        register(users["editor"], workspace, data)
     return op(
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Synthetic native bundle",
             "files": [
                 {"path": p, "sha256": sha(d), "media_type": "text/plain", "rights": rights}
@@ -111,13 +99,13 @@ def repack(entries):
     return buffer.getvalue()
 
 
-def preserve_zip(users, project, data):
-    register(users["editor"], project, data)
+def preserve_zip(users, workspace, data):
+    register(users["editor"], workspace, data)
     return op(
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Edited upload",
             "files": [
                 {
@@ -131,10 +119,10 @@ def preserve_zip(users, project, data):
     )
 
 
-def edited_zip(users, project, baseline_id, change):
+def edited_zip(users, workspace, baseline_id, change):
     entries = unpack(export(users["editor"], baseline_id).content)
     change(entries)
-    upload = preserve_zip(users, project, repack(entries))
+    upload = preserve_zip(users, workspace, repack(entries))
     return {"revision_id": upload["revision_id"], "path": "edited.zip"}
 
 
@@ -158,8 +146,8 @@ def manifest(revision_id):
     return json.loads(bytes(SourceBundleRevision.objects.get(id=revision_id).manifest))
 
 
-def test_export_is_deterministic_inert_and_reenterable(users, project):
-    source = original(users, project)
+def test_export_is_deterministic_inert_and_reenterable(users, workspace):
+    source = original(users, workspace)
     first, second = (
         export(users["viewer"], source["revision_id"]),
         export(users["editor"], source["revision_id"]),
@@ -184,15 +172,15 @@ def test_export_is_deterministic_inert_and_reenterable(users, project):
     assert export(users["outsider"], source["revision_id"]).status_code == 404
 
 
-def test_export_refuses_reserved_marker_path(users, project):
-    source = original(users, project, {"sub/specmate-handoff.JSON": b"{}"})
+def test_export_refuses_reserved_marker_path(users, workspace):
+    source = original(users, workspace, {"sub/specmate-handoff.JSON": b"{}"})
     response = export(users["editor"], source["revision_id"])
     assert response.status_code == 422
     assert "reserved path" in response.json()["error"]["message"]
 
 
-def test_zip_reentry_reviews_and_creates_separate_derivative(users, project):
-    source = original(users, project)
+def test_zip_reentry_reviews_and_creates_separate_derivative(users, workspace):
+    source = original(users, workspace)
 
     def change(entries):
         entries["board/main.native"] = b"(synthetic board v2)\n"
@@ -202,7 +190,7 @@ def test_zip_reentry_reviews_and_creates_separate_derivative(users, project):
 
     payload = {
         "baseline_revision_id": source["revision_id"],
-        "archive": edited_zip(users, project, source["revision_id"], change),
+        "archive": edited_zip(users, workspace, source["revision_id"], change),
     }
     first = preview(users["editor"], payload)
     rows = {row["path"]: row for row in first["files"]}
@@ -283,12 +271,12 @@ def test_zip_reentry_reviews_and_creates_separate_derivative(users, project):
         )
 
 
-def test_folder_files_strip_marker_root_and_bind_reviewed_rights(users, project):
-    source = original(users, project)
+def test_folder_files_strip_marker_root_and_bind_reviewed_rights(users, workspace):
+    source = original(users, workspace)
     entries = unpack(export(users["editor"], source["revision_id"]).content)
     entries["board/notes.txt"] = b"synthetic notes, edited\n"
     for data in entries.values():
-        register(users["editor"], project, data)
+        register(users["editor"], workspace, data)
     payload = {
         "baseline_revision_id": source["revision_id"],
         "files": [{"path": f"folder/{p}", "sha256": sha(d)} for p, d in entries.items()],
@@ -313,11 +301,11 @@ def test_folder_files_strip_marker_root_and_bind_reviewed_rights(users, project)
         preview(users["editor"], unregistered)
 
 
-def test_marker_from_other_baseline_and_unchanged_edits_are_explicit(users, project):
-    first = original(users, project)
-    second = original(users, project, {"other.native": b"(other synthetic)"})
+def test_marker_from_other_baseline_and_unchanged_edits_are_explicit(users, workspace):
+    first = original(users, workspace)
+    second = original(users, workspace, {"other.native": b"(other synthetic)"})
     entries = unpack(export(users["editor"], second["revision_id"]).content)
-    upload = preserve_zip(users, project, repack(entries))
+    upload = preserve_zip(users, workspace, repack(entries))
     archive = {"revision_id": upload["revision_id"], "path": "edited.zip"}
     with pytest.raises(Conflict, match="different revision") as conflict:
         preview(users["editor"], {"baseline_revision_id": first["revision_id"], "archive": archive})
@@ -335,7 +323,7 @@ def test_marker_from_other_baseline_and_unchanged_edits_are_explicit(users, proj
     # Removing the marker deliberately is allowed; the baseline is then the selection.
     del entries[editing.MARKER]
     entries["other.native"] = b"(other synthetic, edited)"
-    upload = preserve_zip(users, project, repack(entries))
+    upload = preserve_zip(users, workspace, repack(entries))
     unmarked = preview(
         users["editor"],
         {
@@ -347,15 +335,15 @@ def test_marker_from_other_baseline_and_unchanged_edits_are_explicit(users, proj
     assert unmarked["marker"] == "absent" and unmarked["counts"]["removed"] == 3
 
 
-def test_stale_baselines_conflict_and_never_merge(users, project):
-    source = original(users, project)
+def test_stale_baselines_conflict_and_never_merge(users, workspace):
+    source = original(users, workspace)
 
     def edit(text):
         return lambda entries: entries.__setitem__("board/main.native", text)
 
     payload = {
         "baseline_revision_id": source["revision_id"],
-        "archive": edited_zip(users, project, source["revision_id"], edit(b"fork base")),
+        "archive": edited_zip(users, workspace, source["revision_id"], edit(b"fork base")),
     }
     with pytest.raises(Conflict, match="current head of a derivative"):
         submit(users["editor"], payload, preview(users["editor"], payload), target="next_revision")
@@ -364,11 +352,11 @@ def test_stale_baselines_conflict_and_never_merge(users, project):
 
     alice = {
         "baseline_revision_id": base,
-        "archive": edited_zip(users, project, base, edit(b"alice edit")),
+        "archive": edited_zip(users, workspace, base, edit(b"alice edit")),
     }
     bob = {
         "baseline_revision_id": base,
-        "archive": edited_zip(users, project, base, edit(b"bob edit")),
+        "archive": edited_zip(users, workspace, base, edit(b"bob edit")),
     }
     alice_review, bob_review = preview(users["editor"], alice), preview(users["owner"], bob)
     assert alice_review["next_revision_allowed"] and bob_review["state"] == "bundle-r1"
@@ -403,10 +391,12 @@ def test_stale_baselines_conflict_and_never_merge(users, project):
     assert SourceBundleRevision.objects.get(id=base).bundle.revisions.count() == 2
 
 
-def test_closure_authorized_before_diagnostics_and_retained_conflicts(users, project):
-    source = original(users, project)
+def test_closure_authorized_before_diagnostics_and_retained_conflicts(
+    users, workspace, other_workspace
+):
+    source = original(users, workspace)
     archive = edited_zip(
-        users, project, source["revision_id"], lambda e: e.__setitem__("x.native", b"x")
+        users, workspace, source["revision_id"], lambda e: e.__setitem__("x.native", b"x")
     )
     payload = {
         "baseline_revision_id": source["revision_id"],
@@ -418,20 +408,25 @@ def test_closure_authorized_before_diagnostics_and_retained_conflicts(users, pro
     with pytest.raises(NotFound):
         preview(users["outsider"], {**payload, "exclude_paths": ["does-not-exist"]})
     # A foreign archive is hidden before its contents or path diagnostics.
-    other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
+    other = other_workspace
     register(users["outsider"], other, b"not a zip")
     foreign = op(
         users["outsider"],
         "source.create_original_bundle",
         {
-            "project_id": other,
+            "workspace_id": other,
             "name": "Foreign",
             "files": [
                 {"path": "f.zip", "sha256": sha(b"not a zip"), "media_type": "x", "rights": "x"}
             ],
         },
     )
-    ensure_member(users["editor"], "viewer", project=other)
+    with pytest.raises(NotFound):
+        preview(
+            users["editor"],
+            {**payload, "archive": {"revision_id": foreign["revision_id"], "path": "missing"}},
+        )
+    ensure_member(users["editor"], "viewer", workspace=other)
     with pytest.raises(PermissionDenied):
         preview(
             users["editor"],
@@ -439,13 +434,13 @@ def test_closure_authorized_before_diagnostics_and_retained_conflicts(users, pro
         )
     reviewed = preview(users["editor"], payload)
     result = submit(users["editor"], payload, reviewed, idempotency_key="retained")
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="viewer"
     )
     for body in ({}, {"summary": "mismatched"}):
         with pytest.raises(PermissionDenied):
             submit(users["editor"], payload, reviewed, idempotency_key="retained", body=body)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         submit(users["editor"], payload, reviewed, idempotency_key="retained")
     request = RequestFactory().get("/")
@@ -453,12 +448,12 @@ def test_closure_authorized_before_diagnostics_and_retained_conflicts(users, pro
     assert read_revision(request, result["revision_id"])["edit_submission"]
 
 
-def test_persistence_failure_rolls_back_rows(users, project, monkeypatch):
-    source = original(users, project)
+def test_persistence_failure_rolls_back_rows(users, workspace, monkeypatch):
+    source = original(users, workspace)
     payload = {
         "baseline_revision_id": source["revision_id"],
         "archive": edited_zip(
-            users, project, source["revision_id"], lambda e: e.__setitem__("y.native", b"y")
+            users, workspace, source["revision_id"], lambda e: e.__setitem__("y.native", b"y")
         ),
         "rights": [{"path": "y.native", "rights": "unknown"}],
     }
@@ -476,12 +471,12 @@ def test_persistence_failure_rolls_back_rows(users, project, monkeypatch):
     assert submit(users["editor"], payload, reviewed, idempotency_key="rollback")["number"] == 1
 
 
-def test_database_rejects_inconsistent_or_mutated_provenance(users, project):
-    source = original(users, project)
+def test_database_rejects_inconsistent_or_mutated_provenance(users, workspace):
+    source = original(users, workspace)
     payload = {
         "baseline_revision_id": source["revision_id"],
         "archive": edited_zip(
-            users, project, source["revision_id"], lambda e: e.__setitem__("z.native", b"z")
+            users, workspace, source["revision_id"], lambda e: e.__setitem__("z.native", b"z")
         ),
         "rights": [{"path": "z.native", "rights": "unknown"}],
     }
@@ -493,7 +488,7 @@ def test_database_rejects_inconsistent_or_mutated_provenance(users, project):
         SourceBundle.objects.filter(id=result["bundle_id"]).update(
             derived_from=None, role="original"
         )
-    unrelated = original(users, project, {"u.native": b"u"})
+    unrelated = original(users, workspace, {"u.native": b"u"})
     with pytest.raises(DatabaseError), transaction.atomic():
         SourceEditSubmission.objects.create(
             revision_id=unrelated["revision_id"],
@@ -504,12 +499,12 @@ def test_database_rejects_inconsistent_or_mutated_provenance(users, project):
         )
 
 
-def test_http_entry_points_use_shared_operations(users, project):
-    source = original(users, project)
+def test_http_entry_points_use_shared_operations(users, workspace):
+    source = original(users, workspace)
     entries = unpack(export(users["editor"], source["revision_id"]).content)
     entries["board/main.native"] = b"(http edit)"
     for data in entries.values():
-        register(users["editor"], project, data)
+        register(users["editor"], workspace, data)
     payload = {
         "baseline_revision_id": source["revision_id"],
         "files": [{"path": p, "sha256": sha(d)} for p, d in entries.items()],
@@ -544,26 +539,19 @@ def test_http_entry_points_use_shared_operations(users, project):
     assert created.json()["result"]["counts"]["modified"] == 1
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-def test_retained_archive_authority_precedes_replacement_role_diagnostics(users, project, legacy):
-    from specmate.operations.models import IdempotencyRecord
-
+def test_retained_archive_authority_precedes_replacement_role_diagnostics(users, workspace):
     user = users["owner"]
-    baseline = original(users, project)
+    baseline = original(users, workspace)
     archive = edited_zip(
         users,
-        project,
+        workspace,
         baseline["revision_id"],
         lambda entries: entries.__setitem__("board/main.native", b"synthetic edit"),
     )
     payload = {"baseline_revision_id": baseline["revision_id"], "archive": archive}
     reviewed = preview(user, payload)
     submit(user, payload, reviewed, idempotency_key="role-order")
-    if legacy:
-        IdempotencyRecord.objects.filter(
-            actor=user, operation="source.submit_edit", key="role-order"
-        ).update(scope="legacy")
-    replacement = preserve_zip(users, project, repack({"visible.native": b"visible"}))
+    replacement = preserve_zip(users, workspace, repack({"visible.native": b"visible"}))
     derivative = op(
         user,
         "source.derive_bundle",
@@ -577,21 +565,21 @@ def test_retained_archive_authority_precedes_replacement_role_diagnostics(users,
         "archive": {"revision_id": derivative["revision_id"], "path": "edited.zip"},
     }
     # Accessible outcomes still use the shared executor's mismatch semantics.
-    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+    with pytest.raises(IdempotencyMismatch):
         submit(user, changed, reviewed, idempotency_key="role-order")
     with pytest.raises(ValidationFailed, match="preserved as an original"):
         preview(user, changed)
     with pytest.raises(ValidationFailed, match="preserved as an original"):
         submit(user, changed, reviewed)
-    hide_archive_member(users, archive["revision_id"])
+    lose_access(users)
     for supplied in (payload, changed):
         with pytest.raises(NotFound):
             submit(user, supplied, reviewed, idempotency_key="role-order")
 
 
-def test_hidden_newer_head_precedes_preview_and_conflict_metadata(users, project):
+def test_hidden_newer_head_precedes_preview_and_conflict_metadata(users, workspace):
     user = users["owner"]
-    source = original(users, project)
+    source = original(users, workspace)
     derivative = op(
         user,
         "source.derive_bundle",
@@ -602,14 +590,14 @@ def test_hidden_newer_head_precedes_preview_and_conflict_metadata(users, project
     )
     archive = edited_zip(
         users,
-        project,
+        workspace,
         derivative["revision_id"],
         lambda entries: entries.__setitem__("board/main.native", b"new head edit"),
     )
     next_payload = {"baseline_revision_id": derivative["revision_id"], "archive": archive}
     reviewed = preview(user, next_payload)
     head = submit(user, next_payload, reviewed, target="next_revision")
-    register(user, project, b"separate pending edit")
+    register(user, workspace, b"separate pending edit")
     older = {
         "baseline_revision_id": derivative["revision_id"],
         "files": [
@@ -618,14 +606,17 @@ def test_hidden_newer_head_precedes_preview_and_conflict_metadata(users, project
     }
     visible = preview(user, older)
     assert visible["head_revision_id"] == head["revision_id"]
-    hide_archive_member(users, archive["revision_id"])
+    lose_access(users)
     request = RequestFactory().get("/")
-    request.user = user
-    # The old baseline remains readable. Its inaccessible newer head is a separate closure.
+    request.user = users["viewer"]
+    # Other members keep reading; the member who lost access sees nothing, not even metadata.
     assert (
         read_revision(request, derivative["revision_id"])["revision_id"]
         == derivative["revision_id"]
     )
+    request.user = user
+    with pytest.raises(NotFound):
+        read_revision(request, derivative["revision_id"])
     with pytest.raises(NotFound):
         preview(user, older)
     with pytest.raises(NotFound):
@@ -634,22 +625,21 @@ def test_hidden_newer_head_precedes_preview_and_conflict_metadata(users, project
         submit(user, older, visible, target="next_revision")
 
 
-@pytest.mark.parametrize("change", ["project", "role", "parent"])
-def test_edit_archive_bundle_identity_is_immutable(users, project, change):
-    source = original(users, project)
+@pytest.mark.parametrize("change", ["workspace", "role", "parent"])
+def test_edit_archive_bundle_identity_is_immutable(users, workspace, other_workspace, change):
+    source = original(users, workspace)
     archive = edited_zip(
         users,
-        project,
+        workspace,
         source["revision_id"],
         lambda entries: entries.__setitem__("board/main.native", b"reviewed edit"),
     )
     payload = {"baseline_revision_id": source["revision_id"], "archive": archive}
     result = submit(users["owner"], payload, preview(users["owner"], payload))
     archive_revision = SourceBundleRevision.objects.get(id=archive["revision_id"])
-    other = op(users["owner"], "project.create", {"name": "Different archive scope"})["project_id"]
     updates = (
-        {"project_id": other}
-        if change == "project"
+        {"workspace_id": other_workspace}
+        if change == "workspace"
         else {
             "role": "derivative",
             "derived_from_id": source["revision_id"],

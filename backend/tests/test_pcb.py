@@ -39,7 +39,7 @@ def digest(content):
 
 
 @pytest.fixture
-def source(users, project):
+def source(users, workspace):
     files = []
     for path, content in (
         ("board.kicad_pcb", BOARD),
@@ -50,7 +50,7 @@ def source(users, project):
             users["editor"],
             "source.register_blob",
             {
-                "project_id": project,
+                "workspace_id": workspace,
                 "sha256": digest(content),
                 "size": len(content),
                 "media_type": "application/octet-stream",
@@ -69,7 +69,7 @@ def source(users, project):
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Synthetic PCB package",
             "files": files,
         },
@@ -77,12 +77,12 @@ def source(users, project):
 
 
 @pytest.fixture
-def intake(users, project, source):
+def intake(users, workspace, source):
     return op(
         users["editor"],
         "pcb.register_intake",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "source_revision_id": source["revision_id"],
             "board_path": "board.kicad_pcb",
         },
@@ -190,8 +190,8 @@ def test_intake_preserves_exact_sources_and_reports_unparsed_coverage(users, sou
     assert response["Content-Disposition"].startswith("attachment;")
 
 
-def test_intake_scope_and_selection(users, project, source):
-    payload = {"project_id": project, "source_revision_id": source["revision_id"]}
+def test_intake_scope_and_selection(users, workspace, source):
+    payload = {"workspace_id": workspace, "source_revision_id": source["revision_id"]}
     for user, error in (("viewer", PermissionDenied), ("outsider", NotFound)):
         with pytest.raises(error):
             op(users[user], "pcb.register_intake", payload)
@@ -344,7 +344,7 @@ def test_report_corruption_and_wrong_receipt_are_rejected(users, attempt):
 
 
 def test_api_and_job_authorization_apply_to_reports_and_originals_after_revocation(
-    users, project, intake, attempt
+    users, workspace, intake, attempt
 ):
     successful_output(attempt)
     op(users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
@@ -354,11 +354,11 @@ def test_api_and_job_authorization_apply_to_reports_and_originals_after_revocati
     assert client.get(path).status_code == 200
     with pytest.raises(PermissionDenied):
         op(users["viewer"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["viewer"]).delete()
     for endpoint in (
         path,
         path + "/original?path=board.kicad_pcb",
-        f"/api/v0/pcb/projects/{project}/intakes",
+        f"/api/v0/pcb/workspaces/{workspace}/intakes",
     ):
         response = client.get(endpoint)
         assert response.status_code == 404
@@ -384,7 +384,7 @@ def test_recipe_program_is_bounded_and_native_import_never_occurs_in_app():
 
 
 def test_replay_guard_rechecks_scope_execution_and_recipe(
-    users, project, intake, attempt, recipe, settings
+    users, workspace, intake, attempt, recipe, settings
 ):
     from specmate.operations import Context
     from specmate.pcb.operations import RequestExtraction, authorize_pcb_replay
@@ -396,7 +396,7 @@ def test_replay_guard_rechecks_scope_execution_and_recipe(
     with pytest.raises(Unsupported):
         authorize_pcb_replay(ctx, payload, attempt)
     settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: recipe}
-    membership = WorkspaceMember.objects.get(workspace__projects=project, user=users["owner"])
+    membership = WorkspaceMember.objects.get(workspace_id=workspace, user=users["owner"])
     membership.role = "viewer"
     membership.save()
     with pytest.raises(PermissionDenied):
@@ -406,7 +406,7 @@ def test_replay_guard_rechecks_scope_execution_and_recipe(
         authorize_pcb_replay(ctx, payload, attempt)
 
 
-def test_replay_accept_guard_rechecks_scope_and_pinned_provenance(users, project, attempt):
+def test_replay_accept_guard_rechecks_scope_and_pinned_provenance(users, workspace, attempt):
     from specmate.operations import Context
     from specmate.pcb.operations import AttemptRef, authorize_pcb_replay
 
@@ -417,7 +417,7 @@ def test_replay_accept_guard_rechecks_scope_and_pinned_provenance(users, project
     authorize_pcb_replay(ctx, payload, accepted)
     with pytest.raises(ValidationFailed):
         authorize_pcb_replay(ctx, payload, {**accepted, "output_id": str(uuid4())})
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         authorize_pcb_replay(ctx, payload, accepted)
 
@@ -610,7 +610,7 @@ def test_population_options_exclude_omitted_part_without_promoting_native_dnp(us
 
 
 def test_population_reviewed_associations_pin_every_target_and_evidence(
-    users, project, source, population
+    users, workspace, source, population
 ):
     from specmate.pcb.population import closure
 
@@ -619,7 +619,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["owner"],
         "interface.create",
         {
-            "project_id": project,
+            "project_id": workspace,
             "name": "One contact body",
             "interface": {
                 "kind": "connector_body",
@@ -642,7 +642,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["owner"],
         "interface.create",
         {
-            "project_id": project,
+            "project_id": workspace,
             "name": "One contact pinout",
             "interface": {
                 "kind": "pinout",
@@ -663,7 +663,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "kind": "part",
             "name": "Synthetic component",
         },
@@ -767,7 +767,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
     assert reviewed["associations"][2]["association"]["evidence"]["citation"] == (
         "Synthetic package review note."
     )
-    target_response = client.get(f"/api/v0/pcb/projects/{project}/association-targets")
+    target_response = client.get(f"/api/v0/pcb/workspaces/{workspace}/association-targets")
     assert target_response.status_code == 200
     pinout_target = next(
         row for row in target_response.json()["revisions"] if row["revision_id"] == pinout_revision
@@ -819,24 +819,21 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         )
 
 
-def test_population_authorizes_later_hidden_targets_before_provenance_or_anchor_errors(
-    users, population
+def test_population_rejects_targets_from_a_foreign_workspace_before_provenance_or_anchor_errors(
+    users, population, other_workspace
 ):
     created, _, _, _ = population
-    hidden_project = op(users["owner"], "project.create", {"name": "Separate project"})[
-        "project_id"
-    ]
     hidden = op(
-        users["owner"],
+        users["outsider"],
         "definition.create",
         {
-            "project_id": hidden_project,
+            "workspace_id": other_workspace,
             "kind": "part",
-            "name": "Hidden part",
+            "name": "Foreign part",
         },
     )
     hidden_revision = op(
-        users["owner"],
+        users["outsider"],
         "draft.freeze",
         {
             "draft_id": hidden["draft_id"],
@@ -883,12 +880,12 @@ def test_population_authorizes_later_hidden_targets_before_provenance_or_anchor_
         )
 
 
-def test_population_access_and_api_reads_recheck_scope(users, project, intake, population):
+def test_population_access_and_api_reads_recheck_scope(users, workspace, intake, population):
     created, interpretation, _, _ = population
     client = Client()
     client.force_login(users["viewer"])
     assert client.get(f"/api/v0/pcb/intakes/{intake['intake_id']}/populations").status_code == 200
-    assert client.get(f"/api/v0/pcb/projects/{project}/association-targets").status_code == 200
+    assert client.get(f"/api/v0/pcb/workspaces/{workspace}/association-targets").status_code == 200
     with pytest.raises(NotFound):
         op(users["outsider"], "pcb.population_read", {"draft_id": created["draft_id"]})
     with pytest.raises(NotFound):
@@ -901,7 +898,7 @@ def test_population_access_and_api_reads_recheck_scope(users, project, intake, p
             },
             idempotency_key="outsider",
         )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         op(
             users["editor"],
@@ -912,12 +909,12 @@ def test_population_access_and_api_reads_recheck_scope(users, project, intake, p
             },
             idempotency_key="create-population",
         )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["viewer"]).delete()
     assert client.get(f"/api/v0/pcb/intakes/{intake['intake_id']}/populations").status_code == 404
-    assert client.get(f"/api/v0/pcb/projects/{project}/association-targets").status_code == 404
+    assert client.get(f"/api/v0/pcb/workspaces/{workspace}/association-targets").status_code == 404
 
 
-def test_generic_design_commands_apply_pcb_population_contract(users, project, population):
+def test_generic_design_commands_apply_pcb_population_contract(users, workspace, population):
     from specmate.design.models import Draft
     from specmate.queries import get_draft, get_revision
 
@@ -974,7 +971,7 @@ def test_generic_design_commands_apply_pcb_population_contract(users, project, p
             users["editor"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace,
                 "kind": "part",
                 "name": "Wrong typed content",
                 "content": {"pcb_population": content},
@@ -1076,7 +1073,7 @@ def test_population_snapshot_guard_allows_older_revision_in_acyclic_history(user
 
 
 def test_frozen_population_review_reopens_old_state_after_draft_edit_and_revocation(
-    users, project, population
+    users, workspace, population
 ):
     created, interpretation, component_ids, _ = population
     content = copy.deepcopy(created["content"]["pcb_population"])
@@ -1127,7 +1124,7 @@ def test_frozen_population_review_reopens_old_state_after_draft_edit_and_revocat
     assert old.json()["population"]["options"][0]["decisions"][0]["status"] == "omit"
     assert live.json()["population"]["options"][0]["decisions"][0]["status"] == "populate"
     assert old.json()["interpretation"]["interpretation_id"] == interpretation["interpretation_id"]
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["viewer"]).delete()
     for path in (frozen_path, draft_path):
         response = client.get(path)
         assert response.status_code == 404

@@ -11,7 +11,9 @@ reuse rejected; short activities use the shared Django operation layer. Recipes 
 source identities are preserved in application records, and workflow history carries IDs.
 
 Runner credentials are issued locally by the installation operator and restricted to
-one project and a list of approved recipes. Only the matching fenced stage may download
+one workspace and a list of approved recipes (`runner_credential --workspace`). A build is a
+workspace record over workspace sources, with an optional project only as navigation context;
+`build.request` needs the `build.execute` grant, held by workspace admins by default. Only the matching fenced stage may download
 inputs or register output bytes. A recipe's execution limits and manifest paths must be
 supported before a build is accepted. Changes to current authority or recipe approval
 prevent further execution and successful result acceptance.
@@ -20,7 +22,7 @@ An expired lease becomes interrupted and requires reconciliation of the original
 execution. The foundation does not reassign it or automatically rerun a tool; a new
 build request creates a distinct attempt while prior evidence remains immutable.
 Successful output is available only after verified terminal acceptance and a current
-project access check. Mixed source-rights policies and artifact caching remain future
+workspace membership check. Mixed source-rights policies and artifact caching remain future
 capabilities; matching hashes alone grant no disclosure permission.
 
 ## Cancellation, recovery and retry
@@ -54,7 +56,7 @@ the same compiler-consent hook as `build.request`, so firmware compiler builds s
 the first. The earlier attempt, its receipt and its events are never changed.
 `build.history` returns the retained events (without runner identities or fencing tokens),
 receipt, unaccepted partial outputs, retry lineage and which actions are available;
-`build.list` lists a project's latest generic builds. The Builds tool in the Sources area
+`build.list` lists a workspace's latest generic builds, optionally filtered to one project context. The Builds tool in the Sources area
 uses these. Real container cancellation, restart reconciliation and lost-acknowledgment
 replay through the runner remain covered by the runner's isolated Docker cases and an
 orchestrated integration checkpoint; the application tests simulate the runner API.
@@ -90,7 +92,8 @@ migration container is required to bootstrap the early deployment.
 
 Source manifests reject case-insensitive duplicates and file/directory collisions
 before committing an original or revised bundle. Shared directory prefixes remain
-valid. Blob lookup is bounded to the requested hashes within the owning project.
+valid. Blob lookup is bounded to the requested hashes within the owning workspace. Blobs and bundles are workspace records: identical bytes are
+deduplicated per workspace by hash, and another workspace's registration is never visible.
 Imported archive bytes remain inert: there is no automatic decompression or link
 reconstruction. The separately invoked bounded ZIP derivation below is the only
 implemented expansion path; other formats remain opaque.
@@ -104,7 +107,8 @@ The immutable expansion record pins the exact archive file and parser identity; 
 manifest pins member hashes and parent revision. Member rights inherit the archive's
 **declared** rights, including unknown; this does not verify licensing. Reopening shows
 that exact provenance. A plain derivative or later edited revision does not claim to be
-fresh parser output. Current project/blob/parent closure is checked before diagnostics,
+fresh parser output. Current workspace membership is checked (one fresh role check, since blobs, bundles and
+ancestry share the workspace by database guard) before diagnostics,
 expansion, replay, source inspection and downloads. No state token is required to create
 a new derivative from an immutable revision; revising a bundle still uses its state token.
 
@@ -135,7 +139,7 @@ Native sources can be edited with their own tools outside Specmate without Git.
 `GET /api/v0/sources/revisions/{id}/handoff` exports an exact revision as a deterministic
 classic stored ZIP: the files at their manifest paths plus a reserved root
 `SPECMATE-HANDOFF.json` naming the baseline revision, manifest hash, file hashes and
-declared rights. The current revision closure is authorized first; project readers may
+declared rights. Current workspace membership is authorized first; workspace members may
 export. Export refuses revisions that already use the reserved name or exceed the
 re-entry limits above, and verifies stored bytes before writing them.
 
@@ -144,7 +148,7 @@ used by the Sources panel, HTTP command API and trusted jobs alike:
 
 - `source.preview_edit` reviews edited input against the selected baseline without
   changing state or promoting bytes. Input is either `files` (paths and hashes of bytes
-  already registered in the baseline's project, for example a browser folder upload) or
+  already registered in the baseline's workspace, for example a browser folder upload) or
   `archive` (a ZIP first preserved as its own original and parsed by the bounded parser
   above). It reports every path as added, modified, rights changed, unchanged, removed or
   excluded with old and new hashes, the baseline bundle's current head and state token,
@@ -189,7 +193,7 @@ overwritten or reordered, and earlier revisions stay immutable. Separate derivat
 an immutable revision need no lock.
 
 A conflict loses no writer data. Registered bytes and preserved uploaded archives were
-committed before the attempt and remain in the project; staged archive members are
+committed before the attempt and remain in the workspace; staged archive members are
 discarded and can be regenerated from the preserved archive. A conflicted request stores
 no idempotency outcome, so the same key may carry a deliberate retry with the reported
 state. A completed keyed request replays its retained result instead of writing again,
@@ -237,7 +241,7 @@ extraction, and it is never edited as a table.
 - `source_property.transfer` moves ownership only to the current revision of another
   bundle in the same lineage that contains the current owner's latest revision in its
   exact manifest ancestry. A transfer leaves the projection stale until reconciled.
-- `source_property.read`, `GET /api/v0/pcb/projects/{id}/property-authorities` and
+- `source_property.read`, `GET /api/v0/pcb/workspaces/{id}/property-authorities` and
   `GET /api/v0/pcb/property-authorities/{id}` report the owner, its current revision and
   file hash. They also report the status (`unreconciled`, `current`, `stale` or
   `conflicting`), the current projection with source revision, path, file hash, report
@@ -247,8 +251,8 @@ extraction, and it is never edited as a table.
 
 Projections and owner changes are immutable; database triggers validate their owner and
 extraction provenance and allow an authority row to change only its owner and version.
-Every operation authorizes the owner's current source closure and every projected or
-previous owner revision before diagnostics; retained keyed outcomes are authorized before
+Every operation authorizes current workspace membership (the owner lineage and every
+projected or previous owner revision share the workspace) before diagnostics; retained keyed outcomes are authorized before
 a changed-payload conflict. Direct reads refresh the current actor. The Sources panel
 loads property authorities on request, routes outline edits to the owner revision and
 its editing handoff, and offers deliberate reconciliation or transfer with a basis.

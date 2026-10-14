@@ -7,7 +7,6 @@ from uuid import UUID
 import pytest
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Draft, Revision
 from specmate.mechanical_sources import operations  # noqa: F401 (standalone registration)
 from specmate.operations import (
@@ -19,7 +18,7 @@ from specmate.operations import (
 )
 from specmate.sources.models import SourceBundleRevision
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
 from .test_firmware import component
 from .test_pcb import (  # noqa: F401
     attempt,
@@ -41,10 +40,10 @@ MODEL = b"ISO-10303-21;\n/* deliberately not a valid solid */\nEND-ISO-10303-21;
 
 
 @pytest.fixture
-def mec_sources(users, project):
+def mec_sources(users, workspace):
     files = []
     for path, data in (("case.py", DATA), ("body.step", MODEL), ("unsupported.bin", b"opaque")):
-        register(users["editor"], project, data)
+        register(users["editor"], workspace, data)
         files.append(
             {
                 "path": path,
@@ -57,7 +56,7 @@ def mec_sources(users, project):
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Synthetic mechanical original",
             "files": files,
         },
@@ -65,12 +64,12 @@ def mec_sources(users, project):
 
 
 @pytest.fixture
-def mec_target(users, project):
+def mec_target(users, workspace):
     created = op(
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "kind": "hardware",
             "name": "Synthetic mounting hardware",
             "content": {"unknown_dimensions": True},
@@ -85,7 +84,7 @@ def mec_target(users, project):
 
 
 @pytest.fixture
-def mec_board(users, project, attempt):  # noqa: F811
+def mec_board(users, workspace, attempt):  # noqa: F811
     # Simulated accepted output checks management; it establishes no native tool compatibility.
     report = report_payload()
     report["outline"] = [[[0, 0], [40, 0], [40, 25], [0, 25]]]
@@ -155,12 +154,12 @@ def declaration(preserved, target):
     }
 
 
-def create(user, project, content, **ctx):
+def create(user, workspace, content, **ctx):
     return op(
         user,
         "mechanical_source.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Reusable synthetic enclosure",
             "mechanical_source": content,
         },
@@ -169,12 +168,12 @@ def create(user, project, content, **ctx):
 
 
 def test_exact_persistence_history_unknowns_and_inert_content(
-    users, project, mec_sources, mec_target
+    users, workspace, mec_sources, mec_target
 ):
     content = declaration(mec_sources, mec_target)
     before = bytes(SourceBundleRevision.objects.get(id=mec_sources["revision_id"]).manifest)
-    created = create(users["editor"], project, content, idempotency_key="create")
-    replay = create(users["editor"], project, content, idempotency_key="create")
+    created = create(users["editor"], workspace, content, idempotency_key="create")
+    replay = create(users["editor"], workspace, content, idempotency_key="create")
     assert replay == created
     read = op(users["viewer"], "mechanical_source.read", {"draft_id": created["draft_id"]})
     evaluation = read["evaluation"]
@@ -215,17 +214,17 @@ def test_exact_persistence_history_unknowns_and_inert_content(
     assert bytes(SourceBundleRevision.objects.get(id=mec_sources["revision_id"]).manifest) == before
 
 
-def test_cas_replay_payload_and_atomic_failure(users, project, mec_sources, mec_target):
+def test_cas_replay_payload_and_atomic_failure(users, workspace, mec_sources, mec_target):
     content = declaration(mec_sources, mec_target)
-    created = create(users["editor"], project, content, idempotency_key="same")
+    created = create(users["editor"], workspace, content, idempotency_key="same")
     changed = copy.deepcopy(content)
     changed["item_role"] = "part"
     with pytest.raises(IdempotencyMismatch):
-        create(users["editor"], project, changed, idempotency_key="same")
+        create(users["editor"], workspace, changed, idempotency_key="same")
     before = Definition.objects.count()
     changed["sources"][0]["files"][0]["sha256"] = "0" * 64
     with pytest.raises(ValidationFailed):
-        create(users["editor"], project, changed)
+        create(users["editor"], workspace, changed)
     assert Definition.objects.count() == before
     with pytest.raises(Conflict) as error:
         op(
@@ -240,7 +239,7 @@ def test_cas_replay_payload_and_atomic_failure(users, project, mec_sources, mec_
 
 @pytest.mark.parametrize("field", ["sha256", "rights", "path"])
 def test_file_pins_and_model_declarations_require_exact_evidence(
-    users, project, mec_sources, mec_target, field
+    users, workspace, mec_sources, mec_target, field
 ):
     content = declaration(mec_sources, mec_target)
     content["sources"][0]["files"][0][field] = {
@@ -249,10 +248,10 @@ def test_file_pins_and_model_declarations_require_exact_evidence(
         "path": "absent.py",
     }[field]
     with pytest.raises(ValidationFailed):
-        create(users["editor"], project, content)
+        create(users["editor"], workspace, content)
 
 
-def test_exact_model_revision_source_target_pins(users, project, mec_sources, mec_target):
+def test_exact_model_revision_source_target_pins(users, workspace, mec_sources, mec_target):
     model = op(
         users["editor"],
         "catalog.register_representation",
@@ -281,7 +280,7 @@ def test_exact_model_revision_source_target_pins(users, project, mec_sources, me
             "basis": "Declared correspondence only",
         }
     ]
-    created = create(users["editor"], project, content)
+    created = create(users["editor"], workspace, content)
     read = op(users["viewer"], "mechanical_source.read", {"draft_id": created["draft_id"]})
     assert read["evaluation"]["models"][0]["sha256"] == digest(MODEL)
     assert any(
@@ -290,24 +289,42 @@ def test_exact_model_revision_source_target_pins(users, project, mec_sources, me
     )
     content["models"][0]["snapshot_sha256"] = "0" * 64
     with pytest.raises(ValidationFailed):
-        create(users["editor"], project, content)
+        create(users["editor"], workspace, content)
 
 
 def test_permissions_read_only_and_cross_scope_non_disclosure(
-    users, project, mec_sources, mec_target
+    users, workspace, mec_sources, mec_target
 ):
     content = declaration(mec_sources, mec_target)
-    created = create(users["editor"], project, content)
+    created = create(users["editor"], workspace, content)
     for actor, error in (("viewer", PermissionDenied), ("outsider", NotFound)):
         with pytest.raises(error):
-            create(users[actor], project, content)
+            create(users[actor], workspace, content)
+    # Contributors create and edit their own drafts but cannot freeze; editors can.
+    own = create(users["contributor"], workspace, content)
+    update_args = {"draft_id": own["draft_id"], "mechanical_source": content}
+    op(users["contributor"], "mechanical_source.update", update_args, expected_state=own["state"])
     with pytest.raises(PermissionDenied):
         op(
-            users["editor"],
+            users["contributor"],
             "mechanical_source.freeze",
-            {"draft_id": created["draft_id"]},
+            {"draft_id": own["draft_id"]},
+            expected_state=own["state"],
+        )
+    with pytest.raises(PermissionDenied):
+        op(
+            users["contributor"],
+            "mechanical_source.update",
+            {"draft_id": created["draft_id"], "mechanical_source": content},
             expected_state=created["state"],
         )
+    frozen = op(
+        users["editor"],
+        "mechanical_source.freeze",
+        {"draft_id": created["draft_id"]},
+        expected_state=created["state"],
+    )
+    assert frozen["revision_id"]
     with pytest.raises(NotFound):
         op(users["outsider"], "mechanical_source.read", {"draft_id": created["draft_id"]})
     client = Client()
@@ -325,18 +342,15 @@ def test_permissions_read_only_and_cross_scope_non_disclosure(
     assert response.json()["result"]["evaluation"]["native_execution"] == "none"
 
 
-def test_cross_project_reuse_then_live_and_retained_ancestor_denial(
-    users, project, mec_sources, mec_target
+def test_reused_origin_then_membership_loss_and_foreign_origin_denial(
+    users, workspace, other_workspace, mec_sources, mec_target
 ):
-    other = op(users["owner"], "project.create", {"name": "Reusable source origin"})["project_id"]
-    ensure_member(users["editor"], "editor", project=other)
-    ensure_member(users["viewer"], "viewer", project=other)
-    register(users["editor"], other, DATA)
+    register(users["editor"], workspace, DATA)
     origin = op(
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": other,
+            "workspace_id": workspace,
             "name": "Retained mechanical origin",
             "files": [
                 {
@@ -348,24 +362,48 @@ def test_cross_project_reuse_then_live_and_retained_ancestor_denial(
             ],
         },
     )
-    # An authorized origin can be explicitly pinned across projects without copying bytes.
+    # A second preserved origin in the workspace is pinned explicitly without copying bytes.
     content = declaration(mec_sources, mec_target)
     content["sources"][0].update(
         source_revision_id=origin["revision_id"], source_manifest_sha256=origin["manifest_sha256"]
     )
     content["sources"][0]["files"] = [content["sources"][0]["files"][0]]
-    created = create(users["editor"], project, content, idempotency_key="retained")
-    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
+    created = create(users["editor"], workspace, content, idempotency_key="retained")
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         op(users["editor"], "mechanical_source.read", {"draft_id": created["draft_id"]})
     with pytest.raises(NotFound):
-        create(users["editor"], project, content, idempotency_key="retained")
-    # Authorized viewer still sees its independent cross-project declaration.
+        create(users["editor"], workspace, content, idempotency_key="retained")
+    # Another member still reads the declaration.
     assert op(users["viewer"], "mechanical_source.read", {"draft_id": created["draft_id"]})["name"]
+    # A source preserved in a foreign workspace cannot be pinned by a non-member of it.
+    register(users["outsider"], other_workspace, DATA)
+    foreign = op(
+        users["outsider"],
+        "source.create_original_bundle",
+        {
+            "workspace_id": other_workspace,
+            "name": "Foreign mechanical origin",
+            "files": [
+                {
+                    "path": "case.py",
+                    "sha256": digest(DATA),
+                    "media_type": "text/plain",
+                    "rights": "MIT",
+                }
+            ],
+        },
+    )
+    ensure_member(users["editor"], "editor")
+    content["sources"][0].update(
+        source_revision_id=foreign["revision_id"], source_manifest_sha256=foreign["manifest_sha256"]
+    )
+    with pytest.raises(NotFound):
+        create(users["editor"], workspace, content)
 
 
 def test_board_input_retains_exact_geometry_revision_and_component_identity(
-    users, project, mec_sources, mec_board
+    users, workspace, mec_sources, mec_board
 ):
     from specmate.mechanical_sources.api import target_result
     from specmate.queries import get_revision
@@ -384,7 +422,7 @@ def test_board_input_retains_exact_geometry_revision_and_component_identity(
             | {"option_id": "default"},
         }
     ]
-    created = create(users["editor"], project, content)
+    created = create(users["editor"], workspace, content)
     read = op(users["viewer"], "mechanical_source.read", {"draft_id": created["draft_id"]})
     geometry = read["evaluation"]["targets"][0]["board_geometry"]
     assert geometry["units"] == "mm"
@@ -394,11 +432,11 @@ def test_board_input_retains_exact_geometry_revision_and_component_identity(
     content["targets"][0].update(
         role="component", native_component_id=target["components"][0]["id"]
     )
-    selected = create(users["editor"], project, content)
+    selected = create(users["editor"], workspace, content)
     read = op(users["viewer"], "mechanical_source.read", {"draft_id": selected["draft_id"]})
     assert read["evaluation"]["targets"][0]["component"]["reference"] == "U1"
     content["targets"][0]["native_component_id"] = str(UUID(int=1))
-    invalid = create(users["editor"], project, content)
+    invalid = create(users["editor"], workspace, content)
     with pytest.raises(ValidationFailed):
         op(
             users["owner"],
@@ -409,16 +447,15 @@ def test_board_input_retains_exact_geometry_revision_and_component_identity(
     assert not Revision.objects.filter(definition_id=invalid["definition_id"]).exists()
     content["targets"][0]["board"]["interpretation_sha256"] = "0" * 64
     with pytest.raises(ValidationFailed):
-        create(users["editor"], project, content)
+        create(users["editor"], workspace, content)
 
 
 def test_read_adapters_authorize_derivative_ancestry_before_disclosure(
-    users, project, mec_sources, mec_target
+    users, workspace, mec_sources, mec_target
 ):
     from django.test import RequestFactory
 
     from specmate.mechanical_sources.api import list_records, list_targets, read_draft, read_target
-    from specmate.sources.models import SourceBundle
 
     derivative = op(
         users["editor"],
@@ -426,7 +463,7 @@ def test_read_adapters_authorize_derivative_ancestry_before_disclosure(
         {"source_revision_id": mec_sources["revision_id"], "name": "Edited mechanical derivative"},
     )
     content = declaration(derivative, mec_target)
-    created = create(users["editor"], project, content, idempotency_key="derivative")
+    created = create(users["editor"], workspace, content, idempotency_key="derivative")
     request = RequestFactory().get("/")
     request.user = users["viewer"]
     read = read_draft(request, UUID(created["draft_id"]))
@@ -434,42 +471,38 @@ def test_read_adapters_authorize_derivative_ancestry_before_disclosure(
     assert read["evaluation"]["sources"][0]["derived_from"] == mec_sources["revision_id"]
     assert mec_sources["revision_id"] in read["evaluation"]["sources"][0]["ancestry"]
     assert (
-        list_records(request, UUID(project))["records"][0]["definition_id"]
+        list_records(request, UUID(workspace))["records"][0]["definition_id"]
         == created["definition_id"]
     )
-    assert list_targets(request, UUID(project))["targets"]
+    assert list_targets(request, UUID(workspace))["targets"]
     assert (
         read_target(request, UUID(mec_target["revision_id"]))["snapshot_sha256"]
         == mec_target["sha256"]
     )
-    hidden = op(users["outsider"], "project.create", {"name": "Hidden retained source origin"})[
-        "project_id"
-    ]
-    # Simulate an operator changing origin authority without mutating immutable native bytes.
-    origin_bundle = SourceBundleRevision.objects.get(id=mec_sources["revision_id"]).bundle_id
-    SourceBundle.objects.filter(id=origin_bundle).update(project_id=hidden)
+    # Membership loss changes authority without mutating immutable native bytes.
+    remove_member(users["viewer"])
+    remove_member(users["editor"])
     for query in (
         lambda: read_draft(request, UUID(created["draft_id"])),
-        lambda: list_records(request, UUID(project)),
-        lambda: create(users["editor"], project, content, idempotency_key="derivative"),
+        lambda: list_records(request, UUID(workspace)),
+        lambda: create(users["editor"], workspace, content, idempotency_key="derivative"),
     ):
         with pytest.raises(NotFound):
             query()
 
 
-def test_unauthorized_retained_outcome_precedes_key_mismatch(
-    users, project, mec_sources, mec_target
+def test_membership_loss_on_retained_outcome_precedes_key_mismatch(
+    users, workspace, mec_sources, mec_target
 ):
-    from specmate.sources.models import SourceBundle
 
     original = declaration(mec_sources, mec_target)
-    created = create(users["editor"], project, original, idempotency_key="retained-outcome")
+    created = create(users["editor"], workspace, original, idempotency_key="retained-outcome")
     # Create a separate currently readable source set with the same inert bytes.
     replacement = op(
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Replacement source",
             "files": [
                 {
@@ -493,17 +526,13 @@ def test_unauthorized_retained_outcome_precedes_key_mismatch(
         {"draft_id": created["draft_id"], "mechanical_source": changed},
         expected_state=created["state"],
     )
-    hidden = op(users["outsider"], "project.create", {"name": "Revoked original origin"})[
-        "project_id"
-    ]
-    SourceBundle.objects.filter(id=mec_sources["bundle_id"]).update(project_id=hidden)
     assert op(users["editor"], "mechanical_source.read", {"draft_id": created["draft_id"]})
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
-        create(users["editor"], project, changed, idempotency_key="retained-outcome")
+        create(users["editor"], workspace, changed, idempotency_key="retained-outcome")
 
 
-def test_full_source_closure_precedes_mismatch_diagnostics(users, project, mec_sources, mec_target):
-    from specmate.sources.models import SourceBundle
+def test_membership_precedes_mismatch_diagnostics(users, workspace, mec_sources, mec_target):
 
     content = declaration(mec_sources, mec_target)
     inaccessible = op(
@@ -520,20 +549,21 @@ def test_full_source_closure_precedes_mismatch_diagnostics(users, project, mec_s
         }
     )
     content["sources"][0]["files"][0]["sha256"] = "0" * 64
-    hidden = op(users["outsider"], "project.create", {"name": "Hidden second source"})["project_id"]
-    SourceBundle.objects.filter(id=inaccessible["bundle_id"]).update(project_id=hidden)
+    with pytest.raises(ValidationFailed):
+        create(users["editor"], workspace, content)
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
-        create(users["editor"], project, content)
+        create(users["editor"], workspace, content)
 
 
 def test_uninterpreted_board_revision_is_reusable_with_explicit_unknown_geometry(
-    users, project, mec_sources
+    users, workspace, mec_sources
 ):
     board = op(
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "kind": "board",
             "name": "Unsupported native board",
             "content": {"geometry": "unknown"},
@@ -547,7 +577,7 @@ def test_uninterpreted_board_revision_is_reusable_with_explicit_unknown_geometry
     )
     content = declaration(mec_sources, frozen_board)
     content["targets"][0]["role"] = "board"
-    created = create(users["editor"], project, content)
+    created = create(users["editor"], workspace, content)
     frozen = op(
         users["owner"],
         "mechanical_source.freeze",

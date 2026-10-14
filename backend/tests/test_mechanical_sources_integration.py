@@ -16,12 +16,12 @@ from .test_mechanical_sources import (  # noqa: F401
 from .test_transports import api
 
 
-def test_generic_empty_mechanical_draft_remains_editable_but_never_captures(users, project):
+def test_generic_empty_mechanical_draft_remains_editable_but_never_captures(users, workspace):
     draft = op(
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "kind": "mechanical_source",
             "name": "Pending native source",
         },
@@ -39,7 +39,7 @@ def test_generic_empty_mechanical_draft_remains_editable_but_never_captures(user
 
 def test_generic_write_and_capture_validate_exact_files_and_union_model_targets(
     users,
-    project,
+    workspace,
     mec_sources,  # noqa: F811
     mec_target,  # noqa: F811
 ):
@@ -48,7 +48,7 @@ def test_generic_write_and_capture_validate_exact_files_and_union_model_targets(
         owner,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "kind": "hardware",
             "name": "Declared model owner",
         },
@@ -91,7 +91,7 @@ def test_generic_write_and_capture_validate_exact_files_and_union_model_targets(
         owner,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "kind": "mechanical_source",
             "name": "Generic mechanical source",
             "content": {"mechanical_source": content},

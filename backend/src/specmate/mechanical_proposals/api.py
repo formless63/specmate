@@ -26,22 +26,32 @@ def context(request, name):
     return Context(user=request.user, via="api", request_id=name)
 
 
-@router.get("/projects/{project_id}/boards")
-def boards(request, project_id: UUID):
-    return board_choices(context(request, "proposal-boards"), ListProposals(project_id=project_id))
-
-
-@router.get("/projects/{project_id}/boards/{interpretation_id}")
-def board(request, project_id: UUID, interpretation_id: UUID):
-    return board_inputs(
-        context(request, "proposal-board"),
-        BoardInputs(project_id=project_id, interpretation_id=interpretation_id),
+@router.get(
+    "/projects/{workspace_id}/boards", operation_id="mechanical_proposals_boards_via_project"
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/boards")
+def boards(request, workspace_id: UUID):
+    return board_choices(
+        context(request, "proposal-boards"), ListProposals(workspace_id=workspace_id)
     )
 
 
-@router.get("/projects/{project_id}/drafts")
-def drafts(request, project_id: UUID):
-    return list_proposals(context(request, "proposal-list"), ListProposals(project_id=project_id))
+@router.get("/workspaces/{workspace_id}/boards/{interpretation_id}")
+def board(request, workspace_id: UUID, interpretation_id: UUID):
+    return board_inputs(
+        context(request, "proposal-board"),
+        BoardInputs(workspace_id=workspace_id, interpretation_id=interpretation_id),
+    )
+
+
+@router.get(
+    "/projects/{workspace_id}/drafts", operation_id="mechanical_proposals_drafts_via_project"
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/drafts")
+def drafts(request, workspace_id: UUID):
+    return list_proposals(
+        context(request, "proposal-list"), ListProposals(workspace_id=workspace_id)
+    )
 
 
 @router.get("/drafts/{draft_id}")
@@ -50,8 +60,8 @@ def draft(request, draft_id: UUID):
 
 
 @router.get("/revisions/{revision_id}")
-def revision(request, revision_id: UUID, project_id: UUID | None = None):
+def revision(request, revision_id: UUID, workspace_id: UUID | None = None):
     return read_retained(
         context(request, "proposal-retained"),
-        RetainedRef(revision_id=revision_id, project_id=project_id),
+        RetainedRef(revision_id=revision_id, workspace_id=workspace_id),
     )

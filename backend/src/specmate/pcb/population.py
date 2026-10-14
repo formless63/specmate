@@ -294,10 +294,10 @@ def _closure(user, definition, population: Population) -> list[UUID]:
                 != definition.workspace_id
             ):
                 raise ValidationFailed(
-                    "Model association requires a same-project model representation."
+                    "Model association requires a same-workspace model representation."
                 )
         if target.definition.workspace_id != definition.workspace_id:
-            raise ValidationFailed("Association target must belong to the PCB project.")
+            raise ValidationFailed("Association target must belong to the PCB workspace.")
         dependencies.add(target.id)
         if association.kind == "port":
             if target.definition.kind != "pinout":

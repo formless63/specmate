@@ -8,13 +8,11 @@ from collections import Counter
 import pytest
 from pydantic import ValidationError
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Revision
 from specmate.mechanical_sources.contracts import MechanicalSource
 from specmate.operations import Conflict, NotFound, ValidationFailed
-from specmate.sources.models import SourceBundleRevision
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
 from .test_mechanical_sources import mec_target  # noqa: F401
 from .test_sources import register
 from .test_transports import api
@@ -45,18 +43,13 @@ MESH = (
 
 
 @pytest.fixture
-def mesh_declaration(users, project, mec_target):  # noqa: F811
-    source_project = op(users["owner"], "project.create", {"name": "Scoped original mesh sources"})[
-        "project_id"
-    ]
-    for role in ("viewer", "editor"):
-        ensure_member(users[role], "viewer", project=source_project)
-    register(users["owner"], source_project, MESH)
+def mesh_declaration(users, workspace, mec_target):  # noqa: F811
+    register(users["owner"], workspace, MESH)
     source = op(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": source_project,
+            "workspace_id": workspace,
             "name": "Original closed illustration tetrahedron",
             "files": [
                 {
@@ -72,7 +65,7 @@ def mesh_declaration(users, project, mec_target):  # noqa: F811
         users["owner"],
         "definition.create",
         {
-            "project_id": source_project,
+            "workspace_id": workspace,
             "kind": "hardware",
             "name": "Original model owner",
         },
@@ -188,21 +181,21 @@ def assumptions():
     }
 
 
-def create(user, project, content):
+def create(user, workspace, content):
     return op(
         user,
         "mechanical_source.create",
-        {"project_id": project, "name": "Declared uncertainty", "mechanical_source": content},
+        {"workspace_id": workspace, "name": "Declared uncertainty", "mechanical_source": content},
     )
 
 
 def test_closed_mesh_cannot_supply_missing_tolerance_connector_or_manufacturing_inputs(
-    users, project, mesh_declaration
+    users, workspace, mesh_declaration
 ):
     edges = Counter(tuple(sorted((face[i], face[(i + 1) % 3]))) for face in FACES for i in range(3))
     assert len(edges) == 6 and set(edges.values()) == {2}
     assert VERTICES[1][0] * VERTICES[2][1] * VERTICES[3][2] / 6 == 4
-    draft = create(users["owner"], project, mesh_declaration)
+    draft = create(users["owner"], workspace, mesh_declaration)
     # Mounted HTTP view uses current shared operation/closure, not a direct assessor call.
     response = api(users["viewer"]).get(f"/api/v0/mechanical-sources/drafts/{draft['draft_id']}")
     assert response.status_code == 200
@@ -238,12 +231,12 @@ def test_closed_mesh_cannot_supply_missing_tolerance_connector_or_manufacturing_
 
 
 def test_scoped_declarations_immutable_history_cas_and_purpose_limits(
-    users, project, mesh_declaration
+    users, workspace, mesh_declaration
 ):
     content = copy.deepcopy(mesh_declaration)
     content["uncertainty"] = assumptions()
     content["models"][0]["purpose"] = "manufacturing"
-    draft = create(users["owner"], project, content)
+    draft = create(users["owner"], workspace, content)
     first = op(
         users["owner"],
         "draft.freeze",
@@ -316,7 +309,7 @@ def test_invalid_bounds_and_scope_rejected_by_typed_contract(mesh_declaration, c
 
 
 def test_invalid_generic_content_rolls_back_and_unknown_has_no_numeric_defaults(
-    users, project, mesh_declaration
+    users, workspace, mesh_declaration
 ):
     content = copy.deepcopy(mesh_declaration)
     content["uncertainty"] = {
@@ -331,7 +324,7 @@ def test_invalid_generic_content_rolls_back_and_unknown_has_no_numeric_defaults(
             }
         ],
     }
-    draft = create(users["owner"], project, content)
+    draft = create(users["owner"], workspace, content)
     row = draft["content"]["mechanical_source"]["uncertainty"]["tolerances"][0]
     assert row["lower_deviation"] is row["upper_deviation"] is None
     broken = copy.deepcopy(content)
@@ -350,11 +343,11 @@ def test_invalid_generic_content_rolls_back_and_unknown_has_no_numeric_defaults(
     assert Draft.objects.get(id=draft["draft_id"]).state_token == draft["state"]
 
 
-def test_precise_model_metadata_and_foreign_source_authority(users, project, mesh_declaration):
+def test_precise_model_metadata_and_membership_authority(users, workspace, mesh_declaration):
     content = copy.deepcopy(mesh_declaration)
     content["uncertainty"] = assumptions()
     content["models"][0].update(units=None, frame=None, accuracy=None)
-    draft = create(users["owner"], project, content)
+    draft = create(users["owner"], workspace, content)
     before = op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]})
     assessment = before["evaluation"]["uncertainty_assessment"]
     metadata = [
@@ -365,12 +358,9 @@ def test_precise_model_metadata_and_foreign_source_authority(users, project, mes
     assert len(metadata) == 3 and all(
         p["scope"] == {"target_local_id": "connector", "model_local_id": "body"} for p in metadata
     )
-    bundle = SourceBundleRevision.objects.get(id=content["sources"][0]["source_revision_id"])
-    WorkspaceMember.objects.filter(
-        workspace__projects=bundle.bundle.project, user=users["viewer"]
-    ).delete()
+    remove_member(users["viewer"])
     client = api(users["viewer"])
-    assert client.get(f"/api/v0/projects/{project}/definitions").status_code == 200
+    assert client.get(f"/api/v0/workspaces/{workspace}/definitions").status_code == 404
     denied = client.get(f"/api/v0/mechanical-sources/drafts/{draft['draft_id']}")
     assert denied.status_code == 404
     assert (
@@ -378,12 +368,12 @@ def test_precise_model_metadata_and_foreign_source_authority(users, project, mes
     )
     with pytest.raises(NotFound):
         op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]})
-    ensure_member(users["viewer"], "viewer", project=bundle.bundle.project)
+    member(users["viewer"], "viewer")
     assert op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]}) == before
 
 
 def test_mixed_clearance_and_illustration_purposes_need_no_manufacturing_geometry(
-    users, project, mesh_declaration
+    users, workspace, mesh_declaration
 ):
     content = copy.deepcopy(mesh_declaration)
     content["uncertainty"] = assumptions()
@@ -397,7 +387,7 @@ def test_mixed_clearance_and_illustration_purposes_need_no_manufacturing_geometr
             "model_local_id": "preview",
         }
     )
-    draft = create(users["owner"], project, content)
+    draft = create(users["owner"], workspace, content)
     assessment = op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]})[
         "evaluation"
     ]["uncertainty_assessment"]

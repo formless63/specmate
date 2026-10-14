@@ -12,6 +12,7 @@ from specmate.access.permissions import Perm, authorize
 from specmate.contracts import SHA256, SourceBundleManifest, check_package_path
 from specmate.design.operations import canonical_bytes
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
+from specmate.operations.scope import WorkspacePayload
 from specmate.sources import blobstore
 from specmate.sources.authority import authorize_revision
 from specmate.sources.models import (
@@ -22,9 +23,7 @@ from specmate.sources.models import (
 )
 
 
-class RegisterBlob(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    project_id: UUID
+class RegisterBlob(WorkspacePayload):
     sha256: str = Field(pattern=SHA256)
     size: int = Field(ge=0)
     media_type: str = Field(min_length=1, max_length=200)
@@ -33,11 +32,11 @@ class RegisterBlob(BaseModel):
 @operation(
     "source.register_blob",
     RegisterBlob,
-    summary="Register exact source bytes in a project after verifying declared hash and size.",
+    summary="Register exact source bytes in a workspace after verifying declared hash and size.",
     attachments=("content",),
 )
 def register_blob(ctx: Context, p: RegisterBlob) -> dict:
-    workspace = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.scope_id, Perm.SOURCE_REGISTER)
     if p.size > settings.SPECMATE_MAX_SOURCE_BYTES:
         raise ValidationFailed("Declared size exceeds the configured limit.")
     try:
@@ -56,7 +55,13 @@ def register_blob(ctx: Context, p: RegisterBlob) -> dict:
         sha256=p.sha256,
         defaults={"size": p.size, "media_type": p.media_type, "registered_by": ctx.user},
     )
-    return {"blob_id": str(blob.id), "sha256": blob.sha256, "size": blob.size, "created": created}
+    return {
+        "blob_id": str(blob.id),
+        "workspace_id": str(workspace.id),
+        "sha256": blob.sha256,
+        "size": blob.size,
+        "created": created,
+    }
 
 
 class FileRef(BaseModel):
@@ -89,7 +94,7 @@ def _write_revision(
     for f in files:
         blob = blobs.get(f.sha256)
         if blob is None:
-            raise ValidationFailed("File references bytes not registered in this project.")
+            raise ValidationFailed("File references bytes not registered in this workspace.")
         entries.append((f, blob))
     latest = bundle.revisions.aggregate(n=Max("number"))["n"] or 0
     revision = SourceBundleRevision(bundle=bundle, number=latest + 1, created_by=ctx.user)
@@ -126,6 +131,7 @@ def _write_revision(
 
 def revision_result(revision: SourceBundleRevision) -> dict:
     return {
+        "workspace_id": str(revision.bundle.workspace_id),
         "bundle_id": str(revision.bundle_id),
         "revision_id": str(revision.id),
         "number": revision.number,
@@ -134,9 +140,7 @@ def revision_result(revision: SourceBundleRevision) -> dict:
     }
 
 
-class CreateBundle(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    project_id: UUID
+class CreateBundle(WorkspacePayload):
     name: str = Field(min_length=1, max_length=200)
     files: list[FileRef] = Field(min_length=1, max_length=10000)
 
@@ -147,7 +151,7 @@ class CreateBundle(BaseModel):
     summary="Preserve an imported original bundle as revision 1 of a new bundle.",
 )
 def create_original_bundle(ctx: Context, p: CreateBundle) -> dict:
-    workspace = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.scope_id, Perm.SOURCE_REGISTER)
     bundle = SourceBundle.objects.create(
         workspace=workspace, name=p.name, role=SourceBundle.Role.ORIGINAL, created_by=ctx.user
     )

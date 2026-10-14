@@ -237,17 +237,9 @@ def authority_state(authority: PropertyAuthority) -> str:
 
 
 def authorize_authority(user, authority: PropertyAuthority, permission=Perm.WORKSPACE_READ):
-    """Complete current closure: owner head, every projected source and owner change."""
-    user = current_actor(user)
-    authorize(user, authority.workspace_id, permission)
-    authorize_revision(user, head_of(authority.owner_bundle_id), permission)
-    revisions = set(authority.projections.values_list("source_revision_id", flat=True)) | set(
-        authority.owner_changes.values_list("owner_revision_id", flat=True)
-    )
-    for revision in SourceBundleRevision.objects.select_related("bundle").filter(id__in=revisions):
-        authorize_revision(user, revision)
-        if revision.bundle.workspace_id != authority.workspace_id:
-            raise NotFound("Property authority not found.")
+    """Fresh workspace authority; the owner lineage, projected sources and owner changes all
+    live in the authority's workspace (database guards), so one check covers them."""
+    return authorize(current_actor(user), authority.workspace_id, permission)
 
 
 def authority_for(ctx, authority_id, permission=Perm.WORKSPACE_READ, lock=False):
@@ -701,9 +693,9 @@ def read(ctx: Context, p: AuthorityRef) -> dict:
     return read_authority(ctx.user, authority_for(ctx, p.authority_id))
 
 
-def list_authorities(user, project_id) -> list[dict]:
+def list_authorities(user, workspace_id) -> list[dict]:
     user = current_actor(user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
     result = []
     rows = PropertyAuthority.objects.select_related("owner_bundle").filter(workspace=workspace)
     for authority in rows.order_by("created_at")[:200]:

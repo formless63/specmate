@@ -3,7 +3,7 @@ export type SessionState = {
   user: { id: string; username: string } | null;
   owner_setup_required: boolean;
 };
-export type Project = { project_id: string; name: string; permissions?: string[] };
+export type Project = { project_id: string; workspace_id?: string; name: string; permissions?: string[] };
 export type OperationResult<T> = {
   operation: string;
   request_id: string;

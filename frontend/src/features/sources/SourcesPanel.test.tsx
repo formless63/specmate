@@ -24,7 +24,7 @@ function setup(mode: 'success' | 'reject' | 'deny' = 'success', write = true) {
   let expandedOnce = false;
   let denied = false;
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    if (url.includes('sources/projects/')) return reply({ revisions: [original], next_after: null });
+    if (url.includes('sources/workspaces/')) return reply({ revisions: [original], next_after: null });
     if (url.endsWith('sources/revisions/original-id')) return denied ? reply({ error: { message: 'Source revision not found.' } }, 404) : reply(detail);
     if (url.endsWith('sources/revisions/expanded-id')) return reply(expanded);
     if (url.endsWith('operations')) {
@@ -39,7 +39,7 @@ function setup(mode: 'success' | 'reject' | 'deny' = 'success', write = true) {
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
-  const view = render(<MantineProvider><SourcesPanel projectId="project-a" permissions={write ? ['project.read', 'source.register'] : ['project.read']} /></MantineProvider>);
+  const view = render(<MantineProvider><SourcesPanel workspaceId="project-a" permissions={write ? ['project.read', 'source.register'] : ['project.read']} /></MantineProvider>);
   return { fetchMock, view, hasExpanded: () => expandedOnce };
 }
 
@@ -93,7 +93,7 @@ test('project change discards the prior detail and late response', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' }));
   await screen.findByRole('heading', { name: 'Exact source revision' });
   vi.stubGlobal('fetch', vi.fn(async () => reply({ revisions: [], next_after: null })));
-  view.rerender(<MantineProvider><SourcesPanel projectId="project-b" permissions={['project.read']} /></MantineProvider>);
+  view.rerender(<MantineProvider><SourcesPanel workspaceId="project-b" permissions={['project.read']} /></MantineProvider>);
   await waitFor(() => expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull());
   expect(screen.queryByText('archive-hash')).toBeNull();
 });
@@ -114,13 +114,13 @@ test.each(['refresh', 'inspect'])('late same-project %s denial clears newer insp
   let defer = false;
   let usedDeferred = false;
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-    const isList = url.includes('sources/projects/');
+    const isList = url.includes('sources/workspaces/');
     if (defer && !usedDeferred && (action === 'refresh' ? isList : !isList)) {
       usedDeferred = true; return lateDenial;
     }
     return reply(isList ? { revisions: [original], next_after: null } : detail);
   }));
-  render(<MantineProvider><SourcesPanel projectId="project-a" permissions={['project.read']} /></MantineProvider>);
+  render(<MantineProvider><SourcesPanel workspaceId="project-a" permissions={['project.read']} /></MantineProvider>);
   const inspect = await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' });
   defer = true;
   fireEvent.click(action === 'refresh' ? screen.getByRole('button', { name: 'Refresh sources' }) : inspect);
@@ -137,16 +137,16 @@ test('post-preservation inventory denial prevents a subsequent detail request', 
   vi.spyOn(api, 'preserve').mockResolvedValue({ revision_id: 'original-id' });
   let deny = false;
   const fetchMock = vi.fn(async (url: string) => {
-    if (!url.includes('sources/projects/')) throw new Error('No detail may be requested after denial');
+    if (!url.includes('sources/workspaces/')) throw new Error('No detail may be requested after denial');
     return deny ? reply({ error: { message: 'Source revision not found.' } }, 404) : reply({ revisions: [original], next_after: null });
   });
   vi.stubGlobal('fetch', fetchMock);
-  render(<MantineProvider><SourcesPanel projectId="project-a" permissions={['source.register']} /></MantineProvider>);
+  render(<MantineProvider><SourcesPanel workspaceId="project-a" permissions={['source.register']} /></MantineProvider>);
   await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' });
   deny = true;
   fireEvent.change(screen.getByLabelText('Original source file'), { target: { files: [new File(['original'], 'source.zip')] } });
   fireEvent.click(screen.getByRole('button', { name: 'Preserve source' }));
   await screen.findByText('Source revision not found.');
-  expect(fetchMock.mock.calls.every(([url]) => url.includes('sources/projects/'))).toBe(true);
+  expect(fetchMock.mock.calls.every(([url]) => url.includes('sources/workspaces/'))).toBe(true);
   expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull();
 });

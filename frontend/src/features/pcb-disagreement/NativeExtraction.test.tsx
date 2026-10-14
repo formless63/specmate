@@ -28,7 +28,7 @@ test('native request pins exact source and approved recipe; acceptance sends onl
     else value = { attempts: [{ ...attempt, interpretation: done ? { interpretation_id: NATIVE, report_sha256: accepted.report_sha256 } : null }], limit: 100 };
     return new Response(JSON.stringify(value), { status: 200 });
   }));
-  wrap(<NativeExtraction projectId="project" />);
+  wrap(<NativeExtraction workspaceId="project" />);
   fireEvent.change(screen.getByLabelText('Preserved source revision ID'), { target: { value: SOURCE } });
   await choose('Preserved source file', source.path);
   await waitFor(() => expect((screen.getByRole('button', { name: 'Request native source extraction' }) as HTMLButtonElement).disabled).toBe(false));
@@ -37,12 +37,12 @@ test('native request pins exact source and approved recipe; acceptance sends onl
   fireEvent.click(screen.getByRole('button', { name: 'Accept extraction attempt' }));
   expect(await screen.findByText('native schematic export · schematic')).toBeTruthy();
   expect(screen.getByText('assigned · private-net')).toBeTruthy();
-  expect(calls).toMatchObject([{ operation: 'pcb_disagreement.request_native', payload: { project_id: 'project', source, source_role: 'schematic', recipe_id: 'exact-approved' } }, { operation: 'pcb_disagreement.accept_native', payload: { attempt_id: 'attempt' } }]);
+  expect(calls).toMatchObject([{ operation: 'pcb_disagreement.request_native', payload: { workspace_id: 'project', source, source_role: 'schematic', recipe_id: 'exact-approved' } }, { operation: 'pcb_disagreement.accept_native', payload: { attempt_id: 'attempt' } }]);
 });
 
 test('missing approved extractor remains unavailable without a mock extraction claim', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/sources/') ? { files: [source] } : url.includes('/native-options') ? { available_recipe_id: null } : { attempts: [] }), { status: 200 })));
-  wrap(<NativeExtraction projectId="project" />);
+  wrap(<NativeExtraction workspaceId="project" />);
   fireEvent.change(screen.getByLabelText('Preserved source revision ID'), { target: { value: SOURCE } }); await choose('Preserved source file', source.path);
   expect(await screen.findByText('No approved extractor is installed for this exact source selection.')).toBeTruthy();
   expect((screen.getByRole('button', { name: 'Request native source extraction' }) as HTMLButtonElement).disabled).toBe(true);
@@ -60,7 +60,7 @@ test('same-key denied accepted extraction refresh removes cached private termina
 test('same-key denied attempt list refresh removes prior rows and disables acceptance', async () => {
   let denied = false;
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(denied ? { error: { message: 'Attempts denied.' } } : { attempts: [attempt] }), { status: denied ? 404 : 200 })));
-  const { cache } = wrap(<NativeExtraction projectId="project" />);
+  const { cache } = wrap(<NativeExtraction workspaceId="project" />);
   expect(await screen.findByRole('button', { name: 'Accept extraction attempt' })).toBeTruthy();
   denied = true; await act(async () => { await cache.refetchQueries({ queryKey: ['pcb-native-attempts', 'project'] }); });
   expect(await screen.findByText('Attempts denied.')).toBeTruthy(); expect(screen.queryByRole('button', { name: 'Accept extraction attempt' })).toBeNull(); expect(screen.queryByText(/Exact source SHA-256:/)).toBeNull();
@@ -73,7 +73,7 @@ test('denied native input refresh removes exact correspondence choices and repor
   const input = { method: accepted.report.method, source_role: 'schematic', source, coverage: accepted.report.coverage, coverage_basis: 'Native root inventory', terminals: accepted.report.terminals, extractor: null, unsupported: [] };
   const projection: Projection = { inputs: { left: input, right: input }, parity: 'not_evaluated', physical_qualification: 'not_evaluated' };
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes(`/native/${NATIVE}`) ? denied ? { error: { message: 'Exact extraction denied.' } } : accepted : { attempts: [{ ...attempt, interpretation: pin }] }), { status: denied && url.includes(`/native/${NATIVE}`) ? 404 : 200 })));
-  const { cache } = wrap(<ComparisonEditor projectId="project" value={value} onChange={() => {}} definitions={[]} projection={projection} sourcePinsCurrent onDenied={onDenied} />);
+  const { cache } = wrap(<ComparisonEditor workspaceId="project" value={value} onChange={() => {}} definitions={[]} projection={projection} sourcePinsCurrent onDenied={onDenied} />);
   await waitFor(() => expect(cache.getQueryData(['pcb-native-interpretation', NATIVE])).toBeTruthy());
   expect(screen.getByRole('combobox', { name: 'Left exact terminal; blank declares absent' })).toBeTruthy();
   denied = true; await act(async () => { await cache.refetchQueries({ queryKey: ['pcb-native-interpretation', NATIVE] }); });
@@ -88,7 +88,7 @@ test.each(['request', 'accept'])('a denied %s clears retained native rows, inspe
     const value = url.includes('/sources/') ? { files: [source] } : url.includes('/native-options') ? { available_recipe_id: 'exact-approved' } : url.includes(`/native/${NATIVE}`) ? accepted : { attempts: [retained, { ...attempt, attempt_id: 'pending' }], limit: 100 };
     return new Response(JSON.stringify(value), { status: 200 });
   }));
-  wrap(<NativeExtraction projectId="project" />);
+  wrap(<NativeExtraction workspaceId="project" />);
   fireEvent.change(screen.getByLabelText('Preserved source revision ID'), { target: { value: SOURCE } });
   await choose('Preserved source file', source.path);
   fireEvent.click(await screen.findByRole('button', { name: `Inspect accepted extraction ${NATIVE}` }));
@@ -113,7 +113,7 @@ test('status refresh revalidates a selected interpretation even when the filtere
     }
     return new Response(JSON.stringify({ attempts: denied ? [] : [{ ...attempt, interpretation: { interpretation_id: NATIVE, report_sha256: accepted.report_sha256 } }], limit: 100 }), { status: 200 });
   }));
-  wrap(<NativeExtraction projectId="project" />);
+  wrap(<NativeExtraction workspaceId="project" />);
   fireEvent.click(await screen.findByRole('button', { name: `Inspect accepted extraction ${NATIVE}` }));
   expect(await screen.findByText('assigned · private-net')).toBeTruthy();
   denied = true;
@@ -138,7 +138,7 @@ test('native mutation denial revalidates the affected comparison input without r
     if (denied && (options?.method === 'POST' || url.includes(`/native/${NATIVE}`))) return new Response(JSON.stringify({ error: { message: 'Comparison native source denied.' } }), { status: 404 });
     return new Response(JSON.stringify(url.includes(`/native/${NATIVE}`) ? accepted : { attempts: [attempt, { ...attempt, attempt_id: 'accepted', interpretation: pin }], limit: 100 }), { status: 200 });
   }));
-  const { cache } = wrap(<><NativeExtraction projectId="project" /><ComparisonEditor projectId="project" value={value} onChange={changed} definitions={[]} projection={projection} sourcePinsCurrent onDenied={onDenied} /></>);
+  const { cache } = wrap(<><NativeExtraction workspaceId="project" /><ComparisonEditor workspaceId="project" value={value} onChange={changed} definitions={[]} projection={projection} sourcePinsCurrent onDenied={onDenied} /></>);
   expect(await screen.findAllByText(/exact XML/)).toHaveLength(2);
   expect(screen.getByRole('combobox', { name: 'Left exact terminal; blank declares absent' })).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Correspondence basis'), { target: { value: 'Unsaved review basis' } });
@@ -163,7 +163,7 @@ test('native mutation denial revalidates a frozen comparison that retains the sa
     if (denied && (options?.method === 'POST' || url.includes('/revisions/frozen'))) return new Response(JSON.stringify({ error: { message: 'Frozen native source denied.' } }), { status: 404 });
     return new Response(JSON.stringify(url.includes('/revisions/frozen') ? frozen : { attempts: [attempt], limit: 100 }), { status: 200 });
   }));
-  wrap(<><NativeExtraction projectId="project" /><PcbDisagreementInspector revisionId="frozen" /></>);
+  wrap(<><NativeExtraction workspaceId="project" /><PcbDisagreementInspector revisionId="frozen" /></>);
   expect((await screen.findAllByText(SOURCE, { selector: 'code' })).length).toBeGreaterThanOrEqual(2);
   denied = true;
   fireEvent.click(await screen.findByRole('button', { name: 'Accept extraction attempt' }));
@@ -185,7 +185,7 @@ test.each([
     else value = { attempts: [attempt], limit: 100 };
     return new Response(JSON.stringify(value), { status: 200 });
   }));
-  wrap(<PermissionsProvider permissions={[...permissions]}><NativeExtraction projectId="project" /></PermissionsProvider>);
+  wrap(<PermissionsProvider permissions={[...permissions]}><NativeExtraction workspaceId="project" /></PermissionsProvider>);
   fireEvent.change(screen.getByLabelText('Preserved source revision ID'), { target: { value: SOURCE } });
   await choose('Preserved source file', source.path);
   const accept = await screen.findByRole('button', { name: 'Accept extraction attempt' }) as HTMLButtonElement;

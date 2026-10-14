@@ -18,7 +18,7 @@ export type NativeReport = {
   physical_qualification: false;
 };
 export type Intake = IntakeSummary & {
-  project_id: string;
+  workspace_id: string;
   source_manifest_sha256: string;
   available_recipe_id: string | null;
   files: { path: string; sha256: string; size: number; rights: string; coverage: string; unsupported: string | string[] | null }[];
@@ -91,8 +91,8 @@ async function request<T>(url: string, init: RequestInit, signal?: AbortSignal):
   return data as T;
 }
 
-export function listIntakes(projectId: string, signal?: AbortSignal) {
-  return request<IntakeSummary[]>(`/api/v0/pcb/projects/${encodeURIComponent(projectId)}/intakes`, {}, signal);
+export function listIntakes(workspaceId: string, signal?: AbortSignal) {
+  return request<IntakeSummary[]>(`/api/v0/pcb/workspaces/${encodeURIComponent(workspaceId)}/intakes`, {}, signal);
 }
 export function getIntake(id: string, signal?: AbortSignal) {
   return request<Intake>(`/api/v0/pcb/intakes/${encodeURIComponent(id)}`, {}, signal);
@@ -100,8 +100,8 @@ export function getIntake(id: string, signal?: AbortSignal) {
 export function listPopulations(intakeId: string, signal?: AbortSignal) {
   return request<PopulationDraft[]>(`/api/v0/pcb/intakes/${encodeURIComponent(intakeId)}/populations`, {}, signal);
 }
-export function associationTargets(projectId: string, signal?: AbortSignal) {
-  return request<AssociationTargets>(`/api/v0/pcb/projects/${encodeURIComponent(projectId)}/association-targets`, {}, signal);
+export function associationTargets(workspaceId: string, signal?: AbortSignal) {
+  return request<AssociationTargets>(`/api/v0/pcb/workspaces/${encodeURIComponent(workspaceId)}/association-targets`, {}, signal);
 }
 export function getPopulationDraftReview(draftId: string, signal?: AbortSignal) {
   return request<DraftPopulationReview>(`/api/v0/pcb/population-drafts/${encodeURIComponent(draftId)}/review`, {}, signal);
@@ -117,7 +117,7 @@ export async function command<T>(operation: string, payload: object, signal?: Ab
   return result.result;
 }
 
-export async function preserveFiles(projectId: string, files: File[], name: string, rights: string, boardPath: string, signal?: AbortSignal) {
+export async function preserveFiles(workspaceId: string, files: File[], name: string, rights: string, boardPath: string, signal?: AbortSignal) {
   const refs = [];
   for (const file of files) {
     const content = await file.arrayBuffer();
@@ -127,11 +127,11 @@ export async function preserveFiles(projectId: string, files: File[], name: stri
     const form = new FormData();
     for (const [key, value] of Object.entries({ request_id: randomUUID(), sha256, size: `${file.size}`, media_type })) form.set(key, value);
     form.set("content", file);
-    await request(`/api/v0/projects/${encodeURIComponent(projectId)}/blobs`, {
+    await request(`/api/v0/workspaces/${encodeURIComponent(workspaceId)}/blobs`, {
       method: "POST", headers: { "X-CSRFToken": csrfToken() }, body: form,
     }, signal);
     refs.push({ path, sha256, media_type, rights });
   }
-  const bundle = await command<{ revision_id: string }>("source.create_original_bundle", { project_id: projectId, name, files: refs }, signal);
-  return command<{ intake_id: string }>("pcb.register_intake", { project_id: projectId, source_revision_id: bundle.revision_id, board_path: boardPath }, signal);
+  const bundle = await command<{ revision_id: string }>("source.create_original_bundle", { workspace_id: workspaceId, name, files: refs }, signal);
+  return command<{ intake_id: string }>("pcb.register_intake", { workspace_id: workspaceId, source_revision_id: bundle.revision_id, board_path: boardPath }, signal);
 }

@@ -61,11 +61,11 @@ const SceneDrawingsPanel = lazy(() => import("./features/scene-drawings/SceneDra
 export function App() {
   return <WorkspaceShell>{(projectId, project, refreshProjects, principalKey, chrome) =>
     <ProjectWorkspace key={`${projectId}:${project.permissions?.join(",") ?? ""}`}
-      projectId={projectId} projectName={project.name} chrome={chrome} principalKey={principalKey} permissions={project.permissions ?? []} onAccessChanged={refreshProjects} />
+      projectId={projectId} workspaceId={project.workspace_id ?? projectId} projectName={project.name} chrome={chrome} principalKey={principalKey} permissions={project.permissions ?? []} onAccessChanged={refreshProjects} />
   }</WorkspaceShell>;
 }
 
-function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permissions, onAccessChanged }: { projectId: string; projectName: string; chrome: ShellChrome; principalKey: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
+function ProjectWorkspace({ projectId, workspaceId, projectName, chrome, principalKey, permissions, onAccessChanged }: { projectId: string; workspaceId: string; projectName: string; chrome: ShellChrome; principalKey: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
   const [active, setActiveTool] = useState<string>(DEFAULT_TOOL);
   const [upgradeProposalId, setUpgradeProposalId] = useState<string | null>(null);
   const [statusTick, setStatusTick] = useState(0);
@@ -78,8 +78,8 @@ function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permis
   return <PermissionsProvider permissions={permissions}><SbShell projectName={projectName} permissions={permissions} activeTool={active} onToolChange={setActive} chrome={chrome}
     statusIndicator={<StatusIndicator projectId={projectId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} />}>
     <ToolPanel value="overview">{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} />}</ToolPanel>
-    <ToolPanel value="builds">{visited.has("builds") && <BuildsPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="builds">{visited.has("builds") && <BuildsPanel workspaceId={workspaceId} />}</ToolPanel>
+    <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>}</ToolPanel>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
@@ -95,13 +95,13 @@ function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permis
     <ToolPanel value="occurrence-firmware">{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="firmware-impact">{visited.has("firmware-impact") && <FirmwareImpactPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="configurations">{visited.has("configurations") && <ConfigurationsPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="mechanical-sources">{visited.has("mechanical-sources") && <MechanicalSourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="mechanical-sources">{visited.has("mechanical-sources") && <MechanicalSourcesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="shared-scene">{visited.has("shared-scene") && <SharedScenePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="context-selection">{visited.has("context-selection") && <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />}</ToolPanel>
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} permissions={permissions} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="evidence-kinds">{visited.has("evidence-kinds") && <EvidencePanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="mechanical-proposals">{visited.has("mechanical-proposals") && <MechanicalProposalsPanel projectId={projectId} principalKey={principalKey} />}</ToolPanel>
+    <ToolPanel value="mechanical-proposals">{visited.has("mechanical-proposals") && <MechanicalProposalsPanel workspaceId={workspaceId} principalKey={principalKey} />}</ToolPanel>
     <ToolPanel value="scene-drawings">{visited.has("scene-drawings") && <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />}</ToolPanel>
     <ToolPanel value="preparation-documents">{visited.has("preparation-documents") && <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} canGenerate={permissions.includes("design.edit")} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="interfaces">{visited.has("interfaces") && <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} /></Stack>}</ToolPanel>
@@ -110,8 +110,8 @@ function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permis
     <ToolPanel value="harnesses">{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="passive-passages">{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} />}</ToolPanel>
     <ToolPanel value="copper">{visited.has("copper") && <CopperPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="pcb">{visited.has("pcb") && <PcbPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
-    <ToolPanel value="pcb-disagreement">{visited.has("pcb-disagreement") && <PcbDisagreementPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="pcb">{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="pcb-disagreement">{visited.has("pcb-disagreement") && <PcbDisagreementPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="inventory">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="bom">{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="physical-units">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</ToolPanel>

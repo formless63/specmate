@@ -6,10 +6,49 @@ foundation operations; payload fields alone never authorize a namespace.
 
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, model_validator
+
 from specmate.access.permissions import Perm, authorize
 from specmate.operations import NotFound, PermissionDenied
 
 GLOBAL_SCOPE = "global"
+
+
+class WorkspacePayload(BaseModel):
+    """Payload base for operations scoped to a workspace.
+
+    ``workspace_id`` is the scope. TRANSITIONAL (workspace collections P0-P3): a payload
+    ``project_id`` is accepted instead and resolves to the project's workspace, so callers
+    that have not been converted keep working. P3 removes the alias. Exactly one is given.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    workspace_id: UUID | None = None
+    project_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def one_scope(self):
+        if (self.workspace_id is None) == (self.project_id is None):
+            raise ValueError("Provide exactly one of workspace_id or project_id.")
+        return self
+
+    @property
+    def scope_id(self) -> UUID:
+        return self.workspace_id or self.project_id
+
+
+class WorkspaceProjectPayload(WorkspacePayload):
+    """Workspace scope plus an optional project as navigation context only.
+
+    The project never grants or limits access; when both ids are given the project must be
+    in the workspace. ``project_id`` alone still resolves its workspace (transitional).
+    """
+
+    @model_validator(mode="after")
+    def one_scope(self):
+        if self.workspace_id is None and self.project_id is None:
+            raise ValueError("Provide workspace_id.")
+        return self
 
 
 def workspace_scope(ctx, scope_id, permission=Perm.WORKSPACE_READ) -> str:
@@ -50,7 +89,7 @@ def builtin_scope(name, ctx, payload) -> str:
         scope = workspace_scope(ctx, payload.scope_id)
         return _authorize_retained_design(name, ctx, payload, scope)
     if name in {"source.register_blob", "source.create_original_bundle", "build.request"}:
-        return workspace_scope(ctx, payload.project_id)
+        return workspace_scope(ctx, payload.scope_id)
     if name in {"draft.update", "draft.snapshot", "draft.freeze"}:
         from specmate.design.operations import scoped_draft
 

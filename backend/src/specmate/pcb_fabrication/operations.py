@@ -152,7 +152,7 @@ def request(ctx, p):
     result = request_build(
         ctx,
         RequestBuild(
-            project_id=intake.source_revision.bundle.workspace_id,
+            workspace_id=intake.source_revision.bundle.workspace_id,
             source_revision_id=file.revision_id,
             recipe_id=p.recipe_id,
         ),

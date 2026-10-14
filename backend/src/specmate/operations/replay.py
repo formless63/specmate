@@ -44,14 +44,14 @@ def authorize_builtin_replay(name, ctx, payload, stored):
                 raise NotFound("Revision not found.")
             authorize(ctx.user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
     elif name in {"source.register_blob", "source.create_original_bundle"}:
-        authorize(ctx.user, payload.project_id, Perm.SOURCE_REGISTER)
+        authorize(ctx.user, payload.scope_id, Perm.SOURCE_REGISTER)
         if name == "source.register_blob":
             _verify_replayed_upload(ctx, payload)
     elif name == "build.request":
         from specmate.builds.models import BuildAttempt
         from specmate.builds.recipes import approved_recipe
 
-        workspace = authorize(ctx.user, payload.project_id, Perm.BUILD_EXECUTE)
+        workspace = authorize(ctx.user, payload.scope_id, Perm.BUILD_EXECUTE)
         build = BuildAttempt.objects.filter(
             id=stored["build_id"],
             workspace=workspace,

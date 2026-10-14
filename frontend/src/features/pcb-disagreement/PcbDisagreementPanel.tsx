@@ -8,36 +8,36 @@ import { blankAssertion, blankComparison, command, label, read, terminalLabel, t
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function PcbDisagreementPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+export function PcbDisagreementPanel({ workspaceId }: { workspaceId: string }) { return <Workspace key={workspaceId} workspaceId={workspaceId} />; }
+function Workspace({ workspaceId }: { workspaceId: string }) {
   const cache = useQueryClient();
   const editGate = usePermission('design.edit');
   const freezeGate = usePermission('design.freeze');
   const [name, setName] = useState(''); const [value, setValue] = useState<Value>(blankAssertion());
   const [definition, setDefinition] = useState<string | null>(null), [draftId, setDraftId] = useState<string | null>(null), [revision, setRevision] = useState<string | null>(null);
   const [offset, setOffset] = useState(0), [createDenied, setCreateDenied] = useState(false), [draftDenied, setDraftDenied] = useState(false);
-  const definitions = useQuery({ queryKey: ['pcb-review-definitions', projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ['pcb-review-definitions', workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ['pcb-review-identity', definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
   const draft = useQuery({ queryKey: ['pcb-review-draft', draftId], queryFn: () => read<Draft>(`pcb-disagreement/drafts/${draftId}`), enabled: !!draftId });
-  const create = useMutation({ mutationFn: () => command<Draft>('pcb_disagreement.create', { project_id: projectId, name, value }), onSuccess: async result => { setDefinition(result.definition_id); setDraftId(result.draft_id); setRevision(null); setOffset(0); await cache.invalidateQueries({ queryKey: ['pcb-review-definitions', projectId] }); } });
+  const create = useMutation({ mutationFn: () => command<Draft>('pcb_disagreement.create', { workspace_id: workspaceId, name, value }), onSuccess: async result => { setDefinition(result.definition_id); setDraftId(result.draft_id); setRevision(null); setOffset(0); await cache.invalidateQueries({ queryKey: ['pcb-review-definitions', workspaceId] }); } });
   const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>('pcb_disagreement.freeze', { draft_id: draftId }, draft.data?.state), onSuccess: async result => { setRevision(result.revision_id); await cache.invalidateQueries({ queryKey: ['pcb-review-draft', draftId] }); await cache.invalidateQueries({ queryKey: ['pcb-review-identity', definition] }); } });
   const rows = definitions.isError ? [] : definitions.data ?? [];
   const denied = definitions.isError || identity.isError;
   return <Stack><Title order={2}>PCB source disagreement</Title><Text>Compare independent exact-source assertions without choosing a correct source. Manual statements, accepted native board extraction, unresolved coverage and human review remain distinct.</Text>
-    <NativeExtraction projectId={projectId} />
+    <NativeExtraction workspaceId={workspaceId} />
     <Card withBorder><Stack><Title order={3}>New assertion or comparison</Title><TextInput label="Source review definition name" value={name} onChange={e => setName(e.currentTarget.value)} /><Select label="New source review kind" value={value.kind} data={[{ value: 'pcb_assertion', label: 'Human source assertion' }, { value: 'pcb_comparison', label: 'Independent source comparison' }]} onChange={kind => { setValue(kind === 'pcb_assertion' ? blankAssertion() : blankComparison()); setCreateDenied(false); }} />
-      {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setCreateDenied} /> : <ComparisonEditor projectId={projectId} value={value} onChange={setValue} definitions={rows} sourcePinsCurrent={false} onDenied={setCreateDenied} />}
+      {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setCreateDenied} /> : <ComparisonEditor workspaceId={workspaceId} value={value} onChange={setValue} definitions={rows} sourcePinsCurrent={false} onDenied={setCreateDenied} />}
       <Button disabled={!name || definitions.isError || createDenied} loading={create.isPending} onClick={() => create.mutate()} {...editGate.props}>Create source review draft</Button><ReadOnlyNote permission="design.edit">Creating source review drafts is unavailable.</ReadOnlyNote>{create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}{identity.isError && <Alert color="red">{identity.error.message}</Alert>}{draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     <Select label="Existing source review definition" searchable value={denied ? null : definition} disabled={definitions.isError} data={rows.filter(d => ['pcb_assertion', 'pcb_comparison'].includes(d.kind)).map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={id => { setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); }} />
     {identity.data && !denied && <><Select label="Source review draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} /><Select label="Frozen source review revision" value={revision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevision} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier source reviews</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Later source reviews</Button></Group></>}
-    {draft.data && !draft.isError && !denied && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} projectId={projectId} definitions={rows} onDenied={setDraftDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ['pcb-review-draft', draftId] }); }} /><Button disabled={draftDenied} loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze source review revision</Button></>}
+    {draft.data && !draft.isError && !denied && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} workspaceId={workspaceId} definitions={rows} onDenied={setDraftDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ['pcb-review-draft', draftId] }); }} /><Button disabled={draftDenied} loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze source review revision</Button></>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
     {revision && !denied && !draft.isError && <PcbDisagreementInspector key={revision} revisionId={revision} />}
   </Stack>;
 }
-function DraftEditor({ draft, projectId, definitions, onDenied, onSaved }: { draft: Draft; projectId: string; definitions: Definition[]; onDenied: (v: boolean) => void; onSaved: () => Promise<void> }) {
+function DraftEditor({ draft, workspaceId, definitions, onDenied, onSaved }: { draft: Draft; workspaceId: string; definitions: Definition[]; onDenied: (v: boolean) => void; onSaved: () => Promise<void> }) {
   const initial = draft.content.pcb_assertion ?? draft.content.pcb_comparison!;
   const editGate = usePermission('design.edit');
   const [value, setValue] = useState<Value>(initial); const [denied, setDenied] = useState(false);
@@ -46,7 +46,7 @@ function DraftEditor({ draft, projectId, definitions, onDenied, onSaved }: { dra
   const pinsCurrent = value.kind === 'pcb_comparison' && initial.kind === 'pcb_comparison' && JSON.stringify([value.left, value.right]) === JSON.stringify([initial.left, initial.right]);
   const findingsCurrent = pinsCurrent && value.kind === "pcb_comparison" && initial.kind === "pcb_comparison" && JSON.stringify(value.correspondences) === JSON.stringify(initial.correspondences);
   return <Card withBorder><Stack><Title order={3}>Edit source review draft</Title><Text>{draft.state}</Text>
-    {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setDenied} /> : <ComparisonEditor projectId={projectId} value={value} onChange={setValue} definitions={definitions} projection={draft.projection} sourcePinsCurrent={pinsCurrent} onDenied={setDenied} />}
+    {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setDenied} /> : <ComparisonEditor workspaceId={workspaceId} value={value} onChange={setValue} definitions={definitions} projection={draft.projection} sourcePinsCurrent={pinsCurrent} onDenied={setDenied} />}
     {!denied && <>{value.kind === "pcb_comparison" && !findingsCurrent && <Text>Save input and correspondence changes before reviewing findings. Findings below describe the saved draft.</Text>}<ProjectionView projection={draft.projection} reviewValue={value.kind === 'pcb_comparison' && findingsCurrent ? value : undefined} onReviewChange={setValue} /></>}
     <Button disabled={denied} loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save source review draft</Button><ReadOnlyNote permission="design.edit">Saving source review drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}
   </Stack></Card>;

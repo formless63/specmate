@@ -20,36 +20,40 @@ from specmate.operations import (
     Unsupported,
     ValidationFailed,
 )
-from specmate.operations.models import IdempotencyRecord
 from specmate.pcb_disagreement.models import SourceNetAttempt, SourceNetInterpretation
 from specmate.pcb_disagreement.native_operations import list_native, source_pin
 from specmate.pcb_disagreement.pack import REPORT_PATH, XML_PATH, recipe_for
 from specmate.pcb_disagreement.queries import inspect_revision
 from specmate.pcb_disagreement.xml_extract import normalize_xml
 from specmate.sources import blobstore
-from specmate.sources.models import SourceBundle, SourceBundleFile
+from specmate.sources.models import SourceBundleFile
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
 from .test_pcb_disagreement import assertion, create, freeze, update
 from .test_pcb_disagreement import source_pin as manual_source
 from .test_pcb_net_xml import document
 
 
 @pytest.fixture
-def native_request(users, project, settings):
+def native_request(users, workspace, settings):
     raw = document()
     sha = hashlib.sha256(raw).hexdigest()
     op(
         users["owner"],
         "source.register_blob",
-        {"project_id": project, "sha256": sha, "size": len(raw), "media_type": "application/xml"},
+        {
+            "workspace_id": workspace,
+            "sha256": sha,
+            "size": len(raw),
+            "media_type": "application/xml",
+        },
         attachments={"content": io.BytesIO(raw)},
     )
     bundle = op(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Original synthetic XML",
             "files": [
                 {
@@ -67,7 +71,7 @@ def native_request(users, project, settings):
     recipe = recipe_for(file.path, file.rights, "netlist")
     settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: recipe}
     return {
-        "project_id": project,
+        "workspace_id": workspace,
         "source": source_pin(file),
         "source_role": "netlist",
         "recipe_id": recipe["id"],
@@ -132,7 +136,7 @@ def accept(user, attempt):
 
 
 def test_acceptance_preserves_outputs_and_manual_disagreement_freezes_without_native_alias(
-    users, project, native_request
+    users, workspace, native_request
 ):
     owner = users["owner"]
     attempt = request(owner, native_request)
@@ -141,7 +145,7 @@ def test_acceptance_preserves_outputs_and_manual_disagreement_freezes_without_na
     accepted = accept(owner, attempt)
     assert accept(owner, attempt) == accepted
     assert accepted["report"]["method"] == "preserved_netlist_parser"
-    manual = freeze(owner, create(owner, project, assertion(manual_source(owner, project))))
+    manual = freeze(owner, create(owner, workspace, assertion(manual_source(owner, workspace))))
     terminal = next(t for t in accepted["report"]["terminals"] if t["component_ref"] == "J1")
     assert terminal["native_terminal_id"] is None
     value = {
@@ -166,7 +170,7 @@ def test_acceptance_preserves_outputs_and_manual_disagreement_freezes_without_na
             }
         ],
     }
-    draft = create(owner, project, value)
+    draft = create(owner, workspace, value)
     changed = update(owner, draft, value)
     with pytest.raises(Conflict):
         update(owner, draft, value)
@@ -177,7 +181,7 @@ def test_acceptance_preserves_outputs_and_manual_disagreement_freezes_without_na
         result["projection"]["inputs"]["left"]["extractor"]["xml_sha256"]
         == accepted["report"]["xml_sha256"]
     )
-    assert list_native(users["viewer"], UUID(project))["attempts"][0]["interpretation"] == {
+    assert list_native(users["viewer"], UUID(workspace))["attempts"][0]["interpretation"] == {
         "interpretation_id": accepted["interpretation_id"],
         "report_sha256": accepted["report_sha256"],
     }
@@ -234,20 +238,15 @@ def test_missing_or_wrong_receipt_and_client_report_are_not_acceptance(users, na
         )
 
 
-def test_current_blob_and_bundle_closure_precedes_read_replay_and_diagnostics(
-    users, project, native_request
-):
-    owner, editor = users["owner"], users["editor"]
-    WorkspaceMember.objects.filter(user=editor, workspace__projects=project).update(
-        grants=["build.execute", "source.register"]
+def test_current_membership_precedes_read_replay_and_diagnostics(users, workspace, native_request):
+    editor = users["editor"]
+    WorkspaceMember.objects.filter(user=editor, workspace_id=workspace).update(
+        grants=["build.execute"]
     )
     attempt = request(editor, native_request)
     output_pair(attempt)
     accepted = accept(editor, attempt)
-    hidden = op(owner, "project.create", {"name": "Hidden native source"})["project_id"]
-    SourceBundle.objects.filter(
-        revisions__id=native_request["source"]["source_revision_id"]
-    ).update(project_id=hidden)
+    remove_member(editor)
     bad = deepcopy(native_request)
     bad["source"]["path"] = "missing.xml"
     bad["source"]["sha256"] = "0" * 64
@@ -263,16 +262,15 @@ def test_current_blob_and_bundle_closure_precedes_read_replay_and_diagnostics(
     ):
         with pytest.raises(NotFound):
             call()
-    assert list_native(editor, UUID(project))["attempts"] == []
+    with pytest.raises(NotFound):
+        list_native(editor, UUID(workspace))
     client = Client()
     client.force_login(editor)
     assert (
         client.get("/api/v0/pcb-disagreement/native/" + accepted["interpretation_id"]).status_code
         == 404
     )
-    SourceBundle.objects.filter(
-        revisions__id=native_request["source"]["source_revision_id"]
-    ).update(project_id=project)
+    member(editor, "editor", grants=["build.execute"])
     assert (
         op(
             editor,
@@ -299,8 +297,8 @@ def test_only_exact_approved_program_and_permissions_can_request(users, native_r
     assert not SourceNetAttempt.objects.exists()
 
 
-def test_native_comparison_retains_complete_source_closure_on_draft_frozen_and_stored_replay(
-    users, project, native_request
+def test_native_comparison_denies_draft_frozen_and_stored_replay_after_membership_loss(
+    users, workspace, native_request
 ):
     owner, editor = users["owner"], users["editor"]
     attempt = request(owner, native_request)
@@ -313,10 +311,10 @@ def test_native_comparison_retains_complete_source_closure_on_draft_frozen_and_s
         "source": accepted["source"],
     }
     value = {"kind": "pcb_comparison", "left": native, "right": native}
-    draft = create(editor, project, value, idempotency_key="native-compare")
+    draft = create(editor, workspace, value, idempotency_key="native-compare")
     frozen = freeze(owner, draft)
-    unrelated = manual_source(owner, project)
-    replacement = freeze(owner, create(owner, project, assertion(unrelated)))
+    unrelated = manual_source(owner, workspace)
+    replacement = freeze(owner, create(owner, workspace, assertion(unrelated)))
     from specmate.queries import get_draft
 
     from .test_pcb_disagreement import pin
@@ -328,42 +326,35 @@ def test_native_comparison_retains_complete_source_closure_on_draft_frozen_and_s
         "right": pin(replacement),
     }
     update(editor, current, replacement_value)
-    hidden = op(owner, "project.create", {"name": "Revoked native origin"})["project_id"]
-    SourceBundle.objects.filter(revisions__id=accepted["source"]["source_revision_id"]).update(
-        project_id=hidden
-    )
     assert get_draft(editor, draft["draft_id"])
+    remove_member(editor)
     with pytest.raises(NotFound):
-        create(editor, project, value, idempotency_key="native-compare")
+        get_draft(editor, draft["draft_id"])
     with pytest.raises(NotFound):
-        create(editor, project, replacement_value, idempotency_key="native-compare")
+        create(editor, workspace, value, idempotency_key="native-compare")
+    with pytest.raises(NotFound):
+        create(editor, workspace, replacement_value, idempotency_key="native-compare")
     with pytest.raises(NotFound):
         inspect_revision(editor, frozen["revision_id"])
     invalid = deepcopy(value)
     invalid["left"]["report_sha256"] = "0" * 64
     with pytest.raises(NotFound):
-        create(editor, project, invalid)
+        create(editor, workspace, invalid)
 
 
-def test_visible_bundle_hidden_registered_blob_denied_before_file_or_recipe_diagnostics(
-    users, project, native_request
-):
-    owner, editor = users["owner"], users["editor"]
-    visible = op(owner, "project.create", {"name": "Visible new source owner"})["project_id"]
-    ensure_member(editor, "editor", project=visible, grants=["build.execute"])
-    SourceBundle.objects.filter(
-        revisions__id=native_request["source"]["source_revision_id"]
-    ).update(project_id=visible)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=editor).delete()
+def test_non_member_denied_before_file_or_recipe_diagnostics(users, workspace, native_request):
+    editor = users["editor"]
+    member(editor, "editor", grants=["build.execute"])
+    remove_member(editor)
     payload = deepcopy(native_request)
-    payload["project_id"] = visible
+    payload["workspace_id"] = workspace
     payload["recipe_id"] = "wrong-recipe"
     client = Client()
     client.force_login(editor)
     responses = []
     for path in ("source.xml", "missing.xml"):
         payload["source"]["path"] = path
-        with pytest.raises(NotFound, match="Project not found"):
+        with pytest.raises(NotFound, match="Not found"):
             request(editor, payload)
         response = client.get(
             "/api/v0/pcb-disagreement/native-options",
@@ -380,12 +371,11 @@ def test_visible_bundle_hidden_registered_blob_denied_before_file_or_recipe_diag
 
 
 @pytest.mark.parametrize("operation", ["request_native", "accept_native"])
-@pytest.mark.parametrize("legacy", [False, True])
 def test_changed_native_payload_authorizes_retained_source_before_key_mismatch(
-    users, project, native_request, operation, legacy
+    users, workspace, native_request, operation
 ):
     owner, editor = users["owner"], users["editor"]
-    WorkspaceMember.objects.filter(user=editor, workspace__projects=project).update(
+    WorkspaceMember.objects.filter(user=editor, workspace_id=workspace).update(
         grants=["build.execute"]
     )
     old = request(editor, native_request)
@@ -396,7 +386,7 @@ def test_changed_native_payload_authorizes_retained_source_before_key_mismatch(
         owner,
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Independent accessible native source",
             "files": [
                 {
@@ -424,18 +414,10 @@ def test_changed_native_payload_authorizes_retained_source_before_key_mismatch(
     payload = (
         changed_request if operation == "request_native" else {"attempt_id": other["attempt_id"]}
     )
-    if legacy:
-        IdempotencyRecord.objects.filter(actor=editor, operation=name, key=key).update(
-            scope="legacy"
-        )
-    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+    with pytest.raises(IdempotencyMismatch):
         op(editor, name, payload, idempotency_key=key)
-    hidden = op(owner, "project.create", {"name": "Revoked retained native origin"})["project_id"]
-    SourceBundle.objects.filter(
-        revisions__id=native_request["source"]["source_revision_id"]
-    ).update(project_id=hidden)
-    # The submitted B remains readable; only the retained A makes this unavailable.
-    assert list_native(editor, UUID(project))["attempts"][0]["attempt_id"] == other["attempt_id"]
+    assert list_native(editor, UUID(workspace))["attempts"][0]["attempt_id"] == other["attempt_id"]
+    remove_member(editor)
     with pytest.raises(NotFound):
         op(editor, name, payload, idempotency_key=key)
     assert SourceNetAttempt.objects.count() == 2

@@ -37,7 +37,7 @@ test('comparison correspondence uses exact terminal IDs and does not guess dupli
   let latest = { ...comparison(), correspondences: [] };
   const resolved = projection(); resolved.inputs!.left.terminals.push({ ...input().terminals[0]!, local_id: 'duplicate' });
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(assertionRevision(url.includes(LEFT) ? LEFT : RIGHT)), { status: 200 })));
-  function Editor() { const [value, setValue] = useState<Comparison>(latest); return <ComparisonEditor projectId="project" value={value} onChange={v => { latest = v as typeof latest; setValue(v); }} definitions={[]} projection={resolved} sourcePinsCurrent onDenied={() => {}} />; }
+  function Editor() { const [value, setValue] = useState<Comparison>(latest); return <ComparisonEditor workspaceId="project" value={value} onChange={v => { latest = v as typeof latest; setValue(v); }} definitions={[]} projection={resolved} sourcePinsCurrent onDenied={() => {}} />; }
   render(wrap(<Editor />));
   expect(latest.correspondences).toEqual([]);
   fill('Correspondence stable ID', 'explicit'); await choose('Left exact terminal; blank declares absent', 'J1 / 1 · duplicate'); await choose('Right exact terminal; blank declares absent', 'J1 / 1 · one'); fill('Correspondence basis', 'Exact physical pin review'); fireEvent.click(screen.getByRole('button', { name: 'Add explicit correspondence' }));
@@ -58,7 +58,7 @@ test('saved comparison review uses CAS, freezes decisions and leaves disagreemen
     else data = [{ definition_id: 'comparison-def', name: 'Independent comparison', kind: 'pcb_comparison' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<PcbDisagreementPanel projectId="project" />));
+  render(wrap(<PcbDisagreementPanel workspaceId="project" />));
   await choose('Existing source review definition', 'Independent comparison (pcb_comparison)'); await choose('Source review draft', 'draft · v1');
   expect(await screen.findByText('The independent sources name different nets.')).toBeTruthy();
   fill('Review basis finding-' + '3'.repeat(64), 'Inspect the preserved schematic'); await choose('Review decision finding-' + '3'.repeat(64), 'requires source correction');
@@ -86,7 +86,7 @@ test('denied assertion input refetch clears saved findings and correspondence op
     const data = url.includes('/revisions/') ? assertionRevision(RIGHT) : url.includes('/drafts/') ? { definition_id: 'comparison-def', draft_id: 'draft', state: 'v1', content: { pcb_comparison: comparison() }, projection: projection() } : url.includes('catalog/definitions') ? { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] } : [{ definition_id: 'comparison-def', name: 'Independent comparison', kind: 'pcb_comparison' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<PcbDisagreementPanel projectId="project" />, cache));
+  render(wrap(<PcbDisagreementPanel workspaceId="project" />, cache));
   await choose('Existing source review definition', 'Independent comparison (pcb_comparison)'); await choose('Source review draft', 'draft · v1');
   expect(await screen.findByText('The independent sources name different nets.')).toBeTruthy();
   denied = true; await act(async () => { await cache.refetchQueries({ queryKey: ['pcb-review-input', RIGHT] }); });
@@ -131,7 +131,7 @@ test.each([
     else data = [{ definition_id: 'comparison-def', name: 'Independent comparison', kind: 'pcb_comparison' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<PermissionsProvider permissions={[...permissions]}><PcbDisagreementPanel projectId="project" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><PcbDisagreementPanel workspaceId="project" /></PermissionsProvider>));
   await choose('Existing source review definition', 'Independent comparison (pcb_comparison)'); await choose('Source review draft', 'draft · v1');
   expect(await screen.findByText('The independent sources name different nets.')).toBeTruthy();
   const save = screen.getByRole('button', { name: 'Save source review draft' }) as HTMLButtonElement;

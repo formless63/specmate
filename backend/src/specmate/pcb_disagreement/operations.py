@@ -35,11 +35,12 @@ def review_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
 
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
-    scope_id = (
-        p.project_id
-        if isinstance(p, CreateReview)
-        else review_draft(ctx, p.draft_id, permission).definition.workspace_id
-    )
+    if isinstance(p, CreateReview):
+        # Creating a review is an additive workspace item, open to contributors.
+        permission = Perm.ITEM_CREATE
+        scope_id = p.scope_id
+    else:
+        scope_id = review_draft(ctx, p.draft_id, permission).definition.workspace_id
     namespace = workspace_scope(ctx, scope_id, permission)
     name = (
         "pcb_disagreement.create"
@@ -86,12 +87,12 @@ def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     idempotency_scope=scope,
 )
 def create(ctx: Context, p: CreateReview):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
     authorize_value(ctx.user, p.value)
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=p.project_id,
+            workspace_id=workspace.id,
             name=p.name,
             kind=p.value.kind,
             content={p.value.kind: p.value.model_dump(mode="json")},

@@ -478,7 +478,7 @@ def test_draft_concurrency_and_authority_precede_retained_outcomes(users, projec
         )
 
 
-def test_assembly_assignment_review_detects_wrong_target(users, project, sources, board):
+def test_assembly_assignment_review_detects_wrong_target(users, project, workspace, sources, board):
     frozen_board, created = board
     draft = create(users, project, declaration(sources, board))
     firmware = op(
@@ -554,9 +554,9 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, sources
     client.force_login(users["viewer"])
     http = client.get(f"/api/v0/pcb/assemblies/{snapshot['snapshot_id']}/firmware-review")
     assert http.status_code == 200 and len(http.json()["assignments"]) == 3
-    listed = client.get(f"/api/v0/pcb/projects/{project}/firmware")
+    listed = client.get(f"/api/v0/pcb/workspaces/{workspace}/firmware")
     assert {row["name"] for row in listed.json()["firmware"]} >= {"Synthetic controller firmware"}
-    targets = client.get(f"/api/v0/pcb/projects/{project}/firmware-targets").json()["targets"]
+    targets = client.get(f"/api/v0/pcb/workspaces/{workspace}/firmware-targets").json()["targets"]
     assert {t["revision_id"] for t in targets} == {
         frozen_board["revision_id"],
         second["revision_id"],

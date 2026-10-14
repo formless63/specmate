@@ -276,7 +276,7 @@ def _candidates(p: EditInput, baseline, archive):
     missing = sorted(f.path for f in p.files if f.sha256 not in blobs)
     if missing:
         raise ValidationFailed(
-            "Edited files reference bytes not registered in this project.",
+            "Edited files reference bytes not registered in this workspace.",
             details={"paths": missing[:50]},
         )
     return [_Candidate(f.path, f.sha256, blobs[f.sha256].size) for f in p.files], []

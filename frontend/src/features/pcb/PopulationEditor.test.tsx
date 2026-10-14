@@ -13,7 +13,7 @@ const componentId = "11111111-1111-4111-8111-111111111111";
 const interpretationId = "22222222-2222-4222-8222-222222222222";
 const sourceId = "33333333-3333-4333-8333-333333333333";
 const intake: Intake = {
-  intake_id: "intake", project_id: "project", board_path: "board.kicad_pcb",
+  intake_id: "intake", workspace_id: "project", board_path: "board.kicad_pcb",
   source_revision_id: sourceId, source_manifest_sha256: "a".repeat(64),
   available_recipe_id: null, attempts: [], files: [],
   interpretations: [{
@@ -54,7 +54,7 @@ afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
 test("explicit option omission saves a basis against the shared draft token", async () => {
   const onChanged = vi.fn();
-  render(<MantineProvider env="test"><PopulationEditor projectId="project" intake={intake} drafts={[draft]}
+  render(<MantineProvider env="test"><PopulationEditor workspaceId="project" intake={intake} drafts={[draft]}
     permissions={["design.edit"]} onChanged={onChanged} onAccessLost={vi.fn()} /></MantineProvider>);
   fireEvent.click(screen.getByRole("combobox", { name: "R1 population decision" }));
   fireEvent.click(await screen.findByText("Omit"));
@@ -71,7 +71,7 @@ test("explicit option omission saves a basis against the shared draft token", as
 test("denied target refresh clears target choices and informs project panel", async () => {
   vi.mocked(associationTargets).mockRejectedValue(new PcbRequestError(404, "Project not found."));
   const onAccessLost = vi.fn();
-  render(<MantineProvider env="test"><PopulationEditor projectId="project" intake={intake} drafts={[draft]}
+  render(<MantineProvider env="test"><PopulationEditor workspaceId="project" intake={intake} drafts={[draft]}
     permissions={["design.edit"]} onChanged={vi.fn()} onAccessLost={onAccessLost} /></MantineProvider>);
   await waitFor(() => expect(onAccessLost).toHaveBeenCalledWith(expect.objectContaining({ status: 404 })));
   expect(screen.getByRole("alert").textContent).toContain("Project not found.");

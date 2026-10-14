@@ -1,4 +1,4 @@
-"""Project-scoped source inventory; all displayed provenance receives closure checks."""
+"""Workspace source inventory; displayed provenance receives a fresh workspace check."""
 
 import json
 from uuid import UUID
@@ -17,10 +17,13 @@ from specmate.sources.models import SourceArchiveExpansion, SourceBundleRevision
 router = Router(tags=["sources"])
 
 
-@router.get("/projects/{project_id}/revisions")
-def list_revisions(request, project_id: UUID, after: UUID | None = None):
+@router.get(
+    "/projects/{workspace_id}/revisions", operation_id="sources_revisions_via_project"
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/revisions")
+def list_revisions(request, workspace_id: UUID, after: UUID | None = None):
     user = current_actor(request.user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
     # Stable bounded pages fail closed before emitting any inaccessible cursor or name.
     rows = (
         SourceBundleRevision.objects.select_related("bundle")
@@ -31,8 +34,6 @@ def list_revisions(request, project_id: UUID, after: UUID | None = None):
         rows = rows.filter(id__gt=after)
     candidates = list(rows[:51])
     result = []
-    for revision in candidates:
-        authorize_revision(user, revision)
     for revision in candidates[:50]:
         result.append(
             {
@@ -48,6 +49,7 @@ def list_revisions(request, project_id: UUID, after: UUID | None = None):
             }
         )
     return {
+        "workspace_id": str(workspace.id),
         "revisions": result,
         "next_after": str(candidates[49].id) if len(candidates) > 50 else None,
     }
@@ -61,6 +63,7 @@ def read_revision(request, revision_id: UUID):
         raise NotFound("Source revision not found.")
     authorize_revision(user, revision)
     return {
+        "workspace_id": str(revision.bundle.workspace_id),
         "revision_id": str(revision.id),
         "name": revision.bundle.name,
         "role": revision.bundle.role,

@@ -45,9 +45,17 @@
   "additionalProperties": false,
   "properties": {
     "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
     },
     "recipe_id": {
       "maxLength": 128,
@@ -65,10 +73,22 @@
       ],
       "title": "Source Role",
       "type": "string"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
     }
   },
   "required": [
-    "project_id",
     "source",
     "source_role",
     "recipe_id"

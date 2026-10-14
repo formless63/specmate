@@ -31,8 +31,8 @@ function setup(options: { permissions?: string[]; strict?: boolean; draft?: Mech
   const mock = vi.fn(async (url: string, init?: RequestInit) => {
     if (denied && url.includes('/sources/revisions/')) return reply({ error: { message: 'Source access unavailable' } }, 404);
     if (url.endsWith('/records')) return reply({ records: [{ definition_id: 'definition', name: 'Synthetic enclosure', drafts: [{ draft_id: 'draft' }], revisions: [{ revision_id: 'frozen', number: 1 }] }], next_after: null });
-    if (url.endsWith('/mechanical-sources/projects/project/targets')) return reply({ targets: [options.summary ?? options.target ?? target], next_after: null });
-    if (url.endsWith('/sources/projects/project/revisions')) return reply({ revisions: [{ revision_id: 'source-rev', name: 'Synthetic native sources', role: 'derivative', number: 1 }], next_after: null });
+    if (url.endsWith('/mechanical-sources/workspaces/project/targets')) return reply({ targets: [options.summary ?? options.target ?? target], next_after: null });
+    if (url.endsWith('/sources/workspaces/project/revisions')) return reply({ revisions: [{ revision_id: 'source-rev', name: 'Synthetic native sources', role: 'derivative', number: 1 }], next_after: null });
     if (url.endsWith('/sources/revisions/source-rev')) return reply({ revision_id: 'source-rev', name: 'Synthetic native sources', role: 'derivative', number: 1,
       manifest_sha256: 'a'.repeat(64), manifest: { ancestry: ['original-rev'], files: [{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT' }] } });
     if (url.endsWith('/mechanical-sources/targets/hardware-rev')) return reply(options.target ?? target);
@@ -42,7 +42,7 @@ function setup(options: { permissions?: string[]; strict?: boolean; draft?: Mech
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', mock);
-  const props = { projectId: 'project', permissions: options.permissions ?? ['project.read', 'design.edit', 'design.freeze'], onAccessLost: options.lost };
+  const props = { workspaceId: 'project', permissions: options.permissions ?? ['project.read', 'design.edit', 'design.freeze'], onAccessLost: options.lost };
   const view = render(<MantineProvider>{options.strict ? <StrictMode><MechanicalSourcesPanel {...props} /></StrictMode> : <MechanicalSourcesPanel {...props} />}</MantineProvider>);
   return { ...view, bodies, mock, deny: (value: boolean) => { denied = value; } };
 }
@@ -66,7 +66,7 @@ test('create pins exact preserved file bytes and rights through the shared opera
   fireEvent.click(screen.getByRole('button', { name: 'Add exact target' })); await screen.findAllByText(/target1/);
   fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' }));
   await screen.findByRole('button', { name: 'Edit mechanical draft' });
-  expect(bodies[0]).toMatchObject({ operation: 'mechanical_source.create', payload: { project_id: 'project', name: 'New reusable enclosure',
+  expect(bodies[0]).toMatchObject({ operation: 'mechanical_source.create', payload: { workspace_id: 'project', name: 'New reusable enclosure',
     mechanical_source: { sources: [{ source_revision_id: 'source-rev', source_manifest_sha256: 'a'.repeat(64), files: [{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT' }] }],
       targets: [{ revision_id: 'hardware-rev', snapshot_sha256: 'c'.repeat(64), native_component_id: null }] } } });
 });

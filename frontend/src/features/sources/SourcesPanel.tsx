@@ -5,10 +5,10 @@ import { EditHandoff, EditProvenanceCard } from './EditHandoff';
 import { PropertyAuthorityPanel } from '../source-authority/PropertyAuthority';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function SourcesPanel(props: { projectId: string; permissions?: string[] }) {
-  return <SourceWorkspace key={props.projectId} {...props} />;
+export function SourcesPanel(props: { workspaceId: string; permissions?: string[] }) {
+  return <SourceWorkspace key={props.workspaceId} {...props} />;
 }
-function SourceWorkspace({ projectId, permissions }: { projectId: string; permissions?: string[] }) {
+function SourceWorkspace({ workspaceId, permissions }: { workspaceId: string; permissions?: string[] }) {
   const canWrite = !permissions || permissions.includes('source.register');
   const [page, setPage] = useState<SourcePage>({ revisions: [], next_after: null });
   const [detail, setDetail] = useState<RevisionDetail | null>(null);
@@ -35,7 +35,7 @@ function SourceWorkspace({ projectId, permissions }: { projectId: string; permis
   async function refresh(after?: string) {
     const token = ++generation.current;
     try {
-      const result = await request<SourcePage>(`sources/projects/${projectId}/revisions${after ? `?after=${after}` : ''}`);
+      const result = await request<SourcePage>(`sources/workspaces/${workspaceId}/revisions${after ? `?after=${after}` : ''}`);
       if (!alive.current || token !== generation.current) return false;
       setPage(previous => after ? { ...result, revisions: [...previous.revisions, ...result.revisions] } : result);
       setDenied(false);
@@ -58,12 +58,12 @@ function SourceWorkspace({ projectId, permissions }: { projectId: string; permis
   useEffect(() => {
     alive.current = true; void refresh();
     return () => { alive.current = false; generation.current += 1; };
-  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workspaceId]); // eslint-disable-line react-hooks/exhaustive-deps
   async function save() {
     if (!file) return;
     setBusy(true); setError('');
     try {
-      const result = await preserve(projectId, file, name.trim(), rights.trim());
+      const result = await preserve(workspaceId, file, name.trim(), rights.trim());
       if (!alive.current) return;
       if (await refresh()) await inspect(result.revision_id);
     } catch (reason) { failed(reason); } finally { if (alive.current) setBusy(false); }
@@ -106,9 +106,9 @@ function SourceWorkspace({ projectId, permissions }: { projectId: string; permis
         <TextInput label="Expanded bundle name" value={derivedName} disabled={busy} onChange={event => setDerivedName(event.currentTarget.value)} />
         <Button disabled={!path || !derivedName.trim()} loading={busy} onClick={() => void expand()}>Expand ZIP into derivative</Button>
       </Stack>}
-      <EditHandoff key={detail.revision_id} projectId={projectId} detail={detail} canWrite={canWrite} busy={busy} setBusy={value => { if (alive.current) setBusy(value); }}
+      <EditHandoff key={detail.revision_id} workspaceId={workspaceId} detail={detail} canWrite={canWrite} busy={busy} setBusy={value => { if (alive.current) setBusy(value); }}
         onAuthorityFailure={failed} onSubmitted={async id => { if (alive.current && await refresh()) await inspect(id); }} />
     </Stack></Card>}
-    {!denied && <PropertyAuthorityPanel projectId={projectId} canWrite={canWrite} detail={detail} onOpenRevision={id => void inspect(id)} onAuthorityFailure={failed} />}
+    {!denied && <PropertyAuthorityPanel workspaceId={workspaceId} canWrite={canWrite} detail={detail} onOpenRevision={id => void inspect(id)} onAuthorityFailure={failed} />}
   </Stack>;
 }
