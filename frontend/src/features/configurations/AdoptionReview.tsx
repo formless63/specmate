@@ -3,22 +3,60 @@ import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { read, type Identity } from '../identity/api';
-import { operation, type AdoptionAction, type AdoptionResult, type AdoptionReview, type Pin } from './api';
+import { operation, type AdoptionAction, type AdoptionChange, type AdoptionLevel, type AdoptionResult, type AdoptionReview, type AdoptionRow, type AdoptionValue, type Pin } from './api';
 
 const NEW = '__new__';
 const ACTION: Record<AdoptionAction, { label: string; color?: string }> = {
   replace_revision: { label: 'Replace pin', color: 'yellow' },
+  propagate_revision: { label: 'Propagate pin', color: 'yellow' },
+  assign_population_option: { label: 'Set population option', color: 'yellow' },
   assign_firmware: { label: 'Set firmware', color: 'yellow' },
   unchanged: { label: 'Unchanged', color: 'green' },
   not_applicable: { label: 'Not an assembly field', color: 'blue' },
   blocked: { label: 'Blocked', color: 'red' },
 };
-const CHANGES = new Set<AdoptionAction>(['replace_revision', 'assign_firmware']);
+const CHANGES = new Set<AdoptionAction>(['replace_revision', 'propagate_revision', 'assign_population_option', 'assign_firmware']);
+const FIELD: Record<AdoptionChange['field'], string> = { revision_id: 'Occurrence revision', population_option_id: 'Population option', firmware: 'Contextual firmware' };
 
 type Submission = { payload: Record<string, unknown>; state: string | null; key: string };
 
 function pinText(pin: Pin | null | undefined, empty = 'Unassigned') {
   return pin ? `${pin.name} · rev ${pin.number}` : empty;
+}
+
+/** A diff value: an exact pin, a revision frozen by this adoption, or a population option. */
+function valueText(value: AdoptionValue, field: AdoptionChange['field']) {
+  if (value === null) return field === 'population_option_id' ? 'Not recorded' : 'Unassigned';
+  if (typeof value === 'string') return `Option ${value}`;
+  if ('proposed' in value) return `New revision of ${value.name}`;
+  return pinText(value);
+}
+
+function currentText(row: AdoptionRow) {
+  if (!CHANGES.has(row.action)) return '-';
+  if (row.action === 'assign_population_option') return valueText(row.population_option_before, 'population_option_id');
+  return pinText(row.before);
+}
+
+function choiceText(row: AdoptionRow) {
+  if (!row.choice) return null;
+  if (!row.choice.revision) return row.choice.value;
+  return pinText(row.choice.revision) + (row.choice.population_option_id ? ` · option ${row.choice.population_option_id}` : '');
+}
+
+function LevelDiff({ level }: { level: AdoptionLevel }) {
+  const where = level.path.join('/');
+  return <Stack gap={4}>
+    <Text size="sm"><Badge variant="occurrence">{level.display_ref ? `${level.display_ref} · ` : ''}{where}</Badge> New draft of <Badge variant="frozen">{pinText(level.pinned)}</Badge>, frozen as a new revision and re-pinned by its parent.</Text>
+    <Table aria-label={`Sub-assembly diff ${where}`}>
+      <Table.Thead><Table.Tr><Table.Th>Occurrence</Table.Th><Table.Th>Before</Table.Th><Table.Th>After</Table.Th></Table.Tr></Table.Thead>
+      <Table.Tbody>{level.changes.map((item) => <Table.Tr key={item.local_id}>
+        <Table.Td><Badge variant="occurrence">{item.display_ref ? `${item.display_ref} · ` : ''}{item.local_id}</Badge></Table.Td>
+        <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}><del>{pinText(item.before)}</del></Table.Td>
+        <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}><ins>{valueText(item.after, 'revision_id')}</ins></Table.Td>
+      </Table.Tr>)}</Table.Tbody>
+    </Table>
+  </Stack>;
 }
 
 /**
@@ -27,7 +65,8 @@ function pinText(pin: Pin | null | undefined, empty = 'Unassigned') {
  * compare-and-set on a selected draft. Frozen revisions are never changed.
  */
 export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
-  const edit = usePermission('design.edit');
+  const editGate = usePermission('design.edit');
+  const freeze = usePermission('design.freeze');
   const generation = useRef(0);
   const [owner, setOwner] = useState(NEW);
   const [drafts, setDrafts] = useState<Identity['drafts']>([]);
@@ -85,6 +124,10 @@ export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
     }
   }
   const selected = new Set(review?.option_keys ?? []);
+  const propagating = (review?.propagation.length ?? 0) > 0;
+  // Freezing each containing sub-assembly needs its own authority.
+  const edit = propagating && !freeze.allowed ? freeze : editGate;
+  const total = review ? review.changes.length + review.propagation.reduce((sum, level) => sum + level.changes.length, 0) : 0;
   return <Card withBorder><Stack gap="sm">
     <Title order={4}>Adopt into an assembly draft</Title>
     <Text size="sm">Review exactly how the resolved choices would change an owning assembly draft. Frozen revisions and this resolved snapshot stay unchanged; compatibility between adopted pins is not evaluated.</Text>
@@ -101,7 +144,8 @@ export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
         <div><dt className="sb-silk">Status</dt><dd style={{ margin: 0 }}><Badge variant="outline" color={review.resolution_status === 'complete' ? 'green' : 'yellow'}>{review.resolution_status}</Badge></dd></div>
         <div><dt className="sb-silk">Target</dt><dd style={{ margin: 0 }}><Badge variant="frozen">{pinText(review.target)}</Badge></dd></div>
         <div><dt className="sb-silk">Owner</dt><dd style={{ margin: 0 }}><Badge variant="draft">{review.owner.mode === 'new_draft' ? 'New draft' : review.owner.state}</Badge></dd></div>
-        <div><dt className="sb-silk">Changes</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{review.changes.length}</dd></div>
+        <div><dt className="sb-silk">Changes</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{total}</dd></div>
+        <div><dt className="sb-silk">New sub-assembly revisions</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{review.propagation.length}</dd></div>
       </dl>
       <InspectionScope permission="design.edit"><Table>
         <Table.Thead><Table.Tr><Table.Th>Adopt</Table.Th><Table.Th>Option</Table.Th><Table.Th>Occurrence</Table.Th><Table.Th>Action</Table.Th><Table.Th>Current</Table.Th><Table.Th>Resolved choice</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead>
@@ -110,30 +154,37 @@ export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
           <Table.Td><Text size="sm">{row.label}</Text><Text className="sb-silk">{row.domain}</Text></Table.Td>
           <Table.Td>{row.path ? <Badge variant="occurrence">{row.path.join('/')}</Badge> : <Text size="sm">Whole configuration</Text>}</Table.Td>
           <Table.Td><Badge variant="outline" color={ACTION[row.action].color}>{ACTION[row.action].label}</Badge></Table.Td>
-          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}>{CHANGES.has(row.action) ? pinText(row.before) : '-'}</Table.Td>
-          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}>{row.choice ? (row.choice.revision ? pinText(row.choice.revision) : row.choice.value) : <Text size="sm">No resolved choice ({row.decision_status})</Text>}</Table.Td>
+          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}>{currentText(row)}</Table.Td>
+          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}>{row.choice ? choiceText(row) : <Text size="sm">No resolved choice ({row.decision_status})</Text>}</Table.Td>
           <Table.Td><Text size="sm">{row.reason}</Text></Table.Td>
         </Table.Tr>)}</Table.Tbody>
       </Table></InspectionScope>
       <Title order={5}>Draft diff</Title>
       {review.changes.length === 0 ? <Text size="sm">No change to the owning draft is selected.</Text> : <Table aria-label="Draft diff">
         <Table.Thead><Table.Tr><Table.Th>Occurrence</Table.Th><Table.Th>Field</Table.Th><Table.Th>Before</Table.Th><Table.Th>After</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>{review.changes.map((item) => <Table.Tr key={`${item.option_key}:${item.field}`}>
+        <Table.Tbody>{review.changes.map((item) => <Table.Tr key={`${item.field}:${item.path.join('/')}`}>
           <Table.Td><Badge variant="occurrence">{item.display_ref ? `${item.display_ref} · ` : ''}{item.path.join('/')}</Badge></Table.Td>
-          <Table.Td><Text size="sm">{item.field === 'firmware' ? 'Contextual firmware' : 'Occurrence revision'}</Text></Table.Td>
-          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}><del>{pinText(item.before)}</del></Table.Td>
-          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}><ins>{pinText(item.after)}</ins></Table.Td>
+          <Table.Td><Text size="sm">{FIELD[item.field]}</Text></Table.Td>
+          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}><del>{valueText(item.before, item.field)}</del></Table.Td>
+          <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}><ins>{valueText(item.after, item.field)}</ins></Table.Td>
         </Table.Tr>)}</Table.Tbody>
       </Table>}
+      {propagating && <>
+        <Title order={5}>Containing sub-assemblies</Title>
+        <Text size="sm">A nested choice changes the pin inside its containing sub-assembly. Each one below gets a new draft of its exact pinned revision, frozen as a new revision; other uses of the old revision keep it.</Text>
+        {review.propagation.map((level) => <LevelDiff key={level.path.join('/')} level={level} />)}
+        <ReadOnlyNote permission="design.freeze" />
+      </>}
       {review.warnings.map((item) => <Alert key={item.path.join('/')} color="yellow">{item.path.join('/')}: {item.message}</Alert>)}
       <Text size="sm" role="status">{review.message}</Text>
       <ReadOnlyNote permission="design.edit" />
       <InspectionScope permission="design.edit"><Textarea label="Adoption basis" disabled={busy} value={basis} onChange={(event) => { setBasis(event.currentTarget.value); setSubmission(null); }} /></InspectionScope>
       {!confirming ? <Group>
-        <Button {...edit.props} disabled={!edit.allowed || busy || !review.eligible || !basis.trim()} onClick={() => setConfirming(true)}>Adopt {review.changes.length} change{review.changes.length === 1 ? '' : 's'}…</Button>
+        <Button {...edit.props} disabled={!edit.allowed || busy || !review.eligible || !basis.trim()} onClick={() => setConfirming(true)}>Adopt {total} change{total === 1 ? '' : 's'}…</Button>
       </Group> : <Alert color="yellow" title="Confirm adoption">
         <Stack gap="xs">
-          <Text size="sm">{review.owner.mode === 'new_draft' ? `A new draft of ${pinText(review.target)} will be created with these ${review.changes.length} change(s).` : `Draft ${review.owner.draft_id?.slice(0, 8)} at ${review.owner.state} will change only if it has not moved since this review.`}</Text>
+          <Text size="sm">{review.owner.mode === 'new_draft' ? `A new draft of ${pinText(review.target)} will be created with these ${total} change(s).` : `Draft ${review.owner.draft_id?.slice(0, 8)} at ${review.owner.state} will change only if it has not moved since this review.`}</Text>
+          {propagating && <Text size="sm">{review.propagation.length} containing sub-assembly revision(s) will be frozen in the same step; nothing is written if any part fails.</Text>}
           <Group>
             <Button variant="commit" {...edit.props} disabled={!edit.allowed || busy} onClick={() => { void adopt(); }}>Confirm adoption</Button>
             <Button variant="quiet" disabled={busy} onClick={() => { setConfirming(false); setSubmission(null); }}>Cancel</Button>
@@ -141,10 +192,10 @@ export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
           </Group>
         </Stack>
       </Alert>}
-      {result && <Alert color="green">Adopted {result.changes.length} change(s) into draft {result.draft_id.slice(0, 8)} · {result.state}{result.created_draft ? ' (new draft)' : ''}. Evidence {result.adoption_id.slice(0, 8)} links it to this resolved snapshot.</Alert>}
+      {result && <Alert color="green">Adopted {result.changes.length} change(s) into draft {result.draft_id.slice(0, 8)} · {result.state}{result.created_draft ? ' (new draft)' : ''}{result.propagated?.length ? `, freezing ${result.propagated.map((item) => `${item.path.join('/')} rev ${item.number}`).join(', ')}` : ''}. Evidence {result.adoption_id.slice(0, 8)} links it to this resolved snapshot.</Alert>}
       <Title order={5}>Adoption history</Title>
       {review.adoptions.length === 0 ? <Text size="sm">Not adopted into any draft yet.</Text> : review.adoptions.map((item) => <Group key={item.adoption_id} gap="xs">
-        <Badge variant="frozen">{item.adoption_id.slice(0, 8)}</Badge><Text size="sm">Draft {item.draft_id.slice(0, 8)} v{item.draft_version}{item.created_draft ? ' (new)' : ''} · {item.option_keys.join(', ')} · {item.basis}</Text>
+        <Badge variant="frozen">{item.adoption_id.slice(0, 8)}</Badge><Text size="sm">Draft {item.draft_id.slice(0, 8)} v{item.draft_version}{item.created_draft ? ' (new)' : ''} · {item.option_keys.join(', ')}{item.propagated?.length ? ` · ${item.propagated.length} sub-assembly revision(s)` : ''} · {item.basis}</Text>
       </Group>)}
       {review.history_truncated && <Text size="sm">Only the latest 100 adoptions are listed.</Text>}
     </>}

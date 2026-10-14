@@ -128,10 +128,21 @@ Adopting a captured resolution into an assembly is a separate reviewed change.
 target assembly or an explicitly selected draft of it; `configuration.adopt` applies only
 the selected decisions after the actor confirms that review hash, with compare-and-set on
 a selected draft. A part or population choice replaces the pin of a direct occurrence; a
-firmware choice sets a contextual firmware pin. Nested occurrence revisions, occurrences
-whose features are addressed by relationships, and configuration-level values are not
-rewritten; population option IDs stay in the resolution. Immutable adoption evidence links
-the draft version to the resolved configuration, review and before/after content.
+population choice also records its population option as a contextual assignment
+(`population_option_id`, validated against the occurrence's exact population revision);
+a firmware choice sets a contextual firmware pin, and is refused when it declares a
+different population option than the occurrence records. A part or population choice for
+a nested occurrence propagates: each containing sub-assembly gets a new draft started from
+its exact pinned revision with only the reviewed pin replaced, that draft is frozen as a new
+revision (requiring `design.freeze` on it), and its parent re-pins the new revision up to
+the owning draft. The review shows every level as one multi-level diff bound by the review
+hash; adoption applies all levels in one transaction with compare-and-set on the owning
+draft, so a stale review leaves no new draft or revision. Only the containing occurrence
+on that path is re-pinned; other occurrences of the same revision keep their pin.
+Occurrences whose features (or a containing occurrence's features) are addressed by
+relationships, overlapping changes on one path, and configuration-level values are not
+rewritten. Immutable adoption evidence links the draft version to the resolved
+configuration, review, before/after content and every propagated containing revision.
 
 Missing choices remain explicit. Engineering result is valid/invalid/unknown/not-evaluated
 with reasons and applicability. An option-set revision may declare constraint rules:

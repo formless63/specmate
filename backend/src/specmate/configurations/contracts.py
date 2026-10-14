@@ -234,7 +234,10 @@ class ReviewAdoption(StrictModel):
     """Review adopting resolved occurrence choices into one owning assembly draft.
 
     Omitting `draft_id` reviews a new draft of the resolution's frozen target assembly;
-    omitting `option_keys` selects every decision that would change the assembly.
+    omitting `option_keys` selects every decision that would change the assembly. A
+    nested revision choice also reviews a new draft of each containing sub-assembly,
+    started from its exact pinned revision, which adoption freezes as a new revision and
+    re-pins in its parent; no frozen revision is modified.
     """
 
     resolved_configuration_id: UUID

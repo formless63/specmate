@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "Review adopting resolved occurrence choices into one owning assembly draft.\n\nOmitting `draft_id` reviews a new draft of the resolution's frozen target assembly;\nomitting `option_keys` selects every decision that would change the assembly.",
+  "description": "Review adopting resolved occurrence choices into one owning assembly draft.\n\nOmitting `draft_id` reviews a new draft of the resolution's frozen target assembly;\nomitting `option_keys` selects every decision that would change the assembly. A\nnested revision choice also reviews a new draft of each containing sub-assembly,\nstarted from its exact pinned revision, which adoption freezes as a new revision and\nre-pins in its parent; no frozen revision is modified.",
   "properties": {
     "draft_id": {
       "anyOf": [

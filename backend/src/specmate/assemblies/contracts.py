@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from specmate.contracts import FiniteNumber
 
@@ -36,9 +36,24 @@ class Placement(StrictModel):
 
 
 class Assignments(StrictModel):
-    """Only occurrence-owned assignments; revision-owned geometry and wiring are excluded."""
+    """Only occurrence-owned assignments; revision-owned geometry and wiring are excluded.
+
+    `population_option_id` names one declared option of the occurrence's exact board
+    population revision (a fitted variant chosen in this context, e.g. by adopting a
+    resolved configuration); it never edits the population revision itself.
+    """
 
     firmware_revision_id: UUID | None = None
+    population_option_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+
+    @model_serializer(mode="wrap")
+    def _omit_unrecorded_option(self, handler):
+        # An unrecorded option is absent, so content and manifests without one keep
+        # their exact canonical bytes.
+        data = handler(self)
+        if data.get("population_option_id") is None:
+            data.pop("population_option_id", None)
+        return data
 
 
 class Occurrence(StrictModel):

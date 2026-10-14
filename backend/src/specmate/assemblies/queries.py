@@ -1,5 +1,6 @@
 """Permission-complete assembly closure and occurrence projection shared by adapters."""
 
+import hashlib
 import json
 from collections import deque
 from contextvars import ContextVar
@@ -45,6 +46,42 @@ def refs(relationship):
     ]
 
 
+@dataclass(frozen=True)
+class ProposedSnapshot:
+    id: object
+    canonical: bytes
+    sha256: str
+
+
+@dataclass(frozen=True)
+class ProposedRevision:
+    """A reviewed assembly revision that would be frozen from a new or selected draft.
+
+    Shaped like the `Revision` attributes a closure reads, so an adoption review can
+    resolve its multi-level result before any draft is written or frozen.
+    """
+
+    id: object
+    definition: object
+    snapshot: ProposedSnapshot
+
+    @property
+    def definition_id(self):
+        return self.definition.id
+
+    @property
+    def snapshot_id(self):
+        return self.snapshot.id
+
+
+def proposed_revision(placeholder, definition, content):
+    body = json.dumps(
+        {"content": content}, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    snapshot = ProposedSnapshot(placeholder, body, hashlib.sha256(body).hexdigest())
+    return ProposedRevision(placeholder, definition, snapshot)
+
+
 @dataclass
 class Node:
     path: tuple[str, ...]
@@ -56,9 +93,14 @@ class Node:
 class Closure:
     """Authorize every revision before returning any path, count or graph diagnostic."""
 
-    def __init__(self, user, content, kind=None, dependencies=(), *, workspace_id=None):
+    def __init__(
+        self, user, content, kind=None, dependencies=(), *, workspace_id=None, proposed=None
+    ):
         self.user = user
         self.workspace_id = workspace_id
+        # Reviewed, not yet frozen assembly revisions keyed by placeholder ID (see
+        # `proposed_revision`); only an adoption review supplies them, never stored content.
+        self.proposed = proposed or {}
         self.revisions = {}
         self.nodes = {}
         self.relationships = []
@@ -72,6 +114,10 @@ class Closure:
     def _revision(self, revision_id):
         if revision_id in self.revisions:
             return self.revisions[revision_id]
+        if revision_id in self.proposed:
+            # Built from an already authorized exact revision of this workspace.
+            self.revisions[revision_id] = self.proposed[revision_id]
+            return self.proposed[revision_id]
         revision = (
             Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
         )
@@ -95,7 +141,8 @@ class Closure:
             assembly = parse_content(body["content"], kind=revision.definition.kind)
             pending.extend(self._references(assembly))
             # Non-assembly children can themselves pin restricted sources/designs.
-            pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
+            if not isinstance(revision, ProposedRevision):
+                pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         self._authorize_typed_references()
 
     def _authorize_typed_references(self):
@@ -163,14 +210,26 @@ class Closure:
             if path not in self.nodes:
                 raise ValidationFailed("Assignment occurrence does not resolve.")
             self.assignments[path] = record.assignments
-        for assignments in [occ.assignments for occ in assembly.occurrences] + [
-            record.assignments for record in assembly.assignments
-        ]:
+        for path, assignments in [
+            ((*prefix, occ.local_id), occ.assignments) for occ in assembly.occurrences
+        ] + [((*prefix, *record.path), record.assignments) for record in assembly.assignments]:
             if (
                 assignments.firmware_revision_id
                 and self.revisions[assignments.firmware_revision_id].definition.kind != "firmware"
             ):
                 raise ValidationFailed("Firmware assignment requires a firmware revision.")
+            if assignments.population_option_id is not None:
+                node = self.nodes[path]
+                if node.revision.definition.kind != "pcb_population":
+                    raise ValidationFailed(
+                        "A population option assignment requires a board population occurrence."
+                    )
+                options = node.content.get("pcb_population", {}).get("options", [])
+                if assignments.population_option_id not in {o["local_id"] for o in options}:
+                    raise ValidationFailed(
+                        "A population option assignment names an option absent from the"
+                        " occurrence's exact population revision."
+                    )
 
     def _validate_graph(self):
         graph = {(): set()}

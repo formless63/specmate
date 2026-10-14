@@ -7,7 +7,7 @@ import pytest
 from django.db import DatabaseError, connection, transaction
 
 from specmate.configurations.models import ConfigurationAdoption
-from specmate.design.models import Draft, Snapshot
+from specmate.design.models import Draft, Revision, Snapshot
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -177,16 +177,19 @@ def test_review_shows_exact_diff_and_new_draft_adoption_keeps_frozen_target(user
     assert reviewed["owner"]["base_revision_id"] == bench["target"]["revision_id"]
     assert rows["sensor"]["action"] == "replace_revision"
     assert rows["sensor"]["before"]["revision_id"] == bench["parts"][0]["revision_id"]
-    assert rows["population"]["action"] == "unchanged"
-    assert "Population option default is not an assembly field" in rows["population"]["reason"]
+    # The population revision is already pinned; its option becomes an assignment.
+    assert rows["population"]["action"] == "assign_population_option"
+    assert rows["population"]["population_option_before"] is None
     assert rows["firmware"]["action"] == "assign_firmware"
     assert rows["firmware"]["before"]["revision_id"] == bench["slow"]["revision_id"]
     assert rows["finish"]["action"] == "not_applicable"
-    assert reviewed["option_keys"] == ["firmware", "sensor"]
-    assert [(c["field"], c["path"], c["after"]["revision_id"]) for c in reviewed["changes"]] == [
-        ("revision_id", ["sensor"], bench["parts"][1]["revision_id"]),
-        ("firmware", ["board"], bench["fast"]["revision_id"]),
+    assert reviewed["option_keys"] == ["firmware", "population", "sensor"]
+    assert [(c["field"], c["path"], c["before"], c["after"]) for c in reviewed["changes"]] == [
+        ("revision_id", ["sensor"], rows["sensor"]["before"], rows["sensor"]["choice"]["revision"]),
+        ("population_option_id", ["board"], None, "default"),
+        ("firmware", ["board"], rows["firmware"]["before"], rows["firmware"]["choice"]["revision"]),
     ]
+    assert reviewed["propagation"] == [] and reviewed["requires"] == ["design.edit"]
     assert reviewed["eligible"] is True and reviewed["compatibility"] == "not_evaluated"
     assert reviewed["adoptions"] == []
 
@@ -208,8 +211,15 @@ def test_review_shows_exact_diff_and_new_draft_adoption_keeps_frozen_target(user
     sensor = next(o for o in assembly["occurrences"] if o["local_id"] == "sensor")
     assert sensor["revision_id"] == bench["parts"][1]["revision_id"]
     assert assembly["assignments"] == [
-        {"path": ["board"], "assignments": {"firmware_revision_id": bench["fast"]["revision_id"]}}
+        {
+            "path": ["board"],
+            "assignments": {
+                "firmware_revision_id": bench["fast"]["revision_id"],
+                "population_option_id": "default",
+            },
+        }
     ]
+    assert done["propagated"] == []
     # The frozen target and the captured resolution are untouched.
     assert Snapshot.objects.get(id=bench["target"]["snapshot_id"]).sha256 == target_sha
     evidence = op(
@@ -231,7 +241,7 @@ def test_selected_draft_adoption_uses_compare_and_set(users, bench):
     owner = bench["root_draft"]
     reviewed = review(users["viewer"], bench, draft_id=owner["draft_id"], option_keys=["sensor"])
     assert reviewed["owner"]["mode"] == "existing_draft"
-    assert [c["option_key"] for c in reviewed["changes"]] == ["sensor"]
+    assert [c["option_keys"] for c in reviewed["changes"]] == [["sensor"]]
     assert by_key(reviewed)["firmware"]["selected"] is False
     with pytest.raises(ValidationFailed):
         adopt(users["editor"], reviewed, draft_id=owner["draft_id"])
@@ -278,8 +288,6 @@ def test_selection_validation_authority_and_idempotency(users, bench):
     assert refused["eligible"] is False and "finish" in refused["message"]
     with pytest.raises(ValidationFailed):
         adopt(users["editor"], refused)
-    nothing = review(users["viewer"], bench, option_keys=["population"])
-    assert nothing["eligible"] is False and nothing["changes"] == []
 
     reviewed = review(users["viewer"], bench, option_keys=["sensor"])
     first = adopt(users["editor"], reviewed, idempotency_key="cfg-adopt")
@@ -323,7 +331,158 @@ def test_database_keeps_adoption_evidence_immutable_and_linked(users, bench):
         )
 
 
-def test_nested_choices_assign_context_firmware_but_never_rewrite_nested_revisions(
+def test_population_option_is_recorded_validated_and_checked_against_firmware(
+    users, project, bench
+):
+    owner = bench["root_draft"]
+    content = {
+        "option_set": {
+            "target_revision_id": bench["target"]["revision_id"],
+            "options": [
+                {
+                    "key": "population",
+                    "label": "Board population",
+                    "domain": "population",
+                    "path": ["board"],
+                    "choices": [
+                        {
+                            "key": "bare",
+                            "label": "Without controller",
+                            "revision_id": bench["population"],
+                            "population_option_id": "no-mcu",
+                        }
+                    ],
+                },
+                {
+                    "key": "firmware",
+                    "label": "Controller firmware",
+                    "domain": "firmware",
+                    "path": ["board"],
+                    "choices": [
+                        {
+                            "key": "fast",
+                            "label": "Fast",
+                            "revision_id": bench["fast"]["revision_id"],
+                        }
+                    ],
+                },
+            ],
+        }
+    }
+    options = frozen(users["owner"], project, "Synthetic fitted options", "option_set", content)
+    draft = configuration(
+        users["editor"],
+        project,
+        options["revision_id"],
+        [
+            {"option_key": "population", "choice_key": "bare"},
+            {"option_key": "firmware", "choice_key": "fast"},
+        ],
+    )
+    resolved = capture(users["editor"], draft["draft_id"])
+    payload = {
+        "resolved_configuration_id": resolved["resolved_configuration_id"],
+        "draft_id": owner["draft_id"],
+    }
+    reviewed = op(users["viewer"], "configuration.review_adoption", payload)
+    rows = by_key(reviewed)
+    assert rows["population"]["action"] == "assign_population_option"
+    # Firmware declared for option "default" cannot run on a board fitted as "no-mcu".
+    assert rows["firmware"]["action"] == "blocked"
+    assert "no-mcu" in rows["firmware"]["reason"]
+    assert reviewed["option_keys"] == ["population"]
+
+    done = adopt(
+        users["editor"], reviewed, draft_id=owner["draft_id"], expected_state=owner["state"]
+    )
+    assert done["content"]["assembly"]["assignments"] == [
+        {
+            "path": ["board"],
+            "assignments": {
+                "firmware_revision_id": bench["slow"]["revision_id"],
+                "population_option_id": "no-mcu",
+            },
+        }
+    ]
+    again = op(users["viewer"], "configuration.review_adoption", payload)
+    assert by_key(again)["population"]["action"] == "unchanged"
+    assert by_key(again)["population"]["population_option_before"] == "no-mcu"
+
+    # The assembly contract validates the option against the exact pinned revision.
+    assembly = done["content"]["assembly"]
+    for bad in (
+        {"path": ["board"], "assignments": {"population_option_id": "absent"}},
+        {"path": ["sensor"], "assignments": {"population_option_id": "no-mcu"}},
+    ):
+        with pytest.raises(ValidationFailed):
+            op(
+                users["editor"],
+                "assembly.update",
+                {"draft_id": owner["draft_id"], "assembly": {**assembly, "assignments": [bad]}},
+                expected_state=done["state"],
+            )
+
+
+def test_firmware_occurrence_adoption_keeps_a_recorded_population_option(users, bench):
+    owner = bench["root_draft"]
+    reviewed = review(
+        users["viewer"], bench, draft_id=owner["draft_id"], option_keys=["population"]
+    )
+    done = adopt(
+        users["editor"], reviewed, draft_id=owner["draft_id"], expected_state=owner["state"]
+    )
+    preview = op(
+        users["viewer"],
+        "firmware_occurrence.review",
+        {
+            "draft_id": owner["draft_id"],
+            "path": ["board"],
+            "firmware_revision_id": bench["fast"]["revision_id"],
+        },
+    )
+    payload = {
+        key: preview[key] for key in ("draft_id", "path", "firmware_revision_id", "review_sha256")
+    }
+    op(
+        users["editor"],
+        "firmware_occurrence.adopt",
+        {**payload, "basis": BASIS},
+        expected_state=done["state"],
+    )
+    records = Draft.objects.get(id=owner["draft_id"]).content["assembly"]["assignments"]
+    assert records == [
+        {
+            "path": ["board"],
+            "assignments": {
+                "firmware_revision_id": bench["fast"]["revision_id"],
+                "population_option_id": "default",
+            },
+        }
+    ]
+
+
+def nested_resolution(users, project, target, options):
+    content = {"option_set": {"target_revision_id": target["revision_id"], "options": options}}
+    option_set = frozen(users["owner"], project, "Synthetic nested options", "option_set", content)
+    draft = configuration(
+        users["editor"],
+        project,
+        option_set["revision_id"],
+        [{"option_key": o["key"], "choice_key": o["choices"][0]["key"]} for o in options],
+    )
+    return capture(users["editor"], draft["draft_id"])
+
+
+def freeze_root(users, assembly):
+    return op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=assembly["state"],
+    )
+
+
+def test_nested_choice_propagates_through_a_new_containing_revision(
     users,
     project,
     sources,  # noqa: F811
@@ -331,72 +490,291 @@ def test_nested_choices_assign_context_firmware_but_never_rewrite_nested_revisio
     pair,  # noqa: F811
 ):
     assembly, _, second = pair
-    target = op(
-        users["owner"],
-        "assembly.freeze",
-        {"draft_id": assembly["draft_id"]},
-        expected_state=assembly["state"],
+    target = freeze_root(users, assembly)
+    root_snapshot = Snapshot.objects.get(id=target["snapshot_id"])
+    module_pin = op(users["viewer"], "assembly.read", {"snapshot_id": str(root_snapshot.id)})
+    module_revision = next(
+        o["revision_id"] for o in module_pin["occurrences"] if o["address"]["path"] == ["left"]
     )
+    module_sha = Revision.objects.get(id=module_revision).snapshot.sha256
     part = frozen(users["owner"], project, "Synthetic replacement board")
-    content = {
-        "option_set": {
-            "target_revision_id": target["revision_id"],
-            "options": [
-                {
-                    "key": "right-firmware",
-                    "label": "Right controller firmware",
-                    "domain": "firmware",
-                    "path": ["right", "board"],
-                    "choices": [
-                        {"key": "fast", "label": "Fast", "revision_id": second["revision_id"]}
-                    ],
-                },
-                {
-                    "key": "left-board",
-                    "label": "Left board part",
-                    "domain": "part",
-                    "path": ["left", "board"],
-                    "choices": [
-                        {"key": "alt", "label": "Alternative", "revision_id": part["revision_id"]}
-                    ],
-                },
-            ],
-        }
-    }
-    options = frozen(users["owner"], project, "Synthetic nested options", "option_set", content)
-    draft = configuration(
-        users["editor"],
+    resolved = nested_resolution(
+        users,
         project,
-        options["revision_id"],
+        target,
         [
-            {"option_key": "right-firmware", "choice_key": "fast"},
-            {"option_key": "left-board", "choice_key": "alt"},
+            {
+                "key": "right-firmware",
+                "label": "Right controller firmware",
+                "domain": "firmware",
+                "path": ["right", "board"],
+                "choices": [{"key": "fast", "label": "Fast", "revision_id": second["revision_id"]}],
+            },
+            {
+                "key": "left-board",
+                "label": "Left board part",
+                "domain": "part",
+                "path": ["left", "board"],
+                "choices": [
+                    {"key": "alt", "label": "Alternative", "revision_id": part["revision_id"]}
+                ],
+            },
+            {
+                "key": "left-fitted",
+                "label": "Left board population",
+                "domain": "population",
+                "path": ["left", "board"],
+                "choices": [
+                    {
+                        "key": "bare",
+                        "label": "Bare",
+                        "revision_id": board[0]["revision_id"],
+                        "population_option_id": "no-mcu",
+                    }
+                ],
+            },
         ],
     )
-    resolved = capture(users["editor"], draft["draft_id"])
+    payload = {"resolved_configuration_id": resolved["resolved_configuration_id"]}
+    reviewed = op(users["viewer"], "configuration.review_adoption", payload)
+    rows = by_key(reviewed)
+    assert rows["left-board"]["action"] == "propagate_revision"
+    # A population option of the same pinned revision needs no propagation; it is a
+    # contextual assignment of the owning draft. Combined with a replaced pin it conflicts,
+    # so the default selection keeps the first declared option and notes the overlap.
+    assert rows["left-fitted"]["action"] == "assign_population_option"
+    assert rows["left-fitted"]["selected"] is False
+    assert "Option left-board changes this occurrence" in rows["left-fitted"]["reason"]
+    assert rows["right-firmware"]["action"] == "assign_firmware"
+    assert reviewed["option_keys"] == ["left-board", "right-firmware"]
+    assert reviewed["requires"] == ["design.edit", "design.freeze"]
+    # Multi-level diff: the owning draft re-pins `left`; the module level replaces `board`.
+    root_changes = {(c["field"], tuple(c["path"])): c for c in reviewed["changes"]}
+    repin = root_changes[("revision_id", ("left",))]
+    assert repin["before"]["revision_id"] == module_revision
+    assert repin["after"]["proposed"] is True and repin["after"]["path"] == ["left"]
+    assert repin["option_keys"] == ["left-board"]
+    assert ("firmware", ("right", "board")) in root_changes
+    [level] = reviewed["propagation"]
+    assert level["path"] == ["left"] and level["pinned"]["revision_id"] == module_revision
+    assert level["draft"]["mode"] == "new_draft" and level["result"] == "freeze_new_revision"
+    assert [(c["local_id"], c["after"]["revision_id"]) for c in level["changes"]] == [
+        ("board", part["revision_id"])
+    ]
+    assert [w["path"] for w in reviewed["warnings"]] == [["left", "board"]]
+    assert reviewed["eligible"] is True
+
+    # An explicit selection that combines conflicting changes is refused.
+    conflicting = op(
+        users["viewer"],
+        "configuration.review_adoption",
+        {**payload, "option_keys": ["left-board", "left-fitted"]},
+    )
+    assert conflicting["eligible"] is False
+    assert by_key(conflicting)["left-fitted"]["action"] == "blocked"
+
+    # A stale owning draft rolls back every level: no new revision or draft remains.
+    revisions = Revision.objects.count()
+    owned = op(
+        users["viewer"],
+        "configuration.review_adoption",
+        {**payload, "draft_id": assembly["draft_id"]},
+    )
+    with pytest.raises(Conflict):
+        adopt(users["editor"], owned, draft_id=assembly["draft_id"], expected_state="draft-v99")
+    assert Revision.objects.count() == revisions
+
+    done = adopt(users["editor"], reviewed)
+    [propagated] = done["propagated"]
+    assert propagated["path"] == ["left"] and propagated["base_revision_id"] == module_revision
+    assert propagated["number"] == 2
+    new_module = Revision.objects.get(id=propagated["revision_id"])
+    assert new_module.definition_id == Revision.objects.get(id=module_revision).definition_id
+    assert Draft.objects.get(id=propagated["draft_id"]).base_revision_id == new_module.id
+    # Frozen revisions are untouched: the old module and the target keep their bytes.
+    assert Revision.objects.get(id=module_revision).snapshot.sha256 == module_sha
+    assert Snapshot.objects.get(id=target["snapshot_id"]).sha256 == root_snapshot.sha256
+    occurrences = {o["local_id"]: o for o in done["content"]["assembly"]["occurrences"]}
+    assert occurrences["left"]["revision_id"] == propagated["revision_id"]
+    assert occurrences["right"]["revision_id"] == module_revision
+    assert done["content"]["assembly"]["assignments"] == [
+        {"path": ["right", "board"], "assignments": {"firmware_revision_id": second["revision_id"]}}
+    ]
+    # The database guard ties propagated levels to the reviewed levels.
+    row = ConfigurationAdoption.objects.get(id=done["adoption_id"])
+    fields = {
+        name: getattr(row, name)
+        for name in (
+            "workspace_id",
+            "resolved_configuration_id",
+            "draft_id",
+            "draft_version",
+            "created_draft",
+            "base_revision_id",
+            "option_keys",
+            "review",
+            "review_sha256",
+            "before_content",
+            "after_content",
+            "basis",
+        )
+    }
+    fields |= {
+        "review_canonical": bytes(row.review_canonical),
+        "before_canonical": bytes(row.before_canonical),
+        "adopted_by": users["editor"],
+    }
+    for propagated_rows, code in (
+        (row.propagated, "23505"),  # valid evidence reaches the unique constraint
+        ([], "23514"),
+        ([{**row.propagated[0], "base_revision_id": target["revision_id"]}], "23514"),
+    ):
+        with pytest.raises(DatabaseError) as failure, transaction.atomic():
+            ConfigurationAdoption.objects.create(**fields, propagated=propagated_rows)
+        assert failure.value.__cause__.sqlstate == code
+    # The adopted draft freezes into a closure with the replaced nested pin only on the left.
+    root = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": done["draft_id"]},
+        expected_state=done["state"],
+    )
+    read = op(users["viewer"], "assembly.read", {"snapshot_id": root["snapshot_id"]})
+    pins = {tuple(o["address"]["path"]): o["revision_id"] for o in read["occurrences"]}
+    assert pins[("left", "board")] == part["revision_id"]
+    assert pins[("right", "board")] == board[0]["revision_id"]
+    evidence = op(
+        users["viewer"], "configuration.read_adoption", {"adoption_id": done["adoption_id"]}
+    )
+    assert evidence["propagated"] == done["propagated"]
+
+
+def test_deep_nested_choice_freezes_every_containing_level_bottom_up(
+    users,
+    project,
+    sources,  # noqa: F811
+    board,  # noqa: F811
+    pair,  # noqa: F811
+):
+    assembly, _, _ = pair
+    module_revision = Draft.objects.get(id=assembly["draft_id"]).content["assembly"]["occurrences"][
+        0
+    ]["revision_id"]
+    workspace = workspace_of(project)
+    bay = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "workspace_id": workspace,
+            "name": "Synthetic bay",
+            "assembly": {"occurrences": [{"local_id": "inner", "revision_id": module_revision}]},
+        },
+    )
+    bay_revision = freeze_root(users, bay)
+    rack = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "workspace_id": workspace,
+            "name": "Synthetic rack",
+            "assembly": {
+                "occurrences": [
+                    {"local_id": "upper", "revision_id": bay_revision["revision_id"]},
+                    {"local_id": "lower", "revision_id": bay_revision["revision_id"]},
+                ]
+            },
+        },
+    )
+    target = freeze_root(users, rack)
+    part = frozen(users["owner"], project, "Synthetic deep replacement")
+    resolved = nested_resolution(
+        users,
+        project,
+        target,
+        [
+            {
+                "key": "deep",
+                "label": "Deep board part",
+                "domain": "part",
+                "path": ["upper", "inner", "board"],
+                "choices": [{"key": "alt", "label": "Alt", "revision_id": part["revision_id"]}],
+            }
+        ],
+    )
     reviewed = op(
         users["viewer"],
         "configuration.review_adoption",
         {"resolved_configuration_id": resolved["resolved_configuration_id"]},
     )
-    rows = by_key(reviewed)
-    assert rows["left-board"]["action"] == "blocked"
-    assert "containing assembly revision" in rows["left-board"]["reason"]
-    assert rows["right-firmware"]["action"] == "assign_firmware"
-    assert reviewed["option_keys"] == ["right-firmware"]
+    assert [level["path"] for level in reviewed["propagation"]] == [["upper"], ["upper", "inner"]]
+    upper, inner = reviewed["propagation"]
+    assert upper["changes"][0]["after"] == {
+        "proposed": True,
+        "definition_id": inner["pinned"]["definition_id"],
+        "kind": "assembly",
+        "name": "Synthetic controller module",
+        "path": ["upper", "inner"],
+    }
+    assert inner["changes"][0]["after"]["revision_id"] == part["revision_id"]
+    with pytest.raises(PermissionDenied):
+        adopt(users["contributor"], reviewed)
     done = adopt(users["editor"], reviewed)
-    assert done["content"]["assembly"]["assignments"] == [
-        {"path": ["right", "board"], "assignments": {"firmware_revision_id": second["revision_id"]}}
+    levels = {tuple(item["path"]): item for item in done["propagated"]}
+    new_bay = Revision.objects.get(id=levels[("upper",)]["revision_id"])
+    bay_content = Snapshot.objects.get(id=new_bay.snapshot_id).canonical
+    assert levels[("upper", "inner")]["revision_id"] in bytes(bay_content).decode()
+    occurrences = {o["local_id"]: o for o in done["content"]["assembly"]["occurrences"]}
+    assert occurrences["upper"]["revision_id"] == str(new_bay.id)
+    assert occurrences["lower"]["revision_id"] == bay_revision["revision_id"]
+
+
+def test_nested_choice_with_feature_relationships_stays_blocked(
+    users,
+    project,
+    sources,  # noqa: F811
+    board,  # noqa: F811
+    pair,  # noqa: F811
+):
+    assembly, _, _ = pair
+    content = Draft.objects.get(id=assembly["draft_id"]).content["assembly"]
+    content["relationships"] = [
+        {
+            "kind": "electrical",
+            "local_id": "link",
+            "a": {"kind": "occurrence", "path": ["left", "board"], "feature_id": "J1.1"},
+            "b": {"kind": "occurrence", "path": ["right", "board"], "feature_id": "J1.1"},
+        }
     ]
-    explicit = op(
+    updated = op(
+        users["owner"],
+        "assembly.update",
+        {"draft_id": assembly["draft_id"], "assembly": content},
+        expected_state=assembly["state"],
+    )
+    target = freeze_root(users, {**assembly, "state": updated["state"]})
+    part = frozen(users["owner"], project, "Synthetic replacement board")
+    resolved = nested_resolution(
+        users,
+        project,
+        target,
+        [
+            {
+                "key": "left-board",
+                "label": "Left board part",
+                "domain": "part",
+                "path": ["left", "board"],
+                "choices": [{"key": "alt", "label": "Alt", "revision_id": part["revision_id"]}],
+            }
+        ],
+    )
+    reviewed = op(
         users["viewer"],
         "configuration.review_adoption",
-        {
-            "resolved_configuration_id": resolved["resolved_configuration_id"],
-            "option_keys": ["left-board"],
-        },
+        {"resolved_configuration_id": resolved["resolved_configuration_id"]},
     )
-    assert explicit["eligible"] is False
+    assert by_key(reviewed)["left-board"]["action"] == "blocked"
+    assert "feature correspondence" in by_key(reviewed)["left-board"]["reason"]
+    assert reviewed["propagation"] == [] and reviewed["eligible"] is False
 
 
 def test_authoring_context_describes_exact_pins(users, bench):

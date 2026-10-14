@@ -52,8 +52,9 @@ class ConfigurationAdoption(models.Model):
     """Immutable reviewed change of an owning assembly draft from one resolved configuration.
 
     Provenance for the draft change: the exact resolved configuration, the selected
-    decisions, the reviewed diff and the draft content before and after. The frozen
-    target revision is never modified; a new draft or an explicitly selected one is.
+    decisions, the reviewed diff, the draft content before and after, and every
+    containing sub-assembly revision frozen to propagate a nested choice. No frozen
+    revision is modified; a new draft or an explicitly selected one is.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -74,6 +75,9 @@ class ConfigurationAdoption(models.Model):
     before_content = models.JSONField()
     before_canonical = models.BinaryField()
     after_content = models.JSONField()
+    # Containing sub-assembly revisions frozen by this adoption from new drafts of their
+    # exact pinned revisions, so the owning draft could re-pin a nested choice.
+    propagated = models.JSONField(default=list)
     basis = models.TextField()
     adopted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
