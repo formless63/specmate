@@ -6,6 +6,7 @@ from pydantic import Field
 from specmate.evidence.contracts import ListEvidence, ReadRecordedResult
 from specmate.evidence.queries import list_evidence
 from specmate.evidence.recorded import read_recorded
+from specmate.evidence.subject_tests import ReadSubjectTest, read_subject_test
 from specmate.evidence.taxonomy import Kind, taxonomy
 
 router = Router(tags=["evidence"])
@@ -14,6 +15,7 @@ router = Router(tags=["evidence"])
 class EvidenceQuery(Schema):
     kind: list[Kind] | None = None
     subject_id: UUID | None = None
+    actual_id: UUID | None = None
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=50, ge=1, le=100)
 
@@ -31,6 +33,7 @@ def get_workspace_evidence(request, workspace_id: UUID, query: Query[EvidenceQue
             workspace_id=workspace_id,
             kinds=query.kind,
             subject_id=query.subject_id,
+            actual_id=query.actual_id,
             offset=query.offset,
             limit=query.limit,
         ),
@@ -40,3 +43,8 @@ def get_workspace_evidence(request, workspace_id: UUID, query: Query[EvidenceQue
 @router.get("/recorded/{record_id}")
 def get_recorded(request, record_id: UUID):
     return read_recorded(request.user, ReadRecordedResult(record_id=record_id))
+
+
+@router.get("/tests/{test_id}")
+def get_subject_test(request, test_id: UUID):
+    return read_subject_test(request.user, ReadSubjectTest(test_id=test_id))

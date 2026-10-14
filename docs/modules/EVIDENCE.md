@@ -59,6 +59,30 @@ snapshot with per-pin staleness. A recorded firmware review holds the observatio
 that was compared; when that is not every observation in scope, the item states
 "observations N–M of T". It is not a human approval and evaluates no hardware.
 
+## Actual-subject tests (EVD-002)
+
+`evidence.record_test` (needs `inventory.manage`, like physical-unit facts) stores one
+immutable test record: the procedure, one or more instruments (name, optional identifier,
+calibration `unknown`/`calibrated` with a reference/`uncalibrated`), conditions (known or
+explicitly unknown), observation time, the criterion and a finding of `criterion_met`,
+`criterion_not_met` or `inconclusive`, plus the exact subject:
+
+- one physical unit, or
+- one work batch taken as a whole, with an optional units-tested count (omitted is
+  unknown, never zero or all).
+
+An optional resolved configuration records the exact configuration the subject was tested
+as; omitted, the list states that the tested configuration is unknown. The design revision
+of the subject is stored for later applicability review. A record never extends beyond its
+subject: a test of unit A is invisible under unit B of the same revision, lot or batch,
+and a batch test is not shown under its member units. An uncalibrated instrument can only
+support an inconclusive finding. Records are append-only (database trigger), idempotent on
+retry, and appear in `evidence.list` as `physical_measurement` items with origin
+`test_record`; `actual_id` lists the records made on one unit or batch.
+`evidence.read_test` (HTTP `GET /api/v0/evidence/tests/{id}`) reads one record. Listing and
+reading re-check current read authority over the subject and configuration. A record is
+not qualification and is `independently_verified: false`.
+
 Not mapped: knowledge notes are context, not evidence. Applicability or supersession
 rules, batch/configuration test scope and release closure belong to later evidence
 capabilities.
