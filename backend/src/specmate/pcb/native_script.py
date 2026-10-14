@@ -31,9 +31,11 @@ def _embedded(path: Path) -> str:
 
 # The exact-geometry module is embedded: the container has no application code.
 GEOMETRY = _embedded(Path(__file__).with_name("outline_geometry.py"))
+VALUES = _embedded(Path(__file__).with_name("component_values.py"))
 
 PROGRAM = (
     GEOMETRY
+    + VALUES
     + r"""
 import hashlib,json,os,re,sys
 from pathlib import Path
@@ -88,11 +90,11 @@ for fp in board.GetFootprints():
     # Limited candidate convention retained from the synthetic fixture probe.
     # This does not merge copper nets or declare a reviewed component class.
     if re.fullmatch(r"R[1-9][0-9]*",reference):
-        m=re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)([RkM]?)",value)
-        if m and len(terminals)==2:
+        ohms=parse_resistance(value)
+        if ohms is not None and len(terminals)==2:
             a,b=sorted(terminals)
             passages.append({"kind":"resistor","from":a,"to":b,
-                "resistance_ohm":float(m[1])*{"":1,"R":1,"k":1000,"M":1000000}[m[2]]})
+                "resistance_ohm":float(ohms)})
         else:
             unsupported.append("unresolved resistor candidate: "+uid)
 outline=[];cutouts=[]
