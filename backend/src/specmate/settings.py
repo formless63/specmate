@@ -125,6 +125,10 @@ SPECMATE_LEASE_SECONDS = int(env("LEASE_SECONDS", "60") or 60)
 SPECMATE_TEMPORAL_ADDRESS = env("TEMPORAL_ADDRESS", "temporal:7233")
 SPECMATE_TEMPORAL_NAMESPACE = env("TEMPORAL_NAMESPACE", "specmate")
 SPECMATE_TEMPORAL_TASK_QUEUE = env("TEMPORAL_TASK_QUEUE", "specmate-builds")
+# Diagnostics connect probe: hard upper bound in seconds; never waits on a workflow.
+SPECMATE_TEMPORAL_PROBE_TIMEOUT = float(env("TEMPORAL_PROBE_TIMEOUT", "2") or 2)
+# Artifact storage below this much free space is reported as degraded (default 512 MiB).
+SPECMATE_MIN_FREE_BYTES = int(env("MIN_FREE_BYTES", str(512 * 1024**2)) or 0)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

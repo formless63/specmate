@@ -1,9 +1,11 @@
 """OPS-005: distinct diagnostics categories, scoped status reads, safe stop and reconcile."""
 
+import contextlib
 import hashlib
 import io
 import json
 import os
+import socket
 import uuid
 from datetime import timedelta
 from io import StringIO
@@ -196,7 +198,7 @@ def test_status_without_runner_names_the_missing_tool_not_a_generic_failure(
     finding = next(f for f in report["findings"] if f["code"] == "no_runner_enrolled")
     assert finding["category"] == "tool_unavailable"
     assert "sources" in finding["recovery"].lower()
-    assert report["workflow_engine"]["state"] == "not_evaluated"
+    assert report["workflow_engine"]["state"] == "reachable"
     # A viewer sees the state but is told, separately, that it cannot execute.
     assert report["can_execute"] is False
     assert "actor_cannot_execute" in codes(report)
@@ -681,7 +683,7 @@ def test_work_control_command_round_trips_through_the_operation_layer(
 
     report = run("diagnose")
     assert report["schema"]["ready"] is True and report["work"]["mode"] == "running"
-    assert report["workflow_engine"]["state"] == "not_evaluated"
+    assert report["workflow_engine"]["state"] == "reachable"
     assert {c["usable"] for c in report["credentials"]} == set()
     assert run("drain", "--reason", "upgrade")["mode"] == "draining"
     assert run("diagnose")["work"]["reason"] == "upgrade"
@@ -715,3 +717,65 @@ def test_operator_report_has_numbers_and_hashes_users_never_see(
         if f["code"] == "storage_root_missing"
     )
     assert op_finding["recovery"] != user_finding["recovery"]
+
+
+# ---- Temporal connect probe (never contacts a real Temporal) --------------------------
+
+
+@pytest.fixture(autouse=True)
+def _fake_temporal(monkeypatch):
+    from specmate.diagnostics import checks
+
+    monkeypatch.setattr(
+        checks.socket, "create_connection", lambda *a, **k: contextlib.nullcontext()
+    )
+
+
+@pytest.mark.parametrize(
+    ("raised", "reason"),
+    [
+        (TimeoutError(), "connect_timeout"),
+        (ConnectionRefusedError(), "connection_refused"),
+        (socket.gaierror(), "name_not_resolved"),
+        (OSError(), "network_error"),
+    ],
+)
+def test_temporal_probe_unreachable_has_reason_and_finding(
+    monkeypatch, settings, raised, reason, users, project, workspace
+):
+    from specmate.diagnostics import checks
+
+    def boom(*a, **k):
+        raise raised
+
+    monkeypatch.setattr(checks.socket, "create_connection", boom)
+    assert checks.temporal_probe() == {"state": "unreachable", "reason": reason}
+    report = status(users["owner"], workspace)
+    assert report["workflow_engine"]["reason"] == reason
+    assert "workflow_engine_unreachable" in codes(report)
+
+
+def test_temporal_probe_unknown_for_bad_address_and_passes_timeout(monkeypatch, settings):
+    from specmate.diagnostics import checks
+
+    settings.SPECMATE_TEMPORAL_ADDRESS = ""
+    assert checks.temporal_probe()["state"] == "unknown"
+    settings.SPECMATE_TEMPORAL_ADDRESS = "host:notaport"
+    assert checks.temporal_probe()["state"] == "unknown"
+    seen = {}
+
+    def fake(target, timeout=None):
+        seen.update(target=target, timeout=timeout)
+        return contextlib.nullcontext()
+
+    monkeypatch.setattr(checks.socket, "create_connection", fake)
+    settings.SPECMATE_TEMPORAL_ADDRESS = "temporal:7233"
+    settings.SPECMATE_TEMPORAL_PROBE_TIMEOUT = 1.5
+    assert checks.temporal_probe()["state"] == "reachable"
+    assert seen == {"target": ("temporal", 7233), "timeout": 1.5}
+
+
+def test_min_free_bytes_setting_is_declared_with_512_mib_default():
+    from django.conf import settings as s
+
+    assert s.SPECMATE_MIN_FREE_BYTES == 512 * 1024**2
