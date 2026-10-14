@@ -34,6 +34,7 @@ from specmate.facts.api import router as facts_router
 from specmate.firmware_builds.api import router as firmware_builds_router
 from specmate.firmware_impact.api import router as firmware_impact_router
 from specmate.harnesses.api import router as harnesses_router
+from specmate.integrations.api import router as integrations_router
 from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
 from specmate.knowledge.api import router as knowledge_router
@@ -76,6 +77,7 @@ api.add_router("/v0/collaboration", collaboration_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)
 api.add_router("/v0/sourcing", sourcing_router)
+api.add_router("/v0/integrations", integrations_router)
 api.add_router("/v0/physical-units", physical_units_router)
 api.add_router("/v0/bom", bom_router)
 api.add_router("/v0/assemblies", assemblies_router)

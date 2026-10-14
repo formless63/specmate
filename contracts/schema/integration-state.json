@@ -1,0 +1,79 @@
+{
+  "properties": {
+    "adapter": {
+      "title": "Adapter",
+      "type": "string"
+    },
+    "columns": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Columns",
+      "type": "object"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "additionalProperties": true,
+      "title": "Created By",
+      "type": "object"
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "integration_id": {
+      "format": "uuid",
+      "title": "Integration Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "ownership": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Ownership",
+      "type": "object"
+    },
+    "state": {
+      "format": "uuid",
+      "title": "State",
+      "type": "string"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    },
+    "updated_by": {
+      "additionalProperties": true,
+      "title": "Updated By",
+      "type": "object"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "integration_id",
+    "workspace_id",
+    "name",
+    "adapter",
+    "ownership",
+    "columns",
+    "enabled",
+    "state",
+    "created_by",
+    "updated_by",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "IntegrationResult",
+  "type": "object"
+}

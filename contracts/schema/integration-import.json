@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "content": {
+      "maxLength": 2000000,
+      "minLength": 1,
+      "title": "Content",
+      "type": "string"
+    },
+    "field": {
+      "enum": [
+        "supplier_offer",
+        "stock_observation"
+      ],
+      "title": "Field",
+      "type": "string"
+    },
+    "file_format": {
+      "enum": [
+        "csv",
+        "json"
+      ],
+      "title": "File Format",
+      "type": "string"
+    },
+    "file_name": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "File Name",
+      "type": "string"
+    },
+    "integration_id": {
+      "format": "uuid",
+      "title": "Integration Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "integration_id",
+    "field",
+    "file_name",
+    "file_format",
+    "content"
+  ],
+  "title": "ImportObservations",
+  "type": "object"
+}

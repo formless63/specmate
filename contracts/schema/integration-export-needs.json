@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "file_format": {
+      "default": "csv",
+      "enum": [
+        "csv",
+        "json"
+      ],
+      "title": "File Format",
+      "type": "string"
+    },
+    "integration_id": {
+      "format": "uuid",
+      "title": "Integration Id",
+      "type": "string"
+    },
+    "purpose": {
+      "default": "procurement",
+      "enum": [
+        "procurement",
+        "pcb_fabrication",
+        "pcb_population",
+        "consumables"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "integration_id",
+    "revision_id"
+  ],
+  "title": "ExportNeeds",
+  "type": "object"
+}

@@ -44,6 +44,19 @@ owns each synchronized field, mapping, idempotency key and uncertain-write recon
 Never introduce a second authoritative stock/part ledger by accident. No money/currency,
 cloud account or external connection is needed for ordinary engineering records.
 
+The `integrations` module is the optional reference implementation. A workspace admin
+declares an integration (`integration.create`/`integration.update`) with a closed field
+vocabulary and one owner per field: `supplier_offer` and `stock_observation` are externally
+owned and import-only; `needs` is owned here and export-only. Engineering facts and the
+stock ledger cannot be declared externally owned. The reference adapter reads and writes
+CSV/JSON text (optional column renames); it holds no credentials and makes no network
+calls. `integration.import` records dated observations attributed to the integration, file
+SHA-256 and importing actor, with per-row rejection reasons; unknown cells stay unknown.
+Observations never write `SupplierOffer`, `StockEntry` or design state, so no second
+ledger exists, and re-importing identical content is recorded once. `integration.export_needs`
+is an explicit `inventory.manage` action that retains the exact exported bytes. With no
+integration configured nothing changes for engineering work.
+
 Automatic purchasing, fabrication orders, flashing and printer control are outside the
 baseline. Future integrations require distinct grants, operator awareness, compatible
 hardware/safety conditions and actual outcome evidence. A compile/package handoff is not

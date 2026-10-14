@@ -1,0 +1,71 @@
+{
+  "properties": {
+    "actor": {
+      "additionalProperties": true,
+      "title": "Actor",
+      "type": "object"
+    },
+    "content": {
+      "title": "Content",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "export_id": {
+      "format": "uuid",
+      "title": "Export Id",
+      "type": "string"
+    },
+    "file_format": {
+      "title": "File Format",
+      "type": "string"
+    },
+    "file_sha256": {
+      "title": "File Sha256",
+      "type": "string"
+    },
+    "integration_id": {
+      "format": "uuid",
+      "title": "Integration Id",
+      "type": "string"
+    },
+    "purpose": {
+      "title": "Purpose",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "row_count": {
+      "title": "Row Count",
+      "type": "integer"
+    },
+    "unresolved": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Unresolved",
+      "type": "array"
+    }
+  },
+  "required": [
+    "export_id",
+    "integration_id",
+    "revision_id",
+    "purpose",
+    "file_format",
+    "file_sha256",
+    "row_count",
+    "unresolved",
+    "content",
+    "actor",
+    "created_at"
+  ],
+  "title": "ExportResult",
+  "type": "object"
+}

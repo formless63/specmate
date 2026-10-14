@@ -1,0 +1,80 @@
+{
+  "properties": {
+    "accepted_count": {
+      "title": "Accepted Count",
+      "type": "integer"
+    },
+    "actor": {
+      "additionalProperties": true,
+      "title": "Actor",
+      "type": "object"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "duplicate_of_earlier_run": {
+      "title": "Duplicate Of Earlier Run",
+      "type": "boolean"
+    },
+    "field": {
+      "title": "Field",
+      "type": "string"
+    },
+    "file_sha256": {
+      "title": "File Sha256",
+      "type": "string"
+    },
+    "integration_id": {
+      "format": "uuid",
+      "title": "Integration Id",
+      "type": "string"
+    },
+    "ledger_written": {
+      "title": "Ledger Written",
+      "type": "boolean"
+    },
+    "observations_are_not_engineering_facts": {
+      "title": "Observations Are Not Engineering Facts",
+      "type": "boolean"
+    },
+    "rejected_count": {
+      "title": "Rejected Count",
+      "type": "integer"
+    },
+    "rejections": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Rejections",
+      "type": "array"
+    },
+    "row_count": {
+      "title": "Row Count",
+      "type": "integer"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "integration_id",
+    "field",
+    "file_sha256",
+    "row_count",
+    "accepted_count",
+    "rejected_count",
+    "rejections",
+    "duplicate_of_earlier_run",
+    "observations_are_not_engineering_facts",
+    "ledger_written",
+    "actor",
+    "created_at"
+  ],
+  "title": "ImportResult",
+  "type": "object"
+}
