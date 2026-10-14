@@ -231,7 +231,14 @@ def test_package_pins_every_output_to_identical_revisions_and_independent_quanti
 
     # The offline verifier travels in the package, listed and hashed like any other file.
     bundled = files["verify/verification.py"]
-    assert bundled == Path(verification.__file__).read_bytes()
+    frozen = Path(verification.__file__).with_name("verifiers") / "v2.py"
+    assert bundled == frozen.read_bytes()
+    # Released verifier bytes never change; a verifier change needs a new package format.
+    assert (
+        hashlib.sha256(bundled).hexdigest()
+        == "19c90ac0c8877f06b4d0b28690ac423259158bf192370d7a6ad367368c0c63d4"
+    )
+    assert json.loads(files["manifest.json"])["package_format"] == 2
     listed = {row["path"]: row for row in json.loads(files["manifest.json"])["files"]}
     assert listed["verify/verification.py"]["sha256"] == hashlib.sha256(bundled).hexdigest()
     assert b"verify/verification.py" in files["README.txt"]

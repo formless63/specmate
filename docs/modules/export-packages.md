@@ -157,7 +157,9 @@ python3 -I -S verification.py package.zip --manifest-sha256 <retained-review-sha
 It checks the manifest against the separately retained review hash, the file inventory,
 pinned snapshot bytes and that each output's files are present.
 
-Every export and release package also contains this file as `verify/verification.py`, listed
+Package format 2 (the latest; manifests carry `package_format`) also contains a frozen copy, `export_packages/verifiers/v2.py`, as `verify/verification.py`, listed
 and hashed in the manifest inventory like any other file (no exemption is needed: the manifest
 is hashed over the same bytes). It accepts a `.zip` or an extracted folder. A bundled copy can
 only vouch for its own package, so use a separately obtained verifier for independent assurance.
+
+Format 1 (no bundled verifier, no `package_format` key) is kept so releases made before format 2 still rebuild to the same manifest: each release stores its `package_format` and `release.verify` rebuilds with it. Never edit a released `verifiers/vN.py`; a verifier or layout change needs a new format number.
