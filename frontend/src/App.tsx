@@ -1,7 +1,8 @@
 import { Alert, Button, Stack, Tabs, Text } from "@mantine/core";
-import { Component, lazy, Suspense, useState, type ReactNode } from "react";
+import { Component, lazy, Suspense, useCallback, useState, type ReactNode } from "react";
 
-import { WorkspaceShell } from "./features/workspace";
+import { DEFAULT_TOOL, SbShell } from "./features/shell";
+import { WorkspaceShell, type ShellChrome } from "./features/workspace";
 
 const AssemblyPanel = lazy(() => import("./features/assemblies/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel })));
 const ProjectAccessPanel = lazy(() => import("./features/project-access/ProjectAccessPanel").then((module) => ({ default: module.ProjectAccessPanel })));
@@ -49,57 +50,24 @@ const PreparationDocumentsPanel = lazy(() => import("./features/preparation-docu
 const SceneDrawingsPanel = lazy(() => import("./features/scene-drawings/SceneDrawingsPanel").then((module) => ({ default: module.SceneDrawingsPanel })));
 
 export function App() {
-  return <WorkspaceShell>{(projectId, project, refreshProjects, principalKey) =>
+  return <WorkspaceShell slots>{(projectId, project, refreshProjects, principalKey, chrome) =>
     <ProjectWorkspace key={`${projectId}:${project.permissions?.join(",") ?? ""}`}
-      projectId={projectId} principalKey={principalKey} permissions={project.permissions ?? []} onAccessChanged={refreshProjects} />
+      projectId={projectId} projectName={project.name} chrome={chrome} principalKey={principalKey} permissions={project.permissions ?? []} onAccessChanged={refreshProjects} />
   }</WorkspaceShell>;
 }
 
-function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChanged }: { projectId: string; principalKey: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
-  const [active, setActive] = useState<string | null>("identity");
+function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permissions, onAccessChanged }: { projectId: string; projectName: string; chrome: ShellChrome; principalKey: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
+  const [active, setActiveTool] = useState<string>(DEFAULT_TOOL);
   const [upgradeProposalId, setUpgradeProposalId] = useState<string | null>(null);
-  const [visited, setVisited] = useState(() => new Set(["identity"]));
-  return <Tabs keepMountedMode="display-none" value={active} onChange={(value) => {
-    if (value) { setActive(value); setVisited((current) => new Set([...current, value])); }
-  }}>
-    <Tabs.List aria-label="Project tools">
-      <Tabs.Tab value="identity">Identities</Tabs.Tab>
-      <Tabs.Tab value="sources">Sources</Tabs.Tab>
-      <Tabs.Tab value="discovery">Discovery</Tabs.Tab>
-      <Tabs.Tab value="revision-upgrades">Revision upgrades</Tabs.Tab>
-      <Tabs.Tab value="matching">Reviewed matching</Tabs.Tab>
-      <Tabs.Tab value="catalog-packs">Catalog packs</Tabs.Tab>
-      <Tabs.Tab value="wire-stock">Wire stock</Tabs.Tab>
-      <Tabs.Tab value="workshop-profiles">Workshop profiles</Tabs.Tab>
-      <Tabs.Tab value="material-accounting">Material accounting</Tabs.Tab>
-      <Tabs.Tab value="preparation">Cut preparation</Tabs.Tab>
-      <Tabs.Tab value="end-preparation">End preparation</Tabs.Tab>
-      <Tabs.Tab value="assemblies">Assemblies</Tabs.Tab>
-      <Tabs.Tab value="occurrence-firmware">Board firmware</Tabs.Tab>
-      <Tabs.Tab value="firmware-impact">Firmware impact</Tabs.Tab>
-      <Tabs.Tab value="mechanical-sources">Mechanical sources</Tabs.Tab>
-      <Tabs.Tab value="shared-scene">Shared scene</Tabs.Tab>
-      <Tabs.Tab value="context-selection">Connected views</Tabs.Tab>
-      <Tabs.Tab value="scene-drawings">Scene drawings</Tabs.Tab>
-      <Tabs.Tab value="preparation-documents">Bench documents</Tabs.Tab>
-      <Tabs.Tab value="knowledge">Notes &amp; files</Tabs.Tab>
-      <Tabs.Tab value="selected-packages">Selected packages</Tabs.Tab>
-      <Tabs.Tab value="facts">Facts</Tabs.Tab>
-      <Tabs.Tab value="interfaces">Interfaces</Tabs.Tab>
-      <Tabs.Tab value="cables">Cables</Tabs.Tab>
-      <Tabs.Tab value="cable-test-intent">Cable test intent</Tabs.Tab>
-      <Tabs.Tab value="harnesses">Harness branches</Tabs.Tab>
-      <Tabs.Tab value="copper">Copper graph</Tabs.Tab>
-      <Tabs.Tab value="passive-passages">Passive models</Tabs.Tab>
-      <Tabs.Tab value="pcb">PCB intake</Tabs.Tab>
-      <Tabs.Tab value="pcb-disagreement">PCB source review</Tabs.Tab>
-      <Tabs.Tab value="inventory">Inventory</Tabs.Tab>
-      <Tabs.Tab value="bom">BOM planning</Tabs.Tab>
-      <Tabs.Tab value="physical-units">Physical units</Tabs.Tab>
-      <Tabs.Tab value="access">Project access</Tabs.Tab>
-    </Tabs.List>
+  const [visited, setVisited] = useState(() => new Set([DEFAULT_TOOL]));
+  // Opening any tool (from an area, a lens, the command palette or a deep link) mounts it once and keeps it mounted while hidden.
+  const setActive = useCallback((value: string) => {
+    setActiveTool(value);
+    setVisited((current) => current.has(value) ? current : new Set([...current, value]));
+  }, []);
+  return <SbShell projectName={projectName} permissions={permissions} activeTool={active} onToolChange={setActive} chrome={chrome}>
     <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
-    <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setVisited((current) => new Set([...current, "revision-upgrades"])); setActive("revision-upgrades"); }} /></Stack>}</ToolPanel>
+    <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>}</ToolPanel>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="revision-upgrades">{visited.has("revision-upgrades") && <RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active === "revision-upgrades"} initialProposalId={upgradeProposalId} canEdit={permissions.includes("design.edit")} />}</ToolPanel>
@@ -132,7 +100,7 @@ function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChange
     <ToolPanel value="bom">{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="physical-units">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="access">{visited.has("access") && <ProjectAccessPanel projectId={projectId} onAccessChanged={onAccessChanged} />}</ToolPanel>
-  </Tabs>;
+  </SbShell>;
 }
 
 function ToolPanel({ value, children }: { value: string; children: ReactNode }) {

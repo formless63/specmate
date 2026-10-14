@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { lazy } from "react";
 import { App, ToolLoadingBoundary } from "./App";
+import { AREAS } from "./features/shell";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -55,6 +56,14 @@ function server({ authenticated = false, denyInventory = false, includePermissio
   return fetchMock;
 }
 
+/** Opens a tool the way a person does: choose its area on the rail, then its lens tab. */
+function openTool(label: string) {
+  const area = AREAS.find((item) => item.tools.some((tool) => tool.label === label));
+  if (!area) throw new Error(`Unknown tool ${label}`);
+  fireEvent.click(screen.getByRole("button", { name: area.label }));
+  fireEvent.click(screen.getByRole("tab", { name: label }));
+}
+
 async function selectProject(name: string) {
   fireEvent.click(screen.getByRole("combobox", { name: "Project" }));
   fireEvent.click(await screen.findByRole("option", { name, hidden: true }));
@@ -79,63 +88,63 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   await screen.findByText("Signed in as local-user");
   await selectProject("Project A");
   await screen.findByRole("heading", { name: "Reusable identities" });
-  expect(screen.getByRole("tablist", { name: "Project tools" })).toBeTruthy();
+  expect(screen.getByRole("tablist", { name: "Library tools" })).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledWith("/api/v0/projects/project-a/definitions", expect.anything());
   expect(fetchMock.mock.calls.some(([path]) => path.includes("/stocks") || path.includes("/intakes") || path.includes("/inventory/"))).toBe(false);
-  fireEvent.click(screen.getByRole("tab", { name: "Wire stock" }));
+  openTool("Wire stock");
   await screen.findByRole("heading", { name: "Wire stock" });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/projects/project-a/stocks", expect.anything()));
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
-  fireEvent.click(screen.getByRole("tab", { name: "PCB intake" }));
+  openTool("PCB intake");
   await screen.findByRole("heading", { name: "PCB intake" });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/projects/project-a/intakes", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" }, { timeout: 5000 });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-a?offset=0&limit=50", expect.anything()));
 });
 
 test("selected packages, firmware and mechanical tools mount with scoped read controls", async () => {
   await openAuthenticatedProjectTools();
-  fireEvent.click(screen.getByRole("tab", { name: "Selected packages" }));
+  openTool("Selected packages");
   await screen.findByRole("heading", { name: "Selected assembly packages" });
   expect(await screen.findByRole("button", { name: "Review exact selected package" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("tab", { name: "Board firmware" }));
+  openTool("Board firmware");
   await screen.findByRole("heading", { name: "Firmware on repeated boards" });
   expect(screen.getByRole("button", { name: "Show occurrence firmware" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("tab", { name: "Mechanical sources" }));
+  openTool("Mechanical sources");
   await screen.findByRole("heading", { name: "Mechanical sources" });
   expect(screen.getByRole("button", { name: "Refresh mechanical sources" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("tab", { name: "Firmware impact" }));
+  openTool("Firmware impact");
   await screen.findByRole("heading", { name: "Firmware change and observation review" });
   expect(screen.getByRole("button", { name: "Show firmware impact" })).toBeTruthy();
 });
 
 test("shared, assembly, connected and drawing views mount with scoped read controls", async () => {
   await openAuthenticatedProjectTools();
-  fireEvent.click(screen.getByRole("tab", { name: "Shared scene" }));
+  openTool("Shared scene");
   await screen.findByRole("heading", { name: "Shared scene" });
   expect(screen.getByRole("button", { name: "Refresh scene access" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("tab", { name: "Assemblies" }));
+  openTool("Assemblies");
   await screen.findByRole("heading", { name: "Reusable assemblies" });
   expect(screen.queryByRole("button", { name: "Create assembly draft" })).toBeNull();
-  fireEvent.click(screen.getByRole("tab", { name: "Connected views" }));
+  openTool("Connected views");
   await screen.findByRole("heading", { name: "Contextual inspection" });
   expect(screen.getByRole("button", { name: "Refresh contextual scene choices" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("tab", { name: "Scene drawings" }));
+  openTool("Scene drawings");
   await screen.findByRole("heading", { name: "Scene inspection drawings" });
   expect(screen.getByRole("button", { name: "Inspect drawing scene" })).toBeTruthy();
 });
 
 test("documents, interfaces and knowledge mount with scoped read controls", async () => {
   await openAuthenticatedProjectTools();
-  fireEvent.click(screen.getByRole("tab", { name: "Bench documents" }));
+  openTool("Bench documents");
   await screen.findByRole("heading", { name: "Coordinated documents" });
   expect((screen.getByRole("button", { name: "Generate reviewed document set" }) as HTMLButtonElement).disabled).toBe(true);
-  fireEvent.click(screen.getByRole("tab", { name: "Interfaces" }));
+  openTool("Interfaces");
   await screen.findByRole("heading", { name: "Interface assessments" });
   expect(screen.queryByRole("button", { name: "New assessment" })).toBeNull();
-  fireEvent.click(screen.getByRole("tab", { name: "Notes & files" }));
+  openTool("Notes & files");
   await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
   expect(screen.queryByRole("button", { name: "Create knowledge item" })).toBeNull();
   await screen.findByRole("heading", { name: "Search notes and attachments" });
@@ -148,17 +157,17 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   const cache = renderApp();
   await screen.findByText("Signed in as local-user");
   await selectProject("Project A");
-  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  openTool("Inventory");
   fireEvent.change(await screen.findByLabelText("New location name"), { target: { value: "Private shelf draft" } });
-  fireEvent.click(screen.getByRole("tab", { name: "Identities" }));
-  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  openTool("Identities");
+  openTool("Inventory");
   expect((screen.getByLabelText("New location name") as HTMLInputElement).value).toBe("Private shelf draft");
   cache.setQueryData(["private", "project-a"], "synthetic-private-data");
   await selectProject("Project B");
   await screen.findByRole("heading", { name: "Reusable identities" });
   expect(screen.queryByLabelText("New location name")).toBeNull();
   expect(cache.getQueryData(["private", "project-a"])).toBeUndefined();
-  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  openTool("Inventory");
   expect((await screen.findByLabelText("New location name") as HTMLInputElement).value).toBe("");
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-b?offset=0&limit=50", expect.anything()));
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -172,11 +181,11 @@ test.each([true, false])("PCB controls require explicit grants (permissions supp
   server({ authenticated: true, permissions: ["project.read"], includePermissions, denyInventory: true }); renderApp();
   await screen.findByText("Signed in as local-user");
   await selectProject("Project A");
-  fireEvent.click(screen.getByRole("tab", { name: "PCB intake" }));
+  openTool("PCB intake");
   await screen.findByRole("heading", { name: "PCB intake" });
   expect(screen.queryByRole("button", { name: "Preserve sources" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Request native extraction" })).toBeNull();
-  fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
+  openTool("Inventory");
   expect(await screen.findByText("Project not found.")).toBeTruthy();
   expect(screen.queryByText("Inventory operation completed.")).toBeNull();
 });

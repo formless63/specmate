@@ -4,7 +4,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ApiError, requestJson, runOperation, type OperationResult, type Project, type SessionState } from "./api";
 
-export function WorkspaceShell({ children }: { children: (projectId: string, project: Project, refreshProjects: () => Promise<void>, principalKey: string) => ReactNode }) {
+/** Controls a full-bleed project shell places in its own top bar when `slots` is enabled. */
+export type ShellChrome = {
+  username: string;
+  projectControl: ReactNode;
+  signOutControl: ReactNode;
+  alert: ReactNode;
+};
+
+export function WorkspaceShell({ children, slots = false }: {
+  children: (projectId: string, project: Project, refreshProjects: () => Promise<void>, principalKey: string, chrome: ShellChrome) => ReactNode;
+  /** When true, a selected project renders full-bleed and receives the account/project controls to host itself. */
+  slots?: boolean;
+}) {
   const cache = useQueryClient();
   const [session, setSession] = useState<SessionState | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -121,6 +133,19 @@ export function WorkspaceShell({ children }: { children: (projectId: string, pro
 
   const selectedProject = projects.find((project) => project.project_id === projectId);
 
+  const chrome: ShellChrome | null = session?.user && projectId && selectedProject ? {
+    username: session.user.username,
+    projectControl: <Group gap={6} wrap="nowrap"><Select aria-label="Project" size="xs" w={200} data={projects.map((project) => ({ value: project.project_id, label: project.name }))}
+      value={projectId} onChange={selectProject} disabled={busy} allowDeselect={false} />
+      <Button variant="quiet" onClick={() => selectProject(null)} disabled={busy}>All projects</Button></Group>,
+    signOutControl: <Button variant="quiet" onClick={() => void signOut()} loading={busy}>Sign out</Button>,
+    alert: error ? <Alert color="red" title="Unable to complete request">{error}</Alert> : null,
+  } : null;
+
+  if (slots && session?.user && projectId && selectedProject && chrome) {
+    return <Fragment key={`${session.user.id}:${projectId}`}>{children(projectId, selectedProject, refresh, String(session.user.id), chrome)}</Fragment>;
+  }
+
   return <Container size="xl" py="lg"><Stack>
     <Title order={1}>Specmate workshop</Title>
     {error && <Alert color="red" title="Unable to complete request">{error}</Alert>}
@@ -142,7 +167,7 @@ export function WorkspaceShell({ children }: { children: (projectId: string, pro
         <TextInput label="New project name" value={projectName} onChange={(event) => setProjectName(event.currentTarget.value)} required disabled={busy} />
         <Button type="submit" loading={busy} disabled={!projectName.trim()}>Create project</Button>
       </Group></form>
-      {projectId && selectedProject ? <Fragment key={`${session.user.id}:${projectId}`}>{children(projectId, selectedProject, refresh, String(session.user.id))}</Fragment>
+      {projectId && selectedProject && chrome ? <Fragment key={`${session.user.id}:${projectId}`}>{children(projectId, selectedProject, refresh, String(session.user.id), chrome)}</Fragment>
         : <Text>Select or create a project to begin.</Text>}
     </>}
   </Stack></Container>;
