@@ -66,8 +66,11 @@ def findings(users, project, pair, operating):
     [
         ({"minimum_c": 20, "maximum_c": 60}, "steady", 0.5, "satisfied", "in_scope"),
         ({"minimum_c": 25, "maximum_c": 40}, "steady", 0.6, "invalid", "in_scope"),
-        ({"minimum_c": 19, "maximum_c": 60}, "steady", 0.1, "unknown", "out_of_scope"),
-        ({"minimum_c": 25, "maximum_c": 61}, "steady", 0.1, "unknown", "out_of_scope"),
+        # Owner decision (sm-fpv.5): partial overlap is unknown, not out of scope.
+        ({"minimum_c": 19, "maximum_c": 60}, "steady", 0.1, "unknown", "unknown"),
+        ({"minimum_c": 25, "maximum_c": 61}, "steady", 0.1, "unknown", "unknown"),
+        ({"minimum_c": 61, "maximum_c": 80}, "steady", 0.1, "unknown", "out_of_scope"),
+        ({"minimum_c": -10, "maximum_c": 19}, "steady", 0.1, "unknown", "out_of_scope"),
         (None, "steady", 0.1, "unknown", "unknown"),
         ({"minimum_c": 25, "maximum_c": 40}, None, 0.1, "unknown", "unknown"),
         ({"minimum_c": 25, "maximum_c": 40}, "pulse", 0.1, "unknown", "out_of_scope"),
@@ -120,6 +123,63 @@ def test_overlapping_limits_intersect_without_extrapolation_or_unknown_fallback(
         result["current"]["status"] == "unknown"
     )  # unconditional 2 A cannot erase missing temperature
     assert result["current"]["facts"]["rating_scope"]["left"]["effective_limits"] is None
+
+
+def test_partial_temperature_overlap_stays_unknown_despite_unconditional_limit(
+    users, project, pair
+):
+    rated = rated_pair(users, project, pair, [rating(maximum=0.2)], current_max_a=2)
+    operating = {"mode": "steady", "demand_a": 1}
+    # Fully contained: both apply and intersect (0.2 A) -> exceeded.
+    result, _ = findings(
+        users, project, rated, {**operating, "temperature": {"minimum_c": 30, "maximum_c": 50}}
+    )
+    assert result["current"]["status"] == "invalid"
+    # Partial overlap: the legacy 2 A limit must not resolve the dimension.
+    result, _ = findings(
+        users, project, rated, {**operating, "temperature": {"minimum_c": 50, "maximum_c": 70}}
+    )
+    current = result["current"]
+    assert current["status"] == "unknown"
+    assert "covers only part of the operating envelope" in current["explanation"]
+    left = current["facts"]["rating_scope"]["left"]
+    assert left["effective_limits"] is None
+    assert "covers only part" in left["conditional_ratings"][0]["explanation"]
+    # Fully disjoint: contributes nothing, so the unconditional limit resolves it.
+    result, _ = findings(
+        users, project, rated, {**operating, "temperature": {"minimum_c": 70, "maximum_c": 80}}
+    )
+    assert result["current"]["status"] == "satisfied"
+    assert result["current"]["facts"]["rating_scope"]["left"]["effective_limits"] == [None, 2]
+
+
+@pytest.mark.parametrize(
+    "left,right,status",
+    [
+        ("nonpolarized", "positive", "flagged"),
+        ("negative", "reference", "flagged"),
+        ("reference", "negative", "flagged"),
+        ("nonpolarized", "nonpolarized", "satisfied"),
+        ("positive", "negative", "invalid"),
+        ("nonpolarized", "reference", "invalid"),
+    ],
+)
+def test_nonpolarized_or_reference_against_signed_contact_is_flagged_not_invalid(
+    users, project, pair, left, right, status
+):
+    rated = rated_pair(users, project, pair, [], polarity="positive", polarity_basis="Declared")
+    for index, polarity in enumerate((left, right)):
+        pin = inspect_revision(users["owner"], rated[1][index]["revision_id"])["interface"]
+        pin["assignments"][0]["electrical"]["polarity"] = polarity
+        rated[1][index] = freeze(users["owner"], create(users["owner"], project, pin))
+    result, frozen = findings(users, project, rated, {})
+    assert result["polarity"]["status"] == status
+    if status == "flagged":
+        assert "Flagged for review" in result["polarity"]["explanation"]
+    # Flagging never alters or blocks the other dimensions.
+    assert result["pin_correspondence"]["status"] == "satisfied"
+    assert result["mating"]["status"] == "satisfied"
+    assert frozen["revision_id"]
 
 
 def test_polarity_is_independent_and_does_not_follow_contact_labels(users, project, pair):

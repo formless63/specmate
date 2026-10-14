@@ -119,7 +119,8 @@ class InterfaceAssessment(StrictModel):
 class Finding(StrictModel):
     dimension: Dimension
     pair_id: str | None = None
-    status: Literal["satisfied", "invalid", "unknown"]
+    # "flagged" is a review-level, non-blocking finding: allowed but needs human review.
+    status: Literal["satisfied", "invalid", "unknown", "flagged"]
     basis: Literal["declaration", "comparison_of_declarations"]
     explanation: str
     evidence: list[EvidenceResult] = Field(default_factory=list)

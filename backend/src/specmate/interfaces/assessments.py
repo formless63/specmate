@@ -5,7 +5,7 @@ from collections import Counter
 from specmate.catalog_matching.contracts import EvidenceResult
 from specmate.catalog_matching.operations import evidence_fields
 from specmate.interfaces.assessment_contracts import AssessmentResult, Finding
-from specmate.interfaces.conditions import resolve_limits
+from specmate.interfaces.conditions import PARTIAL_REASON, resolve_limits
 from specmate.interfaces.contracts import Pinout
 from specmate.operations import ValidationFailed
 
@@ -135,12 +135,24 @@ def assess(value, closure):
             polarity_reason = "Invalid correspondence prevents polarity comparison."
         elif "unknown" not in polarities:
             same = polarities[0] == polarities[1]
-            polarity_status = "satisfied" if same else "invalid"
+            signed = {"positive", "negative"}
+            flagged = not same and any(
+                a in {"nonpolarized", "reference"} and b in signed
+                for a, b in (polarities, polarities[::-1])
+            )
+            polarity_status = "satisfied" if same else "flagged" if flagged else "invalid"
             polarity_reason = (
                 "Explicit retained contact polarities "
-                + ("agree" if same else "conflict")
+                + ("agree" if same else "differ and need review" if flagged else "conflict")
                 + "; drawing mirroring does not change polarity."
             )
+            if flagged:
+                polarity_reason = (
+                    f"Flagged for review, allowed: a {polarities[0]} contact is paired with a "
+                    f"{polarities[1]} contact; a nonpolarized or reference contact opposite a "
+                    "positive or negative contact is not a conflict, but polarity is not "
+                    "confirmed. Drawing mirroring does not change polarity."
+                )
         finding("polarity", polarity_status, polarity_reason, pair=pair, facts=facts)
         operating = pair.operating
         conditional = any(
@@ -172,6 +184,15 @@ def assess(value, closure):
                     reason = (
                         "A rating is missing, out of scope, or has unresolved operating conditions."
                     )
+                    if any(
+                        r["explanation"].startswith(PARTIAL_REASON)
+                        for _, records in resolved
+                        for r in records
+                    ):
+                        reason = (
+                            PARTIAL_REASON + "; the dimension stays unknown rather than "
+                            "resolving from another declaration."
+                        )
                 elif required is not None:
                     if dimension == "levels":
                         within = all(

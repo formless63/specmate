@@ -1,6 +1,7 @@
 import type { Temperature } from "./api";
 export { command, request as read } from "../sources/api";
 export type Status = "unknown" | "satisfied" | "invalid";
+export type FindingStatus = Status | "flagged";
 export type Evidence = { status: "unknown" | "unverified_citation" | "registered_file"; citation?: string | null; source_bundle_revision_id?: string | null; source_path?: string | null; sha256?: string | null; rights?: string | null };
 export type Declaration = { status: Status; basis: string | null; evidence: Evidence };
 export type Operating = { temperature?: Temperature | null; mode?: string | null; voltage_min_v: number | null; voltage_max_v: number | null; demand_a: number | null; required_protocol: string | null; condition: string | null; basis: string | null; evidence: Evidence };
@@ -8,7 +9,7 @@ export type Pair = { local_id: string; left_contact_id: string; right_contact_id
 export type Bond = { left_contact_id: string | null; right_contact_id: string | null; required: "unknown" | "bonded" | "isolated"; declared: "unknown" | "bonded" | "isolated"; basis: string | null; evidence: Evidence };
 export type Assessment = { kind: "interface_assessment"; schema_version?: "0.1"; left_pinout_revision_id: string; right_pinout_revision_id: string; mating: Declaration; fit: Declaration; pairs: Pair[]; shielding: Bond; grounding: Bond };
 export type Dimension = "mating" | "pin_correspondence" | "polarity" | "levels" | "current" | "protocol" | "shielding" | "grounding" | "fit";
-export type Finding = { dimension: Dimension; pair_id: string | null; status: Status; basis: "declaration" | "comparison_of_declarations"; explanation: string; evidence: Evidence[]; facts: Record<string, unknown> };
+export type Finding = { dimension: Dimension; pair_id: string | null; status: FindingStatus; basis: "declaration" | "comparison_of_declarations"; explanation: string; evidence: Evidence[]; facts: Record<string, unknown> };
 export type Result = { left_pinout_revision_id: string; right_pinout_revision_id: string; findings: Finding[]; scope: string; physical_qualification: false; limitations: string[] };
 export type AssessmentDraft = { definition_id: string; draft_id: string; state: string; content: { interface: Assessment } };
 export type Inspection = { revision_id: string; snapshot_id: string; sha256: string; interface: Assessment; assessment: Result };

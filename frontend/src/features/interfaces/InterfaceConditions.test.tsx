@@ -105,3 +105,13 @@ test("results expose independent unknown polarity and out-of-scope rating withou
   expect(screen.getByText(/source-exact \/ rating.txt.*rights synthetic-original/)).toBeTruthy();
   expect(screen.queryByText(/^Compatible$/)).toBeNull();
 });
+
+test("flagged polarity shows review wording, never a generic OK", () => {
+  const result: Result = { left_pinout_revision_id: "l", right_pinout_revision_id: "r", scope: "exact", physical_qualification: false, limitations: [], findings: [
+    { dimension: "polarity", pair_id: "row", status: "flagged", basis: "comparison_of_declarations", explanation: "Flagged for review, allowed: a nonpolarized contact is paired with a positive contact.", evidence: [], facts: {} },
+  ] };
+  render(wrap(<AssessmentResults result={result} />));
+  expect(screen.getByText("Flagged for review (allowed, not confirmed)")).toBeTruthy();
+  expect(screen.queryByText("Satisfied by declarations")).toBeNull();
+  expect(screen.queryByText(/Invalid/)).toBeNull();
+});
