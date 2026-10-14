@@ -9,6 +9,7 @@ import json
 
 import pytest
 from django.db import DatabaseError, IntegrityError, transaction
+from django.test import Client
 
 from specmate.builds.models import BuildAttempt, BuildStage, ReproducibilityComparison
 from specmate.operations import Conflict, NotFound, PermissionDenied, Unsupported
@@ -36,7 +37,7 @@ def request(users, build_payload, key="first"):
     return op(users["owner"], "build.request", build_payload, idempotency_key=key)["build_id"]
 
 
-def execute_success(users, credential, build_id, data=OUTPUT, image_id=None):
+def execute_success(users, credential, build_id, data=OUTPUT, image_id=None, http=False):
     """Dispatch, lease, upload one declared output and complete successfully."""
     op(users["owner"], "build.dispatch", {"build_id": build_id})
     lease = runner_op(credential, "runner.lease")["lease"]
@@ -54,17 +55,23 @@ def execute_success(users, credential, build_id, data=OUTPUT, image_id=None):
         },
         data=data,
     )
-    runner_op(
-        credential,
-        "runner.complete",
-        {
-            **fence(lease),
-            "outcome": "succeeded",
-            "exit_code": 0,
-            "outputs": [{"path": spec["path"], "sha256": digest(data)}],
-            **({"image_id": image_id} if image_id else {}),
-        },
-    )
+    receipt = {
+        "outcome": "succeeded",
+        "exit_code": 0,
+        "outputs": [{"path": spec["path"], "sha256": digest(data)}],
+        **({"image_id": image_id} if image_id else {}),
+    }
+    if http:
+        # The runner's real transport: the route's request model decides which fields survive.
+        response = Client().post(
+            f"/api/v0/runner/stages/{lease['stage_id']}/complete",
+            {"request_id": "http-complete", "fencing_token": lease["fencing_token"], **receipt},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {credential['token']}",
+        )
+        assert response.status_code == 200, response.content
+    else:
+        runner_op(credential, "runner.complete", {**fence(lease), **receipt})
     return lease
 
 
@@ -134,6 +141,18 @@ def test_accepted_output_reports_pins_and_resolved_image_after_default_change(
     assert read["pinned"]["image_digest"] == "sha256:" + "1" * 64
     assert read["pinned"]["resolved_image_id"] == IMAGE_ID
     assert read["reproducibility"]["level"] == "provenance"
+
+
+def test_resolved_image_id_sent_over_the_runner_http_route_is_stored(
+    users, build_payload, credential
+):
+    first = request(users, build_payload)
+    execute_success(users, credential, first, image_id=IMAGE_ID, http=True)
+    stage = BuildStage.objects.get(build_id=first)
+    assert stage.receipt["image_id"] == IMAGE_ID
+    output_id = str(stage.outputs.get().id)
+    read = op(users["viewer"], "build.output", {"build_id": first, "output_id": output_id})
+    assert read["pinned"]["resolved_image_id"] == IMAGE_ID
 
 
 def test_malformed_resolved_image_identity_is_refused(users, build_payload, credential):
