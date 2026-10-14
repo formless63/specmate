@@ -12,7 +12,7 @@
       "size_note": "Compressed linux/amd64 layers plus config from the registry manifest; installed size is the unpacked image on disk.",
       "capabilities": [
         "kicad_pcb intake, inspection and DRC (JSON)",
-    "recorded KiCad 5-9 board/schematic format upgrade to KiCad 10 (derivative bundle)",
+        "recorded KiCad 5-9 board/schematic format upgrade to KiCad 10 (derivative bundle)",
         "fixed-layer Gerber X2 and circular Excellon export",
         "schematic export and net extraction (XML, version E)"
       ],
