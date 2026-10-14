@@ -44,3 +44,11 @@ export function recordInterfaceAssessment(revisionId: string, idempotencyKey: st
 export function recordFirmwareImpact(comparison: object, comparisonSha256: string, idempotencyKey: string): Promise<RecordedResult> {
   return command<RecordedResult>("evidence.record_firmware_impact", { comparison, expected_comparison_sha256: comparisonSha256 }, { idempotencyKey });
 }
+
+/** "N–M of T" when a firmware record or comparison covers only part of its observations. */
+export function observationRange(result: { observations: unknown[]; observations_total: number; observation_offset: number }): string | null {
+  const shown = result.observations.length, total = result.observations_total;
+  if (shown >= total) return null;
+  const first = result.observation_offset + 1;
+  return shown ? `${first}–${first + shown - 1} of ${total}` : `none of ${total}`;
+}

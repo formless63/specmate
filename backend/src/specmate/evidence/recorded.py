@@ -6,8 +6,9 @@ computed, its hash, its exact input revision pins and the recording actor. A rec
 never rewritten. When a pinned input definition later gains a newer revision, the record
 reads as stale; its stored result and pins stay exactly as recorded.
 
-Every read re-checks current authority over the exact inputs through the owning module's
-own resolver, so a record never exposes inputs its reader can no longer see.
+Every workspace member reads everything in the workspace, and database guards keep pins
+inside the record workspace, so reading a record needs only workspace.read. Idempotent
+replay of a record command re-resolves the exact inputs through the owning module.
 """
 
 import hashlib
@@ -145,8 +146,8 @@ def record_firmware_impact(ctx: Context, p: RecordFirmwareImpact):
     )
 
 
-def authorize_record(user, record):
-    """Current authority over the workspace and every exact input, or NotFound."""
+def authorize_inputs(user, record):
+    """Full current authority over every exact input; used where a replay depends on it."""
     authorize(user, record.workspace_id, Perm.WORKSPACE_READ)
     if record.source == RecordedResult.Source.INTERFACE_ASSESSMENT:
         assessment_inputs(user, record.request["revision_id"])
@@ -214,8 +215,17 @@ def read_recorded(user, p: ReadRecordedResult):
     if record is None:
         raise NotFound("Recorded result unavailable.")
     try:
-        authorize_record(user, record)
+        authorize(user, record.workspace_id, Perm.WORKSPACE_READ)
     except OperationError:
-        # Missing, foreign and no-longer-readable records read alike.
+        # Missing and foreign records read alike.
         raise NotFound("Recorded result unavailable.") from None
     return view(record)
+
+
+def observation_range(result):
+    """'N-M of T' when a firmware record holds only part of its observations, else None."""
+    shown, total = len(result["observations"]), result["observations_total"]
+    if shown >= total:
+        return None
+    first = result["observation_offset"] + 1
+    return f"{first}\u2013{first + shown - 1} of {total}" if shown else f"none of {total}"

@@ -1,12 +1,18 @@
 import { Alert, Badge, Button, Card, Group, MultiSelect, Stack, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { KIND_ORDER, evidenceQuery, read, recordedPath, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription, type RecordedResult } from "./api";
+import { KIND_ORDER, evidenceQuery, observationRange, read, recordedPath, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription, type RecordedResult } from "./api";
 
 function KindBadge({ item }: { item: EvidenceItem }) {
   // Only an actual-unit measurement carries the unit badge; every other kind is a distinct label.
   const variant = item.kind === "physical_measurement" ? "unit" : item.kind === "requirement" ? "draft" : "frozen";
   return <Badge variant={variant}>{item.kind_label}</Badge>;
+}
+
+function RecordedObservations({ result }: { result: Record<string, unknown> }) {
+  const page = result as { observations: unknown[]; observations_total: number; observation_offset: number };
+  const partial = observationRange(page);
+  return <Text size="xs">{partial ? `Partial record: observations ${partial}` : `All ${page.observations_total} observations in scope recorded`}</Text>;
 }
 
 function RecordedSnapshot({ recordId }: { recordId: string }) {
@@ -18,6 +24,7 @@ function RecordedSnapshot({ recordId }: { recordId: string }) {
     {open && snapshot.data && <Stack gap={2}>
       <Text size="xs">Result SHA-256 {snapshot.data.result_sha256} · {snapshot.data.algorithm_version}</Text>
       {snapshot.data.note && <Text size="xs">Note: {snapshot.data.note}</Text>}
+      {snapshot.data.source === "firmware_impact" && <RecordedObservations result={snapshot.data.result} />}
       {snapshot.data.pins.map((pin) => <Text size="xs" key={`${pin.role}:${pin.revision_id}`}>{pin.role.replaceAll("_", " ")}: revision {pin.number} ({pin.revision_id}){pin.newer_revision_exists ? ` · newer revision ${pin.latest_number} exists` : " · latest"}</Text>)}
     </Stack>}
   </>;

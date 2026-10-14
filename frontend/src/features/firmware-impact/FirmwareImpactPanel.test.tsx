@@ -12,7 +12,7 @@ import { recordFirmwareImpact } from '../evidence/api';
 vi.mock('./api', () => ({ compareImpact: vi.fn() }));
 vi.mock('../identity/api', () => ({ read: vi.fn() }));
 vi.mock('../firmware-occurrences/api', () => ({ operation: vi.fn() }));
-vi.mock('../evidence/api', () => ({ recordFirmwareImpact: vi.fn() }));
+vi.mock('../evidence/api', async importOriginal => ({ ...(await importOriginal<typeof import('../evidence/api')>()), recordFirmwareImpact: vi.fn() }));
 const inputs: ImpactInputs = {
   firmware_revision_id: 'firmware-one', firmware_snapshot_sha256: 'exact-firmware-hash', occurrence: null,
   sources: [{ local_id: 'app', source_revision_id: 'source-one', source_manifest_sha256: 'manifest-one', files: [{ path: 'src/main.c', sha256: 'file-hash', rights: 'MIT', role: 'application' }] }],
@@ -341,4 +341,10 @@ test('recording stores the exact shown comparison once, with one key per shown r
   expect(calls[0]![1]).toBe('comparison-hash');
   expect(calls[1]![2]).toBe(calls[0]![2]);
   expect((screen.getByRole('button', { name: 'Record result as evidence' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('a partial comparison states which observations a record would hold', async () => {
+  vi.mocked(compareImpact).mockResolvedValue({ ...result, observations_total: 250, observation_offset: 100, observations_truncated: true, observations_has_more: true });
+  render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  expect(await screen.findByText('Partial record: observations 101–101 of 250. Other observations in scope are not recorded.')).toBeTruthy();
 });

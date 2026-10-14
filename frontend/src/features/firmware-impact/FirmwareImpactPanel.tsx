@@ -6,7 +6,7 @@ import { operation, type OccurrenceInspection } from '../firmware-occurrences/ap
 import { read, type Definition, type Identity } from '../identity/api';
 import { compareImpact, type FirmwareReference, type ImpactRequest, type ImpactResult } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { recordFirmwareImpact } from "../evidence/api";
+import { observationRange, recordFirmwareImpact } from "../evidence/api";
 import { RecordResult } from "../evidence/RecordResult";
 
 /** Impact reviews are workspace-scoped; the project is navigation context only. */
@@ -93,7 +93,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <Button disabled={busy || baselineContextPending || candidateContextPending || !baseline || !candidate} onClick={() => { void inspect(); }}>Compare firmware impact</Button>
       {result && <>
         <ImpactReview result={result} />
-        {shown && <RecordResult fingerprint={result.comparison_sha256} record={key => recordFirmwareImpact(shown, result.comparison_sha256, key)} />}
+        {shown && <RecordResult fingerprint={result.comparison_sha256} record={key => recordFirmwareImpact(shown, result.comparison_sha256, key)} partial={observationRange(result)} />}
         <Group><Button disabled={busy || result.observation_offset === 0} onClick={() => { void inspect(Math.max(0, result.observation_offset - 100)); }}>Previous impact observations</Button><Button disabled={busy || !result.observations_has_more} onClick={() => { void inspect(result.observation_offset + 100); }}>Next impact observations</Button></Group>
       </>}
     </>}

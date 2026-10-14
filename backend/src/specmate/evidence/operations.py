@@ -8,6 +8,7 @@ from specmate.evidence.contracts import (
 )
 from specmate.evidence.queries import list_evidence
 from specmate.evidence.recorded import (
+    authorize_inputs,
     read_recorded,
     record_firmware_impact,
     record_interface_assessment,
@@ -38,8 +39,18 @@ def evidence_taxonomy(ctx: Context, p: ReadTaxonomy):
 
 
 def replay_recorded(ctx, p, stored):
-    # The retained record still exposes exact inputs; re-check current authority over them.
-    read_recorded(ctx.user, ReadRecordedResult(record_id=stored["record_id"]))
+    # A replay returns the retained record as a fresh command result; re-check current
+    # authority over its exact inputs as the original command did.
+    from specmate.evidence.models import RecordedResult
+    from specmate.operations import NotFound, OperationError
+
+    record = RecordedResult.objects.filter(id=stored["record_id"]).first()
+    if record is None:
+        raise NotFound("Recorded result unavailable.")
+    try:
+        authorize_inputs(ctx.user, record)
+    except OperationError:
+        raise NotFound("Recorded result unavailable.") from None
 
 
 @operation(

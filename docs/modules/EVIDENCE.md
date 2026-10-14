@@ -51,11 +51,13 @@ Both commands support idempotent retry; replay re-checks current read authority.
 Records appear in `evidence.list` as `generated_check` items with origin
 `recorded_result`. A record is `stale` when any pinned input definition has a newer
 revision; it is never rewritten or re-evaluated, and the warning names each superseded
-pin. Each read re-resolves the exact inputs through the owning module (the interface
-closure, or the firmware impact authorization), so a record whose inputs are no longer
-readable is omitted. `evidence.read_recorded` (HTTP `GET /api/v0/evidence/recorded/{id}`)
-returns the full snapshot with per-pin staleness. A recorded firmware review holds the
-observation page that was compared; it is not a human approval and evaluates no hardware.
+pin. Every workspace member reads everything in the workspace and pins stay inside the
+record workspace, so listing and reading a record need only `workspace.read`; idempotent
+replay of a record command re-resolves the exact inputs through the owning module.
+`evidence.read_recorded` (HTTP `GET /api/v0/evidence/recorded/{id}`) returns the full
+snapshot with per-pin staleness. A recorded firmware review holds the observation page
+that was compared; when that is not every observation in scope, the item states
+"observations N–M of T". It is not a human approval and evaluates no hardware.
 
 Not mapped: knowledge notes are context, not evidence. Applicability or supersession
 rules, batch/configuration test scope and release closure belong to later evidence

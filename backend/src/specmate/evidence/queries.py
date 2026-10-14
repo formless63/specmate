@@ -13,7 +13,7 @@ from specmate.builds.models import BuildAttempt
 from specmate.design.models import Revision
 from specmate.evidence.contracts import EvidenceItem, EvidenceList, ListEvidence
 from specmate.evidence.models import RecordedResult
-from specmate.evidence.recorded import authorize_record, pin_states
+from specmate.evidence.recorded import observation_range, pin_states
 from specmate.evidence.taxonomy import FACT_METHOD_KIND, KIND_INFO, fact_kind
 from specmate.facts.models import FactAssertion
 from specmate.facts.queries import authorize_assertions, resolve_target, subject_target
@@ -385,10 +385,12 @@ def recorded_item(record, pins):
         status = "review_required" if result["review_required"] else "recorded"
         method = "firmware_impact_comparison"
         warnings = ["Hardware compatibility, flashing and device operation are not evaluated."]
-        if result["observations_truncated"]:
+        partial = observation_range(result)
+        if partial:
+            statement += f"; recorded observations {partial} only"
             warnings.append(
-                f"Recorded one page of {result['observations_total']} historical observations "
-                f"from position {result['observation_offset'] + 1}."
+                f"Partial record: observations {partial}. Other observations in scope were "
+                "not recorded."
             )
     stale = [pin for pin in pins if pin["newer_revision_exists"]]
     warnings = [
@@ -429,11 +431,8 @@ def recorded_items(user, p, scan):
     for index in range(0, SCAN_LIMIT, CHUNK):
         chunk = list(rows[index : index + CHUNK])
         states = pin_states(chunk)
+        # list_evidence already holds workspace.read; members read every record in it.
         for record in chunk:
-            try:
-                authorize_record(user, record)
-            except OperationError:
-                continue
             yield (
                 (record.recorded_at, str(record.id)),
                 recorded_item(record, states.get(record.id, [])),

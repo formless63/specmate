@@ -9,7 +9,7 @@ import type { RecordedResult } from "./api";
  * Deliberately records the result on screen as an immutable evidence snapshot. One
  * idempotency key per shown result makes a retry return the same record.
  */
-export function RecordResult({ fingerprint, record }: { fingerprint: string; record: (idempotencyKey: string) => Promise<RecordedResult> }) {
+export function RecordResult({ fingerprint, record, partial }: { fingerprint: string; record: (idempotencyKey: string) => Promise<RecordedResult>; partial?: string | null }) {
   const gate = usePermission("item.create");
   // Panels mounted without a query cache still record; the evidence list refreshes when present.
   const cache = useContext(QueryClientContext);
@@ -36,6 +36,7 @@ export function RecordResult({ fingerprint, record }: { fingerprint: string; rec
       <Button {...gate.props} disabled={gate.props.disabled || busy || !!saved} onClick={() => { void submit(); }}>Record result as evidence</Button>
       <Text size="xs">Stores this exact result with its input pins. It is never rewritten; newer input revisions mark it stale.</Text>
     </Group>
+    {partial && <Text size="sm">Partial record: observations {partial}. Other observations in scope are not recorded.</Text>}
     {saved && <Text size="sm">Recorded {saved.recorded_at} · record {saved.record_id} · SHA-256 {saved.result_sha256}</Text>}
     {error && <Alert color="red">{error}</Alert>}
   </>;

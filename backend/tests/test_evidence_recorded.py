@@ -233,3 +233,15 @@ def test_firmware_impact_record_requires_the_shown_comparison_and_goes_stale(
     assert item["stale"] is True
     assert any("candidate firmware revision 1" in w for w in item["warnings"])
     assert RecordedResult.objects.get(id=record["record_id"]).result == shown
+
+
+def test_partial_firmware_record_states_its_observation_range():
+    from specmate.evidence.recorded import observation_range
+
+    page = {"observations": [{}] * 100, "observations_total": 250, "observation_offset": 100}
+    assert observation_range(page) == "101\u2013200 of 250"
+    assert observation_range({**page, "observations": [{}] * 50, "observation_offset": 200}) == (
+        "201\u2013250 of 250"
+    )
+    complete = {"observations": [{}] * 3, "observations_total": 3, "observation_offset": 0}
+    assert observation_range(complete) is None
