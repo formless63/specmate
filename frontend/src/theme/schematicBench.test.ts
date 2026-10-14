@@ -1,6 +1,8 @@
 import { DEFAULT_THEME, mergeMantineTheme } from "@mantine/core";
 import { expect, test } from "vitest";
 import { accentScale, motion, sbVariables, schematicBench } from "./schematicBench";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import tokens from "./schematic-bench.tokens.json";
 
 test("accent scale places the exact dark and light accent at the primary shades", () => {
@@ -37,10 +39,9 @@ test("variables resolve semantic roles for both colour schemes with a non-accent
   }
 });
 
-test("scrolling table wrappers contain absolutely positioned hidden labels at phone width", async () => {
+test("scrolling table wrappers contain absolutely positioned hidden labels at phone width", () => {
   // jsdom has no layout; guard the rule that stops a hidden header label from widening the document.
-  const { readFileSync } = await import("node:fs");
-  const css = readFileSync(new URL("./schematic-bench.css", import.meta.url), "utf8");
+  const css = readFileSync(resolve(process.cwd(), "src/theme/schematic-bench.css"), "utf8");
   const rule = css.split("\n").find((line) => line.startsWith(".sb-ws-scroll {")) ?? "";
   expect(rule).toContain("position: relative");
   expect(rule).toContain("overflow-x: auto");
