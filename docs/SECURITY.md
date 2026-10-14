@@ -2,9 +2,9 @@
 
 ## Assets and actors
 
-Protect source/artifact bytes, engineering facts, private project membership, credentials,
+Protect source/artifact bytes, engineering facts, workspace membership, credentials,
 workshop stock, physical evidence, releases and execution hosts. Actors include owners,
-project collaborators, scoped machine clients, external agents, operators, native runners,
+workspace members, scoped machine clients, external agents, operators, native runners,
 plugins, importers and untrusted source authors. An imported document's instructions are
 content, not commands from an owner. Runtime agents cannot inherit contributor privileges.
 
@@ -13,14 +13,39 @@ content, not commands from an owner. Runtime agents cannot inherit contributor p
 Authenticate once at transport and authorize every operation in the shared service layer.
 Server-derived scope is not a client parameter to trust. Filter trees, full-text search,
 where-used links, autocomplete, counts, logs, notifications, jobs, hashes and exports.
-A cross-project reference must not disclose its private name or existence through a denial
-message. Retest disclosure permission on artifact download and export after a job completes.
+Nothing outside the actor's workspace is disclosed by name, count or denial message; such
+a record is reported as not found. Retest disclosure permission on artifact download and
+export after a job completes.
 
 Local sessions use appropriate CSRF/cookie protections; API and machine credentials are
 scoped, revocable and auditable. API keys are not automatically the complete authorization
 protocol required by every remote MCP client. Use the selected official SDK/auth guidance
 and advertise supported transports/auth flows. Do not invent a custom OAuth substitute.
 One-time ownership setup has a short lifetime, one-use semantics and no public default.
+
+## Workspace roles
+
+Status: accepted target model; it replaces per-project membership and grants as the
+workspace-collections migration lands.
+
+The workspace is the privacy boundary (see [DOMAIN](DOMAIN.md#workspace-collections-and-projects)).
+All members see every project and collection record in it; projects are not separate
+access scopes. A member's role decides what they may change. Permission names are stable
+atoms so that machine clients and agents can be granted a subset of a member's authority.
+
+| Role | Permissions |
+| --- | --- |
+| Viewer | `workspace.read`: read every project and collection record, inspect results. |
+| Contributor | Viewer, plus `item.create`, `source.register` and `project.edit`: add new definitions, sources, catalog associations, facts, notes and match candidates, create projects and edit project content, and edit the drafts of definitions they created. Contributors are never blocked from bringing new items into the workspace. |
+| Editor | Contributor, plus `design.edit` on every item, `design.freeze` and `inventory.reserve`: change or freeze any shared item and record reviews and decisions. |
+| Admin | Every permission, including `workspace.admin` for membership and roles. |
+
+`build.execute` (native execution) and `inventory.manage` (stock and physical-unit
+mutation) remain separate authorities: admins hold them, and an admin may grant either to
+another member explicitly. The workspace must always retain an active admin. Installation
+ownership claims the first admin membership; creating a local account grants no
+membership. Operator actions, runner credentials and deployment changes are not workspace
+roles.
 
 ## Execution
 
@@ -70,7 +95,8 @@ upstream notices, not private narrative. Never build an image from the parent wo
 
 Review publisher identity, signatures/digests, authority changes and dependency closure.
 A sandbox extension cannot request hidden in-process code loading. Operators can access
-Temporal UI and administrative operations; regular project membership is not sufficient.
+Temporal UI and administrative operations; workspace membership, including the admin role,
+is not sufficient.
 Do not proxy an unauthenticated Temporal service to the public web.
 
 ## Dev-state safety

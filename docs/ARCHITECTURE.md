@@ -36,7 +36,7 @@ authoritative rules in the browser.
 
 ## Application modules
 
-Use clear boundaries for identity/access; library/catalog; drafts/revisions/assemblies;
+Use clear boundaries for identity/workspace access; library/catalog; drafts/revisions/assemblies;
 interfaces/topology; stock/cables/preparation; PCB intake; mechanical/scene; configuration;
 sources/artifacts; builds; firmware; inventory/make; evidence/releases; knowledge;
 extensions/integrations; and installation diagnostics. Avoid one giant generic object
@@ -47,6 +47,24 @@ Native sources remain authoritative for explicitly designated properties. Extrac
 is a versioned interpretation with provenance. A workflow edits the source or the owning
 record; it never silently maintains two editable truths. Keep a single implementation
 of authoritative calculations and use outputs as shared inputs for documents/views.
+
+## Workspace scope and authorization
+
+Access is scoped by workspace (see [DOMAIN](DOMAIN.md#workspace-collections-and-projects)).
+Collection records carry their workspace identity; a project carries its workspace too
+and holds only project-owned records plus references. One shared authorization helper
+resolves the actor's current workspace membership and role for every operation and read,
+across GUI, API, MCP and trusted jobs. Modules do not implement per-project checks, and
+a project identifier in a payload is navigation context, never authority.
+
+Because every dependency stays inside one workspace (enforced by database guards), the
+authority to read a root record covers its pinned closure: closure traversal validates
+typed content and exact pins but needs no per-dependency membership lookups. Native
+execution, inventory management and operator actions keep separate permissions;
+distribution and export keep their rights and closure review.
+
+Idempotency keys are namespaced by workspace. Operations that are independent of any
+workspace (installation ownership, account creation, session) use the global namespace.
 
 ## Persistent compact deployment
 
@@ -112,11 +130,12 @@ running. Tools do not all resolve into one Python environment.
 
 Use transactional identities and immutable blobs, with staged uploads, verified promotion
 and recoverable orphan cleanup. Do not rely on S3 versioning/object lock to implement
-engineering revisions. Hashes identify bytes, not owners or permissions. No cross-tenant
-deduplication existence leak. Full-text and relational/recursive queries come first;
-specialized search is an optional measured enhancement.
+engineering revisions. Hashes identify bytes, not owners or permissions. Deduplication
+stays within one workspace and never reveals existence across workspaces. Full-text and
+relational/recursive queries come first; specialized search is an optional measured
+enhancement.
 
-Inventory is native, with one authoritative stock ledger and explicit procurement
+Inventory is native, with one authoritative stock ledger per workspace and explicit procurement
 projections. No required InvenTree, ERP, invoices, accounting or currency configuration.
 No distributed event-sourcing platform or graph database is required just because
 engineering records form graphs.

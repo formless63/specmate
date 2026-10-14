@@ -3,6 +3,53 @@
 This document sets semantic rules. Concrete table/class names may evolve before v1.0.0;
 the rules do not silently change with implementation convenience.
 
+## Workspace, collections and projects
+
+Status: accepted target model. Until the workspace-collections migration lands, the
+implementation still records a project on many records; that is not the target meaning.
+
+A **workspace** is the sharing and privacy boundary. An installation currently has exactly
+one workspace; records carry their workspace identity so that more can exist later
+without changing the engineering model. Every member of a workspace can read everything
+in it. Someone who is not a member cannot learn that its records exist.
+
+The workspace owns its **global collections**. Nothing in a collection lives in a project:
+
+| Collection | Contents |
+| --- | --- |
+| Definitions | Every definition kind with its drafts, snapshots and revisions: parts, connector bodies, pinouts, wire stock, cables, harnesses, boards and populations, firmware, interfaces and assessments, assemblies, option sets and configurations, workshop and preparation profiles, BOM, material and test plans, mechanical sources, passive models, PCB source reviews. |
+| Catalog associations | Manufacturer variants, representations, physical lots, reviewed match candidates/decisions, passive-model reviews, upgrade proposals and their reviews/applications, firmware adoptions. |
+| Catalog packs | Installed packs, versions, entries and adoption decisions. Adoption creates workspace definitions. |
+| Sources | Blobs, original and derivative bundles, revisions, files, archive expansions, edit submissions and property-authority lineages. Identical bytes are registered once per workspace. |
+| Derived records | Builds, stages and accepted outputs; PCB intake and interpretations; resolved configurations; mechanical proposals; scene drawings; bench document sets. |
+| Workshop | Stock locations, accounts, the stock ledger, reservations, work batches and completions, physical units. |
+| Facts and knowledge | Fact subjects and assertions about items and units; notes, decisions and attachments about library items. |
+
+A **project** is a composition and decision context. It holds only its own things: its name
+and purpose, its requirements, alternatives, decisions, notes, reviews, releases, and an
+explicit set of **references** to collection items it uses. A reference names a definition,
+an exact revision, a source bundle, a physical unit or another collection record, with
+the role it plays in the project. Adding or removing a reference never creates, copies,
+moves, edits or deletes the referenced item. Several projects can reference the same item;
+a project can reference an item that was created outside any project.
+
+Creating something while working in a project adds it to the workspace collection, and
+the project may then reference it. Removing a project's reference, or archiving the project,
+leaves the item and every other use in place. A record's optional project context (for
+example the project a note, reservation, work batch or review was made for) helps
+navigation and filtering. It is never an authorization boundary and never an owner.
+
+Exact pins stay where they are: in frozen snapshots, captured configurations, build inputs
+and releases. A project reference to a definition is a working-set entry, not a pin;
+a release made in a project freezes the exact revisions, configurations, sources and
+artifacts it depends on. Where-used reports both captured pins and project references,
+and states which kind each use is.
+
+Every dependency, pin, link and reference stays inside one workspace. Bringing material
+from elsewhere is an explicit import (a catalog pack, a source upload or a portable
+package), recorded with its origin and rights; it never becomes a live cross-workspace
+reference. All other invariants in this document apply unchanged to workspace records.
+
 ## Identity, drafts and revisions
 
 A definition is a reusable engineering identity with a kind and metadata. A definition
@@ -26,16 +73,13 @@ number (`Name · kind · r2`). Exact revision IDs, snapshot IDs and hashes stay 
 expandable evidence with a copy control, never as the primary label. `catalog.revision_labels`
 resolves names for exact design and source revision IDs the caller already holds, under the
 same read authority as reading the revision itself, including its complete pinned closure.
-A missing revision, one in a project the actor cannot read, and one with an unreadable
-dependency return the same entry with no name, kind or number, and the view says
-"Not readable by you".
+A missing revision and one outside the actor's workspace return the same entry with no
+name, kind or number, and the view says "Not readable by you".
 
 Discovery compares explicitly selected old and later revisions of one definition through
 `catalog.revision_impact`. It reports changed design content and dependency pins and
-lists currently accessible parent snapshots retaining the old exact pin. Both revisions
-and each disclosed parent's complete source closure are authorized before comparison or
-disclosure. Results are paginated; absence of a visible parent is not evidence that none
-exists elsewhere. Comparison does not establish compatibility, feature correspondence or
+lists workspace parent snapshots retaining the old exact pin, together with projects
+that reference either revision. Results are paginated. Comparison does not establish compatibility, feature correspondence or
 release applicability. Adoption requires a new owning draft, explicit revised selections
 and review; no frozen consumer is rewritten. [Revision upgrade proposals](REVISION-UPGRADES.md)
 retain exact assembly snapshots and selected direct occurrences, separate review history,
@@ -177,21 +221,24 @@ approval record.
 
 ## Privacy and access
 
-Scopes are server-authorized. Every traversal, search, job, artifact fetch, export and
-where-used response filters access, including counts, suggestions and error messages.
+Scopes are server-authorized. The workspace is the privacy boundary: membership and the
+member's workspace role decide what an actor may read and do, and project references
+never widen or narrow that. Every traversal, search, job, artifact fetch, export and
+where-used response is limited to the actor's workspace, including counts, suggestions
+and error messages. A record outside it is indistinguishable from a missing one.
 Permissions are checked at submission, execution, result acceptance and disclosure.
-Private reference presence must not leak through cache hits, hashes, autocomplete or
-unfiltered dependency counts. A release is frozen design state, not irrevocable public
-permission; current access and rights still govern disclosure.
+Workspace presence must not leak through cache hits, hashes, autocomplete or dependency
+counts. A release is frozen design state, not irrevocable public permission; current
+access and rights still govern disclosure, export and publication.
 
-The Discovery workspace searches currently accessible projects, reusable definitions,
-source bundle names/paths, manufacturer associations, physical lots and stock accounts.
-`catalog.search` and `catalog.where_used` are live reads without idempotency keys;
-HTTP query adapters use the same scoped queries. Search labels do not establish reviewed
-matching, interchangeability or catalog adoption.
+The Discovery view searches projects, reusable definitions, source bundle
+names/paths, manufacturer associations, physical lots and stock accounts in the actor's
+workspace. `catalog.search` and `catalog.where_used` are live reads without idempotency
+keys; HTTP query adapters use the same scoped queries. Search labels do not establish
+reviewed matching, interchangeability or catalog adoption.
 
-Where-used reports exact captured snapshot pins for a selected revision. These pins
-describe retained dependency closure, not occurrence counts, electrical connections or
-compatibility. Current authorization covers each parent's complete closure before it
-appears. Pagination advances from visible records and discloses no inaccessible parent
-names, identifiers or aggregate counts. Updating a definition does not change these pins.
+Where-used reports exact captured snapshot pins for a selected revision and, separately,
+the projects that reference it. Pins describe retained dependency closure, not occurrence
+counts, electrical connections or compatibility; a project reference is a declared use,
+not a pin. Pagination advances from stable record order. Updating a definition does not
+change these pins.

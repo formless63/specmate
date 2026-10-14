@@ -1,29 +1,40 @@
-# Personal and team projects
+# Workspace, projects and members
 
-A project is a private scope for the same definitions, sources, inventories and builds.
-Creating one gives its creator project ownership. Adding a local account to a project
-shares these records through membership; it does not clone an engineering model.
+Status: accepted target model. The current implementation still uses per-project
+membership and grants; it is replaced as the workspace-collections migration lands.
+Semantics are in [DOMAIN](DOMAIN.md#workspace-collections-and-projects) and roles in
+[SECURITY](SECURITY.md#workspace-roles).
 
-Viewers read authorized records. Editors also edit drafts and register sources.
-Freezing, native execution and inventory management require separate explicit grants.
-Project owners hold all project permissions. A `project.admin` grant authorizes managing
-membership and grants, including ownership. A project must retain an active owner when
-membership is changed through the operation layer.
+One workspace holds all engineering records of an installation: its library, sources,
+stock, physical units, facts and builds. A person working alone and a team that shares
+everything use the same workspace and the same operations. Records are never cloned per
+project or per member.
 
-The installation owner can create local accounts without email. Account creation does
-not grant access to any project, and installation ownership does not bypass project
-membership. Passwords are validated and hashed; account creation rejects idempotency
-keys and never retains a credential response. Stored usernames use Unicode NFKC
-normalization before length and password validation.
+A project is a composition and decision context inside the workspace. It holds its name,
+purpose, notes, decisions, reviews, future requirements and releases, and references to
+the collection items it uses. Creating a project gives nobody special ownership; every
+member sees every project. Archiving a project hides it from default lists and keeps its
+history; it never deletes or edits referenced items.
 
-`project.access` returns the actor's current permissions. Only administrators receive
-the member roster and access-state token. `project.rename`, `project.set_member` and
-`project.remove_member` require that token, serialize changes on the project row, and
-reject stale edits. Keyed outcomes use the authorized project namespace and recheck
-current administration before replay. Scope reads serialize against membership changes.
-Database administrators retain their direct administration authority.
+`project.add_reference` and `project.remove_reference` record and retire a project's use
+of an item, with its role, under the project's state token. Removal is recorded, not
+erased. Creating a definition, source or other record takes no project; a client that
+wants the new item used in a project adds the reference as a separate operation.
 
-The Project access panel creates local accounts where permitted, renames projects and
-manages membership. Scope loss clears the roster and refreshes the enclosing workspace,
-including after an administrator removes their own membership. Other views continue to
-use the shared operation and authorization layer.
+The installation owner claims the first workspace admin membership and can create local
+accounts without email. Account creation does not grant workspace membership.
+Passwords are validated and hashed; account creation rejects idempotency keys and never
+retains a credential response. Stored usernames use Unicode NFKC normalization before
+length and password validation.
+
+`workspace.access` returns the actor's current role and permissions. Only admins receive
+the member roster and access-state token. `workspace.set_member` and
+`workspace.remove_member` require that token, serialize on the workspace row, reject
+stale edits and keep at least one active admin. Keyed outcomes use the workspace
+namespace and recheck current administration before replay. Database administrators
+retain their direct administration authority.
+
+The Workspace access panel creates local accounts where permitted and manages members,
+roles and explicit `build.execute`/`inventory.manage` grants. Losing membership clears
+all private data in the browser and returns to the signed-out-safe state; a role change
+refreshes which actions are offered. The server authorizes every action regardless.

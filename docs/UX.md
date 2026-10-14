@@ -2,7 +2,7 @@
 
 ## Workspace
 
-Provide a project workspace with an assembly/library tree, a central selected view and a
+Provide one workspace shell with an assembly/library tree, a central selected view and a
 context inspector. Views include composition/interface diagram, cable/stock, board,
 mechanical scene, sources, BOM/preparation, checks and physical records. Shared contextual
 selection is the invariant; not every discipline must use the same renderer.
@@ -10,6 +10,35 @@ selection is the invariant; not every discipline must use the same renderer.
 A selected occurrence stays selected through filtering, grouping, view switches and
 exploded arrangements. A board definition view and a board occurrence view are different
 contexts, visibly labelled. A reusable cable can be opened without loading its parent device.
+
+## Library and project scope
+
+Status: accepted target model for the shell; earlier per-project gating is being replaced.
+
+Signing in lands inside the one application shell (top bar, area rail, context header,
+lenses, status line); there is no pre-project gate. The top bar's scope control selects
+**Library** (the whole workspace) or one project, and is searchable. Every area is
+reachable at both scopes. Scope changes navigation and filtering only, never access.
+
+- At Library scope each lens lists its workspace collection in a dense, paginated table
+  (kind/role, name, latest frozen revision, and the projects that reference it), with
+  kind and text filters. Lists are served by bounded single queries; the browser never
+  fans out per project.
+- At project scope a library lens shows the items that project references first, with a
+  visible control to show the whole library. The Project area shows the project overview:
+  its purpose, notes, decisions, reviews and its references grouped by area, each opening
+  the item in its own lens. Counts are counts of references, not of owned records.
+- Creating an item never asks for a target project; it is added to the library. At project
+  scope the create form offers **Use in this project** (on by default), which adds a
+  reference after the item exists. Every library item offers **Use in project…** to add a
+  reference to a chosen project and shows where it is used.
+- Selecting an item keeps the current scope, area and lens. Opening a referenced item from a
+  project keeps that project as context. Lenses that work on project-held records (project
+  notes and decisions, references, releases) show an inline project chooser at Library scope.
+- Actions the member's role does not permit are shown disabled with the reason (for example
+  "Editors can freeze"); the server still authorizes each action. Nothing opens a project
+  automatically after sign-in. Sign-out, session expiry, loss of membership or a role change
+  clear or refresh private data and return to a safe state with a plain explanation.
 
 ## Editing and evidence
 

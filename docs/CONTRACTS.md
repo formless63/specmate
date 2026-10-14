@@ -19,25 +19,23 @@ strings cannot authorize access. Reversible authoring and externally consequenti
 use separate permissions. Validate and authorize in the service layer, not only HTTP code.
 
 Optimistic concurrency failures return a conflict plus safe current-state/diff information;
-never silently overwrite. An idempotency key is scoped to actor/project/operation and a
+never silently overwrite. An idempotency key is scoped to actor/workspace/operation and a
 request fingerprint. Reusing it with a different payload is an error. Transactional
 operations either commit the intended invariants and outbox entries or neither.
 
 Keyed operations resolve their namespace on the server before looking up retained results.
-An explicit `idempotency_scope(context, validated_payload)` callback returns
-`project:<canonical UUID>` after checking current access to the owning project. The
-`operations.scope.project_scope` and `revision_scope` helpers provide this behavior.
-Project-independent operations such as project creation use the `global` namespace.
-Unknown operations without an explicit scope policy reject keyed requests before writing.
-Within one actor and operation, different projects may reuse the same key independently.
-Current replay authority is checked separately; a retained response never grants access.
+Workspace operations use `workspace:<canonical UUID>` after checking the actor's current
+membership and the operation's permission; a project, revision or other record in the
+payload resolves to its workspace on the server. Operations independent of any workspace,
+such as installation ownership, use the `global` namespace. Unknown operations without an
+explicit scope policy reject keyed requests before writing. Current replay authority is
+checked separately; a retained response never grants access.
 
-Existing unscoped development records migrate into a reserved `legacy` namespace. An
-exact fingerprint replay may adopt the resolved namespace only after current authorization,
-returning the original result without rerunning the mutation. A different request using an
-unresolved legacy key receives a conflict; the old effect is never silently repeated.
-After adoption, independent project namespaces behave normally. This is a bounded
-pre-1.0 transition for retained outcomes, not a historical API compatibility promise.
+A project identifier in a payload is context (for example where a note or reference
+belongs), never authority. Creating a collection record takes no project.
+
+The pre-1.0 workspace-collections change resets disposable development databases instead
+of migrating earlier project-scoped records or retained outcomes.
 
 Responses distinguish validation failure, permission denial, missing input, unsupported
 capability, unavailable tool, conflict, cancelled, failed, partial and completed. Detailed
@@ -91,7 +89,7 @@ clearly incomplete evidence. Only an accepted manifest enters successful artifac
 
 Cached work requires equivalent declared relevant inputs, recipe/tool identities and
 access/rights rechecks. A content hash is not a public download capability. Untrusted or
-unauthorized cache entries cannot answer cross-project queries.
+unauthorized cache entries cannot answer cross-workspace queries.
 
 ## Scene contract
 
