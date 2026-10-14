@@ -198,6 +198,27 @@ it unlinks rather than follows links under the artifact root. Normal installatio
 marker and therefore refuse. Backup (OPS-006) is independent: a reset does not take or
 require a backup, so take one first if the synthetic state matters.
 
+### Accounts and demo data
+
+`manage.py create_account --username <name> --role viewer|contributor|editor|admin` creates
+a local account with a workspace role through the same access operations as the UI. On an
+installation without an owner, the first account must be an admin and becomes the
+installation owner. The password is generated and printed once, or read from the first line
+of stdin with `--password-stdin` (nothing is printed then).
+
+`manage.py seed_demo` fills a freshly reset installation with clearly synthetic data so every
+page has content: library parts with variants and representations, a connector, wire stock,
+a cable, a harness and a preparation profile, a populated board assembly, a BOM and material
+plan, an option set with a rule, configurations and a development need, stock and locations,
+physical units, a recorded test and facts, a release with a later warning, a sourcing offer,
+knowledge notes, preferences, a draft-only agent run, and two projects referencing items
+(one floating, one pinned). Everything goes through the shared operations as an existing
+account (the installation owner, or `--username`); it creates no accounts, uses no native
+tool and issues no raw SQL. Names are fixed and start with "Demo". It is allowed only when a
+verified disposable marker is configured (`SPECMATE_DISPOSABLE_MARKER` or `--marker`), or with
+`--allow` on a database that holds no items. A second run refuses. The usual sequence is
+`reset_disposable`, `create_account --role admin`, `seed_demo`.
+
 ## Organizational path
 
 Add remote authenticated runners first, including architecture/GPU/specialized packs.
