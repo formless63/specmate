@@ -55,4 +55,7 @@ export async function runCommand(operation: string, payload: object, options: { 
 }
 
 /** Permissions whose operations are boundaries; a run needs each of them granted by name. */
+/** Operations that notify or message other people; boundaries regardless of permission. */
+export const MESSAGING_OPERATIONS = new Set(["collaboration.create", "collaboration.respond", "collaboration.propose_upgrade"]);
+
 export const BOUNDARY_PERMISSIONS = new Set(["design.freeze", "build.execute", "inventory.manage", "inventory.reserve", "workspace.admin"]);

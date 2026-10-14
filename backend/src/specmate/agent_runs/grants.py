@@ -2,9 +2,9 @@
 
 Draft-level work (create items, edit drafts, register sources, edit projects, read) is
 grantable as ordinary allowed actions. Freezing, native execution, inventory, release,
-administration and irreversible deletion are boundaries: a run stops in front of them
-unless the sponsor grants each one by name. Only workspace operations without uploads are
-grantable at all; the run operations themselves never are.
+administration, irreversible deletion and messaging other people are boundaries: a run
+stops in front of them unless the sponsor grants each one by name. Only workspace
+operations without uploads are grantable at all; the run operations themselves never are.
 """
 
 from __future__ import annotations
@@ -25,6 +25,10 @@ DRAFT_PERMISSIONS = frozenset(
 )
 # Operations whose floor is draft-level but whose effect cannot be undone.
 IRREVERSIBLE = frozenset({"project.delete"})
+# Operations that notify or message other people (review requests, responses, notices).
+MESSAGING = frozenset(
+    {"collaboration.create", "collaboration.respond", "collaboration.propose_upgrade"}
+)
 
 
 def not_grantable_reason(spec: OperationSpec | None) -> str | None:
@@ -50,6 +54,8 @@ def boundary_reason(spec: OperationSpec) -> str | None:
         return "native execution"
     if spec.name in IRREVERSIBLE:
         return "irreversible"
+    if spec.name in MESSAGING:
+        return "notifies other people"
     return None
 
 

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SbProvenance, SbStatus, SbUnknown, type SbLed } from "../../components/sb";
 import { InspectionScope, ReadOnlyNote, useCan } from "../../lib/permissions";
 import { requestJson } from "../workspace/api";
-import { BOUNDARY_PERMISSIONS, listRuns, readPackage, readRun, runCommand, type FieldDiff, type PackageChange, type ReviewPackage, type RunStatus, type RunStep, type RunSummary } from "./api";
+import { BOUNDARY_PERMISSIONS, MESSAGING_OPERATIONS, listRuns, readPackage, readRun, runCommand, type FieldDiff, type PackageChange, type ReviewPackage, type RunStatus, type RunStep, type RunSummary } from "./api";
 
 type Props = { workspaceId: string; projectId?: string | null; username?: string; principalKey?: string };
 
@@ -83,7 +83,7 @@ function CreateRun({ workspaceId, projectId, onCreated }: { workspaceId: string;
       // Offer only workspace operations this account may call; the server classifies again.
       const usable = data.operations.filter((row) => row.access.kind === "workspace" && !row.operation.startsWith("agent_run.")
         && row.attachments.length === 0 && ["available", "degraded"].includes(row.availability.status));
-      const isBoundary = (row: (typeof usable)[number]) => row.async || row.operation === "project.delete" || BOUNDARY_PERMISSIONS.has(row.access.minimum_workspace_permission ?? "");
+      const isBoundary = (row: (typeof usable)[number]) => row.async || row.operation === "project.delete" || MESSAGING_OPERATIONS.has(row.operation) || BOUNDARY_PERMISSIONS.has(row.access.minimum_workspace_permission ?? "");
       setCatalog({ draft: usable.filter((row) => !isBoundary(row)).map((row) => row.operation), boundary: usable.filter(isBoundary).map((row) => row.operation) });
     }).catch(() => { if (live) setCatalog({ draft: [], boundary: [] }); });
     return () => { live = false; };

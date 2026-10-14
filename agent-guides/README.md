@@ -23,8 +23,9 @@ the run with `agent_run.create`: the agent account, the allowed operations, any 
 granted boundary operations, an action budget, a deadline and an optional checkpoint
 interval. The grant must be a subset of the sponsor's own permissions. Draft-level work
 (creating items, editing drafts, registering sources, project references) is grantable;
-freezing, native execution, inventory, administration and irreversible deletion are
-boundaries that need an explicit `boundary_actions` grant.
+freezing, native execution, inventory, administration, irreversible deletion and
+messaging other people (review requests, responses, notifications) are boundaries
+that need an explicit `boundary_actions` grant.
 
 Call each operation through `agent_run.act` with a unique `step_key`. It runs the normal
 operation as the sponsor, capped to the run's grant and workspace, and records the exact

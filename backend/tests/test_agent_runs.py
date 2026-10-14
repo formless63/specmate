@@ -556,3 +556,17 @@ def test_http_entry_points_use_the_same_operations(users, workspace):
     pkg = client.get(f"/api/v0/agent-runs/{run['run_id']}/review-package").json()
     assert pkg["counts"]["applied"] == 1
     assert api(users["outsider"]).get(f"/api/v0/agent-runs/{run['run_id']}").status_code == 404
+
+
+def test_messaging_other_people_is_a_boundary_needing_explicit_grant(users, workspace):
+    from specmate.agent_runs.grants import MESSAGING, classify
+
+    for name in MESSAGING:
+        assert classify(name)["boundary"] and classify(name)["reason"] == "notifies other people"
+        with pytest.raises(ValidationFailed):
+            start(users, workspace, allowed_actions=[name])
+    run = start(users, workspace)
+    stop = act(users, run, "m1", "collaboration.create", {"workspace_id": workspace})
+    assert stop["step"]["kind"] == "boundary" and stop["run"]["status"] == "paused"
+    granted = start(users, workspace, boundary_actions=["collaboration.create"])
+    assert granted["grant"]["boundary_actions"] == ["collaboration.create"]
