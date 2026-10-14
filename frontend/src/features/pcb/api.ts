@@ -150,7 +150,7 @@ export async function command<T>(operation: string, payload: object, signal?: Ab
   return result.result;
 }
 
-export async function preserveFiles(workspaceId: string, files: File[], name: string, rights: string, boardPath: string, signal?: AbortSignal) {
+export async function preserveFiles(workspaceId: string, files: File[], name: string, rights: string, boardPath: string, signal?: AbortSignal, projectId?: string | null) {
   const refs = [];
   for (const file of files) {
     const content = await file.arrayBuffer();
@@ -165,6 +165,6 @@ export async function preserveFiles(workspaceId: string, files: File[], name: st
     }, signal);
     refs.push({ path, sha256, media_type, rights });
   }
-  const bundle = await command<{ revision_id: string }>("source.create_original_bundle", { workspace_id: workspaceId, name, files: refs }, signal);
+  const bundle = await command<{ revision_id: string }>("source.create_original_bundle", { workspace_id: workspaceId, name, files: refs, ...(projectId ? { project_id: projectId } : {}) }, signal);
   return command<{ intake_id: string }>("pcb.register_intake", { workspace_id: workspaceId, source_revision_id: bundle.revision_id, board_path: boardPath }, signal);
 }

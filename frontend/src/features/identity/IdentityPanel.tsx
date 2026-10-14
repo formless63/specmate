@@ -2,7 +2,7 @@ import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissi
 import { Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { command, libraryDefinitions, read, addProjectReference, type Catalog, type Identity } from "./api";
+import { command, libraryDefinitions, read, type Catalog, type Identity } from "./api";
 import { RepresentationsCard } from "./RepresentationsCard";
 import { IdentityLabel, RevisionLabel } from "../../lib/IdentityLabel";
 
@@ -21,19 +21,14 @@ function IdentityWorkspace({ projectId }: { projectId: string | null }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState("part");
   const [useHere, setUseHere] = useState(true);
-  const [referenceError, setReferenceError] = useState<string | null>(null);
   const definitions = useQuery({ queryKey: ["library-definitions", projectId], queryFn: () => libraryDefinitions(projectId) });
   const identity = useQuery({ queryKey: ["identity", definitionId, identityOffset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${identityOffset}`), enabled: !!definitionId });
   const create = useMutation({ mutationFn: async () => {
-    // New items join the workspace library; a project reference is a separate, optional step.
+    // New items join the workspace library; "Use in this project" adds the reference in the same operation.
     const workspaceId = definitions.data?.workspace_id ?? (await libraryDefinitions(projectId)).workspace_id;
-    return command<{ definition_id: string }>("definition.create", { workspace_id: workspaceId, kind, name });
+    return command<{ definition_id: string }>("definition.create", { workspace_id: workspaceId, kind, name, ...(projectId && useHere ? { project_id: projectId } : {}) });
   }, onSuccess: async (data) => {
-    setDefinitionId(data.definition_id); setRevisionId(null); setIdentityOffset(0); setName(""); setReferenceError(null);
-    if (projectId && useHere) {
-      try { await addProjectReference(projectId, "definition", data.definition_id, kind); }
-      catch (error) { setReferenceError(`Created in the library, but not added to this project: ${(error as Error).message}`); }
-    }
+    setDefinitionId(data.definition_id); setRevisionId(null); setIdentityOffset(0); setName("");
     await cache.invalidateQueries({ queryKey: ["library-definitions", projectId] });
     // Other panels still cache definition lists under the earlier key.
     await cache.invalidateQueries({ queryKey: ["identity-definitions"] });
@@ -53,7 +48,6 @@ function IdentityWorkspace({ projectId }: { projectId: string | null }) {
       </InspectionScope>
       <Button disabled={!name.trim() || !kind.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
-      {referenceError && <Alert color="yellow">{referenceError}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     <Select label="Definition" placeholder="Choose a library definition" searchable data={(definitions.data?.results ?? []).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})${d.in_project ? " · in this project" : ""}` }))} value={definitionId} onChange={(value) => { setDefinitionId(value); setRevisionId(null); setIdentityOffset(0); }} />

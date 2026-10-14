@@ -340,6 +340,34 @@ def _target(kind: str, target_id: UUID):
     return item, item and item.revision.definition.workspace_id
 
 
+def reference_created_item(
+    ctx: Context, workspace, project_id: UUID | None, kind: ReferenceKind, item, role: str
+) -> None:
+    """Reference an item just created from a project's context, in the creating transaction.
+
+    The project is navigation context; it must be in the item's workspace and the actor
+    must be allowed to edit it. An existing active reference by the project is kept.
+    """
+    if project_id is None:
+        return
+    project = authorize_project(ctx.user, project_id, Perm.PROJECT_EDIT, lock=True)
+    if project.workspace_id != workspace.id:
+        raise NotFound("Project not found.")
+    require_active(project)
+    if ProjectReference.objects.filter(
+        project=project, removed_at__isnull=True, **{kind: item}
+    ).exists():
+        return
+    ProjectReference.objects.create(
+        project=project,
+        kind=kind,
+        role=role,
+        added_by=ctx.user,
+        request_id=ctx.request_id,
+        **{kind: item},
+    )
+
+
 @operation(
     "project.add_reference",
     AddReference,

@@ -37,6 +37,8 @@ class Payload(BaseModel):
 class RegisterIntake(WorkspacePayload):
     source_revision_id: UUID
     board_path: str = Field(default="", max_length=512)
+    # Navigation context: the project that will reference the source bundle.
+    project_id: UUID | None = None
 
     @field_validator("board_path")
     @classmethod
@@ -143,6 +145,11 @@ def register_intake(ctx: Context, p: RegisterIntake):
             )
     intake, _ = PcbIntake.objects.get_or_create(
         source_revision=source, board_path=p.board_path, defaults={"created_by": ctx.user}
+    )
+    from specmate.access.projects import reference_created_item
+
+    reference_created_item(
+        ctx, workspace, p.project_id, "source_bundle", source.bundle, "created here"
     )
     return intake_result(intake)
 

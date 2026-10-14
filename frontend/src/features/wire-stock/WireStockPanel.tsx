@@ -5,7 +5,6 @@ import { Alert, Button, Checkbox, Group, NumberInput, Select, Stack, Table, Text
 import { renderPreviewSvg, renderSectionSvg, sectionLayout, stockGeometry } from '../../../../packages/section-layout/src';
 import type { Fact, GroupElement, StockElement, StockSpecification } from '../../../../packages/section-layout/src';
 import { freezeStock, listStocks, saveStock } from './api';
-import { addProjectReference } from '../identity/api';
 import type { StockRecord } from './api';
 import { stockPresets } from './presets';
 import { WirePreparationPreview } from './WirePreparationPreview';
@@ -116,15 +115,10 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
     setBusy(true); setError(''); setMessage('');
     try {
       const created = current === null;
-      const saved = await saveStock(name, stock, current);
+      const saved = await saveStock(name, stock, current, created && useHere ? projectId : null);
       setCurrent(saved); setDirty(false); setStock(clone(saved.content.stock!));
-      let note = '';
-      if (created && projectId && useHere) {
-        try { await addProjectReference(projectId, 'definition', saved.definition_id, 'stock'); }
-        catch (e) { note = ` Not added to this project: ${e instanceof Error ? e.message : String(e)}`; }
-      }
       setStocks(await listStocks(projectId));
-      setMessage(`Saved ${saved.name} (${saved.state}).${note}`);
+      setMessage(`Saved ${saved.name} (${saved.state}).`);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };

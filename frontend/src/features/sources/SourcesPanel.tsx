@@ -2,15 +2,16 @@ import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Titl
 import { useEffect, useRef, useState } from 'react';
 import { command, preserve, request, SourceError, type RevisionDetail, type SourcePage } from './api';
 import { EditHandoff, EditProvenanceCard } from './EditHandoff';
+import { RegisterPcbIntake } from './RegisterPcbIntake';
 import { PropertyAuthorityPanel } from '../source-authority/PropertyAuthority';
 import { SbIdentityBadge, SbProvenance } from '../../components/sb';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
-export function SourcesPanel(props: { workspaceId: string }) {
+export function SourcesPanel(props: { workspaceId: string; projectId?: string | null }) {
   return <SourceWorkspace key={props.workspaceId} {...props} />;
 }
-function SourceWorkspace({ workspaceId }: { workspaceId: string }) {
+function SourceWorkspace({ workspaceId, projectId }: { workspaceId: string; projectId?: string | null }) {
   const canWrite = useCan('source.register');
   const [page, setPage] = useState<SourcePage>({ revisions: [], next_after: null });
   const [detail, setDetail] = useState<RevisionDetail | null>(null);
@@ -109,6 +110,8 @@ function SourceWorkspace({ workspaceId }: { workspaceId: string }) {
         <TextInput label="Expanded bundle name" value={derivedName} disabled={busy} onChange={event => setDerivedName(event.currentTarget.value)} />
         <Button disabled={!path || !derivedName.trim()} loading={busy} onClick={() => void expand()}>Expand ZIP into derivative</Button>
       </Stack>}
+      <RegisterPcbIntake key={`pcb:${detail.revision_id}`} workspaceId={workspaceId} projectId={projectId} detail={detail} busy={busy}
+        setBusy={value => { if (alive.current) setBusy(value); }} onFailure={failed} />
       <EditHandoff key={detail.revision_id} workspaceId={workspaceId} detail={detail} busy={busy} setBusy={value => { if (alive.current) setBusy(value); }}
         onAuthorityFailure={failed} onSubmitted={async id => { if (alive.current && await refresh()) await inspect(id); }} />
     </Stack></Card>}

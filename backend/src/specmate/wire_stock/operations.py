@@ -18,6 +18,8 @@ class CreateStock(StrictModel):
     workspace_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
     stock: StockSpecification
+    # Navigation context: the project that will reference the new stock.
+    project_id: UUID | None = None
 
 
 @operation(
@@ -38,6 +40,9 @@ def create_stock(ctx: Context, p: CreateStock) -> dict:
         content={"stock": p.stock.model_dump(mode="json")},
         updated_by=ctx.user,
     )
+    from specmate.access.projects import reference_created_item
+
+    reference_created_item(ctx, workspace, p.project_id, "definition", definition, "created here")
     return {
         "definition_id": str(definition.id),
         "workspace_id": str(workspace.id),

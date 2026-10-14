@@ -151,3 +151,29 @@ test('post-preservation inventory denial prevents a subsequent detail request', 
   expect(fetchMock.mock.calls.every(([url]) => url.includes('sources/workspaces/'))).toBe(true);
   expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull();
 });
+
+test('an edited derivative can be registered as a PCB intake from the source view', async () => {
+  const edited: api.RevisionDetail = { ...detail, name: 'Edited board', revision_id: 'edited-id', role: 'derivative', derived_from: 'original-id',
+    manifest: { ancestry: ['original-id'], files: [{ ...member, path: 'board.kicad_pcb', sha256: 'board-hash' }, { ...member, path: 'notes.txt', sha256: 'notes-hash' }] } };
+  const posts: { operation: string; payload: Record<string, unknown> }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes('sources/workspaces/')) return reply({ revisions: [{ ...original, revision_id: 'edited-id', name: 'Edited board', role: 'derivative' }], next_after: null });
+    if (url.endsWith('sources/revisions/edited-id')) return reply(edited);
+    if (url.endsWith('operations')) { posts.push(JSON.parse(String(init?.body))); return reply({ result: { intake_id: 'intake-9' } }); }
+    return reply({ revisions: [], next_after: null });
+  }));
+  render(<MantineProvider><PermissionsProvider permissions={['workspace.read', 'source.register']}><SourcesPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider></MantineProvider>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect Edited board revision 1' }));
+  await screen.findByRole('heading', { name: 'Register a PCB intake' });
+  expect(posts).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Register PCB intake' }));
+  await screen.findByText(/registered for board.kicad_pcb/);
+  expect(posts[0]).toMatchObject({ operation: 'pcb.register_intake', payload: { workspace_id: 'ws-1', source_revision_id: 'edited-id', board_path: 'board.kicad_pcb', project_id: 'project-1' } });
+});
+
+test('registering a PCB intake is hidden without source.register and without a board', async () => {
+  setup('success', false);
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' }));
+  await screen.findByRole('heading', { name: 'Exact source revision' });
+  expect(screen.queryByRole('heading', { name: 'Register a PCB intake' })).toBeNull();
+});

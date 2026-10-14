@@ -38,9 +38,9 @@ test('saving editor changes persists the exact stock through the shared operatio
   const posts = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit)?.method === 'POST').map(([, options]) => JSON.parse((options as RequestInit).body as string));
   const payload = posts[0];
   expect(payload.operation).toBe('wire_stock.create');
-  expect(payload.payload).not.toHaveProperty('project_id');
-  // "Use in this project" records a separate reference after the stock exists.
-  expect(posts[1]).toMatchObject({ operation: 'project.add_reference', payload: { project_id: 'project-1', kind: 'definition', target_id: 'definition-1', role: 'stock' } });
+  // "Use in this project" asks the server to reference the new stock in the same operation.
+  expect(payload.payload.project_id).toBe('project-1');
+  expect(posts).toHaveLength(1);
   expect(payload.payload.stock.structure.children[3].outer_diameter_mm).toBe(3.2);
   expect(payload.payload.stock.facts.impedance.value).toBeNull();
   expect((screen.getByRole('button', { name: 'Freeze saved stock' }) as HTMLButtonElement).disabled).toBe(false);
