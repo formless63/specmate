@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { useState } from 'react';
 import { HarnessInspector, HarnessPanel } from './HarnessPanel';
 import { HarnessEditor } from './HarnessEditor';
+import { PermissionsProvider } from '../../lib/permissions';
 import { initialHarness, type Harness, type Inspection, type SegmentTerminal } from './api';
 
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
@@ -122,4 +123,25 @@ test.each(['definitions', 'identity', 'draft'])('denied %s refresh removes cache
   expect(screen.queryByRole('button', { name: 'Freeze harness revision' })).toBeNull();
   if (target !== 'draft') expect(screen.queryByRole('combobox', { name: 'Edit harness draft' })).toBeNull();
   if (target === 'definitions') expect((screen.getByRole('button', { name: 'Create harness draft' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor', ['project.read', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+] as const)('%s permissions gate harness create, save and freeze', async (_name, permissions, saveOff, freezeOff) => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    const data = url.includes('/snapshot') ? { content: { stock } } : url.includes('harnesses/drafts') ? { definition_id: 'harness', draft_id: 'draft', state: 'v1', content: { harness: branched() } } : url.includes('catalog/definitions') ? { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] } : [{ definition_id: 'harness', kind: 'harness', name: 'Synthetic branch' }];
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><HarnessPanel projectId="project" /></PermissionsProvider>));
+  await choose('Existing harness definition', 'Synthetic branch (harness)'); await choose('Edit harness draft', 'draft · v1');
+  expect(await screen.findByText('Basis: Explicit synthetic shield basis')).toBeTruthy();
+  const save = screen.getByRole('button', { name: 'Save harness draft' }) as HTMLButtonElement;
+  const freeze = screen.getByRole('button', { name: 'Freeze harness revision' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(saveOff);
+  expect(freeze.disabled).toBe(freezeOff);
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
+  expect(freeze.title).toBe(freezeOff ? 'Read-only access: requires Freeze' : '');
+  expect(screen.getByRole('button', { name: 'Create harness draft' }).hasAttribute('data-readonly-reason')).toBe(saveOff);
 });

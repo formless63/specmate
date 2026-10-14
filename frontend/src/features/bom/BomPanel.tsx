@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -9,6 +10,7 @@ const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembl
 export function BomPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const editGate = usePermission('design.edit');
   const [name, setName] = useState("");
   const [plan, setPlan] = useState<Plan>(blankPlan);
   const [definitionId, setDefinitionId] = useState<string | null>(null);
@@ -28,7 +30,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Card withBorder><Stack><Title order={3}>New BOM plan</Title>
       <TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} />
-      <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()}>Create BOM draft</Button>
+      <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...editGate.props}>Create BOM draft</Button><ReadOnlyNote permission="design.edit">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
@@ -46,13 +48,15 @@ function Workspace({ projectId }: { projectId: string }) {
 }
 
 function DraftEditor({ draft, definitions, onSaved, onFrozen }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void>; onFrozen: (id: string) => Promise<void> }) {
+  const editGate = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const [value, setValue] = useState(draft.content.bom ?? blankPlan());
   const [dirty, setDirty] = useState(false);
   const save = useMutation({ mutationFn: () => command("bom.update", { draft_id: draft.draft_id, bom: value }, draft.state), onSuccess: onSaved });
   const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("bom.freeze", { draft_id: draft.draft_id }, draft.state), onSuccess: result => onFrozen(result.revision_id) });
   return <Card withBorder><Stack><Title order={3}>Edit BOM draft</Title>
     <PlanEditor value={value} definitions={definitions} onChange={next => { setValue(next); setDirty(true); }} />
-    <Group><Button loading={save.isPending} onClick={() => save.mutate()}>Save BOM draft</Button><Button disabled={dirty || !draft.content.bom} loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze BOM revision</Button></Group>
+    <Group><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save BOM draft</Button><Button disabled={dirty || !draft.content.bom} loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze BOM revision</Button><ReadOnlyNote permission="design.edit">Saving and freezing BOM drafts are unavailable.</ReadOnlyNote></Group>
     {dirty && <Text>Save your edits before freezing.</Text>}
     {save.isError && <Alert color="red">{save.error.message}</Alert>}{freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
   </Stack></Card>;

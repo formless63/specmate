@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,6 +10,8 @@ import { command, read, initialHarness, terminalKey, terminalLabel, type Harness
 export function HarnessPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const editGate = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const editorGeneration = useRef(0); const creationGeneration = useRef(0); const newDenialEpoch = useRef(0);
   const renderedCreation = creationGeneration.current;
   const [draftControl, setDraftControl] = useState<{ state: string; busy: boolean } | null>(null);
@@ -76,7 +79,7 @@ function Workspace({ projectId }: { projectId: string }) {
       {newBlocked && <Alert>New Harness access is denied. Retained unsaved declarations are hidden. Starting New discards them.</Alert>}
       {!newBlocked && <><TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <HarnessEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} onReferenceDenied={newReferenceDenied} />
-      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} onClick={() => create.mutate({ generation: creationGeneration.current })}>Create harness draft</Button></>}
+      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...editGate.props} onClick={() => create.mutate({ generation: creationGeneration.current })}>Create harness draft</Button><ReadOnlyNote permission="design.edit">Creating drafts is unavailable.</ReadOnlyNote></>}
       <Button variant="subtle" onClick={() => { creationGeneration.current += 1; setValue(initialHarness()); setName(""); setNewBlocked(false); setCreateSourceDenied(false); newDeniedRefs.current.clear(); }}>New Harness: discard unsaved creation</Button>
       {newBlocked && <Button onClick={() => { void (async () => { try { const generation = creationGeneration.current; const epoch = newDenialEpoch.current; await read("harnesses/authority", value); for (const path of newDeniedRefs.current) await read(path); if (generation !== creationGeneration.current || epoch !== newDenialEpoch.current) return; newDeniedRefs.current.clear(); setNewBlocked(false); } catch { /* Retain denial and unsaved state. */ } })(); }}>Restore new Harness access</Button>}
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
@@ -94,13 +97,14 @@ function Workspace({ projectId }: { projectId: string }) {
     {inspectorDenied && !draft.data && <Button loading={restoring} onClick={() => { void recheckWorkspace(); }}>Restore Harness inspection access</Button>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     {(workspaceDenied || draft.isError) && <Button onClick={() => { void cache.refetchQueries({ queryKey: ["harness-definitions", projectId] }); void cache.refetchQueries({ queryKey: ["harness-identity", definitionId] }); void cache.refetchQueries({ queryKey: ["harness-draft", draftId] }); }}>Refresh Harness workspace access</Button>}
-    {draft.data && <><DraftEditor onControlChange={setDraftControl} acceptedFreeze={acceptedFreeze} externalDenied={freezeDenied || inspectorDenied} onRestoreAuthority={recheckWorkspace} onRestored={() => setFreezeDenied(false)} hidden={draft.isError || workspaceDenied} key={draft.data.draft_id} draft={draft.data} definitions={currentDefinitions} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["harness-draft", draftId] }); }} />{!draft.isError && !workspaceDenied && <Button disabled={draftSourceDenied || draftControl?.busy} loading={freeze.isPending} onClick={() => freeze.mutate({ generation: editorGeneration.current })}>Freeze harness revision</Button>}</>}
+    {draft.data && <><DraftEditor onControlChange={setDraftControl} acceptedFreeze={acceptedFreeze} externalDenied={freezeDenied || inspectorDenied} onRestoreAuthority={recheckWorkspace} onRestored={() => setFreezeDenied(false)} hidden={draft.isError || workspaceDenied} key={draft.data.draft_id} draft={draft.data} definitions={currentDefinitions} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["harness-draft", draftId] }); }} />{!draft.isError && !workspaceDenied && <Button disabled={draftSourceDenied || draftControl?.busy} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate({ generation: editorGeneration.current })}>Freeze harness revision</Button>}</>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
     {revisionId && !workspaceDenied && !draft.isError && !draftSourceDenied && !freezeDenied && !inspectorDenied && <HarnessInspector key={revisionId} revisionId={revisionId} authorityScope={editorGeneration.current} onDenied={inspectorFailure} />}
   </Stack>;
 }
 
 export function DraftEditor({ draft, definitions, onSaved, onAuthorityChange, hidden = false, externalDenied = false, onRestored, onControlChange, acceptedFreeze, onRestoreAuthority }: { onRestoreAuthority?: () => Promise<boolean>; onControlChange?: (control: { state: string; busy: boolean }) => void; acceptedFreeze?: { draftId: string; expected: string; state: string } | null; externalDenied?: boolean; onRestored?: () => void; hidden?: boolean; draft: Draft; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void }) {
+  const editGate = usePermission('design.edit');
   const [sourceDenied, setSourceDenied] = useState(false); const [blocked, setBlocked] = useState(false);
   const [value, setValue] = useState(() => draft.content.harness ?? initialHarness());
   const [state, setState] = useState(draft.state); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
@@ -132,7 +136,7 @@ export function DraftEditor({ draft, definitions, onSaved, onAuthorityChange, hi
   }
   if (hidden) return null;
   return <Card withBorder><Stack><Title order={3}>Edit draft</Title>{error && <Alert color="red">{error}</Alert>}
-    {blocked || externalDenied ? <><Alert>Harness access must be restored. Unsaved declarations and their original token are retained.</Alert><Button loading={busy} onClick={() => { void restore(); }}>Restore Harness draft access</Button><Button disabled>Save harness draft</Button></> : <><Text size="sm">{state}</Text><fieldset disabled={busy} style={{ border: 0, padding: 0 }}><HarnessEditor value={value} onChange={change} definitions={definitions} onAuthorityChange={setSourceDenied} onReferenceDenied={refDenied} /><Button disabled={sourceDenied || busy} onClick={() => { void save(); }}>Save harness draft</Button></fieldset></>}
+    {blocked || externalDenied ? <><Alert>Harness access must be restored. Unsaved declarations and their original token are retained.</Alert><Button loading={busy} onClick={() => { void restore(); }}>Restore Harness draft access</Button><Button disabled>Save harness draft</Button></> : <><Text size="sm">{state}</Text><fieldset disabled={busy} style={{ border: 0, padding: 0 }}><HarnessEditor value={value} onChange={change} definitions={definitions} onAuthorityChange={setSourceDenied} onReferenceDenied={refDenied} /><Button disabled={sourceDenied || busy} {...editGate.props} onClick={() => { void save(); }}>Save harness draft</Button></fieldset><ReadOnlyNote permission="design.edit">Saving harness drafts is unavailable.</ReadOnlyNote></>}
   </Stack></Card>;
 }
 export function HarnessInspector({ revisionId, authorityScope = 0, onDenied }: { revisionId: string; authorityScope?: number; onDenied?: (revisionId: string, generation: number) => void }) {

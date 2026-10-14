@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -9,6 +10,8 @@ export function FactsPanel({ projectId }: { projectId: string }) {
 
 function FactWorkspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const registerGate = usePermission("design.edit");
+  const registerManageGate = usePermission("inventory.manage");
   const [kind, setKind] = useState<Target["kind"]>("project");
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
@@ -40,7 +43,7 @@ function FactWorkspace({ projectId }: { projectId: string }) {
       {kind === "occurrence" && <><TextInput label="Fact root assembly snapshot ID" value={snapshotId} onChange={(e) => setSnapshotId(e.currentTarget.value)} /><TextInput label="Fact contextual occurrence path" description="Stable local occurrence IDs separated by /, such as right-module/control-board." value={path} onChange={(e) => setPath(e.currentTarget.value)} /></>}
       {kind === "physical_unit" && <><Text>Choose an actual serialized subject. Measurements attach only to that unit, with procedure and instrument provenance; they do not qualify a lot or release.</Text><Select label="Actual physical unit" searchable value={unitId} data={(units.data?.units ?? []).map((unit) => ({ value: unit.unit_id, label: `${unit.serial} · revision ${unit.revision_id}` }))} onChange={setUnitId} /><Group><Button disabled={unitOffset === 0} onClick={() => { setUnitOffset(Math.max(0, unitOffset - 50)); setUnitId(null); }}>Previous actual units</Button><Button disabled={(units.data?.units.length ?? 0) < 50} onClick={() => { setUnitOffset(unitOffset + 50); setUnitId(null); }}>Next actual units</Button></Group></>}
       {kind !== "project" && kind !== "physical_unit" && <TextInput label="Fact stable feature ID" description="Optional; feature existence is not evaluated by this panel." value={featureId} onChange={(e) => setFeatureId(e.currentTarget.value)} />}
-      <Button disabled={missingTarget} loading={register.isPending} onClick={() => register.mutate()}>Open fact ledger</Button>
+      <Button disabled={missingTarget} loading={register.isPending} {...(kind === "physical_unit" ? registerManageGate : registerGate).props} onClick={() => register.mutate()}>Open fact ledger</Button><ReadOnlyNote permission={kind === "physical_unit" ? "inventory.manage" : "design.edit"}>Opening a new fact ledger is unavailable; existing ledgers can be read.</ReadOnlyNote>
       {register.isError && <Alert color="red">{register.error.message}</Alert>}
       {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
       {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
@@ -76,6 +79,7 @@ export function FactLedger({ subjectId }: { subjectId: string }) {
 }
 
 function AssertionEditor({ property, state, physicalUnit, busy, onAppend }: { property: string; state: string; physicalUnit: boolean; busy: boolean; onAppend: (fact: Fact) => void }) {
+  const appendGate = usePermission(physicalUnit ? "inventory.manage" : "design.edit");
   const [status, setStatus] = useState<Status>("unknown");
   const [method, setMethod] = useState<Method>("source_observation");
   const [purpose, setPurpose] = useState<Purpose>("manufacturing");
@@ -133,6 +137,6 @@ function AssertionEditor({ property, state, physicalUnit, busy, onAppend }: { pr
     {method === "calculation" && <Group><TextInput label="Calculation formula" value={formula} onChange={(e) => setFormula(e.currentTarget.value)} /><TextInput label="Calculation algorithm version" value={algorithmVersion} onChange={(e) => setAlgorithmVersion(e.currentTarget.value)} /></Group>}
     {method === "measurement" && <><TextInput label="Observation time with timezone" placeholder="2026-01-01T12:00:00Z" value={observedAt} onChange={(e) => setObservedAt(e.currentTarget.value)} /><TextInput label="Measurement instrument" value={instrument} onChange={(e) => setInstrument(e.currentTarget.value)} /><Textarea label="Measurement procedure" value={procedure} onChange={(e) => setProcedure(e.currentTarget.value)} /></>}
     <Text size="sm">An illustrative dimension remains an illustration. It cannot qualify manufacturing fit. A reviewed association remains distinct from a measurement.</Text>
-    <Button disabled={!basis.trim() || missingEvidence || missingValue} loading={busy} onClick={submit}>Record immutable assertion</Button>
+    <Button disabled={!basis.trim() || missingEvidence || missingValue} loading={busy} onClick={submit} {...appendGate.props}>Record immutable assertion</Button><ReadOnlyNote permission={physicalUnit ? "inventory.manage" : "design.edit"}>Recording assertions is unavailable.</ReadOnlyNote>
   </Stack></Card>;
 }

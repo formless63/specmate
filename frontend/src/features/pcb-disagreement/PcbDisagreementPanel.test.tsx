@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { useState } from 'react';
 import { AssertionEditor, ComparisonEditor } from './Editors';
+import { PermissionsProvider } from '../../lib/permissions';
 import { PcbDisagreementInspector, PcbDisagreementPanel, ProjectionView } from './PcbDisagreementPanel';
 import { blankAssertion, type Assertion, type Comparison, type Draft, type FilePin, type Frozen, type Projection, type ResolvedInput } from './api';
 
@@ -113,4 +114,31 @@ test('denied preserved-source refresh hides private assertion rows and declarati
   expect(screen.queryByLabelText('Coverage declaration basis')).toBeNull();
   expect(screen.queryByText('J1 / 1 · one · assigned · sense · Synthetic terminal table')).toBeNull();
   expect(onDenied).toHaveBeenLastCalledWith(true);
+});
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor', ['project.read', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+] as const)('%s permissions gate source review create, save and freeze', async (_name, permissions, saveOff, freezeOff) => {
+  const value = comparison();
+  const draft = (): Draft => ({ definition_id: 'comparison-def', draft_id: 'draft', state: 'v1', content: { pcb_comparison: value }, projection: projection() });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    let data: unknown;
+    if (url.includes(`revisions/${LEFT}`) || url.includes(`revisions/${RIGHT}`)) data = assertionRevision(LEFT);
+    else if (url.includes('/drafts/')) data = draft();
+    else if (url.includes('catalog/definitions')) data = { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] };
+    else data = [{ definition_id: 'comparison-def', name: 'Independent comparison', kind: 'pcb_comparison' }];
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><PcbDisagreementPanel projectId="project" /></PermissionsProvider>));
+  await choose('Existing source review definition', 'Independent comparison (pcb_comparison)'); await choose('Source review draft', 'draft · v1');
+  expect(await screen.findByText('The independent sources name different nets.')).toBeTruthy();
+  const save = screen.getByRole('button', { name: 'Save source review draft' }) as HTMLButtonElement;
+  const freeze = screen.getByRole('button', { name: 'Freeze source review revision' }) as HTMLButtonElement;
+  await waitFor(() => expect(save.disabled).toBe(saveOff));
+  expect(freeze.disabled).toBe(freezeOff);
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
+  expect(freeze.title).toBe(freezeOff ? 'Read-only access: requires Freeze' : '');
+  expect(screen.getByRole('button', { name: 'Create source review draft' }).hasAttribute('data-readonly-reason')).toBe(saveOff);
 });

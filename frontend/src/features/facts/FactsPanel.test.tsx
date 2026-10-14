@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { FactLedger, FactsPanel } from "./FactsPanel";
 import { valueLabel, type Fact, type Facts } from "./api";
+import { PermissionsProvider } from "../../lib/permissions";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -139,4 +140,33 @@ test("display keeps explicit false, unknown, bounds and tolerance distinct", () 
   expect(valueLabel({ kind: "boolean", value: false })).toBe("False");
   expect(valueLabel({ kind: "range", dimension: "length", unit: "mm", lower: "1", upper: "2" })).toBe("1 to 2 mm");
   expect(valueLabel({ kind: "tolerance", dimension: "length", unit: "mm", minus: "0.1", plus: "0.2" })).toBe("−0.1 / +0.2 mm");
+});
+
+test.each([
+  ["read-only", ["project.read"], "project", true],
+  ["editor", ["project.read", "design.edit"], "project", false],
+  ["editor on a physical unit", ["project.read", "design.edit"], "physical_unit", true],
+  ["inventory manager on a physical unit", ["project.read", "inventory.manage"], "physical_unit", false],
+] as const)("%s permissions gate recording assertions (%s subject)", async (_name, permissions, kind, off) => {
+  const body = ledger();
+  body.target = kind === "project" ? body.target : { kind: "physical_unit", unit_id: "unit-1" } as Facts["target"];
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><FactLedger subjectId="subject" /></PermissionsProvider>));
+  await screen.findByText("cut_allowance: unknown");
+  fireEvent.change(screen.getByLabelText("Assertion basis"), { target: { value: "Allowance is not recorded." } });
+  fireEvent.change(screen.getByLabelText("Evidence citation"), { target: { value: "Original synthetic missing allowance record." } });
+  const record = screen.getByRole("button", { name: "Record immutable assertion" }) as HTMLButtonElement;
+  expect(record.disabled).toBe(off);
+  expect(record.title).toBe(off ? `Read-only access: requires ${kind === "project" ? "Edit" : "Inventory management"}` : "");
+});
+
+test("read-only permissions disable opening a new fact ledger but not reading existing subjects", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
+  render(wrap(<PermissionsProvider permissions={["project.read"]}><FactsPanel projectId="project-1" /></PermissionsProvider>));
+  const open = await screen.findByRole("button", { name: "Open fact ledger" }) as HTMLButtonElement;
+  expect(open.disabled).toBe(true);
+  expect(open.title).toBe("Read-only access: requires Edit");
+  cleanup();
+  render(wrap(<PermissionsProvider permissions={["project.read", "design.edit"]}><FactsPanel projectId="project-1" /></PermissionsProvider>));
+  expect(((await screen.findByRole("button", { name: "Open fact ledger" })) as HTMLButtonElement).disabled).toBe(false);
 });

@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { InterfaceInspector, InterfacePanel } from "./InterfacePanel";
 import { initialInterface, type Interface } from "./api";
+import { PermissionsProvider } from "../../lib/permissions";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -140,4 +141,34 @@ test("incomplete pinout draft opens with unknowns and requires an explicitly sel
   fireEvent.click(editor.getByText("Save interface draft"));
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]).toMatchObject({ operation: "interface.update", expected_state: "draft-v1", payload: { draft_id: "unfinished", interface: { kind: "pinout", body_revision_id: "body-rev", assignments: [], review: "unreviewed", review_basis: null, orientation: { viewing_side: "unknown", rotation_degrees: null, datum: null } } } });
+});
+
+async function pick(name: string, option: string) {
+  const input = await screen.findByRole("combobox", { name });
+  fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" });
+  fireEvent.click(await within(screen.getByRole("listbox", { name, hidden: true })).findByText(option));
+}
+
+test.each([
+  ["read-only", ["project.read"], true, true],
+  ["editor", ["project.read", "design.edit"], false, true],
+  ["editor with freeze", ["project.read", "design.edit", "design.freeze"], false, false],
+] as const)("%s permissions gate interface create, save and freeze", async (_name, permissions, saveOff, freezeOff) => {
+  const value = initialInterface("connector_body");
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    const body = url.includes("interfaces/drafts/") ? { definition_id: "body", draft_id: "draft", state: "draft-v1", content: { interface: value } }
+      : url.includes("catalog/definitions/") ? { definition_id: "body", name: "Synthetic", kind: "connector_body", drafts: [{ draft_id: "draft", state: "draft-v1" }], revisions: [] }
+      : [{ definition_id: "body", name: "Synthetic", kind: "connector_body" }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><InterfacePanel projectId="project" /></PermissionsProvider>));
+  await pick("Existing interface definition", "Synthetic (connector_body)");
+  await pick("Edit interface draft", "draft · draft-v1");
+  const save = await screen.findByRole("button", { name: "Save interface draft" }) as HTMLButtonElement;
+  const freeze = screen.getByRole("button", { name: "Freeze interface revision" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(saveOff);
+  expect(freeze.disabled).toBe(freezeOff);
+  expect(save.title).toBe(saveOff ? "Read-only access: requires Edit" : "");
+  expect(freeze.title).toBe(freezeOff ? "Read-only access: requires Freeze" : "");
+  expect(screen.getByRole("button", { name: "Create interface draft" }).hasAttribute("data-readonly-reason")).toBe(saveOff);
 });

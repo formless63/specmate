@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { CableEditor, CableInspector, CablePanel } from './CablePanel';
 import { initialCable, type Cable } from './api';
+import { PermissionsProvider } from '../../lib/permissions';
 import { unknownElectrical, unknownOrientation } from '../interfaces/api';
 
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
@@ -98,7 +99,7 @@ test('mismatched exact body pin blocks adding a terminal and keys are excluded',
   expect((screen.getByRole('button', { name: 'Assign endpoint 1 terminal' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
-async function openRetainedDraft() {
+async function openRetainedDraft(permissions?: string[]) {
   const cable = initialCable();
   cable.stock_revision_id = 'stock-rev';
   cable.endpoints.forEach(e => { e.body_revision_id = 'body-rev'; e.pinout_revision_id = 'pinout-rev'; });
@@ -116,7 +117,7 @@ async function openRetainedDraft() {
       : [{ definition_id: 'cable', kind: 'cable', name: 'Private cable' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<CablePanel projectId="project" />, cache));
+  render(wrap(<PermissionsProvider permissions={permissions}><CablePanel projectId="project" /></PermissionsProvider>, cache));
   await select('Existing cable definition', 'Private cable (cable)');
   await select('Edit cable draft', 'draft · draft-v1');
   await screen.findByText('stock.core → one · Private assignment basis');
@@ -273,3 +274,17 @@ test.each([
   expect(commands.at(-1)).toMatchObject({ operation: 'cable.update', expected_state: 'saved-v2', payload: { cable: { lengths: { route: { amount_mm: '777.000001' } } } } });
   expect((draftEditor().getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('777.000001');
 }, 15_000);
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor without freeze', ['project.read', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+] as const)('%s permissions gate cable create, save and freeze controls', async (_name, permissions, saveOff, freezeOff) => {
+  await openRetainedDraft([...permissions]);
+  const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled;
+  expect(disabled('Save cable draft')).toBe(saveOff);
+  expect(disabled('Freeze cable revision')).toBe(freezeOff);
+  expect(screen.getByRole('button', { name: 'Create cable draft' }).hasAttribute('data-readonly-reason')).toBe(saveOff);
+  expect(screen.getByRole('button', { name: 'Save cable draft' }).getAttribute('title')).toBe(saveOff ? 'Read-only access: requires Edit' : null);
+  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+});

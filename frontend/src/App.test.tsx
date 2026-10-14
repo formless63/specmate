@@ -218,3 +218,21 @@ test("overview start points and open-work links open the owning tool through the
   fireEvent.click(screen.getByRole("button", { name: "Project" }));
   expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
 });
+
+test.each([
+  ["a read-only member", ["project.read"], true],
+  ["an editor", ["project.read", "design.edit", "source.register"], false],
+])("project permissions reach tool panels: %s sees Save stock %s", async (_name, permissions, off) => {
+  server({ authenticated: true, permissions }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  await openProject("Project A");
+  openTool("Wire stock");
+  await screen.findByRole("heading", { name: "Wire stock" });
+  const save = screen.getByRole("button", { name: "Save stock" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(off);
+  expect(save.title).toBe(off ? "Read-only access: requires Edit" : "");
+  expect((screen.getByRole("button", { name: "Freeze saved stock" }) as HTMLButtonElement).disabled).toBe(true);
+  openTool("Inventory");
+  await screen.findByRole("heading", { name: "Inventory" }, { timeout: 5000 });
+  expect((screen.getByRole("button", { name: "Create location" }) as HTMLButtonElement).title).toBe("Read-only access: requires Inventory management");
+});

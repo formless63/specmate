@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { BuildSheetContent } from './BuildSheet';
 import { MaterialAccountingPanel } from './MaterialAccountingPanel';
 import { emptyPlan, type Plan, type Result } from './api';
+import { PermissionsProvider } from '../../lib/permissions';
 
 const wrap = (child: React.ReactNode) => <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>{child}</QueryClientProvider></MantineProvider>;
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -211,4 +212,29 @@ test.each([false, true])('detached reference denial is fenced only by genuine ed
     await screen.findByText('Refresh material accounting access');
     expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull();
   }
+});
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor', ['project.read', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+] as const)('%s permissions gate Save material plan and Freeze saved material plan', async (_name, permissions, saveOff, freezeOff) => {
+  let saved = emptyPlan();
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); if (cmd.payload.plan) saved = structuredClone(cmd.payload.plan); return response({ result: { definition_id: 'definition', draft_id: 'draft', state: 'v1', content: { material_plan: saved } } }); }
+    if (url.includes('catalog/definitions')) return response({ drafts: [], revisions: [] });
+    return response([]);
+  }));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><MaterialAccountingPanel projectId="project" /></PermissionsProvider>));
+  fireEvent.change(screen.getByLabelText('Material plan name'), { target: { value: 'Synthetic material sheet' } });
+  fireEvent.change(screen.getByLabelText('Material subject exact revision ID'), { target: { value: 'subject' } });
+  const save = screen.getByRole('button', { name: 'Save material plan' }) as HTMLButtonElement;
+  const freeze = screen.getByRole('button', { name: 'Freeze saved material plan' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(saveOff);
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
+  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  if (saveOff) { expect(freeze.disabled).toBe(true); return; }
+  fireEvent.click(save); await screen.findByText('draft · v1');
+  expect((screen.getByRole('button', { name: 'Freeze saved material plan' }) as HTMLButtonElement).disabled).toBe(freezeOff);
+  expect((screen.getByRole('button', { name: 'Freeze saved material plan' }) as HTMLButtonElement).title).toBe(freezeOff ? 'Read-only access: requires Freeze' : '');
 });

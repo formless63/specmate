@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { BomInspector, BomPanel } from "./BomPanel";
+import { blankPlan } from "./api";
+import { PermissionsProvider } from "../../lib/permissions";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -100,4 +102,29 @@ test("frozen dimensional demand shows net, independent structural count and unkn
   expect(screen.getByText("Net demand: 2.50 m")).toBeTruthy();
   expect(screen.getByText("Gross: unknown m")).toBeTruthy();
   expect(screen.getByText("Waste: unknown m")).toBeTruthy();
+});
+
+test.each([
+  ["read-only", ["project.read"], true, true],
+  ["editor", ["project.read", "design.edit"], false, true],
+  ["editor with freeze", ["project.read", "design.edit", "design.freeze"], false, false],
+] as const)("%s permissions gate BOM create, save and freeze", async (_name, permissions, saveOff, freezeOff) => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    const body = url.includes("bom/drafts/") ? { definition_id: "bom", draft_id: "d1", state: "v1", content: { bom: blankPlan() } }
+      : url.includes("catalog/definitions/") ? { drafts: [{ draft_id: "d1", state: "v1" }], revisions: [] }
+      : [{ definition_id: "bom", name: "Synthetic BOM", kind: "bom_plan" }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><BomPanel projectId="project" /></PermissionsProvider>));
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Existing BOM plan" })).toBeTruthy());
+  await choose("Existing BOM plan", "Synthetic BOM");
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "BOM draft" })).toBeTruthy());
+  await choose("BOM draft", "d1 · v1");
+  const save = await screen.findByRole("button", { name: "Save BOM draft" }) as HTMLButtonElement;
+  const freeze = screen.getByRole("button", { name: "Freeze BOM revision" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(saveOff);
+  expect(freeze.disabled).toBe(freezeOff);
+  expect(save.title).toBe(saveOff ? "Read-only access: requires Edit" : "");
+  expect(freeze.title).toBe(freezeOff ? "Read-only access: requires Freeze" : "");
+  expect(screen.getByRole("button", { name: "Create BOM draft" }).hasAttribute("data-readonly-reason")).toBe(saveOff);
 });

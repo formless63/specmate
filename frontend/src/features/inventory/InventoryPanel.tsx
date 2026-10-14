@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -12,6 +13,7 @@ export function InventoryPanel({ projectId }: { projectId: string }) {
 
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const manageGate = usePermission("inventory.manage");
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState("");
   const [name, setName] = useState("");
@@ -49,7 +51,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Card withBorder><Stack>
       <Title order={3}>Locations</Title>
       <TextInput label="New location name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
-      <Button disabled={!name.trim()} loading={mutation.isPending} onClick={() => submit("inventory.create_location", { project_id: projectId, name })}>Create location</Button>
+      <Button disabled={!name.trim()} loading={mutation.isPending} onClick={() => submit("inventory.create_location", { project_id: projectId, name })} {...manageGate.props}>Create location</Button><ReadOnlyNote permission="inventory.manage">Opening locations and accounts is unavailable.</ReadOnlyNote>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Open stock account</Title>
@@ -61,7 +63,7 @@ function Workspace({ projectId }: { projectId: string }) {
       {known === "known" && <><TextInput label="Opening quantity" value={amount} onChange={(event) => setAmount(event.currentTarget.value)} /><NativeSelect label="Opening unit" value={unit} onChange={(event) => setUnit(event.currentTarget.value)} data={units[dimension]} /></>}
       <TextInput label="Opening reason" value={reason} onChange={(event) => setReason(event.currentTarget.value)} />
       <TextInput label="Opening assertion source" value={source} onChange={(event) => setSource(event.currentTarget.value)} />
-      <Button disabled={!lot || !location || !reason.trim() || !source.trim() || (known === "known" && !amount.trim())} loading={mutation.isPending} onClick={() => submit("inventory.open_stock", { lot_id: lot, location_id: location, dimension, quantity: known === "known" ? { amount, unit } : null, reason, assertion_source: source, assertion_status: "declared" })}>Open account</Button>
+      <Button disabled={!lot || !location || !reason.trim() || !source.trim() || (known === "known" && !amount.trim())} loading={mutation.isPending} onClick={() => submit("inventory.open_stock", { lot_id: lot, location_id: location, dimension, quantity: known === "known" ? { amount, unit } : null, reason, assertion_source: source, assertion_status: "declared" })} {...manageGate.props}>Open account</Button>
     </Stack></Card>
     <WorkPanel projectId={projectId} batches={data?.work_batches ?? []} pending={mutation.isPending} submit={submit} />
     <Title order={3}>Current stock</Title>
@@ -72,6 +74,7 @@ function Workspace({ projectId }: { projectId: string }) {
 }
 
 function AccountEditor({ accountId, batches, pending, submit }: { accountId: string; batches: WorkBatch[]; pending: boolean; submit: (operation: string, payload: object, state?: string) => void }) {
+  const reserveGate = usePermission("inventory.reserve");
   const [offset, setOffset] = useState(0);
   const detail = useQuery({ queryKey: ["inventory-account", accountId, offset], queryFn: () => read<Detail>(`inventory/accounts/${accountId}?offset=${offset}&limit=50`) });
   return <Card withBorder><Stack>
@@ -79,7 +82,7 @@ function AccountEditor({ accountId, batches, pending, submit }: { accountId: str
     {detail.data && <>
       <StockForm key={detail.data.account.account_id} account={detail.data.account} pending={pending} submit={submit} />
       <Title order={4}>Reservations</Title>
-      {detail.data.reservations.map((reservation) => <Group key={reservation.reservation_id}><Text>{reservation.amount} {reservation.unit} · {reservation.purpose} · {reservation.status}{reservation.remaining_quantity ? ` · remaining ${reservation.remaining_quantity} ${detail.data!.account.unit}` : ""}{reservation.release ? ` · ${reservation.release.reason}` : ""}</Text>{reservation.status === "active" && <Button disabled={pending} onClick={() => submit("inventory.release", { reservation_id: reservation.reservation_id, reason: "Released from inventory workspace" }, detail.data!.account.state)}>Release reservation</Button>}</Group>)}
+      {detail.data.reservations.map((reservation) => <Group key={reservation.reservation_id}><Text>{reservation.amount} {reservation.unit} · {reservation.purpose} · {reservation.status}{reservation.remaining_quantity ? ` · remaining ${reservation.remaining_quantity} ${detail.data!.account.unit}` : ""}{reservation.release ? ` · ${reservation.release.reason}` : ""}</Text>{reservation.status === "active" && <Button disabled={pending} onClick={() => submit("inventory.release", { reservation_id: reservation.reservation_id, reason: "Released from inventory workspace" }, detail.data!.account.state)} {...reserveGate.props}>Release reservation</Button>}</Group>)}
       <UsageForm detail={detail.data} batches={batches} pending={pending} submit={submit} />
       <Title order={4}>Stock history</Title>
       {detail.data.entries.map((entry) => <Text key={entry.entry_id}>{entry.kind}: {entry.amount ?? "Unknown"} {entry.unit} · balance {entry.after ?? "Unknown"} {detail.data!.account.unit} · {entry.reason}{entry.work_batch_id ? ` · work ${entry.work_batch_id}` : ""}{entry.consumption_origin_id ? ` · return of ${entry.consumption_origin_id}` : ""} · {entry.assertion_status}: {entry.assertion_source} · {new Date(entry.created_at).toLocaleString()}</Text>)}
@@ -90,6 +93,8 @@ function AccountEditor({ accountId, batches, pending, submit }: { accountId: str
 
 function StockForm({ account, pending, submit }: { account: Account; pending: boolean; submit: (operation: string, payload: object, state?: string) => void }) {
   const [action, setAction] = useState("establish_quantity");
+  const manageGate = usePermission("inventory.manage");
+  const reserveGate = usePermission("inventory.reserve");
   const [amount, setAmount] = useState("");
   const [unit, setUnit] = useState(account.unit);
   const [reason, setReason] = useState("");
@@ -106,6 +111,6 @@ function StockForm({ account, pending, submit }: { account: Account; pending: bo
     <NativeSelect label="Operation unit" value={unit} onChange={(event) => setUnit(event.currentTarget.value)} data={units[account.dimension]} />
     <TextInput label={action === "reserve" ? "Reservation purpose" : "Operation reason"} value={reason} onChange={(event) => setReason(event.currentTarget.value)} />
     {action !== "reserve" && <><TextInput label="Assertion source" value={source} onChange={(event) => setSource(event.currentTarget.value)} /><NativeSelect label="Assertion status" value={status} onChange={(event) => setStatus(event.currentTarget.value)} data={["declared", "observed", "measured"]} /></>}
-    <Button disabled={blocked || !amount.trim() || !reason.trim() || (action !== "reserve" && !source.trim())} loading={pending} onClick={() => submit(`inventory.${action}`, { account_id: account.account_id, quantity: { amount, unit }, ...(action === "reserve" ? { purpose: reason } : { reason, assertion_source: source, assertion_status: status }) }, account.state)}>Apply stock operation</Button>
+    <Button disabled={blocked || !amount.trim() || !reason.trim() || (action !== "reserve" && !source.trim())} loading={pending} onClick={() => submit(`inventory.${action}`, { account_id: account.account_id, quantity: { amount, unit }, ...(action === "reserve" ? { purpose: reason } : { reason, assertion_source: source, assertion_status: status }) }, account.state)} {...(action === "reserve" ? reserveGate : manageGate).props}>Apply stock operation</Button><ReadOnlyNote permission={action === "reserve" ? "inventory.reserve" : "inventory.manage"}>Stock operations are unavailable.</ReadOnlyNote>
   </Stack>;
 }

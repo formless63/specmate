@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -8,6 +9,8 @@ import { authorityDenied, checkAuthority, command, emptyPlan, read, type Definit
 
 export function MaterialAccountingPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
+  const editGate = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const cache = useQueryClient();
   const [name, setName] = useState(''); const [plan, setPlan] = useState<Plan>(emptyPlan);
   const [current, setCurrent] = useState<Draft | null>(null); const [definition, setDefinition] = useState<string | null>(null);
@@ -77,7 +80,7 @@ function Workspace({ projectId }: { projectId: string }) {
     {blocked ? <Alert color="red"><Stack><Text>Material access must be refreshed before retained evidence is shown. Unsaved values and their original editing token are retained.</Text><Button loading={refresh.isPending} onClick={() => refresh.mutate({ version: generation.current, epoch: authorityEpoch.current })}>Refresh material accounting access</Button>{refresh.isError && <Text>{refresh.error.message}</Text>}</Stack></Alert> : <>
       <Card withBorder><Stack><Title order={3}>{current ? 'Edit material plan' : 'New material plan'}</Title>{current ? <Text>{current.draft_id} · {current.state}</Text> : <TextInput label="Material plan name" value={name} onChange={e => setName(e.currentTarget.value)} />}
         <PlanEditor references={references} onReference={(label, reference) => setReferences(previous => ({ ...previous, [label]: reference }))} generation={sheetGeneration} onDenied={() => denied(sheetGeneration)} value={plan} definitions={definitions.isError ? [] : definitions.data ?? []} onChange={next => { edits.current += 1; setPlan(next); }} />
-        <Group><Button disabled={pending || !plan.subject_revision_id || (!current && !name.trim())} onClick={() => save.mutate({ version: generation.current, payload: plan, draft: current })}>Save material plan</Button><Button disabled={pending || !current} onClick={() => freeze.mutate({ draft: current!, version: generation.current })}>Freeze saved material plan</Button></Group><Text size="sm">Freeze captures the saved draft. Unsaved edits stay separate.</Text>
+        <Group><Button disabled={pending || !plan.subject_revision_id || (!current && !name.trim())} {...editGate.props} onClick={() => save.mutate({ version: generation.current, payload: plan, draft: current })}>Save material plan</Button><Button disabled={pending || !current} {...freezeGate.props} onClick={() => freeze.mutate({ draft: current!, version: generation.current })}>Freeze saved material plan</Button></Group><ReadOnlyNote permission="design.edit">Saving and freezing material plans are unavailable.</ReadOnlyNote><Text size="sm">Freeze captures the saved draft. Unsaved edits stay separate.</Text>
       </Stack></Card>
       <Select label="Existing material plan" value={definition} data={(definitions.isError ? [] : definitions.data ?? []).filter(d => d.kind === 'material_plan').map(d => ({ value: d.definition_id, label: d.name }))} onChange={id => { setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
       {identity.data && !identity.isError && <><Select label="Material draft to load" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} /><Button disabled={pending || !draftId} onClick={() => load.mutate({ id: draftId!, version: generation.current, edit: edits.current })}>Load material draft</Button><Select label="Frozen material revision" value={revisionId} data={identity.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={setRevisionId} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier material history</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Later material history</Button></Group></>}

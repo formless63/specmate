@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Badge, Button, Card, Checkbox, FileInput, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -112,6 +113,7 @@ function ItemTable({ items, onOpen }: { items: ItemPage["items"]; onOpen: (id: s
 }
 
 function AttachmentEditor({ projectId, value, onChange, blocked, onBusy }: { projectId: string; value: AttachmentRef[]; onChange: (refs: AttachmentRef[]) => void; blocked: boolean; onBusy: (busy: boolean) => void }) {
+  const registerGate = usePermission("source.register");
   const [file, setFile] = useState<File | null>(null);
   const [rights, setRights] = useState("");
   const [label, setLabel] = useState("");
@@ -128,7 +130,7 @@ function AttachmentEditor({ projectId, value, onChange, blocked, onBusy }: { pro
     <Text fw={600}>Attachments</Text>
     <Text size="sm">Files are preserved as source revisions with declared rights. An attachment references those exact bytes; it is never copied into another blob.</Text>
     {value.map((ref) => <Group key={`${ref.bundle_revision_id}/${ref.path}`}><Text size="sm">{ref.label || ref.path} · {ref.path}</Text><Button size="xs" variant="subtle" disabled={blocked || upload.isPending} onClick={() => onChange(value.filter((v) => v !== ref))} aria-label={`Remove attachment ${ref.path}`}>Remove</Button></Group>)}
-    <Group align="end"><FileInput label="New attachment file" disabled={blocked || upload.isPending} value={file} onChange={setFile} clearable /><TextInput label="Declared rights" disabled={blocked || upload.isPending} description="Required, for example original-work or licence name." value={rights} onChange={(e) => setRights(e.currentTarget.value)} /><TextInput label="Attachment label" disabled={blocked || upload.isPending} value={label} onChange={(e) => setLabel(e.currentTarget.value)} /><Button disabled={blocked || !file || !rights.trim()} loading={upload.isPending} onClick={() => upload.mutate({file: file!, rights: rights.trim(), label: label.trim()})}>Preserve and attach</Button></Group>
+    <Group align="end"><FileInput label="New attachment file" disabled={blocked || upload.isPending} value={file} onChange={setFile} clearable /><TextInput label="Declared rights" disabled={blocked || upload.isPending} description="Required, for example original-work or licence name." value={rights} onChange={(e) => setRights(e.currentTarget.value)} /><TextInput label="Attachment label" disabled={blocked || upload.isPending} value={label} onChange={(e) => setLabel(e.currentTarget.value)} /><Button disabled={blocked || !file || !rights.trim()} loading={upload.isPending} onClick={() => upload.mutate({file: file!, rights: rights.trim(), label: label.trim()})} {...registerGate.props}>Preserve and attach</Button><ReadOnlyNote permission="source.register">Uploading new attachments is unavailable; existing source files can still be attached.</ReadOnlyNote></Group>
     {upload.isError && <Alert color="red">{upload.error.message}</Alert>}
     <Group align="end"><Select label="Existing source revision" searchable value={revisionId} data={(sources.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `${r.name} · revision ${r.number}` }))} onChange={(id) => { setRevisionId(id); setPath(null); }} /><Select label="Existing source file" value={path} data={(detail.data?.manifest.files ?? []).map((f) => ({ value: f.path, label: `${f.path} · ${f.rights}` }))} onChange={setPath} /><Button disabled={blocked || upload.isPending || !revisionId || !path || !detail.data} onClick={() => add({ bundle_revision_id: revisionId!, path: path!, label: label.trim() })}>Attach existing file</Button></Group>
     {sources.isError && <Alert color="red">{sources.error.message}</Alert>}

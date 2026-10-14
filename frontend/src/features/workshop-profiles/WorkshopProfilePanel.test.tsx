@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import coax from '../../../../tests/fixtures/wire-stock-coax.json';
 import { WorkshopProfilePanel } from './WorkshopProfilePanel';
 import type { WorkshopProfile } from './api';
+import { PermissionsProvider } from '../../lib/permissions';
 
 const revision = '11111111-1111-4111-8111-111111111111';
 const stock = { definition_id: 'stock-definition', draft_id: 'stock-draft', name: 'Synthetic coax', base_revision_id: revision };
@@ -163,4 +164,27 @@ test('keeps registered source path and rights exact when authoring a documented 
   const provenance = screen.getByRole('region', { name: 'Recorded workshop practices' });
   expect(provenance.textContent).toContain('path “ instructions/strip.txt ”');
   expect(provenance.textContent).toContain('rights “ synthetic-test ”');
+});
+
+test.each([
+  ['read-only', ['project.read'], true, 'Read-only access: requires Edit'],
+  ['editor', ['project.read', 'design.edit'], false, 'Read-only access: requires Freeze'],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, null],
+] as const)('%s permissions gate Save profile and Freeze profile', async (_name, permissions, saveOff, freezeReason) => {
+  render(<MantineProvider><PermissionsProvider permissions={[...permissions]}><WorkshopProfilePanel projectId="project-1" /></PermissionsProvider></MantineProvider>);
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Start from frozen stock' }));
+  fireEvent.click(await screen.findByText(`Synthetic coax · ${revision}`));
+  await screen.findByLabelText('stock.jacket end a cutback mm');
+  fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Synthetic strip drawing' } });
+  fireEvent.change(screen.getByLabelText('stock.jacket end a cutback mm'), { target: { value: '12' } });
+  const save = screen.getByRole('button', { name: 'Save profile' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(saveOff);
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
+  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  if (saveOff) { expect(calls).toHaveLength(0); return; }
+  fireEvent.click(save);
+  await screen.findByText('Saved Synthetic strip drawing (draft-v1).');
+  const freeze = screen.getByRole('button', { name: 'Freeze profile' }) as HTMLButtonElement;
+  expect(freeze.disabled).toBe(freezeReason !== null);
+  expect(freeze.title).toBe(freezeReason ?? '');
 });

@@ -7,6 +7,7 @@ import { PreparationPanel, FrozenProfile } from './PreparationPanel';
 import { ProfileEditor } from './ProfileEditor';
 import { CutCalculation } from './CutCalculation';
 import { emptyFormula, type Profile, type Result } from './api';
+import { PermissionsProvider } from '../../lib/permissions';
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function wrap(children: React.ReactNode) { return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider></MantineProvider>; }
@@ -173,4 +174,26 @@ test('quantity edits cannot discard a pending computed denial affecting the reta
   fireEvent.click(screen.getByText('Refresh computed cut access')); await waitFor(() => expect(computations).toBe(2)); fireEvent.change(screen.getByLabelText('Requested units'), { target: { value: '3' } }); expect(screen.queryByText(/1035 mm/)).toBeNull(); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('25');
   await act(async () => { pending.resolve(response({ error: { message: 'Superseded read source denied.' } }, 403)); });
   await screen.findByText(/Preparation source access must be rechecked/); expect(screen.queryByLabelText('Formula 1 allowance 1 mm')).toBeNull(); expect(screen.queryByText('Apply exact profiles to frozen cable or harness')).toBeNull();
+});
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor', ['project.read', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+] as const)('%s permissions gate Save preparation profile and Freeze preparation profile', async (_name, permissions, saveOff, freezeOff) => {
+  let saved: unknown = profile;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); saved = cmd.payload.profile ?? saved; return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: saved } } }); }
+    return response(baseRead(url));
+  }));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><PreparationPanel projectId="project" /></PermissionsProvider>)); startProfile();
+  const save = screen.getByRole('button', { name: 'Save preparation profile' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(saveOff);
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
+  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  if (saveOff) { expect(screen.queryByRole('button', { name: 'Freeze preparation profile' })).toBeNull(); return; }
+  fireEvent.click(save); await screen.findByText('draft · v1', { selector: 'p' });
+  const freeze = screen.getByRole('button', { name: 'Freeze preparation profile' }) as HTMLButtonElement;
+  expect(freeze.disabled).toBe(freezeOff);
+  expect(freeze.title).toBe(freezeOff ? 'Read-only access: requires Freeze' : '');
 });

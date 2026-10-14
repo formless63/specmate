@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { WireStockPanel } from './WireStockPanel';
 import { stockPresets } from './presets';
+import { PermissionsProvider } from '../../lib/permissions';
 
 const record = { name: 'Synthetic saved coax', definition_id: 'definition-1', draft_id: 'draft-1', state: 'draft-v1', content: { stock: stockPresets.coax } };
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
@@ -61,4 +62,36 @@ test('server conflict is visible and cannot be mistaken for a saved stock', asyn
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Draft changed'));
   expect(screen.queryByText(/Saved Synthetic/)).toBeNull();
   expect((screen.getByRole('button', { name: 'Freeze saved stock' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+const showAs = (permissions: string[]) => render(<MantineProvider><PermissionsProvider permissions={permissions}><WireStockPanel projectId="project-1" /></PermissionsProvider></MantineProvider>);
+const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
+
+test('read-only permissions disable Save stock and Freeze with an accessible reason while local work stays available', () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('[]')));
+  showAs(['project.read']);
+  expect(button('Save stock').disabled).toBe(true);
+  expect(button('Save stock').title).toBe('Read-only access: requires Edit');
+  expect(button('Freeze saved stock').disabled).toBe(true);
+  expect(screen.getByRole('note').textContent).toContain('Read-only access: requires Edit');
+  expect(button('Export specification').disabled).toBe(false);
+  expect(button('Export section SVG').disabled).toBe(false);
+});
+
+test('editor without freeze can save but not freeze; freeze holder can do both', async () => {
+  const saved = { name: 'Synthetic saved coax', definition_id: 'definition-1', draft_id: 'draft-1', state: 'draft-v1', content: { stock: stockPresets.coax } };
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_url: string, options?: RequestInit) =>
+    options?.method === 'POST' ? new Response(JSON.stringify({ result: saved })) : new Response('[]')));
+  showAs(['project.read', 'design.edit']);
+  expect(button('Save stock').disabled).toBe(false);
+  expect(screen.queryByRole('note')).toBeNull();
+  fireEvent.click(button('Save stock'));
+  await screen.findByText('Saved Synthetic saved coax (draft-v1).');
+  expect(button('Freeze saved stock').disabled).toBe(true);
+  expect(button('Freeze saved stock').title).toBe('Read-only access: requires Freeze');
+  cleanup();
+  showAs(['project.read', 'design.edit', 'design.freeze']);
+  fireEvent.click(button('Save stock'));
+  await screen.findByText('Saved Synthetic saved coax (draft-v1).');
+  expect(button('Freeze saved stock').disabled).toBe(false);
 });

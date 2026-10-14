@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { CableTestIntentPanel, DraftEditor, PlanEditor, PlanInspector } from './CableTestIntentPanel';
+import { PermissionsProvider } from '../../lib/permissions';
 import { initialPlan, type Draft, type TestPlan } from './api';
 
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() }); });
@@ -330,3 +331,21 @@ test.each([false, true])('delayed inspector denial ignores only actual editor re
     expect(screen.queryByRole('link')).toBeNull();
   }
 }, 10_000);
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor', ['project.read', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+] as const)('%s permissions gate test-plan create, save and freeze', async (_name, permissions, saveOff, freezeOff) => {
+  const d: Draft = { definition_id: 'def', draft_id: 'draft', state: 'draft-v1', content: { test_plan: plan() } };
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => options?.method === 'POST' ? response({ result: target }) : response([])));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><CableTestIntentPanel projectId="project" /><DraftEditor draft={d} onError={() => {}} onSaved={async () => {}} onFrozen={async () => {}} /></PermissionsProvider>));
+  await waitFor(() => expect(screen.getAllByLabelText('Pair stable ID').length).toBeGreaterThan(0));
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Save test-plan draft' }) as HTMLButtonElement).title).toBe(saveOff ? 'Read-only access: requires Edit' : ''));
+  const save = screen.getByRole('button', { name: 'Save test-plan draft' }) as HTMLButtonElement;
+  const freeze = screen.getByRole('button', { name: 'Freeze saved test plan' }) as HTMLButtonElement;
+  expect(freeze.title).toBe(freezeOff ? 'Read-only access: requires Freeze' : '');
+  if (saveOff) { expect(save.disabled).toBe(true); expect(freeze.disabled).toBe(true); }
+  else await waitFor(() => { expect(save.disabled).toBe(false); expect(freeze.disabled).toBe(freezeOff); });
+  expect(screen.getByRole('button', { name: 'Create test-plan draft' }).hasAttribute('data-readonly-reason')).toBe(saveOff);
+});

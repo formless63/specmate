@@ -1,4 +1,5 @@
 import { randomUUID } from "../../lib/random-id";
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { renderPreviewSvg, renderSectionSvg, sectionLayout, stockGeometry } from '../../../../packages/section-layout/src';
@@ -75,6 +76,8 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
   const [dirty, setDirty] = useState(true);
   const [busy, setBusy] = useState(false);
   const [length, setLength] = useState(100);
+  const edit = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const section = useMemo(() => sectionLayout(stock), [stock]);
   const geometry = useMemo(() => stockGeometry(section, length), [section, length]);
   useEffect(() => {
@@ -115,10 +118,11 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
       <TextInput label="Stock name" value={name} disabled={current !== null} onChange={e => setName(e.target.value)} />
       <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }); setDirty(true); } }} />
     </Group>
-    <Group><Button onClick={save} loading={busy} disabled={!projectId}>Save stock</Button><Button variant="light" onClick={freeze} disabled={!current || busy || dirty}>Freeze saved stock</Button>
+    <Group><Button onClick={save} loading={busy} disabled={!projectId} {...edit.props}>Save stock</Button><Button variant="light" onClick={freeze} disabled={!current || busy || dirty} {...freezeGate.props}>Freeze saved stock</Button>
       <Button variant="light" onClick={() => download('stock.json', JSON.stringify({ name, stock, section, geometry }, null, 2), 'application/json')}>Export specification</Button>
       <Button variant="light" onClick={() => download('stock-section.svg', renderSectionSvg(section, name), 'image/svg+xml')}>Export section SVG</Button>
     </Group>
+    <ReadOnlyNote permission="design.edit">Saving and freezing stock are unavailable; the local section and exports still work.</ReadOnlyNote>
     {dirty && <Text size="sm">Unsaved construction. Save before freezing.</Text>}
     <Button variant="subtle" disabled={!projectId || busy} onClick={async () => {
       if (!projectId) return;

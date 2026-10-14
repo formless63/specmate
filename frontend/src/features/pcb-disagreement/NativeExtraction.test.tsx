@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { NativeExtraction, NativeInspector } from './NativeExtraction';
+import { PermissionsProvider } from '../../lib/permissions';
 import { ComparisonEditor } from './Editors';
 import { PcbDisagreementInspector } from './PcbDisagreementPanel';
 import { type Comparison, type NativeAccepted, type Projection } from './api';
@@ -169,4 +170,32 @@ test('native mutation denial revalidates a frozen comparison that retains the sa
   await waitFor(() => expect(screen.queryByText(/Source revision:/)).toBeNull());
   expect(screen.queryByText(/Report SHA-256:/)).toBeNull();
   expect(await screen.findAllByText('Frozen native source denied.')).toHaveLength(2);
+});
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor without execution', ['project.read', 'design.edit', 'source.register'], true, false],
+  ['executor without source registration', ['project.read', 'build.execute'], false, true],
+  ['executor with source registration', ['project.read', 'source.register', 'build.execute'], false, false],
+] as const)('%s permissions gate native extraction request and acceptance', async (_name, permissions, requestOff, acceptOff) => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    let value: unknown;
+    if (url.includes('/sources/')) value = { files: [source] };
+    else if (url.includes('/native-options')) value = { available_recipe_id: 'exact-approved' };
+    else value = { attempts: [attempt], limit: 100 };
+    return new Response(JSON.stringify(value), { status: 200 });
+  }));
+  wrap(<PermissionsProvider permissions={[...permissions]}><NativeExtraction projectId="project" /></PermissionsProvider>);
+  fireEvent.change(screen.getByLabelText('Preserved source revision ID'), { target: { value: SOURCE } });
+  await choose('Preserved source file', source.path);
+  const accept = await screen.findByRole('button', { name: 'Accept extraction attempt' }) as HTMLButtonElement;
+  const request = screen.getByRole('button', { name: 'Request native source extraction' }) as HTMLButtonElement;
+  expect(request.hasAttribute('data-readonly-reason')).toBe(requestOff);
+  expect(accept.hasAttribute('data-readonly-reason')).toBe(acceptOff);
+  expect(request.title).toBe(requestOff ? 'Read-only access: requires Native execution' : '');
+  expect(accept.title).toBe(acceptOff ? 'Read-only access: requires Source registration' : '');
+  if (requestOff) expect(request.disabled).toBe(true);
+  else await waitFor(() => expect(request.disabled).toBe(false));
+  if (acceptOff) expect(accept.disabled).toBe(true);
+  else expect(accept.disabled).toBe(false);
 });

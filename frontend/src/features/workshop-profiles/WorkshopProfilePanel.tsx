@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Checkbox, Group, NumberInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import type { GroupElement, StockElement, StockSpecification } from '../../../../packages/section-layout/src';
@@ -25,6 +26,8 @@ function paths(node: StockElement, prefix = ''): string[] {
 }
 
 export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
+  const edit = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const [stocks, setStocks] = useState<StockChoice[]>([]);
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [revisions, setRevisions] = useState<ProfileRevision[]>([]);
@@ -230,8 +233,9 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
           </Group>)}
         </Stack>;
       })}
-      <Group><Button onClick={() => void save()} loading={busy} disabled={!!frozen || !projectId || !profile || !name.trim() || !dirty}>Save profile</Button>
-        <Button variant="light" onClick={() => void freeze()} disabled={!current || dirty || !!frozen || busy}>Freeze profile</Button></Group>
+      <Group><Button onClick={() => void save()} loading={busy} disabled={!!frozen || !projectId || !profile || !name.trim() || !dirty} {...edit.props}>Save profile</Button>
+        <Button variant="light" onClick={() => void freeze()} disabled={!current || dirty || !!frozen || busy} {...freezeGate.props}>Freeze profile</Button></Group>
+      <ReadOnlyNote permission="design.edit">Saving and freezing profiles are unavailable.</ReadOnlyNote>
       {dirty && <Text size="sm">Unsaved profile suggestions. Save before freezing.</Text>}
     </>}
     {!shown && <Text>Select a frozen stock revision to prepare a profile.</Text>}

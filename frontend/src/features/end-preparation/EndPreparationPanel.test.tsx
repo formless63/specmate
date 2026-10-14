@@ -7,6 +7,7 @@ import { EndPreparationPanel, FrozenProfile } from './EndPreparationPanel';
 import { ApplyPreparation, ApplicationInspection } from './ApplyPreparation';
 import { ProfileEditor } from './ProfileEditor';
 import { emptyProfile, type Profile, type Request, type Result } from './api';
+import { PermissionsProvider } from '../../lib/permissions';
 
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -100,4 +101,26 @@ test('StrictMode effect replay preserves accepted save and authority denial hand
 
 test('nonexistent stock404 hides retained evidence but permits deliberate New discard', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/snapshot') ? response({ error: { message: 'Stock unavailable' } }, 404) : response(baseRead(url)))); render(wrap(<EndPreparationPanel projectId="project" />)); fireEvent.change(screen.getByLabelText('End preparation profile name'), { target: { value: 'Retained name' } }); fireEvent.change(screen.getByLabelText('End preparation stock exact revision ID'), { target: { value: 'missing-stock' } }); await screen.findByText(/End preparation access must be rechecked/); expect(screen.queryByLabelText('End preparation profile name')).toBeNull(); expect(screen.getByText(/Starting a new profile discards/)).toBeTruthy(); fireEvent.click(screen.getByRole('button', { name: 'New end preparation profile' })); await screen.findByLabelText('End preparation profile name'); expect((screen.getByLabelText('End preparation profile name') as HTMLInputElement).value).toBe(''); expect((screen.getByLabelText('End preparation stock exact revision ID') as HTMLInputElement).value).toBe(''); expect(screen.queryByText('Stock unavailable')).toBeNull();
+});
+
+test.each([
+  ['read-only', ['project.read'], true, true],
+  ['editor', ['project.read', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+] as const)('%s permissions gate Save end preparation profile and Freeze end preparation profile', async (_name, permissions, saveOff, freezeOff) => {
+  let saved: unknown = initial;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); saved = cmd.payload.profile ?? saved; return response({ result: draft(saved as Profile) }); }
+    return response(baseRead(url));
+  }));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><EndPreparationPanel projectId="project" /></PermissionsProvider>)); startProfile();
+  const save = screen.getByRole('button', { name: 'Save end preparation profile' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(saveOff);
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
+  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  if (saveOff) { expect(screen.queryByRole('button', { name: 'Freeze end preparation profile' })).toBeNull(); return; }
+  fireEvent.click(save); await screen.findByText('draft · v1', { selector: 'p' });
+  const freeze = screen.getByRole('button', { name: 'Freeze end preparation profile' }) as HTMLButtonElement;
+  expect(freeze.disabled).toBe(freezeOff);
+  expect(freeze.title).toBe(freezeOff ? 'Read-only access: requires Freeze' : '');
 });

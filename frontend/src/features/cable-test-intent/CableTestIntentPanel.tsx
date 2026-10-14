@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -6,6 +7,7 @@ import { command, initialPlan, inspectTarget, keyOf, read, terminalText, type De
 
 export function CableTestIntentPanel({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const editGate = usePermission('design.edit');
   const [name, setName] = useState('');
   const [value, setValue] = useState(initialPlan);
   const [definitionId, setDefinitionId] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
     <div hidden={hidden}><fieldset disabled={create.isPending} style={{ border: 0, padding: 0 }}><Card withBorder><Stack>
       <Title order={3}>New test plan</Title><TextInput label="Test-plan name" value={name} onChange={e => setName(e.currentTarget.value)} />
       <PlanEditor disabled={create.isPending} key={projectId} value={value} onChange={setValue} refresh={refresh} hidden={hidden} onAuthorityChange={setTargetDenied} />
-      <Button disabled={targetDenied || !name.trim() || hidden} loading={create.isPending} onClick={() => create.mutate({ projectId, name, value, generation: editorGeneration })}>Create test-plan draft</Button>
+      <Button disabled={targetDenied || !name.trim() || hidden} loading={create.isPending} {...editGate.props} onClick={() => create.mutate({ projectId, name, value, generation: editorGeneration })}>Create test-plan draft</Button><ReadOnlyNote permission="design.edit">Creating drafts is unavailable.</ReadOnlyNote>
     </Stack></Card></fieldset></div>
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
     {[definitions, identity, draft].filter(q => q.isError).map((q, i) => <Alert key={i} color="red">{q.error?.message}</Alert>)}
@@ -94,6 +96,8 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
 }
 
 export function DraftEditor({ draft, committed, hidden = false, refresh = 0, onError, onSaved, onFrozen, onValueChange }: { onValueChange?: (value: TestPlan) => void; draft: Draft; committed?: Draft | null; hidden?: boolean; refresh?: number; onError: (e: Error) => void; onSaved: (d: Draft) => Promise<void>; onFrozen: (r: string, d: Draft) => Promise<void> }) {
+  const editGate = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const [base, setBase] = useState(draft);
   const [value, setValue] = useState(draft.content.test_plan);
   const [denied, setDenied] = useState(true);
@@ -104,7 +108,7 @@ export function DraftEditor({ draft, committed, hidden = false, refresh = 0, onE
   // Keep the editing baseline and unsaved values mounted through query refresh/denial.
   return <div hidden={hidden}><fieldset disabled={save.isPending || freeze.isPending} style={{ border: 0, padding: 0 }}><Card withBorder><Stack><Title order={3}>Edit test-plan draft</Title><Text>{base.state}</Text>
     <PlanEditor disabled={save.isPending || freeze.isPending} value={value} onChange={setValue} hidden={hidden} refresh={refresh} onAuthorityChange={setDenied} onAccessDenied={onError} />
-    <Group><Button disabled={denied || hidden || save.isPending || freeze.isPending} loading={save.isPending} onClick={() => save.mutate()}>Save test-plan draft</Button><Button disabled={denied || hidden || save.isPending || freeze.isPending} loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze saved test plan</Button></Group>
+    <Group><Button disabled={denied || hidden || save.isPending || freeze.isPending} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save test-plan draft</Button><Button disabled={denied || hidden || save.isPending || freeze.isPending} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate()}>Freeze saved test plan</Button></Group><ReadOnlyNote permission="design.edit">Saving and freezing test plans are unavailable.</ReadOnlyNote>
     <Text size="sm">Freezing captures the saved draft. Save changed expectations first.</Text>
     {save.isError && <Alert color="red">{save.error.message}</Alert>}{freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
   </Stack></Card></fieldset></div>;

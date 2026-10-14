@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { KnowledgePanel } from "./KnowledgePanel";
 import type { Item, Link } from "./api";
+import { PermissionsProvider } from "../../lib/permissions";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -377,4 +378,21 @@ test("strict lifecycle replay still refreshes current authority and hides denied
   fireEvent.click(screen.getByRole("button", { name: "Refresh current knowledge authority" }));
   expect(await screen.findByText("Current target denied.")).toBeTruthy();
   expect(screen.queryByText("Linked to Synthetic bracket revision 1")).toBeNull();
+});
+
+test.each([
+  ["editor without source registration", ["project.read", "design.edit"], true],
+  ["editor with source registration", ["project.read", "design.edit", "source.register"], false],
+] as const)("%s: attachment upload follows the source registration permission", async (_name, permissions, off) => {
+  server();
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><KnowledgePanel projectId="project-1" canEdit /></PermissionsProvider>));
+  await select("Knowledge kind", "Attachment reference");
+  const file = new File(["%PDF-1.4 synthetic"], "sheet.pdf", { type: "application/pdf" });
+  fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText(/Declared rights/), { target: { value: "synthetic-original" } });
+  const upload = screen.getByRole("button", { name: "Preserve and attach" }) as HTMLButtonElement;
+  expect(upload.hasAttribute("data-readonly-reason")).toBe(off);
+  if (off) expect(upload.disabled).toBe(true);
+  else await waitFor(() => expect((screen.getByRole("button", { name: "Preserve and attach" }) as HTMLButtonElement).disabled).toBe(false));
+  expect(upload.title).toBe(off ? "Read-only access: requires Source registration" : "");
 });

@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -18,6 +19,7 @@ type UnitDetail = { unit: Unit; work_link: { assertion_source: string; assertion
 
 export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const manageGate = usePermission('inventory.manage');
   const [offset, setOffset] = useState(0);
   const [definitionId, setDefinitionId] = useState("");
   const [revisionId, setRevisionId] = useState("");
@@ -70,7 +72,7 @@ export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
     <Title order={2}>Physical units</Title>
     <Text>Record an actual obtained or assembled subject at one exact design revision. Its serial is unique within this project. A physical lot identifies an actual batch; a work link associates the unit with a plan. Neither record reports completion, changes stock, or qualifies the unit.</Text>
     {failure?.error && <Alert color="red">{failure.error.message}</Alert>}
-    {mutation.isError && <Alert color="red"><Stack><Text>{mutation.error.message}</Text>{pendingRequest && <Button loading={mutation.isPending} onClick={() => mutation.mutate(pendingRequest)}>Retry same request</Button>}</Stack></Alert>}
+    {mutation.isError && <Alert color="red"><Stack><Text>{mutation.error.message}</Text>{pendingRequest && <Button loading={mutation.isPending} onClick={() => mutation.mutate(pendingRequest)} {...manageGate.props}>Retry same request</Button>}</Stack></Alert>}
     {mutation.isSuccess && <Alert color="green">Physical record saved.</Alert>}
     <Card withBorder><Stack>
       <Title order={3}>Register actual unit</Title>
@@ -90,7 +92,7 @@ export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
       <Button loading={mutation.isPending} disabled={!revisionId || !serial.trim() || !source.trim()} onClick={() => submit("physical_units.register", {
         revision_id: revisionId, serial, origin, lot_id: lotId || null, variant_id: variantId || null,
         assertion_source: source, assertion_status: status,
-      })}>Register unit</Button>
+      })} {...manageGate.props}>Register unit</Button><ReadOnlyNote permission="inventory.manage">Registering units and linking work are unavailable.</ReadOnlyNote>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Actual subjects</Title>
@@ -108,7 +110,7 @@ export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
           <Button loading={mutation.isPending} disabled={!work || !linkSource.trim()} onClick={() => submit("physical_units.link_work", {
             unit_id: selected.unit_id, work_batch_id: selectedWork,
             assertion_source: linkSource, assertion_status: linkStatus,
-          }, work?.state)}>Link actual unit to planned work</Button>
+          }, work?.state)} {...manageGate.props}>Link actual unit to planned work</Button>
         </>}
         {selected.work_batch_id && <Text>Linked planned work: {selected.work_batch_id}. Reported completions remain separate.</Text>}
         {detail.data && <><Title order={4}>Attributed material usage</Title>{detail.data.usage.length === 0 && <Text>No material usage on this page.</Text>}{detail.data.usage.map((entry) => <Text key={entry.entry_id}>{entry.kind}: {entry.amount} {entry.unit} · {entry.reason}</Text>)}<Group><Button disabled={usageOffset === 0} onClick={() => setUsageOffset(Math.max(0, usageOffset - 50))}>Previous usage</Button><Button disabled={detail.data.usage.length < 50} onClick={() => setUsageOffset(usageOffset + 50)}>Next usage</Button></Group></>}

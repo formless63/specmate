@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Text, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -6,6 +7,8 @@ import { blankSource, command, isUuid, label, read, type Frozen, type NativeAcce
 
 export function NativeExtraction({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const executeGate = usePermission('build.execute');
+  const acceptGate = usePermission('source.register');
   const [source, setSource] = useState(blankSource());
   const [role, setRole] = useState<'schematic' | 'netlist'>('schematic');
   const [denied, setDenied] = useState(false);
@@ -61,11 +64,11 @@ export function NativeExtraction({ projectId }: { projectId: string }) {
     <SourcePicker value={source} onChange={setSource} onDenied={setDenied} />
     <Select label="Native source role" value={role} data={[{ value: 'schematic', label: 'Standalone KiCad schematic' }, { value: 'netlist', label: 'Preserved KiCad XML netlist' }]} onChange={v => setRole(v as typeof role)} />
     {available.isError && <Alert color="red">{available.error.message}</Alert>}{available.data && !available.isError && !denied && !available.data.available_recipe_id && <Text>No approved extractor is installed for this exact source selection.</Text>}
-    <Button disabled={blocked || refreshing || denied || attempts.isError || available.isError || !available.data?.available_recipe_id} loading={request.isPending} onClick={() => request.mutate()}>Request native source extraction</Button>
+    <Button disabled={blocked || refreshing || denied || attempts.isError || available.isError || !available.data?.available_recipe_id} loading={request.isPending} onClick={() => request.mutate()} {...executeGate.props}>Request native source extraction</Button><ReadOnlyNote permission="build.execute">Requesting native extraction is unavailable.</ReadOnlyNote>
     {request.isError && <Alert color="red">{request.error.message}</Alert>}{accept.isError && <Alert color="red">{accept.error.message}</Alert>}{attempts.isError && <Alert color="red">{attempts.error.message}</Alert>}
     {blocked && <Text>Cached native evidence was cleared. Refresh extraction status to recheck access before continuing.</Text>}{refreshError && <Alert color="red">{refreshError}</Alert>}
     <Button variant="subtle" loading={refreshing} disabled={request.isPending || accept.isPending} onClick={() => void refreshStatus()}>Refresh extraction status</Button>
-    {!blocked && !refreshing && !attempts.isError && !denied && !available.isError && (attempts.data?.attempts ?? []).map(attempt => <Card key={attempt.attempt_id} withBorder><Stack gap="xs"><Text>{attempt.source.path} · {attempt.source_role} · {label(attempt.state)}</Text><Text size="sm">Exact source SHA-256: {attempt.source.sha256}</Text><Group>{attempt.interpretation ? <Button onClick={() => setSelected(attempt.interpretation!.interpretation_id)}>Inspect accepted extraction {attempt.interpretation.interpretation_id}</Button> : <Button disabled={attempt.state !== 'succeeded' || request.isPending} loading={accept.isPending} onClick={() => accept.mutate(attempt.attempt_id)}>Accept extraction {attempt.attempt_id}</Button>}</Group></Stack></Card>)}
+    {!blocked && !refreshing && !attempts.isError && !denied && !available.isError && (attempts.data?.attempts ?? []).map(attempt => <Card key={attempt.attempt_id} withBorder><Stack gap="xs"><Text>{attempt.source.path} · {attempt.source_role} · {label(attempt.state)}</Text><Text size="sm">Exact source SHA-256: {attempt.source.sha256}</Text><Group>{attempt.interpretation ? <Button onClick={() => setSelected(attempt.interpretation!.interpretation_id)}>Inspect accepted extraction {attempt.interpretation.interpretation_id}</Button> : <Button disabled={attempt.state !== 'succeeded' || request.isPending} loading={accept.isPending} {...acceptGate.props} onClick={() => accept.mutate(attempt.attempt_id)}>Accept extraction {attempt.attempt_id}</Button>}</Group></Stack></Card>)}
     {selected && !blocked && !refreshing && !attempts.isError && !denied && !available.isError && <NativeInspector interpretationId={selected} />}
   </Stack></Card>;
 }

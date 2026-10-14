@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { SelectedPackagesPanel } from './SelectedPackagesPanel';
 import { review, type Review } from './api';
+import { PermissionsProvider } from '../../lib/permissions';
 
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -119,4 +120,20 @@ test('project replacement clears old review and prevents an old deferred downloa
 test('agent and browser review transport requires fresh evaluation without idempotency', async () => {
   const f = fixture(); await review({ root_revision_id: 'root-revision', occurrence_path: ['right', 'board'], purpose: 'authorized_review', rights_reviews: [] });
   expect(f.calls[0]?.idempotency_key).toBeUndefined();
+});
+
+test.each([
+  ['read-only', ['project.read'], true],
+  ['editor', ['project.read', 'design.edit'], true],
+  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false],
+] as const)('%s permissions gate the distribution purpose while private review stays available', async (_name, permissions, off) => {
+  fixture();
+  render(<PermissionsProvider permissions={[...permissions]}>{wrap()}</PermissionsProvider>);
+  const input = await screen.findByRole('combobox', { name: 'Package purpose' });
+  fireEvent.focus(input); fireEvent.keyDown(input, { key: 'ArrowDown' });
+  const distribution = await screen.findByRole('option', { name: 'Reviewed distribution data', hidden: true });
+  expect(distribution.getAttribute('aria-disabled') === 'true' || distribution.hasAttribute('data-combobox-disabled')).toBe(off);
+  const review = await screen.findByRole('option', { name: 'Private authorized review', hidden: true });
+  expect(review.getAttribute('aria-disabled')).not.toBe('true');
+  expect(screen.queryAllByRole('note').length > 0).toBe(off);
 });

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PhysicalUnitsPanel } from "./PhysicalUnitsPanel";
+import { PermissionsProvider } from "../../lib/permissions";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -86,4 +87,32 @@ test("links an actual unit to exact planned work without changing reported compl
   expect(calls[0]).toMatchObject({ operation: "physical_units.link_work", expected_state: "work-before",
     payload: { unit_id: "unit-1", work_batch_id: "work-1", assertion_source: "Traveler" } });
   expect(await screen.findByText(/Linked planned work: work-1/)).toBeTruthy();
+});
+
+test.each([
+  ["read-only", ["project.read"], true],
+  ["reservation only", ["project.read", "inventory.reserve"], true],
+  ["inventory manager", ["project.read", "inventory.manage"], false],
+] as const)("%s permissions gate unit registration", async (_name, permissions, off) => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    let body: unknown;
+    if (url.includes("/definitions/")) body = { revisions: [{ revision_id: "revision-1", number: 1 }] };
+    else if (url.includes("/definitions")) body = [{ definition_id: "definition-1", name: "Synthetic assembly" }];
+    else if (url.includes("catalog/revisions/")) body = { lots: [], variants: [] };
+    else if (url.includes("physical-units/projects/")) body = { units: [] };
+    else body = { work_batches: [] };
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={[...permissions]}><PhysicalUnitsPanel projectId="project-1" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
+  await screen.findByRole("option", { name: "Synthetic assembly" });
+  fireEvent.change(screen.getByLabelText("Definition"), { target: { value: "definition-1" } });
+  await screen.findByRole("option", { name: "Revision 1 · revision-1" });
+  fireEvent.change(screen.getByLabelText("Exact frozen revision"), { target: { value: "revision-1" } });
+  fireEvent.change(screen.getByLabelText("Unit serial"), { target: { value: "UNIT-1" } });
+  fireEvent.change(screen.getByLabelText("Assertion source"), { target: { value: "Traveler" } });
+  const register = screen.getByRole("button", { name: "Register unit" }) as HTMLButtonElement;
+  expect(register.disabled).toBe(off);
+  expect(register.title).toBe(off ? "Read-only access: requires Inventory management" : "");
+  expect(screen.queryAllByRole("note").length > 0).toBe(off);
 });

@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -9,6 +10,8 @@ export function IdentityPanel({ projectId }: { projectId: string }) {
 
 function IdentityWorkspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const editGate = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [identityOffset, setIdentityOffset] = useState(0);
   const [revisionId, setRevisionId] = useState<string | null>(null);
@@ -30,7 +33,7 @@ function IdentityWorkspace({ projectId }: { projectId: string }) {
       <Title order={3}>Create definition</Title>
       <TextInput label="Definition name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
       <TextInput label="Definition kind" value={kind} onChange={(event) => setKind(event.currentTarget.value)} />
-      <Button disabled={!name.trim() || !kind.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create draft</Button>
+      <Button disabled={!name.trim() || !kind.trim()} loading={create.isPending} onClick={() => create.mutate()} {...editGate.props}>Create draft</Button><ReadOnlyNote permission="design.edit">Creating drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
@@ -38,7 +41,7 @@ function IdentityWorkspace({ projectId }: { projectId: string }) {
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
       <Text size="sm">Definition ID: {identity.data.definition_id}</Text>
-      {identity.data.drafts.map((draft) => <Group key={draft.draft_id}><Text size="sm">Draft {draft.draft_id} · {draft.state}</Text><Button size="xs" loading={freeze.isPending} onClick={() => freeze.mutate(draft)}>Freeze current draft</Button></Group>)}
+      {identity.data.drafts.map((draft) => <Group key={draft.draft_id}><Text size="sm">Draft {draft.draft_id} · {draft.state}</Text><Button size="xs" loading={freeze.isPending} onClick={() => freeze.mutate(draft)} {...freezeGate.props}>Freeze current draft</Button></Group>)}
       <Text size="sm" c="dimmed">Freezing records the current draft. It does not qualify a part for manufacture.</Text>
       {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
       <Select label="Exact revision" placeholder="Freeze a draft or choose a revision" data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number}` }))} value={revisionId} onChange={setRevisionId} />
@@ -49,6 +52,7 @@ function IdentityWorkspace({ projectId }: { projectId: string }) {
 }
 
 function RevisionCatalog({ revisionId }: { revisionId: string }) {
+  const editGate = usePermission('design.edit');
   const cache = useQueryClient();
   const [manufacturer, setManufacturer] = useState("");
   const [partNumber, setPartNumber] = useState("");
@@ -74,7 +78,7 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
       <TextInput label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.currentTarget.value)} />
       <TextInput label="Manufacturer part number" value={partNumber} onChange={(e) => setPartNumber(e.currentTarget.value)} />
       <Textarea label="Basis for this association" value={basis} onChange={(e) => setBasis(e.currentTarget.value)} />
-      <Button disabled={!manufacturer.trim() || !partNumber.trim() || !basis.trim()} loading={registration.isPending} onClick={() => register("variant", { manufacturer, part_number: partNumber, association_basis: basis })}>Register variant</Button>
+      <Button disabled={!manufacturer.trim() || !partNumber.trim() || !basis.trim()} loading={registration.isPending} onClick={() => register("variant", { manufacturer, part_number: partNumber, association_basis: basis })} {...editGate.props}>Register variant</Button><ReadOnlyNote permission="design.edit">Registering identities is unavailable.</ReadOnlyNote>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Physical lots</Title>
@@ -82,7 +86,7 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
       {catalog.data?.lots.map((lot) => <Text key={lot.lot_id}>{lot.label} · Lot {lot.lot_id} · {lot.variant_id ? `Variant ${lot.variant_id}` : "Manufacturer variant unknown"}</Text>)}
       <TextInput label="Lot label" value={lotLabel} onChange={(e) => setLotLabel(e.currentTarget.value)} />
       <Select label="Lot manufacturer variant" placeholder="Unknown / unassigned" clearable value={variantId} onChange={setVariantId} data={(catalog.data?.variants ?? []).map((v) => ({ value: v.variant_id, label: `${v.manufacturer} / ${v.part_number}` }))} />
-      <Button disabled={!lotLabel.trim()} loading={registration.isPending} onClick={() => register("lot", { label: lotLabel, variant_id: variantId })}>Register lot identity</Button>
+      <Button disabled={!lotLabel.trim()} loading={registration.isPending} onClick={() => register("lot", { label: lotLabel, variant_id: variantId })} {...editGate.props}>Register lot identity</Button>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Representations</Title>
@@ -92,7 +96,7 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
       <TextInput label="Registered source bundle revision ID" value={bundleRevision} onChange={(e) => setBundleRevision(e.currentTarget.value)} />
       <TextInput label="Source package path" value={sourcePath} onChange={(e) => setSourcePath(e.currentTarget.value)} />
       <Text size="sm">Choose an exact file from a registered source bundle in this project. Its original rights are retained.</Text>
-      <Button disabled={!representationLabel.trim() || !bundleRevision.trim() || !sourcePath.trim()} loading={registration.isPending} onClick={() => register("representation", { label: representationLabel, kind: representationKind, source_bundle_revision_id: bundleRevision, source_path: sourcePath })}>Register representation</Button>
+      <Button disabled={!representationLabel.trim() || !bundleRevision.trim() || !sourcePath.trim()} loading={registration.isPending} onClick={() => register("representation", { label: representationLabel, kind: representationKind, source_bundle_revision_id: bundleRevision, source_path: sourcePath })} {...editGate.props}>Register representation</Button>
     </Stack></Card>
     <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous records</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={!catalog.data || Math.max(catalog.data.variants.length, catalog.data.lots.length, catalog.data.representations.length) < 50} onClick={() => setOffset(offset + 50)}>Next records</Button></Group>
   </Stack>;

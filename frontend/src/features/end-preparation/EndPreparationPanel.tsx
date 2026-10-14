@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,6 +10,8 @@ import { ApplyPreparation } from './ApplyPreparation';
 type Denial = { profile?: Profile; application?: Request; harnessApplication?: HarnessRequest; revision?: string; draft?: string; definition?: string };
 export function EndPreparationPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
+  const editGate = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const cache = useQueryClient();
   const [name, setName] = useState(''); const [profile, setProfile] = useState<Profile>(emptyProfile()); const [current, setCurrent] = useState<Draft | null>(null);
   const [definition, setDefinition] = useState<string | null>(null); const [draftId, setDraftId] = useState<string | null>(null); const [revision, setRevision] = useState<string | null>(null); const [offset, setOffset] = useState(0);
@@ -86,7 +89,7 @@ function Workspace({ projectId }: { projectId: string }) {
     {!hidden && <><Card withBorder><Stack><Title order={3}>{current ? 'Edit end preparation draft' : 'New end preparation profile'}</Title>{current ? <Text>{current.draft_id} · {current.state}</Text> : <TextInput label="End preparation profile name" value={name} onChange={e => setName(e.currentTarget.value)} />}
       <RevisionPicker label="End preparation stock" kinds={['wire_stock']} definitions={definitions.data ?? []} value={profile.stock_revision_id} onChange={stock_revision_id => change({ ...profile, stock_revision_id })} onDenied={id => onDenied({ definition: id }, renderedScope)} />
       <ProfileEditor value={profile} onChange={change} features={stock.data && !stock.isFetching && !stock.isError ? stockFeatures(stock.data.structure) : []} />
-      <Group><Button disabled={!!busy || !profile.stock_revision_id || (!current && !name.trim())} onClick={() => { void save(); }}>Save end preparation profile</Button>{current && <Button disabled={!!busy} onClick={() => { void freeze(); }}>Freeze end preparation profile</Button>}</Group>
+      <Group><Button disabled={!!busy || !profile.stock_revision_id || (!current && !name.trim())} {...editGate.props} onClick={() => { void save(); }}>Save end preparation profile</Button>{current && <Button disabled={!!busy} {...freezeGate.props} onClick={() => { void freeze(); }}>Freeze end preparation profile</Button>}</Group><ReadOnlyNote permission="design.edit">Saving and freezing end preparation profiles are unavailable.</ReadOnlyNote>
     </Stack></Card><Select label="Existing end preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'end_preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={id => { selection.current += 1; setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); }} />
     {history.data && !history.isFetching && <><Select label="End preparation draft to load" data={history.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { selection.current += 1; setDraftId(id); }} /><Button disabled={!!busy || !draftId} onClick={() => { void load(); }}>Load end preparation draft</Button><Select label="Frozen end preparation revision" data={history.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} value={revision} onChange={id => { selection.current += 1; setRevision(id); }} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous end preparation history</Button><Button disabled={Math.max(history.data.drafts.length, history.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next end preparation history</Button></Group></>}
     {revision && <FrozenProfile key={revision} revisionId={revision} authorityScope={scope.current} onDenied={onDenied} />}

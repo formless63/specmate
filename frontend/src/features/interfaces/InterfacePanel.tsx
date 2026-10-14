@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -10,6 +11,8 @@ const kinds = [{ value: "connector_body", label: "Connector body" }, { value: "p
 export function InterfacePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
+  const editGate = usePermission('design.edit');
+  const freezeGate = usePermission('design.freeze');
   const [name, setName] = useState("");
   const [value, setValue] = useState<Interface>(initialInterface("connector_body"));
   const [definitionId, setDefinitionId] = useState<string | null>(null);
@@ -36,7 +39,7 @@ function Workspace({ projectId }: { projectId: string }) {
       <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <Select label="Interface definition kind" data={kinds} value={value.kind} onChange={(v) => setValue(initialInterface(v as Interface["kind"]))} />
       <Editor value={value} onChange={setValue} definitions={definitions.data ?? []} />
-      <Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create interface draft</Button>
+      <Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()} {...editGate.props}>Create interface draft</Button><ReadOnlyNote permission="design.edit">Creating interface drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
@@ -48,16 +51,17 @@ function Workspace({ projectId }: { projectId: string }) {
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["interface-draft", draftId] }); }} /><Button loading={freeze.isPending} onClick={() => freeze.mutate()}>Freeze interface revision</Button></>}
+    {draft.data && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["interface-draft", draftId] }); }} /><Button loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze interface revision</Button></>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
     {revisionId && <InterfaceInspector key={revisionId} revisionId={revisionId} />}
   </Stack>;
 }
 
 function DraftEditor({ draft, definitions, onSaved }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void> }) {
+  const editGate = usePermission('design.edit');
   const [value, setValue] = useState(() => draft.content.interface ?? initialInterface(draft.kind));
   const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><Editor value={value} onChange={setValue} definitions={definitions} /><Button loading={save.isPending} onClick={() => save.mutate()}>Save interface draft</Button>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><Editor value={value} onChange={setValue} definitions={definitions} /><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save interface draft</Button><ReadOnlyNote permission="design.edit">Saving interface drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
 function Editor({ value, onChange, definitions }: { value: Interface; onChange: (v: Interface) => void; definitions: Definition[] }) {
   if (value.kind === "connector_body") return <BodyEditor value={value} onChange={onChange} />;

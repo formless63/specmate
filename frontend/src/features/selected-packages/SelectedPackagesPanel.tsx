@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -12,6 +13,7 @@ export function SelectedPackagesPanel({ projectId }: { projectId: string }) {
 }
 
 function PackageWorkspace({ projectId }: { projectId: string }) {
+  const freezeGate = usePermission('design.freeze');
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [rootId, setRootId] = useState<string | null>(null);
@@ -75,7 +77,8 @@ function PackageWorkspace({ projectId }: { projectId: string }) {
         {projection.data?.occurrences.map(row => <Button key={JSON.stringify(row.address.path)} variant={JSON.stringify(row.address.path) === JSON.stringify(path) ? 'filled' : 'outline'} disabled={busy} onClick={() => { reset(); setPath(row.address.path); }}>{row.address.path.join('/')} · {row.display_ref || row.kind}</Button>)}
         <Text>Selected address: {path.join('/') || 'standalone exact root'} · {selectedRoot?.revision_id}</Text>
       </Stack></Card>}
-      <Select label="Package purpose" disabled={busy} data={[{ value: 'authorized_review', label: 'Private authorized review' }, { value: 'distribution', label: 'Reviewed distribution data' }]} value={purpose} onChange={value => { generation.current += 1; setPurpose(value as Selection['purpose']); setRetained(previous => previous ? { ...previous, sha256: '' } : null); setError(null); }} />
+      <Select label="Package purpose" disabled={busy} data={[{ value: 'authorized_review', label: 'Private authorized review' }, { value: 'distribution', label: 'Reviewed distribution data', disabled: !freezeGate.allowed }]} value={purpose} onChange={value => { generation.current += 1; setPurpose(value as Selection['purpose']); setRetained(previous => previous ? { ...previous, sha256: '' } : null); setError(null); }} />
+      <ReadOnlyNote permission="design.freeze">Reviewed distribution data is unavailable; private review remains available.</ReadOnlyNote>
       <Text size="sm">Private review may preserve unknown distribution rights visibly. Source bytes require an explicit permitted declaration. Distribution requires review of every design and source file and separate engineering authority; generation publishes nothing.</Text>
       <Button disabled={busy || !rootId} loading={busy} onClick={() => void inspect()}>Review exact selected package</Button>
       {reviewed && <Card withBorder><Stack><Title order={3}>Selected package review</Title>

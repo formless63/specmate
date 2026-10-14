@@ -1,3 +1,4 @@
+import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -14,6 +15,7 @@ function useWork(id: string, offset = 0) {
 }
 
 export function WorkPanel({ projectId, batches, pending, submit }: { projectId: string; batches: WorkBatch[]; pending: boolean; submit: Submit }) {
+  const manageGate = usePermission("inventory.manage");
   const [definition, setDefinition] = useState("");
   const [revision, setRevision] = useState("");
   const [revisionOffset, setRevisionOffset] = useState(0);
@@ -34,13 +36,14 @@ export function WorkPanel({ projectId, batches, pending, submit }: { projectId: 
     <NativeSelect label="Work kind" value={kind} onChange={(e) => setKind(e.currentTarget.value)} data={["job", "batch"]} />
     <TextInput label="Work label" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
     <TextInput label="Planned unit count (blank means unknown)" value={planned} onChange={(e) => setPlanned(e.currentTarget.value)} />
-    <Button loading={pending} disabled={!revision || !label.trim() || (!!planned && !positiveCount(planned))} onClick={() => submit("inventory.create_work_batch", { revision_id: revision, kind, label, planned_units: planned ? Number(planned) : null })}>Register planned work</Button>
+    <Button loading={pending} disabled={!revision || !label.trim() || (!!planned && !positiveCount(planned))} onClick={() => submit("inventory.create_work_batch", { revision_id: revision, kind, label, planned_units: planned ? Number(planned) : null })} {...manageGate.props}>Register planned work</Button><ReadOnlyNote permission="inventory.manage">Registering work and recording usage are unavailable.</ReadOnlyNote>
     {batches.map((batch) => <Group key={batch.work_batch_id}><Text>{batch.label} · {batch.kind} · reported {batch.reported_completed_units} / {batch.planned_units ?? "Unknown planned count"} · {batch.progress}</Text><Button size="xs" onClick={() => setSelected(batch.work_batch_id)}>Inspect work {batch.label}</Button></Group>)}
     {selected && <WorkHistory key={selected} workId={selected} pending={pending} submit={submit} />}
   </Stack></Card>;
 }
 
 function WorkHistory({ workId, pending, submit }: { workId: string; pending: boolean; submit: Submit }) {
+  const manageGate = usePermission("inventory.manage");
   const [offset, setOffset] = useState(0);
   const work = useWork(workId, offset);
   const [count, setCount] = useState("");
@@ -56,7 +59,7 @@ function WorkHistory({ workId, pending, submit }: { workId: string; pending: boo
       <TextInput label="Completion reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
       <TextInput label="Completion assertion source" value={source} onChange={(e) => setSource(e.currentTarget.value)} />
       <NativeSelect label="Completion assertion status" value={status} onChange={(e) => setStatus(e.currentTarget.value)} data={statuses} />
-      <Button loading={pending} disabled={!positiveCount(count) || !reason.trim() || !source.trim()} onClick={() => submit("inventory.record_work_completion", { work_batch_id: workId, units_completed: Number(count), reason, assertion_source: source, assertion_status: status }, batch.state)}>Record partial completion</Button>
+      <Button loading={pending} disabled={!positiveCount(count) || !reason.trim() || !source.trim()} onClick={() => submit("inventory.record_work_completion", { work_batch_id: workId, units_completed: Number(count), reason, assertion_source: source, assertion_status: status }, batch.state)} {...manageGate.props}>Record partial completion</Button>
       <Title order={4}>Work assertions</Title>
       {work.data!.completions.map((c) => <Text key={c.completion_id}>{c.units_completed} reported units · {c.reason} · {c.assertion_status}: {c.assertion_source} · {new Date(c.created_at).toLocaleString()}</Text>)}
       <Title order={4}>Material usage</Title>
@@ -67,6 +70,7 @@ function WorkHistory({ workId, pending, submit }: { workId: string; pending: boo
 }
 
 export function UsageForm({ detail, batches, pending, submit }: { detail: Detail; batches: WorkBatch[]; pending: boolean; submit: Submit }) {
+  const manageGate = usePermission("inventory.manage");
   const [action, setAction] = useState("consume");
   const [reservation, setReservation] = useState("");
   const [workId, setWorkId] = useState("");
@@ -104,6 +108,6 @@ export function UsageForm({ detail, batches, pending, submit }: { detail: Detail
     <TextInput label="Material usage reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
     <TextInput label="Material assertion source" value={source} onChange={(e) => setSource(e.currentTarget.value)} />
     <NativeSelect label="Material assertion status" value={status} onChange={(e) => setStatus(e.currentTarget.value)} data={statuses} />
-    <Button loading={pending} disabled={!batch || work.isError || (action === "consume" && linkedUnits.isError) || !amount.trim() || !reason.trim() || !source.trim() || (action === "consume" ? !reservation : !consumption)} onClick={() => submit(`inventory.${action}`, { quantity: { amount, unit }, reason, assertion_source: source, assertion_status: status, expected_work_state: batch!.state, ...(action === "consume" ? { reservation_id: reservation, work_batch_id: target, physical_unit_id: physicalUnitId || null, remainder } : { consumption_id: origin }) }, detail.account.state)}>Apply material usage</Button>
+    <Button loading={pending} disabled={!batch || work.isError || (action === "consume" && linkedUnits.isError) || !amount.trim() || !reason.trim() || !source.trim() || (action === "consume" ? !reservation : !consumption)} onClick={() => submit(`inventory.${action}`, { quantity: { amount, unit }, reason, assertion_source: source, assertion_status: status, expected_work_state: batch!.state, ...(action === "consume" ? { reservation_id: reservation, work_batch_id: target, physical_unit_id: physicalUnitId || null, remainder } : { consumption_id: origin }) }, detail.account.state)} {...manageGate.props}>Apply material usage</Button>
   </Stack>;
 }
