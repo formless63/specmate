@@ -93,7 +93,7 @@ function EvidenceWorkspace({ workspaceId }: { workspaceId: string }) {
     {evidence.data && !evidence.isError && <>
       {evidence.data.items.length === 0 && <Text>No evidence of the selected kinds is visible in this workspace. Absence is not a pass.</Text>}
       {evidence.data.scan_limit_reached && <Alert color="orange">The scan limit was reached; older records may exist. Narrow the kinds to see them.</Alert>}
-      {evidence.data.items.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Kind</Table.Th><Table.Th>Statement and conditions</Table.Th><Table.Th>Subject</Table.Th><Table.Th>Method</Table.Th><Table.Th>Provenance</Table.Th><Table.Th>Limits</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{evidence.data.items.map((item) => <Row key={item.evidence_id} item={item} />)}</Table.Tbody></Table>}
+      {evidence.data.items.length > 0 && <div className="sb-ws-scroll"><Table><Table.Thead><Table.Tr><Table.Th>Kind</Table.Th><Table.Th>Statement and conditions</Table.Th><Table.Th>Subject</Table.Th><Table.Th>Method</Table.Th><Table.Th>Provenance</Table.Th><Table.Th>Limits</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{evidence.data.items.map((item) => <Row key={item.evidence_id} item={item} />)}</Table.Tbody></Table></div>}
       <Group><Button variant="quiet" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous evidence</Button><Button variant="quiet" disabled={!evidence.data.has_more} onClick={() => setOffset(offset + 50)}>Next evidence</Button></Group>
     </>}
   </Stack>;

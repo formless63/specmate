@@ -158,3 +158,15 @@ test("the applicability revision defaults to the shared selection and is picked 
   expect(urls.some((u) => u.includes("/applicability/r-1"))).toBe(true);
   expect(screen.queryByLabelText("Revision ID")).toBeNull();
 });
+
+test("the evidence table sits in the contained horizontal scroller", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("taxonomy")) return new Response(JSON.stringify({ kinds }), { status: 200 });
+    return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [
+      item({ evidence_id: "fact:1", kind: "source_claim", kind_label: "Declared claim", statement: "Declared rating" }),
+    ] }), { status: 200 });
+  }));
+  mount();
+  await screen.findByText("Declared rating");
+  expect(document.querySelector(".sb-ws-scroll table")).not.toBeNull();
+});
