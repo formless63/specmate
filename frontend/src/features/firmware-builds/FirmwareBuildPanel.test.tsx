@@ -146,3 +146,12 @@ test('the requester can cancel without the grant; others cannot', async () => {
   render(panel(false)); fireEvent.click(await screen.findByRole('button', { name: 'Request cancellation of build-bad' }));
   await waitFor(() => expect(cancelBuild).toHaveBeenCalledWith('build-bad', 'tok-1', expect.any(String)));
 });
+
+test('only actions valid for the current state are offered', async () => {
+  vi.mocked(compileOptions).mockResolvedValue({ ...failed(true), builds: [{ build_id: 'build-bad', state: 'cancellation_requested', failure: null, retry_of: null, requested_by_viewer: true }] });
+  vi.mocked(readHistory).mockResolvedValue(hist({ state: 'cancellation_requested', cancel_available: false, retry_available: false }));
+  render(panel(true)); await screen.findByText(/build-bad · cancellation requested/);
+  await waitFor(() => expect(readHistory).toHaveBeenCalled());
+  expect(screen.queryByRole('button', { name: /cancellation of build-bad/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Retry build-bad/ })).toBeNull();
+});
