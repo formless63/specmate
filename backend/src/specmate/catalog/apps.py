@@ -10,7 +10,12 @@ class CatalogConfig(AppConfig):
             discovery,  # noqa: F401
             operations,  # noqa: F401
         )
-        from specmate.catalog.contracts import LotResult, RepresentationResult, VariantResult
+        from specmate.catalog.contracts import (
+            LotResult,
+            RepresentationResult,
+            SourceIdentifierResult,
+            VariantResult,
+        )
         from specmate.catalog.discovery import (
             RevisionImpact,
             RevisionLabels,
@@ -23,6 +28,7 @@ class CatalogConfig(AppConfig):
             {
                 "catalog-lot": LotResult,
                 "catalog-representation": RepresentationResult,
+                "catalog-source-identifier": SourceIdentifierResult,
                 "catalog-variant": VariantResult,
                 "catalog-search": SearchCatalog,
                 "catalog-where-used": WhereUsed,

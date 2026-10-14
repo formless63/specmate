@@ -3,6 +3,7 @@ import { Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextI
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { command, libraryDefinitions, read, addProjectReference, type Catalog, type Identity } from "./api";
+import { RepresentationsCard } from "./RepresentationsCard";
 import { IdentityLabel, RevisionLabel } from "../../lib/IdentityLabel";
 
 /** Library identities. `projectId` is optional navigation context, never the item's owner. */
@@ -65,11 +66,11 @@ function IdentityWorkspace({ projectId }: { projectId: string | null }) {
       <Select label="Exact revision" placeholder="Freeze a draft or choose a revision" data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number}` }))} value={revisionId} onChange={setRevisionId} />
       <Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous revisions</Button><Text>Revision page {identityOffset / 50 + 1}</Text><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next revisions</Button></Group>
     </>}
-    {revisionId && <RevisionCatalog key={revisionId} revisionId={revisionId} />}
+    {revisionId && <RevisionCatalog key={revisionId} revisionId={revisionId} workspaceId={definitions.data?.workspace_id ?? null} />}
   </Stack>;
 }
 
-function RevisionCatalog({ revisionId }: { revisionId: string }) {
+function RevisionCatalog({ revisionId, workspaceId }: { revisionId: string; workspaceId: string | null }) {
   // Catalog associations are additive registrations: contributors may record them.
   const editGate = usePermission('item.create');
   const cache = useQueryClient();
@@ -78,10 +79,6 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
   const [basis, setBasis] = useState("");
   const [lotLabel, setLotLabel] = useState("");
   const [variantId, setVariantId] = useState<string | null>(null);
-  const [representationLabel, setRepresentationLabel] = useState("");
-  const [representationKind, setRepresentationKind] = useState<string | null>("symbol");
-  const [bundleRevision, setBundleRevision] = useState("");
-  const [sourcePath, setSourcePath] = useState("");
   const [offset, setOffset] = useState(0);
   const catalog = useQuery({ queryKey: ["catalog", revisionId, offset], queryFn: () => read<Catalog>(`catalog/revisions/${revisionId}?offset=${offset}&limit=50`) });
   const registration = useMutation({ mutationFn: ({ operation, payload }: { operation: string; payload: object }) => command(operation, { revision_id: revisionId, ...payload }), onSuccess: async () => { await cache.invalidateQueries({ queryKey: ["catalog", revisionId] }); } });
@@ -111,18 +108,7 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
       </InspectionScope>
       <Button disabled={!lotLabel.trim()} loading={registration.isPending} onClick={() => register("lot", { label: lotLabel, variant_id: variantId })} {...editGate.props}>Register lot identity</Button>
     </Stack></Card>
-    <Card withBorder><Stack>
-      <Title order={3}>Representations</Title>
-      {catalog.data?.representations.map((r) => <Text key={r.representation_id}>{r.label} ({r.kind}) · {r.source_path} · Rights: {r.rights} · SHA-256: {r.sha256}</Text>)}
-      <InspectionScope permission="item.create">
-      <TextInput label="Representation label" value={representationLabel} onChange={(e) => setRepresentationLabel(e.currentTarget.value)} />
-      <Select label="Representation kind" value={representationKind} onChange={setRepresentationKind} data={["symbol", "footprint", "model", "drawing", "datasheet"]} allowDeselect={false} />
-      <TextInput label="Registered source bundle revision ID" value={bundleRevision} onChange={(e) => setBundleRevision(e.currentTarget.value)} />
-      <TextInput label="Source package path" value={sourcePath} onChange={(e) => setSourcePath(e.currentTarget.value)} />
-      <Text size="sm">Choose an exact file from a registered source bundle in this workspace. Its original rights are retained.</Text>
-      </InspectionScope>
-      <Button disabled={!representationLabel.trim() || !bundleRevision.trim() || !sourcePath.trim()} loading={registration.isPending} onClick={() => register("representation", { label: representationLabel, kind: representationKind, source_bundle_revision_id: bundleRevision, source_path: sourcePath })} {...editGate.props}>Register representation</Button>
-    </Stack></Card>
+    <RepresentationsCard catalog={catalog.data} workspaceId={workspaceId} pending={registration.isPending} register={register} />
     <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous records</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={!catalog.data || Math.max(catalog.data.variants.length, catalog.data.lots.length, catalog.data.representations.length) < 50} onClick={() => setOffset(offset + 50)}>Next records</Button></Group>
   </Stack>;
 }

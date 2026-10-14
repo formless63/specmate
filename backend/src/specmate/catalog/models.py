@@ -47,10 +47,16 @@ class Representation(models.Model):
         DRAWING = "drawing"
         DATASHEET = "datasheet"
 
+    class RightsStatus(models.TextChoices):
+        CLEARED = "cleared"
+        RESTRICTED = "restricted"
+        UNKNOWN = "unknown"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     revision = models.ForeignKey(
         "design.Revision", on_delete=models.PROTECT, related_name="representations"
     )
+    rights_status = models.CharField(max_length=20, choices=RightsStatus.choices)
     kind = models.CharField(max_length=20, choices=Kind.choices)
     label = models.CharField(max_length=200)
     source_file = models.ForeignKey("sources.SourceBundleFile", on_delete=models.PROTECT)
@@ -70,6 +76,53 @@ class Representation(models.Model):
             ),
             models.CheckConstraint(
                 condition=~models.Q(label=""), name="catalog_representation_label"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(rights_status__in=["cleared", "restricted", "unknown"]),
+                name="catalog_representation_rights_status",
+            ),
+        ]
+
+
+class SourceIdentifier(models.Model):
+    """An external source reference (library id, URL, standard number) of an exact revision.
+
+    It names where something is published; it holds no bytes, and nothing is fetched.
+    Rights are always stated, though the statement may be an explicit "unknown".
+    """
+
+    class RightsStatus(models.TextChoices):
+        CLEARED = "cleared"
+        RESTRICTED = "restricted"
+        UNKNOWN = "unknown"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    revision = models.ForeignKey(
+        "design.Revision", on_delete=models.PROTECT, related_name="source_identifiers"
+    )
+    rights_status = models.CharField(max_length=20, choices=RightsStatus.choices)
+    scheme = models.CharField(max_length=60)
+    identifier = models.CharField(max_length=512)
+    label = models.CharField(max_length=200)
+    rights = models.CharField(max_length=200)
+    registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["revision", "scheme", "identifier"], name="catalog_source_identifier"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(scheme="")
+                & ~models.Q(identifier="")
+                & ~models.Q(label="")
+                & ~models.Q(rights=""),
+                name="catalog_source_identifier_nonempty",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(rights_status__in=["cleared", "restricted", "unknown"]),
+                name="catalog_source_identifier_rights_status",
             ),
         ]
 

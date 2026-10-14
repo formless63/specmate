@@ -5,9 +5,14 @@ import uuid
 import pytest
 from django.db import DatabaseError, connection, transaction
 
-from specmate.catalog.models import ManufacturerVariant, PhysicalLot, Representation
+from specmate.catalog.models import (
+    ManufacturerVariant,
+    PhysicalLot,
+    Representation,
+    SourceIdentifier,
+)
 from specmate.catalog.queries import get_identity, get_revision_catalog
-from specmate.design.models import Snapshot
+from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -58,7 +63,86 @@ def rep_payload(revision, source):
         "label": "Logic symbol",
         "source_bundle_revision_id": source["revision_id"],
         "source_path": "src/source.txt",
+        "rights_status": "cleared",
     }
+
+
+def identifier_payload(
+    revision, identifier="Synthetic:Part", rights="Synthetic note", status="unknown"
+):
+    return {
+        "revision_id": revision["revision_id"],
+        "scheme": "library-id",
+        "identifier": identifier,
+        "label": "Library symbol id",
+        "rights_status": status,
+        "rights": rights,
+    }
+
+
+def test_representation_names_exact_model_revision_and_flags_missing_rights(
+    users, definition, revision, source
+):
+    result = op(users["editor"], "catalog.register_representation", rep_payload(revision, source))
+    assert result["revision_id"] == revision["revision_id"]
+    assert result["revision_number"] == 1
+    assert result["definition_name"] == Definition.objects.get(id=definition["definition_id"]).name
+    assert result["definition_id"] == definition["definition_id"]
+    assert result["rights_status"] == "cleared"
+    # A representation is a model/file of a revision, never an orderable variant or lot.
+    listing = get_revision_catalog(users["editor"], revision["revision_id"])
+    assert listing["variants"] == [] and listing["lots"] == []
+    assert listing["representations"] == [result]
+
+
+@pytest.mark.parametrize("status", ["cleared", "restricted", "unknown"])
+def test_source_identifier_states_rights_explicitly(users, revision, status):
+    result = op(
+        users["editor"],
+        "catalog.register_source_identifier",
+        identifier_payload(revision, rights="CC0-1.0 note", status=status),
+    )
+    assert result["rights"] == "CC0-1.0 note"
+    assert result["rights_status"] == status
+    assert result["revision_number"] == 1
+    listing = get_revision_catalog(users["editor"], revision["revision_id"])
+    assert listing["source_identifiers"] == [result]
+    assert listing["variants"] == [] and listing["lots"] == []
+
+
+def test_source_identifier_requires_rights_and_rejects_duplicates_and_viewers(
+    users, revision, source
+):
+    payload = identifier_payload(revision)
+    for key in ("rights", "rights_status"):
+        missing = {k: v for k, v in payload.items() if k != key}
+        with pytest.raises(ValidationFailed):
+            op(users["editor"], "catalog.register_source_identifier", missing)
+    with pytest.raises(ValidationFailed):
+        op(
+            users["editor"],
+            "catalog.register_source_identifier",
+            {**payload, "rights_status": "ok"},
+        )
+    unstated = {k: v for k, v in rep_payload(revision, source).items() if k != "rights_status"}
+    with pytest.raises(ValidationFailed):
+        op(users["editor"], "catalog.register_representation", unstated)
+    with pytest.raises(ValidationFailed):
+        op(users["editor"], "catalog.register_source_identifier", {**payload, "rights": ""})
+    with pytest.raises(ValidationFailed):
+        op(
+            users["editor"],
+            "catalog.register_source_identifier",
+            {**payload, "scheme": "Bad Scheme"},
+        )
+    op(users["editor"], "catalog.register_source_identifier", payload)
+    with pytest.raises(Conflict):
+        op(users["editor"], "catalog.register_source_identifier", payload)
+    with pytest.raises(PermissionDenied):
+        op(users["viewer"], "catalog.register_source_identifier", payload)
+    with pytest.raises(NotFound):
+        op(users["outsider"], "catalog.register_source_identifier", payload)
+    assert SourceIdentifier.objects.count() == 1
 
 
 def test_representation_preserves_exact_source_path_including_spaces(users, project, revision):
@@ -249,11 +333,18 @@ def test_representation_requires_exact_file_and_scoped_source(users, revision, s
 
 
 @pytest.mark.parametrize(
-    "table", ["catalog_manufacturervariant", "catalog_representation", "catalog_physicallot"]
+    "table",
+    [
+        "catalog_manufacturervariant",
+        "catalog_representation",
+        "catalog_physicallot",
+        "catalog_sourceidentifier",
+    ],
 )
 def test_database_protects_catalog_identity(users, revision, source, table):
     op(users["editor"], "catalog.register_variant", variant_payload(revision))
     op(users["editor"], "catalog.register_representation", rep_payload(revision, source))
+    op(users["editor"], "catalog.register_source_identifier", identifier_payload(revision))
     op(
         users["editor"],
         "catalog.register_lot",

@@ -120,6 +120,7 @@ def test_model_source_membership_checked_before_wrong_revision(
         users["editor"],
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": mec_target["revision_id"],
             "kind": "model",
             "label": "Independent model",
@@ -407,6 +408,7 @@ def test_target_summary_excludes_models_but_exact_lookup_includes_them(
         users["editor"],
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": mec_target["revision_id"],
             "kind": "model",
             "label": "Protected model",

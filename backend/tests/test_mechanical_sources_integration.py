@@ -63,6 +63,7 @@ def test_generic_write_and_capture_validate_exact_files_and_union_model_targets(
         owner,
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": model_revision["revision_id"],
             "kind": "model",
             "label": "Unvalidated source model",

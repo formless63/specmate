@@ -1,0 +1,66 @@
+{
+  "properties": {
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "definition_name": {
+      "title": "Definition Name",
+      "type": "string"
+    },
+    "identifier": {
+      "title": "Identifier",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "revision_number": {
+      "title": "Revision Number",
+      "type": "integer"
+    },
+    "rights": {
+      "title": "Rights",
+      "type": "string"
+    },
+    "rights_status": {
+      "enum": [
+        "cleared",
+        "restricted",
+        "unknown"
+      ],
+      "title": "Rights Status",
+      "type": "string"
+    },
+    "scheme": {
+      "title": "Scheme",
+      "type": "string"
+    },
+    "source_identifier_id": {
+      "format": "uuid",
+      "title": "Source Identifier Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_identifier_id",
+    "revision_id",
+    "revision_number",
+    "definition_id",
+    "definition_name",
+    "scheme",
+    "identifier",
+    "label",
+    "rights",
+    "rights_status"
+  ],
+  "title": "SourceIdentifierResult",
+  "type": "object"
+}

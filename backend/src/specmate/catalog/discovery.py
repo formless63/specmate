@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from specmate.access.models import Project, ProjectReference
 from specmate.access.permissions import Perm, authorize
-from specmate.catalog.models import ManufacturerVariant, PhysicalLot
+from specmate.catalog.models import ManufacturerVariant, PhysicalLot, SourceIdentifier
 from specmate.catalog.scope import (
     context_first,
     library_scope,
@@ -38,7 +38,9 @@ from specmate.operations.core import ACCESS_AUTHENTICATED
 from specmate.queries import get_revision
 from specmate.sources.models import SourceBundle, SourceBundleRevision
 
-SearchKind = Literal["project", "definition", "source_bundle", "variant", "lot", "stock"]
+SearchKind = Literal[
+    "project", "definition", "source_bundle", "variant", "lot", "stock", "source_identifier"
+]
 MAX_PROJECT_REFERENCES = 100
 
 
@@ -178,6 +180,12 @@ def search_catalog(user, payload):
                 revision__definition__workspace__in=workspaces,
             )
             prefix = ""
+        elif kind == "source_identifier":
+            query = SourceIdentifier.objects.select_related("revision__definition").filter(
+                Q(identifier__icontains=text),
+                revision__definition__workspace__in=workspaces,
+            )
+            prefix = ""
         elif kind == "lot":
             query = PhysicalLot.objects.select_related("revision__definition").filter(
                 revision__definition__workspace__in=workspaces,
@@ -210,12 +218,16 @@ def search_catalog(user, payload):
                 "definition_id": str(revision.definition_id),
                 "label": f"{row.manufacturer} / {row.part_number}"
                 if kind == "variant"
+                else f"{row.scheme}: {row.identifier}"
+                if kind == "source_identifier"
                 else f"{row.lot.label} · {row.location.name}"
                 if kind == "stock"
                 else row.label,
             }
             if kind == "variant":
                 result["association_basis"] = row.association_basis
+            if kind == "source_identifier":
+                result["rights_status"] = row.rights_status
             return result
 
     ordered = context_first(

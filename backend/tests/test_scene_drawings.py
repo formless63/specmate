@@ -216,6 +216,7 @@ def test_inert_model_and_stock_axis_limits_rights_and_no_native_shape_or_default
         owner,
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": mec_target["revision_id"],
             "kind": "model",
             "label": "Inert model",

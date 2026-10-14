@@ -22,7 +22,8 @@
         "source_bundle",
         "variant",
         "lot",
-        "stock"
+        "stock",
+        "source_identifier"
       ],
       "title": "Kind",
       "type": "string"

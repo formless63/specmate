@@ -11,7 +11,14 @@ never merge definitions and do not establish interchangeability or qualification
 A `Representation` links a revision to an exact immutable source bundle file. Symbols,
 footprints, models, drawings and datasheets are supported roles. The source must belong
 to the definition's workspace. Original file hash, media type and rights are retained;
-registration does not execute, parse, render or redistribute source content.
+registration does not execute, parse, render or redistribute source content. Results name
+the exact revision number and definition and carry a required `rights_status` (cleared, restricted or unknown; unknown is an explicit choice)
+alongside the free-text rights note. A representation is never a variant or lot.
+
+A `SourceIdentifier` references an external source (library id, URL, standard number) by
+scheme and identifier for an exact revision, with a mandatory rights status and note; the status may be
+an explicit `unknown`. `catalog.search` finds them by identifier text (kind `source_identifier`). Nothing is fetched or stored. Registration is immutable and additive
+(`catalog.register_source_identifier`, `item.create`).
 
 A `PhysicalLot` identifies a physical batch with a label, revision and optional variant.
 The variant must belong to that same revision. Labels are not identifiers: two batches
@@ -42,7 +49,7 @@ shared operation result; a mismatched payload is rejected by the shared command 
 Authenticated reads are available at:
 
 - `GET /api/v0/catalog/definitions/{definition_id}`: definition identity, drafts and revisions.
-- `GET /api/v0/catalog/revisions/{revision_id}`: manufacturer variants, representations and lots.
+- `GET /api/v0/catalog/revisions/{revision_id}`: manufacturer variants, representations, source identifiers and lots.
 
 - `GET /api/v0/catalog/definitions`: the workspace library of definitions, cursor-paged
   (`after`, `limit` up to 100, optional `kind`). With `project_id` the definitions that
@@ -55,8 +62,9 @@ definition's workspace.
 Operation payload and result models live in `specmate.catalog.contracts`.
 
 The identity panel supports creating a definition, explicitly freezing its current draft,
-selecting a revision and registering associations. Source representations require a
-previously registered source bundle revision and package path; source upload remains a
+selecting a revision and registering associations. Source representations are chosen from the workspace's
+registered source bundle revisions and their files, with each file's rights shown and unknown
+rights flagged; source identifiers are entered with an explicit rights statement; source upload remains a
 separate operation. Catalog and revision lists have page controls. The definition picker shows the
 workspace library; at project scope the project's references come first. Creating a
 definition never asks for a project: at project scope **Use in this project** (on by
