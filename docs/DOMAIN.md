@@ -168,8 +168,19 @@ limit, condition-scoped facts only, or an unresolved input choice is `unknown`, 
 valid; a rule that does not apply or cannot be compared is `not_evaluated`. The overall
 outcome is invalid, else unknown, else valid, else not-evaluated. A captured resolution
 retains its outcome. Capture is allowed for every outcome; `configuration.build_input`
-(and so every build request) refuses an invalid one and reports unknown/not-evaluated. Development proposals are separate linked objects; a
-solver may return invalid-with-proposal or unknown-with-information-request.
+(and so every build request) refuses an invalid one and reports unknown/not-evaluated.
+
+Development proposals are separate linked workspace items, never part of a resolution.
+A rule that currently evaluates invalid or unknown may be linked to an existing
+mechanical (enclosure) proposal or to a `development_need` definition (adapter board,
+cable or enclosure work, never physical qualification) that projects reference like any
+other definition. A link records the rule key, the exact option-set revision and the
+outcome observed when it was made; it is append-only, and removal records a reason.
+Resolution views report linked proposals beside the evaluated rules as
+`invalid_with_proposal` or `unknown_with_proposal` only while a linked rule has that
+outcome. A proposal, even an accepted or frozen one, never changes a rule outcome, the
+captured resolution or build eligibility: an invalid configuration stays refused as
+build input until its design changes and its rules evaluate valid.
 
 ## Facts, units and uncertainty
 

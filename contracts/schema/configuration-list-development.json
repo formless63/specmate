@@ -1,0 +1,60 @@
+{
+  "additionalProperties": false,
+  "description": "Links of a workspace, optionally only those of one configuration or one proposal.",
+  "properties": {
+    "configuration_definition_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Configuration Definition Id"
+    },
+    "include_removed": {
+      "default": false,
+      "title": "Include Removed",
+      "type": "boolean"
+    },
+    "need_definition_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Need Definition Id"
+    },
+    "proposal_draft_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Proposal Draft Id"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "ListDevelopment",
+  "type": "object"
+}

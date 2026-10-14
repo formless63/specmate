@@ -1,0 +1,64 @@
+{
+  "additionalProperties": false,
+  "description": "Create a development need in the workspace library and link it to one failing rule.",
+  "properties": {
+    "basis": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Basis",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Description",
+      "type": "string"
+    },
+    "draft_id": {
+      "format": "uuid",
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Name",
+      "type": "string"
+    },
+    "need": {
+      "enum": [
+        "adapter_board",
+        "cable",
+        "enclosure"
+      ],
+      "title": "Need",
+      "type": "string"
+    },
+    "rule_key": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "title": "Rule Key",
+      "type": "string"
+    },
+    "summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "draft_id",
+    "rule_key",
+    "need",
+    "name",
+    "summary",
+    "basis"
+  ],
+  "title": "ProposeDevelopment",
+  "type": "object"
+}

@@ -6,7 +6,7 @@ class ConfigurationsConfig(AppConfig):
     label = "configurations"
 
     def ready(self):
-        from specmate.configurations import adoption, operations  # noqa: F401
+        from specmate.configurations import adoption, development, operations  # noqa: F401
         from specmate.configurations.contracts import (
             AdoptionRef,
             AdoptResolution,
@@ -31,5 +31,10 @@ class ConfigurationsConfig(AppConfig):
                 "configuration-review-adoption": ReviewAdoption,
                 "configuration-adopt": AdoptResolution,
                 "configuration-adoption-ref": AdoptionRef,
+                "configuration-link-development": development.LinkDevelopment,
+                "configuration-propose-development": development.ProposeDevelopment,
+                "configuration-unlink-development": development.UnlinkDevelopment,
+                "configuration-list-development": development.ListDevelopment,
+                "development-need-content": development.DevelopmentNeed,
             }
         )
