@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
 import { compileOptions, compileOutputUrl, compileReview, type CompileOptions, type CompileReview, type FirmwareBuildRef } from './api';
+import { Lineage } from '../builds/BuildsPanel';
+import { cancelBuild, readHistory, retryBuild } from '../builds/api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
@@ -79,9 +81,11 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
       <TextInput label="Source execution review basis" value={basis} onChange={event => setBasis(event.currentTarget.value)} />
       <Button disabled={busy || !consent || !basis.trim()} onClick={() => void compile()}>Request firmware compile</Button>
     </Stack>}
-    {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button></Group>)}
+    {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}{build.retry_of ? ` · retry of ${build.retry_of}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button>
+      <BuildControls build={build} canExecute={canExecute} onChanged={() => refresh(null)} /></Group>)}
     {available?.truncated && <Text>Showing the latest 100 builds; earlier history is retained.</Text>}
-    {review && <Stack><Title order={4}>Registered compiler handoff</Title><CompilerPins inputs={review.inputs} />
+    {review && <Stack><Title order={4}>Registered compiler handoff</Title>
+      <Lineage lineage={review.lineage} retryOf={review.retry_of} /><CompilerPins inputs={review.inputs} />
       <Text size="xs">Recipe {review.recipe_id} · image {review.image} · report {review.report_sha256}</Text>
       <Text size="sm">Tool packages: {Object.entries(review.report.tool_packages).map(([name, version]) => `${name} ${version}`).join(', ')}</Text>
       <Table><Table.Thead><Table.Tr><Table.Th>Output</Table.Th><Table.Th>Exact bytes / rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{review.outputs.map(output => <Table.Tr key={output.output_id}><Table.Td><Anchor href={compileOutputUrl(review, output.output_id)}>{output.path}</Anchor></Table.Td><Table.Td><Text size="xs">{output.sha256} · {output.size} bytes · {output.rights}</Text></Table.Td></Table.Tr>)}</Table.Tbody></Table>
@@ -97,4 +101,32 @@ function CompilerPins({ inputs }: { inputs: CompileOptions['inputs'] }) {
     <Text size="sm">Configuration: {inputs.configuration.map(entry => `${entry.key}: ${entry.status === 'known' ? entry.value : entry.status}`).join(', ') || 'none declared'}</Text>
     <Text size="sm">Pin assumptions: {inputs.pins.map(pin => `${pin.signal}: ${pin.pad_id ?? 'unknown pad'} / ${pin.function}`).join(', ') || 'none declared'}</Text>
   </Stack>;
+}
+
+/** Offers only what the list row's server-computed flags allow (the rule build.history uses). Cancel needs the
+ * requester or build.execute; retry needs build.execute. History is read only on click, for a fresh state token. */
+function BuildControls({ build, canExecute, onChanged }: { build: CompileOptions['builds'][number]; canExecute: boolean; onChanged: () => Promise<void> }) {
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const key = useRef<{ name: string; value: string } | null>(null);
+  const run = async (action: 'cancel' | 'retry') => {
+    setBusy(true); setError('');
+    try {
+      const fresh = await readHistory(build.build_id);
+      if (action === 'cancel' ? !fresh.cancel_available : !fresh.retry_available) { setError('That action is no longer available.'); await onChanged(); return; }
+      const name = `${action}:${fresh.state_token}`;
+      if (key.current?.name !== name) key.current = { name, value: randomUUID() };
+      if (action === 'cancel') await cancelBuild(build.build_id, fresh.state_token, key.current.value);
+      else await retryBuild(build.build_id, fresh.state_token, key.current.value);
+      key.current = null; await onChanged();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Build action failed.'); }
+    finally { setBusy(false); }
+  };
+  const canCancel = build.cancel_available && (canExecute || build.requested_by_viewer);
+  const canRetry = build.retry_available && canExecute;
+  return <Group gap="xs">
+    {canCancel && <Button variant="subtle" disabled={busy} onClick={() => void run('cancel')}>Request cancellation of {build.build_id}</Button>}
+    {canRetry && <Button variant="subtle" disabled={busy} onClick={() => void run('retry')}>Retry {build.build_id} as a new attempt</Button>}
+    {error && <Text size="xs" c="red">{error}</Text>}
+  </Group>;
 }

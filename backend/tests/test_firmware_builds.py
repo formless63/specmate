@@ -254,7 +254,15 @@ def test_handoff_exact_provenance_download_and_current_authority(users, firmware
     output = stage.outputs.get(path="handoff.json")
     response = download_output(request, firmware["revision_id"], stage.build_id, output.id)
     assert digest(b"".join(response.streaming_content)) == output.sha256
-    assert read_options(request, firmware["revision_id"])["builds"][0]["state"] == "succeeded"
+    listed = read_options(request, firmware["revision_id"])["builds"][0]
+    assert listed["state"] == "succeeded" and listed["retry_of"] is None
+    assert item["retry_of"] is None
+    # Succeeded work offers neither action; the row carries the token the actions need.
+    assert not listed["cancel_available"] and not listed["retry_available"]
+    assert listed["state_token"]
+    assert item["lineage"] == [
+        {"build_id": str(stage.build_id), "state": "succeeded", "current": True}
+    ]
     WorkspaceMember.objects.filter(user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         op(users["viewer"], "firmware_build.read", reference(requested))
@@ -441,3 +449,12 @@ def test_malformed_api_occurrence_is_typed_validation_failure(users, firmware, s
     request.user = users["owner"]
     with pytest.raises(ValidationFailed):
         read_options(request, firmware["revision_id"], snapshot, path)
+
+
+def test_options_rows_carry_the_state_rule_flags(users, firmware, requested):
+    request = RequestFactory().get("/")
+    request.user = users["viewer"]
+    row = read_options(request, firmware["revision_id"])["builds"][0]
+    # A queued build can be cancelled but not retried; the token is for the action call.
+    assert (row["cancel_available"], row["retry_available"]) == (True, False)
+    assert row["state_token"] and row["retry_of"] is None

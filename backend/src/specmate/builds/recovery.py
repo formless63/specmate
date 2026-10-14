@@ -231,6 +231,7 @@ def history(ctx, p: HistoryRead) -> dict:
         "requested_at": build.created_at.isoformat(),
         "retry_of": str(build.retry_of_id) if build.retry_of_id else None,
         "retried_by": str(retried.id) if retried else None,
+        "requested_by_viewer": ctx.user.pk == build.requested_by_id,
         "lineage": _lineage(build),
         "events": [
             {
@@ -286,6 +287,7 @@ def list_builds(ctx, p: ListBuilds) -> dict:
                 "recipe_id": b.recipe_id,
                 "requested_at": b.created_at.isoformat(),
                 "retry_of": str(b.retry_of_id) if b.retry_of_id else None,
+                "requested_by_viewer": ctx.user.pk == b.requested_by_id,
                 "project_id": str(b.project_id) if b.project_id else None,
             }
             for b in rows[:LIST_LIMIT]

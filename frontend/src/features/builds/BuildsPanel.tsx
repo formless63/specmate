@@ -20,6 +20,11 @@ const pretty = (value: string) => value.replaceAll('_', ' ');
 // Only the runner-confirmed states map to terminal looks; interrupted and requested-cancellation stay in review.
 const JOB_STATE: Record<string, JobState> = { waiting_dispatch: 'queued', queued: 'queued', leased: 'running', running: 'running', succeeded: 'succeeded', failed: 'failed', cancelled: 'cancelled', interrupted: 'review', cancellation_requested: 'review' };
 const jobState = (state: string): JobState => JOB_STATE[state] ?? 'review';
+// Attempts are numbered from the first request of a retry chain.
+const attemptLabel = (lineage: { build_id: string }[], id: string | null) => {
+  const index = id ? lineage.findIndex(a => a.build_id === id) : -1;
+  return index >= 0 ? `#${index + 1}` : null;
+};
 
 export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
   const execute = usePermission('build.execute');
@@ -60,6 +65,9 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
     if (!keys.current.has(name)) keys.current.set(name, randomUUID());
     return keys.current.get(name) as string;
   };
+  // The original requester may cancel their own build; anyone else needs the build.execute grant.
+  // The server decides; this only avoids offering a control it would refuse.
+  const canCancel = execute.allowed || Boolean(detail?.requested_by_viewer);
   async function act(action: 'cancel' | 'retry' | 'abandon') {
     if (!detail) return;
     const { build_id: id, state_token: token } = detail;
@@ -99,7 +107,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       <Title order={4}>Build {detail.build_id}</Title>
       <SbJobCard title={detail.recipe_id} state={jobState(detail.state)} stateWords={pretty(detail.state)} dimension='build' detail={EXPLAIN[detail.state] ?? ''} />
       <SbProvenance label='Request' summary={`Recipe ${detail.recipe_id} · requested ${detail.requested_at}`} pins={[{ label: 'Source revision', value: detail.source_revision_id }]} />
-      {detail.lineage.length > 1 && <Text size="sm">Attempts: {detail.lineage.map(a => `${a.build_id}${a.current ? ' (this)' : ''} ${pretty(a.state)}`).join(' → ')}</Text>}
+      <Lineage lineage={detail.lineage} retryOf={detail.retry_of} />
       {detail.receipt && <Stack gap={2}><Text size="sm">Receipt: {detail.receipt.outcome}{detail.receipt.exit_code !== null ? ` · exit code ${detail.receipt.exit_code}` : ' · no exit code observed'} · {detail.receipt.message}</Text>
         {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}</Text>}</Stack>}
       {detail.outputs.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Verified output</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
@@ -107,7 +115,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       <Text size="sm">History</Text>
       <ol aria-label="Build events">{detail.events.map((e, i) => <li key={i}><Text size="xs">{e.at} · {pretty(e.kind)}{typeof e.detail.reason === 'string' ? ` · ${pretty(e.detail.reason)}` : ''}</Text></li>)}</ol>
       <Group>
-        {detail.cancel_available && <Button variant="risk" {...execute.props} disabled={!execute.allowed || busy} onClick={() => void act('cancel')}>Request cancellation</Button>}
+        {detail.cancel_available && <Button variant="risk" {...(canCancel ? {} : execute.props)} disabled={!canCancel || busy} onClick={() => void act('cancel')}>Request cancellation</Button>}
         {detail.retry_available && <Button variant="primary" {...execute.props} disabled={!execute.allowed || busy} onClick={() => void act('retry')}>Retry as a new attempt</Button>}
         {detail.retried_by && <Button variant="quiet" disabled={busy} onClick={() => void load(detail.retried_by)}>Open retry {detail.retried_by}</Button>}
       </Group>
@@ -119,4 +127,13 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       </Stack>}
     </Stack>}
   </Stack></Card>;
+}
+
+export function Lineage({ lineage, retryOf }: { lineage: BuildHistory['lineage']; retryOf: string | null }) {
+  if (lineage.length < 2 && !retryOf) return null;
+  const parent = attemptLabel(lineage, retryOf);
+  return <Stack gap={2} aria-label="Retry chain">
+    {retryOf && <Text size="sm">Retry of {parent ?? 'earlier attempt'} ({retryOf})</Text>}
+    <ol aria-label="Build attempts" style={{ margin: 0 }}>{lineage.map(a => <li key={a.build_id}><Text size="xs">Attempt #{lineage.indexOf(a) + 1} · {a.build_id}{a.current ? ' (this)' : ''} · {pretty(a.state)}</Text></li>)}</ol>
+  </Stack>;
 }

@@ -2,7 +2,7 @@ import { command } from '../sources/api';
 
 export type BuildSummary = {
   build_id: string; stage_id: string; state: string; state_token: string; terminal: boolean;
-  cancellation_requested: boolean; recipe_id: string; requested_at: string; retry_of: string | null;
+  cancellation_requested: boolean; recipe_id: string; requested_at: string; retry_of: string | null; requested_by_viewer: boolean;
 };
 export type BuildList = { builds: BuildSummary[]; truncated: boolean };
 export type BuildReceipt = {
@@ -13,7 +13,7 @@ export type BuildReceipt = {
 export type BuildHistory = {
   build_id: string; state: string; state_token: string; receipt: BuildReceipt;
   recipe_id: string; source_revision_id: string; requested_at: string;
-  retry_of: string | null; retried_by: string | null;
+  retry_of: string | null; retried_by: string | null; requested_by_viewer: boolean;
   lineage: { build_id: string; state: string; current: boolean }[];
   events: { kind: string; at: string; detail: Record<string, unknown> }[];
   outputs: { path: string; sha256: string; size: number; accepted: boolean }[];
