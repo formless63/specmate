@@ -60,6 +60,29 @@ def validated_scope(value: str) -> str:
     raise PermissionDenied("This operation has no valid idempotency scope policy.")
 
 
+# Foundation operations whose namespace the built-in dispatcher below resolves.
+BUILTIN_SCOPED = frozenset(
+    {
+        "definition.create",
+        "source.register_blob",
+        "source.create_original_bundle",
+        "build.request",
+        "draft.update",
+        "draft.snapshot",
+        "draft.freeze",
+        "build.cancel",
+        "runner.revoke",
+    }
+)
+
+
+def has_scope_policy(spec) -> bool:
+    """Whether an idempotency key can be namespaced for this operation."""
+    if not spec.supports_idempotency:
+        return False
+    return spec.idempotency_scope is not None or spec.name in BUILTIN_SCOPED
+
+
 def builtin_scope(name, ctx, payload) -> str:
     if name == "definition.create":
         scope = workspace_scope(ctx, payload.workspace_id)

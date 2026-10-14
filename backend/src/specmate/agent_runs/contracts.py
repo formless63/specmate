@@ -44,6 +44,9 @@ class ActInRun(_Strict):
     payload: dict[str, JsonValue] = Field(default_factory=dict)
     # Expected state of the target record, passed to the inner operation unchanged.
     expected_state: str | None = Field(default=None, max_length=128)
+    # Idempotency key for the inner operation. Without one, a key is derived from the run
+    # and step_key, so the step's effect is stable across retries.
+    idempotency_key: str | None = Field(default=None, pattern=STEP_KEY)
     note: str = Field(default="", max_length=2000)
 
 

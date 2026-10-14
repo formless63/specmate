@@ -49,9 +49,11 @@ from specmate.operations import (
     operation,
     registry,
 )
-from specmate.operations.scope import workspace_scope
+from specmate.operations.scope import has_scope_policy, workspace_scope
 
 MAX_RUN_LENGTH = timedelta(days=30)
+# Failures raised before any effect (invalid payload or preconditions) do not use budget.
+UNCHARGED_ERRORS = frozenset({ValidationFailed.code})
 Status = AgentRun.Status
 STOPPED = {Status.PAUSED, Status.EXHAUSTED, Status.EXPIRED}
 TERMINAL = {Status.COMPLETED, Status.CANCELLED}
@@ -116,8 +118,22 @@ def _check_deadline(deadline) -> None:
 
 def _fingerprint(p: ActInRun) -> str:
     material = {"operation": p.operation, "payload": p.payload, "expected_state": p.expected_state}
+    if p.idempotency_key is not None:
+        material["idempotency_key"] = p.idempotency_key
     encoded = json.dumps(material, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _step_key(run: AgentRun, p: ActInRun, spec) -> str | None:
+    """The inner idempotency key: explicit, or derived from the run and step_key."""
+    if p.idempotency_key is not None:
+        if not has_scope_policy(spec):
+            raise ValidationFailed(f"{p.operation} does not accept an idempotency key.")
+        return p.idempotency_key
+    if not has_scope_policy(spec):
+        return None
+    digest = hashlib.sha256(f"{run.id}:{p.step_key}".encode()).hexdigest()
+    return f"agent-run-{digest}"
 
 
 def _result(run: AgentRun, step: AgentRunStep | None = None, *, replayed: bool = False) -> dict:
@@ -254,19 +270,26 @@ def act(ctx: Context, p: ActInRun) -> dict:
         user=sponsor,
         via=ctx.via,
         request_id=ctx.request_id,
+        idempotency_key=_step_key(run, p, spec),
         expected_state=p.expected_state,
     )
     result = error = None
     changes: list[dict] = []
     truncated = False
+    charged = True
     with delegated(sponsor.pk, run.workspace_id, cap), capture.capture() as recorder:
         try:
-            result = execute(p.operation, inner, p.payload).result
+            outcome = execute(p.operation, inner, p.payload)
         except OperationError as exc:
             error = exc.as_dict()
+            # The inner operation rolled back: a validation failure changed nothing.
+            charged = exc.code not in UNCHARGED_ERRORS
         else:
+            result = outcome.result
             changes = recorder.changes()
             truncated = recorder.truncated
+            # Replaying a recorded effect (same idempotency key) repeats nothing.
+            charged = not outcome.replayed
     step = _append(
         run,
         ctx,
@@ -281,11 +304,12 @@ def act(ctx: Context, p: ActInRun) -> dict:
         error=error,
         changes=changes + ([{"truncated": True}] if truncated else []),
         note=p.note,
-        budget_consumed=1,
+        budget_consumed=1 if charged else 0,
         on_behalf_of=sponsor,
     )
-    run.actions_used += 1
-    if error is None:
+    if charged:
+        run.actions_used += 1
+    if error is None and charged:
         run.actions_since_checkpoint += 1
     if run.actions_used >= run.max_actions:
         run.status = Status.EXHAUSTED

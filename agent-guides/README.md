@@ -32,7 +32,11 @@ operation as the sponsor, capped to the run's grant and workspace, and records t
 record-level changes. A call to an ungranted boundary is not executed: the run pauses and
 the attempt is kept for review. The run stops when its budget is used or its deadline
 passes, and at each checkpoint. Retrying a `step_key` returns its recorded result without
-running it again or consuming budget, also after `agent_run.resume`. Record proposals you
+running it again or consuming budget, also after `agent_run.resume`. Operations that take
+an idempotency key (such as build requests) get one derived from the run and `step_key`;
+pass `idempotency_key` to reuse an earlier request's effect from a new step. A failed step
+whose request was invalid (`validation_failed`) or that replayed an earlier effect uses no
+budget; other failures do. Record proposals you
 may not execute with `agent_run.propose`, and finish with `agent_run.complete`. Humans
 read `agent_run.review_package` (every change with diffs, provenance and drift), may revert
 draft changes with `agent_run.revert_change`, and record a decision with `agent_run.review`.

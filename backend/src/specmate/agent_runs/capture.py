@@ -22,7 +22,14 @@ from uuid import UUID
 from django.db.models.signals import post_delete, post_save, pre_delete, pre_save
 
 # Bookkeeping models whose writes are not engineering changes of the step.
-IGNORED = frozenset({"agent_runs.agentrun", "agent_runs.agentrunstep", "sessions.session"})
+IGNORED = frozenset(
+    {
+        "agent_runs.agentrun",
+        "agent_runs.agentrunstep",
+        "operations.idempotencyrecord",
+        "sessions.session",
+    }
+)
 MAX_RECORDS = 200
 
 
