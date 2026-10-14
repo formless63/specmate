@@ -5,6 +5,14 @@
       "title": "Definition Id",
       "type": "string"
     },
+    "definition_kind": {
+      "title": "Definition Kind",
+      "type": "string"
+    },
+    "definition_name": {
+      "title": "Definition Name",
+      "type": "string"
+    },
     "kind": {
       "enum": [
         "symbol",
@@ -34,9 +42,17 @@
       "title": "Revision Id",
       "type": "string"
     },
+    "revision_number": {
+      "title": "Revision Number",
+      "type": "integer"
+    },
     "rights": {
       "title": "Rights",
       "type": "string"
+    },
+    "rights_known": {
+      "title": "Rights Known",
+      "type": "boolean"
     },
     "sha256": {
       "title": "Sha256",
@@ -55,14 +71,18 @@
   "required": [
     "representation_id",
     "revision_id",
+    "revision_number",
     "definition_id",
+    "definition_name",
+    "definition_kind",
     "kind",
     "label",
     "source_bundle_revision_id",
     "source_path",
     "sha256",
     "media_type",
-    "rights"
+    "rights",
+    "rights_known"
   ],
   "title": "RepresentationResult",
   "type": "object"

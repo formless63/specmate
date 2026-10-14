@@ -6,11 +6,21 @@ export type Identity = Definition & {
   revisions: { revision_id: string; number: number }[];
   drafts: { draft_id: string; state: string; dependencies: string[] }[];
 };
+export type Representation = {
+  representation_id: string; kind: string; label: string; revision_id: string; revision_number: number;
+  definition_id: string; definition_name: string; definition_kind: string;
+  source_bundle_revision_id: string; source_path: string; sha256: string; media_type: string; rights: string; rights_known: boolean;
+};
+export type SourceIdentifier = {
+  source_identifier_id: string; revision_id: string; revision_number: number; definition_name: string;
+  scheme: string; identifier: string; label: string; rights: string; rights_known: boolean;
+};
 export type Catalog = {
   revision_id: string;
   variants: { variant_id: string; manufacturer: string; part_number: string; association_basis: string }[];
   lots: { lot_id: string; variant_id: string | null; label: string }[];
-  representations: { representation_id: string; kind: string; label: string; source_bundle_revision_id: string; source_path: string; sha256: string; rights: string }[];
+  representations: Representation[];
+  source_identifiers: SourceIdentifier[];
 };
 
 export async function read<T>(path: string): Promise<T> {

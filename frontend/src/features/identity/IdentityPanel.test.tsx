@@ -31,7 +31,7 @@ test("creates a reusable definition, freezes exact draft state, then registers a
     } else if (url.includes("/definitions/")) {
       body = { definition_id: definitionId, name: "Synthetic part", kind: "part", drafts: [{ draft_id: draftId, state: "draft-v1", dependencies: [] }], revisions: [{ revision_id: revisionId, number: 1 }] };
     } else if (url.includes("/revisions/")) {
-      body = { revision_id: revisionId, variants: [], lots: [], representations: [] };
+      body = { revision_id: revisionId, variants: [], lots: [], representations: [], source_identifiers: [] };
     } else body = library;
     return new Response(JSON.stringify(body), { status: 200 });
   });
@@ -91,7 +91,7 @@ test.each([
 ] as const)("%s permissions gate identity create, freeze and registration", async (_name, permissions, editOff, freezeOff) => {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     const body = url.includes("/definitions/") ? { definition_id: definitionId, name: "Synthetic part", kind: "part", drafts: [{ draft_id: draftId, state: "draft-v1", dependencies: [] }], revisions: [{ revision_id: revisionId, number: 1 }] }
-      : url.includes("/revisions/") ? { revision_id: revisionId, variants: [], lots: [], representations: [] }
+      : url.includes("/revisions/") ? { revision_id: revisionId, variants: [], lots: [], representations: [], source_identifiers: [] }
       : library;
     return new Response(JSON.stringify(body), { status: 200 });
   }));
@@ -109,4 +109,48 @@ test.each([
     expect(control.hasAttribute("data-readonly-reason")).toBe(editOff);
   }
   expect((screen.getByRole("button", { name: "Register lot identity" }) as HTMLButtonElement).disabled).toBe(editOff);
+});
+
+const bundleId = "00000000-0000-0000-0000-000000000009";
+const repCatalog = {
+  revision_id: revisionId, variants: [], lots: [],
+  representations: [{ representation_id: "r1", kind: "datasheet", label: "Datasheet", revision_id: revisionId, revision_number: 1, definition_id: definitionId, definition_name: "Synthetic part", definition_kind: "part", source_bundle_revision_id: bundleId, source_path: "docs/sheet.pdf", sha256: "ab".repeat(32), media_type: "application/pdf", rights: "unknown", rights_known: false }],
+  source_identifiers: [{ source_identifier_id: "s1", revision_id: revisionId, revision_number: 1, definition_name: "Synthetic part", scheme: "library-id", identifier: "Synthetic:Part", label: "Library symbol", rights: "CC0-1.0", rights_known: true }],
+};
+
+test("shows the exact model revision, flags unknown rights and registers a linked file and identifier", async () => {
+  const calls: { operation: string; payload: Record<string, unknown> }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    let body: unknown;
+    if (options?.method === "POST") { const command = JSON.parse(String(options.body)); calls.push(command); body = { result: {} }; }
+    else if (url.includes("sources/workspaces/")) body = { revisions: [{ revision_id: bundleId, bundle_id: "b", name: "Vendor docs", role: "original", number: 1, manifest_sha256: "m", derived_from: null }], next_after: null };
+    else if (url.includes("sources/revisions/")) body = { revision_id: bundleId, manifest: { ancestry: [], files: [{ path: "docs/sheet.pdf", sha256: "cd".repeat(32), bytes: 3, media_type: "application/pdf", rights: "unknown" }] } };
+    else if (url.includes("/definitions/")) body = { definition_id: definitionId, name: "Synthetic part", kind: "part", drafts: [], revisions: [{ revision_id: revisionId, number: 1 }] };
+    else if (url.includes("/revisions/")) body = repCatalog;
+    else body = library;
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  renderPanel();
+  await pick("Definition", "Synthetic part (part)");
+  await pick("Exact revision", "Revision 1");
+  expect(await screen.findByText("unknown · not cleared")).toBeTruthy();
+  expect(screen.getByText("CC0-1.0")).toBeTruthy();
+  expect(screen.getAllByText("Revision 1").length).toBeGreaterThan(0);
+  expect(screen.getByText(/not an orderable part or a physical lot/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Representation label"), { target: { value: "Sheet" } });
+  await pick("Source bundle revision", "Vendor docs · revision 1 (original)");
+  await pick("Source file", "docs/sheet.pdf");
+  fireEvent.click(screen.getByRole("button", { name: "Register representation" }));
+  await waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0]).toMatchObject({ operation: "catalog.register_representation", payload: { revision_id: revisionId, kind: "datasheet", source_bundle_revision_id: bundleId, source_path: "docs/sheet.pdf" } });
+  const register = screen.getByRole("button", { name: "Register source identifier" }) as HTMLButtonElement;
+  expect(register.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Identifier scheme"), { target: { value: "url" } });
+  fireEvent.change(screen.getByLabelText("Source identifier"), { target: { value: "https://example.invalid/p" } });
+  fireEvent.change(screen.getByLabelText("Source identifier label"), { target: { value: "Page" } });
+  expect(register.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText(/Rights statement/), { target: { value: "unknown" } });
+  fireEvent.click(register);
+  await waitFor(() => expect(calls).toHaveLength(2));
+  expect(calls[1]).toMatchObject({ operation: "catalog.register_source_identifier", payload: { scheme: "url", identifier: "https://example.invalid/p", label: "Page", rights: "unknown" } });
 });

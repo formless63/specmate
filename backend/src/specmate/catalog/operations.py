@@ -1,7 +1,22 @@
 from specmate.access.permissions import Perm, authorize
-from specmate.catalog.contracts import RegisterLot, RegisterRepresentation, RegisterVariant
-from specmate.catalog.models import ManufacturerVariant, PhysicalLot, Representation
-from specmate.catalog.queries import lot_result, representation_result, variant_result
+from specmate.catalog.contracts import (
+    RegisterLot,
+    RegisterRepresentation,
+    RegisterSourceIdentifier,
+    RegisterVariant,
+)
+from specmate.catalog.models import (
+    ManufacturerVariant,
+    PhysicalLot,
+    Representation,
+    SourceIdentifier,
+)
+from specmate.catalog.queries import (
+    lot_result,
+    representation_result,
+    source_identifier_result,
+    variant_result,
+)
 from specmate.design.models import Revision
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.scope import revision_scope
@@ -104,6 +119,31 @@ def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
         registered_by=ctx.user,
     )
     return representation_result(representation)
+
+
+@operation(
+    "catalog.register_source_identifier",
+    RegisterSourceIdentifier,
+    authorize_replay=authorize_catalog_replay,
+    idempotency_scope=catalog_scope,
+    summary="Associate an external source identifier with explicit rights to an exact revision.",
+    access=Perm.ITEM_CREATE,
+)
+def register_source_identifier(ctx: Context, p: RegisterSourceIdentifier) -> dict:
+    revision = editable_revision(ctx, p.revision_id)
+    if SourceIdentifier.objects.filter(
+        revision=revision, scheme=p.scheme, identifier=p.identifier
+    ).exists():
+        raise Conflict("This source identifier is already associated with this revision.")
+    item = SourceIdentifier.objects.create(
+        revision=revision,
+        scheme=p.scheme,
+        identifier=p.identifier,
+        label=p.label,
+        rights=p.rights,
+        registered_by=ctx.user,
+    )
+    return source_identifier_result(item)
 
 
 @operation(

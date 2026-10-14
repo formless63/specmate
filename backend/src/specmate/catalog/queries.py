@@ -1,8 +1,18 @@
 """Scoped, bounded catalog reads shared by all adapters."""
 
 from specmate.access.permissions import Perm, authorize
-from specmate.catalog.contracts import LotResult, RepresentationResult, VariantResult
-from specmate.catalog.models import ManufacturerVariant, PhysicalLot, Representation
+from specmate.catalog.contracts import (
+    LotResult,
+    RepresentationResult,
+    SourceIdentifierResult,
+    VariantResult,
+)
+from specmate.catalog.models import (
+    ManufacturerVariant,
+    PhysicalLot,
+    Representation,
+    SourceIdentifier,
+)
 from specmate.design.models import Definition
 from specmate.operations import NotFound
 
@@ -18,12 +28,40 @@ def variant_result(variant):
     ).model_dump(mode="json")
 
 
+UNKNOWN_RIGHTS = {"unknown", "unspecified", "not recorded", "n/a", "none recorded"}
+
+
+def rights_known(rights):
+    """Rights are known only when a statement other than an explicit unknown is recorded."""
+    return rights.strip().lower() not in UNKNOWN_RIGHTS
+
+
+def source_identifier_result(item):
+    revision = item.revision
+    return SourceIdentifierResult(
+        source_identifier_id=item.id,
+        revision_id=item.revision_id,
+        revision_number=revision.number,
+        definition_id=revision.definition_id,
+        definition_name=revision.definition.name,
+        scheme=item.scheme,
+        identifier=item.identifier,
+        label=item.label,
+        rights=item.rights,
+        rights_known=rights_known(item.rights),
+    ).model_dump(mode="json")
+
+
 def representation_result(representation):
     source = representation.source_file
+    revision = representation.revision
     return RepresentationResult(
         representation_id=representation.id,
         revision_id=representation.revision_id,
-        definition_id=representation.revision.definition_id,
+        revision_number=revision.number,
+        definition_id=revision.definition_id,
+        definition_name=revision.definition.name,
+        definition_kind=revision.definition.kind,
         kind=representation.kind,
         label=representation.label,
         source_bundle_revision_id=source.revision_id,
@@ -31,6 +69,7 @@ def representation_result(representation):
         sha256=source.blob.sha256,
         media_type=source.media_type,
         rights=source.rights,
+        rights_known=rights_known(source.rights),
     ).model_dump(mode="json")
 
 
@@ -60,15 +99,24 @@ def get_revision_catalog(user, revision_id, *, offset=0, limit=50):
     from specmate.queries import get_revision
 
     revision = get_revision(user, revision_id)
-    variants = ManufacturerVariant.objects.select_related("revision").filter(revision=revision)
+    variants = ManufacturerVariant.objects.select_related("revision__definition").filter(
+        revision=revision
+    )
     representations = Representation.objects.select_related(
-        "revision", "source_file__blob", "source_file__revision__bundle"
+        "revision__definition", "source_file__blob", "source_file__revision__bundle"
     ).filter(
         revision=revision,
         source_file__revision__bundle__workspace_id=revision.definition.workspace_id,
     )
     lots = PhysicalLot.objects.select_related("revision").filter(revision=revision)
+    identifiers = SourceIdentifier.objects.select_related("revision__definition").filter(
+        revision=revision
+    )
     return {
+        "source_identifiers": [
+            source_identifier_result(i)
+            for i in identifiers.order_by("created_at", "id")[offset : offset + limit]
+        ],
         "lots": [
             lot_result(lot) for lot in lots.order_by("created_at", "id")[offset : offset + limit]
         ],
