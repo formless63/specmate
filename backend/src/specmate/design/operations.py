@@ -100,6 +100,8 @@ def update_draft(ctx: Context, p: UpdateDraft) -> dict:
     content = {k: v for k, v in draft.content.items() if k not in p.remove}
     content.update(p.changes)
     content = validate_content(draft.definition.kind, content)
+    if draft.definition.kind == "enclosure_proposal" and content != draft.content:
+        raise ValidationFailed("An accepted proposal's pinned record cannot be changed.")
     authorize_design_content(ctx.user, draft.definition, content)
     draft.content = content
     draft.version += 1
@@ -304,6 +306,10 @@ def validate_content(kind, content):
         from specmate.mechanical_sources.operations import validate_content as validate_mechanical
 
         content = validate_mechanical(kind, content)
+    if kind == "enclosure_proposal" or "proposal_adoption" in content:
+        from specmate.mechanical_proposals.adoption import validate_content as validate_adoption
+
+        content = validate_adoption(kind, content)
     if kind == "firmware" or "firmware" in content:
         from specmate.pcb.firmware import validate_content as validate_firmware
 
@@ -393,6 +399,10 @@ def _authorize_design_content(user, definition, content):
         from specmate.mechanical_sources.operations import authorize_content as authorize_mechanical
 
         authorize_mechanical(user, definition, content)
+    if definition.kind == "enclosure_proposal" or "proposal_adoption" in content:
+        from specmate.mechanical_proposals.adoption import authorize_content as authorize_adoption
+
+        authorize_adoption(user, definition, content)
     if definition.kind == "firmware" or "firmware" in content:
         from specmate.pcb.firmware import authorize_content as authorize_firmware
 

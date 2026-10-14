@@ -16,6 +16,8 @@ from specmate.access.permissions import Perm, authorize, authorize_item
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Draft
 from specmate.design.operations import CreateDefinition, create_definition, scoped_draft
+from specmate.mechanical_proposals.adoption import KEY as ADOPTION_KEY
+from specmate.mechanical_proposals.adoption import KIND as ADOPTION_KIND
 from specmate.mechanical_proposals.contracts import (
     GENERATOR,
     BoardInputs,
@@ -34,7 +36,14 @@ from specmate.mechanical_proposals.models import (
     ProposalDraft,
     ProposalRevision,
 )
-from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
+from specmate.operations import (
+    Conflict,
+    Context,
+    NotFound,
+    PermissionDenied,
+    ValidationFailed,
+    operation,
+)
 from specmate.operations.scope import workspace_scope
 from specmate.pcb.models import PcbInterpretation
 from specmate.pcb.population import scoped_interpretation
@@ -42,8 +51,6 @@ from specmate.pcb.report import Report
 from specmate.sources.authority import authorize_revision
 
 LIST_LIMIT = 100
-ADOPTION_KIND = "enclosure_proposal"
-ADOPTION_KEY = "proposal_adoption"
 
 
 def canonical_bytes(document) -> bytes:
@@ -549,3 +556,36 @@ def decide(ctx: Context, p: DecideProposal):
         **decisions_view(revision),
         "recorded": decision_view(decision),
     }
+
+
+@operation(
+    "mechanical_proposal.draft_targets",
+    ListProposals,
+    summary="List existing design drafts of a workspace that an acceptance may link to.",
+    supports_idempotency=False,
+)
+def draft_targets(ctx: Context, p: ListProposals):
+    user = current_actor(ctx.user)
+    workspace = authorize(user, p.workspace_id, Perm.DESIGN_EDIT)
+    rows = []
+    query = Draft.objects.select_related("definition").filter(definition__workspace=workspace)
+    for draft in query.order_by("definition__name", "id")[: LIST_LIMIT * 2]:
+        try:
+            scoped_draft(
+                Context(user=user, via=ctx.via, request_id=ctx.request_id),
+                draft.id,
+                Perm.DESIGN_EDIT,
+            )
+        except (NotFound, PermissionDenied):
+            continue
+        rows.append(
+            {
+                "draft_id": str(draft.id),
+                "definition_id": str(draft.definition_id),
+                "name": draft.definition.name,
+                "kind": draft.definition.kind,
+            }
+        )
+        if len(rows) == LIST_LIMIT:
+            break
+    return {"drafts": rows}

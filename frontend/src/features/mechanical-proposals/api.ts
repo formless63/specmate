@@ -68,3 +68,5 @@ export const decideRetained = (revisionId: string, payload: DecidePayload, state
     ...(payload.draftName ? { draft_name: payload.draftName } : {}),
     ...(payload.linkDraftId ? { link_draft_id: payload.linkDraftId } : {}),
   }, { expectedState: state, idempotencyKey: key });
+export type DraftTarget = { draft_id: string; definition_id: string; name: string; kind: string };
+export const listDraftTargets = (workspaceId: string, signal?: AbortSignal) => request<{ drafts: DraftTarget[] }>(`${base(workspaceId)}/draft-targets`, { signal, cache: 'no-store' });

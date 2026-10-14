@@ -154,3 +154,60 @@ def test_database_guards_keep_decisions_append_only(users, retained):
             decided_by_id=row.decided_by_id,
             request_id="x",
         )
+
+
+def test_accepted_draft_pins_are_typed_and_immutable(users, workspace, retained):
+    result = decide(users["editor"], retained, "accepted", "decision-v0", draft_name="Housing")
+    draft_id = result["recorded"]["draft_id"]
+    state = Draft.objects.get(id=draft_id).state_token
+    pin = Draft.objects.get(id=draft_id).content["proposal_adoption"]
+    for changes, remove in (
+        ({"proposal_adoption": {**pin, "retained_sha256": "0" * 64}}, []),
+        ({"proposal_adoption": {**pin, "physical_qualification": True}}, []),
+        ({"extra": 1}, []),
+        ({}, ["proposal_adoption"]),
+    ):
+        with pytest.raises(ValidationFailed):
+            op(
+                users["editor"],
+                "draft.update",
+                {"draft_id": draft_id, "changes": changes, "remove": remove},
+                expected_state=state,
+            )
+    assert Draft.objects.get(id=draft_id).content["proposal_adoption"] == pin
+
+
+def test_adoption_content_must_pin_a_real_retained_record(users, workspace):
+    pin = {
+        "retained_proposal_id": "00000000-0000-0000-0000-000000000001",
+        "retained_sha256": "a" * 64,
+        "proposal_draft_id": "00000000-0000-0000-0000-000000000002",
+        "interpretation_id": "00000000-0000-0000-0000-000000000003",
+        "interpretation_sha256": "b" * 64,
+        "generator": "g",
+        "status": "incomplete",
+        "physical_qualification": False,
+    }
+    with pytest.raises(NotFound):
+        op(
+            users["editor"],
+            "definition.create",
+            {
+                "workspace_id": workspace_of(workspace),
+                "kind": "enclosure_proposal",
+                "name": "Forged",
+                "content": {"proposal_adoption": pin},
+            },
+        )
+
+
+def test_draft_targets_list_workspace_drafts_for_editors_only(users, workspace, retained):
+    op(
+        users["editor"],
+        "definition.create",
+        {"workspace_id": workspace_of(workspace), "kind": "note", "name": "T", "content": {}},
+    )
+    listed = op(users["editor"], "mechanical_proposal.draft_targets", {"workspace_id": workspace})
+    assert [d["name"] for d in listed["drafts"]] == ["T"]
+    with pytest.raises(PermissionDenied):
+        op(users["viewer"], "mechanical_proposal.draft_targets", {"workspace_id": workspace})

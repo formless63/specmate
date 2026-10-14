@@ -8,7 +8,7 @@ import { MechanicalProposalsPanel } from './MechanicalProposalsPanel';
 
 vi.mock('./api', async original => ({
   ...(await original<typeof import('./api')>()),
-  listBoards: vi.fn(), boardInputs: vi.fn(), listDrafts: vi.fn(), readDraft: vi.fn(), readRetained: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), retainDraft: vi.fn(), decideRetained: vi.fn(),
+  listBoards: vi.fn(), boardInputs: vi.fn(), listDrafts: vi.fn(), readDraft: vi.fn(), readRetained: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), retainDraft: vi.fn(), decideRetained: vi.fn(), listDraftTargets: vi.fn(),
 }));
 
 const pad = '00000000-0000-0000-0000-0000000000a1';
@@ -164,4 +164,19 @@ test('read-only members see decisions but cannot record one', async () => {
   await screen.findByText('Review decision');
   expect((screen.getByRole('button', { name: 'Record decision' }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByLabelText(/Reason/) as HTMLTextAreaElement).disabled).toBe(true);
+});
+
+test('linking offers a picker over workspace drafts and sends the chosen draft id', async () => {
+  vi.mocked(api.readRetained).mockResolvedValueOnce(retainedRecord());
+  vi.mocked(api.listDraftTargets).mockResolvedValue({ drafts: [{ draft_id: 'dr-9', definition_id: 'def-9', name: 'Target housing', kind: 'note' }] });
+  await inspect();
+  fireEvent.click(screen.getByText('Accept'));
+  fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Fits intent.' } });
+  fireEvent.click(screen.getByText('Link existing draft'));
+  await waitFor(() => expect(api.listDraftTargets).toHaveBeenCalledWith('project-1', expect.anything()));
+  fireEvent.click((await screen.findAllByLabelText('Existing design draft')).find(el => el.tagName === 'INPUT')!);
+  fireEvent.click(await screen.findByText(/Target housing/));
+  vi.mocked(api.decideRetained).mockRejectedValue(new SourceError(409, 'x'));
+  fireEvent.click(screen.getByRole('button', { name: 'Record decision' }));
+  await waitFor(() => expect(api.decideRetained).toHaveBeenCalledWith('rev-1', { decision: 'accepted', reason: 'Fits intent.', linkDraftId: 'dr-9' }, 'decision-v0', expect.any(String)));
 });

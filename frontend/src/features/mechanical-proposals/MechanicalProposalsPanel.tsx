@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { randomUUID } from '../../lib/random-id';
 import { SourceError } from '../sources/api';
-import { boardInputs, createDraft, decideRetained, listBoards, listDrafts, readDraft, readRetained, retainDraft, updateDraft, type BoardChoice, type BoardInputs, type DecidePayload, type Decision, type Draft, type DraftRow, type Feature, type Proposal, type Retained, type Side } from './api';
+import { boardInputs, createDraft, decideRetained, listDraftTargets, listBoards, listDrafts, readDraft, readRetained, retainDraft, updateDraft, type BoardChoice, type BoardInputs, type DecidePayload, type DraftTarget, type Decision, type Draft, type DraftRow, type Feature, type Proposal, type Retained, type Side } from './api';
 import { emptyForm, fromForm, toForm, type Choice, type FormState } from './form';
 import { PlanPreview } from './PlanPreview';
 
@@ -212,17 +212,26 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <Group><Title order={3}>Retained record {retained.number}</Title><Badge variant="frozen">{retained.status}</Badge></Group>
       <Text size="xs">SHA-256 {retained.sha256} · draft version {retained.draft_version} · board {retained.interpretation_sha256}</Text>
       <ProposalReview proposal={retained.document.proposal} label="Retained proposal" />
-      <DecisionReview key={`${retained.revision_id}:${retained.decision_state}`} retained={retained} allowed={edit.allowed} reason={edit.props.title} busy={busy} onDecide={decide} onReload={() => showRetained(retained.revision_id)} />
+      <DecisionReview workspaceId={workspaceId} key={`${retained.revision_id}:${retained.decision_state}`} retained={retained} allowed={edit.allowed} reason={edit.props.title} busy={busy} onDecide={decide} onReload={() => showRetained(retained.revision_id)} />
     </Stack></Card>}
   </Stack>;
 }
 
-function DecisionReview({ retained, allowed, reason: gateReason, busy, onDecide, onReload }: { retained: Retained; allowed: boolean; reason?: string; busy: boolean; onDecide: (revisionId: string, state: string, payload: DecidePayload) => Promise<void>; onReload: () => void }) {
+function DecisionReview({ workspaceId, retained, allowed, reason: gateReason, busy, onDecide, onReload }: { workspaceId: string; retained: Retained; allowed: boolean; reason?: string; busy: boolean; onDecide: (revisionId: string, state: string, payload: DecidePayload) => Promise<void>; onReload: () => void }) {
   const [decision, setDecision] = useState<DecidePayload['decision']>('deferred');
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'create' | 'link'>('create');
   const [target, setTarget] = useState('');
   const [conflict, setConflict] = useState('');
+  const [targets, setTargets] = useState<DraftTarget[]>([]);
+  const [targetError, setTargetError] = useState('');
+  const linking = allowed && decision === 'accepted' && mode === 'link';
+  useEffect(() => {
+    if (!linking) return;
+    const controller = new AbortController();
+    listDraftTargets(workspaceId, controller.signal).then(result => { setTargets(result.drafts); setTargetError(''); }).catch(error => { if (!controller.signal.aborted) { setTargets([]); setTargetError(error instanceof Error ? error.message : 'Could not load drafts.'); } });
+    return () => controller.abort();
+  }, [linking, workspaceId]);
   const [failure, setFailure] = useState('');
   const history: Decision[] = retained.decisions ?? [];
   const state = retained.decision_state;
@@ -250,7 +259,10 @@ function DecisionReview({ retained, allowed, reason: gateReason, busy, onDecide,
       <Textarea label="Reason (required)" value={reason} onChange={event => setReason(event.currentTarget.value)} disabled={!allowed} rows={3} maxLength={4000} />
       {accepting && <>
         <SegmentedControl aria-label="Draft target" value={mode} onChange={value => { setMode(value as 'create' | 'link'); setTarget(''); }} disabled={!allowed} data={[{ value: 'create', label: 'Create design draft' }, { value: 'link', label: 'Link existing draft' }]} />
-        <TextInput label={mode === 'create' ? 'New draft name' : 'Existing design draft ID'} value={target} onChange={event => setTarget(event.currentTarget.value)} disabled={!allowed} maxLength={mode === 'create' ? 200 : 64} />
+        {mode === 'create'
+          ? <TextInput label="New draft name" value={target} onChange={event => setTarget(event.currentTarget.value)} disabled={!allowed} maxLength={200} />
+          : <Select label="Existing design draft" searchable placeholder={targets.length ? 'Choose a draft' : 'No drafts available'} value={target || null} onChange={value => setTarget(value ?? '')} disabled={!allowed} nothingFoundMessage="No matching drafts" error={targetError || undefined}
+              data={targets.map(t => ({ value: t.draft_id, label: `${t.name} (${t.kind}) · ${t.draft_id.slice(0, 8)}` }))} />}
       </>}
       {conflict && <Alert color="yellow" role="alert">{conflict} <Button variant="quiet" onClick={onReload}>Load latest decisions</Button></Alert>}
       {failure && <Alert color="red" role="alert">{failure}</Alert>}
