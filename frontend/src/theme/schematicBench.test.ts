@@ -36,3 +36,13 @@ test("variables resolve semantic roles for both colour schemes with a non-accent
     expect(values["--mantine-color-body"]).toBe(role.surface.canvas);
   }
 });
+
+test("scrolling table wrappers contain absolutely positioned hidden labels at phone width", async () => {
+  // jsdom has no layout; guard the rule that stops a hidden header label from widening the document.
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./schematic-bench.css", import.meta.url), "utf8");
+  const rule = css.split("\n").find((line) => line.startsWith(".sb-ws-scroll {")) ?? "";
+  expect(rule).toContain("position: relative");
+  expect(rule).toContain("overflow-x: auto");
+  expect(css).toMatch(/\.sb-visually-hidden \{[^}]*position: absolute/);
+});
