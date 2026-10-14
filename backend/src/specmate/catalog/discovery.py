@@ -13,7 +13,7 @@ from django.db.models import BooleanField, ExpressionWrapper, Q
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from specmate.access.models import Project, ProjectReference
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
 from specmate.catalog.models import ManufacturerVariant, PhysicalLot, SourceIdentifier
 from specmate.catalog.scope import (
     context_first,
@@ -360,16 +360,16 @@ def revision_labels(user, payload):
     """
     authorized: set = set()
     labels = []
+    # One query for every requested revision (not one per label).
+    revisions = Revision.objects.select_related("definition", "snapshot__definition").in_bulk(
+        set(payload.revision_ids)
+    )
     for revision_id in payload.revision_ids:
         entry = {"revision_id": str(revision_id), "readable": False}
-        revision = (
-            Revision.objects.select_related("definition", "snapshot__definition")
-            .filter(id=revision_id)
-            .first()
-        )
+        revision = revisions.get(revision_id)
         if revision is not None:
             try:
-                authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
+                # authorize_snapshot checks workspace read first.
                 authorize_snapshot(user, revision.snapshot, _authorized=authorized)
             except (NotFound, PermissionDenied):
                 pass
@@ -391,11 +391,12 @@ def source_revision_labels(user, payload):
     from specmate.sources.authority import authorize_revision
 
     rows = []
+    revisions = SourceBundleRevision.objects.select_related("bundle").in_bulk(
+        set(payload.source_revision_ids)
+    )
     for revision_id in payload.source_revision_ids:
         entry = {"revision_id": str(revision_id), "readable": False}
-        revision = (
-            SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
-        )
+        revision = revisions.get(revision_id)
         if revision is not None:
             try:
                 authorize_revision(current_actor(user), revision)

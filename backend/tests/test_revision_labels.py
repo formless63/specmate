@@ -129,3 +129,27 @@ def test_source_revision_names_follow_source_read_authority(users, project):
     # The two identifier namespaces are distinct: a source ID is not a design revision.
     assert both["labels"] == [{"revision_id": revision_id, "readable": False}]
     assert both["source_labels"][0]["readable"] is True
+
+
+def test_label_lookup_queries_do_not_grow_with_the_number_of_labels(users, project):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    owner = users["owner"]
+    ids = []
+    for index in range(12):
+        item = create_part(owner, project, f"Labelled part {index}")
+        ids.append(freeze(owner, item["draft_id"], item["state"])["revision_id"])
+    with CaptureQueriesContext(connection) as one:
+        labels(users["viewer"], ids[0])
+    with CaptureQueriesContext(connection) as many:
+        result = labels(users["viewer"], *ids)
+    assert all(row["readable"] for row in result)
+    revision_reads = [
+        q
+        for q in many.captured_queries
+        if q["sql"].split(" FROM ")[-1].startswith('"design_revision" INNER')
+    ]
+    assert len(revision_reads) <= 1  # one batched read, not one per label
+    # Authorization is still checked per label, with a bounded per-label cost.
+    assert len(many.captured_queries) <= len(one.captured_queries) + 3 * 11 + 2

@@ -22,9 +22,10 @@ function wrap() {
 function response(data: unknown, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 const CLEARED = { items: [], counts: { cleared: 0, restricted: 0, unknown: 0 }, undeclared_revision_ids: [], acknowledgement_required: false };
 const RESTRICTED = { items: [{ subject: 'source_identifier:one', revision_id: 'cable-rev', definition_name: 'Synthetic cable', record: 'library-id', label: 'Library id', rights_status: 'restricted' as const, declared_rights: 'Vendor terms' }], counts: { cleared: 0, restricted: 1, unknown: 0 }, undeclared_revision_ids: ['stock-rev'], acknowledgement_required: true };
+const REVIEW_HASH = 'a1b2c3d4'.repeat(8);
 function reviewed(coherence: 'coherent' | 'incoherent', quantity: number | null, rights: Review['manifest']['rights'] = CLEARED): Review {
   const scope = (count: number) => quantity === null ? { status: 'unknown' as const, amount: null, per_root: count } : { status: 'known' as const, amount: count * quantity, per_root: count };
-  return { sha256: 'review-hash', manifest: {
+  return { sha256: REVIEW_HASH, manifest: {
     scope: { root: { revision_id: ROOT, definition_id: 'root-def', kind: 'assembly', name: 'Synthetic root', number: 1, sha256: 'root-hash' }, quantity, quantity_status: quantity === null ? 'unknown' : 'known' },
     pins: [{ revision_id: 'cable-rev', definition_id: 'cable-def', kind: 'cable', name: 'Synthetic cable', number: 1, sha256: 'cable-hash', per_root_occurrences: 2, scope_quantity: scope(2) },
       { revision_id: 'stock-rev', definition_id: 'stock-def', kind: 'wire_stock', name: 'Synthetic stock', number: 1, sha256: 'stock-hash', per_root_occurrences: null, scope_quantity: { status: 'not_applicable', amount: null } }],
@@ -73,6 +74,11 @@ test('unknown root quantity is sent as null and shown as unknown, never zero', a
   expect(screen.getByText('Root quantity unknown')).toBeTruthy();
   expect(screen.queryByText(/^0$/)).toBeNull();
   expect(screen.getByText(/No physical test was performed/)).toBeTruthy();
+  // The manifest hash the offline verifier needs is shown, labelled apart from the root snapshot hash.
+  expect(screen.getByText(/Package manifest SHA-256/)).toBeTruthy();
+  expect(screen.getByText(/Root snapshot SHA-256/)).toBeTruthy();
+  expect(screen.getByTestId('verifier-command').textContent).toBe(`python3 -I -S verification.py package.zip --manifest-sha256 ${REVIEW_HASH}`);
+  expect(screen.getAllByLabelText(`Copy ${REVIEW_HASH}`)).toHaveLength(1);
 });
 
 test('known quantity review downloads with the reviewed hash; edits require rereview', async () => {
@@ -86,7 +92,7 @@ test('known quantity review downloads with the reviewed hash; edits require rere
   expect(f.calls[0]?.payload.quantity).toBe(3);
   expect(screen.getAllByText('6').length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole('button', { name: 'Download export package' }));
-  await waitFor(() => expect(f.body()).toMatchObject({ root_revision_id: ROOT, quantity: 3, reviewed_sha256: 'review-hash' }));
+  await waitFor(() => expect(f.body()).toMatchObject({ root_revision_id: ROOT, quantity: 3, reviewed_sha256: REVIEW_HASH }));
   fireEvent.change(screen.getByLabelText('Root quantity in scope'), { target: { value: '4' } });
   expect((screen.getByRole('button', { name: 'Download export package' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText(/Review the export package again/)).toBeTruthy();
@@ -127,5 +133,5 @@ test('restricted or unknown rights require an explicit acknowledgement before do
   fireEvent.click(screen.getByRole('checkbox'));
   expect(button.disabled).toBe(false);
   fireEvent.click(button);
-  await waitFor(() => expect(f.body()).toMatchObject({ reviewed_sha256: 'review-hash', rights_acknowledged: true }));
+  await waitFor(() => expect(f.body()).toMatchObject({ reviewed_sha256: REVIEW_HASH, rights_acknowledged: true }));
 });
