@@ -60,8 +60,8 @@ def link_result(link):
 
 
 @transaction.atomic
-def list_units(user, project_id, *, offset=0, limit=50):
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+def list_units(user, workspace_id, *, offset=0, limit=50):
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
     units = list(
         PhysicalUnit.objects.select_related("revision__definition", "lot", "variant")
         .filter(workspace=workspace)
@@ -73,7 +73,6 @@ def list_units(user, project_id, *, offset=0, limit=50):
         if link:
             get_work_batch(user, link.work_batch_id)
     return {
-        "project_id": str(project_id),
         "workspace_id": str(workspace.id),
         "units": [unit_result(unit) for unit in units],
         "offset": offset,

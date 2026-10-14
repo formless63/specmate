@@ -1,8 +1,8 @@
 import { expect, test } from "vitest";
-import { summarize, type Finding, type ProjectStatus } from "./status";
+import { summarize, type Finding, type WorkspaceStatus } from "./status";
 
-const base: ProjectStatus = {
-  project_id: "p", evaluated_at: "2026-01-01T00:00:00Z",
+const base: WorkspaceStatus = {
+  workspace_id: "w", evaluated_at: "2026-01-01T00:00:00Z",
   work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" },
   queue: { states: {}, pending: 0, active: 0, oldest_pending_seconds: null },
   dispatch: { undelivered: 0, oldest_undelivered_seconds: null },

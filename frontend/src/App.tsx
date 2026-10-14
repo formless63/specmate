@@ -76,11 +76,11 @@ function ProjectWorkspace({ projectId, workspaceId, projectName, chrome, princip
     setVisited((current) => current.has(value) ? current : new Set([...current, value]));
   }, []);
   return <PermissionsProvider permissions={permissions}><SbShell projectName={projectName} permissions={permissions} activeTool={active} onToolChange={setActive} chrome={chrome}
-    statusIndicator={<StatusIndicator projectId={projectId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} />}>
+    statusIndicator={<StatusIndicator workspaceId={workspaceId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} />}>
     <ToolPanel value="overview">{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="builds">{visited.has("builds") && <BuildsPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
-    <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>}</ToolPanel>
+    <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel workspaceId={workspaceId} projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel workspaceId={workspaceId} projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>}</ToolPanel>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="revision-upgrades">{visited.has("revision-upgrades") && <RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active === "revision-upgrades"} initialProposalId={upgradeProposalId} canEdit={permissions.includes("design.edit")} />}</ToolPanel>
@@ -99,8 +99,8 @@ function ProjectWorkspace({ projectId, workspaceId, projectName, chrome, princip
     <ToolPanel value="shared-scene">{visited.has("shared-scene") && <SharedScenePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="context-selection">{visited.has("context-selection") && <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />}</ToolPanel>
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} permissions={permissions} onAccessLost={onAccessChanged} />}</ToolPanel>
-    <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="evidence-kinds">{visited.has("evidence-kinds") && <EvidencePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="facts">{visited.has("facts") && <FactsPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="evidence-kinds">{visited.has("evidence-kinds") && <EvidencePanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="mechanical-proposals">{visited.has("mechanical-proposals") && <MechanicalProposalsPanel workspaceId={workspaceId} principalKey={principalKey} />}</ToolPanel>
     <ToolPanel value="scene-drawings">{visited.has("scene-drawings") && <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />}</ToolPanel>
     <ToolPanel value="preparation-documents">{visited.has("preparation-documents") && <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} canGenerate={permissions.includes("design.edit")} onAccessLost={onAccessChanged} />}</ToolPanel>
@@ -112,11 +112,11 @@ function ProjectWorkspace({ projectId, workspaceId, projectName, chrome, princip
     <ToolPanel value="copper">{visited.has("copper") && <CopperPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="pcb">{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="pcb-disagreement">{visited.has("pcb-disagreement") && <PcbDisagreementPanel workspaceId={workspaceId} />}</ToolPanel>
-    <ToolPanel value="inventory">{visited.has("inventory") && <InventoryPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="inventory">{visited.has("inventory") && <InventoryPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="bom">{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="physical-units">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="physical-units">{visited.has("physical-units") && <PhysicalUnitsPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="agent-capabilities">{visited.has("agent-capabilities") && <AgentCapabilitiesPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="diagnostics">{visited.has("diagnostics") && <DiagnosticsPanel projectId={projectId} active={active === "diagnostics"} onChanged={() => setStatusTick((n) => n + 1)} />}</ToolPanel>
+    <ToolPanel value="diagnostics">{visited.has("diagnostics") && <DiagnosticsPanel workspaceId={workspaceId} active={active === "diagnostics"} onChanged={() => setStatusTick((n) => n + 1)} />}</ToolPanel>
     <ToolPanel value="access">{visited.has("access") && <ProjectAccessPanel projectId={projectId} onAccessChanged={onAccessChanged} />}</ToolPanel>
   </SbShell></PermissionsProvider>;
 }

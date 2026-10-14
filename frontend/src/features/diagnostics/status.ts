@@ -13,8 +13,8 @@ export type StatusBuild = {
   cancellation_requested: boolean; lease_expired: boolean;
 };
 
-export type ProjectStatus = {
-  project_id: string; evaluated_at: string;
+export type WorkspaceStatus = {
+  workspace_id: string; evaluated_at: string;
   work: { mode: "running" | "draining" | "interrupting"; accepting_new_work: boolean; reason: string; state_token: string };
   queue: { states: Record<string, number>; pending: number; active: number; oldest_pending_seconds: number | null };
   dispatch: { undelivered: number; oldest_undelivered_seconds: number | null };
@@ -27,8 +27,8 @@ export type ProjectStatus = {
   findings: Finding[];
 };
 
-export function readProjectStatus(projectId: string, signal?: AbortSignal): Promise<ProjectStatus> {
-  return requestJson<ProjectStatus>(`/api/v0/diagnostics/projects/${encodeURIComponent(projectId)}/status`, { signal });
+export function readWorkspaceStatus(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceStatus> {
+  return requestJson<WorkspaceStatus>(`/api/v0/diagnostics/workspaces/${encodeURIComponent(workspaceId)}/status`, { signal });
 }
 
 export const CATEGORY_LABEL: Record<Category, string> = {
@@ -48,7 +48,7 @@ export type Headline = { led: LedState; words: string };
 const SEVERITY_RANK = { blocking: 3, degraded: 2, attention: 2, info: 1 } as const;
 
 /** One line of words for the top bar. There is deliberately no generic "OK": idle says why nothing runs. */
-export function summarize(status: ProjectStatus | null, failure: string | null = null): Headline {
+export function summarize(status: WorkspaceStatus | null, failure: string | null = null): Headline {
   if (!status) return { led: "not-evaluated", words: failure ? "Status unavailable" : "Status not evaluated" };
   const raised = status.findings.filter((item) => item.severity !== "info")
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);

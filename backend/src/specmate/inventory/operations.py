@@ -28,6 +28,7 @@ from specmate.inventory.models import (
 )
 from specmate.inventory.queries import (
     account_result,
+    context_project,
     entry_result,
     get_account,
     get_consumption,
@@ -93,12 +94,12 @@ def append_entry(ctx, account, p, kind, after, **causes):
 @operation(
     "inventory.create_location",
     CreateLocation,
-    summary="Register a project stock location.",
+    summary="Register a workspace stock location.",
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def create_location(ctx: Context, p: CreateLocation):
-    workspace = authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE)
+    workspace = authorize(ctx.user, p.scope_id, Perm.INVENTORY_MANAGE)
     Workspace.objects.select_for_update().get(id=workspace.id)
     if Location.objects.filter(workspace=workspace, name=p.name).exists():
         raise Conflict("This location name is already registered.")
@@ -209,8 +210,10 @@ def reserve(ctx: Context, p: Reserve):
         raise Conflict(
             "Insufficient available stock.", details={"current": account_result(account)}
         )
+    project = context_project(account.location.workspace_id, p.project_id) if p.project_id else None
     reservation = Reservation.objects.create(
         account=account,
+        project=project,
         quantity=p.quantity.canonical,
         amount=p.quantity.amount,
         unit=p.quantity.unit,
@@ -251,7 +254,9 @@ def release(ctx: Context, p: Release):
     supports_idempotency=False,
 )
 def inventory_list(ctx: Context, p: ListInventory):
-    return list_inventory(ctx.user, p.project_id, offset=p.offset, limit=p.limit)
+    return list_inventory(
+        ctx.user, p.workspace_id, project_id=p.project_id, offset=p.offset, limit=p.limit
+    )
 
 
 def inventory_workspace_scope(ctx: Context, p) -> str:
@@ -295,7 +300,7 @@ def inventory_workspace_scope(ctx: Context, p) -> str:
         workspace_id = account.location.workspace_id
         authorize(ctx.user, workspace_id, Perm.INVENTORY_MANAGE)
     elif isinstance(p, CreateLocation):
-        workspace_id = authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE).id
+        workspace_id = authorize(ctx.user, p.scope_id, Perm.INVENTORY_MANAGE).id
     elif isinstance(p, OpenStock):
         lot = get_lot(ctx.user, p.lot_id)
         location = get_location(ctx.user, p.location_id)
@@ -304,7 +309,7 @@ def inventory_workspace_scope(ctx: Context, p) -> str:
         authorize(ctx.user, location.workspace_id, Perm.INVENTORY_MANAGE)
         workspace_id = location.workspace_id
     elif isinstance(p, ListInventory):
-        workspace_id = authorize(ctx.user, p.project_id, Perm.WORKSPACE_READ).id
+        workspace_id = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ).id
     else:
         account_id = (
             p.account_id
@@ -349,8 +354,12 @@ def create_work_batch(ctx: Context, p: CreateWorkBatch):
     revision = get_revision(ctx.user, p.revision_id)
     authorize(ctx.user, revision.definition.workspace_id, Perm.INVENTORY_MANAGE)
     require_stock_key(ctx)
+    project = (
+        context_project(revision.definition.workspace_id, p.project_id) if p.project_id else None
+    )
     batch = WorkBatch.objects.create(
         revision=revision,
+        project=project,
         kind=p.kind,
         label=p.label,
         planned_units=p.planned_units,

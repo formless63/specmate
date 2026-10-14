@@ -1,14 +1,19 @@
 from django.utils import timezone
 from pydantic import TypeAdapter
 
-from specmate.access.permissions import Perm, authorize, transitional_project
+from specmate.access.permissions import (
+    Perm,
+    authorize,
+    authorize_item,
+    authorize_project,
+)
 from specmate.facts.contracts import Target
 from specmate.facts.queries import resolve_target, source_file
 from specmate.knowledge.contracts import (
     CreateItem,
     ItemsForTarget,
     LinkItem,
-    ProjectItems,
+    ListItems,
     ReadItem,
     ReviseItem,
     UnlinkItem,
@@ -26,7 +31,7 @@ from specmate.knowledge.queries import (
     get_item,
     items_for_target,
     link_target,
-    project_items,
+    list_workspace_items,
     read_item,
     visible_link,
 )
@@ -97,11 +102,23 @@ def _link(ctx, item, target):
     return link, True
 
 
-def _item_project(ctx, item_id):
+def _item_scope(ctx, item_id):
     item = KnowledgeItem.objects.filter(id=item_id).first()
     if item is None:
         raise NotFound("Knowledge item not found.")
-    return workspace_scope(ctx, item.workspace_id, Perm.DESIGN_EDIT)
+    # Contributors edit the notes they created; editors edit any.
+    authorize_item(ctx.user, item, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, item.workspace_id)
+
+
+def _holder(ctx, p):
+    """The authorized workspace and the optional holding project of a new item."""
+    if p.project_id is None:
+        return authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE), None
+    project = authorize_project(ctx.user, p.project_id, Perm.ITEM_CREATE)
+    if p.workspace_id is not None and project.workspace_id != p.workspace_id:
+        raise NotFound("Project not found.")
+    return project.workspace, project
 
 
 def _authorize_stored_item(ctx, stored):
@@ -115,11 +132,12 @@ def _authorize_stored_item(ctx, stored):
 
 
 def _create_scope(ctx, p):
-    return workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+    workspace, _ = _holder(ctx, p)
+    return workspace_scope(ctx, workspace.id, Perm.ITEM_CREATE)
 
 
 def _create_replay(ctx, p, stored):
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace, _ = _holder(ctx, p)
     _attachments(ctx, workspace.id, p.content.attachments)
     for target in p.links:
         resolve_target(ctx.user, target)
@@ -134,10 +152,10 @@ def _create_replay(ctx, p, stored):
     authorize_replay=_create_replay,
 )
 def create_item(ctx: Context, p: CreateItem):
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace, project = _holder(ctx, p)
     item = KnowledgeItem.objects.create(
         workspace=workspace,
-        project=transitional_project(p.project_id, workspace),
+        project=project,
         kind=p.kind,
         created_by=ctx.user,
     )
@@ -148,7 +166,7 @@ def create_item(ctx: Context, p: CreateItem):
 
 
 def _revise_scope(ctx, p):
-    return _item_project(ctx, p.item_id)
+    return _item_scope(ctx, p.item_id)
 
 
 def _revise_replay(ctx, p, stored):
@@ -184,7 +202,7 @@ def revise_item(ctx: Context, p: ReviseItem):
 
 
 def _link_scope(ctx, p):
-    return _item_project(ctx, p.item_id)
+    return _item_scope(ctx, p.item_id)
 
 
 def _link_replay(ctx, p, stored):
@@ -224,7 +242,7 @@ def _scoped_link(ctx, link_id, *, lock=False):
 
 
 def _unlink_scope(ctx, p):
-    return workspace_scope(ctx, _scoped_link(ctx, p.link_id).item.workspace_id, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, _scoped_link(ctx, p.link_id).item.workspace_id)
 
 
 def _unlink_replay(ctx, p, stored):
@@ -275,9 +293,9 @@ def target_items(ctx: Context, p: ItemsForTarget):
 
 @operation(
     "knowledge.list",
-    ProjectItems,
-    summary="List knowledge items owned by a project.",
+    ListItems,
+    summary="List the knowledge items of a workspace, optionally those held by one project.",
     supports_idempotency=False,
 )
-def list_items(ctx: Context, p: ProjectItems):
-    return project_items(ctx.user, p.project_id, p.offset, p.limit)
+def list_items(ctx: Context, p: ListItems):
+    return list_workspace_items(ctx.user, p.workspace_id, p.project_id, p.offset, p.limit)

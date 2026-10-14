@@ -49,6 +49,18 @@
       "title": "Progress",
       "type": "string"
     },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Project Id"
+    },
     "reported_completed_units": {
       "title": "Reported Completed Units",
       "type": "integer"
@@ -81,6 +93,7 @@
     "kind",
     "label",
     "planned_units",
+    "project_id",
     "reported_completed_units",
     "progress",
     "state"

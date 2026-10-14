@@ -105,6 +105,11 @@ EXPLICIT: dict[str, Requirement] = {
     "source_property.declare": _p(Perm.SOURCE_REGISTER),
     "source_property.reconcile": _p(Perm.SOURCE_REGISTER),
     "source_property.transfer": _p(Perm.SOURCE_REGISTER),
+    # Additive records: contributors may append. Revising or linking an existing note
+    # needs design.edit, or authorship as an object-level rule.
+    "knowledge.create": _p(Perm.ITEM_CREATE),
+    "facts.register_subject": _p(Perm.ITEM_CREATE),
+    "facts.append": _p(Perm.ITEM_CREATE),
     "inventory.reserve": _p(Perm.INVENTORY_RESERVE),
     "inventory.release": _p(Perm.INVENTORY_RESERVE),
     "inventory.adjust": _p(Perm.INVENTORY_MANAGE),

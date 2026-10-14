@@ -2,9 +2,9 @@ import { sha256Hex } from "../../lib/sha256";
 import { request } from "../sources/api";
 import type { Attachment, Link } from "./api";
 
-export type SearchRow = { record_id: string; item_id: string; project_id: string; kind: string; entry_id: string; entry_number: number; current: boolean; title: string; decision_status: string | null; matches: { field: string; text: string }[]; attachments: Attachment[]; links: Link[] };
+export type SearchRow = { record_id: string; item_id: string; workspace_id: string; project_id: string | null; kind: string; entry_id: string; entry_number: number; current: boolean; title: string; decision_status: string | null; matches: { field: string; text: string }[]; attachments: Attachment[]; links: Link[] };
 export type SearchPage = { query: string; results: SearchRow[]; next_after: string | null };
-export type SearchInput = { project_id: string; query: string; include_history: boolean; after?: string };
+export type SearchInput = { workspace_id: string; project_id?: string; query: string; include_history: boolean; after?: string };
 export type PreviewInput = { item_id: string; entry_id: string; bundle_revision_id: string; path: string };
 type PreviewBase = { item_id: string; entry_id: string; entry_number: number; attachment: Attachment; qualification: "not_evaluated"; integrity: string; transformation?: string };
 export type Preview = PreviewBase & (
@@ -22,7 +22,7 @@ export async function previewAttachment(input: PreviewInput, expected: Attachmen
   if (preview.item_id !== input.item_id || preview.entry_id !== input.entry_id ||
       preview.attachment.bundle_revision_id !== input.bundle_revision_id || preview.attachment.path !== input.path ||
       preview.attachment.sha256 !== expected.sha256 || preview.attachment.size !== expected.size ||
-      preview.attachment.rights !== expected.rights || preview.attachment.blob_project_id !== expected.blob_project_id) {
+      preview.attachment.rights !== expected.rights || preview.attachment.blob_workspace_id !== expected.blob_workspace_id) {
     throw new Error("Attachment preview identity does not match the selected exact source.");
   }
   let bytes: Uint8Array<ArrayBuffer> | undefined;

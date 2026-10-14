@@ -43,13 +43,19 @@ class Content(StrictModel):
 
 
 class CreateItem(StrictModel):
-    project_id: UUID
+    # Optional when project_id names the holding project (its workspace is implied).
+    workspace_id: UUID | None = None
+    # Set: a note or decision held by that project. Unset: a library note about the items
+    # it links.
+    project_id: UUID | None = None
     kind: Kind
     content: Content
     links: list[Target] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def coherent(self):
+        if self.workspace_id is None and self.project_id is None:
+            raise ValueError("Provide workspace_id, or the holding project_id.")
         self.content.check_kind(self.kind)
         return self
 
@@ -79,7 +85,9 @@ class ItemsForTarget(StrictModel):
     limit: int = Field(default=50, ge=1, le=100)
 
 
-class ProjectItems(StrictModel):
-    project_id: UUID
+class ListItems(StrictModel):
+    workspace_id: UUID
+    # Only the items held by this project; unset lists every item of the workspace.
+    project_id: UUID | None = None
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=50, ge=1, le=100)

@@ -1,6 +1,6 @@
 # Evidence kinds (EVD-001)
 
-A shared, read-only taxonomy and project read model. Source modules (facts, builds,
+A shared, read-only taxonomy and workspace read model. Source modules (facts, builds,
 cable test intent, physical units) stay authoritative for their own records; this module
 only names what kind of statement each record is, what it can support and what it never
 establishes. Nothing is a generic "passed".
@@ -21,11 +21,11 @@ design-scope measurement row is shown as a declared claim with a warning, never 
 physical measurement. A declared `measured` unit status is a declaration, not a
 measurement.
 
-`evidence.list` (HTTP `GET /api/v0/evidence/projects/{id}?kind=...`) merges the sources
+`evidence.list` (HTTP `GET /api/v0/evidence/workspaces/{id}?kind=...`) merges the sources
 newest first with filtering by kind and by fact subject. Each record is authorized
 individually; unreadable records are omitted and never counted or named. A scan limit per
 source bounds a request and is reported. `evidence.taxonomy` reads the kind definitions.
-Items carry subject (design, actual or project scope), statement, status, conditions,
+Items carry subject (design, actual or project scope) and `workspace_id`, statement, status, conditions,
 method (instrument, procedure, formula, algorithm version, recipe), provenance basis with
 an explicit `independently_verified` flag, and lists of what the kind does and does not
 establish. `physical_qualification` is always false.

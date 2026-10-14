@@ -23,8 +23,8 @@ from .test_physical_facts import measurement, register, unit_subjects  # noqa: F
 from .test_transports import api
 
 
-def listing(user, project, **changes):
-    return op(user, "evidence.list", {"project_id": project, **changes})
+def listing(user, workspace, **changes):
+    return op(user, "evidence.list", {"workspace_id": workspace, **changes})
 
 
 def by_id(result):
@@ -106,9 +106,9 @@ def test_taxonomy_names_what_every_kind_never_establishes(users):
 
 
 def test_each_source_maps_to_its_own_kind_with_method_subject_and_provenance(
-    users, project, populated
+    users, project, populated, workspace
 ):
-    items = by_id(listing(users["viewer"], project))
+    items = by_id(listing(users["viewer"], workspace))
     claim = items[f"fact:{populated['claim']}"]
     assert claim["kind"] == "source_claim"
     assert claim["statement"].startswith("Declared rating:")
@@ -154,35 +154,40 @@ def test_each_source_maps_to_its_own_kind_with_method_subject_and_provenance(
     ]
 
 
-def test_filters_pagination_and_subject_scope(users, project, populated):
-    only = listing(users["viewer"], project, kinds=["review", "calculation"])
+def test_filters_pagination_and_subject_scope(users, project, populated, workspace):
+    only = listing(users["viewer"], workspace, kinds=["review", "calculation"])
     assert {item["kind"] for item in only["items"]} == {"review", "calculation"}
-    claims = listing(users["viewer"], project, kinds=["source_claim"])
+    claims = listing(users["viewer"], workspace, kinds=["source_claim"])
     assert all(item["kind"] == "source_claim" for item in claims["items"])
     seen, offset = [], 0
     while True:
-        page = listing(users["viewer"], project, offset=offset, limit=2)
+        page = listing(users["viewer"], workspace, offset=offset, limit=2)
         seen += [item["evidence_id"] for item in page["items"]]
         if not page["has_more"]:
             break
         offset += 2
-    assert len(seen) == len(set(seen)) == len(listing(users["viewer"], project)["items"])
+    assert len(seen) == len(set(seen)) == len(listing(users["viewer"], workspace)["items"])
     subject_id = FactAssertion.objects.get(id=populated["claim"]).subject_id
-    scoped = listing(users["viewer"], project, subject_id=str(subject_id))
+    scoped = listing(users["viewer"], workspace, subject_id=str(subject_id))
     assert {item["kind"] for item in scoped["items"]} == {"source_claim", "calculation", "review"}
     with pytest.raises(ValidationFailed):
-        op(users["viewer"], "evidence.list", {"project_id": project, "kinds": ["review", "review"]})
+        op(
+            users["viewer"],
+            "evidence.list",
+            {"workspace_id": workspace, "kinds": ["review", "review"]},
+        )
     with pytest.raises(ValidationFailed):
-        op(users["viewer"], "evidence.list", {"project_id": project, "kinds": ["passed"]})
+        op(users["viewer"], "evidence.list", {"workspace_id": workspace, "kinds": ["passed"]})
 
 
-def test_outsiders_and_other_projects_see_nothing(users, project, populated):
+def test_outsiders_and_other_workspaces_see_nothing(
+    users, project, populated, workspace, other_workspace
+):
     with pytest.raises(NotFound):
-        listing(users["outsider"], project)
-    other = op(users["outsider"], "project.create", {"name": "Other synthetic bench"})
-    assert listing(users["outsider"], other["project_id"])["items"] == []
+        listing(users["outsider"], workspace)
+    assert listing(users["outsider"], other_workspace)["items"] == []
     with pytest.raises(NotFound):
-        listing(users["outsider"], project, subject_id=str(FactSubject.objects.first().id))
+        listing(users["outsider"], workspace, subject_id=str(FactSubject.objects.first().id))
 
 
 def test_measurement_requires_an_actual_unit_and_leaves_nothing_when_rejected(users, project):
@@ -203,7 +208,7 @@ def test_measurement_requires_an_actual_unit_and_leaves_nothing_when_rejected(us
     assert FactSubject.objects.get(id=design["subject_id"]).version == 1
 
 
-def test_legacy_design_scope_measurement_never_reads_as_physical(users, project):
+def test_legacy_design_scope_measurement_never_reads_as_physical(users, project, workspace):
     design = subject(users["editor"], {"kind": "project", "project_id": project})
     row = FactSubject.objects.get(id=design["subject_id"])
     content = fact(
@@ -226,18 +231,18 @@ def test_legacy_design_scope_measurement_never_reads_as_physical(users, project)
         actor=users["editor"],
         request_id="legacy",
     )
-    (item,) = listing(users["viewer"], project)["items"]
+    (item,) = listing(users["viewer"], workspace)["items"]
     assert item["kind"] == "source_claim"
     assert item["warnings"]
-    assert listing(users["viewer"], project, kinds=["physical_measurement"])["items"] == []
+    assert listing(users["viewer"], workspace, kinds=["physical_measurement"])["items"] == []
 
 
-def test_http_adapters_use_the_same_scoped_read_model(users, project, populated):
+def test_http_adapters_use_the_same_scoped_read_model(users, project, populated, workspace):
     client = api(users["viewer"])
     taxonomy = client.get("/api/v0/evidence/taxonomy")
     assert taxonomy.status_code == 200 and len(taxonomy.json()["kinds"]) == len(KIND_INFO)
-    response = client.get(f"/api/v0/evidence/projects/{project}?kind=review&kind=calculation")
+    response = client.get(f"/api/v0/evidence/workspaces/{workspace}?kind=review&kind=calculation")
     assert response.status_code == 200
     assert {item["kind"] for item in response.json()["items"]} == {"review", "calculation"}
-    assert api(users["outsider"]).get(f"/api/v0/evidence/projects/{project}").status_code == 404
-    assert api().get(f"/api/v0/evidence/projects/{project}").status_code in {401, 403}
+    assert api(users["outsider"]).get(f"/api/v0/evidence/workspaces/{workspace}").status_code == 404
+    assert api().get(f"/api/v0/evidence/workspaces/{workspace}").status_code in {401, 403}

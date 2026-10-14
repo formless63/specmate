@@ -259,6 +259,19 @@
       ],
       "default": null,
       "title": "Target"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
     }
   },
   "required": [

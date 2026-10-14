@@ -21,6 +21,18 @@
       "title": "Created At",
       "type": "string"
     },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Project Id"
+    },
     "purpose": {
       "title": "Purpose",
       "type": "string"
@@ -71,6 +83,7 @@
     "amount",
     "unit",
     "purpose",
+    "project_id",
     "consumed_quantity",
     "remaining_quantity",
     "status",

@@ -1,7 +1,7 @@
 export { command, read, type Definition, type Identity } from "../identity/api";
 
 export type Target = { kind: "project"; project_id: string } | { kind: "definition"; definition_id: string; feature_id?: string | null } | { kind: "revision"; revision_id: string; feature_id?: string | null } | { kind: "occurrence"; snapshot_id: string; path: string[]; feature_id?: string | null } | { kind: "physical_unit"; unit_id: string };
-export type Subject = { subject_id: string; project_id: string; target: Target; state: string; physical_unit_serial?: string };
+export type Subject = { subject_id: string; workspace_id: string; target: Target; state: string; physical_unit_serial?: string };
 export type Status = "known" | "unknown" | "conflicting" | "not_applicable" | "not_evaluated";
 export type Method = "source_observation" | "reviewed_association" | "calculation" | "measurement" | "preference";
 export type Purpose = "general" | "manufacturing" | "clearance" | "illustration" | "rating" | "preference";

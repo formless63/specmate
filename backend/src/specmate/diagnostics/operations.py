@@ -1,6 +1,6 @@
 """Diagnostics reads and safe-stop/reconcile commands over the shared operation layer.
 
-Reads are scoped to a project the actor can read, or to the installation operator.
+Reads are scoped to a workspace the actor can read, or to the installation operator.
 Commands never fabricate a result: an active stage keeps an honest state until its own
 runner reports, and nothing interrupted is automatically restarted.
 """
@@ -38,18 +38,18 @@ def _replay_operator(ctx, _payload, _stored) -> None:
     _operator(ctx)
 
 
-class ProjectRef(Payload):
-    project_id: UUID
+class WorkspaceRef(Payload):
+    workspace_id: UUID
 
 
 @operation(
-    "diagnostics.project_status",
-    ProjectRef,
-    summary="Read job queue, runner, tool and storage state for one readable project.",
+    "diagnostics.workspace_status",
+    WorkspaceRef,
+    summary="Read job queue, runner, tool and storage state for one readable workspace.",
     supports_idempotency=False,
 )
-def project_status(ctx: Context, p: ProjectRef) -> dict[str, Any]:
-    workspace = authorize(ctx.user, p.project_id, Perm.WORKSPACE_READ)
+def workspace_status(ctx: Context, p: WorkspaceRef) -> dict[str, Any]:
+    workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ)
     can_execute = Perm.BUILD_EXECUTE in held_permissions(ctx.user, workspace.id)
     ids = [workspace.id]
     mode = checks.work_mode()
@@ -79,7 +79,6 @@ def project_status(ctx: Context, p: ProjectRef) -> dict[str, Any]:
     # Counts across workspaces would leak work elsewhere, so the user view omits the
     # installation-wide queue and reports only this workspace's.
     return {
-        "project_id": str(p.project_id),
         "workspace_id": str(workspace.id),
         "evaluated_at": now.isoformat(),
         "work": {k: mode[k] for k in ("mode", "accepting_new_work", "reason", "state_token")},

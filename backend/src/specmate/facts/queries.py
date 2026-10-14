@@ -124,7 +124,7 @@ def subject_with_assertions(user, subject_id, permission=Perm.WORKSPACE_READ, *,
         raise NotFound("Subject unavailable.")
     effective_permission = (
         Perm.INVENTORY_MANAGE
-        if subject.kind == "physical_unit" and permission == Perm.DESIGN_EDIT
+        if subject.kind == "physical_unit" and permission == Perm.ITEM_CREATE
         else permission
     )
     authorize(user, subject.workspace_id, effective_permission)

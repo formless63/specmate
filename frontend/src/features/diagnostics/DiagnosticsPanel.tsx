@@ -2,7 +2,7 @@ import { Alert, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine
 import { useCallback, useEffect, useState } from "react";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { runOperation } from "../workspace/api";
-import { CATEGORY_LABEL, RUNNER_LABEL, readProjectStatus, type Finding, type ProjectStatus, type StatusBuild } from "./status";
+import { CATEGORY_LABEL, RUNNER_LABEL, readWorkspaceStatus, type Finding, type WorkspaceStatus, type StatusBuild } from "./status";
 
 const ACTIVE_FOR_CANCEL = new Set(["waiting_dispatch", "queued", "leased", "running"]);
 
@@ -17,17 +17,17 @@ function FindingRow({ finding }: { finding: Finding }) {
   </Alert>;
 }
 
-export function DiagnosticsPanel({ projectId, active = true, onChanged }: { projectId: string; active?: boolean; onChanged?: () => void }) {
-  const [status, setStatus] = useState<ProjectStatus | null>(null);
+export function DiagnosticsPanel({ workspaceId, active = true, onChanged }: { workspaceId: string; active?: boolean; onChanged?: () => void }) {
+  const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const execute = usePermission("build.execute");
 
   const load = useCallback(async () => {
-    try { setStatus(await readProjectStatus(projectId)); setFailure(null); }
+    try { setStatus(await readWorkspaceStatus(workspaceId)); setFailure(null); }
     catch (reason) { setStatus(null); setFailure(reason instanceof Error ? reason.message : "Unavailable."); }
-  }, [projectId]);
+  }, [workspaceId]);
   useEffect(() => { if (active) void load(); }, [active, load]);
 
   async function cancel(build: StatusBuild) {
@@ -63,7 +63,7 @@ export function DiagnosticsPanel({ projectId, active = true, onChanged }: { proj
     {notice && <Alert role="status">{notice}</Alert>}
     <Title order={4}>Unfinished builds</Title>
     <ReadOnlyNote permission="build.execute" />
-    {status.builds.length === 0 ? <Text>No unfinished builds in this project.</Text> : <Table>
+    {status.builds.length === 0 ? <Text>No unfinished builds in this workspace.</Text> : <Table>
       <Table.Thead><Table.Tr><Table.Th>Build</Table.Th><Table.Th>Recipe</Table.Th><Table.Th>State</Table.Th><Table.Th /></Table.Tr></Table.Thead>
       <Table.Tbody>{status.builds.map((build) => <Table.Tr key={build.build_id}>
         <Table.Td className="sb-mono">{build.build_id}</Table.Td>

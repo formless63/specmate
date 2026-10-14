@@ -341,21 +341,8 @@ def unit_items(user, p, kinds, scan):
     scan.limit_reached = True
 
 
-class ScopedQuery:
-    """The validated query plus its server-resolved workspace."""
-
-    def __init__(self, query, workspace_id):
-        self._query = query
-        self.workspace_id = workspace_id
-
-    def __getattr__(self, name):
-        return getattr(self._query, name)
-
-
 def list_evidence(user, p: ListEvidence):
-    workspace = authorize(user, p.project_id, Perm.WORKSPACE_READ)
-    # TRANSITIONAL: generators read the resolved workspace, never the payload project.
-    p = ScopedQuery(p, workspace.id)
+    authorize(user, p.workspace_id, Perm.WORKSPACE_READ)
     kinds = set(p.kinds) if p.kinds else None
     scan = Scan()
     sources = []
@@ -378,7 +365,6 @@ def list_evidence(user, p: ListEvidence):
     )
     items = [item for _, item in window[p.offset : p.offset + p.limit]]
     return EvidenceList(
-        project_id=p.project_id,
         workspace_id=p.workspace_id,
         items=[EvidenceItem.model_validate(item) for item in items],
         offset=p.offset,

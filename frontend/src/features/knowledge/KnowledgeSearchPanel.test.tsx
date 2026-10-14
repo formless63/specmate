@@ -7,12 +7,12 @@ import type { Preview, SearchPage, SearchRow } from "./search-api";
 
 const text = '<script>window.bad=true</script>\nOriginal permitted attachment';
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
-const attachment = { bundle_revision_id: "source", bundle_id: "bundle", bundle_name: "Original source", revision_number: 1, path: "note.txt", label: "Bench attachment", sha256: sha(text), size: new TextEncoder().encode(text).length, media_type: "text/plain", rights: "synthetic-original", blob_project_id: "project" };
-const row: SearchRow = { record_id: "entry", item_id: "item", project_id: "project", entry_id: "entry", entry_number: 2, current: false, title: "Permitted historic note", kind: "note", decision_status: null, matches: [{ field: "body", text: "Independent calibration needle" }], attachments: [attachment], links: [{ link_id: "link", item_id: "item", target: { kind: "revision", revision_id: "exact-revision" }, project_id: "project", label: "Exact bracket revision 2", linked_at: "", status: "active" }] };
+const attachment = { bundle_revision_id: "source", bundle_id: "bundle", bundle_name: "Original source", revision_number: 1, path: "note.txt", label: "Bench attachment", sha256: sha(text), size: new TextEncoder().encode(text).length, media_type: "text/plain", rights: "synthetic-original", blob_workspace_id: "project" };
+const row: SearchRow = { record_id: "entry", item_id: "item", workspace_id: "ws", project_id: "project", entry_id: "entry", entry_number: 2, current: false, title: "Permitted historic note", kind: "note", decision_status: null, matches: [{ field: "body", text: "Independent calibration needle" }], attachments: [attachment], links: [{ link_id: "link", item_id: "item", target: { kind: "revision", revision_id: "exact-revision" }, workspace_id: "ws", label: "Exact bracket revision 2", linked_at: "", status: "active" }] };
 const page: SearchPage = { query: "needle", results: [row], next_after: null };
 const preview: Preview = { kind: "text", item_id: "item", entry_id: "entry", entry_number: 2, attachment, qualification: "not_evaluated", integrity: "original_sha256_and_size_verified", text, preview_sha256: sha(text), preview_size: attachment.size };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-function panel(projectId = "project", principalKey = "owner", active = true) { return <MantineProvider env="test"><KnowledgeSearchPanel {...{ projectId, principalKey, active }} /></MantineProvider>; }
+function panel(projectId = "project", principalKey = "owner", active = true) { return <MantineProvider env="test"><KnowledgeSearchPanel {...{ workspaceId: "ws", projectId, principalKey, active }} /></MantineProvider>; }
 function fixture() {
   let held: Promise<Response> | undefined;
   let denied = false;

@@ -3,19 +3,20 @@ import { read } from "../identity/api";
 
 export { read };
 export type Account = {
-  account_id: string; project_id: string; lot_id: string; lot_label: string;
+  account_id: string; workspace_id: string; lot_id: string; lot_label: string;
   revision_id: string; definition_id: string; location_id: string; location_name: string;
   dimension: string; unit: string; quantity_status: "known" | "unknown";
   physical_quantity: string | null; reserved_quantity: string; available_quantity: string | null;
   state: string; assertion_source: string; assertion_status: string;
 };
 export type Inventory = {
+  workspace_id: string; project_id: string | null;
   accounts: Account[]; locations: { location_id: string; name: string }[];
   lots: { lot_id: string; label: string }[];
   work_batches?: WorkBatch[];
 };
 export type WorkBatch = {
-  work_batch_id: string; project_id: string; revision_id: string; definition_id: string;
+  work_batch_id: string; workspace_id: string; project_id: string | null; revision_id: string; definition_id: string;
   kind: "job" | "batch"; label: string; planned_units: number | null;
   reported_completed_units: number; progress: string; state: string;
   actual_unit_tracking: "separate_records"; physical_qualification: false;
@@ -30,7 +31,7 @@ export type Entry = {
 export type Detail = {
   account: Account; entries: Entry[];
   reservations: { reservation_id: string; amount: string; unit: string; purpose: string;
-    consumed_quantity?: string; remaining_quantity?: string; status: string;
+    consumed_quantity?: string; remaining_quantity?: string; status: string; project_id?: string | null;
     release: { reason: string } | null }[];
 };
 export type WorkDetail = {

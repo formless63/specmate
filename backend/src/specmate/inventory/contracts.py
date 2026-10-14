@@ -90,8 +90,21 @@ class Quantity(Payload):
 
 
 class CreateLocation(Payload):
-    project_id: UUID
+    workspace_id: UUID | None = None
+    # TRANSITIONAL (workspace collections): a project id only selects its workspace; the
+    # location is a workspace record. P3 removes it.
+    project_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def one_scope(self):
+        if (self.workspace_id is None) == (self.project_id is None):
+            raise ValueError("Provide exactly one of workspace_id or project_id.")
+        return self
+
+    @property
+    def scope_id(self) -> UUID:
+        return self.workspace_id or self.project_id
 
 
 class Assertion(Payload):
@@ -116,6 +129,8 @@ class Reserve(Payload):
     account_id: UUID
     quantity: Quantity
     purpose: str = Field(min_length=1, max_length=4000)
+    # Optional project context: navigation and filtering only, never an owner or authority.
+    project_id: UUID | None = None
 
 
 class Release(Payload):
@@ -124,7 +139,9 @@ class Release(Payload):
 
 
 class ListInventory(Payload):
-    project_id: UUID
+    workspace_id: UUID
+    # Optional filter: only reservations and work batches carrying this project context.
+    project_id: UUID | None = None
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=50, ge=1, le=100)
 
@@ -156,6 +173,7 @@ class ReservationResult(BaseModel):
     amount: str
     unit: Unit
     purpose: str
+    project_id: UUID | None
     consumed_quantity: str
     remaining_quantity: str
     status: Literal["active", "released", "consumed"]
@@ -169,6 +187,8 @@ class CreateWorkBatch(Payload):
     kind: Literal["job", "batch"] = "batch"
     label: str = Field(min_length=1, max_length=200)
     planned_units: int | None = Field(default=None, ge=1, le=1_000_000, strict=True)
+    # Optional project context: navigation and filtering only, never an owner or authority.
+    project_id: UUID | None = None
 
 
 class RecordWorkCompletion(Assertion):
@@ -199,6 +219,7 @@ class WorkBatchResult(BaseModel):
     kind: Literal["job", "batch"]
     label: str
     planned_units: int | None
+    project_id: UUID | None
     reported_completed_units: int
     progress: Literal["none_reported", "partial", "reported_complete"]
     state: str

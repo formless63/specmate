@@ -10,7 +10,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={client}><PhysicalUnitsPanel projectId="project-1" /></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={client}><PhysicalUnitsPanel workspaceId="ws-1" /></QueryClientProvider></MantineProvider>);
 }
 
 test("registers one actual unit without reporting plan completion or qualification", async () => {
@@ -20,7 +20,7 @@ test("registers one actual unit without reporting plan completion or qualificati
     if (options?.method === "POST") {
       const envelope = JSON.parse(String(options.body));
       calls.push(envelope);
-      units = [{ unit_id: "unit-1", project_id: "project-1", revision_id: "revision-1", serial: envelope.payload.serial,
+      units = [{ unit_id: "unit-1", workspace_id: "ws-1", revision_id: "revision-1", serial: envelope.payload.serial,
         origin: "assembled", lot_id: "lot-1", variant_id: null, assertion_source: "Traveler", assertion_status: "observed",
         work_batch_id: null, physical_qualification: false }];
       return new Response(JSON.stringify({ result: units[0] }), { status: 200 });
@@ -29,7 +29,7 @@ test("registers one actual unit without reporting plan completion or qualificati
     if (url.includes("/definitions/")) body = { revisions: [{ revision_id: "revision-1", number: 1 }] };
     else if (url.includes("/definitions")) body = [{ definition_id: "definition-1", name: "Synthetic assembly" }];
     else if (url.includes("catalog/revisions/")) body = { lots: [{ lot_id: "lot-1", label: "Actual lot", variant_id: null }], variants: [] };
-    else if (url.includes("physical-units/projects/")) body = { units };
+    else if (url.includes("physical-units/workspaces/")) body = { units };
     else body = { work_batches: [] };
     return new Response(JSON.stringify(body), { status: 200 });
   }));
@@ -56,11 +56,11 @@ test("registers one actual unit without reporting plan completion or qualificati
 test("links an actual unit to exact planned work without changing reported completion", async () => {
   const calls: { operation: string; expected_state: string; payload: Record<string, unknown> }[] = [];
   let linked = false;
-  const work = { work_batch_id: "work-1", project_id: "project-1", revision_id: "revision-1",
+  const work = { work_batch_id: "work-1", workspace_id: "ws-1", project_id: null, revision_id: "revision-1",
     definition_id: "definition-1", kind: "batch", label: "Planned six", planned_units: 6,
     reported_completed_units: 0, progress: "none_reported", state: "work-before",
     actual_unit_tracking: "separate_records", physical_qualification: false };
-  const unit = { unit_id: "unit-1", project_id: "project-1", revision_id: "revision-1",
+  const unit = { unit_id: "unit-1", workspace_id: "ws-1", revision_id: "revision-1",
     serial: "UNIT-1", origin: "assembled", lot_id: null, variant_id: null,
     assertion_source: "Traveler", assertion_status: "declared", work_batch_id: null,
     physical_qualification: false };
@@ -72,8 +72,8 @@ test("links an actual unit to exact planned work without changing reported compl
     let body: unknown;
     if (url.includes("physical-units/work-batches/")) body = { work_batch: work, linked_unit_count: 0, units: [] };
     else if (url.includes("physical-units/units/")) body = { unit, work_link: null, usage: [] };
-    else if (url.includes("physical-units/projects/")) body = { units: [{ ...unit, work_batch_id: linked ? "work-1" : null }] };
-    else if (url.includes("inventory/projects/")) body = { work_batches: [work] };
+    else if (url.includes("physical-units/workspaces/")) body = { units: [{ ...unit, work_batch_id: linked ? "work-1" : null }] };
+    else if (url.includes("inventory/workspaces/")) body = { work_batches: [work] };
     else if (url.includes("/definitions")) body = [];
     else body = {};
     return new Response(JSON.stringify(body), { status: 200 });
@@ -100,12 +100,12 @@ test.each([
     if (url.includes("/definitions/")) body = { revisions: [{ revision_id: "revision-1", number: 1 }] };
     else if (url.includes("/definitions")) body = [{ definition_id: "definition-1", name: "Synthetic assembly" }];
     else if (url.includes("catalog/revisions/")) body = { lots: [], variants: [] };
-    else if (url.includes("physical-units/projects/")) body = { units: [] };
+    else if (url.includes("physical-units/workspaces/")) body = { units: [] };
     else body = { work_batches: [] };
     return new Response(JSON.stringify(body), { status: 200 });
   }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={[...permissions]}><PhysicalUnitsPanel projectId="project-1" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={[...permissions]}><PhysicalUnitsPanel workspaceId="ws-1" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   await screen.findByRole("option", { name: "Synthetic assembly" });
   fireEvent.change(screen.getByLabelText("Definition"), { target: { value: "definition-1" } });
   await screen.findByRole("option", { name: "Revision 1" });

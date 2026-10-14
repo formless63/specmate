@@ -29,7 +29,7 @@ const result: ImpactResult = {
   findings: [{ key: 'pins.LED', status: 'changed', baseline: { pad_id: 'pad-one' }, candidate: { pad_id: 'pad-two' }, reason: 'Review the exact changed native pad.' },
     { key: 'mcu_pin_capability', status: 'unknown', baseline: null, candidate: null, reason: 'MCU capability is not evaluated.' }],
   observations_total: 1, observation_offset: 0, observations_truncated: false, observations_has_more: false,
-  observations: [{ subject: { subject_id: 'original-subject', project_id: 'project-one', state: 'facts-v2', target: { kind: 'physical_unit', unit_id: 'unit-one' }, physical_unit_serial: 'SYNTH-UNIT' },
+  observations: [{ subject: { subject_id: 'original-subject', workspace_id: 'project-one', state: 'facts-v2', target: { kind: 'physical_unit', unit_id: 'unit-one' }, physical_unit_serial: 'SYNTH-UNIT' },
     assertion: { assertion_id: 'assertion-one', subject_id: 'original-subject', sequence: 1, recorded_at: '2026-01-01T00:00:00Z', canonical_value: { kind: 'boolean', value: true }, relation_to_design_state: 'attached_evidence', evidence_status: 'declared',
       fact: { property: 'device_test', status: 'known', purpose: 'general', role: 'actual', value: { kind: 'boolean', value: true }, conditions: [], basis: 'Synthetic result', provenance: { method: 'measurement', evidence: [{ kind: 'citation', citation: 'Synthetic result' }] } } },
     applicability: 'review_required', reason: 'This result belongs to the actual physical unit; never transfer it.', review_keys: ['pins.LED'], historical_result_preserved: true, candidate_result: null }],

@@ -30,6 +30,16 @@ def get_lot(user, lot_id):
     return lot
 
 
+def context_project(workspace_id, project_id):
+    """The optional project context; a project outside the workspace is simply not found."""
+    from specmate.access.models import Project
+
+    project = Project.objects.filter(id=project_id, workspace_id=workspace_id).first()
+    if project is None:
+        raise NotFound("Project not found.")
+    return project
+
+
 def get_location(user, location_id):
     location = Location.objects.filter(id=location_id).first()
     if location is None:
@@ -129,6 +139,7 @@ def reservation_result(reservation):
         amount=decimal_text(reservation.amount),
         unit=reservation.unit,
         purpose=reservation.purpose,
+        project_id=reservation.project_id,
         consumed_quantity=decimal_text(consumed),
         remaining_quantity=decimal_text(remaining),
         status="released"
@@ -171,6 +182,7 @@ def work_batch_result(batch):
         kind=batch.kind,
         label=batch.label,
         planned_units=batch.planned_units,
+        project_id=batch.project_id,
         reported_completed_units=completed,
         progress="none_reported"
         if not completed
@@ -227,8 +239,9 @@ def location_result(location):
 
 
 @transaction.atomic
-def list_inventory(user, project_id, *, offset=0, limit=50):
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+def list_inventory(user, workspace_id, *, project_id=None, offset=0, limit=50):
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
+    project = context_project(workspace.id, project_id) if project_id else None
     # Lock the bounded accounts so quantities, reservations and state agree in this response.
     accounts = list(
         StockAccount.objects.select_related("lot__revision__definition", "location")
@@ -249,6 +262,7 @@ def list_inventory(user, project_id, *, offset=0, limit=50):
     ]
     batches = (
         WorkBatch.objects.filter(revision__definition__workspace=workspace)
+        .filter(**({"project": project} if project else {}))
         .select_related("revision__definition")
         .select_for_update(of=("self",))
         .order_by("created_at", "id")[offset : offset + limit]
@@ -257,8 +271,8 @@ def list_inventory(user, project_id, *, offset=0, limit=50):
         get_revision(user, batch.revision_id)
     return {
         "work_batches": [work_batch_result(batch) for batch in batches],
-        "project_id": str(project_id),
         "workspace_id": str(workspace.id),
+        "project_id": str(project.id) if project else None,
         "accounts": [account_result(account) for account in accounts],
         "locations": [location_result(location) for location in locations],
         "lots": [{"lot_id": str(lot.id), "label": lot.label} for lot in lots],

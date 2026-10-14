@@ -24,7 +24,7 @@ from specmate.operations.scope import workspace_scope
 
 
 def target_write_permission(target):
-    return Perm.INVENTORY_MANAGE if isinstance(target, PhysicalUnitTarget) else Perm.DESIGN_EDIT
+    return Perm.INVENTORY_MANAGE if isinstance(target, PhysicalUnitTarget) else Perm.ITEM_CREATE
 
 
 def registration_scope(ctx, p):
@@ -34,18 +34,18 @@ def registration_scope(ctx, p):
 
 
 def assertion_scope(ctx, p):
-    subject, _ = subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT)
+    subject, _ = subject_with_assertions(ctx.user, p.subject_id, Perm.ITEM_CREATE)
     permission = target_write_permission(subject_target(subject))
     return workspace_scope(ctx, subject.workspace_id, permission)
 
 
 def authorize_registration_replay(ctx, p, stored):
     resolve_target(ctx.user, p.target, target_write_permission(p.target))
-    subject_with_assertions(ctx.user, stored["subject_id"], Perm.DESIGN_EDIT)
+    subject_with_assertions(ctx.user, stored["subject_id"], Perm.ITEM_CREATE)
 
 
 def authorize_append_replay(ctx, p, stored):
-    subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT)
+    subject_with_assertions(ctx.user, p.subject_id, Perm.ITEM_CREATE)
     validate_evidence(ctx.user, p.fact)
 
 
@@ -66,7 +66,7 @@ def register_subject(ctx: Context, p: RegisterSubject):
         fingerprint=fingerprint,
         defaults={**fields, "registered_by": ctx.user},
     )
-    subject, _ = subject_with_assertions(ctx.user, subject.id, Perm.DESIGN_EDIT)
+    subject, _ = subject_with_assertions(ctx.user, subject.id, Perm.ITEM_CREATE)
     return subject_result(subject)
 
 
@@ -79,7 +79,7 @@ def register_subject(ctx: Context, p: RegisterSubject):
     authorize_replay=authorize_append_replay,
 )
 def append_fact(ctx: Context, p: AppendFact):
-    subject, rows = subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT, lock=True)
+    subject, rows = subject_with_assertions(ctx.user, p.subject_id, Perm.ITEM_CREATE, lock=True)
     if ctx.require_expected_state() != subject.state_token:
         raise Conflict("Fact ledger changed.", details={"current_state": subject.state_token})
     if len(rows) >= MAX_ASSERTIONS:

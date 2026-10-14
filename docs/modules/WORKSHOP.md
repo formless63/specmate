@@ -14,7 +14,9 @@ applicable. Do not let two concurrent reservations spend the same availability.
 ### Ledger and reservation operations
 
 `catalog.PhysicalLot` supplies the exact revision and optional manufacturer variant;
-`inventory` supplies project locations and one stock account per lot/location. A lot's
+`inventory` supplies workspace locations and one stock account per lot/location. Stock,
+locations and physical units live in the workspace: one ledger per workspace, never one per
+project. A lot's
 quantity dimension stays fixed across locations. Supported units are whole-item `ea`,
 length `m`/`cm`/`mm`, and mass `kg`/`g`, with decimal canonical quantities in `ea`, `m`
 and `kg`. Amounts accept exact decimal strings or exact integers; JSON floating-point numbers and
@@ -35,11 +37,16 @@ appends a release that restores the reservation's remaining availability. Reserv
 and adjustments/observations cannot reduce stock below active reservations. PostgreSQL
 serializes account writes and backs dimension, scope, history and availability rules.
 Mutations of existing stock require its current state token. Idempotency keys are scoped
-to actor/project/operation, and replay checks current access and inventory authority.
+to actor/workspace/operation, and replay checks current access and inventory authority.
 
-Stock management needs `inventory.manage`; reservations/releases need `inventory.reserve`.
-Owners hold both. Other roles require explicit grants; `inventory.manage` includes
-reservation authority. Read access follows project membership. The Inventory workspace
+Stock management needs `inventory.manage`, an explicit grant that workspace admins hold by
+default. Reservations/releases need `inventory.reserve`, which is not grantable: editors
+and admins hold it by role and `inventory.manage` implies it. Read access follows
+workspace membership. `inventory.reserve` and `inventory.create_work_batch` accept an
+optional `project_id` that files the reservation or work batch under a project of the same
+workspace as navigation context only; it never limits stock, grants access or scopes the
+ledger. `inventory.list` takes `workspace_id` and an optional `project_id` filter for
+work batches (`GET /api/v0/inventory/workspaces/{id}`). The Inventory workspace
 uses the shared commands and scoped, paginated stock/history reads. Procurement and
 actual-unit evidence have separate capability acceptance obligations.
 
@@ -48,7 +55,7 @@ actual-unit evidence have separate capability acceptance obligations.
 `inventory.create_work_batch` registers a planned job or batch with an immutable identity
 and exact authorized design revision. The intended unit count may be unknown; a missing
 count never becomes zero. Material lot revision and work target revision remain separate,
-and their association does not assert BOM compatibility. Both belong to the same project.
+and their association does not assert BOM compatibility. Both belong to the same workspace.
 Revision reads, commands, replay and conflict diagnostics recheck current access to the
 stocked revision and work target's dependency closures.
 
@@ -68,13 +75,13 @@ history. PostgreSQL guards these invariants, including competing raw inserts.
 counts cannot exceed a known planned count. Material usage alone does not complete work.
 These planned records do not themselves identify serialized actual units or establish
 physical qualification. `physical_units.register` asserts an actual obtained or assembled
-subject with a project-unique serial, exact design revision, optional same-revision
+subject with a workspace-unique serial, exact design revision, optional same-revision
 physical lot and manufacturer variant, source, and assertion status. An actual lot is a
 batch identity, while stock quantities remain in the ledger. A unit's initial identity
 is immutable; a later design change does not rewrite its as-built revision.
 
 `physical_units.link_work` records a separate immutable relationship between one actual
-unit and one planned work job/batch at the same project and exact revision. It changes
+unit and one planned work job/batch in the same workspace and at the exact revision. It changes
 the work state token but does not alter the planned or reported completion count. The
 unit count and reported completion count are displayed independently: an unreported
 linked unit does not silently become a reported completion, and a reported completion

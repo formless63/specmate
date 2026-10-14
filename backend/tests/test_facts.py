@@ -407,7 +407,7 @@ def test_repeated_occurrences_get_distinct_fact_ledgers_and_require_nested_acces
         subject(users["editor"], {**targets[0], "path": ["missing"]})
 
 
-def test_authority_stale_writes_replay_mismatch_and_project_namespaces(users, project, ledger):
+def test_authority_stale_writes_replay_mismatch_and_workspace_namespaces(users, project, ledger):
     for name, error in (("viewer", PermissionDenied), ("outsider", NotFound)):
         with pytest.raises(error):
             append(users[name], ledger, fact())
@@ -430,10 +430,14 @@ def test_authority_stale_writes_replay_mismatch_and_project_namespaces(users, pr
     WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         append(users["editor"], ledger, fact(), idempotency_key="assertion")
-    other = op(users["owner"], "project.create", {"name": "Other synthetic project"})["project_id"]
-    for project_id in (project, other):
+    # Keys are namespaced by workspace: the same key is independent across workspaces and
+    # one shared ledger namespace inside a workspace (a different target is a mismatch).
+    foreign = op(users["outsider"], "project.create", {"name": "Foreign synthetic project"})[
+        "project_id"
+    ]
+    for actor, project_id in ((users["owner"], project), (users["outsider"], foreign)):
         op(
-            users["owner"],
+            actor,
             "facts.register_subject",
             {"target": {"kind": "project", "project_id": project_id}},
             idempotency_key="same-key",
@@ -442,6 +446,16 @@ def test_authority_stale_writes_replay_mismatch_and_project_namespaces(users, pr
         IdempotencyRecord.objects.filter(operation="facts.register_subject", key="same-key").count()
         == 2
     )
+    sibling = op(users["owner"], "project.create", {"name": "Sibling synthetic project"})[
+        "project_id"
+    ]
+    with pytest.raises(IdempotencyMismatch):
+        op(
+            users["owner"],
+            "facts.register_subject",
+            {"target": {"kind": "project", "project_id": sibling}},
+            idempotency_key="same-key",
+        )
 
 
 def test_registered_source_and_transitive_assertion_revoke_before_counts_replay_or_conflict(
