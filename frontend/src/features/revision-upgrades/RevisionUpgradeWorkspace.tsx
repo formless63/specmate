@@ -2,7 +2,7 @@ import { SbIdentityBadge } from "../../components/sb";
 import { Alert, Badge, Button, Checkbox, Group, NativeSelect, Stack, Table, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import { applyUpgrade, findConsumers, inspectAssembly, loadProposal, proposeUpgrade, reviewUpgrade } from "./api";
-import type { Applied, Assembly, Consumers, Feature, Impacts, Proposal, Relation } from "./api";
+import type { Applied, Assembly, Consumers, Feature, Impacts, Pin, Proposal, Relation } from "./api";
 import { ReadOnlyNote, useCan } from "../../lib/permissions";
 
 type Decision = { decision: "" | "retain" | "remove"; basis: string };
@@ -10,6 +10,7 @@ const pathKey = (path: string[]) => JSON.stringify(path);
 const same = (a: string[], b: string[]) => pathKey(a) === pathKey(b);
 const decisionOptions = [{ value: "", label: "No decision" }, { value: "retain", label: "Retain as authored" }, { value: "remove", label: "Remove from the consuming context" }];
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { ComputedImpactPanel } from "./ComputedImpactPanel";
 
 type Props = { projectId?: string | null; onApplied?: (draft: Applied) => void; initialProposalId?: string | null; principalKey?: string; active?: boolean };
 const disciplines = ["electrical", "mechanical", "firmware", "manufacturing", "evidence"] as const;
@@ -27,6 +28,11 @@ const relationship = (value: Record<string, unknown>) => {
     return [];
   });
   return `${(value.context_path as string[]).join(" / ") || "root"} · ${value.local_id} · ${value.kind} · ${refs.join("; ")}`;
+};
+/** Name and revision first; the exact revision ID and hash stay in the disclosure. */
+const PinLabel = ({ id, pin, proposal }: { id: string; pin?: Pin | null; proposal: Proposal }) => {
+  const known = pin ?? [proposal.old, proposal.candidate].find((p) => p.revision_id === id);
+  return <RevisionLabel id={id} sha256={known?.sha256} known={known ? { name: known.name, number: known.number } : undefined} />;
 };
 const unevaluated = (): Impacts => Object.fromEntries(disciplines.map((d) => [d, { status: "not_evaluated" }])) as Impacts;
 
@@ -143,7 +149,7 @@ function Workspace({ projectId, onApplied, initialProposalId, active = true }: P
   return <Stack>
     <Title order={2}>Revision upgrade review</Title>
     <Text>Choose an exact old revision and either a later revision of the same definition or a declared replacement identity, then the owning assembly snapshot. Select uses of the old revision in one consuming context; adopting a reviewed proposal creates or updates a draft of that consuming definition.</Text>
-    <Alert color="yellow">Electrical, mechanical, firmware, manufacturing and evidence impact begin unevaluated. A replacement is declared by a reviewer; equal labels and catalog matches are never treated as correspondence. Reviewed correspondence does not establish compatibility, engineering validity or physical qualification. Nested adoption changes only the consuming subassembly draft; outer contexts keep their frozen pins until a separate parent proposal.</Alert>
+    <Alert color="yellow">Computed impact is derived from the exact frozen revisions and recorded evidence; what cannot be compared is shown as unknown or not evaluated, never as no impact. Reviewer discipline assessments begin unevaluated. A replacement is declared by a reviewer; equal labels and catalog matches are never treated as correspondence. Reviewed correspondence does not establish compatibility, engineering validity or physical qualification. Nested adoption changes only the consuming subassembly draft; outer contexts keep their frozen pins until a separate parent proposal.</Alert>
     <ReadOnlyNote permission="design.edit">Proposals, reviews and adoption are unavailable; existing proposals can be read.</ReadOnlyNote>
     {error && <Alert color="red" role="alert">{error} The cached preview was cleared; reload the proposal before continuing.</Alert>}
     <Stack inert={!active} aria-hidden={!active} style={{ display: active ? undefined : "none" }}>
@@ -183,11 +189,12 @@ function Workspace({ projectId, onApplied, initialProposalId, active = true }: P
       <Text><RevisionLabel role="Old" id={proposal.old.revision_id} sha256={proposal.old.sha256} known={{ name: proposal.old.name, number: proposal.old.number }} /></Text>
       <Text><RevisionLabel role="Candidate" id={proposal.candidate.revision_id} sha256={proposal.candidate.sha256} known={{ name: proposal.candidate.name, number: proposal.candidate.number }} /></Text>
       <Text>Decision: {proposal.decision} · {proposal.state}. Compatibility, validity and qualification: not evaluated.</Text>
-      <Table><Table.Thead><Table.Tr><Table.Th>Occurrence path</Table.Th><Table.Th>Old pin</Table.Th><Table.Th>Candidate pin</Table.Th><Table.Th>Firmware old → candidate</Table.Th><Table.Th>Placement old → candidate</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{proposal.occurrences.map((o) => <Table.Tr key={o.path.join("/")}><Table.Td>{o.path.join(" / ")}{o.selected ? " (selected)" : ""}</Table.Td><Table.Td>{o.old_revision_id ?? "absent"}</Table.Td><Table.Td>{o.candidate_revision_id ?? "removed"}</Table.Td><Table.Td>{o.old_assignments?.firmware_revision_id ?? "unassigned"} → {o.candidate_assignments?.firmware_revision_id ?? "unassigned"}</Table.Td><Table.Td>{placement(o.old_placement)} → {placement(o.candidate_placement)}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+      <ComputedImpactPanel impact={proposal.computed_impact} />
+      <Table><Table.Thead><Table.Tr><Table.Th>Occurrence path</Table.Th><Table.Th>Old pin</Table.Th><Table.Th>Candidate pin</Table.Th><Table.Th>Firmware old → candidate</Table.Th><Table.Th>Placement old → candidate</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{proposal.occurrences.map((o) => <Table.Tr key={o.path.join("/")}><Table.Td>{o.path.join(" / ")}{o.selected ? " (selected)" : ""}</Table.Td><Table.Td>{o.old_revision_id ? <PinLabel id={o.old_revision_id} pin={o.old_pin} proposal={proposal} /> : "absent"}</Table.Td><Table.Td>{o.candidate_revision_id ? <PinLabel id={o.candidate_revision_id} pin={o.candidate_pin} proposal={proposal} /> : "removed"}</Table.Td><Table.Td>{o.old_assignments?.firmware_revision_id ?? "unassigned"} → {o.candidate_assignments?.firmware_revision_id ?? "unassigned"}</Table.Td><Table.Td>{placement(o.old_placement)} → {placement(o.candidate_placement)}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
       <Title order={3}>Authored relationships before and after</Title>
       <Group align="start" grow><Stack gap="xs"><Text fw={600}>Old snapshot</Text>{proposal.old_relationships.map((r, i) => <Text key={i}>{relationship(r)}</Text>)}</Stack><Stack gap="xs"><Text fw={600}>Candidate preview</Text>{proposal.candidate_relationships.map((r, i) => <Text key={i}>{relationship(r)}</Text>)}</Stack></Group>
       {canEdit && <>
-      <Title order={3}>Discipline impact</Title>
+      <Title order={3}>Reviewer discipline assessment</Title>
       {disciplines.map((d) => <Group key={d} grow><NativeSelect label={`${d} impact`} data={[{ value: "not_evaluated", label: "Not evaluated" }, { value: "unknown", label: "Unknown" }, { value: "reviewed", label: "Reviewed assessment" }]} value={impacts[d].status} onChange={(event) => { const status = event.currentTarget.value as Impacts[typeof d]["status"]; setImpacts((p) => ({ ...p, [d]: { ...p[d], status } })); }} /><Textarea label={`${d} basis`} value={impacts[d].basis ?? ""} onChange={(e) => { const basis = e.currentTarget.value || null; setImpacts((p) => ({ ...p, [d]: { ...p[d], basis } })); }} /></Group>)}
       <Title order={3}>Explicit feature correspondence</Title>
       {!features.length && <Text>No root-authored feature on the selected direct occurrence requires correspondence.</Text>}
