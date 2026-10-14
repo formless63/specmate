@@ -5,14 +5,17 @@ Synthetic generic definitions and fact ledgers on real PostgreSQL; no native too
 and no outcome is physical qualification.
 """
 
+# ruff: noqa: F811
 import pytest
 
+from specmate.builds.models import BuildAttempt
 from specmate.configurations.models import ResolvedConfiguration
 from specmate.design.models import Draft
 from specmate.operations import Conflict, ValidationFailed
 
 from .conftest import op
 from .scope_helpers import workspace_of
+from .test_builds import build_payload, recipe, source  # noqa: F401
 from .test_configurations import capture, configuration, frozen, option_set_content, select
 
 
@@ -360,3 +363,56 @@ def test_invalid_rule_content_is_rejected(users, project, parts):
     draft = Draft.objects.get(id=created["draft_id"])
     keys = [rule["key"] for rule in draft.content["option_set"]["constraints"]]
     assert keys == ["sensor-current", "paint-sealing"]
+
+
+def test_invalid_outcome_is_captured_but_refused_as_build_input(
+    users, project, parts, build_payload
+):
+    revision = constrained(users["owner"], project, parts, [PAINT_NEEDS_SPLASH, CURRENT])
+    draft = configuration(users["editor"], project, revision)
+    select(users["editor"], draft, [{"option_key": "finish", "choice_key": "paint"}])
+    # Recording is allowed for every outcome; the invalid rule is retained as evidence.
+    invalid = capture(users["editor"], draft["draft_id"])
+    assert invalid["resolution"]["constraints"]["outcome"] == "invalid"
+    with pytest.raises(ValidationFailed) as refused:
+        op(
+            users["viewer"],
+            "configuration.build_input",
+            {"resolved_configuration_id": invalid["resolved_configuration_id"]},
+        )
+    assert refused.value.details == {"invalid": ["paint-sealing"]}
+    with pytest.raises(ValidationFailed) as refused:
+        op(
+            users["owner"],
+            "build.request",
+            {**build_payload, "resolved_configuration_id": invalid["resolved_configuration_id"]},
+            idempotency_key="invalid-constraints",
+        )
+    assert refused.value.details == {"invalid": ["paint-sealing"]}
+    assert not BuildAttempt.objects.exists()
+
+    # Unknown (the current rating is missing) stays buildable, with its outcome visible.
+    select(
+        users["editor"],
+        draft,
+        [
+            {"option_key": "finish", "choice_key": "paint"},
+            {"option_key": "sealing", "choice_key": "splash"},
+        ],
+    )
+    unknown = capture(users["editor"], draft["draft_id"])
+    built = op(
+        users["viewer"],
+        "configuration.build_input",
+        {"resolved_configuration_id": unknown["resolved_configuration_id"]},
+    )
+    assert built["constraints"]["outcome"] == "unknown"
+    assert built["constraints"]["unknown"] == ["sensor-current"]
+    listed = op(
+        users["viewer"], "configuration.list_resolved", {"workspace_id": workspace_of(project)}
+    )
+    outcomes = {r["resolved_configuration_id"]: r["constraint_outcome"] for r in listed["resolved"]}
+    assert outcomes == {
+        invalid["resolved_configuration_id"]: "invalid",
+        unknown["resolved_configuration_id"]: "unknown",
+    }

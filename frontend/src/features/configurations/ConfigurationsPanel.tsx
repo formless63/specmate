@@ -204,7 +204,7 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
       <Group><Button variant="commit" disabled={dirty || busy || resolution.status === 'invalid' || !basis.trim()} onClick={() => { void capture(); }}>Capture resolved snapshot</Button>
         {submission && <Button variant="quiet" disabled={busy} onClick={() => { void capture(true); }}>Retry capture</Button>}</Group>
       </>}
-      {constraints && constraints.outcome !== 'valid' && constraints.outcome !== 'not_evaluated' && <Text size="sm">Capturing records the {OUTCOME_LABEL[constraints.outcome]} constraint outcome with its reasons as review evidence; it does not make the configuration valid.</Text>}
+      {constraints && constraints.outcome !== 'valid' && constraints.outcome !== 'not_evaluated' && <Text size="sm">Capturing records the {OUTCOME_LABEL[constraints.outcome]} constraint outcome with its reasons as review evidence; it does not make the configuration valid.{constraints.outcome === 'invalid' ? ' Builds refuse an invalid snapshot.' : ''}</Text>}
       {resolution.status === 'incomplete' && <Text size="sm">An incomplete snapshot may be captured as review evidence; builds refuse it until every required option resolves.</Text>}
       <Title order={4}>Resolved snapshots</Title>
       {preview.resolved.length === 0 && <Text size="sm">No resolved snapshot captured for this draft.</Text>}

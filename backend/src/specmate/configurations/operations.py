@@ -68,6 +68,7 @@ def summary(row):
         "snapshot_id": str(row.snapshot_id),
         "resolution_sha256": row.resolution_sha256,
         "draft_version": row.draft_version,
+        "constraint_outcome": constraint_summary(row.resolution)["outcome"],
         "basis": row.basis,
         "created_at": row.created_at.isoformat(),
     }
@@ -247,6 +248,13 @@ def build_input(ctx: Context, p: ResolvedRef):
             "This resolved configuration has unresolved required choices.",
             details={"unresolved": unresolved},
         )
+    constraints = constraint_summary(resolution)
+    if constraints["outcome"] == "invalid":
+        # Recording an invalid outcome is allowed; building from it is not.
+        raise ValidationFailed(
+            "This resolved configuration violates declared constraints.",
+            details={"invalid": constraints["invalid"]},
+        )
     pins = sorted(
         (
             {"revision_id": str(dep.revision_id), "sha256": dep.revision.snapshot.sha256}
@@ -276,8 +284,8 @@ def build_input(ctx: Context, p: ResolvedRef):
             }
             for d in resolution["decisions"]
         ],
-        # Reported, not enforced: the captured outcome travels with the exact snapshot.
-        "constraints": constraint_summary(resolution),
+        # Invalid is refused above; unknown and not-evaluated travel with the snapshot.
+        "constraints": constraints,
         **NOT_EVALUATED,
     }
 

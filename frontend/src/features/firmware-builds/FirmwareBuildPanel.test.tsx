@@ -173,3 +173,20 @@ test('a complete resolved configuration can be pinned and incomplete ones cannot
   fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
   await waitFor(() => expect(command).toHaveBeenCalledWith('firmware_build.request', expect.objectContaining({ resolved_configuration_id: 'config-complete' }), expect.anything()));
 });
+
+test('the picker labels each configuration with its constraint outcome and warns on unknown', async () => {
+  const row = (id: string, constraint_outcome: 'valid' | 'invalid' | 'unknown' | 'not_evaluated') => ({ resolved_configuration_id: id, status: 'complete' as const, constraint_outcome, snapshot_id: `snap-${id}`, resolution_sha256: 'h', draft_version: 1, basis: `Reviewed ${id}`, created_at: 't' });
+  vi.mocked(listResolvedConfigurations).mockResolvedValue({ truncated: false, resolved: [row('valid-01', 'valid'), row('invalid-1', 'invalid'), row('unknown-1', 'unknown'), row('notev-01', 'not_evaluated')] });
+  render(panel(true));
+  fireEvent.click((await screen.findAllByLabelText('Resolved configuration (optional)'))[0]!);
+  expect(screen.getByRole('option', { name: /invalid-.*constraints invalid, cannot be built/ }).getAttribute('data-combobox-disabled')).toBe('true');
+  expect(screen.getByRole('option', { name: /valid-01.*constraints valid/ }).getAttribute('data-combobox-disabled')).toBeNull();
+  expect(screen.getByRole('option', { name: /notev-01.*constraints not evaluated/ })).toBeTruthy();
+  expect(screen.queryByText('Constraint outcome unknown')).toBeNull();
+  fireEvent.click(screen.getByRole('option', { name: /unknown-.*constraints unknown/ }));
+  expect(await screen.findByText('Constraint outcome unknown')).toBeTruthy();
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Reviewed synthetic source' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
+  await waitFor(() => expect(command).toHaveBeenCalledWith('firmware_build.request', expect.objectContaining({ resolved_configuration_id: 'unknown-1' }), expect.anything()));
+});

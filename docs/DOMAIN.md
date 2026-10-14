@@ -143,7 +143,8 @@ fact assertion IDs used. A missing, unknown or conflicting fact, a range straddl
 limit, condition-scoped facts only, or an unresolved input choice is `unknown`, never
 valid; a rule that does not apply or cannot be compared is `not_evaluated`. The overall
 outcome is invalid, else unknown, else valid, else not-evaluated. A captured resolution
-retains its outcome; `configuration.build_input` reports it without enforcing it. Development proposals are separate linked objects; a
+retains its outcome. Capture is allowed for every outcome; `configuration.build_input`
+(and so every build request) refuses an invalid one and reports unknown/not-evaluated. Development proposals are separate linked objects; a
 solver may return invalid-with-proposal or unknown-with-information-request.
 
 ## Facts, units and uncertainty

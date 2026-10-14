@@ -31,7 +31,9 @@ export type Resolution = {
 };
 export type Selection = { option_key: string; choice_key: string | null };
 export type ConfigurationBody = { schema_version: string; option_set_revision_id: string; selections: Selection[] };
-export type ResolvedSummary = { resolved_configuration_id: string; status: 'complete' | 'incomplete'; snapshot_id: string; resolution_sha256: string; draft_version: number; basis: string; created_at: string };
+export type ResolvedSummary = { resolved_configuration_id: string; status: 'complete' | 'incomplete'; snapshot_id: string; resolution_sha256: string; draft_version: number; basis: string; created_at: string;
+  /** Captured constraint outcome; absent from servers that predate constraint evaluation. */
+  constraint_outcome?: ConstraintOutcome };
 export type Available = { option_key: string; label: string; domain: string; required: boolean; default_choice: string | null; choices: { key: string; label: string }[] };
 export type DraftResolution = {
   draft_id: string; state: string; content_sha256: string; review_sha256: string; resolution: Resolution;
