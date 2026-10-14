@@ -10,6 +10,7 @@ import json
 import pytest
 from django.db import DatabaseError, transaction
 
+from specmate.design.models import Revision
 from specmate.operations import Conflict, NotFound, PermissionDenied, ValidationFailed
 from specmate.releases.models import Release, ReleaseWarning, ReleaseWarningWithdrawal
 
@@ -183,3 +184,32 @@ def test_contradicting_assertion_on_a_pinned_revision_warns_automatically(users,
     one = append(users["editor"], other, fact(property_name="height"))
     append(users["editor"], one, fact(property_name="height", magnitude="99"))
     assert ReleaseWarning.objects.count() == 1
+
+
+def test_contradictions_on_occurrence_and_definition_subjects_warn_pinned_releases(users, released):
+    sensor = released["sensor_r2"]["revision_id"]
+    editor = users["editor"]
+
+    # Occurrence subject: the sensor placed in the pinned root assembly.
+    occurrence = subject(
+        editor,
+        {"kind": "occurrence", "snapshot_id": released["root"]["snapshot_id"], "path": ["sensor"]},
+    )
+    first = append(editor, occurrence, fact())
+    assert not ReleaseWarning.objects.exists()
+    second = append(editor, first, fact(magnitude="12"))
+    [warning] = ReleaseWarning.objects.all()
+    assert warning.origin == "automatic" and warning.kind == "contradiction"
+    assert str(warning.assertion_id) == second["assertion"]["assertion_id"]
+    assert str(warning.revision_id) == sensor
+    append(editor, second, fact(magnitude="14"))
+    assert ReleaseWarning.objects.count() == 1
+
+    # Definition subject: any revision of the definition that the release pins.
+    definition_id = str(Revision.objects.get(id=sensor).definition_id)
+    definition = subject(editor, {"kind": "definition", "definition_id": definition_id})
+    one = append(editor, definition, fact(property_name="height"))
+    append(editor, one, fact(property_name="height", magnitude="99"))
+    assert ReleaseWarning.objects.count() == 2
+    latest = ReleaseWarning.objects.order_by("-created_at").first()
+    assert str(latest.revision_id) == sensor and latest.origin == "automatic"

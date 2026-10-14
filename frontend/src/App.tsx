@@ -213,7 +213,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "preparation-documents": return <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} onAccessLost={onAccessChanged} />;
     case "selected-packages": return <SelectedPackagesPanel projectId={projectId} />;
     case "export-packages": return <ExportPackagesPanel projectId={projectId} />;
-    case "releases": return <ReleasesPanel workspaceId={workspaceId} projectId={projectId} />;
+    case "releases": return <ReleasesPanel workspaceId={workspaceId} projectId={projectId} username={scope.username} />;
     case "copper": return <CopperPanel projectId={projectId} />;
     default: return null;
   }
