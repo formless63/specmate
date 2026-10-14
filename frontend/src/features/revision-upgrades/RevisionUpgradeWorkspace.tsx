@@ -2,8 +2,9 @@ import { Alert, Button, Checkbox, Group, NativeSelect, Stack, Table, Text, Texta
 import { useEffect, useRef, useState } from "react";
 import { applyUpgrade, inspectAssembly, loadProposal, proposeUpgrade, reviewUpgrade } from "./api";
 import type { Applied, Assembly, Feature, Impacts, Proposal } from "./api";
+import { read, type Definition } from "../identity/api";
 
-type Props = { projectId: string; canEdit: boolean; onApplied?: (draft: Applied) => void };
+type Props = { projectId: string; canEdit: boolean; onApplied?: (draft: Applied) => void; initialProposalId?: string | null; principalKey?: string; active?: boolean };
 const disciplines = ["electrical", "mechanical", "firmware", "manufacturing", "evidence"] as const;
 const placement = (value: object | null) => {
   if (!value) return "absent";
@@ -22,7 +23,11 @@ const relationship = (value: Record<string, unknown>) => {
 };
 const unevaluated = (): Impacts => Object.fromEntries(disciplines.map((d) => [d, { status: "not_evaluated" }])) as Impacts;
 
-export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Props) {
+export function RevisionUpgradeWorkspace(props: Props) {
+  return <Workspace key={JSON.stringify([props.projectId, props.principalKey ?? ""])} {...props} />;
+}
+
+function Workspace({ projectId, canEdit, onApplied, initialProposalId, active = true }: Props) {
   const [snapshot, setSnapshot] = useState("");
   const [oldRevision, setOldRevision] = useState("");
   const [candidateRevision, setCandidateRevision] = useState("");
@@ -45,13 +50,11 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
   const [applied, setApplied] = useState<Applied>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const epoch = useRef(0);
+  const epoch = useRef(0), activeRef = useRef(active), requested = useRef<string | null | undefined>(undefined);
+  activeRef.current = active;
   const invalidate = () => { epoch.current += 1; setAssembly(undefined); setPaths([]); setProposal(undefined); setFeatures([]); setApplied(undefined); setError(""); setBusy(false); };
-  useEffect(() => {
-    invalidate(); setSnapshot(""); setOldRevision(""); setCandidateRevision(""); setProposalId("");
-    setBasis(""); setReviewBasis(""); setEvidenceStatus("unknown"); setCitation(""); setBundleRevision(""); setSourcePath(""); setDraftId(""); setDraftToken(""); setImpacts(unevaluated());
-    return () => { epoch.current += 1; };
-  }, [projectId]);
+  // Project/principal replacement remounts the workspace; cleanup rejects old replies.
+  useEffect(() => () => { epoch.current += 1; requested.current = undefined; }, []);
   function show(p: Proposal) {
     setProposal(p); setProposalId(p.proposal_id); setApplied(undefined);
     const latest = p.reviews.at(-1);
@@ -65,6 +68,7 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
     setImpacts(p.impacts); setReviewBasis(""); setEvidenceStatus("unknown"); setCitation(""); setBundleRevision(""); setSourcePath("");
   }
   async function run(action: () => Promise<void>) {
+    if (!activeRef.current) return;
     const current = ++epoch.current;
     setBusy(true); setError("");
     try { await action(); }
@@ -77,11 +81,32 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
   async function receive<T>(promise: Promise<T>, apply: (result: T) => void) {
     const current = epoch.current;
     const result = await promise;
-    if (current === epoch.current) apply(result);
+    if (current === epoch.current && activeRef.current) apply(result);
+  }
+  async function checkedProposal(id: string) {
+    const [p, definitions] = await Promise.all([
+      loadProposal(id), read<Definition[]>(`projects/${projectId}/definitions`),
+    ]);
+    if (p.proposal_id !== id || !Array.isArray(definitions) || !definitions.some((d) => d.definition_id === p.owning_definition_id)) {
+      throw new Error("Upgrade proposal is unavailable in the selected project.");
+    }
+    return p;
   }
   useEffect(() => {
+    if (!active) { epoch.current++; setBusy(false); return; }
+    if (initialProposalId !== requested.current) {
+      requested.current = initialProposalId;
+      invalidate(); setProposalId(initialProposalId ?? "");
+      if (initialProposalId) void run(() => receive(checkedProposal(initialProposalId), show));
+    } else if (proposalId) {
+      void run(() => receive(checkedProposal(proposalId), (p) => proposal?.proposal_id === p.proposal_id && proposal.state === p.state ? setProposal(p) : show(p)));
+    } else if (assembly && snapshot) {
+      void run(() => receive(inspectAssembly(snapshot), setAssembly));
+    }
+  }, [initialProposalId, active]);
+  useEffect(() => {
     const recheck = () => {
-      if (proposal) void run(() => receive(loadProposal(proposal.proposal_id), (p) => p.state === proposal.state ? setProposal(p) : show(p)));
+      if (proposal) void run(() => receive(checkedProposal(proposal.proposal_id), (p) => p.state === proposal.state ? setProposal(p) : show(p)));
       else if (assembly && snapshot) void run(() => receive(inspectAssembly(snapshot), setAssembly));
     };
     window.addEventListener("focus", recheck);
@@ -93,9 +118,10 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
     <Text>Choose exact old and later revisions and the owning assembly snapshot. Select direct occurrences independently; adopting a reviewed proposal creates or updates an owning draft.</Text>
     <Alert color="yellow">Electrical, mechanical, firmware, manufacturing and evidence impact begin unevaluated. Reviewed correspondence does not establish compatibility, engineering validity or physical qualification. Nested occurrence adoption and changed assigned descendants require further supported correspondence.</Alert>
     {error && <Alert color="red" role="alert">{error} The cached preview was cleared; reload the proposal before continuing.</Alert>}
+    <Stack inert={!active} aria-hidden={!active} style={{ display: active ? undefined : "none" }}>
     <Group align="end">
       <TextInput label="Saved proposal ID" value={proposalId} onChange={(e) => changeIdentity(setProposalId, e.currentTarget.value)} />
-      <Button disabled={busy || !proposalId} onClick={() => void run(() => receive(loadProposal(proposalId), show))}>Reload proposal</Button>
+      <Button disabled={busy || !proposalId} onClick={() => void run(() => receive(checkedProposal(proposalId), show))}>Reload proposal</Button>
     </Group>
     <TextInput label="Owning assembly snapshot ID" value={snapshot} onChange={(e) => changeIdentity(setSnapshot, e.currentTarget.value)} />
     <Group grow>
@@ -103,10 +129,10 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
       <TextInput label="Candidate later revision ID" value={candidateRevision} onChange={(e) => changeIdentity(setCandidateRevision, e.currentTarget.value)} />
     </Group>
     <Button disabled={busy || !snapshot} onClick={() => void run(() => receive(inspectAssembly(snapshot), (a) => { setAssembly(a); setPaths([]); setProposal(undefined); }))}>Inspect owning occurrences</Button>
-    {assembly && <Stack gap="xs">{assembly.occurrences.filter((o) => o.address.path.length === 1).map((o) => <Checkbox key={o.address.path.join("/")} label={`${o.address.path.join(" / ")} · ${o.name} · ${o.display_ref || "no display reference"} · ${o.revision_id}`} checked={paths.some((p) => p.join("/") === o.address.path.join("/"))} disabled={busy || !canEdit || o.revision_id !== oldRevision} onChange={(e) => { const checked = e.currentTarget.checked; setProposal(undefined); setApplied(undefined); setPaths((prior) => checked ? [...prior, o.address.path] : prior.filter((p) => p.join("/") !== o.address.path.join("/"))); }} />)}</Stack>}
+    {active && !busy && assembly && <Stack gap="xs">{assembly.occurrences.filter((o) => o.address.path.length === 1).map((o) => <Checkbox key={o.address.path.join("/")} label={`${o.address.path.join(" / ")} · ${o.name} · ${o.display_ref || "no display reference"} · ${o.revision_id}`} checked={paths.some((p) => p.join("/") === o.address.path.join("/"))} disabled={busy || !canEdit || o.revision_id !== oldRevision} onChange={(e) => { const checked = e.currentTarget.checked; setProposal(undefined); setApplied(undefined); setPaths((prior) => checked ? [...prior, o.address.path] : prior.filter((p) => p.join("/") !== o.address.path.join("/"))); }} />)}</Stack>}
     <Textarea label="Proposal basis" value={basis} onChange={(e) => setBasis(e.currentTarget.value)} />
     <Button disabled={busy || !canEdit || !paths.length || !oldRevision || !candidateRevision || !basis.trim()} onClick={() => void run(() => receive(proposeUpgrade({ owning_snapshot_id: snapshot, old_revision_id: oldRevision, candidate_revision_id: candidateRevision, paths, basis }), show))}>Save upgrade proposal</Button>
-    {proposal && <Stack>
+    {active && !busy && proposal && <Stack>
       <Title order={3}>Exact proposal {proposal.proposal_id}</Title>
       <Text>Owning snapshot {proposal.owning_snapshot_id} · SHA-256 {proposal.owning_sha256}</Text>
       <Text>Old: {proposal.old.name} revision {proposal.old.number} · {proposal.old.revision_id} · {proposal.old.sha256}</Text>
@@ -136,5 +162,6 @@ export function RevisionUpgradeWorkspace({ projectId, canEdit, onApplied }: Prop
       <Button disabled={busy || !canEdit || proposal.decision !== "accepted" || (mode === "existing_draft" && (!draftId || !draftToken))} onClick={() => void run(() => receive(applyUpgrade({ proposal_id: proposal.proposal_id, mode, ...(mode === "existing_draft" ? { draft_id: draftId, draft_expected_state: draftToken } : {}) }, proposal.state), (result) => { setApplied(result); onApplied?.(result); }))}>Apply reviewed upgrade to draft</Button>
       {applied && <Alert color="green">Applied to draft {applied.draft_id} · {applied.state}. Frozen pins retained. Reload the proposal to inspect its application link.</Alert>}
     </Stack>}
+    </Stack>
   </Stack>;
 }

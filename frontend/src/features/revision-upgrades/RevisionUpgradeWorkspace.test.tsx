@@ -1,4 +1,5 @@
 import { MantineProvider } from "@mantine/core";
+import { StrictMode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { RevisionUpgradeWorkspace } from "./RevisionUpgradeWorkspace";
@@ -57,6 +58,7 @@ test("selects one repeated occurrence and saves exact proposal pins", async () =
 test("reviews explicit contact mapping and deliberately creates new owning draft", async () => {
   let reviewed = proposal;
   vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.endsWith("/definitions")) return reply([{ definition_id: "assembly-one" }]);
     if (path.includes("revision-upgrades/proposals")) return reply(reviewed);
     const body = JSON.parse(String(init?.body));
     if (body.operation === "upgrade.review") {
@@ -85,7 +87,7 @@ test("reviews explicit contact mapping and deliberately creates new owning draft
 
 test("revoked focus refresh clears proposal and all mutation controls", async () => {
   let revoked = false;
-  vi.stubGlobal("fetch", vi.fn(async () => revoked ? reply({ error: { message: "Upgrade proposal unavailable." } }, 404) : reply(proposal)));
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "assembly-one" }]) : revoked ? reply({ error: { message: "Upgrade proposal unavailable." } }, 404) : reply(proposal)));
   render(view()); await reload();
   revoked = true; fireEvent(window, new Event("focus"));
   await waitFor(() => expect(screen.queryByText("Exact proposal proposal-one")).toBeNull());
@@ -96,7 +98,7 @@ test("revoked focus refresh clears proposal and all mutation controls", async ()
 
 test("changing project clears retained proposal and stale async results", async () => {
   let resolve: ((value: Response) => void) | undefined;
-  vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((r) => { resolve = r; })));
+  vi.stubGlobal("fetch", vi.fn((path: string) => path.endsWith("/definitions") ? Promise.resolve(reply([{ definition_id: "assembly-one" }])) : new Promise<Response>((r) => { resolve = r; })));
   const { rerender } = render(view());
   fireEvent.change(screen.getByLabelText("Saved proposal ID"), { target: { value: "proposal-one" } });
   fireEvent.click(screen.getByRole("button", { name: "Reload proposal" }));
@@ -107,7 +109,7 @@ test("changing project clears retained proposal and stale async results", async 
 });
 
 test("readers inspect persisted proposals without enabling mutations", async () => {
-  vi.stubGlobal("fetch", vi.fn(async () => reply(proposal)));
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "assembly-one" }]) : reply(proposal)));
   render(view("p1", false)); await reload();
   expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Apply reviewed upgrade to draft" }) as HTMLButtonElement).disabled).toBe(true);
@@ -116,6 +118,7 @@ test("readers inspect persisted proposals without enabling mutations", async () 
 test("existing draft adoption carries a separate draft token and clears a conflicted preview", async () => {
   const accepted = { ...proposal, decision: "accepted" as const, state: "upgrade-v1" };
   vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.endsWith("/definitions")) return reply([{ definition_id: "assembly-one" }]);
     if (path.includes("revision-upgrades/proposals")) return reply(accepted);
     const body = JSON.parse(String(init?.body));
     expect(body.expected_state).toBe("upgrade-v1");
@@ -132,7 +135,7 @@ test("existing draft adoption carries a separate draft token and clears a confli
 });
 
 test("unchanged authorized focus refresh retains unsaved review basis", async () => {
-  vi.stubGlobal("fetch", vi.fn(async () => reply(proposal)));
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "assembly-one" }]) : reply(proposal)));
   render(view()); await reload();
   fireEvent.change(screen.getByLabelText("Review basis"), { target: { value: "Unsaved exact correspondence review" } });
   fireEvent(window, new Event("focus"));
@@ -144,6 +147,7 @@ test.each(["needs_evidence", "rejected"] as const)("%s review preserves required
   let current = proposal;
   let submitted = 0;
   vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.endsWith("/definitions")) return reply([{ definition_id: "assembly-one" }]);
     if (path.includes("revision-upgrades/proposals")) return reply(current);
     const body = JSON.parse(String(init?.body));
     expect(body.operation).toBe("upgrade.review");
@@ -177,4 +181,93 @@ test.each(["needs_evidence", "rejected"] as const)("%s review preserves required
   fireEvent.click(screen.getByRole("button", { name: "Append review" }));
   await screen.findByText("Review 2: accepted · Correspondence reviewed");
   expect(submitted).toBe(2);
+});
+
+
+function handoff({ projectId = "p1", principalKey = "actor-one", active = true, initialProposalId = "proposal-one", canEdit = false } = {}) {
+  return <MantineProvider><RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active} initialProposalId={initialProposalId} canEdit={canEdit} /></MantineProvider>;
+}
+function heldReply() {
+  let resolve!: (value: Response) => void;
+  const promise = new Promise<Response>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test.each([false, true])("handed off exact proposal freshly validates the owning project without review or adoption (can edit: %s)", async (canEdit) => {
+  const fetch = vi.fn(async (path: string) => {
+    if (path === "/api/v0/projects/p1/definitions") return reply([{ definition_id: "assembly-one", name: "Authorized owning assembly", kind: "assembly" }]);
+    expect(path).toBe("/api/v0/revision-upgrades/proposals/proposal-one");
+    return reply({ ...proposal, decision: "accepted" });
+  });
+  vi.stubGlobal("fetch", fetch); render(handoff({ canEdit }));
+  await screen.findByText("Exact proposal proposal-one");
+  expect((screen.getByLabelText("Saved proposal ID") as HTMLInputElement).value).toBe("proposal-one");
+  expect(screen.getByText("Owning snapshot snapshot-one · SHA-256 " + "a".repeat(64))).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Apply reviewed upgrade to draft" }) as HTMLButtonElement).disabled).toBe(!canEdit);
+  expect(fetch.mock.calls.map(([path]) => path).sort()).toEqual(["/api/v0/projects/p1/definitions", "/api/v0/revision-upgrades/proposals/proposal-one"]);
+});
+
+test("new handoff fences prior proposal until exact fresh project proof and rejects a readable other-project owner", async () => {
+  const held = heldReply();
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+    if (path.endsWith("/definitions")) return reply([{ definition_id: "assembly-one" }]);
+    if (path.endsWith("proposal-one")) return reply(proposal);
+    return held.promise;
+  }));
+  const view = render(handoff({ canEdit: true }));
+  await screen.findByText("Exact proposal proposal-one");
+  view.rerender(handoff({ canEdit: true, initialProposalId: "proposal-other" }));
+  expect(screen.queryByText("Exact proposal proposal-one")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Append review" })).toBeNull();
+  held.resolve(reply({ ...proposal, proposal_id: "proposal-other", owning_definition_id: "other-project-owner", old: { ...proposal.old, name: "Other readable project pin" } }));
+  await screen.findByText(/unavailable in the selected project/);
+  expect(screen.queryByText(/Other readable project pin/)).toBeNull();
+  expect(screen.queryByText("Exact proposal proposal-other")).toBeNull();
+});
+
+test.each(["project", "principal"])("%s transition fences a handed off proposal and rejects its old successful reply", async (scope) => {
+  const old = heldReply(), current = heldReply();
+  let loads = 0;
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+    if (path.endsWith("/definitions")) return reply([{ definition_id: "assembly-one" }]);
+    return ++loads === 1 ? old.promise : current.promise;
+  }));
+  const view = render(handoff());
+  await waitFor(() => expect(loads).toBe(1));
+  view.rerender(handoff({ projectId: scope === "project" ? "p2" : "p1", principalKey: scope === "principal" ? "actor-two" : "actor-one" }));
+  await waitFor(() => expect(loads).toBe(2));
+  old.resolve(reply(proposal));
+  await Promise.resolve();
+  expect(screen.queryByText("Exact proposal proposal-one")).toBeNull();
+  current.resolve(reply({ error: { message: "Current proposal closure unavailable." } }, 404));
+  await screen.findByText(/Current proposal closure unavailable/);
+  expect(screen.queryByText(/Synthetic connector revision/)).toBeNull();
+});
+
+test("inactive handoff waits and returning to the same proposal requires fresh access", async () => {
+  let deny = false;
+  const fetch = vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "assembly-one" }]) : deny ? reply({ error: { message: "Source access revoked." } }, 404) : reply(proposal));
+  vi.stubGlobal("fetch", fetch);
+  const view = render(handoff({ active: false }));
+  expect(fetch).not.toHaveBeenCalled();
+  view.rerender(handoff()); await screen.findByText("Exact proposal proposal-one");
+  const loaded = fetch.mock.calls.length;
+  view.rerender(handoff({ active: false }));
+  expect(screen.queryByText("Exact proposal proposal-one")).toBeNull();
+  fireEvent(window, new Event("focus"));
+  expect(fetch).toHaveBeenCalledTimes(loaded);
+  deny = true; view.rerender(handoff());
+  await screen.findByText(/Source access revoked/);
+  expect(screen.queryByText("Exact proposal proposal-one")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Apply reviewed upgrade to draft" })).toBeNull();
+});
+
+
+test("StrictMode handoff reacquires current proof after cleanup and settles without a write", async () => {
+  const fetch = vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "assembly-one" }]) : reply(proposal));
+  vi.stubGlobal("fetch", fetch); render(<StrictMode>{handoff()}</StrictMode>);
+  await screen.findByText("Exact proposal proposal-one");
+  expect((screen.getByRole("button", { name: "Reload proposal" }) as HTMLButtonElement).disabled).toBe(false);
+  expect(fetch.mock.calls.every(([path]) => path !== "/api/v0/operations")).toBe(true);
 });
