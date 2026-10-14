@@ -119,8 +119,9 @@ references rather than identifying mounts by transient mesh face indices.
 Wiring: retain capable custom cross-section/parametric geometry and React interactions.
 Generalize workshop defaults into versioned profiles. Reuse document generators that
 work; add Typst where needed, not as a mandatory rewrite. Firmware: PlatformIO Core and
-explicit target toolchains. Rendering: Blender on demand. Later preparation: PrusaSlicer
-and UVtools for supported resin processing, without pretending UVtools is every resin slicer.
+explicit target toolchains. Rendering: Blender on demand. Later preparation: OrcaSlicer
+with bundled vendor presets for FDM, and UVtools to inspect sliced resin files, without
+pretending UVtools is a resin slicer.
 
 Each pack pins tools, libraries, dependencies, recipe interfaces, supported architecture,
 input/output types, permissions and resource limits. Images are cached, not permanently

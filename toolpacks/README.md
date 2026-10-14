@@ -10,5 +10,6 @@ synthetic board generation, inspection, DRC and SVG export. It is an explicit de
 checkpoint, separate from the operator's installed recipe registry. Its limits and
 unverified formats/architectures are declared in [its manifest](kicad/manifest.json).
 
-The [slicer pack](slicer/README.md) defines an optional, not yet built FDM slicing image
-for printing preparation; its catalog entry has no pinned digest and unknown sizes.
+The [slicer packs](slicer/README.md) pin optional, reproducibly built OrcaSlicer 2.4.2
+(FDM slicing with bundled vendor presets) and UVtools 7.0.0 (read-only inspection of
+sliced .ctb/.goo resin files) images. An unbuilt PrusaSlicer pack remains unpinned.

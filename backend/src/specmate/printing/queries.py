@@ -200,6 +200,7 @@ def parameter_table(technology, role, profile: PrintProfile | None, origin=None)
                 "type": spec.type,
                 "choices": list(spec.choices),
                 "slicer_setting": spec.slicer_key,
+                "orca_settings": list(spec.orca_keys),
                 "required_for_slicing": spec.required_for_slicing,
                 "status": "declared" if known else "unknown",
                 "value": suggestion.value if known else None,
@@ -241,14 +242,53 @@ def profile_result(user, definition, content, draft=None, revision=None) -> dict
     }
 
 
+def _profiles(closure) -> dict:
+    return {r: p.model_dump(mode="json") for r, (_, p) in closure["profiles"].items()}
+
+
+def orca_blockers(preparation: PrintPreparation, closure) -> list[str]:
+    from specmate.printing.pack import ORCA_MESH_SUFFIXES, orca_configuration
+
+    blockers = []
+    if not preparation.part.path.lower().endswith(ORCA_MESH_SUFFIXES):
+        blockers.append(
+            "Only STL meshes are qualified OrcaSlicer inputs; OBJ, 3MF, STEP and native CAD "
+            "import are unverified in this pack."
+        )
+    if preparation.model_units.basis == "unknown":
+        blockers.append("Model units are unknown; declare them before slicing.")
+    elif preparation.model_units.value != "mm":
+        blockers.append("Only millimetre models are qualified; no scale conversion is applied.")
+    if preparation.orientation.status == "unknown":
+        blockers.append("Orientation is unknown; declare as-modelled or an explicit rotation.")
+    elif preparation.orientation.status == "rotated":
+        blockers.append(
+            "OrcaSlicer 2.4.2 crashes when its command line rotates a model; supply a model "
+            "already oriented for printing and declare it as modelled."
+        )
+    if preparation.supports.status == "unknown":
+        blockers.append("The support strategy is unknown; declare none, auto or build-plate only.")
+    *_, missing = orca_configuration(_profiles(closure), preparation.supports.model_dump())
+    if missing:
+        blockers.append(
+            "OrcaSlicer slicing builds on a bundled vendor preset; name one for the "
+            + ", ".join(missing)
+            + " profile."
+        )
+    return blockers
+
+
 def slicing_blockers(preparation: PrintPreparation, closure) -> list[str]:
     from specmate.printing.pack import MESH_SUFFIXES, slicer_configuration
 
     blockers = []
     if preparation.technology != "fdm":
         return [
-            "Resin slicing has no qualified pack; the variant is recorded without layer output."
+            "Resin slicing has no qualified pack; the variant is recorded without layer output. "
+            "Sliced resin files (.ctb, .goo) can be inspected with the UVtools pack."
         ]
+    if preparation.slicer_tool != "prusaslicer-2.5.0":
+        return orca_blockers(preparation, closure)
     if not preparation.part.path.lower().endswith(MESH_SUFFIXES):
         blockers.append(
             "Only STL, OBJ or 3MF meshes are qualified slicer inputs; STEP and native CAD "
@@ -273,22 +313,23 @@ def slicing_blockers(preparation: PrintPreparation, closure) -> list[str]:
 
 def slice_spec(revision, preparation: PrintPreparation, closure) -> dict:
     """The exact canonical slicer input of a frozen preparation, or Unsupported."""
+    from specmate.printing.contracts import ORCA_TOOL_ID
     from specmate.printing.native_script import ADAPTER
-    from specmate.printing.pack import TOOL, slicer_configuration
+    from specmate.printing.pack import (
+        ORCA_ADAPTER,
+        ORCA_TOOL,
+        TOOL,
+        orca_configuration,
+        slicer_configuration,
+    )
 
     blockers = slicing_blockers(preparation, closure)
     if blockers:
         raise Unsupported(" ".join(blockers))
-    profiles = {r: p.model_dump(mode="json") for r, (_, p) in closure["profiles"].items()}
-    config, declared, defaults, _ = slicer_configuration(
-        preparation.technology, profiles, preparation.supports.model_dump()
-    )
-    density = closure["profiles"]["material"][1].parameters.get("filament_density_g_cm3")
+    profiles = _profiles(closure)
     mechanical, file = closure["mechanical"], closure["model_file"]
     rotation = preparation.orientation.rotation_deg
-    return {
-        "adapter": ADAPTER,
-        "tool": TOOL,
+    common = {
         "preparation": {
             "definition_id": str(revision.definition_id),
             "revision_id": str(revision.id),
@@ -308,9 +349,6 @@ def slice_spec(revision, preparation: PrintPreparation, closure) -> dict:
             role: {"revision_id": str(rev.id), "snapshot_sha256": rev.snapshot.sha256}
             for role, (rev, _) in closure["profiles"].items()
         },
-        "config": config,
-        "declared": declared,
-        "tool_defaults": defaults,
         "orientation": {
             "status": preparation.orientation.status,
             "rotation_deg": list(rotation) if rotation else None,
@@ -318,6 +356,32 @@ def slice_spec(revision, preparation: PrintPreparation, closure) -> dict:
         "supports": preparation.supports.status,
         "copies": preparation.copies,
         "output_format": preparation.output_format,
+    }
+    if preparation.slicer_tool == ORCA_TOOL_ID:
+        presets, overrides, declared, preset_settings, not_sent, _ = orca_configuration(
+            profiles, preparation.supports.model_dump()
+        )
+        return {
+            "adapter": ORCA_ADAPTER,
+            "tool": ORCA_TOOL,
+            **common,
+            "presets": presets,
+            "overrides": overrides,
+            "declared": declared,
+            "preset_settings": preset_settings,
+            "not_sent": not_sent,
+        }
+    config, declared, defaults, _ = slicer_configuration(
+        preparation.technology, profiles, preparation.supports.model_dump()
+    )
+    density = closure["profiles"]["material"][1].parameters.get("filament_density_g_cm3")
+    return {
+        "adapter": ADAPTER,
+        "tool": TOOL,
+        **common,
+        "config": config,
+        "declared": declared,
+        "tool_defaults": defaults,
         "mass_estimate": "density_declared"
         if density is not None and density.basis != "unknown"
         else "density_unknown",
@@ -352,16 +416,25 @@ def preparation_result(user, definition, content, draft=None, revision=None) -> 
     }
     if revision is not None and not slicing["blockers"]:
         spec = slice_spec(revision, preparation, closure)
+        config = spec.get("config", spec.get("overrides"))
         slicing.update(
             {
-                "configuration": spec["config"],
+                "configuration": config,
                 "declared_settings": spec["declared"],
-                "tool_default_settings": spec["tool_defaults"],
+                "tool_default_settings": spec.get("tool_defaults", []),
                 "configuration_sha256": hashlib.sha256(
-                    json.dumps(spec["config"], sort_keys=True).encode()
+                    json.dumps(config, sort_keys=True).encode()
                 ).hexdigest(),
             }
         )
+        if "presets" in spec:
+            slicing.update(
+                {
+                    "presets": spec["presets"],
+                    "preset_settings": spec["preset_settings"],
+                    "not_sent_settings": spec["not_sent"],
+                }
+            )
     return {
         **base,
         "part_identity": {

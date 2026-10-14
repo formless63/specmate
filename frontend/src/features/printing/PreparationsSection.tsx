@@ -20,7 +20,7 @@ function blank(technology: Technology): PrintPreparation {
     model_units: { value: null, basis: 'unknown', source: null, note: null },
     profiles: { printer: { revision_id: '', snapshot_sha256: '' }, process: { revision_id: '', snapshot_sha256: '' }, material: { revision_id: '', snapshot_sha256: '' } },
     orientation: { status: 'unknown', rotation_deg: null, basis: null }, supports: { status: 'unknown', basis: null },
-    copies: 1, output_format: 'gcode', slicer_tool: 'prusaslicer-2.5.0', limitations: [],
+    copies: 1, output_format: 'gcode', slicer_tool: 'orcaslicer-2.4.2', limitations: [],
   };
 }
 
@@ -182,7 +182,12 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
             onChange={value => edit(next => { const status = (value ?? 'unknown') as PrintPreparation['supports']['status']; next.supports = { status, basis: status === 'unknown' ? null : next.supports.basis }; })} />
           {draft.supports.status !== 'unknown' && <TextInput label="Supports basis" value={draft.supports.basis ?? ''} onChange={e => { const value = e.target.value; edit(next => { next.supports.basis = value || null; }); }} />}
           <NumberInput label="Copies" min={1} max={32} w={90} value={draft.copies} onChange={v => edit(next => { next.copies = typeof v === 'number' ? v : 1; })} />
-          <Select label="Output" value={draft.output_format} data={[{ value: 'gcode', label: 'G-code' }, { value: '3mf', label: 'Prepared 3MF' }]} onChange={value => value && edit(next => { next.output_format = value as 'gcode' | '3mf'; })} />
+          <Select label="Output" value={draft.output_format}
+            data={[{ value: 'gcode', label: 'G-code' }, { value: '3mf', label: draft.slicer_tool === 'orcaslicer-2.4.2' ? 'G-code and sliced 3MF project' : 'Prepared 3MF' }]}
+            onChange={value => value && edit(next => { next.output_format = value as 'gcode' | '3mf'; })} />
+          {draft.technology === 'fdm' && <Select label="Slicer" value={draft.slicer_tool}
+            data={[{ value: 'orcaslicer-2.4.2', label: 'OrcaSlicer 2.4.2 (vendor presets)' }, { value: 'prusaslicer-2.5.0', label: 'PrusaSlicer 2.5.0 (image not built)' }]}
+            onChange={value => value && edit(next => { next.slicer_tool = value as PrintPreparation['slicer_tool']; })} />}
         </Group>
         <Group>
           <Button onClick={() => void save()} loading={busy} disabled={!dirty || !draft.variant_label.trim()} {...create.props}>Save preparation</Button>
@@ -202,6 +207,9 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
       <ParameterTable rows={read.parameters} />
       {read.slicing && read.slicing.blockers.length > 0 && <Alert color="yellow" title="Slicing unavailable">{read.slicing.blockers.map(b => <Text size="sm" key={b}>{b}</Text>)}</Alert>}
       {read.slicing?.tool_default_settings && read.slicing.tool_default_settings.length > 0 && <Text size="sm">Left to slicer defaults (not declared): {read.slicing.tool_default_settings.join(', ')}</Text>}
+      {read.slicing?.presets && <Text size="sm">Vendor presets: {ROLES.map(role => read.slicing!.presets![role] ? `${role} ${read.slicing!.presets![role]!.vendor} ${read.slicing!.presets![role]!.bundle_version} / ${read.slicing!.presets![role]!.name}` : `${role} none`).join(' · ')}</Text>}
+      {read.slicing?.preset_settings && read.slicing.preset_settings.length > 0 && <Text size="sm">Taken from the vendor preset (not declared): {read.slicing.preset_settings.join(', ')}</Text>}
+      {read.slicing?.not_sent_settings && read.slicing.not_sent_settings.length > 0 && <Text size="sm">Declared but not sent to this slicer: {read.slicing.not_sent_settings.join(', ')}</Text>}
     </Stack>}
     {frozen && slicing && <Stack gap={4} aria-label="Slicing">
       <Title order={4}>Optional slicing</Title>
@@ -223,7 +231,9 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
         <EstimateCell label="Print time" estimate={review.report.estimates.print_time_s} unit="s" />
         <EstimateCell label="Filament length" estimate={review.report.estimates.filament_length_mm} unit="mm" />
         <EstimateCell label="Filament mass" estimate={review.report.estimates.filament_mass_g} unit="g" />
+        {review.report.estimates.layer_count && <EstimateCell label="Layer count" estimate={review.report.estimates.layer_count} unit="layers" />}
       </Group>
+      {review.report.applied_settings && <Text size="sm">Applied presets: {['printer_settings_id', 'print_settings_id', 'filament_settings_id'].map(key => review.report.applied_settings![key] ?? 'unknown').join(' · ')}</Text>}
       <Table aria-label="Slice outputs"><Table.Thead><Table.Tr><Table.Th>Output</Table.Th><Table.Th>Size</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{review.outputs.map(output => <Table.Tr key={output.output_id}>
           <Table.Td><Anchor href={sliceOutputUrl(review, output.output_id)}>{output.path}</Anchor></Table.Td>

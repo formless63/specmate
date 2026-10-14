@@ -144,6 +144,40 @@
       },
       "title": "Suggestion[Union[Annotated[float, Strict(strict=True)], Annotated[int, Strict(strict=True)], Annotated[str, Strict(strict=True)]]]",
       "type": "object"
+    },
+    "VendorPreset": {
+      "additionalProperties": false,
+      "description": "A named preset from a vendor bundle shipped inside the slicer release.\n\nThe preset is referenced by vendor, bundle version and name only; its contents stay in\nthe pinned tool image. Declared parameters override it; undeclared settings come from\nit and are listed as preset settings, never copied into the record as declared values.",
+      "properties": {
+        "bundle_version": {
+          "pattern": "^[0-9]+(\\.[0-9]+){1,4}$",
+          "title": "Bundle Version",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 @+()._-]{0,127}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "tool": {
+          "const": "orcaslicer-2.4.2",
+          "title": "Tool",
+          "type": "string"
+        },
+        "vendor": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$",
+          "title": "Vendor",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "vendor",
+        "bundle_version",
+        "name"
+      ],
+      "title": "VendorPreset",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -190,6 +224,17 @@
       ],
       "title": "Technology",
       "type": "string"
+    },
+    "vendor_preset": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VendorPreset"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

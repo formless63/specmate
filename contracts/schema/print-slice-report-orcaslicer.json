@@ -1,0 +1,266 @@
+{
+  "$defs": {
+    "Estimate": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "slicer_estimate",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "Estimate",
+      "type": "object"
+    },
+    "OrcaEstimates": {
+      "additionalProperties": false,
+      "description": "OrcaSlicer statements; layer count and volume are slicer-reported, not measured.",
+      "properties": {
+        "filament_length_mm": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "filament_mass_g": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "filament_volume_cm3": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "layer_count": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "model_print_time_s": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "print_time_s": {
+          "$ref": "#/$defs/Estimate"
+        }
+      },
+      "required": [
+        "print_time_s",
+        "filament_length_mm",
+        "filament_mass_g",
+        "model_print_time_s",
+        "filament_volume_cm3",
+        "layer_count"
+      ],
+      "title": "OrcaEstimates",
+      "type": "object"
+    },
+    "OutputDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "exclusiveMinimum": 0,
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size"
+      ],
+      "title": "OutputDigest",
+      "type": "object"
+    },
+    "PresetCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "declared": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Declared"
+        },
+        "preset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Preset"
+        }
+      },
+      "required": [
+        "preset",
+        "declared"
+      ],
+      "title": "PresetCheck",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Registered OrcaSlicer report. Generation is not printability or qualification.",
+  "properties": {
+    "adapter": {
+      "const": "print-slice-orcaslicer-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "applied_settings": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Applied Settings",
+      "type": "object"
+    },
+    "estimates": {
+      "$ref": "#/$defs/OrcaEstimates"
+    },
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "gcode_body_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Gcode Body Sha256",
+      "type": "string"
+    },
+    "input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "model_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Model Sha256",
+      "type": "string"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/OutputDigest"
+      },
+      "maxItems": 3,
+      "minItems": 2,
+      "title": "Outputs",
+      "type": "array"
+    },
+    "overrides": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/$defs/PresetCheck"
+        },
+        "type": "object"
+      },
+      "propertyNames": {
+        "enum": [
+          "printer",
+          "process",
+          "material"
+        ]
+      },
+      "title": "Overrides",
+      "type": "object"
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "printable": {
+      "const": "not_evaluated",
+      "title": "Printable",
+      "type": "string"
+    },
+    "printer_submission": {
+      "const": "not_performed",
+      "title": "Printer Submission",
+      "type": "string"
+    },
+    "producer": {
+      "const": "OrcaSlicer 2.4.2",
+      "title": "Producer",
+      "type": "string"
+    },
+    "slicer_exit_code": {
+      "const": 0,
+      "title": "Slicer Exit Code",
+      "type": "integer"
+    },
+    "source_unchanged": {
+      "const": true,
+      "title": "Source Unchanged",
+      "type": "boolean"
+    },
+    "tool": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Tool",
+      "type": "object"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "input_sha256",
+    "tool",
+    "producer",
+    "model_sha256",
+    "source_unchanged",
+    "slicer_exit_code",
+    "outputs",
+    "estimates",
+    "applied_settings",
+    "overrides",
+    "gcode_body_sha256",
+    "printable",
+    "printer_submission",
+    "physical_qualification"
+  ],
+  "title": "OrcaSliceReport",
+  "type": "object"
+}

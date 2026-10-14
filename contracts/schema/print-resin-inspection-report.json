@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "OutputDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "exclusiveMinimum": 0,
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size"
+      ],
+      "title": "OutputDigest",
+      "type": "object"
+    },
+    "ResinFact": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "file_stated",
+            "tool_computed",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ResinFact",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Registered UVtools inspection. Reading a file is not printability or qualification.",
+  "properties": {
+    "adapter": {
+      "const": "print-resin-inspect-uvtools-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "facts": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ResinFact"
+      },
+      "title": "Facts",
+      "type": "object"
+    },
+    "file_format": {
+      "enum": [
+        "ctb",
+        "ctb_encrypted",
+        "goo"
+      ],
+      "title": "File Format",
+      "type": "string"
+    },
+    "file_format_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "File Format Version"
+    },
+    "file_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "File Sha256",
+      "type": "string"
+    },
+    "format_class": {
+      "title": "Format Class",
+      "type": "string"
+    },
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/OutputDigest"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Outputs",
+      "type": "array"
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "printable": {
+      "const": "not_evaluated",
+      "title": "Printable",
+      "type": "string"
+    },
+    "printer_submission": {
+      "const": "not_performed",
+      "title": "Printer Submission",
+      "type": "string"
+    },
+    "source_unchanged": {
+      "const": true,
+      "title": "Source Unchanged",
+      "type": "boolean"
+    },
+    "tool": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Tool",
+      "type": "object"
+    },
+    "tool_exit_code": {
+      "const": 0,
+      "title": "Tool Exit Code",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "input_sha256",
+    "tool",
+    "file_sha256",
+    "source_unchanged",
+    "tool_exit_code",
+    "outputs",
+    "file_format",
+    "format_class",
+    "file_format_version",
+    "facts",
+    "printable",
+    "printer_submission",
+    "physical_qualification"
+  ],
+  "title": "ResinInspectionReport",
+  "type": "object"
+}

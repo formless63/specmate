@@ -1,64 +1,119 @@
-# Optional slicer pack
+# Optional slicer and resin-inspection packs
 
-The first profile is `print-slice-prusaslicer-v1`: PrusaSlicer 2.5.0 from the Debian
-bookworm package `prusa-slicer 2.5.0+dfsg-4`, linux/amd64, FDM only. Printing is an
-optional extension; nothing in the base product needs this image.
+Printing is an optional extension; nothing in the base product needs these images and no
+image has printer, network or device access. Building an image is separate from approving
+any recipe.
 
-## Status
+| Pack | Tool | Profile / adapter | Status |
+|---|---|---|---|
+| FDM slicing (default) | OrcaSlicer 2.4.2 | `print-slice-orcaslicer-v1` | built and exercised on synthetic fixtures |
+| Resin file inspection | UVtools 7.0.0 (`UVtoolsCmd`) | `print-resin-inspect-uvtools-v1` | built and exercised on synthetic files |
+| FDM slicing (alternative) | PrusaSlicer 2.5.0 | `print-slice-prusaslicer-v1` | image never built; unpinned |
 
-No image has been built and no actual slicing run is recorded for this release. The
-tool catalog lists the pack as `prusaslicer-2.5.0` with no pinned image and unknown
-download and installed sizes. Tests exercise the recipe, report and acceptance contract
-with a mocked native boundary; they establish nothing about the real slicer.
+## OrcaSlicer FDM pack
 
-## Acquisition
+`orca/Dockerfile` pins the Ubuntu 24.04 base by digest, downloads the upstream release
+asset `OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage` by URL with BuildKit
+`ADD --checksum` (SHA-256 `d12fb8c8...f029fd`, equal to the GitHub release asset digest),
+extracts the AppImage without FUSE, and installs the 235 runtime packages listed in
+`orca/packages.txt` at exact versions from `snapshot.ubuntu.com` at `20261010T000000Z`.
 
-```bash
-docker build -f toolpacks/slicer/Dockerfile \
-  -t specmate-slicer-check:prusaslicer-2.5.0-v1 toolpacks/slicer
-docker image inspect --format '{{.Id}}' specmate-slicer-check:prusaslicer-2.5.0-v1
-```
+The command line slices headless: no display server or Xvfb is needed. OpenGL is not
+available in the container, so the slicer logs a GLFW error and skips plate thumbnails;
+the G-code and project are unaffected.
 
-The Dockerfile pins the Debian amd64 base manifest (the same one the firmware pack uses)
-and the exact `python3` and `prusa-slicer` package versions. The package download happens
-at build time and its size has not been measured. The built image ID is specific to the
-installation. Before running anything, record the exact package inventory
-(`/opt/specmate/packages.txt`), licenses and a synthetic fixture check. Then approve each
-generated recipe with that digest (`specmate-slicer-check@sha256:<id>`) in `recipes.json`.
-`print_slice.options` returns the exact proposed recipe for a frozen preparation, with the
-image left for the operator to fill. Building or approving grants no printer access.
+### Vendor presets
 
-## Program
+A print profile may name a preset from a vendor bundle shipped inside the OrcaSlicer
+release (`vendor_preset`: tool, vendor, bundle version, preset name). Preset files are
+never copied into this repository or the record; they stay in the pinned image. The
+adapter resolves each preset's `inherits` chain inside the image (the OrcaSlicer 2.4.2
+command line does not resolve inheritance of loaded files), applies only the declared
+overrides, and refuses a missing preset, a base (non-selectable) preset, or a bundle whose
+version differs from the pin. The presets exercised with the real image (0.4 mm nozzles):
 
-The recipe runs a fixed trusted Python adapter that:
+| Printer | Machine preset | Process preset | Filament preset | Bundle |
+|---|---|---|---|---|
+| Qidi Q1 Pro | `Qidi Q1 Pro 0.4 nozzle` | `0.20mm Standard @Qidi Q1 Pro` | `QIDI PLA Basic @Qidi Q1 Pro 0.4 nozzle` | Qidi 02.04.00.06 |
+| Qidi X-Plus 4 | `Qidi X-Plus 4 0.4 nozzle` | `0.20mm Standard @Qidi XPlus4` | `QIDI PLA Basic @Qidi X-Plus 4 0.4 nozzle` | Qidi 02.04.00.06 |
+| Bambu Lab P1S | `Bambu Lab P1S 0.4 nozzle` | `0.20mm Standard @BBL X1C` | `Generic PLA` | BBL 02.01.00.19 |
 
-- checks the exact model bytes against the preparation pin and the installed package
-  version against the pin;
-- writes only the declared settings to a private configuration file;
-- runs `prusa-slicer --export-gcode` (or `--export-3mf` for a prepared project) with fixed
-  arguments for rotation, copies and bed placement.
+Other presets in the bundles are accepted by name but are unverified. Declared profile
+parameters override the preset (for example layer height, wall loops, infill density,
+nozzle and bed temperatures, filament density); undeclared settings come from the preset
+and are listed as preset settings. A declared G-code flavor is not sent: the preset's
+machine start G-code depends on its firmware flavor.
 
-Settings the profiles leave unknown are not written. The tool uses its own defaults for
-them, and the record lists them as `tool_default_settings` rather than as declared values.
-Required settings (nozzle diameter, bed size, filament diameter, nozzle temperature, layer
-height), the orientation, the support strategy and millimetre model units must be declared
-before a recipe exists.
+### Program and limits
 
-The recipe runs with read-only inputs, network none, nonroot, 2 GiB memory, 2 CPUs,
-128 PIDs, 900 seconds and 64 MiB of total output, applied by the shared runner. The tool
-image has no application database, device or printer access.
+The trusted adapter (`backend/src/specmate/printing/orca_script.py`) checks the exact
+model bytes and the release identity recorded in the image, writes the flattened presets
+to private files under `/tmp`, and runs:
 
-## Outputs and claims
+    AppRun --datadir <tmp> --slice 0 --load-settings "machine.json;process.json"
+           --load-filaments filament.json --outputdir <tmp> [--export-3mf sliced.3mf]
+           [--clone-objects <copies> --arrange 1] --ensure-on-bed <model.stl>
 
-Outputs are `slice.gcode` or `prepared.3mf`, plus `slice.log` and the `slice.json` report.
-They carry rights derived from the staged source bundle. Estimates are read from the
-slicer's own G-code comments. An estimate the slicer does not state, or states as zero,
-stays unknown. The mass estimate stays unknown unless the material profile declares a
-density, and a prepared 3MF carries no estimates.
+Only STL input and as-modelled orientation are accepted: OrcaSlicer 2.4.2 terminates with
+SIGSEGV on `--rotate`, `--rotate-x` and `--rotate-y`. Slicing works inside the runner's
+64 MiB `/tmp`; a model whose G-code exceeds it fails explicitly ("Is the disk full?").
+Read-only inputs, network none, nonroot, no capabilities, no new privileges, 2 GiB memory,
+2 CPUs, 128 PIDs, 900 seconds and 64 MiB total output apply through the shared runner.
 
-A successful slice identifies its exact preparation, profile revisions, tool package and
-image. It is never called printable, never submitted to a printer and never physically
-qualified. STEP import, resin/SLA output and linux/arm64 are unsupported.
+Outputs are `slice.gcode` (plate G-code), `sliced.3mf` for the 3MF output format (the
+project with that G-code embedded, the form Bambu Lab printers take), `slice.log` and the
+`slice.json` report. The report carries what OrcaSlicer states in its G-code: estimated
+print time (and the separate model time for Bambu Lab presets), filament length, volume
+and mass, and layer count. Unstated or zero values stay unknown. It also lists the applied
+preset identifiers and the preset value replaced by each override. The G-code header holds
+the generation time, so raw G-code and 3MF hashes differ between runs; `gcode_body_sha256`
+excludes that one line and was identical across repeated runs.
 
-PrusaSlicer is AGPL-3.0-or-later. Consult the installed notices before redistributing the
-image. This pack copies no predecessor code or printer profiles.
+## UVtools resin inspection pack
+
+`uvtools/Dockerfile` pins the same base, downloads `UVtools_linux-x64_v7.0.0.zip` with
+`ADD --checksum` (SHA-256 `bcd47d2d...b8cbd1`, equal to the GitHub release asset digest)
+and installs `uvtools/packages.txt` (Python, ICU, fontconfig) from the same snapshot.
+
+It inspects one preserved sliced resin file. The primary format is ChiTuBox `.ctb`,
+including the encrypted v4/v5 variants ChiTuBox writes; Elegoo `.goo` is secondary.
+ChiTuBox `.chitubox` project files stay preserved source attachments and are never parsed.
+The adapter (`uvtools_script.py`) checks the exact file bytes and runs
+`UVtoolsCmd --no-progress print-properties <file>`. The report separates values the file
+states (machine name, resolution, display size, pixel size, layer height, layer count,
+bottom layers, exposure times, print height, stored print time and material) from values
+UVtools computes from the layer images (volume, computed print time, display on-time).
+A missing or zero value stays unknown. Nothing is modified, converted or sent to a printer.
+Limits: network none, nonroot, 2 GiB, 2 CPUs, 128 PIDs, 600 seconds, 16 MiB output.
+
+Resin slicing itself is not provided: no pinned headless resin slicer was found (the
+mslicer 0.9.2 release is a GUI-only binary).
+
+## Reproducible build
+
+Build with exactly:
+
+    docker build --network=default --provenance=false --sbom=false \
+      --build-arg SOURCE_DATE_EPOCH=1791590400 \
+      -f toolpacks/slicer/orca/Dockerfile -t specmate-slicer-check:orcaslicer-2.4.2-v1 toolpacks/slicer/orca
+    docker build --network=default --provenance=false --sbom=false \
+      --build-arg SOURCE_DATE_EPOCH=1791590400 \
+      -f toolpacks/slicer/uvtools/Dockerfile -t specmate-resin-check:uvtools-7.0.0-v1 toolpacks/slicer/uvtools
+
+The expected image IDs are recorded in `backend/src/specmate/builds/tool_catalog.json`.
+Two independent `--no-cache` builds of each gave identical IDs on Docker 29.9.0
+(containerd image store, BuildKit 0.34). Package lists are copied in through bind mounts
+and the extracted release through a bind mount plus `cp -a`, because `COPY` records the
+build time on parent directories. snapshot.ubuntu.com redirects to HTTPS and the base has
+no CA bundle, so TLS peer verification is disabled for that host only; apt still verifies
+the signed InRelease files with the base image's keyring and every package hash. If a
+rebuild gives a different ID, compare layer digests before re-pinning.
+
+## Rights
+
+OrcaSlicer and UVtools are AGPL-3.0; the vendor printer profiles are part of the
+OrcaSlicer release and stay inside the image. Ubuntu package notices stay under
+`/usr/share/doc`. Consult the exact notices before redistributing an image. Generated
+outputs carry rights derived from the staged source bundle. This pack copies no
+predecessor code, vendor profiles or printer files. PrusaSlicer is AGPL-3.0-or-later; its
+unbuilt Dockerfile remains as `Dockerfile` and its recipe code is unchanged.
