@@ -21,6 +21,7 @@ const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/
 const AgentRunsPanel = lazy(() => import("./features/agent-runs/AgentRunsPanel").then((module) => ({ default: module.AgentRunsPanel })));
 const DiagnosticsPanel = lazy(() => import("./features/diagnostics/DiagnosticsPanel").then((module) => ({ default: module.DiagnosticsPanel })));
 const ShareRecordsPanel = lazy(() => import("./features/project-access/ShareRecordsPanel").then((module) => ({ default: module.ShareRecordsPanel })));
+const SourcingPanel = lazy(() => import("./features/inventory/SourcingPanel").then((module) => ({ default: module.SourcingPanel })));
 const IntegrationsPanel = lazy(() => import("./features/integrations/IntegrationsPanel").then((module) => ({ default: module.IntegrationsPanel })));
 const WorkspaceAccessPanel = lazy(() => import("./features/project-access/WorkspaceAccessPanel").then((module) => ({ default: module.WorkspaceAccessPanel })));
 const IdentityPanel = lazy(() => import("./features/identity/IdentityPanel").then((module) => ({ default: module.IdentityPanel })));
@@ -171,8 +172,10 @@ function LibraryTool({ toolId, toolLabel, scope, onOpenInProject, lens }: { tool
   // Workspace-level lenses work without a project: the workspace comes from the shell scope.
   if (!view && WORKSPACE_LENSES.has(toolId)) return <WorkspaceLens {...lens} toolId={toolId} />;
   if (view) {
-    return <LibraryView view={view} toolLabel={toolLabel} projectId={null} project={null} projects={scope.projects} principalKey={scope.principalKey}
+    const library = <LibraryView view={view} toolLabel={toolLabel} projectId={null} project={null} projects={scope.projects} principalKey={scope.principalKey}
       onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} />;
+    // Sourcing is workspace-scoped (plans, stock and offers all live in the workspace), so Inventory offers it without a project too.
+    return toolId === "inventory" ? <Stack>{library}<SourcingPanel workspaceId={scope.workspaceId} /></Stack> : library;
   }
   return <ChooseProject toolLabel={toolLabel} projects={scope.projects} lastProjectId={scope.lastProjectId} onChoose={(projectId) => onOpenInProject(projectId, toolId)} />;
 }

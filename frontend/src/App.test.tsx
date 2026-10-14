@@ -144,7 +144,7 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
   openTool("PCB intake");
   await screen.findByRole("heading", { name: "PCB intake" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/w1/intakes", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/w1/intakes?project_id=project-a", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
   openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });
@@ -288,6 +288,16 @@ test("Library scope lists the lens's collection with Used in, and opening a use 
   expect(screen.getByRole("tab", { name: "Cables" }).getAttribute("aria-selected")).toBe("true");
   expect((screen.getByRole("combobox", { name: "Scope" }) as HTMLInputElement).value).toBe("Project B");
   expect(screen.getByText("Opened from the library")).toBeTruthy();
+});
+
+test("Inventory at Library scope also offers workspace-scoped Sourcing, with the plan picker listing workspace definitions", async () => {
+  const fetchMock = server({ authenticated: true }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  openTool("Inventory");
+  expect(await screen.findByRole("heading", { name: "Sourcing" })).toBeTruthy();
+  expect(screen.getByLabelText("Plan definition")).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path]) => String(path) === "/api/v0/workspaces/w1/definitions")).toBe(true);
+  expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
 });
 
 test("workspace-level lenses open at Library scope without choosing a project, and workspace access works at both scopes", async () => {
