@@ -6,7 +6,7 @@ type Availability = { status: string; reasons: string[]; missing?: string; requi
 type OperationRow = {
   operation: string; summary: string; requires_expected_state: boolean; supports_idempotency: boolean;
   attachments: string[]; async: boolean; generic_http_invocation: boolean;
-  access: { kind: string; minimum_project_permission: string | null; basis: string };
+  access: { kind: string; minimum_workspace_permission: string | null; basis: string };
   availability: Availability;
 };
 type Capabilities = {
@@ -46,7 +46,7 @@ export function AgentCapabilitiesPanel({ projectId }: { projectId: string }) {
 
   return <Stack>
     <Title order={2}>Agent access</Title>
-    <Text c="dimmed">Reported by this instance from its live operation registry and your project permissions. It is not a promise that a specific request will succeed.</Text>
+    <Text c="dimmed">Reported by this instance from its live operation registry and your workspace permissions. It is not a promise that a specific request will succeed.</Text>
     {error && <Alert color="red">{error}</Alert>}
     {!data && !error && <Text role="status">Reading capabilities…</Text>}
     {data && <>
@@ -70,7 +70,7 @@ export function AgentCapabilitiesPanel({ projectId }: { projectId: string }) {
           <Table.Td><Text ff="monospace" size="sm">{row.operation}</Text><Text size="xs" c="dimmed">{row.summary}</Text></Table.Td>
           <Table.Td><Badge color={statusColor[row.availability.status] ?? "gray"}>{label(row.availability.status)}</Badge>
             {row.availability.reasons.length > 0 && <Text size="xs">{row.availability.reasons.map(label).join(", ")}</Text>}</Table.Td>
-          <Table.Td>{row.access.minimum_project_permission ?? label(row.access.kind)}<Text size="xs" c="dimmed">{row.access.basis}</Text></Table.Td>
+          <Table.Td>{row.access.minimum_workspace_permission ?? label(row.access.kind)}<Text size="xs" c="dimmed">{row.access.basis}</Text></Table.Td>
           <Table.Td><Text size="xs">{[row.requires_expected_state && "needs expected state", row.supports_idempotency && "idempotent", row.async && "asynchronous", row.attachments.length > 0 && "upload"].filter(Boolean).join(", ") || "fresh evaluation"}</Text></Table.Td>
         </Table.Tr>)}</Table.Tbody>
       </Table>

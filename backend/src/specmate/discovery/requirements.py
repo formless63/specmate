@@ -30,8 +30,7 @@ INSTALLATION_OWNER = "installation_owner"
 RUNNER_CREDENTIAL = "runner_credential"  # scoped runner token, not an interactive actor
 TRUSTED_JOB = "trusted_job"  # internal scheduler; no external actor may call it
 OPERATOR = "operator"  # local installation operator (internal transport only)
-# TRANSITIONAL (P3 renames the reported kind): a workspace role requirement.
-PROJECT = "project"
+WORKSPACE = "workspace"  # a permission of the actor's workspace role and grants
 
 
 @dataclass(frozen=True)
@@ -41,7 +40,7 @@ class Requirement:
 
 
 def _p(perm: Perm) -> Requirement:
-    return Requirement(PROJECT, perm)
+    return Requirement(WORKSPACE, perm)
 
 
 EXPLICIT: dict[str, Requirement] = {

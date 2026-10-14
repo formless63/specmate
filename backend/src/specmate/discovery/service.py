@@ -141,7 +141,7 @@ def describe(
             "generic_http_invocation": not spec.public and not spec.attachments,
             "access": {
                 "kind": requirement.kind if requirement else "undeclared",
-                "minimum_project_permission": (
+                "minimum_workspace_permission": (
                     requirement.permission.value if requirement and requirement.permission else None
                 ),
                 "basis": basis,

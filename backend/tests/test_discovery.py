@@ -137,7 +137,7 @@ def test_role_matrix_comes_from_the_permission_layer(users, project, who, operat
     row = by_name(discover(users[who], project))[operation]
     assert row["availability"]["status"] == status
     if status == "not_permitted":
-        assert row["availability"]["missing"] == row["access"]["minimum_project_permission"]
+        assert row["availability"]["missing"] == row["access"]["minimum_workspace_permission"]
 
 
 def test_explicit_grant_changes_the_answer(users, project):
@@ -272,7 +272,7 @@ def test_native_execution_reports_unavailable_degraded_and_available(
     } <= native
     rows = by_name(result)
     for name in native:
-        if rows[name]["access"]["kind"] == "project":
+        if rows[name]["access"]["kind"] == "workspace":
             assert rows[name]["availability"]["status"] == "unavailable", name
             assert rows[name]["availability"]["reasons"] == ["no_approved_recipe"]
     assert rows["draft.update"]["availability"]["status"] == "available"

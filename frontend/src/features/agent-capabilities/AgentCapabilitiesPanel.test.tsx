@@ -11,15 +11,15 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const row = (operation: string, status: string, reasons: string[] = [], permission: string | null = "design.edit") => ({
   operation, summary: `Synthetic ${operation}`, requires_expected_state: true, supports_idempotency: true, attachments: [], async: false,
-  generic_http_invocation: true, access: { kind: "project", minimum_project_permission: permission, basis: "explicit" }, availability: { status, reasons },
+  generic_http_invocation: true, access: { kind: "workspace", minimum_workspace_permission: permission, basis: "explicit" }, availability: { status, reasons },
 });
 const body = {
   instance: { version: "0", registry_sha256: "abcdef0123456789" },
   transports: { http_api: { status: "available" }, mcp: { status: "unavailable", reason: "no_mcp_adapter_in_this_instance" } },
-  scope: { project_id: "project-a", role: "viewer", permissions: ["project.read"] },
+  scope: { project_id: "project-a", role: "viewer", permissions: ["workspace.read"] },
   capabilities: { native_execution: { status: "unavailable", reasons: ["no_approved_recipe"], approved_recipes: 0 } },
   notes: ["Object-level authority is still checked."],
-  operations: [row("inventory.list", "available", [], "project.read"), row("draft.update", "not_permitted", ["missing_permission"]), row("build.request", "unavailable", ["no_approved_recipe"], "build.execute")],
+  operations: [row("inventory.list", "available", [], "workspace.read"), row("draft.update", "not_permitted", ["missing_permission"]), row("build.request", "unavailable", ["no_approved_recipe"], "build.execute")],
 };
 
 test("shows the reported transports, native state and per-operation availability", async () => {
