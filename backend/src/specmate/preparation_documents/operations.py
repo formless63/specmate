@@ -5,6 +5,7 @@ import io
 
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog_matching.queries import current_actor
+from specmate.design.models import Revision
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.preparation_documents.contracts import (
@@ -50,9 +51,35 @@ def authorized_set(user, set_id, permission=Perm.WORKSPACE_READ):
     return record
 
 
+def root_currency(record):
+    """The retained root revision against the latest frozen revision of its definition.
+
+    Read-only: the retained set and its manifest are never changed. The caller has already
+    been authorized for the root's workspace, which holds every revision of the definition.
+    """
+    root = record.root_revision
+    latest = Revision.objects.filter(definition_id=root.definition_id).order_by("-number").first()
+    newer = None
+    if latest is not None and latest.number > root.number:
+        newer = {
+            "revision_id": str(latest.id),
+            "number": latest.number,
+            "definition_id": str(root.definition_id),
+            "kind": root.definition.kind,
+            "name": root.definition.name,
+            "frozen_at": latest.frozen_at.isoformat(),
+        }
+    return {
+        "root_revision_number": root.number,
+        "status": "superseded" if newer else "latest",
+        "newer_revision": newer,
+    }
+
+
 def result(record):
     return {
         "document_set_id": str(record.id),
+        "root_currency": root_currency(record),
         "manifest": record.manifest,
         "sha256": record.sha256,
         "generator": record.generator,

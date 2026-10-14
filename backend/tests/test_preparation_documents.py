@@ -624,3 +624,45 @@ def test_reference_authority_is_narrow_read_only_and_checks_entire_supplementary
     remove_member(users["viewer"])
     with pytest.raises(NotFound):
         op(users["viewer"], "preparation_documents.authority", payload)
+
+
+def test_retained_set_reports_newer_root_revision_without_changing_the_set(users, project):
+    user = users["owner"]
+    value, root = cable(user, project)
+    _, saved = retain(user, configuration(root))
+    assert saved["root_currency"] == {
+        "root_revision_number": 1,
+        "status": "latest",
+        "newer_revision": None,
+    }
+    stored = DocumentSet.objects.values("manifest", "sha256", "configuration").get(
+        id=saved["document_set_id"]
+    )
+    value["assignments"][1]["contact_id"] = "a"
+    updated = op(
+        user,
+        "cable.update",
+        {"draft_id": root["draft"]["draft_id"], "cable": value},
+        expected_state=root["draft"]["state"],
+    )
+    revision_two = freeze_cable(user, updated)
+    read = op(
+        users["viewer"], "preparation_documents.read", {"document_set_id": saved["document_set_id"]}
+    )
+    currency = read["root_currency"]
+    assert currency["status"] == "superseded" and currency["root_revision_number"] == 1
+    newer = currency["newer_revision"]
+    assert newer["revision_id"] == revision_two["revision_id"] and newer["number"] == 2
+    assert newer["definition_id"] == read["manifest"]["inputs"]["root"]["definition_id"]
+    assert newer["kind"] == "cable"
+    # The retained receipt is still the r1 set: same manifest, input hash and configuration.
+    assert read["manifest"]["inputs"]["root"]["revision_id"] == root["revision_id"]
+    assert read["sha256"] == saved["sha256"]
+    assert (
+        DocumentSet.objects.values("manifest", "sha256", "configuration").get(
+            id=saved["document_set_id"]
+        )
+        == stored
+    )
+    _, later = retain(user, configuration(revision_two), "root-two")
+    assert later["root_currency"]["status"] == "latest"
