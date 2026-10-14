@@ -316,7 +316,8 @@ html[data-mantine-color-scheme="light"] .sb-viewer { background-color: var(--sb-
 .sb-viewer > svg { display: block; height: auto; }
 .sb-viewer > svg:not([width]) { width: 100%; }
 .sb-viewer > svg[width] { margin-inline: auto; }
-.sb-viewer-3d canvas { display: block; background: transparent; }
+.sb-viewer-3d { min-width: 0; max-width: 100%; contain: inline-size; }
+.sb-viewer-3d canvas { display: block; background: transparent; max-width: 100%; }
 /* Side view: a selection reticle settles in once; bands brighten on hover. Reduced motion removes both. */
 .sb-viewer svg[data-view="side"] [data-selected] { animation: sb-side-fade var(--sb-motion-quick) var(--sb-motion-ease); }
 @keyframes sb-side-fade { from { opacity: 0; } to { opacity: 1; } }

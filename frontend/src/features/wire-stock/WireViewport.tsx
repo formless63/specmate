@@ -49,7 +49,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
     const element = renderer.domElement;
     element.setAttribute('aria-label', 'Interactive prepared wire preview');
     element.setAttribute('role', 'img'); element.setAttribute('aria-describedby', descriptionId);
-    element.style.cssText = 'width:100%;height:360px;display:block;touch-action:none';
+    element.style.cssText = 'width:100%;max-width:100%;height:360px;display:block;touch-action:none';
     container.appendChild(element);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     // Transparent canvas: the host's themed surface (and dot grid) shows through.
@@ -94,7 +94,9 @@ export default function WireViewport({ model }: { model: WireModel }) {
     live.current = { scene, frame, environment, redraw: render };
     reset.current = frame;
     const resize = () => {
-      const width = container.clientWidth, height = 360;
+      // Size from the container, never from the canvas or the page's text, so a wide sibling cannot widen the model.
+      const parentWidth = container.parentElement?.clientWidth || Infinity;
+      const width = Math.min(container.clientWidth, parentWidth), height = 360;
       if (width <= 0) return;
       renderer.setSize(width, height, false); camera.aspect = width / height; frame();
     };
@@ -152,7 +154,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
     return () => { cancelAnimationFrame(current.raf); current.raf = 0; };
   }, [explode, mode, reduced]);
   const description = useMemo(() => modelSummary(model), [model]);
-  return <Stack>
+  return <Stack style={{ minWidth: 0, maxWidth: '100%' }}>
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
     <Group><Button variant="light" onClick={() => reset.current()}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button><Button variant="light" onClick={() => reset.current('top')}>Top view</Button><Button variant="light" onClick={() => reset.current('front')}>Front view</Button></Group>
     <Group align="flex-end" gap="md" wrap="wrap" data-testid="explode-controls">
@@ -163,8 +165,8 @@ export default function WireViewport({ model }: { model: WireModel }) {
       <SegmentedControl size="xs" aria-label="Explode direction" value={mode} onChange={v => setMode(v as ExplodeMode)} data={[{ value: 'axial', label: 'Axial' }, { value: 'radial', label: 'Radial' }]} />
       <Switch label="X-ray" checked={xray} onChange={e => setXray(e.currentTarget.checked)} disabled={model.pieces.length === 0} />
     </Group>
-    <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block' }} />
-    <Text size="xs" id={descriptionId} data-testid={descriptionId}>{description}</Text>
-    <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Explode and x-ray are display-only: they move or fade the drawn layers and establish no dimension, gap or construction. Radial explode moves only elements recorded off the cable axis. Leads are illustrative; geometry establishes no fit or qualification.</Text>
+    <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block', minWidth: 0, maxWidth: '100%', width: '100%' }} />
+    <Text size="xs" id={descriptionId} data-testid={descriptionId} style={{ whiteSpace: 'normal', overflowWrap: 'anywhere', minWidth: 0 }}>{description}</Text>
+    <Text size="sm" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Explode and x-ray are display-only: they move or fade the drawn layers and establish no dimension, gap or construction. Radial explode moves only elements recorded off the cable axis. Leads are illustrative; geometry establishes no fit or qualification.</Text>
   </Stack>;
 }

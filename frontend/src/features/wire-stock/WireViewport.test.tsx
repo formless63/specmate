@@ -6,11 +6,11 @@ import { unpreparedProfile, wireModel } from '../../../../packages/wire-geometry
 import { stockPresets } from './presets';
 import WireViewport from './WireViewport';
 
-const lifecycle = vi.hoisted(() => ({ render: vi.fn(), dispose: vi.fn(), loss: vi.fn(), construct: vi.fn(), disconnected: vi.fn() }));
+const lifecycle = vi.hoisted(() => ({ render: vi.fn(), dispose: vi.fn(), loss: vi.fn(), construct: vi.fn(), disconnected: vi.fn(), size: vi.fn() }));
 vi.mock('three', async original => ({ ...await original<typeof import('three')>(), WebGLRenderer: class {
   domElement = document.createElement('canvas');
   constructor() { lifecycle.construct(); }
-  setPixelRatio() {} setSize() {}
+  setPixelRatio() {} setSize(width: number) { lifecycle.size(width); }
   render = lifecycle.render;
   dispose = lifecycle.dispose;
   forceContextLoss = lifecycle.loss;
@@ -140,4 +140,24 @@ test('without reduced motion the slider is smooth and eases over the theme motio
     expect(lifecycle.render.mock.calls.length).toBeGreaterThan(before);
     expect(frames.length).toBe(0);
   } finally { window.matchMedia = original; }
+});
+
+test('the canvas is sized from its container and never exceeds it, however long the description', () => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  // The host reports an inflated width (grown by a wide sibling); its parent is 500px.
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.classList.contains('sb-viewer-3d') ? 3788 : 500;
+  });
+  const section = sectionLayout(stockPresets.coax!);
+  const view = render(<MantineProvider><WireViewport model={wireModel(section, 50, unpreparedProfile())} /></MantineProvider>);
+  const host = view.container.querySelector<HTMLElement>('.sb-viewer-3d')!;
+  const canvas = host.querySelector<HTMLCanvasElement>('canvas')!;
+  expect(lifecycle.size).toHaveBeenCalled();
+  for (const [width] of lifecycle.size.mock.calls) expect(width).toBeLessThanOrEqual(500);
+  expect(canvas.style.maxWidth).toBe('100%');
+  expect(host.style.minWidth).toBe('0px');
+  expect(host.style.maxWidth).toBe('100%');
+  const description = view.getByText(/Straight wire preview/);
+  expect(description.style.whiteSpace).toBe('normal');
+  expect(description.style.overflowWrap).toBe('anywhere');
 });

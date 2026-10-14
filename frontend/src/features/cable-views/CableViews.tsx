@@ -42,7 +42,7 @@ export function CableViews({ stock, name, revisionId, terminationLabels, tabs = 
   const [picked, setPicked] = useState<SidePreparation | null>(null);
   const [profileRevision, setProfileRevision] = useState('');
   const prepared = preparation ?? (picked && picked.stockRevisionId === revisionId ? picked : null);
-  return <Tabs defaultValue={tabs[0]} keepMounted={false} aria-label="Cable views">
+  return <Tabs defaultValue={tabs[0]} keepMounted={false} aria-label="Cable views" style={{ minWidth: 0, maxWidth: '100%' }}>
     <Tabs.List>
       {tabs.includes('section') && <Tabs.Tab value="section">Cross-section</Tabs.Tab>}
       {tabs.includes('side') && <Tabs.Tab value="side">Side view</Tabs.Tab>}
@@ -58,7 +58,7 @@ export function CableViews({ stock, name, revisionId, terminationLabels, tabs = 
     </Stack></Tabs.Panel>}
     {tabs.includes('end-a') && <Tabs.Panel value="end-a" pt="sm"><EndFaceView section={section} end="a" labels={terminationLabels} selected={selected} /></Tabs.Panel>}
     {tabs.includes('end-b') && <Tabs.Panel value="end-b" pt="sm"><EndFaceView section={section} end="b" labels={terminationLabels} selected={selected} /></Tabs.Panel>}
-    {tabs.includes('3d') && <Tabs.Panel value="3d" pt="sm"><Stack gap="xs">
+    {tabs.includes('3d') && <Tabs.Panel value="3d" pt="sm" style={{ minWidth: 0 }}><Stack gap="xs" style={{ minWidth: 0 }}>
       <NumberInput label="Preview length mm" description="A display length for the straight model, not this cable's length." value={length} min={1} w={260} onChange={v => typeof v === 'number' && v >= 1 && setLength(v)} />
       <Wire3d stock={stock} lengthMm={length} />
     </Stack></Tabs.Panel>}
