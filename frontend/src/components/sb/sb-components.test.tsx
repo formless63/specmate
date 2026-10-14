@@ -99,3 +99,10 @@ test("pulsing LEDs stop under reduced motion and styles use tokens only", () => 
   expect(css).toMatch(/prefers-reduced-motion: reduce\) \{ \.sb-led\[data-pulse\] \{ animation: none/);
   expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
 });
+
+test("job card stacks into one full-width column at phone width", () => {
+  const css = readFileSync(resolve(process.cwd(), "src/components/sb/sb-components.css"), "utf8");
+  const phone = css.match(/@media \(max-width: 600px\) \{[^@]*?\n\}/)?.[0] ?? "";
+  expect(phone).toMatch(/\.sb-job \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  expect(phone).toMatch(/\.sb-job-detail, \.sb-job-actions \{ grid-column: 1; grid-row: auto; \}/);
+});
