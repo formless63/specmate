@@ -271,6 +271,7 @@ def build_input(ctx: Context, p: ResolvedRef):
     ListResolved,
     summary="List the latest resolved configurations of a workspace for selection.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def list_resolved(ctx: Context, p: ListResolved):
     workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ)

@@ -406,6 +406,7 @@ def adopt_scope(ctx, p):
     ReviewAdoption,
     summary="Review the exact assembly-draft diff of adopting resolved occurrence choices.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def review_adoption(ctx: Context, p: ReviewAdoption):
     row, _, _, _, _, body = plan(ctx, p)
@@ -427,6 +428,7 @@ def review_adoption(ctx: Context, p: ReviewAdoption):
     ),
     idempotency_scope=adopt_scope,
     authorize_replay=adopt_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def adopt(ctx: Context, p: AdoptResolution):
     if p.draft_id is not None:
@@ -487,6 +489,7 @@ def adopt(ctx: Context, p: AdoptResolution):
     AdoptionRef,
     summary="Read immutable resolved-configuration adoption evidence under current authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_adoption(ctx: Context, p: AdoptionRef):
     return adoption_result(ctx, p.adoption_id)
@@ -514,6 +517,7 @@ def _described(reader, revision):
     AuthoringContext,
     summary="Describe exact target occurrences and candidate revisions for option-set authoring.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def authoring_context(ctx: Context, p: AuthoringContext):
     from specmate.assemblies.queries import get_snapshot

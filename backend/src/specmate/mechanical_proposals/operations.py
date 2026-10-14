@@ -499,6 +499,7 @@ def linked_draft(ctx, workspace_id, draft_id):
     requires_expected_state=True,
     idempotency_scope=decide_scope,
     authorize_replay=decide_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def decide(ctx: Context, p: DecideProposal):
     user = current_actor(ctx.user)
@@ -571,6 +572,7 @@ def decide(ctx: Context, p: DecideProposal):
     ListProposals,
     summary="List existing design drafts of a workspace that an acceptance may link to.",
     supports_idempotency=False,
+    access=Perm.DESIGN_EDIT,
 )
 def draft_targets(ctx: Context, p: ListProposals):
     user = current_actor(ctx.user)
