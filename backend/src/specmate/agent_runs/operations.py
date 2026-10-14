@@ -15,12 +15,13 @@ from specmate.access.models import WorkspaceMember
 from specmate.access.permissions import (
     Perm,
     authorize,
+    authorize_item,
     context_project,
     delegated,
     held_permissions,
     membership,
 )
-from specmate.agent_runs import capture, grants, queries
+from specmate.agent_runs import capture, discard, grants, queries
 from specmate.agent_runs.contracts import (
     ActInRun,
     CheckpointRun,
@@ -34,6 +35,7 @@ from specmate.agent_runs.contracts import (
     StopRun,
 )
 from specmate.agent_runs.models import AgentRun, AgentRunStep
+from specmate.design.models import Definition, Draft
 from specmate.operations import (
     Conflict,
     Context,
@@ -477,8 +479,10 @@ def review(ctx: Context, p: ReviewRun) -> dict:
     "agent_run.revert_change",
     RevertChange,
     summary=(
-        "Restore one draft to its content before an agent step, through draft.update; "
-        "refused if the draft changed after that step."
+        "Restore one draft to its content before an agent step, through draft.update "
+        "(refused if the draft changed after that step), or discard a definition the run "
+        "created (refused, with reasons, if anything references it or it has a frozen "
+        "revision). Every revert is a step in the run log."
     ),
     supports_idempotency=False,
     access=Perm.DESIGN_EDIT,
@@ -492,8 +496,15 @@ def revert_change(ctx: Context, p: RevertChange) -> dict:
     change = next((c for c in step.changes if c.get("record") == p.record), None)
     if change is None:
         raise NotFound("The step did not change this record.")
+    if _already_reverted(run, step, p.record):
+        raise Conflict("This change was already reverted.")
+    definition_pk = discard.created_definition_pk(step.changes, change)
+    if definition_pk is not None:
+        return _discard_created(ctx, run, step, p, definition_pk)
     if change["model"] != "design.draft" or change["action"] != "updated":
-        raise ValidationFailed("Only draft content updates can be reverted.")
+        raise ValidationFailed(
+            "Only draft content updates and definitions the run created can be reverted."
+        )
     before, after = change["before"], change["after"]
     changes = {
         k: v
@@ -520,6 +531,53 @@ def revert_change(ctx: Context, p: RevertChange) -> dict:
         payload={"reverts_step": step.number, "record": p.record},
         expected_state=inner.expected_state,
         result=result,
+        changes=recorder.changes(),
+    )
+    _save(run)
+    return _result(run, reverted)
+
+
+def _already_reverted(run: AgentRun, step: AgentRunStep, record: str) -> bool:
+    for revert in run.steps.filter(kind=AgentRunStep.Kind.REVERT):
+        payload = revert.payload or {}
+        if payload.get("reverts_step") == step.number and record in (
+            payload.get("records") or [payload.get("record")]
+        ):
+            return True
+    return False
+
+
+def _discard_created(ctx: Context, run: AgentRun, step: AgentRunStep, p, definition_pk: str):
+    """Discard a definition and drafts the run created, only if nothing depends on them."""
+    definition = Definition.objects.select_for_update(of=("self",)).filter(pk=definition_pk).first()
+    if definition is None:
+        raise Conflict("The record no longer exists.")
+    if definition.workspace_id != run.workspace_id:
+        raise NotFound("Run step not found.")
+    authorize_item(ctx.user, definition, Perm.DESIGN_EDIT)
+    blockers = discard.blockers(definition)
+    if blockers:
+        raise Conflict(
+            "This record cannot be reverted: " + "; ".join(b["reason"] for b in blockers) + ".",
+            details={"blockers": blockers},
+        )
+    records = discard.records_of(definition)
+    with capture.capture() as recorder:
+        Draft.objects.filter(definition=definition).delete()
+        definition.delete()
+    reverted = _append(
+        run,
+        ctx,
+        AgentRunStep.Kind.REVERT,
+        "applied",
+        operation="agent_run.revert_change",
+        payload={
+            "reverts_step": step.number,
+            "record": p.record,
+            "records": records,
+            "discarded": True,
+        },
+        result={"discarded": records},
         changes=recorder.changes(),
     )
     _save(run)

@@ -37,6 +37,11 @@ const pkg: ReviewPackage = {
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
+function withCreated(revert: NonNullable<ReviewPackage["changes"][number]["revert"]>) {
+  const [first] = pkg.changes;
+  pkg.changes = [{ ...first!, action: "created", model: "design.definition", record: "design.definition:x1", revertible: revert.revertible, revert, diffs: {} }];
+}
+
 function fixture() {
   const calls: { operation: string; payload: Record<string, unknown>; expected_state?: string; idempotency_key?: string }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
@@ -137,4 +142,26 @@ test("starting a run offers only usable non-run operations and sends a bounded g
   const create = calls.find((c) => c.operation === "agent_run.create")!;
   expect(create.payload).toMatchObject({ workspace_id: "ws", title: "New synthetic run", allowed_actions: ["draft.update"], boundary_actions: [], max_actions: 20, agent_username: null });
   expect(typeof create.idempotency_key).toBe("string");
+});
+
+test("a created record that is frozen explains what blocks the discard", async () => {
+  const original = pkg.changes;
+  withCreated({ kind: "discard", revertible: false, blockers: [{ kind: "frozen", model: "design.revision", count: 1, reason: "1 frozen revision(s) exist" }] });
+  try {
+    fixture(); render(panel(grants({ edit: true })));
+    const r = within(await openRun());
+    await r.findByText("Cannot be discarded");
+    expect(r.getByText("1 frozen revision(s) exist")).toBeTruthy();
+    expect(r.queryByRole("button", { name: "Discard this created draft" })).toBeNull();
+  } finally { pkg.changes = original; }
+});
+
+test("an unreferenced created record offers the discard", async () => {
+  const original = pkg.changes;
+  withCreated({ kind: "discard", revertible: true, blockers: [] });
+  try {
+    fixture(); render(panel(grants({ edit: true })));
+    const r = within(await openRun());
+    expect(await r.findByRole("button", { name: "Discard this created draft" })).toBeTruthy();
+  } finally { pkg.changes = original; }
 });

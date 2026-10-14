@@ -10,8 +10,10 @@ from django.db.models import Q
 from django.utils import timezone
 
 from specmate.access.permissions import Perm, authorize, context_project, membership
+from specmate.agent_runs import discard
 from specmate.agent_runs.capture import stored_fields
 from specmate.agent_runs.models import AgentRun, AgentRunStep
+from specmate.design.models import Definition
 from specmate.operations import NotFound
 
 LIMITATIONS = [
@@ -20,8 +22,9 @@ LIMITATIONS = [
     "result.",
     "Drift compares each record's current stored fields with the values right after the "
     "agent's step; any later change, by anyone, shows as changed.",
-    "Only draft content updates can be reverted from a run; created records stay and are "
-    "listed for manual review.",
+    "A review can restore draft content changed by a step, or discard a definition (with its "
+    "drafts) that the run created, only when nothing references it and it has no frozen "
+    "revision. Other created records stay and are listed for manual review.",
 ]
 
 
@@ -163,14 +166,31 @@ def _canonical(value) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str).encode()
 
 
+def _revert_options(step: AgentRunStep, change: dict, current: str, is_reverted: bool) -> dict:
+    """How a change can be reverted: restore a draft, discard a created definition, or neither."""
+    if is_reverted:
+        return {"kind": None, "revertible": False, "blockers": []}
+    if change["model"] == "design.draft" and change["action"] == "updated":
+        return {"kind": "restore", "revertible": current == "unchanged_since_step", "blockers": []}
+    pk = discard.created_definition_pk(step.changes, change)
+    if pk is None:
+        return {"kind": None, "revertible": False, "blockers": []}
+    definition = Definition.objects.filter(pk=pk).first()
+    if definition is None:
+        return {"kind": "discard", "revertible": False, "blockers": []}
+    blockers = discard.blockers(definition)
+    return {"kind": "discard", "revertible": not blockers, "blockers": blockers}
+
+
 def review_package(user, run_id) -> dict:
     run = _readable_run(user, run_id)
     steps = _steps(run)
     rows = [step_row(step) for step in steps]
     reverted_pairs = {
-        ((s.payload or {}).get("reverts_step"), (s.payload or {}).get("record"))
+        ((s.payload or {}).get("reverts_step"), record)
         for s in steps
         if s.kind == AgentRunStep.Kind.REVERT
+        for record in (s.payload or {}).get("records") or [(s.payload or {}).get("record")]
     }
     changes = []
     truncated_steps = []
@@ -183,6 +203,8 @@ def review_package(user, run_id) -> dict:
                 continue
             before, after = change.get("before") or {}, change.get("after") or {}
             current = _current(change)
+            is_reverted = (step.number, change["record"]) in reverted_pairs
+            revert = _revert_options(step, change, current, is_reverted)
             changes.append(
                 {
                     "step_id": str(step.id),
@@ -198,13 +220,9 @@ def review_package(user, run_id) -> dict:
                         for field in change["changed_fields"]
                     },
                     "current": current,
-                    "reverted": (step.number, change["record"]) in reverted_pairs,
-                    "revertible": (
-                        change["model"] == "design.draft"
-                        and change["action"] == "updated"
-                        and current == "unchanged_since_step"
-                        and (step.number, change["record"]) not in reverted_pairs
-                    ),
+                    "reverted": is_reverted,
+                    "revertible": revert["revertible"],
+                    "revert": revert,
                     "provenance": {
                         "agent": _name(step.actor),
                         "on_behalf_of": _name(step.on_behalf_of),
