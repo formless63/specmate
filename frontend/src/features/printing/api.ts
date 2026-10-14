@@ -12,10 +12,14 @@ export type ParameterSpec = {
   unit: string | null; minimum: number | null; maximum: number | null; choices: string[];
   slicer_setting: string | null; required_for_slicing: boolean;
 };
+/** A named preset inside the pinned OrcaSlicer release; referenced by name, never copied. */
+export type VendorPreset = { tool: 'orcaslicer-2.4.2'; vendor: string; bundle_version: string; name: string };
+export type OrcaPresetSet = { key: string; label: string } & Record<Role, VendorPreset>;
 export type PrintProfile = {
   schema_version: '1'; role: Role; technology: Technology;
-  parameters: Record<string, Suggestion<ParameterValue>>; limitations: string[];
+  parameters: Record<string, Suggestion<ParameterValue>>; vendor_preset?: VendorPreset | null; limitations: string[];
 };
+export type SlicerTool = 'orcaslicer-2.4.2' | 'prusaslicer-2.5.0';
 export type ParameterRow = {
   role: Role; key: string; label: string; unit: string | null; type: ParameterSpec['type'];
   slicer_setting: string | null; required_for_slicing: boolean; status: 'declared' | 'unknown';
@@ -39,7 +43,7 @@ export type PrintPreparation = {
   model_units: Suggestion<'mm' | 'in'>;
   profiles: Record<Role, Pin>;
   orientation: Orientation; supports: Supports; copies: number; output_format: 'gcode' | '3mf';
-  slicer_tool: 'prusaslicer-2.5.0'; limitations: string[];
+  slicer_tool: SlicerTool; limitations: string[];
 };
 export type PreparationRecord = RecordBase & { content: { print_preparation?: PrintPreparation }; in_project?: boolean };
 export type Status = { printable: 'not_evaluated'; printer_submission: 'not_available'; physical_qualification: false };
@@ -51,7 +55,8 @@ export type PreparationRead = PreparationRecord & Status & {
   parameters: ParameterRow[];
   slicing: null | {
     tool_id: string; blockers: string[]; requires_frozen_revision: boolean;
-    configuration?: Record<string, string>; declared_settings?: string[]; tool_default_settings?: string[]; configuration_sha256?: string;
+    configuration?: Record<string, unknown>; declared_settings?: string[]; tool_default_settings?: string[]; configuration_sha256?: string;
+    presets?: Partial<Record<Role, Omit<VendorPreset, 'tool'>>>; preset_settings?: string[]; not_sent_settings?: string[];
   };
 };
 export type Variant = RecordBase & { variant_label: string; technology: Technology; mechanical_revision_id: string; model_path: string };
@@ -67,7 +72,9 @@ export type SliceRead = Status & {
   preparation_revision_id: string; build_id: string; recipe_id: string; image: string; report_sha256: string;
   inputs: { tool: Tool; profiles: Record<Role, Pin>; part: { path: string; sha256: string; rights: string };
     declared: string[]; tool_defaults: string[]; config: Record<string, string> };
-  report: { estimates: { print_time_s: Estimate; filament_length_mm: Estimate; filament_mass_g: Estimate };
+  report: { estimates: { print_time_s: Estimate; filament_length_mm: Estimate; filament_mass_g: Estimate;
+      layer_count?: Estimate; filament_volume_cm3?: Estimate; model_print_time_s?: Estimate };
+    applied_settings?: Record<string, string | null>;
     printable: 'not_evaluated'; printer_submission: 'not_performed'; physical_qualification: false };
   outputs: { output_id: string; path: string; sha256: string; size: number; rights: string; media_type: string }[];
 };
@@ -80,6 +87,7 @@ const scope = (projectId?: string | null) => projectId ? `?project_id=${encodeUR
 const id = encodeURIComponent;
 
 export const listParameters = () => request<ParameterSpec[]>('printing/parameters');
+export const listOrcaPresets = () => request<OrcaPresetSet[]>('printing/orca-presets');
 export const listProfiles = (projectId?: string | null) => request<ProfileRecord[]>(`printing/profiles${scope(projectId)}`);
 export const listPreparations = (projectId?: string | null) => request<PreparationRecord[]>(`printing/preparations${scope(projectId)}`);
 export const listProfileRevisions = (definitionId: string) => request<RevisionRow[]>(`printing/profiles/${id(definitionId)}/revisions`);

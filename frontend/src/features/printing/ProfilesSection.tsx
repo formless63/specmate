@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { SbStatus, SbUnknown } from '../../components/sb';
 import {
-  freezeRecord, listProfileRevisions, listProfiles, readProfile, saveProfile,
+  freezeRecord, listOrcaPresets, listProfileRevisions, listProfiles, readProfile, saveProfile,
+  type OrcaPresetSet,
   type Basis, type ParameterRow, type ParameterSpec, type ParameterValue, type PrintProfile,
   type ProfileRecord, type RevisionRow, type Role, type Technology,
 } from './api';
@@ -29,6 +30,13 @@ export function ProfilesSection({ projectId, specs, onChanged }: { projectId: st
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [presetSets, setPresetSets] = useState<OrcaPresetSet[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    listOrcaPresets().then(found => { if (alive) setPresetSets(found ?? []); }).catch(() => { if (alive) setPresetSets([]); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -104,6 +112,13 @@ export function ProfilesSection({ projectId, specs, onChanged }: { projectId: st
           <TextInput label="Basis note or citation" value={note} onChange={e => setNote(e.target.value)} placeholder="Where the value comes from" />
         </Group>
       </InspectionScope>
+      {shown.technology === 'fdm' && <InspectionScope permission="item.create">
+        <Select label="OrcaSlicer vendor preset" description="Bundled with the pinned OrcaSlicer release; declared values override it."
+          data={[{ value: 'none', label: 'None' }, ...presetSets.map(set => ({ value: set.key, label: `${set[shown.role].name} (${set[shown.role].vendor} ${set[shown.role].bundle_version})` }))]}
+          value={presetSets.find(set => set[shown.role].name === shown.vendor_preset?.name && set[shown.role].vendor === shown.vendor_preset?.vendor)?.key ?? 'none'}
+          onChange={value => { const set = presetSets.find(item => item.key === value); setProfile({ ...shown, vendor_preset: set ? set[shown.role] : null }); setDirty(true); setNotice(''); }} />
+      </InspectionScope>}
+      {shown.vendor_preset && <Text size="sm">Preset: {shown.vendor_preset.vendor} {shown.vendor_preset.bundle_version} / {shown.vendor_preset.name}. Undeclared settings come from this preset.</Text>}
       <Table striped aria-label="Profile parameters">
         <Table.Thead><Table.Tr><Table.Th>Parameter</Table.Th><Table.Th>Value</Table.Th><Table.Th>Basis</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{roleSpecs.map(spec => {
@@ -111,7 +126,7 @@ export function ProfilesSection({ projectId, specs, onChanged }: { projectId: st
           const saved = recorded.get(spec.key);
           const value = draft?.value ?? null;
           return <Table.Tr key={spec.key}>
-            <Table.Td><Text size="sm">{spec.label}{spec.unit ? ` (${spec.unit})` : ''}</Text>{spec.required_for_slicing && <Text size="xs" c="dimmed">required for slicing</Text>}</Table.Td>
+            <Table.Td><Text size="sm">{spec.label}{spec.unit ? ` (${spec.unit})` : ''}</Text>{spec.required_for_slicing && <Text size="xs" c="dimmed">required for PrusaSlicer slicing</Text>}</Table.Td>
             <Table.Td><InspectionScope permission="item.create">{spec.type === 'choice'
               ? <Select aria-label={spec.label} data={['unknown', ...spec.choices]} value={value === null ? 'unknown' : String(value)} onChange={v => change(spec.key, !v || v === 'unknown' ? null : v)} />
               : <NumberInput aria-label={spec.label} value={typeof value === 'number' ? value : ''} min={spec.minimum ?? undefined} max={spec.maximum ?? undefined}

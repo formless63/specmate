@@ -19,6 +19,7 @@ from specmate.printing.operations import (
     slice_options,
     validate_outputs,
 )
+from specmate.printing.pack import ORCA_PRESETS
 from specmate.printing.queries import list_records, list_revisions
 from specmate.sources import blobstore
 
@@ -44,10 +45,17 @@ def parameters(request):
             "maximum": p.maximum,
             "choices": list(p.choices),
             "slicer_setting": p.slicer_key,
+            "orca_settings": list(p.orca_keys),
             "required_for_slicing": p.required_for_slicing,
         }
         for p in PARAMETERS
     ]
+
+
+@router.get("/orca-presets")
+def orca_presets(request):
+    """Bundled OrcaSlicer vendor presets exercised with the pinned image, by name only."""
+    return [{"key": key, **value} for key, value in ORCA_PRESETS.items()]
 
 
 @router.get("/profiles")

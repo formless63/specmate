@@ -38,6 +38,41 @@
       "acquire": "docker build --network=default --provenance=false --sbom=false --build-arg SOURCE_DATE_EPOCH=1791590400 -f toolpacks/firmware/Dockerfile -t specmate-firmware-check:avr-gcc-v1 toolpacks/firmware"
     },
     {
+      "id": "orcaslicer-2.4.2",
+      "title": "OrcaSlicer 2.4.2 (default FDM slicing of exact frozen print preparations with bundled vendor presets)",
+      "image": "specmate-slicer-check@sha256:72b4af1882e6b16875e9590f0b82bdcfc4ad442bacc6a2a61c22d8dfa1b47958",
+      "source": "local-build",
+      "platforms": ["linux/amd64"],
+      "download_bytes": null,
+      "installed_bytes": 1430789181,
+      "size_note": "Built locally from toolpacks/slicer/orca/Dockerfile: Ubuntu 24.04 base pinned by digest, release asset OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage (137759224 bytes) fetched with ADD --checksum sha256:d12fb8c8eac1aecd2dfb6377acd48f994f8fa439ed5292fa532dd82880f029fd (the GitHub release asset digest), 235 packages pinned to exact versions from snapshot.ubuntu.com 20261010T000000Z, SOURCE_DATE_EPOCH=1791590400. Two independent --no-cache builds produced this same image ID on Docker 29.9.0 (containerd image store, BuildKit 0.34); the package download size is not recorded.",
+      "capabilities": [
+        "FDM plate G-code and sliced 3MF project from an STL mesh, using named vendor presets bundled in the release (exercised: Qidi Q1 Pro, Qidi X-Plus 4, Bambu Lab P1S) plus declared overrides",
+        "slicer-stated estimates: print time, filament length, volume and mass, layer count",
+        "no printer connection, submission or control"
+      ],
+      "rights": "OrcaSlicer is AGPL-3.0; its vendor profiles stay inside the image. Ubuntu package notices stay in the image under /usr/share/doc. Generated outputs carry the rights derived from the staged source bundle.",
+      "qualification": "Synthetic STL fixtures sliced headless (no display) with the three exercised preset sets; repeated runs gave identical G-code apart from the generation-time header line. Command-line rotation crashes this release and is refused; OBJ/3MF/STEP input, other presets, printability, physical qualification and linux/arm64 are unverified.",
+      "acquire": "docker build --network=default --provenance=false --sbom=false --build-arg SOURCE_DATE_EPOCH=1791590400 -f toolpacks/slicer/orca/Dockerfile -t specmate-slicer-check:orcaslicer-2.4.2-v1 toolpacks/slicer/orca"
+    },
+    {
+      "id": "uvtools-7.0.0",
+      "title": "UVtools 7.0.0 (read-only inspection of sliced .ctb/.goo resin files)",
+      "image": "specmate-resin-check@sha256:6a76ebeb6bd37a63c37dfeb1828803751cb0ebc884ccf47e7744ec76d830901e",
+      "source": "local-build",
+      "platforms": ["linux/amd64"],
+      "download_bytes": null,
+      "installed_bytes": 542549244,
+      "size_note": "Built locally from toolpacks/slicer/uvtools/Dockerfile: Ubuntu 24.04 base pinned by digest, release asset UVtools_linux-x64_v7.0.0.zip (86314803 bytes) fetched with ADD --checksum sha256:bcd47d2d045ff0b8489fd2f7866569521586888c636e2f17603af65a932acb76 (the GitHub release asset digest), 22 packages pinned to exact versions from snapshot.ubuntu.com 20261010T000000Z, SOURCE_DATE_EPOCH=1791590400. Two independent --no-cache builds produced this same image ID on Docker 29.9.0 (containerd image store, BuildKit 0.34); the package download size is not recorded.",
+      "capabilities": [
+        "inspect ChiTuBox .ctb (plain and encrypted v4/v5) and Elegoo .goo files: machine, resolution, layers, exposure, print time, material and computed volume",
+        "no resin slicing, file modification, printer connection, submission or control"
+      ],
+      "rights": "UVtools is AGPL-3.0; Ubuntu package notices stay in the image under /usr/share/doc. Inspection outputs carry the rights derived from the staged source bundle.",
+      "qualification": "Synthetic .ctb (v4, v5, encrypted v5) and .goo files written by UVtools itself; no file written by ChiTuBox or a printer vendor has been inspected yet. Printability, physical qualification and linux/arm64 are not established.",
+      "acquire": "docker build --network=default --provenance=false --sbom=false --build-arg SOURCE_DATE_EPOCH=1791590400 -f toolpacks/slicer/uvtools/Dockerfile -t specmate-resin-check:uvtools-7.0.0-v1 toolpacks/slicer/uvtools"
+    },
+    {
       "id": "prusaslicer-2.5.0",
       "title": "PrusaSlicer 2.5.0 (optional FDM slicing of exact frozen print preparations)",
       "image": null,

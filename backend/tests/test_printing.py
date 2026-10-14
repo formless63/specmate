@@ -185,6 +185,7 @@ def preparation(part, profiles, **changes):
         },
         "supports": {"status": "buildplate_only", "basis": "Overhang under the flange"},
         "copies": 2,
+        "slicer_tool": "prusaslicer-2.5.0",
     }
     body.update(changes)
     return body

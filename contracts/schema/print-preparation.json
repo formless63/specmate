@@ -363,8 +363,11 @@
       "type": "string"
     },
     "slicer_tool": {
-      "const": "prusaslicer-2.5.0",
-      "default": "prusaslicer-2.5.0",
+      "default": "orcaslicer-2.4.2",
+      "enum": [
+        "orcaslicer-2.4.2",
+        "prusaslicer-2.5.0"
+      ],
       "title": "Slicer Tool",
       "type": "string"
     },
