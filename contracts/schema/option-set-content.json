@@ -1,5 +1,25 @@
 {
   "$defs": {
+    "BooleanValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "boolean",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "BooleanValue",
+      "type": "object"
+    },
     "Choice": {
       "additionalProperties": false,
       "description": "One permitted choice: an exact frozen revision or a declared value, never both.",
@@ -148,6 +168,62 @@
       "title": "ChoiceRule",
       "type": "object"
     },
+    "Condition": {
+      "additionalProperties": false,
+      "properties": {
+        "property": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Property",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "boolean": "#/$defs/BooleanValue",
+                  "quantity": "#/$defs/NumericValue",
+                  "range": "#/$defs/NumericValue",
+                  "text": "#/$defs/TextValue",
+                  "tolerance": "#/$defs/NumericValue"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/NumericValue"
+                },
+                {
+                  "$ref": "#/$defs/TextValue"
+                },
+                {
+                  "$ref": "#/$defs/BooleanValue"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "property",
+        "status"
+      ],
+      "title": "Condition",
+      "type": "object"
+    },
     "FactLimitRule": {
       "additionalProperties": false,
       "description": "The exact revision chosen for `option_key` must record `property` at least/at most\n`limit`. A missing, unknown or conflicting fact is unknown, never assumed compatible.",
@@ -166,6 +242,28 @@
           ],
           "title": "Comparison",
           "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "maxItems": 30,
+          "title": "Conditions",
+          "type": "array"
+        },
+        "feature_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Id"
         },
         "key": {
           "pattern": "^[a-z][a-z0-9_-]{0,79}$",
@@ -464,6 +562,28 @@
         "choices"
       ],
       "title": "Option",
+      "type": "object"
+    },
+    "TextValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "TextValue",
       "type": "object"
     }
   },

@@ -10,13 +10,13 @@ export type Decision = {
   base: { display_ref: string; population_revision_id: string; firmware_revision_id: string | null } | null;
 };
 export type ConstraintOutcome = 'valid' | 'invalid' | 'unknown' | 'not_evaluated';
-export type ConstraintReason = { level: 'rule' | 'fact'; code: string; message: string; option_key?: string; choice_key?: string | null; assertion_ids?: string[] };
+export type ConstraintReason = { level: 'rule' | 'fact'; code: string; message: string; fact_level?: string; option_key?: string; choice_key?: string | null; assertion_ids?: string[] };
 export type ConstraintFact = {
   subject_id: string | null; subject_state: string | null; revision_id: string; property: string; purpose: string; role: string;
   conditions: unknown[]; status: string; value: Record<string, string> | null; assertion_ids: string[];
 };
 export type ConstraintResult = {
-  key: string; label: string; kind: 'requires' | 'excludes' | 'fact_limit'; basis: string; rule: Record<string, unknown>;
+  key: string; label: string; kind: 'requires' | 'excludes' | 'fact_limit' | 'firmware_target'; basis: string; rule: Record<string, unknown>;
   outcome: ConstraintOutcome; reasons: ConstraintReason[]; facts: ConstraintFact[];
 };
 export type ConstraintEvaluation = {

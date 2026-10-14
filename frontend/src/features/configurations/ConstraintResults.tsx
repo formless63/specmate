@@ -5,7 +5,7 @@ import type { ConstraintEvaluation, ConstraintOutcome, ConstraintReason, Resolut
 /** Outcome LEDs: there is no generic OK; unknown and not evaluated never read as valid. */
 export const OUTCOME_LED: Record<ConstraintOutcome, SbLed> = { valid: 'info', invalid: 'failed', unknown: 'review', not_evaluated: 'not-evaluated' };
 export const OUTCOME_LABEL: Record<ConstraintOutcome, string> = { valid: 'valid', invalid: 'invalid', unknown: 'unknown', not_evaluated: 'not evaluated' };
-const KIND: Record<string, string> = { requires: 'Requires', excludes: 'Excludes', fact_limit: 'Fact limit' };
+const KIND: Record<string, string> = { requires: 'Requires', excludes: 'Excludes', fact_limit: 'Fact limit', firmware_target: 'Firmware target' };
 
 /** Resolutions captured before constraint evaluation carry no evaluation object. */
 export function evaluation(resolution: Resolution): ConstraintEvaluation | null {

@@ -11,7 +11,7 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from specmate.assemblies.contracts import Path, StrictModel
-from specmate.facts.contracts import NumericValue, Purpose, Role
+from specmate.facts.contracts import Condition, FeatureId, NumericValue, Purpose, Role
 
 Key = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,79}$")]
 Text = Annotated[str, Field(min_length=1, max_length=500, pattern=r"\S")]
@@ -118,6 +118,8 @@ class FactLimitRule(StrictModel):
     property: FactProperty
     purpose: Purpose = "rating"
     role: Role = "actual"
+    feature_id: FeatureId | None = None
+    conditions: list[Condition] = Field(default_factory=list, max_length=30)
     comparison: Literal["at_least", "at_most"]
     limit: NumericValue
 
@@ -131,6 +133,9 @@ class FactLimitRule(StrictModel):
             raise ValueError("A preference is not an engineering rating.")
         if self.when is not None and self.when.option_key == self.option_key:
             raise ValueError("A rule's applicability names another option.")
+        properties = [condition.property for condition in self.conditions]
+        if len(properties) != len(set(properties)):
+            raise ValueError("Condition properties must be unique.")
         return self
 
 
