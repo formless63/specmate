@@ -7,7 +7,8 @@ class ExportPackagesConfig(AppConfig):
     def ready(self):
         from specmate.contracts import SCHEMAS
         from specmate.export_packages import operations  # noqa: F401
-        from specmate.export_packages.contracts import Download, ExportRequest
+        from specmate.export_packages.contracts import Candidates, Download, ExportRequest
 
         SCHEMAS["export-package-request"] = ExportRequest
         SCHEMAS["export-package-download"] = Download
+        SCHEMAS["export-package-candidates"] = Candidates

@@ -9,6 +9,13 @@ beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserv
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 const ROOT = '11111111-1111-4111-8111-111111111111';
+const CANDIDATES = {
+  root_revision_id: ROOT,
+  scene_drawings: [{ drawing_id: 'drawing-one', revision_id: ROOT, name: 'Synthetic root', renderer_version: 'scene-line-svg-v1', created_at: '2026-10-14' }],
+  preparation_document_sets: [{ document_set_id: 'set-one', root_revision_id: 'cable-rev', name: 'Synthetic cable', quantity: 6, created_at: '2026-10-14' }],
+  test_plans: [{ revision_id: 'plan-one', name: 'Synthetic plan', number: 2, root_revision_id: ROOT, occurrence_path: ['left'] }],
+  pcb_fabrication_builds: [{ intake_id: 'intake-0001', build_id: 'build-0001' }],
+};
 function wrap() {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ExportPackagesPanel projectId="project" /></QueryClientProvider></MantineProvider>;
 }
@@ -35,11 +42,12 @@ function fixture(coherence: 'coherent' | 'incoherent' = 'coherent') {
   let downloadBody: Record<string, unknown> | null = null;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (url.endsWith('/operations')) {
-      const body = JSON.parse(String(options?.body)); calls.push(body);
+      const body = JSON.parse(String(options?.body));
+      if (body.operation === 'export_package.candidates') return response({ result: CANDIDATES });
+      calls.push(body);
       return response({ result: reviewed(coherence, body.payload.quantity) });
     }
     if (url.endsWith('/export-packages/download')) { downloadBody = JSON.parse(String(options?.body)); return new Response('synthetic-zip'); }
-    if (url.includes('/preparation-documents/workspace')) return response({ document_sets: [] });
     if (url.includes('/catalog/definitions/')) return response({ definition_id: 'root-def', name: 'Synthetic root', kind: 'assembly', revisions: [{ revision_id: ROOT, number: 1 }] });
     if (url.includes('/revisions/')) return response({});
     return response([{ definition_id: 'root-def', name: 'Synthetic root', kind: 'assembly' }]);
@@ -87,4 +95,18 @@ test('incoherent outputs are explained and cannot be downloaded', async () => {
   await screen.findByText('document_quantity_differs');
   expect((screen.getByRole('button', { name: 'Download export package' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText(/cite different revisions or quantities/)).toBeTruthy();
+});
+
+test('retained outputs are chosen from root candidates and sent as exact references', async () => {
+  const f = fixture(); await selectRoot();
+  await choose('Preparation document sets', 'Synthetic cable · quantity 6 · 2026-10-14');
+  await choose('Cable test plans', 'Synthetic plan · r2 · left');
+  await choose('PCB fabrication builds', 'Build build-00 · intake intake-0');
+  await choose('Scene drawings', 'Synthetic root · scene-line-svg-v1 · 2026-10-14');
+  fireEvent.click(screen.getByRole('button', { name: 'Review export package' }));
+  await screen.findByText('Export package review');
+  expect(f.calls[0]?.payload).toMatchObject({
+    preparation_document_set_ids: ['set-one'], test_plan_revision_ids: ['plan-one'],
+    pcb_fabrication_builds: [{ intake_id: 'intake-0001', build_id: 'build-0001' }], scene_drawing_ids: ['drawing-one'],
+  });
 });

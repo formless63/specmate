@@ -62,6 +62,11 @@ def test_fabrication_outputs_cite_the_pinned_board_and_count_repeated_boards(
         ],
         "scene_drawing_ids": [scene["drawing_id"]],
     }
+    listed = op(
+        users["viewer"], "export_package.candidates", {"root_revision_id": root["revision_id"]}
+    )
+    assert listed["pcb_fabrication_builds"] == payload["pcb_fabrication_builds"]
+    assert [row["drawing_id"] for row in listed["scene_drawings"]] == [scene["drawing_id"]]
     reviewed = review(users["viewer"], payload)
     manifest = reviewed["manifest"]
     assert manifest["coherence"] == "coherent", manifest["outputs"]
@@ -102,6 +107,11 @@ def test_build_for_an_unpinned_board_or_foreign_scene_blocks_the_package(
         ],
         "scene_drawing_ids": [scene["drawing_id"]],
     }
+    listed = op(
+        users["viewer"], "export_package.candidates", {"root_revision_id": root["revision_id"]}
+    )
+    # Neither the unpinned board's build nor another root's drawing is offered.
+    assert listed["pcb_fabrication_builds"] == [] and listed["scene_drawings"] == []
     reviewed = review(users["viewer"], payload)
     manifest = reviewed["manifest"]
     assert manifest["coherence"] == "incoherent"

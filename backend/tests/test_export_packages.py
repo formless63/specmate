@@ -322,3 +322,33 @@ def test_stale_review_access_and_http_download(users, workspace, system):
     remove_member(users["viewer"], workspace=workspace)
     with pytest.raises(NotFound):
         review(users["viewer"], payload)
+
+
+def test_candidates_list_only_readable_outputs_rooted_in_the_closure(users, project, system):
+    owner = users["owner"]
+    _, other = length_cable(owner, project)
+    inside = documents(owner, system["cable"], 6, "candidate-inside")
+    documents(owner, other, 1, "candidate-outside")
+    elsewhere = freeze_tests(
+        owner,
+        create_tests(
+            owner,
+            project,
+            {
+                "root_revision_id": other["revision_id"],
+                "cable_revision_id": other["revision_id"],
+                "pairs": [],
+                "labels": [],
+            },
+        ),
+    )
+    payload = {"root_revision_id": system["root"]["revision_id"]}
+    listed = op(users["viewer"], "export_package.candidates", payload)
+    assert [row["document_set_id"] for row in listed["preparation_document_sets"]] == [inside]
+    assert listed["preparation_document_sets"][0]["quantity"] == 6
+    plans = [row["revision_id"] for row in listed["test_plans"]]
+    assert plans == [system["tests"]["revision_id"]]
+    assert elsewhere["revision_id"] not in plans
+    assert listed["scene_drawings"] == [] and listed["pcb_fabrication_builds"] == []
+    with pytest.raises(NotFound):
+        op(users["outsider"], "export_package.candidates", payload)

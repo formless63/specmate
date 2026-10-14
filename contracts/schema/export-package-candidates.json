@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_revision_id"
+  ],
+  "title": "Candidates",
+  "type": "object"
+}

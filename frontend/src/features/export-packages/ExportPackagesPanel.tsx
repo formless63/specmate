@@ -1,17 +1,14 @@
-import { Alert, Button, Card, Group, MultiSelect, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Card, Group, MultiSelect, Stack, Table, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type { Definition } from '../identity/api';
 import { RevisionChoice } from '../preparation-documents/RevisionChoice';
 import { SbQuantity, SbQuantityField, SbStatus, SbUnknown, type SbLed } from '../../components/sb';
 import { RevisionLabel } from '../../lib/IdentityLabel';
-import { ApiError, download, requestJson, review, saveArchive, type ExportRequest, type Review, type ScopeQuantity } from './api';
+import { ApiError, candidates, download, requestJson, review, saveArchive, type ExportRequest, type Review, type ScopeQuantity } from './api';
 
 const ROOT_KINDS = ['assembly', 'cable', 'harness'];
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LED = { coherent: 'active', incoherent: 'failed', unknown: 'not-evaluated', complete: 'active', limited: 'review' } satisfies Record<string, SbLed>;
-
-type DocumentSets = { document_sets: { document_set_id: string; manifest: { inputs: { root: { name: string; revision_id: string } } }; created_at: string }[] };
 
 export function ExportPackagesPanel({ projectId = null }: { projectId?: string | null }) {
   // Keying resets every request/review field when the project context changes.
@@ -27,14 +24,10 @@ function ExportWorkspace() {
   const [rootId, setRootId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState('');
   const [bomId, setBomId] = useState<string | null>(null);
-  const [testPlan, setTestPlan] = useState<string | null>(null);
   const [testPlans, setTestPlans] = useState<string[]>([]);
   const [documentSets, setDocumentSets] = useState<string[]>([]);
-  const [drawingText, setDrawingText] = useState('');
   const [drawings, setDrawings] = useState<string[]>([]);
-  const [intakeText, setIntakeText] = useState('');
-  const [buildText, setBuildText] = useState('');
-  const [builds, setBuilds] = useState<{ intake_id: string; build_id: string }[]>([]);
+  const [builds, setBuilds] = useState<string[]>([]);
   const [retained, setRetained] = useState<Review | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +36,8 @@ function ExportWorkspace() {
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current += 1; }; }, []);
   const definitions = useQuery({ queryKey: ['export-definitions'], queryFn: () => requestJson<Definition[]>('/api/v0/workspace/definitions'), staleTime: 0 });
-  const sets = useQuery({ queryKey: ['export-document-sets'], queryFn: () => requestJson<DocumentSets>('/api/v0/preparation-documents/workspace'), staleTime: 0 });
+  const choices = useQuery({ queryKey: ['export-candidates', rootId], enabled: !!rootId, queryFn: () => candidates(rootId!), staleTime: 0 });
+  const buildRefs = (choices.data?.pcb_fabrication_builds ?? []).filter(row => builds.includes(row.build_id));
   const amount = quantity.trim() === '' ? null : Number(quantity);
   const quantityValid = amount === null || (Number.isInteger(amount) && amount >= 1 && amount <= 1_000_000);
   const hidden = blocked || definitions.isError;
@@ -53,7 +47,7 @@ function ExportWorkspace() {
   const payload = (): ExportRequest => ({
     root_revision_id: rootId!, quantity: amount, bom_plan_revision_id: bomId, bom_purpose: 'procurement',
     preparation_document_set_ids: documentSets, test_plan_revision_ids: testPlans,
-    pcb_fabrication_builds: builds, scene_drawing_ids: drawings, purpose: 'authorized_review',
+    pcb_fabrication_builds: buildRefs, scene_drawing_ids: drawings, purpose: 'authorized_review',
   });
   function denied(e: unknown) {
     if (e instanceof ApiError && [401, 403, 404].includes(e.status)) { setBlocked(true); setRetained(null); }
@@ -80,21 +74,21 @@ function ExportWorkspace() {
     <Title order={2}>Coherent export packages</Title>
     <Text size="sm">One package pins system, cable, PCB, mechanical, spreadsheet and test outputs to the exact revisions of one frozen root, with independently counted scope quantities. Not a release, manufacturing approval or physical qualification.</Text>
     {error && <Alert color="red">{error}</Alert>}
-    {hidden && <Alert color="red">Package contents are hidden while current access is unavailable. <Button size="xs" variant="subtle" onClick={() => { setBlocked(false); setError(null); void definitions.refetch(); void sets.refetch(); }}>Refresh access</Button></Alert>}
+    {hidden && <Alert color="red">Package contents are hidden while current access is unavailable. <Button size="xs" variant="subtle" onClick={() => { setBlocked(false); setError(null); void definitions.refetch(); void choices.refetch(); }}>Refresh access</Button></Alert>}
     {!hidden && <>
-      <RevisionChoice label="Package root" kinds={ROOT_KINDS} definitions={definitions.data ?? []} value={rootId} disabled={busy} onChange={id => { changed(); setRootId(id); }} onDenied={denied} />
+      <RevisionChoice label="Package root" kinds={ROOT_KINDS} definitions={definitions.data ?? []} value={rootId} disabled={busy} onChange={id => { changed(); setRootId(id); setTestPlans([]); setDocumentSets([]); setDrawings([]); setBuilds([]); }} onDenied={denied} />
       <SbQuantityField label="Root quantity in scope" unit="ea" value={quantity} state={quantityValid ? undefined : 'invalid'} note="A whole number from 1 to 1,000,000" onChange={raw => { changed(); setQuantity(raw); }} next="Leave empty to keep every scope quantity unknown." />
       <RevisionChoice label="BOM plan" kinds={['bom_plan']} definitions={definitions.data ?? []} value={bomId} disabled={busy} onChange={id => { changed(); setBomId(id); }} onDenied={denied} />
       <Card withBorder padding="sm"><Stack gap="xs"><Title order={4}>Retained outputs to include</Title>
-        <MultiSelect label="Preparation document sets" disabled={busy} data={(sets.data?.document_sets ?? []).map(row => ({ value: row.document_set_id, label: `${row.manifest.inputs.root.name} · ${row.created_at}` }))} value={documentSets} onChange={value => { changed(); setDocumentSets(value); }} />
-        {sets.isError && <Text size="sm">Document sets unavailable: {sets.error.message}</Text>}
-        <RevisionChoice label="Cable test plan" kinds={['cable_test_plan']} definitions={definitions.data ?? []} value={testPlan} disabled={busy} onChange={setTestPlan} onDenied={denied} />
-        <Group><Button size="xs" disabled={busy || !testPlan || testPlans.includes(testPlan ?? '')} onClick={() => { changed(); setTestPlans(rows => [...rows, testPlan!]); }}>Include test plan</Button></Group>
-        {testPlans.map(id => <Group key={id} gap="xs"><RevisionLabel id={id} role="Test plan" /><Button size="xs" variant="subtle" onClick={() => { changed(); setTestPlans(rows => rows.filter(row => row !== id)); }}>Remove</Button></Group>)}
-        <Group align="end"><TextInput label="Scene drawing ID" value={drawingText} onChange={e => setDrawingText(e.currentTarget.value)} /><Button size="xs" disabled={busy || !UUID.test(drawingText.trim()) || drawings.includes(drawingText.trim())} onClick={() => { changed(); setDrawings(rows => [...rows, drawingText.trim()]); setDrawingText(''); }}>Include drawing</Button></Group>
-        {drawings.map(id => <Group key={id} gap="xs"><Text size="sm" ff="monospace">drawing {id}</Text><Button size="xs" variant="subtle" onClick={() => { changed(); setDrawings(rows => rows.filter(row => row !== id)); }}>Remove</Button></Group>)}
-        <Group align="end"><TextInput label="PCB intake ID" value={intakeText} onChange={e => setIntakeText(e.currentTarget.value)} /><TextInput label="Fabrication build ID" value={buildText} onChange={e => setBuildText(e.currentTarget.value)} /><Button size="xs" disabled={busy || !UUID.test(intakeText.trim()) || !UUID.test(buildText.trim()) || builds.some(b => b.build_id === buildText.trim())} onClick={() => { changed(); setBuilds(rows => [...rows, { intake_id: intakeText.trim(), build_id: buildText.trim() }]); setBuildText(''); }}>Include fabrication build</Button></Group>
-        {builds.map(row => <Group key={row.build_id} gap="xs"><Text size="sm" ff="monospace">build {row.build_id}</Text><Button size="xs" variant="subtle" onClick={() => { changed(); setBuilds(rows => rows.filter(b => b.build_id !== row.build_id)); }}>Remove</Button></Group>)}
+        {!rootId && <Text size="sm">Choose a package root to list its retained outputs.</Text>}
+        {choices.isError && <Alert color="red">Retained outputs unavailable: {choices.error.message}</Alert>}
+        {rootId && choices.data && <>
+          <MultiSelect label="Preparation document sets" disabled={busy} data={choices.data.preparation_document_sets.map(row => ({ value: row.document_set_id, label: `${row.name} · quantity ${row.quantity ?? 'unknown'} · ${row.created_at}` }))} value={documentSets} onChange={value => { changed(); setDocumentSets(value); }} />
+          <MultiSelect label="Cable test plans" disabled={busy} data={choices.data.test_plans.map(row => ({ value: row.revision_id, label: `${row.name} · r${row.number} · ${row.occurrence_path.join('/') || 'standalone'}` }))} value={testPlans} onChange={value => { changed(); setTestPlans(value); }} />
+          <MultiSelect label="PCB fabrication builds" disabled={busy} data={choices.data.pcb_fabrication_builds.map(row => ({ value: row.build_id, label: `Build ${row.build_id.slice(0, 8)} · intake ${row.intake_id.slice(0, 8)}` }))} value={builds} onChange={value => { changed(); setBuilds(value); }} />
+          <MultiSelect label="Scene drawings" disabled={busy} data={choices.data.scene_drawings.map(row => ({ value: row.drawing_id, label: `${row.name} · ${row.renderer_version} · ${row.created_at}` }))} value={drawings} onChange={value => { changed(); setDrawings(value); }} />
+          <Text size="xs">Lists show the latest readable candidates rooted in this closure; the review still checks every cited revision and quantity.</Text>
+        </>}
       </Stack></Card>
       <Group><Button disabled={busy || !rootId || !quantityValid} loading={busy} onClick={() => void inspect()}>Review export package</Button></Group>
       {manifest && <Card withBorder padding="sm"><Stack gap="xs">

@@ -644,6 +644,7 @@ def population_sources(scope):
             {
                 "revision": revision,
                 "interpretation_id": interpretation_id,
+                "intake_id": str(intake.id) if intake else None,
                 "source_revision_id": str(intake.source_revision_id) if intake else None,
                 "board_path": intake.board_path if intake else None,
             }

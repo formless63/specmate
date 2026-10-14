@@ -3,7 +3,8 @@
 import base64
 
 from specmate.access.permissions import Perm
-from specmate.export_packages.contracts import Download, ExportRequest
+from specmate.export_packages.candidates import candidates as list_candidates
+from specmate.export_packages.contracts import Candidates, Download, ExportRequest
 from specmate.export_packages.queries import archive, build_package, digest
 from specmate.operations import Context, operation
 
@@ -36,3 +37,14 @@ def download(ctx: Context, p: Download):
         "manifest_sha256": manifest_sha256,
         "media_type": "application/zip",
     }
+
+
+@operation(
+    "export_package.candidates",
+    Candidates,
+    summary="List currently readable retained outputs that may belong to one root's closure.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def candidates(ctx: Context, p: Candidates):
+    return list_candidates(ctx, p)

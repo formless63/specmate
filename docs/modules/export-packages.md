@@ -21,6 +21,13 @@ retained outputs to include: preparation document sets, cable test plan revision
 `{intake_id, build_id}` fabrication builds and scene drawings. Only authorized internal
 review is supported.
 
+`export_package.candidates` (same `workspace.read` floor) lists, for one root, the latest
+currently readable preparation document sets and cable test plans rooted in its closure,
+scene drawings of pinned snapshots, and validated successful fabrication builds of the
+intakes its `pcb_population` revisions pin. Each candidate is reread through its own
+authority; unreadable or invalid records are not offered. The browser panel chooses
+retained outputs only from this list. Listing is not a coherence decision.
+
 ## Coherence and quantities
 
 The package resolves the root's complete frozen closure and counts contextual

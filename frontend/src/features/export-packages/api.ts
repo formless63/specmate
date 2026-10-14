@@ -52,3 +52,16 @@ export function saveArchive(blob: Blob) {
   link.href = url; link.download = 'export-package.zip'; link.click();
   URL.revokeObjectURL(url);
 }
+
+export type Candidates = {
+  root_revision_id: string;
+  scene_drawings: { drawing_id: string; revision_id: string; name: string; renderer_version: string; created_at: string }[];
+  preparation_document_sets: { document_set_id: string; root_revision_id: string; name: string; quantity: number | null; created_at: string }[];
+  test_plans: { revision_id: string; name: string; number: number; root_revision_id: string; occurrence_path: string[] }[];
+  pcb_fabrication_builds: { intake_id: string; build_id: string }[];
+};
+
+/** Currently readable retained outputs that may belong to the root's closure; review still decides coherence. */
+export async function candidates(rootRevisionId: string) {
+  return (await runOperation<Candidates>('export_package.candidates', { root_revision_id: rootRevisionId })).result;
+}

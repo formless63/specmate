@@ -42,3 +42,7 @@ class ExportRequest(StrictModel):
 
 class Download(ExportRequest):
     reviewed_sha256: str = Field(pattern=SHA256)
+
+
+class Candidates(StrictModel):
+    root_revision_id: UUID
