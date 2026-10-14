@@ -52,9 +52,9 @@ test('expansion is deliberate and reopened derivative shows exact archive proven
   expect(screen.getAllByText('original-id', { selector: 'code' }).length).toBeGreaterThanOrEqual(2);
   expect(hasExpanded()).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: 'Expand ZIP into derivative' }));
-  expect(await screen.findByText('Archive SHA-256: archive-hash')).toBeTruthy();
-  expect(screen.getByText('Archive path: source.zip')).toBeTruthy();
-  expect(screen.getByText('Inherited declared rights: unknown')).toBeTruthy();
+  expect(await screen.findAllByText('archive-hash')).toBeTruthy();
+  expect(screen.getByText(/Archive path: source.zip/)).toBeTruthy();
+  expect(screen.getByText(/Inherited declared rights: unknown/)).toBeTruthy();
   expect(screen.getByText('src/board.native')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Expand ZIP into derivative' })).toBeNull();
 });

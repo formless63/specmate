@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -24,7 +25,7 @@ test("purpose switch preserves exact occurrence, unknown quantity and bought bou
     return new Response(JSON.stringify({ revision_id: "plan-rev", bom: { assembly_revision_id: "assembly-rev" }, status: "unknown", rows: [{ address: { snapshot_id: "root", path: ["left", "board"] }, revision_id: "board-rev", name: "Synthetic board", quantity: { status: "unknown", amount: null, unit: "ea" }, reason: "buy_boundary", basis: "Explicit choice", need_id: null }], boundaries: [{ address: { path: ["left", "board"] }, decision: "buy" }], unresolved: [{ address: { path: ["left", "board"] }, reason: "quantity_unknown", need_id: null }], excluded_needs: [{ need_id: "wipe", reason: "ancestor_buy" }], limitations: ["Counts only"] }), { status: 200 });
   }));
   render(wrap(<BomInspector revisionId="plan-rev" />));
-  expect(await screen.findByText("unknown ea")).toBeTruthy();
+  expect(await screen.findByText(byContent("– – – unknown"))).toBeTruthy();
   expect(screen.getByText("board-rev")).toBeTruthy();
   expect(screen.getByText("Boundary: left / board · buy")).toBeTruthy();
   expect(screen.getByText("Excluded process need: wipe · ancestor_buy")).toBeTruthy();
@@ -97,11 +98,11 @@ test("exact dimensional occurrence demand and additive waste remain strings in c
 test("frozen dimensional demand shows net, independent structural count and unknown gross", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ revision_id: "plan-rev", bom: { assembly_revision_id: "assembly-rev" }, status: "unknown", rows: [{ address: { snapshot_id: "root", path: ["wire"] }, revision_id: "wire-rev", name: "Synthetic stock", quantity: { status: "known", amount: "2.50", unit: "m" }, structural_quantity: { status: "known", amount: 2, unit: "ea" }, net_quantity: { status: "known", amount: "2.50", unit: "m" }, waste_quantity: { status: "unknown", amount: null, unit: "m" }, required_quantity: { status: "unknown", amount: null, unit: "m" }, waste_status: "not_evaluated", demand_basis: "Explicit synthetic length", waste_basis: null, reason: "buy_boundary", basis: "Buy", need_id: null }], boundaries: [], unresolved: [], excluded_needs: [], limitations: [] }), { status: 200 })));
   render(wrap(<BomInspector revisionId="plan-rev" />));
-  expect(await screen.findByText("2.50 m")).toBeTruthy();
-  expect(screen.getByText("Structural: 2 ea")).toBeTruthy();
-  expect(screen.getByText("Net demand: 2.50 m")).toBeTruthy();
-  expect(screen.getByText("Gross: unknown m")).toBeTruthy();
-  expect(screen.getByText("Waste: unknown m")).toBeTruthy();
+  expect(await screen.findAllByText(byContent("2.50 m"))).toBeTruthy();
+  expect(screen.getByText(byContent("Structural: 2 ea"))).toBeTruthy();
+  expect(screen.getByText(byContent("Net demand: 2.50 m"))).toBeTruthy();
+  expect(screen.getByText(byContent("Gross: – – – unknown"))).toBeTruthy();
+  expect(screen.getByText(byContent(/^Waste: – – – unknown/))).toBeTruthy();
 });
 
 test.each([

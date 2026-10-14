@@ -1,3 +1,4 @@
+import { SbIdentityBadge } from "../../components/sb";
 import { Alert, Badge, Button, Checkbox, Group, NativeSelect, Stack, Table, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import { applyUpgrade, findConsumers, inspectAssembly, loadProposal, proposeUpgrade, reviewUpgrade } from "./api";
@@ -160,7 +161,7 @@ function Workspace({ projectId, onApplied, initialProposalId, active = true }: P
     {active && !busy && consumers && <Stack gap="xs">
       <Text fw={600}>Frozen consumers in this project pinning {consumers.revision.name} revision {consumers.revision.number}</Text>
       {!consumers.consumers.length && <Text>No frozen consumer in the workspace pins this exact revision.</Text>}
-      {consumers.consumers.map((c) => <Group key={c.owning_snapshot_id} gap="xs"><Badge variant="frozen">{c.number === null ? "snapshot" : `revision ${c.number}`}</Badge>{c.in_project && <Badge variant="light">In this project</Badge>}<Text>{c.name} · {c.owning_snapshot_id} · uses {c.uses.map((u) => u.path.join(" / ")).join("; ")}</Text><Button variant="quiet" size="xs" aria-label={`Use owning snapshot ${c.owning_snapshot_id}`} onClick={() => { invalidate(); setSnapshot(c.owning_snapshot_id); void run(() => receive(inspectAssembly(c.owning_snapshot_id), setAssembly)); }}>Inspect uses</Button></Group>)}
+      {consumers.consumers.map((c) => <Group key={c.owning_snapshot_id} gap="xs"><SbIdentityBadge kind="frozen">{c.number === null ? "snapshot" : `revision ${c.number}`}</SbIdentityBadge>{c.in_project && <Badge variant="light">In this project</Badge>}<Text>{c.name} · {c.owning_snapshot_id} · uses {c.uses.map((u) => u.path.join(" / ")).join("; ")}</Text><Button variant="quiet" size="xs" aria-label={`Use owning snapshot ${c.owning_snapshot_id}`} onClick={() => { invalidate(); setSnapshot(c.owning_snapshot_id); void run(() => receive(inspectAssembly(c.owning_snapshot_id), setAssembly)); }}>Inspect uses</Button></Group>)}
       {consumers.truncated && <Text>Only the most recent consumers are listed.</Text>}
     </Stack>}
     <TextInput label="Owning assembly snapshot ID" value={snapshot} onChange={(e) => changeIdentity(setSnapshot, e.currentTarget.value)} />
@@ -175,8 +176,8 @@ function Workspace({ projectId, onApplied, initialProposalId, active = true }: P
       <Title order={3}>Exact proposal {proposal.proposal_id}</Title>
       <Text>Owning snapshot {proposal.owning_snapshot_id} · SHA-256 {proposal.owning_sha256}</Text>
       {proposal.relation === "declared_replacement"
-        ? <Group gap="xs"><Badge variant="draft">Declared replacement</Badge><Text>Declaration: {proposal.replacement_basis}</Text></Group>
-        : <Badge variant="frozen">Later revision of the same definition</Badge>}
+        ? <Group gap="xs"><SbIdentityBadge kind="draft">Declared replacement</SbIdentityBadge><Text>Declaration: {proposal.replacement_basis}</Text></Group>
+        : <SbIdentityBadge kind="frozen">Later revision of the same definition</SbIdentityBadge>}
       {proposal.consumer && <Text>Consuming context: {proposal.context_path?.length ? proposal.context_path.join(" / ") : "owning snapshot"} · {proposal.consumer.name}{proposal.consumer.number !== null ? ` revision ${proposal.consumer.number}` : ""} · {proposal.consumer.sha256}</Text>}
       {propagation?.status === "required" && <Alert color="yellow" title="Parent propagation required">Adoption creates or updates a draft of {propagation.consumer.name} only. The owning snapshot keeps revision {propagation.consumer.number} at {propagation.context_path.join(" / ")}{propagation.sibling_context_paths.length ? ` and at ${propagation.sibling_context_paths.map((p) => p.join(" / ")).join(", ")}` : ""}. A separate later-revision proposal must review {propagation.outer_relationships.length} outer relationship(s) and {propagation.outer_assignments.length} outer assignment(s) that address these uses.</Alert>}
       <Text><RevisionLabel role="Old" id={proposal.old.revision_id} sha256={proposal.old.sha256} known={{ name: proposal.old.name, number: proposal.old.number }} /></Text>

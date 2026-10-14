@@ -12,11 +12,20 @@ import { WirePreparationPreview } from './WirePreparationPreview';
 import { FrozenWirePreview } from './FrozenWirePreview';
 import { CableViews } from '../cable-views/CableViews';
 import { StockSectionView } from '../cable-views/StockSectionView';
-import { SbQuantity } from '../../components/sb';
+import { SbQuantity, SbQuantityField, SbUnknown } from '../../components/sb';
 import { rowLook, Swatch } from '../cable-views/Swatch';
 
 const clone = <T,>(value: T): T => structuredClone(value);
-const dimension = (value: number | null): string => value === null ? 'Unknown' : `${Number(value.toFixed(4))} mm`;
+const dimension = (value: number | null) => <SbQuantity value={value === null ? null : Number(value.toFixed(4))} unit="mm" />;
+/** Editable millimetre entry. Keeps the raw text so a trailing decimal point survives; only valid numbers or a cleared field reach the draft. */
+function MmEntry({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number | null) => void }) {
+  const [raw, setRaw] = useState(value === null ? '' : String(value));
+  const parsed = raw.trim() === '' ? null : Number(raw);
+  const invalid = parsed !== null && (!Number.isFinite(parsed) || parsed < 0);
+  if (!invalid && parsed !== value) setRaw(value === null ? '' : String(value));
+  return <SbQuantityField label={label} value={raw} unit="mm" state={invalid ? 'invalid' : raw.trim() === '' ? 'unknown' : 'known'} note="Enter a non-negative number."
+    onChange={next => { setRaw(next); const n = next.trim() === '' ? null : Number(next); if (n === null || (Number.isFinite(n) && n >= 0)) onChange(n); }} />;
+}
 function download(name: string, body: string, type: string): void {
   const url = URL.createObjectURL(new Blob([body], { type }));
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
@@ -41,7 +50,7 @@ function newElement(kind: StockElement['kind'], siblings: StockElement[]): Stock
 function ElementEditor({ node, path, onChange }: { node: StockElement; path: string; onChange: (path: string, patch: Partial<StockElement>) => void }) {
   const [addKind, setAddKind] = useState<StockElement['kind']>('conductor');
   const structure = usePermission('item.create');
-  const numberField = (label: string, key: string, value: number | null) => <NumberInput label={`${path} ${label}`} value={value ?? ''} min={0} step={0.1} onChange={v => onChange(path, { [key]: typeof v === 'number' ? v : null })} />;
+  const numberField = (label: string, key: string, value: number | null) => <MmEntry label={`${path} ${label}`} value={value} onChange={v => onChange(path, { [key]: v })} />;
   return <Stack gap="xs" style={{ borderLeft: '2px solid #aaa', paddingLeft: 12 }}>
     <Text fw={600}>{path} · {node.kind}</Text>
     <Group align="flex-end">
@@ -153,9 +162,9 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
     </Group>
     <WirePreparationPreview key={current?.draft_id ?? name} section={section} lengthMm={length} />
     <Table><Table.Thead><Table.Tr><Table.Th>Tag / element</Table.Th><Table.Th>Material / color</Table.Th><Table.Th>Dimensions</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-      {section.rows.map(row => <Table.Tr key={row.path}><Table.Td>{row.tag} · {row.path}<br />{row.label} ({row.kind})</Table.Td><Table.Td><Swatch look={rowLook(row)} />{row.material ?? 'Unknown'} / {row.color ?? 'Unknown'}</Table.Td><Table.Td><SbQuantity value={row.widthMm === null ? null : Number(row.widthMm.toFixed(4))} unit="mm" /> × <SbQuantity value={row.heightMm === null ? null : Number(row.heightMm.toFixed(4))} unit="mm" />{row.outerDiameterMm !== null && <> · bore <SbQuantity value={row.innerDiameterMm === null ? null : Number(row.innerDiameterMm.toFixed(4))} unit="mm" /></>}</Table.Td><Table.Td>{row.source ?? 'Unknown'}</Table.Td></Table.Tr>)}
+      {section.rows.map(row => <Table.Tr key={row.path}><Table.Td>{row.tag} · {row.path}<br />{row.label} ({row.kind})</Table.Td><Table.Td><Swatch look={rowLook(row)} />{row.material ?? <SbUnknown />} / {row.color ?? <SbUnknown />}</Table.Td><Table.Td><SbQuantity value={row.widthMm === null ? null : Number(row.widthMm.toFixed(4))} unit="mm" /> × <SbQuantity value={row.heightMm === null ? null : Number(row.heightMm.toFixed(4))} unit="mm" />{row.outerDiameterMm !== null && <> · bore <SbQuantity value={row.innerDiameterMm === null ? null : Number(row.innerDiameterMm.toFixed(4))} unit="mm" /></>}</Table.Td><Table.Td>{row.source ?? <SbUnknown />}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
-    <Text>{Object.entries(stock.facts).map(([key, fact]) => `${key}: ${fact.value ?? 'Unknown'}${fact.unit ? ` ${fact.unit}` : ''} (${fact.status})`).join(' · ')}</Text>
+    <Text>{Object.entries(stock.facts).map(([key, fact]) => <span key={key}>{key}: <SbQuantity value={fact.value} unit={fact.unit ?? undefined} /> ({fact.status}) </span>)}</Text>
     <Title order={3}>End faces and information</Title>
     <CableViews stock={stock} name={name} tabs={['end-a', 'end-b', 'info']} />
     <FrozenWirePreview key={projectId ?? 'library'} projectId={projectId} />

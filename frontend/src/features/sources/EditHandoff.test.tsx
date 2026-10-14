@@ -176,7 +176,7 @@ test('reopened revision shows exact re-entry provenance', () => {
     source: { kind: 'zip', revision_id: 'upload-id', path: 'edited.zip', sha256: 'zip-hash', parser: 'specmate-classic-zip-v1' },
     marker: 'matched', root_prefix: 'my-edit', review_sha256: 'review-2', summary: 'Synthetic outside edit', execution: 'none', validation: 'not_performed',
   } }} /></MantineProvider>);
-  expect(screen.getByText('r2')).toBeTruthy();
+  expect(screen.getByText('Baseline r2')).toBeTruthy();
   expect(screen.getByText('orig-id', { selector: 'code' })).toBeTruthy();
   expect(screen.getByText(/zip-hash/)).toBeTruthy();
   expect(screen.getByText('Handoff marker: matched · root folder my-edit/')).toBeTruthy();

@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -75,7 +76,7 @@ test("registers work using a selected exact revision and keeps the unknown plan 
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]).toMatchObject({ operation: "inventory.create_work_batch", payload: { revision_id: "target-revision", label: "Partial assembly", kind: "batch", planned_units: null } });
   expect(calls[0]?.idempotency_key).toBeTruthy();
-  expect(await screen.findByText(/Partial assembly · batch · reported 0 \/ Unknown planned count/)).toBeTruthy();
+  expect(await screen.findByText(byContent(/Partial assembly · batch · reported 0 \/ – – –\s*planned count unknown/))).toBeTruthy();
   expect(screen.getByText(/Actual subjects can be linked to this plan/)).toBeTruthy();
 });
 
@@ -88,7 +89,7 @@ test("reports partial completion independently from material consumption", async
   fireEvent.click(screen.getByText("Record partial completion"));
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]).toMatchObject({ operation: "inventory.record_work_completion", expected_state: "work-before", payload: { work_batch_id: "work-1", units_completed: 2, assertion_source: "Work log", assertion_status: "declared" } });
-  expect(await screen.findByText(/reported 2 \/ Unknown planned count · partial/)).toBeTruthy();
+  expect(await screen.findByText(byContent(/reported 2 \/ – – –\s*planned count unknown · partial/))).toBeTruthy();
   expect(calls.some((call) => call.operation === "inventory.consume")).toBe(false);
 });
 

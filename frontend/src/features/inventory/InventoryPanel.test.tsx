@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -68,7 +69,7 @@ test("unknown balance stays visibly unknown and cannot be reserved", async () =>
   fireEvent.change(screen.getByLabelText("Operation quantity"), { target: { value: "1" } });
   fireEvent.change(screen.getByLabelText("Reservation purpose"), { target: { value: "Prepare assembly" } });
   expect((screen.getByRole("button", { name: "Apply stock operation" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getAllByText("Unknown ea")).toHaveLength(2);
+  expect(screen.getAllByText(byContent("– – – unknown"))).toHaveLength(2);
   expect(calls).toHaveLength(0);
 });
 

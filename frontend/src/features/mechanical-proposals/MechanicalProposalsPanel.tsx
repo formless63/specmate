@@ -1,4 +1,5 @@
-import { Alert, Badge, Button, Card, Group, SegmentedControl, Select, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
+import { SbIdentityBadge } from "../../components/sb";
+import { Alert, Button, Card, Group, SegmentedControl, Select, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ReadOnlyNote, usePermission, InspectionScope } from '../../lib/permissions';
 import { randomUUID } from '../../lib/random-id';
@@ -136,7 +137,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
     <Card withBorder><Stack>
       <Title order={3}>Drafts</Title>
       {rows.length === 0 ? <Text>No proposal drafts in this project.</Text> : <Table><Table.Thead><Table.Tr><Table.Th>Name</Table.Th><Table.Th>State</Table.Th><Table.Th>Retained</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
-        {rows.map(row => <Table.Tr key={row.draft_id}><Table.Td>{row.name}</Table.Td><Table.Td><Badge variant="draft">{row.state}</Badge></Table.Td><Table.Td>{row.revision_count}</Table.Td><Table.Td><Button variant="quiet" disabled={busy} onClick={() => void open(row.draft_id)} aria-label={`Open proposal ${row.name}`}>Open</Button></Table.Td></Table.Tr>)}
+        {rows.map(row => <Table.Tr key={row.draft_id}><Table.Td>{row.name}</Table.Td><Table.Td><SbIdentityBadge kind="draft">{row.state}</SbIdentityBadge></Table.Td><Table.Td>{row.revision_count}</Table.Td><Table.Td><Button variant="quiet" disabled={busy} onClick={() => void open(row.draft_id)} aria-label={`Open proposal ${row.name}`}>Open</Button></Table.Td></Table.Tr>)}
       </Table.Tbody></Table>}
       <Group align="end">
         <InspectionScope permission="item.create">
@@ -149,7 +150,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
 
     {draft && inputs && <>
       <Card withBorder><Stack>
-        <Group><Title order={3}>{draft.name}</Title><Badge variant="draft">{draft.state}</Badge>{dirty && <Badge variant="occurrence">Unsaved edits</Badge>}</Group>
+        <Group><Title order={3}>{draft.name}</Title><SbIdentityBadge kind="draft">{draft.state}</SbIdentityBadge>{dirty && <SbIdentityBadge kind="occurrence">Unsaved edits</SbIdentityBadge>}</Group>
         <Text size="xs">Board interpretation {draft.interpretation_id} · SHA-256 {inputs.sha256} · frame: {inputs.frame}</Text>
       <InspectionScope permission="design.edit">
         <Title order={4}>Enclosure shell</Title>
@@ -211,11 +212,11 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <ProposalReview proposal={draft.proposal} label="Saved proposal" saved />
       <Card withBorder><Stack><Title order={3}>Retained records</Title>
         {draft.revisions.length === 0 ? <Text>None retained. A retained record is an immutable derived copy of the saved proposal, incomplete or not.</Text> :
-          draft.revisions.map(r => <Group key={r.revision_id}><Badge variant="frozen">Record {r.number}</Badge><Text size="xs">{r.status} · {r.sha256}</Text>{r.current_decision ? <Badge variant="frozen">{r.current_decision}</Badge> : <Badge variant="draft">no decision</Badge>}<Button variant="quiet" disabled={busy} onClick={() => void showRetained(r.revision_id)} aria-label={`Inspect retained record ${r.number}`}>Inspect</Button></Group>)}
+          draft.revisions.map(r => <Group key={r.revision_id}><SbIdentityBadge kind="frozen">Record {r.number}</SbIdentityBadge><Text size="xs">{r.status} · {r.sha256}</Text>{r.current_decision ? <SbIdentityBadge kind="frozen">{r.current_decision}</SbIdentityBadge> : <SbIdentityBadge kind="draft">no decision</SbIdentityBadge>}<Button variant="quiet" disabled={busy} onClick={() => void showRetained(r.revision_id)} aria-label={`Inspect retained record ${r.number}`}>Inspect</Button></Group>)}
       </Stack></Card>
     </>}
     {retained?.document && <Card withBorder><Stack>
-      <Group><Title order={3}>Retained record {retained.number}</Title><Badge variant="frozen">{retained.status}</Badge></Group>
+      <Group><Title order={3}>Retained record {retained.number}</Title><SbIdentityBadge kind="frozen">{retained.status}</SbIdentityBadge></Group>
       <Text size="xs">SHA-256 {retained.sha256} · draft version {retained.draft_version} · board {retained.interpretation_sha256}</Text>
       <ProposalReview proposal={retained.document.proposal} label="Retained proposal" />
       <DecisionReview workspaceId={workspaceId} key={`${retained.revision_id}:${retained.decision_state}`} retained={retained} busy={busy} onDecide={decide} onReload={() => showRetained(retained.revision_id)} />
@@ -257,7 +258,7 @@ function DecisionReview({ workspaceId, retained, busy, onDecide, onReload }: { w
     }
   }
   return <Card withBorder aria-label="Review decision"><Stack gap="xs">
-    <Group><Title order={4}>Review decision</Title>{retained.current_decision ? <Badge variant="frozen">{retained.current_decision.decision}</Badge> : <Badge variant="draft">undecided</Badge>}</Group>
+    <Group><Title order={4}>Review decision</Title>{retained.current_decision ? <SbIdentityBadge kind="frozen">{retained.current_decision.decision}</SbIdentityBadge> : <SbIdentityBadge kind="draft">undecided</SbIdentityBadge>}</Group>
     <Text size="xs">A decision is a separate append-only record. It never edits this retained proposal or any frozen item. Accepting creates a design draft, or links one you name, and is final.</Text>
     {history.length === 0 ? <Text size="sm">No decisions recorded.</Text> : <Table><Table.Thead><Table.Tr><Table.Th>#</Table.Th><Table.Th>Decision</Table.Th><Table.Th>Reason</Table.Th><Table.Th>Draft</Table.Th><Table.Th>When</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
       {history.map(d => <Table.Tr key={d.decision_id}><Table.Td>{d.version}</Table.Td><Table.Td>{d.decision}</Table.Td><Table.Td>{d.reason}</Table.Td><Table.Td>{d.draft_id ? `${d.link_mode} ${d.draft_id}` : 'none'}</Table.Td><Table.Td>{d.created_at}</Table.Td></Table.Tr>)}
@@ -291,7 +292,7 @@ const statusText: Record<string, string> = { incomplete: 'Incomplete: unresolved
 export function ProposalReview({ proposal, label, saved = false }: { proposal: Proposal; label: string; saved?: boolean }) {
   const byFeature = (feature: Feature) => proposal.unresolved.filter(u => u.feature_id === feature.feature_id);
   return <Card withBorder aria-label={label}><Stack>
-    <Group><Title order={3}>{label}</Title><Badge variant={proposal.status === 'incomplete' ? 'draft' : 'occurrence'}>{statusText[proposal.status]}</Badge></Group>
+    <Group><Title order={3}>{label}</Title><SbIdentityBadge kind={proposal.status === 'incomplete' ? 'draft' : 'occurrence'}>{statusText[proposal.status]}</SbIdentityBadge></Group>
     {saved && <Text size="sm">Reflects the last saved declarations only; unsaved edits are not previewed.</Text>}
     <Text size="sm">Geometry checks: {proposal.checks_summary.pass} pass · {proposal.checks_summary.fail} fail · {proposal.checks_summary.not_evaluated} not evaluated. They are arithmetic on declared inputs.</Text>
     <PlanPreview proposal={proposal} />
@@ -301,7 +302,7 @@ export function ProposalReview({ proposal, label, saved = false }: { proposal: P
     </Table.Tbody></Table>}
     <Title order={4}>Features</Title>
     {proposal.features.map(feature => <Card withBorder key={feature.feature_id}><Stack gap="xs">
-      <Group><Text fw={600}>{feature.feature_id}</Text><Badge variant={feature.status === 'incomplete' ? 'draft' : 'frozen'}>{feature.kind.replace(/_/g, ' ')}</Badge>{byFeature(feature).length > 0 && <Text size="xs">{byFeature(feature).length} unresolved</Text>}</Group>
+      <Group><Text fw={600}>{feature.feature_id}</Text><SbIdentityBadge kind={feature.status === 'incomplete' ? 'draft' : 'frozen'}>{feature.kind.replace(/_/g, ' ')}</SbIdentityBadge>{byFeature(feature).length > 0 && <Text size="xs">{byFeature(feature).length} unresolved</Text>}</Group>
       {feature.checks.map((check, index) => <Text size="sm" key={index}>{check.status.replace('_', ' ')}: {check.code.replace(/_/g, ' ')} ({check.detail})</Text>)}
       {feature.notes.map((note, index) => <Text size="xs" key={index}>{note}</Text>)}
     </Stack></Card>)}

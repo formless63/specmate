@@ -1,8 +1,9 @@
 import { Alert, Stack, Table, Text, Title } from '@mantine/core';
 import type { Section, StockSpecification } from '../../../../packages/section-layout/src';
+import { SbQuantity, SbUnknown } from '../../components/sb';
 import { rowLook, Swatch } from './Swatch';
 
-const mm = (v: number | null): string => v === null ? 'Unknown' : `${Number(v.toFixed(4))} mm`;
+const mm = (v: number | null) => <SbQuantity value={v === null ? null : Number(v.toFixed(4))} unit="mm" />;
 const SIGNIFICANT = new Set(['conductor', 'drain', 'shield']);
 
 /**
@@ -39,7 +40,7 @@ export function StockInfo({ stock, section, name, revisionId }: { stock: StockSp
         </Table.Tr>;
       })}</Table.Tbody></Table></Table.ScrollContainer>
     {facts.length > 0 && <Table aria-label="Stock facts"><Table.Thead><Table.Tr><Table.Th>Fact</Table.Th><Table.Th>Value</Table.Th><Table.Th>Status</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
-      <Table.Tbody>{facts.map(([key, fact]) => <Table.Tr key={key}><Table.Td>{key}</Table.Td><Table.Td>{fact.value === null ? 'Unknown' : `${fact.value}${fact.unit ? ` ${fact.unit}` : ''}`}</Table.Td><Table.Td>{fact.status}</Table.Td><Table.Td>{fact.source ?? 'Unknown'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
+      <Table.Tbody>{facts.map(([key, fact]) => <Table.Tr key={key}><Table.Td>{key}</Table.Td><Table.Td><SbQuantity value={fact.value} unit={fact.unit ?? undefined} /></Table.Td><Table.Td>{fact.status}</Table.Td><Table.Td>{fact.source ?? <SbUnknown />}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
     <Text size="xs">Drawn colours are the recorded colours; hatched or typical-material fills are display choices, not recorded facts. Nothing here is a qualification.</Text>
   </Stack>;
 }

@@ -1,5 +1,6 @@
 import { Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import type { StockElement } from '../../../../packages/section-layout/src';
+import { SbQuantity, SbUnknown } from "../../components/sb";
 import type { Source } from '../workshop-profiles/api';
 import { emptyFormula, type Formula, type Profile } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -15,9 +16,9 @@ export function SourceEditor({ label, source, onChange }: { label: string; sourc
   </Stack>;
 }
 export function FormulaInspection({ formula }: { formula: Formula }) {
-  return <Stack gap="xs"><Text fw={600}>{formula.local_id} · {formula.label} · {formula.target}{formula.element_path ? ` · ${formula.element_path}` : ''}</Text><Text>Input {formula.input_length}, {formula.input_basis}; {formula.review}: {formula.review_basis ?? 'unknown basis'}</Text>
+  return <Stack gap="xs"><Text fw={600}>{formula.local_id} · {formula.label} · {formula.target}{formula.element_path ? ` · ${formula.element_path}` : ''}</Text><Text>Input {formula.input_length}, {formula.input_basis}; {formula.review}: {formula.review_basis ?? <SbUnknown what="basis" />}</Text>
     {!formula.allowances.length && <Text>No allowances: explicitly add zero.</Text>}
-    {formula.allowances.map(a => <Stack key={a.local_id} gap={0}><Text>{a.local_id}: {a.kind} {a.amount_mm ?? 'unknown'} mm · {a.scope} · {a.basis}</Text>{a.source?.kind === 'citation' && <Text>Unverified citation: {a.source.citation}</Text>}{a.source?.kind === 'source_file' && <Text><RevisionLabel kind="source" id={a.source.bundle_revision_id} role="Registered evidence" /> · {a.source.path} · {a.source.sha256} · rights {a.source.rights} · {a.source.locator}</Text>}</Stack>)}
+    {formula.allowances.map(a => <Stack key={a.local_id} gap={0}><Text>{a.local_id}: {a.kind} <SbQuantity value={a.amount_mm} unit="mm" /> · {a.scope} · {a.basis}</Text>{a.source?.kind === 'citation' && <Text>Unverified citation: {a.source.citation}</Text>}{a.source?.kind === 'source_file' && <Text><RevisionLabel kind="source" id={a.source.bundle_revision_id} role="Registered evidence" /> · {a.source.path} · {a.source.sha256} · rights {a.source.rights} · {a.source.locator}</Text>}</Stack>)}
   </Stack>;
 }
 export function ProfileEditor({ value, onChange, choices }: { value: Profile; onChange: (p: Profile) => void; choices: { value: string; label: string }[] }) {

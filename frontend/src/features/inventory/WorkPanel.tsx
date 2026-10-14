@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Definition, Identity } from "../identity/api";
 import { read, type Detail, type Submit, type WorkBatch, type WorkDetail } from "./api";
 import { revisionOptionLabel } from "../../lib/revision-labels";
+import { SbQuantity, SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const quantityUnits: Record<string, string[]> = { count: ["ea"], length: ["m", "cm", "mm"], mass: ["kg", "g"] };
@@ -41,7 +42,7 @@ export function WorkPanel({ workspaceId, projectId, batches, pending, submit }: 
     <TextInput label="Planned unit count (blank means unknown)" value={planned} onChange={(e) => setPlanned(e.currentTarget.value)} />
     </InspectionScope>
     <Button loading={pending} disabled={!revision || !label.trim() || (!!planned && !positiveCount(planned))} onClick={() => submit("inventory.create_work_batch", { revision_id: revision, kind, label, planned_units: planned ? Number(planned) : null, ...(projectId ? { project_id: projectId } : {}) })} {...manageGate.props}>Register planned work</Button><ReadOnlyNote permission="inventory.manage">Registering work and recording usage are unavailable.</ReadOnlyNote>
-    {batches.map((batch) => <Group key={batch.work_batch_id}><Text>{batch.label} · {batch.kind} · reported {batch.reported_completed_units} / {batch.planned_units ?? "Unknown planned count"} · {batch.progress}</Text><Button size="xs" onClick={() => setSelected(batch.work_batch_id)}>Inspect work {batch.label}</Button></Group>)}
+    {batches.map((batch) => <Group key={batch.work_batch_id}><Text>{batch.label} · {batch.kind} · reported {batch.reported_completed_units} / {batch.planned_units ?? <SbUnknown what="planned count" />} · {batch.progress}</Text><Button size="xs" onClick={() => setSelected(batch.work_batch_id)}>Inspect work {batch.label}</Button></Group>)}
     {selected && <WorkHistory key={selected} workId={selected} pending={pending} submit={submit} />}
   </Stack></Card>;
 }
@@ -58,7 +59,7 @@ function WorkHistory({ workId, pending, submit }: { workId: string; pending: boo
   return <Stack>
     {work.isError && <Alert color="red">{work.error.message}</Alert>}
     {batch && <>
-      <Text><RevisionLabel id={batch.revision_id} role="Work target" />. Reported {batch.reported_completed_units}; planned {batch.planned_units ?? "Unknown"}.</Text>
+      <Text><RevisionLabel id={batch.revision_id} role="Work target" />. Reported {batch.reported_completed_units}; planned <SbQuantity value={batch.planned_units} unit="units" />.</Text>
       <InspectionScope permission="inventory.manage">
       <TextInput label="Additional reported completed units" value={count} onChange={(e) => setCount(e.currentTarget.value)} />
       <TextInput label="Completion reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />

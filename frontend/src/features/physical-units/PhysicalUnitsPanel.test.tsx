@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -81,7 +82,7 @@ test("links an actual unit to exact planned work without changing reported compl
   mount();
   fireEvent.click(await screen.findByText("Inspect"));
   fireEvent.change(screen.getByLabelText("Exact planned work"), { target: { value: "work-1" } });
-  expect(await screen.findByText(/Planned 6; reported complete 0; actual linked units 0/)).toBeTruthy();
+  expect(await screen.findByText(byContent(/Planned 6 units; reported complete 0; actual linked units 0/))).toBeTruthy();
   fireEvent.change(screen.getByLabelText("Work link assertion source"), { target: { value: "Traveler" } });
   fireEvent.click(screen.getByText("Link actual unit to planned work"));
   await waitFor(() => expect(calls).toHaveLength(1));

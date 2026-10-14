@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -16,13 +17,13 @@ const sheet: Result = { revision_id: 'plan-rev', sha256: 'plan-hash', plan, subj
 
 test('sheet separates installed, selected cut, extra waste and procurement without adding allowances twice', () => {
   render(wrap(<BuildSheetContent value={sheet} />));
-  expect(screen.getByText('Total: 2000 mm')).toBeTruthy(); expect(screen.getByText('Total: 2070 mm')).toBeTruthy(); expect(screen.getByText('Total: 10 mm')).toBeTruthy(); expect(screen.getByText('2080 mm')).toBeTruthy();
-  expect(screen.getByText(/35 mm, unclassified surplus/)).toBeTruthy(); expect(screen.getByText(/Independent extra loss/)).toBeTruthy(); expect(screen.getByText(/Actual retained material and waste not recorded/)).toBeTruthy();
+  expect(screen.getByText(byContent('Total: 2000 mm'))).toBeTruthy(); expect(screen.getByText(byContent('Total: 2070 mm'))).toBeTruthy(); expect(screen.getByText(byContent('Total: 10 mm'))).toBeTruthy(); expect(screen.getByText(byContent('2080 mm'))).toBeTruthy();
+  expect(screen.getByText(byContent(/35 mm, unclassified surplus/))).toBeTruthy(); expect(screen.getByText(/Independent extra loss/)).toBeTruthy(); expect(screen.getByText(/Actual retained material and waste not recorded/)).toBeTruthy();
 });
 
 test('unknown waste does not hide known installed or cut quantities', () => {
   render(wrap(<BuildSheetContent value={{ ...sheet, pieces: [{ ...sheet.pieces[0]!, extra_waste_mm: null, extra_waste_total_mm: null, procurement_mm: null }] }} />));
-  expect(screen.getByText('Total: 2070 mm')).toBeTruthy(); expect(screen.getByText('Total: 2000 mm')).toBeTruthy(); expect(screen.getAllByText('unknown mm').length).toBeGreaterThan(0);
+  expect(screen.getByText(byContent('Total: 2070 mm'))).toBeTruthy(); expect(screen.getByText(byContent('Total: 2000 mm'))).toBeTruthy(); expect(screen.getAllByText(byContent('– – – unknown')).length).toBeGreaterThan(0);
 });
 
 test('save and freeze preserve independent unsaved observations and exact editing token', async () => {
