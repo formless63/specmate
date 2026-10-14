@@ -130,7 +130,7 @@ test("renaming edits name and purpose under the state token", async () => {
 
 test("nothing waiting is stated honestly, and start points open the matching tool", async () => {
   serve();
-  const { onOpenTool } = show();
+  const { onOpenTool } = show("admin");
   expect(await screen.findByText("Nothing is waiting on you in this project.")).toBeTruthy();
   expect(screen.getByText("This project references nothing yet.")).toBeTruthy();
   const expected: Record<string, string> = { "Stock record": "wire-stock", "Cable": "cables", "Board": "pcb", "Assembly": "assemblies", "Import source": "sources", "Physical unit": "physical-units" };
@@ -147,8 +147,26 @@ test("viewers are tagged read-only and see why project edits are unavailable", a
   serve();
   show("viewer");
   expect(await screen.findByText("read-only")).toBeTruthy();
-  expect(screen.getByText(/do not create records/)).toBeTruthy();
+  expect(screen.getByText(/starting something that creates records is unavailable/)).toBeTruthy();
+  for (const point of START_POINTS) {
+    const tile = screen.getByRole("button", { name: `Start: ${point.title}` }) as HTMLButtonElement;
+    expect(tile.disabled).toBe(true);
+    expect(tile.title).toMatch(/^Read-only access: requires /);
+  }
   expect((screen.getByRole("button", { name: "Add from library…" }) as HTMLButtonElement).title).toBe("Read-only access: requires Project editing");
+});
+
+test("start tiles follow the permission each one needs", async () => {
+  serve();
+  const { onOpenTool } = show("contributor");
+  await screen.findByText("Nothing is waiting on you in this project.");
+  const tile = (title: string) => screen.getByRole("button", { name: `Start: ${title}` }) as HTMLButtonElement;
+  expect(tile("Stock record").disabled).toBe(false);
+  expect(tile("Import source").disabled).toBe(false);
+  expect(tile("Physical unit").disabled).toBe(true);
+  expect(tile("Physical unit").title).toBe("Read-only access: requires Inventory management");
+  fireEvent.click(tile("Physical unit"));
+  expect(onOpenTool).not.toHaveBeenCalled();
 });
 
 test("a failed part shows as unavailable instead of an invented zero", async () => {

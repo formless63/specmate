@@ -1,7 +1,7 @@
 import { Alert, Button, Checkbox, Group, Popover, Select, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { gateFor } from "../../lib/permissions";
+import { gateFor, type PermissionName } from "../../lib/permissions";
 import { DeleteControl } from "../home/WorkspaceHome";
 import { deleteBlocker, deleteProject, describeDependents, setArchived } from "../home/projectLifecycle";
 import { ReferenceForm, type ReferenceChoice } from "../scope/ReferenceForm";
@@ -31,13 +31,13 @@ type Props = {
 };
 
 /** Independent starting points; each opens the tool that owns the work. */
-export const START_POINTS: { tool: string; title: string; hint: string }[] = [
-  { tool: "wire-stock", title: "Stock record", hint: "Wire, cable stock, tubing. Usable on its own." },
-  { tool: "cables", title: "Cable", hint: "Ends, conductors, preparation. No device needed." },
-  { tool: "pcb", title: "Board", hint: "From a native KiCad bundle or by hand." },
-  { tool: "assemblies", title: "Assembly", hint: "Compose exact revisions; repeat uses kept apart." },
-  { tool: "sources", title: "Import source", hint: "Original files are preserved; edits make derivatives." },
-  { tool: "physical-units", title: "Physical unit", hint: "Register something actually made or obtained." },
+export const START_POINTS: { tool: string; title: string; hint: string; permission: PermissionName }[] = [
+  { tool: "wire-stock", title: "Stock record", hint: "Wire, cable stock, tubing. Usable on its own.", permission: "item.create" },
+  { tool: "cables", title: "Cable", hint: "Ends, conductors, preparation. No device needed.", permission: "item.create" },
+  { tool: "pcb", title: "Board", hint: "From a native KiCad bundle or by hand.", permission: "source.register" },
+  { tool: "assemblies", title: "Assembly", hint: "Compose exact revisions; repeat uses kept apart.", permission: "item.create" },
+  { tool: "sources", title: "Import source", hint: "Original files are preserved; edits make derivatives.", permission: "source.register" },
+  { tool: "physical-units", title: "Physical unit", hint: "Register something actually made or obtained.", permission: "inventory.manage" },
 ];
 
 function value<T>(read: WorkRead<T> | undefined): T | null {
@@ -159,12 +159,12 @@ export function ProjectOverview({ projectId, projectName, permissions, role = nu
         <h3 className="sb-dash-h">Start something on its own <span className="sb-silk">no complete device required</span></h3>
         <div className="sb-dash-start" role="group" aria-label="Start something">
           {START_POINTS.map((point) => <button key={point.tool} type="button" className="sb-dash-card"
-            aria-label={`Start: ${point.title}`} onClick={() => onOpenTool(point.tool)}>
+            aria-label={`Start: ${point.title}`} onClick={() => onOpenTool(point.tool)} {...gateFor(permissions, point.permission).props}>
             <span className="sb-dash-card-head"><b>{point.title}</b><span className="sb-mono" aria-hidden="true" style={{ color: "var(--sb-accent)" }}>+</span></span>
             <span className="sb-dash-note">{point.hint}</span>
           </button>)}
         </div>
-        {readOnly && <Text className="sb-dash-note" mt="xs">You have read-only access here: these tools open for inspection and do not create records.</Text>}
+        {readOnly && <Text className="sb-dash-note" mt="xs">You have read-only access here: starting something that creates records is unavailable. Open the tools from their areas to inspect existing records.</Text>}
       </div>
 
       <aside className="sb-dash-side" aria-label="Project details">

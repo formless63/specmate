@@ -80,6 +80,8 @@ test('read-only permissions disable Save stock and Freeze with an accessible rea
   expect(screen.getByRole('note').textContent).toContain('Read-only access: requires Contributor access');
   expect(button('Export specification').disabled).toBe(false);
   expect(button('Export section SVG').disabled).toBe(false);
+  expect(button('Add element to stock').disabled).toBe(true);
+  expect(button('Add element to stock').title).toBe('Read-only access: requires Contributor access');
 });
 
 test('contributor can save but not freeze; freeze holder can do both', async () => {

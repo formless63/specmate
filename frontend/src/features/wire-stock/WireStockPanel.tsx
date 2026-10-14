@@ -39,6 +39,7 @@ function newElement(kind: StockElement['kind'], siblings: StockElement[]): Stock
 }
 function ElementEditor({ node, path, onChange }: { node: StockElement; path: string; onChange: (path: string, patch: Partial<StockElement>) => void }) {
   const [addKind, setAddKind] = useState<StockElement['kind']>('conductor');
+  const structure = usePermission('item.create');
   const numberField = (label: string, key: string, value: number | null) => <NumberInput label={`${path} ${label}`} value={value ?? ''} min={0} step={0.1} onChange={v => onChange(path, { [key]: typeof v === 'number' ? v : null })} />;
   return <Stack gap="xs" style={{ borderLeft: '2px solid #aaa', paddingLeft: 12 }}>
     <Text fw={600}>{path} · {node.kind}</Text>
@@ -54,9 +55,9 @@ function ElementEditor({ node, path, onChange }: { node: StockElement; path: str
         {node.arrangement !== 'concentric' && numberField('pitch mm', 'pitch_mm', node.pitch_mm)}
       </Group>
       <Group><Select label={`${path} add element kind`} value={addKind} data={['group', 'conductor', 'dielectric', 'insulation', 'shield', 'drain', 'filler', 'web', 'jacket']} onChange={v => v && setAddKind(v as StockElement['kind'])} />
-        <Button variant="light" onClick={() => onChange(path, { children: [...node.children, newElement(addKind, node.children)] })}>Add element to {path}</Button></Group>
+        <Button variant="light" onClick={() => onChange(path, { children: [...node.children, newElement(addKind, node.children)] })} {...structure.props}>Add element to {path}</Button></Group>
       {node.children.map(child => <Stack key={child.id}><ElementEditor node={child} path={`${path}.${child.id}`} onChange={onChange} />
-        <Button color="red" variant="subtle" size="xs" onClick={() => onChange(path, { children: node.children.filter(c => c.id !== child.id) })}>Remove {path}.{child.id}</Button></Stack>)}
+        <Button color="red" variant="subtle" size="xs" onClick={() => onChange(path, { children: node.children.filter(c => c.id !== child.id) })} {...structure.props}>Remove {path}.{child.id}</Button></Stack>)}
     </> : <>
       <Group>
         {node.kind === 'web' ? <>{numberField('width mm', 'width_mm', node.width_mm)}{numberField('height mm', 'height_mm', node.height_mm)}</> : <>{numberField('outer diameter mm', 'outer_diameter_mm', node.outer_diameter_mm)}{numberField('inner diameter mm', 'inner_diameter_mm', node.inner_diameter_mm)}</>}
@@ -131,7 +132,7 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
       <Button variant="light" onClick={() => download('stock.json', JSON.stringify({ name, stock, section, geometry }, null, 2), 'application/json')}>Export specification</Button>
       <Button variant="light" onClick={() => download('stock-section.svg', renderSectionSvg(section, name), 'image/svg+xml')}>Export section SVG</Button>
     </Group>
-    <ReadOnlyNote permission="item.create">Saving and freezing stock are unavailable; the local section and exports still work.</ReadOnlyNote>
+    <ReadOnlyNote permission="item.create">Saving, freezing and adding or removing elements are unavailable; the local section and exports still work.</ReadOnlyNote>
     {dirty && <Text size="sm">Unsaved construction. Save before freezing.</Text>}
     <Button variant="subtle" disabled={busy} onClick={async () => {
       try {
