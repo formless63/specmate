@@ -29,19 +29,19 @@ def scene_snapshot(user, snapshot_id):
     root = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
     if root is None:
         raise NotFound("Scene unavailable.")
-    authorize(user, root.definition.project_id, Perm.PROJECT_READ)
+    authorize(user, root.definition.workspace_id, Perm.WORKSPACE_READ)
     authorize_origin(user, root.definition)
     return get_snapshot(user, snapshot_id)
 
 
 def list_scenes(user, project_id):
     user = current_actor(user)
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     rows = []
     # Bound closure work too. Counts and cursors never expose hidden assemblies.
     revisions = (
         Revision.objects.select_related("definition", "snapshot")
-        .filter(definition__project_id=project_id, definition__kind="assembly")
+        .filter(definition__workspace=workspace, definition__kind="assembly")
         .order_by("-frozen_at", "id")[:50]
     )
     for revision in revisions:

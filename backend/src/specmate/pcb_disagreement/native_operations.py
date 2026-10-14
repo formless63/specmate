@@ -15,7 +15,7 @@ from specmate.builds.recipes import Recipe, approved_recipe
 from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.pcb_disagreement.contracts import FilePin
 from specmate.pcb_disagreement.models import SourceNetAttempt, SourceNetInterpretation
 from specmate.pcb_disagreement.native_report import NativeReport
@@ -43,21 +43,21 @@ class ReadNative(StrictModel):
 def authorize_bundle(user, revision_id):
     revision = get_bundle_revision(user, revision_id)
     for file in revision.files.select_related("blob"):
-        authorize(user, file.blob.project_id, Perm.PROJECT_READ)
+        authorize(user, file.blob.workspace_id, Perm.WORKSPACE_READ)
     return revision
 
 
 def request_source(ctx, p):
-    authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
+    workspace = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
     revision = authorize_bundle(ctx.user, p.source.source_revision_id)
-    if revision.bundle.project_id != p.project_id:
-        raise ValidationFailed("Native extraction project must own the source revision.")
+    if revision.bundle.workspace_id != workspace.id:
+        raise ValidationFailed("Native extraction workspace must hold the source revision.")
     from specmate.pcb_disagreement.queries import read_source
 
     return read_source(ctx.user, p.source)
 
 
-def scoped_attempt(user, attempt_id, permission=Perm.PROJECT_READ):
+def scoped_attempt(user, attempt_id, permission=Perm.WORKSPACE_READ):
     attempt = (
         SourceNetAttempt.objects.select_related(
             "source_file__revision__bundle", "source_file__blob", "build__source_revision__bundle"
@@ -67,7 +67,7 @@ def scoped_attempt(user, attempt_id, permission=Perm.PROJECT_READ):
     )
     if attempt is None:
         raise NotFound("Source net extraction attempt unavailable.")
-    authorize(user, attempt.build.project_id, permission)
+    authorize(user, attempt.build.workspace_id, permission)
     authorize_bundle(user, attempt.source_file.revision_id)
     authorize_bundle(user, attempt.build.source_revision_id)
     for output in attempt.build.stage.outputs.select_related("source_revision__bundle"):
@@ -87,7 +87,7 @@ def scoped_interpretation(user, interpretation_id):
         raise NotFound("Source net interpretation unavailable.")
     scoped_attempt(user, item.attempt_id)
     for output in (item.output, item.xml_output):
-        authorize(user, output.stage.build.project_id, Perm.PROJECT_READ)
+        authorize(user, output.stage.build.workspace_id, Perm.WORKSPACE_READ)
         authorize_bundle(user, output.source_revision_id)
     return item
 
@@ -123,11 +123,11 @@ def check_recipe(file, role, recipe):
 def scope(ctx, p):
     if isinstance(p, RequestNative):
         request_source(ctx, p)
-        namespace = project_scope(ctx, p.project_id, Perm.BUILD_EXECUTE)
+        namespace = workspace_scope(ctx, p.project_id, Perm.BUILD_EXECUTE)
         name = "pcb_disagreement.request_native"
     else:
         attempt = scoped_attempt(ctx.user, p.attempt_id, Perm.SOURCE_REGISTER)
-        namespace = project_scope(ctx, attempt.build.project_id, Perm.SOURCE_REGISTER)
+        namespace = workspace_scope(ctx, attempt.build.workspace_id, Perm.SOURCE_REGISTER)
         name = "pcb_disagreement.accept_native"
     # The executor deliberately diagnoses mismatches before invoking replay hooks.
     # Authorize old outcomes here even when the new payload selects another source.
@@ -136,7 +136,7 @@ def scope(ctx, p):
             actor=ctx.user,
             operation=name,
             key=ctx.idempotency_key,
-            scope__in=[namespace, LEGACY_SCOPE],
+            scope=namespace,
         ):
             if isinstance(p, RequestNative):
                 scoped_attempt(ctx.user, record.result["attempt_id"], Perm.BUILD_EXECUTE)
@@ -208,7 +208,7 @@ def validate_outputs(attempt):
         raise ValidationFailed("Stored build recipe identifier is inconsistent.")
     if (
         build.source_revision_id != file.revision_id
-        or build.project_id != file.revision.bundle.project_id
+        or build.workspace_id != file.revision.bundle.workspace_id
     ):
         raise ValidationFailed("Extraction build differs from the owning source.")
     stage = BuildStage.objects.select_for_update().get(build=build)
@@ -290,9 +290,9 @@ def read_native(ctx, p):
 
 
 def list_native(user, project_id):
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     results = []
-    for attempt in SourceNetAttempt.objects.filter(build__project_id=project_id).order_by(
+    for attempt in SourceNetAttempt.objects.filter(build__workspace=workspace).order_by(
         "-created_at"
     )[:100]:
         try:

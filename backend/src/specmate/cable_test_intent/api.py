@@ -18,7 +18,7 @@ def draft(request, draft_id: UUID):
     value = plan_draft(
         Context(user=current_actor(request.user), via="api", request_id="read"),
         draft_id,
-        Perm.PROJECT_READ,
+        Perm.WORKSPACE_READ,
     )
     return {"definition_id": str(value.definition_id), **draft_state(value)}
 

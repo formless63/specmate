@@ -6,9 +6,9 @@ from typing import Any
 from uuid import UUID
 
 from django.db.models import Max
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, authorize_item
 from specmate.design.models import Definition, Draft, Revision, Snapshot, SnapshotDependency
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 
@@ -26,7 +26,8 @@ def scoped_draft(ctx: Context, draft_id: UUID, perm: Perm, *, lock: bool = False
     draft = query.filter(id=draft_id).first()
     if draft is None:
         raise NotFound("Draft not found.")
-    authorize(ctx.user, draft.definition.project_id, perm)  # NotFound for non-members
+    # NotFound for non-members; contributors may edit drafts of definitions they created.
+    authorize_item(ctx.user, draft.definition, perm)
     authorize_design_content(ctx.user, draft.definition, draft.content)
     return draft
 
@@ -50,10 +51,23 @@ def check_state(ctx: Context, draft: Draft) -> None:
 
 class CreateDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    project_id: UUID
+    workspace_id: UUID | None = None
+    # TRANSITIONAL (workspace collections): a project id only selects its workspace. The
+    # definition is a workspace item; no project reference is created. P3 removes it.
+    project_id: UUID | None = None
     kind: str = Field(pattern=KIND_PATTERN)
     name: str = Field(min_length=1, max_length=200)
     content: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def one_scope(self):
+        if (self.workspace_id is None) == (self.project_id is None):
+            raise ValueError("Provide exactly one of workspace_id or project_id.")
+        return self
+
+    @property
+    def scope_id(self) -> UUID:
+        return self.workspace_id or self.project_id
 
 
 @operation(
@@ -62,14 +76,18 @@ class CreateDefinition(BaseModel):
     summary="Create a reusable definition with an initial editable draft.",
 )
 def create_definition(ctx: Context, p: CreateDefinition) -> dict:
-    project = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
     definition = Definition.objects.create(
-        project=project, kind=p.kind, name=p.name, created_by=ctx.user
+        workspace=workspace, kind=p.kind, name=p.name, created_by=ctx.user
     )
     content = validate_content(definition.kind, p.content)
     authorize_design_content(ctx.user, definition, content)
     draft = Draft.objects.create(definition=definition, content=content, updated_by=ctx.user)
-    return {"definition_id": str(definition.id), **draft_state(draft)}
+    return {
+        "definition_id": str(definition.id),
+        "workspace_id": str(workspace.id),
+        **draft_state(draft),
+    }
 
 
 class UpdateDraft(BaseModel):
@@ -215,7 +233,8 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
     authorized_snapshots = set()
     for rid in sorted(dependencies, key=str):
         revision = found.get(rid)
-        if revision is None:
+        if revision is None or revision.definition.workspace_id != draft.definition.workspace_id:
+            # Pins never cross workspaces; a foreign revision reads as missing.
             raise NotFound("Dependency revision not found.")
         authorize_snapshot(ctx.user, revision.snapshot, _authorized=authorized_snapshots)
         if revision.definition_id == draft.definition_id and derived is None:
@@ -443,12 +462,16 @@ def authorize_design_content(user, definition, content):
 
 
 def authorize_snapshot(user, snapshot, *, _authorized=None):
-    """Authorize exact dependencies, sharing completed work only within a caller batch.
+    """Authorize a snapshot and its exact pinned closure, validating typed content.
 
+    Membership is checked once for the root's workspace: database guards keep every
+    pin inside one workspace, so the closure needs no per-dependency membership lookup.
     The private set belongs to one synchronous traversal for one actor, never to a
     request cache or retained object. Failed traversals publish no completed work.
     Typed content and retained origins remain checked for each new snapshot.
     """
+    workspace_id = snapshot.definition.workspace_id
+    authorize(user, workspace_id, Perm.WORKSPACE_READ)
     pending = [snapshot]
     visited = set() if _authorized is None else set(_authorized)
     while pending:
@@ -456,7 +479,9 @@ def authorize_snapshot(user, snapshot, *, _authorized=None):
         if current.pk in visited:
             continue
         visited.add(current.pk)
-        authorize(user, current.definition.project_id, Perm.PROJECT_READ)
+        if current.definition.workspace_id != workspace_id:
+            # Unreachable while the same-workspace pin guard holds; never disclose.
+            raise NotFound("Not found.")
         body = json.loads(bytes(current.canonical))
         authorize_design_content(user, current.definition, body["content"])
         for dependency in current.dependencies.select_related(

@@ -25,7 +25,7 @@ def authorize_profile_content(user, definition, content: dict) -> None:
     stock = get_revision(user, profile.stock_revision_id)
     if (
         stock.definition.kind != "wire_stock"
-        or stock.definition.project_id != definition.project_id
+        or stock.definition.workspace_id != definition.workspace_id
     ):
         raise ValidationFailed(
             "Profile construction must be an exact stock revision in this project."
@@ -43,7 +43,7 @@ def authorize_profile_content(user, definition, content: dict) -> None:
         if not isinstance(source, SourceFile):
             continue
         revision = get_bundle_revision(user, source.bundle_revision_id)
-        if revision.bundle.project_id != definition.project_id:
+        if revision.bundle.workspace_id != definition.workspace_id:
             raise ValidationFailed("Profile source must belong to its project.")
         file = (
             SourceBundleFile.objects.select_related("blob")
@@ -81,11 +81,11 @@ def dependency_revisions(user, definition, content: dict) -> list[UUID]:
 
 
 def list_profiles(user, project_id: UUID) -> list[dict]:
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     result = []
     for draft in (
         Draft.objects.select_related("definition")
-        .filter(definition__project_id=project_id, definition__kind="workshop_profile")
+        .filter(definition__workspace=workspace, definition__kind="workshop_profile")
         .order_by("definition__created_at", "id")
     ):
         authorize_profile_content(user, draft.definition, draft.content)
@@ -103,7 +103,7 @@ def get_profile(user, draft_id: UUID) -> dict:
     draft = scoped_draft(
         Context(user=user, via="internal", request_id="profile-read"),
         draft_id,
-        Perm.PROJECT_READ,
+        Perm.WORKSPACE_READ,
     )
     if draft.definition.kind != "workshop_profile":
         raise NotFound("Workshop profile draft not found.")
@@ -119,7 +119,7 @@ def list_profile_revisions(user, definition_id: UUID) -> list[dict]:
     definition = Definition.objects.filter(id=definition_id, kind="workshop_profile").first()
     if definition is None:
         raise NotFound("Workshop profile definition not found.")
-    authorize(user, definition.project_id, Perm.PROJECT_READ)
+    authorize(user, definition.workspace_id, Perm.WORKSPACE_READ)
     revisions = (
         Revision.objects.select_related("definition", "snapshot")
         .filter(definition_id=definition_id, definition__kind="workshop_profile")

@@ -158,11 +158,6 @@
           "title": "Number",
           "type": "integer"
         },
-        "project_id": {
-          "format": "uuid",
-          "title": "Project Id",
-          "type": "string"
-        },
         "revision_id": {
           "format": "uuid",
           "title": "Revision Id",
@@ -171,12 +166,17 @@
         "sha256": {
           "title": "Sha256",
           "type": "string"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
         }
       },
       "required": [
         "revision_id",
         "definition_id",
-        "project_id",
+        "workspace_id",
         "name",
         "kind",
         "number",

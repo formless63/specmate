@@ -37,7 +37,7 @@ class RegisterBlob(BaseModel):
     attachments=("content",),
 )
 def register_blob(ctx: Context, p: RegisterBlob) -> dict:
-    project = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
     if p.size > settings.SPECMATE_MAX_SOURCE_BYTES:
         raise ValidationFailed("Declared size exceeds the configured limit.")
     try:
@@ -52,7 +52,7 @@ def register_blob(ctx: Context, p: RegisterBlob) -> dict:
         )
     blobstore.promote(staged)
     blob, created = SourceBlob.objects.get_or_create(
-        project=project,
+        workspace=workspace,
         sha256=p.sha256,
         defaults={"size": p.size, "media_type": p.media_type, "registered_by": ctx.user},
     )
@@ -82,7 +82,7 @@ def _write_revision(
     blobs = {
         b.sha256: b
         for b in SourceBlob.objects.filter(
-            project=bundle.project, sha256__in={file.sha256 for file in files}
+            workspace=bundle.workspace, sha256__in={file.sha256 for file in files}
         )
     }
     entries = []
@@ -147,9 +147,9 @@ class CreateBundle(BaseModel):
     summary="Preserve an imported original bundle as revision 1 of a new bundle.",
 )
 def create_original_bundle(ctx: Context, p: CreateBundle) -> dict:
-    project = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
     bundle = SourceBundle.objects.create(
-        project=project, name=p.name, role=SourceBundle.Role.ORIGINAL, created_by=ctx.user
+        workspace=workspace, name=p.name, role=SourceBundle.Role.ORIGINAL, created_by=ctx.user
     )
     return revision_result(_write_revision(ctx, bundle, p.files, ancestry=[]))
 
@@ -165,7 +165,7 @@ def authorized_head(ctx: Context, bundle_id) -> SourceBundleRevision:
     bundle = SourceBundle.objects.filter(id=bundle_id).first()
     if bundle is None:
         raise NotFound("Bundle not found.")
-    authorize(ctx.user, bundle.project_id, Perm.SOURCE_REGISTER)
+    authorize(ctx.user, bundle.workspace_id, Perm.SOURCE_REGISTER)
     head = bundle.revisions.select_related("bundle").order_by("-number").first()
     authorize_revision(ctx.user, head, Perm.SOURCE_REGISTER)
     return head
@@ -202,15 +202,14 @@ def _revise_replay(ctx: Context, p: ReviseBundle, result) -> None:
 
 def _revise_scope(ctx: Context, p: ReviseBundle) -> str:
     from specmate.operations.models import IdempotencyRecord
-    from specmate.operations.scope import LEGACY_SCOPE
 
     head = authorized_head(ctx, p.bundle_id)
-    scope = f"project:{head.bundle.project_id}"
+    scope = f"workspace:{head.bundle.workspace_id}"
     # Current authority over a retained outcome precedes even a keyed mismatch.
     prior = IdempotencyRecord.objects.select_for_update().filter(
         actor=ctx.user, operation="source.revise_bundle", key=ctx.idempotency_key
     )
-    retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+    retained = prior.filter(scope=scope).first()
     if retained is not None:
         _retained_revision(ctx, retained.result)
     return scope
@@ -267,14 +266,13 @@ def _derive_replay(ctx: Context, p: DeriveBundle, result) -> None:
 
 def _derive_scope(ctx: Context, p: DeriveBundle) -> str:
     from specmate.operations.models import IdempotencyRecord
-    from specmate.operations.scope import LEGACY_SCOPE
 
     source = _derive_source(ctx, p)
-    scope = f"project:{source.bundle.project_id}"
+    scope = f"workspace:{source.bundle.workspace_id}"
     prior = IdempotencyRecord.objects.select_for_update().filter(
         actor=ctx.user, operation="source.derive_bundle", key=ctx.idempotency_key
     )
-    retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+    retained = prior.filter(scope=scope).first()
     if retained is not None:
         _retained_revision(ctx, retained.result)
     return scope
@@ -290,7 +288,7 @@ def _derive_scope(ctx: Context, p: DeriveBundle) -> str:
 def derive_bundle(ctx: Context, p: DeriveBundle) -> dict:
     source = _derive_source(ctx, p)
     bundle = SourceBundle.objects.create(
-        project_id=source.bundle.project_id,
+        workspace_id=source.bundle.workspace_id,
         name=p.name,
         role=SourceBundle.Role.DERIVATIVE,
         derived_from=source,

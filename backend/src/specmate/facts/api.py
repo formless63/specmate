@@ -19,8 +19,8 @@ def inspect_subject(request, subject_id: UUID, query: Query[FactQuery]):
 
 @router.get("/projects/{project_id}/subjects")
 def list_subjects(request, project_id: UUID, offset: int = 0, limit: int = 50):
-    authorize(request.user, project_id, Perm.PROJECT_READ)
-    subjects = FactSubject.objects.filter(project_id=project_id).order_by("created_at")
+    workspace = authorize(request.user, project_id, Perm.WORKSPACE_READ)
+    subjects = FactSubject.objects.filter(workspace=workspace).order_by("created_at")
     # Bounds are independent of the number of records. No unguarded count is returned.
     from specmate.operations import ValidationFailed
 

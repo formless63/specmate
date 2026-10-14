@@ -12,7 +12,8 @@ from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field
 
 from specmate.access.account_names import LocalUsername
-from specmate.access.models import Installation, Membership, OwnerSetupToken, Project
+from specmate.access.models import Installation, OwnerSetupToken, WorkspaceMember
+from specmate.access.workspaces import installation_workspace
 from specmate.operations import Conflict, Context, ValidationFailed, operation
 
 OWNER_TOKEN_LIFETIME = timedelta(minutes=30)
@@ -76,20 +77,17 @@ def claim_owner(ctx: Context, p: ClaimOwner) -> dict:
     user = User.objects.create_user(username=p.username, password=p.password)
     installation.owner = user
     installation.save(update_fields=["owner"])
+    # The installation owner claims the first admin membership of the workspace.
+    workspace = installation_workspace()
+    WorkspaceMember.objects.update_or_create(
+        workspace=workspace, user=user, defaults={"role": WorkspaceMember.Role.ADMIN}
+    )
     record.used_at = now
     record.save(update_fields=["used_at"])
     if ctx.request is not None:
         login(ctx.request, user)
-    return {"installation_id": str(installation.installation_id), "owner": user.username}
-
-
-class CreateProject(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    name: str = Field(min_length=1, max_length=200)
-
-
-@operation("project.create", CreateProject, summary="Create a private project owned by the actor.")
-def create_project(ctx: Context, p: CreateProject) -> dict:
-    project = Project.objects.create(name=p.name, created_by=ctx.user)
-    Membership.objects.create(project=project, user=ctx.user, role=Membership.Role.OWNER)
-    return {"project_id": str(project.id), "name": project.name}
+    return {
+        "installation_id": str(installation.installation_id),
+        "owner": user.username,
+        "workspace_id": str(workspace.id),
+    }

@@ -8,7 +8,11 @@ class FactSubject(models.Model):
     """A resolved engineering subject with a concurrency token for its assertion ledger."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    # Set only for a subject that is a project itself (kind "project").
+    project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
     kind = models.CharField(max_length=16)
     definition = models.ForeignKey("design.Definition", null=True, on_delete=models.PROTECT)
     revision = models.ForeignKey("design.Revision", null=True, on_delete=models.PROTECT)
@@ -27,7 +31,7 @@ class FactSubject(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["project", "fingerprint"], name="facts_subject_identity"
+                fields=["workspace", "fingerprint"], name="facts_subject_identity"
             ),
             models.CheckConstraint(
                 condition=(
@@ -77,6 +81,11 @@ class FactSubject(models.Model):
                     )
                 ),
                 name="facts_subject_target",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(kind="project", project__isnull=False)
+                | (~models.Q(kind="project") & models.Q(project__isnull=True)),
+                name="facts_subject_project",
             ),
         ]
 

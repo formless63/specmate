@@ -78,7 +78,7 @@ def preauthorize(user, content, extra=()):
             )
             if revision is None:
                 raise NotFound("Revision unavailable.")
-            authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
             pending.extend(
                 references(
                     json.loads(bytes(revision.snapshot.canonical))["content"], source_only=True
@@ -129,7 +129,7 @@ def closure(user, content, kind=None, *, authority_only=False):
                     )
                     if entry is None:
                         raise NotFound("Inventory evidence unavailable.")
-                    authorize(user, entry.account.location.project_id, Perm.PROJECT_READ)
+                    authorize(user, entry.account.location.workspace_id, Perm.WORKSPACE_READ)
                     extra.append(("design", entry.account.lot.revision_id))
                     if entry.work_batch_id:
                         extra.append(("design", entry.work_batch.revision_id))

@@ -151,7 +151,7 @@ class VersionSummary(Contract):
 
 class PackResult(Contract):
     pack_id: UUID
-    project_id: UUID
+    workspace_id: UUID
     package_key: str
     state: str
     installed_version_id: UUID | None

@@ -74,7 +74,7 @@ class Closure:
             )
             if revision is None:
                 raise NotFound("Interface reference unavailable.")
-            authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
             authorize_origin(user, revision.definition)
             self.revisions[rid] = revision
             body = json.loads(bytes(revision.snapshot.canonical))["content"]
@@ -161,7 +161,7 @@ def read_revision(user, revision_id):
     )
     if revision is None:
         raise NotFound("Interface unavailable.")
-    authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
     authorize_origin(user, revision.definition)
     content = json.loads(bytes(revision.snapshot.canonical))["content"]
     closure = Closure(

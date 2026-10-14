@@ -8,14 +8,14 @@ from django.db import models
 
 class Location(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     name = models.CharField(max_length=200)
     registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["project", "name"], name="inventory_location_name"),
+            models.UniqueConstraint(fields=["workspace", "name"], name="inventory_location_name"),
             models.CheckConstraint(
                 condition=~models.Q(name=""), name="inventory_location_nonempty"
             ),
@@ -128,6 +128,10 @@ class Reservation(models.Model):
     amount = models.DecimalField(max_digits=24, decimal_places=9)
     unit = models.CharField(max_length=5)
     purpose = models.TextField()
+    # Optional project context: navigation and filtering only, never an owner or authority.
+    project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     request_id = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -159,6 +163,10 @@ class WorkBatch(models.Model):
     kind = models.CharField(max_length=8)
     label = models.CharField(max_length=200)
     planned_units = models.PositiveIntegerField(null=True)
+    # Optional project context: navigation and filtering only, never an owner or authority.
+    project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
     state = models.UUIDField(default=uuid.uuid4)
     registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)

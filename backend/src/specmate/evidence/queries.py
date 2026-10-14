@@ -121,7 +121,7 @@ def fact_item(assertion):
         **describe(kind, [RATING_NOTE] if rating else []),
         "evidence_id": f"fact:{assertion.id}",
         "source": "facts",
-        "project_id": subject.project_id,
+        "workspace_id": subject.workspace_id,
         "subject": subject_ref(subject),
         "statement": statement,
         "status": content["status"],
@@ -154,7 +154,7 @@ def fact_items(user, p, kinds, scan):
         # Legacy non-physical measurements read as declared claims.
         or (method == "measurement" and "source_claim" in kinds)
     ]
-    rows = FactAssertion.objects.filter(subject__project_id=p.project_id, method__in=methods)
+    rows = FactAssertion.objects.filter(subject__workspace_id=p.workspace_id, method__in=methods)
     if p.subject_id:
         rows = rows.filter(subject_id=p.subject_id)
     rows = rows.select_related("subject__physical_unit").prefetch_related(
@@ -193,7 +193,7 @@ def build_item(build):
         **describe("generated_check"),
         "evidence_id": f"build:{build.id}",
         "source": "builds",
-        "project_id": build.project_id,
+        "workspace_id": build.workspace_id,
         "subject": {
             "scope": "design",
             "kind": "source_bundle_revision",
@@ -219,7 +219,7 @@ def build_items(user, p, scan):
     from specmate.queries import get_bundle_revision
 
     rows = (
-        BuildAttempt.objects.filter(project_id=p.project_id)
+        BuildAttempt.objects.filter(workspace_id=p.workspace_id)
         .select_related("stage")
         .order_by("-created_at", "-id")
     )
@@ -241,7 +241,7 @@ def plan_items(user, p, scan):
 
     rows = (
         Revision.objects.filter(
-            definition__project_id=p.project_id, definition__kind="cable_test_plan"
+            definition__workspace_id=p.workspace_id, definition__kind="cable_test_plan"
         )
         .select_related("definition")
         .order_by("-frozen_at", "-id")
@@ -260,7 +260,7 @@ def plan_items(user, p, scan):
                     **describe("requirement"),
                     "evidence_id": f"requirement:{revision.id}",
                     "source": "cable_test_plan",
-                    "project_id": p.project_id,
+                    "workspace_id": p.workspace_id,
                     "subject": {
                         "scope": "design",
                         "kind": "revision",
@@ -291,7 +291,7 @@ def plan_items(user, p, scan):
 
 
 def unit_items(user, p, kinds, scan):
-    rows = PhysicalUnit.objects.filter(project_id=p.project_id).order_by("-created_at", "-id")
+    rows = PhysicalUnit.objects.filter(workspace_id=p.workspace_id).order_by("-created_at", "-id")
     for index in range(0, SCAN_LIMIT, CHUNK):
         chunk = list(rows[index : index + CHUNK])
         for unit in chunk:
@@ -315,7 +315,7 @@ def unit_items(user, p, kinds, scan):
                     **describe(kind),
                     "evidence_id": f"unit:{unit.id}",
                     "source": "physical_units",
-                    "project_id": unit.project_id,
+                    "workspace_id": unit.workspace_id,
                     "subject": {
                         "scope": "actual",
                         "kind": "physical_unit",
@@ -341,8 +341,21 @@ def unit_items(user, p, kinds, scan):
     scan.limit_reached = True
 
 
+class ScopedQuery:
+    """The validated query plus its server-resolved workspace."""
+
+    def __init__(self, query, workspace_id):
+        self._query = query
+        self.workspace_id = workspace_id
+
+    def __getattr__(self, name):
+        return getattr(self._query, name)
+
+
 def list_evidence(user, p: ListEvidence):
-    authorize(user, p.project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, p.project_id, Perm.WORKSPACE_READ)
+    # TRANSITIONAL: generators read the resolved workspace, never the payload project.
+    p = ScopedQuery(p, workspace.id)
     kinds = set(p.kinds) if p.kinds else None
     scan = Scan()
     sources = []
@@ -366,6 +379,7 @@ def list_evidence(user, p: ListEvidence):
     items = [item for _, item in window[p.offset : p.offset + p.limit]]
     return EvidenceList(
         project_id=p.project_id,
+        workspace_id=p.workspace_id,
         items=[EvidenceItem.model_validate(item) for item in items],
         offset=p.offset,
         limit=p.limit,

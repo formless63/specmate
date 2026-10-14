@@ -4,7 +4,7 @@ import json
 from collections import defaultdict
 from decimal import Decimal
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, authorize_project
 from specmate.assemblies.queries import get_snapshot, resolve_occurrence
 from specmate.design.models import Definition
 from specmate.facts.contracts import (
@@ -27,36 +27,38 @@ MAX_ASSERTIONS = 5000
 MAX_EVIDENCE_CLOSURE = 5000
 
 
-def resolve_target(user, target, permission=Perm.PROJECT_READ):
+def resolve_target(user, target, permission=Perm.WORKSPACE_READ):
     from specmate.catalog_matching.queries import current_actor
     from specmate.catalog_packs.authoring import authorize_origin
 
     user = current_actor(user)
     fields = {"kind": target.kind, "feature_id": getattr(target, "feature_id", None)}
     if isinstance(target, ProjectTarget):
-        project_id = target.project_id
+        # A project subject is held by that project's workspace.
+        fields["project"] = authorize_project(user, target.project_id, permission)
+        workspace_id = fields["project"].workspace_id
     elif isinstance(target, DefinitionTarget):
         definition = Definition.objects.filter(id=target.definition_id).first()
         if definition is None:
             raise NotFound("Subject unavailable.")
-        project_id = definition.project_id
-        authorize(user, project_id, permission)
+        workspace_id = definition.workspace_id
+        authorize(user, workspace_id, permission)
         authorize_origin(user, definition)
         fields["definition"] = definition
     elif isinstance(target, RevisionTarget):
         revision = get_revision(user, target.revision_id)
-        project_id = revision.definition.project_id
+        workspace_id = revision.definition.workspace_id
         fields["revision"] = revision
     elif isinstance(target, PhysicalUnitTarget):
         unit = get_unit(user, target.unit_id)
-        project_id = unit.project_id
+        workspace_id = unit.workspace_id
         fields["physical_unit"] = unit
     else:
         snapshot, _ = get_snapshot(user, target.snapshot_id)
         resolve_occurrence(user, target.snapshot_id, target.path, target.feature_id)
-        project_id = snapshot.definition.project_id
+        workspace_id = snapshot.definition.workspace_id
         fields.update(snapshot=snapshot, path=target.path)
-    fields["project"] = authorize(user, project_id, permission)
+    fields["workspace"] = authorize(user, workspace_id, permission)
     return fields
 
 
@@ -103,17 +105,17 @@ def authorize_assertions(user, assertions):
         if len(visited) >= MAX_EVIDENCE_CLOSURE:
             raise ValidationFailed("Evidence closure exceeds the supported limit.")
         visited.add(assertion.id)
-        authorize(user, assertion.subject.project_id, Perm.PROJECT_READ)
+        authorize(user, assertion.subject.workspace_id, Perm.WORKSPACE_READ)
         resolve_target(user, subject_target(assertion.subject))
         for link in assertion.source_links.select_related("source_file__revision__bundle"):
-            authorize(user, link.source_file.revision.bundle.project_id, Perm.PROJECT_READ)
+            authorize(user, link.source_file.revision.bundle.workspace_id, Perm.WORKSPACE_READ)
         pending.extend(
             link.input_assertion
             for link in assertion.input_links.select_related("input_assertion__subject")
         )
 
 
-def subject_with_assertions(user, subject_id, permission=Perm.PROJECT_READ, *, lock=False):
+def subject_with_assertions(user, subject_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     query = FactSubject.objects
     if lock:
         query = query.select_for_update()
@@ -125,7 +127,7 @@ def subject_with_assertions(user, subject_id, permission=Perm.PROJECT_READ, *, l
         if subject.kind == "physical_unit" and permission == Perm.DESIGN_EDIT
         else permission
     )
-    authorize(user, subject.project_id, effective_permission)
+    authorize(user, subject.workspace_id, effective_permission)
     resolve_target(user, subject_target(subject), effective_permission)
     assertions = list(subject.assertions.select_related("subject").order_by("sequence"))
     authorize_assertions(user, assertions)
@@ -175,7 +177,7 @@ def canonical_conditions(fact):
 def subject_result(subject):
     result = {
         "subject_id": str(subject.id),
-        "project_id": str(subject.project_id),
+        "workspace_id": str(subject.workspace_id),
         "target": subject_target(subject).model_dump(mode="json"),
         "state": subject.state_token,
         "feature_status": "not_evaluated" if subject.feature_id else "not_applicable",

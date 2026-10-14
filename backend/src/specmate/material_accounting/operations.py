@@ -22,10 +22,10 @@ from specmate.material_accounting.contracts import (
 from specmate.material_accounting.queries import closure, dependency_revisions, inspect_revision
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 
 
-def plan_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+def plan_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
     ctx = replace(ctx, user=current_actor(ctx.user))
     query = Draft.objects.select_related("definition")
     if lock:
@@ -33,7 +33,7 @@ def plan_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
     draft = query.filter(id=draft_id).first()
     if draft is None:
         raise NotFound("Material plan draft unavailable.")
-    authorize(ctx.user, draft.definition.project_id, permission)
+    authorize(ctx.user, draft.definition.workspace_id, permission)
     if draft.definition.kind != "material_plan":
         raise NotFound("Material plan draft unavailable.")
     closure(ctx.user, draft.content, draft.definition.kind, authority_only=True)
@@ -55,9 +55,9 @@ def scope(ctx, payload, permission=Perm.DESIGN_EDIT):
     project_id = (
         payload.project_id
         if isinstance(payload, CreatePlan)
-        else plan_draft(ctx, payload.draft_id, permission).definition.project_id
+        else plan_draft(ctx, payload.draft_id, permission).definition.workspace_id
     )
-    namespace = project_scope(ctx, project_id, permission)
+    namespace = workspace_scope(ctx, project_id, permission)
     if isinstance(payload, (CreatePlan, UpdatePlan)):
         closure(
             ctx.user,
@@ -76,7 +76,7 @@ def scope(ctx, payload, permission=Perm.DESIGN_EDIT):
             actor=ctx.user,
             operation=name,
             key=ctx.idempotency_key,
-            scope__in=[namespace, LEGACY_SCOPE],
+            scope=namespace,
         ):
             retained(ctx, record.result, permission)
     return namespace

@@ -2,8 +2,8 @@
 
 from django.utils import timezone
 
-from specmate.access.models import Membership
-from specmate.access.permissions import Perm, authorize
+from specmate.access.models import WorkspaceMember
+from specmate.access.permissions import Perm, authorize, transitional_project
 from specmate.catalog_matching.operations import evidence_fields
 from specmate.collaboration import queries
 from specmate.collaboration.contracts import (
@@ -19,7 +19,7 @@ from specmate.collaboration.contracts import (
 from specmate.collaboration.models import ChangeReview, ReviewEntry, ReviewRecipient
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.revision_upgrades.contracts import ProposeUpgrade
 from specmate.revision_upgrades.operations import propose as propose_upgrade
 from specmate.revision_upgrades.queries import references
@@ -29,7 +29,7 @@ def retained(ctx, name, scope):
     """Stored closure precedes even a different-payload key diagnostic."""
     if ctx.idempotency_key is not None:
         for record in IdempotencyRecord.objects.filter(
-            actor=ctx.user, operation=name, key=ctx.idempotency_key, scope__in=[scope, LEGACY_SCOPE]
+            actor=ctx.user, operation=name, key=ctx.idempotency_key, scope=scope
         ):
             stored_authority(ctx, record.result)
 
@@ -42,22 +42,24 @@ def stored_authority(ctx, stored):
         queries.review_rows(ctx.user, stored["review_id"], Perm.DESIGN_EDIT)
         # Historical recipient labels in immutable receipts retain current membership.
         for recipient in stored.get("recipients", []):
-            if not Membership.objects.filter(
-                project_id=stored["project_id"], user_id=recipient["user_id"], user__is_active=True
+            if not WorkspaceMember.objects.filter(
+                workspace_id=stored["workspace_id"],
+                user_id=recipient["user_id"],
+                user__is_active=True,
             ).exists():
                 raise NotFound("Change review receipt unavailable.")
 
 
 @queries.private_inputs
 def create_authority(ctx, p):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
     queries.revision_pair(ctx.user, p.old_revision_id, p.candidate_revision_id)
     knowledge = queries.knowledge_pin(ctx.user, p.knowledge)
     recipients = []
     for name in p.recipients:
         member = (
-            Membership.objects.select_related("user")
-            .filter(project_id=p.project_id, user__username=name, user__is_active=True)
+            WorkspaceMember.objects.select_related("user")
+            .filter(workspace=workspace, user__username=name, user__is_active=True)
             .first()
         )
         if member is None:
@@ -70,7 +72,7 @@ def create_authority(ctx, p):
 
 def create_scope(ctx, p):
     create_authority(ctx, p)
-    scope = project_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+    scope = workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
     retained(ctx, "collaboration.create", scope)
     return scope
 
@@ -83,14 +85,16 @@ def create_replay(ctx, p, stored):
 @operation(
     "collaboration.create",
     CreateReview,
-    summary="Open exact declared change review with internal project-recipient notifications.",
+    summary="Open exact declared change review with internal member-recipient notifications.",
     idempotency_scope=create_scope,
     authorize_replay=create_replay,
 )
 def create(ctx: Context, p: CreateReview):
     knowledge, recipients = create_authority(ctx, p)
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
     review = ChangeReview.objects.create(
-        project_id=p.project_id,
+        workspace=workspace,
+        project=transitional_project(p.project_id, workspace),
         old_revision_id=p.old_revision_id,
         candidate_revision_id=p.candidate_revision_id,
         knowledge_entry=knowledge[0] if knowledge else None,
@@ -130,7 +134,7 @@ def mutation_scope(ctx, p):
     name = (
         "collaboration.respond" if isinstance(p, RespondReview) else "collaboration.propose_upgrade"
     )
-    scope = project_scope(ctx, review.project_id, Perm.DESIGN_EDIT)
+    scope = workspace_scope(ctx, review.workspace_id, Perm.DESIGN_EDIT)
     retained(ctx, name, scope)
     return scope
 
@@ -228,7 +232,7 @@ def propose(ctx: Context, p: ProposeReviewUpgrade):
 
 def notification_scope(ctx, p):
     notification = queries.notification_row(ctx.user, p.notification_id)
-    scope = project_scope(ctx, notification.entry.review.project_id)
+    scope = workspace_scope(ctx, notification.entry.review.workspace_id)
     retained(ctx, "collaboration.mark_read", scope)
     return scope
 

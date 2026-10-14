@@ -76,7 +76,7 @@ class Closure:
         if revision is None:
             raise NotFound("Assembly unavailable.")
         try:
-            authorize(self.user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(self.user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
         except NotFound:
             raise NotFound("Assembly unavailable.") from None
         if len(self.revisions) >= MAX_REVISIONS:
@@ -239,7 +239,7 @@ def get_snapshot(user, snapshot_id):
     snapshot = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
     if snapshot is None:
         raise NotFound("Assembly unavailable.")
-    authorize(user, snapshot.definition.project_id, Perm.PROJECT_READ)
+    authorize(user, snapshot.definition.workspace_id, Perm.WORKSPACE_READ)
     # The root's retained adoption pack is independent of its child/dependency closure.
     authorize_origin(user, snapshot.definition)
     body = json.loads(bytes(snapshot.canonical))

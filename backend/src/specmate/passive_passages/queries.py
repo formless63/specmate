@@ -93,7 +93,7 @@ def rows(user, revision_id, *, edit=False, lock=False):
     for review in reviews:
         authorize_file(user, review.source_file)
     if edit:
-        authorize(user, revision.definition.project_id, Perm.DESIGN_EDIT)
+        authorize(user, revision.definition.workspace_id, Perm.DESIGN_EDIT)
     if model is None:
         raise ValidationFailed("Revision is not a typed passive model.")
     # References were authorized completely; semantic validation can now run safely.

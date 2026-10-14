@@ -10,7 +10,7 @@ from specmate.design.operations import (
 )
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.pcb_disagreement.contracts import (
     KINDS,
     CaptureReview,
@@ -26,7 +26,7 @@ from specmate.pcb_disagreement.queries import (
 )
 
 
-def review_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+def review_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind not in KINDS:
         raise NotFound("PCB source review draft unavailable.")
@@ -35,12 +35,12 @@ def review_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
 
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
-    project = (
+    scope_id = (
         p.project_id
         if isinstance(p, CreateReview)
-        else review_draft(ctx, p.draft_id, permission).definition.project_id
+        else review_draft(ctx, p.draft_id, permission).definition.workspace_id
     )
-    namespace = project_scope(ctx, project, permission)
+    namespace = workspace_scope(ctx, scope_id, permission)
     name = (
         "pcb_disagreement.create"
         if isinstance(p, CreateReview)
@@ -53,7 +53,7 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
             actor=ctx.user,
             operation=name,
             key=ctx.idempotency_key,
-            scope__in=[namespace, LEGACY_SCOPE],
+            scope=namespace,
         ):
             retained_authority(ctx, record.result, permission)
     if isinstance(p, (CreateReview, UpdateReview)):

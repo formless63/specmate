@@ -1,8 +1,10 @@
 """One knowledge identity, append-only content entries and removable exact links.
 
-An attachment references one registered source file; bytes keep their single project
-blob owner. Entries and attachment references are immutable. Links are never deleted:
-removal records who removed them, so history stays retrievable.
+Items belong to the workspace. An item with a project context is held by that project
+(its notes and decisions); one without is a library note about the items it links.
+An attachment references one registered source file of the same workspace. Entries and
+attachment references are immutable. Links are never deleted: removal records who
+removed them, so history stays retrievable.
 """
 
 import uuid
@@ -16,7 +18,11 @@ DECISION_STATUSES = ("proposed", "accepted", "rejected", "superseded")
 
 class KnowledgeItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    # Project-held when set (project notes/decisions); a library note when null.
+    project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
     kind = models.CharField(max_length=12)
     version = models.PositiveIntegerField(default=1)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -74,11 +80,13 @@ class KnowledgeAttachment(models.Model):
 
 
 class KnowledgeLink(models.Model):
-    """Exact target address; project, definition, revision, occurrence or physical unit."""
+    """Exact target address in the item's workspace: a project or a collection item."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     item = models.ForeignKey(KnowledgeItem, on_delete=models.PROTECT, related_name="links")
-    target_project = models.ForeignKey("access.Project", on_delete=models.PROTECT, related_name="+")
+    target_project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
     kind = models.CharField(max_length=16)
     definition = models.ForeignKey("design.Definition", null=True, on_delete=models.PROTECT)
     revision = models.ForeignKey("design.Revision", null=True, on_delete=models.PROTECT)
@@ -160,5 +168,10 @@ class KnowledgeLink(models.Model):
                     )
                 ),
                 name="knowledge_link_target",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(kind="project", target_project__isnull=False)
+                | (~models.Q(kind="project") & models.Q(target_project__isnull=True)),
+                name="knowledge_link_project",
             ),
         ]

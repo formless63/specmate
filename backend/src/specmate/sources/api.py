@@ -20,11 +20,11 @@ router = Router(tags=["sources"])
 @router.get("/projects/{project_id}/revisions")
 def list_revisions(request, project_id: UUID, after: UUID | None = None):
     user = current_actor(request.user)
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     # Stable bounded pages fail closed before emitting any inaccessible cursor or name.
     rows = (
         SourceBundleRevision.objects.select_related("bundle")
-        .filter(bundle__project_id=project_id)
+        .filter(bundle__workspace=workspace)
         .order_by("id")
     )
     if after is not None:

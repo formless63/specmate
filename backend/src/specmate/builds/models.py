@@ -8,7 +8,11 @@ from django.db import models
 
 class BuildAttempt(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    # Optional project context: navigation and filtering only, never an owner or authority.
+    project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
     requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     source_revision = models.ForeignKey("sources.SourceBundleRevision", on_delete=models.PROTECT)
     recipe_id = models.CharField(max_length=128)
@@ -37,7 +41,7 @@ class BuildAttempt(models.Model):
 class RunnerCredential(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     recipe_ids = models.JSONField()
     token_sha256 = models.CharField(max_length=64, unique=True)
     expires_at = models.DateTimeField()

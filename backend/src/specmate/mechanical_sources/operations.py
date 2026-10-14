@@ -97,7 +97,7 @@ def _resolve(user, declaration):
         if pin.board is not None:
             get_bundle_revision(user, pin.board.source_revision_id)
             interpretation = scoped_interpretation(
-                user, targets[pin.local_id].definition.project_id, pin.board.interpretation_id
+                user, targets[pin.local_id].definition.workspace_id, pin.board.interpretation_id
             )
             get_bundle_revision(user, interpretation.attempt.intake.source_revision_id)
             boards[pin.local_id] = interpretation
@@ -402,7 +402,7 @@ def evaluate(user, definition, declaration):
     }
 
 
-def mechanical_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+def mechanical_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != KIND:
         raise NotFound("Mechanical source draft not found.")
@@ -416,15 +416,15 @@ def _scope_inputs(ctx, payload, permission):
 
     user = current_actor(ctx.user)
     if isinstance(payload, CreateMechanicalSource):
-        authorize(user, payload.project_id, permission)
-        definition = Definition(project_id=payload.project_id, kind=KIND)
+        workspace = authorize(user, payload.project_id, permission)
+        definition = Definition(workspace=workspace, kind=KIND)
         contents = []
     else:
         draft = Draft.objects.select_related("definition").filter(id=payload.draft_id).first()
         if draft is None or draft.definition.kind != KIND:
             raise NotFound("Mechanical source draft not found.")
         definition = draft.definition
-        authorize(user, definition.project_id, permission)
+        authorize(user, definition.workspace_id, permission)
         authorize_origin(user, definition)
         contents = [(definition, draft.content)]
     if hasattr(payload, KEY):
@@ -447,7 +447,7 @@ def _check_contents(user, contents):
 def _scope_closure(ctx, payload, permission):
     definition, contents = _scope_inputs(ctx, payload, permission)
     _check_contents(ctx.user, contents)
-    return f"project:{definition.project_id}"
+    return f"workspace:{definition.workspace_id}"
 
 
 def _replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
@@ -458,7 +458,7 @@ def _replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     draft = Draft.objects.select_related("definition").filter(id=draft_id).first()
     if draft is None or draft.definition.kind != KIND:
         raise NotFound("Mechanical source draft not found.")
-    authorize(ctx.user, draft.definition.project_id, permission)
+    authorize(ctx.user, draft.definition.workspace_id, permission)
     authorize_origin(ctx.user, draft.definition)
     contents.append((draft.definition, draft.content))
     if "content" in stored:
@@ -476,14 +476,13 @@ def _replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
 def _scope(name, permission=Perm.DESIGN_EDIT):
     def resolve(ctx, payload):
         from specmate.operations.models import IdempotencyRecord
-        from specmate.operations.scope import LEGACY_SCOPE
 
         definition, contents = _scope_inputs(ctx, payload, permission)
-        scope = f"project:{definition.project_id}"
+        scope = f"workspace:{definition.workspace_id}"
         prior = IdempotencyRecord.objects.select_for_update().filter(
             actor=ctx.user, operation=name, key=ctx.idempotency_key
         )
-        retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+        retained = prior.filter(scope=scope).first()
         if retained:
             _replay(ctx, payload, retained.result, permission)
         else:

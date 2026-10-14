@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from specmate.access.models import Project
+from specmate.access.models import Workspace
 from specmate.access.permissions import Perm
 from specmate.design.operations import canonical_bytes
 from specmate.facts.contracts import AppendFact, PhysicalUnitTarget, ReadFacts, RegisterSubject
@@ -20,7 +20,7 @@ from specmate.facts.queries import (
     validate_evidence,
 )
 from specmate.operations import Conflict, Context, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 
 
 def target_write_permission(target):
@@ -30,13 +30,13 @@ def target_write_permission(target):
 def registration_scope(ctx, p):
     permission = target_write_permission(p.target)
     fields = resolve_target(ctx.user, p.target, permission)
-    return project_scope(ctx, fields["project"].id, permission)
+    return workspace_scope(ctx, fields["workspace"].id, permission)
 
 
 def assertion_scope(ctx, p):
     subject, _ = subject_with_assertions(ctx.user, p.subject_id, Perm.DESIGN_EDIT)
     permission = target_write_permission(subject_target(subject))
-    return project_scope(ctx, subject.project_id, permission)
+    return workspace_scope(ctx, subject.workspace_id, permission)
 
 
 def authorize_registration_replay(ctx, p, stored):
@@ -59,10 +59,10 @@ def authorize_append_replay(ctx, p, stored):
 def register_subject(ctx: Context, p: RegisterSubject):
     fields = resolve_target(ctx.user, p.target, target_write_permission(p.target))
     fingerprint = hashlib.sha256(canonical_bytes(p.target.model_dump(mode="json"))).hexdigest()
-    # Serialize identity registration per owning project, without changing its state.
-    Project.objects.select_for_update().get(id=fields["project"].id)
+    # Serialize identity registration per workspace, without changing its state.
+    Workspace.objects.select_for_update().get(id=fields["workspace"].id)
     subject, _ = FactSubject.objects.get_or_create(
-        project=fields.pop("project"),
+        workspace=fields.pop("workspace"),
         fingerprint=fingerprint,
         defaults={**fields, "registered_by": ctx.user},
     )

@@ -19,14 +19,14 @@ MAX_INSPECTED_VARIANTS = 2000
 def suggest_supplier_matches(ctx: Context, p: SuggestSupplierMatches):
     actor = current_actor(ctx.user)
     source = get_revision(actor, p.source_revision_id)
-    authorize(actor, p.target_project_id, Perm.PROJECT_READ)
+    target_workspace = authorize(actor, p.target_project_id, Perm.WORKSPACE_READ)
     variant = ManufacturerVariant.objects.filter(id=p.source_variant_id).first()
     if variant is None:
         raise NotFound("Source catalog association not found.")
     get_revision(actor, variant.revision_id)
     candidates = ManufacturerVariant.objects.select_related(
         "revision__definition", "revision__snapshot"
-    ).filter(revision__definition__project_id=p.target_project_id)
+    ).filter(revision__definition__workspace=target_workspace)
     cursor = None
     if p.after is not None:
         cursor = candidates.filter(id=p.after).first()

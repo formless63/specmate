@@ -120,11 +120,6 @@
           "title": "Physical Qualification",
           "type": "boolean"
         },
-        "project_id": {
-          "format": "uuid",
-          "title": "Project Id",
-          "type": "string"
-        },
         "recorded_at": {
           "title": "Recorded At",
           "type": "string"
@@ -156,6 +151,11 @@
           },
           "title": "Warnings",
           "type": "array"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
         }
       },
       "required": [
@@ -163,7 +163,7 @@
         "kind",
         "kind_label",
         "source",
-        "project_id",
+        "workspace_id",
         "subject",
         "statement",
         "status",
@@ -316,10 +316,16 @@
       "default": false,
       "title": "Scan Limit Reached",
       "type": "boolean"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
     "project_id",
+    "workspace_id",
     "items",
     "offset",
     "limit",

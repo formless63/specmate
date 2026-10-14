@@ -13,8 +13,8 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from specmate.access.models import Installation, Membership
-from specmate.access.permissions import Perm, authorize, permissions_for
+from specmate.access.models import Installation
+from specmate.access.permissions import Perm, authorize, membership, permissions_for
 from specmate.builds.models import RunnerCredential
 from specmate.discovery import requirements as req
 from specmate.operations import Context, OperationSpec, PermissionDenied, registry
@@ -32,7 +32,7 @@ def _transports() -> dict[str, dict]:
     }
 
 
-def _native_execution(project_id: UUID | None, held: frozenset[Perm]) -> dict:
+def _native_execution(workspace_id: UUID | None, held: frozenset[Perm]) -> dict:
     """Whether native tool requests can be accepted and executed here."""
     recipes = sorted(settings.SPECMATE_APPROVED_RECIPES)
     if not recipes:
@@ -42,9 +42,9 @@ def _native_execution(project_id: UUID | None, held: frozenset[Perm]) -> dict:
         "reasons": [],
         "approved_recipes": len(recipes),
     }
-    if project_id is not None:
+    if workspace_id is not None:
         active = RunnerCredential.objects.filter(
-            project_id=project_id, revoked_at__isnull=True, expires_at__gt=timezone.now()
+            workspace_id=workspace_id, revoked_at__isnull=True, expires_at__gt=timezone.now()
         )
         if not active.exists():
             result["status"] = "degraded"
@@ -100,17 +100,18 @@ def describe(ctx: Context, project_id: UUID | None, include_schemas: bool) -> di
     scope = None
     if project_id is not None:
         # Non-members get NotFound, exactly like every other scoped read.
-        project = authorize(ctx.user, project_id, Perm.PROJECT_READ)
-        membership = Membership.objects.get(project=project, user=ctx.user)
-        held = permissions_for(membership)
+        workspace = authorize(ctx.user, project_id, Perm.WORKSPACE_READ)
+        member = membership(ctx.user, workspace.id)
+        held = permissions_for(member)
         scope = {
-            "project_id": str(project.id),
-            "role": membership.role,
+            "project_id": str(project_id),
+            "workspace_id": str(workspace.id),
+            "role": member.role,
             "permissions": sorted(p.value for p in held),
         }
     installation = Installation.objects.filter(singleton=True).first()
     is_owner = installation is not None and installation.owner_id == ctx.user.pk
-    native = _native_execution(project_id, held)
+    native = _native_execution(workspace.id if project_id is not None else None, held)
 
     operations = []
     digest_material = []

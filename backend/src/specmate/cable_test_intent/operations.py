@@ -22,10 +22,10 @@ from specmate.design.operations import (
 )
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 
 
-def plan_draft(ctx, draft_id, permission=Perm.PROJECT_READ, *, lock=False):
+def plan_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "cable_test_plan":
         raise NotFound("Cable test plan draft unavailable.")
@@ -61,15 +61,15 @@ def scope(name, permission):
         project_id = (
             p.project_id
             if isinstance(p, CreatePlan)
-            else plan_draft(ctx, p.draft_id, permission).definition.project_id
+            else plan_draft(ctx, p.draft_id, permission).definition.workspace_id
         )
-        namespace = project_scope(ctx, project_id, permission)
+        namespace = workspace_scope(ctx, project_id, permission)
         if ctx.idempotency_key is not None:
             for record in IdempotencyRecord.objects.filter(
                 actor=ctx.user,
                 operation=name,
                 key=ctx.idempotency_key,
-                scope__in=[namespace, LEGACY_SCOPE],
+                scope=namespace,
             ):
                 retained(ctx, record.result, permission)
         return namespace

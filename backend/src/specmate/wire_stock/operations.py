@@ -25,9 +25,9 @@ class CreateStock(StrictModel):
     authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
 )
 def create_stock(ctx: Context, p: CreateStock) -> dict:
-    project = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
     definition = Definition.objects.create(
-        project=project, kind="wire_stock", name=p.name, created_by=ctx.user
+        workspace=workspace, kind="wire_stock", name=p.name, created_by=ctx.user
     )
     draft = Draft.objects.create(
         definition=definition,
@@ -99,12 +99,12 @@ def freeze_stock(ctx: Context, p: FreezeStock) -> dict:
 
 
 def stock_scope(ctx, payload):
-    from specmate.operations.scope import project_scope
+    from specmate.operations.scope import workspace_scope
 
     permission = Perm.DESIGN_FREEZE if isinstance(payload, FreezeStock) else Perm.DESIGN_EDIT
     if isinstance(payload, CreateStock):
-        return project_scope(ctx, payload.project_id, permission)
+        return workspace_scope(ctx, payload.project_id, permission)
     draft = scoped_draft(ctx, payload.draft_id, permission)
     if draft.definition.kind != "wire_stock":
         raise NotFound("Stock draft not found.")
-    return project_scope(ctx, draft.definition.project_id, permission)
+    return workspace_scope(ctx, draft.definition.workspace_id, permission)

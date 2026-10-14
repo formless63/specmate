@@ -227,13 +227,13 @@ def work_mode() -> dict[str, Any]:
     }
 
 
-def storage(project_ids: list | None, *, detail: bool) -> dict[str, Any]:
+def storage(workspace_ids: list | None, *, detail: bool) -> dict[str, Any]:
     """Probe without writing: root accessibility, free space and a bounded blob sample."""
     blobs = SourceBlob.objects.all()
     outputs = StageOutput.objects.all()
-    if project_ids is not None:
-        blobs = blobs.filter(project_id__in=project_ids)
-        outputs = outputs.filter(stage__build__project_id__in=project_ids)
+    if workspace_ids is not None:
+        blobs = blobs.filter(workspace_id__in=workspace_ids)
+        outputs = outputs.filter(stage__build__workspace_id__in=workspace_ids)
     refs = {(r.sha256, r.size) for r in blobs.order_by("-created_at")[:SAMPLE]}
     refs |= {(r.sha256, r.size) for r in outputs.order_by("-created_at")[:SAMPLE]}
     result: dict[str, Any] = {"state": "available", "code": None, "sampled": len(refs)}
@@ -275,17 +275,17 @@ def storage(project_ids: list | None, *, detail: bool) -> dict[str, Any]:
     return result
 
 
-def _stage_scope(project_ids: list | None) -> Q:
-    return Q() if project_ids is None else Q(build__project_id__in=project_ids)
+def _stage_scope(workspace_ids: list | None) -> Q:
+    return Q() if workspace_ids is None else Q(build__workspace_id__in=workspace_ids)
 
 
-def queue(project_ids: list | None) -> dict[str, Any]:
-    stages = BuildStage.objects.filter(_stage_scope(project_ids))
+def queue(workspace_ids: list | None) -> dict[str, Any]:
+    stages = BuildStage.objects.filter(_stage_scope(workspace_ids))
     counts = dict(stages.values_list("state").annotate(n=Count("id")).order_by())
     pending = stages.filter(state__in=PENDING_STATES).aggregate(oldest=Min("created_at"))["oldest"]
     outbox = BuildOutbox.objects.filter(delivered_at__isnull=True)
-    if project_ids is not None:
-        outbox = outbox.filter(build__project_id__in=project_ids)
+    if workspace_ids is not None:
+        outbox = outbox.filter(build__workspace_id__in=workspace_ids)
     oldest_outbox = outbox.aggregate(oldest=Min("created_at"))["oldest"]
     now = timezone.now()
     return {
@@ -303,14 +303,14 @@ def queue(project_ids: list | None) -> dict[str, Any]:
     }
 
 
-def runner(project_ids: list | None, queue_state: dict[str, Any]) -> dict[str, Any]:
+def runner(workspace_ids: list | None, queue_state: dict[str, Any]) -> dict[str, Any]:
     """Runner liveness is observable only while it holds work; idle is not 'online'."""
     now = timezone.now()
     credentials = RunnerCredential.objects.all()
-    if project_ids is not None:
-        credentials = credentials.filter(project_id__in=project_ids)
+    if workspace_ids is not None:
+        credentials = credentials.filter(workspace_id__in=workspace_ids)
     usable = credentials.filter(revoked_at__isnull=True, expires_at__gt=now)
-    stages = BuildStage.objects.filter(_stage_scope(project_ids), state__in=ACTIVE_STATES)
+    stages = BuildStage.objects.filter(_stage_scope(workspace_ids), state__in=ACTIVE_STATES)
     holding = stages.filter(lease_expires_at__gt=now).exclude(state="interrupted").count()
     expired = stages.filter(Q(lease_expires_at__lte=now) | Q(state="interrupted")).count()
     if not credentials.exists():
@@ -334,11 +334,11 @@ def runner(project_ids: list | None, queue_state: dict[str, Any]) -> dict[str, A
     }
 
 
-def tools(project_ids: list | None) -> list[dict[str, Any]]:
+def tools(workspace_ids: list | None) -> list[dict[str, Any]]:
     """Registry state for every recipe that unfinished builds in scope depend on."""
     rows = (
         BuildStage.objects.filter(
-            _stage_scope(project_ids), state__in=PENDING_STATES + ACTIVE_STATES
+            _stage_scope(workspace_ids), state__in=PENDING_STATES + ACTIVE_STATES
         )
         .select_related("build")
         .order_by("created_at")[:SAMPLE]
@@ -358,9 +358,9 @@ def tools(project_ids: list | None) -> list[dict[str, Any]]:
     return sorted(seen.values(), key=lambda e: e["recipe_id"])
 
 
-def _stale(project_ids: list | None) -> dict[str, list[str]]:
+def _stale(workspace_ids: list | None) -> dict[str, list[str]]:
     now = timezone.now()
-    stages = BuildStage.objects.filter(_stage_scope(project_ids), state__in=ACTIVE_STATES)
+    stages = BuildStage.objects.filter(_stage_scope(workspace_ids), state__in=ACTIVE_STATES)
     expired = stages.filter(lease_expires_at__lte=now).exclude(state="interrupted")
     interrupted = stages.filter(state="interrupted")
     return {
@@ -369,14 +369,14 @@ def _stale(project_ids: list | None) -> dict[str, list[str]]:
     }
 
 
-def _denials(project_ids: list | None) -> dict[str, list[str]]:
+def _denials(workspace_ids: list | None) -> dict[str, list[str]]:
     events = StageEvent.objects.filter(
         kind="cancellation_requested",
         detail__reason__in=list(DENIAL_REASONS),
         created_at__gte=timezone.now() - DENIAL_WINDOW,
     )
-    if project_ids is not None:
-        events = events.filter(stage__build__project_id__in=project_ids)
+    if workspace_ids is not None:
+        events = events.filter(stage__build__workspace_id__in=workspace_ids)
     found: dict[str, list[str]] = {}
     for event in events.select_related("stage").order_by("-created_at")[:SAMPLE]:
         builds = found.setdefault(DENIAL_REASONS[event.detail["reason"]], [])
@@ -386,7 +386,7 @@ def _denials(project_ids: list | None) -> dict[str, list[str]]:
 
 
 def findings(
-    project_ids: list | None,
+    workspace_ids: list | None,
     audience: Audience,
     *,
     storage_state: dict[str, Any],
@@ -416,9 +416,9 @@ def findings(
     if storage_state["code"]:
         evidence = {k: v for k, v in storage_state.items() if k not in {"state", "code"}}
         out.append(finding(storage_state["code"], audience, **evidence))
-    for code, builds in _denials(project_ids).items():
+    for code, builds in _denials(workspace_ids).items():
         out.append(finding(code, audience, build_ids=builds))
-    stale = _stale(project_ids)
+    stale = _stale(workspace_ids)
     if stale["expired"]:
         out.append(finding("lease_expired_unreconciled", audience, build_ids=stale["expired"]))
     if stale["interrupted"]:

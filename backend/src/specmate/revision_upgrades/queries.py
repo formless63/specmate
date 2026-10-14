@@ -53,7 +53,7 @@ def references(
     authorize_snapshot(user, owning)
     snapshot, closure = get_snapshot(user, owning_snapshot_id)
     if edit:
-        authorize(user, snapshot.definition.project_id, Perm.DESIGN_EDIT)
+        authorize(user, snapshot.definition.workspace_id, Perm.DESIGN_EDIT)
     if validate:
         identity(old, candidate, relation)
     return snapshot, closure, old, candidate
@@ -104,7 +104,7 @@ def consumer(user, snapshot, closure, context_path, *, edit=False):
     # The nested consumer's own retained origin and closure are checked afresh.
     nested, nested_closure = get_snapshot(user, node.revision.snapshot_id)
     if edit:
-        authorize(user, nested.definition.project_id, Perm.DESIGN_EDIT)
+        authorize(user, nested.definition.workspace_id, Perm.DESIGN_EDIT)
     return Consumer(context_path, nested, node.revision, nested_closure, baseline(nested))
 
 
@@ -406,7 +406,7 @@ def rows(user, proposal_id, *, edit=False, lock=False):
     for application in proposal.applications.select_related("draft__definition"):
         from specmate.design.operations import authorize_design_content
 
-        authorize(user, application.draft.definition.project_id, Perm.PROJECT_READ)
+        authorize(user, application.draft.definition.workspace_id, Perm.WORKSPACE_READ)
         authorize_design_content(user, application.draft.definition, application.draft.content)
     return proposal, snapshot, closure, target, old, candidate, reviews
 
@@ -551,11 +551,11 @@ MAX_CONSUMER_SNAPSHOTS = 200
 def consumers(user, project_id, revision_id):
     """Authorized frozen consumers of an exact revision; hidden closures are not counted."""
     user = current_actor(user)
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     target = get_revision(user, revision_id)
     candidates = (
         Snapshot.objects.filter(
-            definition__project_id=project_id,
+            definition__workspace=workspace,
             definition__kind="assembly",
             dependencies__revision_id=target.id,
         )

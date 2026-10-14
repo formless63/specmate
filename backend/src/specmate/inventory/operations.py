@@ -1,4 +1,4 @@
-from specmate.access.models import Project
+from specmate.access.models import Workspace
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog.models import PhysicalLot
 from specmate.inventory.contracts import (
@@ -45,7 +45,7 @@ from specmate.inventory.queries import (
     work_batch_result,
 )
 from specmate.operations import Conflict, Context, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.queries import get_revision
 
 
@@ -56,7 +56,7 @@ def validate_dimension(quantity, dimension):
 
 def writable_account(ctx, account_id, permission):
     account = get_account(ctx.user, account_id, lock=True)
-    authorize(ctx.user, account.location.project_id, permission)
+    authorize(ctx.user, account.location.workspace_id, permission)
     if str(account.state) != ctx.require_expected_state():
         raise Conflict("Stock state changed.", details={"current": account_result(account)})
     return account
@@ -95,15 +95,15 @@ def append_entry(ctx, account, p, kind, after, **causes):
     CreateLocation,
     summary="Register a project stock location.",
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def create_location(ctx: Context, p: CreateLocation):
-    authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE)
-    Project.objects.select_for_update().get(id=p.project_id)
-    if Location.objects.filter(project_id=p.project_id, name=p.name).exists():
+    workspace = authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE)
+    Workspace.objects.select_for_update().get(id=workspace.id)
+    if Location.objects.filter(workspace=workspace, name=p.name).exists():
         raise Conflict("This location name is already registered.")
     return location_result(
-        Location.objects.create(project_id=p.project_id, name=p.name, registered_by=ctx.user)
+        Location.objects.create(workspace=workspace, name=p.name, registered_by=ctx.user)
     )
 
 
@@ -112,14 +112,14 @@ def create_location(ctx: Context, p: CreateLocation):
     OpenStock,
     summary="Establish a lot/location stock account.",
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def open_stock(ctx: Context, p: OpenStock):
     lot = get_lot(ctx.user, p.lot_id)
     location = get_location(ctx.user, p.location_id)
-    if lot.revision.definition.project_id != location.project_id:
-        raise ValidationFailed("Lot and stock location must belong to the same project.")
-    authorize(ctx.user, location.project_id, Perm.INVENTORY_MANAGE)
+    if lot.revision.definition.workspace_id != location.workspace_id:
+        raise ValidationFailed("Lot and stock location must belong to the same workspace.")
+    authorize(ctx.user, location.workspace_id, Perm.INVENTORY_MANAGE)
     PhysicalLot.objects.select_for_update().get(id=lot.id)
     if StockAccount.objects.filter(lot=lot).exclude(dimension=p.dimension).exists():
         raise ValidationFailed(
@@ -159,7 +159,7 @@ def change_stock(ctx, p, kind):
     summary="Append a stock receipt.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def receive(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "receipt")
@@ -171,7 +171,7 @@ def receive(ctx: Context, p: ChangeStock):
     summary="Append a compensating stock adjustment.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def adjust(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "adjustment")
@@ -183,7 +183,7 @@ def adjust(ctx: Context, p: ChangeStock):
     summary="Record an explicit quantity assertion without claiming physical qualification.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def establish_quantity(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "observation")
@@ -195,7 +195,7 @@ def establish_quantity(ctx: Context, p: ChangeStock):
     summary="Reserve availability without consuming physical stock.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def reserve(ctx: Context, p: Reserve):
     account = writable_account(ctx, p.account_id, Perm.INVENTORY_RESERVE)
@@ -228,7 +228,7 @@ def reserve(ctx: Context, p: Reserve):
     summary="Release a reservation without changing physical stock.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def release(ctx: Context, p: Release):
     reservation = get_reservation(ctx.user, p.reservation_id)
@@ -254,29 +254,29 @@ def inventory_list(ctx: Context, p: ListInventory):
     return list_inventory(ctx.user, p.project_id, offset=p.offset, limit=p.limit)
 
 
-def inventory_project_scope(ctx: Context, p) -> str:
-    """Resolve the exact authorized project for keys, before any retained-result lookup."""
+def inventory_workspace_scope(ctx: Context, p) -> str:
+    """Resolve the exact authorized workspace for keys, before any retained-result lookup."""
     if isinstance(p, CreateWorkBatch):
         revision = get_revision(ctx.user, p.revision_id)
-        project_id = revision.definition.project_id
-        authorize(ctx.user, project_id, Perm.INVENTORY_MANAGE)
+        workspace_id = revision.definition.workspace_id
+        authorize(ctx.user, workspace_id, Perm.INVENTORY_MANAGE)
     elif isinstance(p, RecordWorkCompletion):
         batch = get_work_batch(ctx.user, p.work_batch_id)
-        project_id = batch.revision.definition.project_id
-        authorize(ctx.user, project_id, Perm.INVENTORY_MANAGE)
+        workspace_id = batch.revision.definition.workspace_id
+        authorize(ctx.user, workspace_id, Perm.INVENTORY_MANAGE)
     elif isinstance(p, Consume | ReturnUnused):
         if isinstance(p, Consume):
             reservation = get_reservation(ctx.user, p.reservation_id)
             account = get_account(ctx.user, reservation.account_id)
             batch = get_work_batch(ctx.user, p.work_batch_id)
-            authorize(ctx.user, account.location.project_id, Perm.INVENTORY_MANAGE)
+            authorize(ctx.user, account.location.workspace_id, Perm.INVENTORY_MANAGE)
             if p.physical_unit_id:
                 from specmate.physical_units.models import WorkUnitLink
                 from specmate.physical_units.queries import get_unit
 
                 unit = get_unit(ctx.user, p.physical_unit_id)
                 if (
-                    unit.project_id != account.location.project_id
+                    unit.workspace_id != account.location.workspace_id
                     or not WorkUnitLink.objects.filter(unit=unit, work_batch=batch).exists()
                 ):
                     raise ValidationFailed(
@@ -290,23 +290,21 @@ def inventory_project_scope(ctx: Context, p) -> str:
                 from specmate.physical_units.queries import get_unit
 
                 get_unit(ctx.user, consumption.physical_unit_id)
-        if batch.revision.definition.project_id != account.location.project_id:
-            raise ValidationFailed("Stock and work target must belong to the same project.")
-        project_id = account.location.project_id
-        authorize(ctx.user, project_id, Perm.INVENTORY_MANAGE)
+        if batch.revision.definition.workspace_id != account.location.workspace_id:
+            raise ValidationFailed("Stock and work target must belong to the same workspace.")
+        workspace_id = account.location.workspace_id
+        authorize(ctx.user, workspace_id, Perm.INVENTORY_MANAGE)
     elif isinstance(p, CreateLocation):
-        authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE)
-        project_id = p.project_id
+        workspace_id = authorize(ctx.user, p.project_id, Perm.INVENTORY_MANAGE).id
     elif isinstance(p, OpenStock):
         lot = get_lot(ctx.user, p.lot_id)
         location = get_location(ctx.user, p.location_id)
-        if lot.revision.definition.project_id != location.project_id:
-            raise ValidationFailed("Lot and stock location must belong to the same project.")
-        authorize(ctx.user, location.project_id, Perm.INVENTORY_MANAGE)
-        project_id = location.project_id
+        if lot.revision.definition.workspace_id != location.workspace_id:
+            raise ValidationFailed("Lot and stock location must belong to the same workspace.")
+        authorize(ctx.user, location.workspace_id, Perm.INVENTORY_MANAGE)
+        workspace_id = location.workspace_id
     elif isinstance(p, ListInventory):
-        authorize(ctx.user, p.project_id, Perm.PROJECT_READ)
-        project_id = p.project_id
+        workspace_id = authorize(ctx.user, p.project_id, Perm.WORKSPACE_READ).id
     else:
         account_id = (
             p.account_id
@@ -317,14 +315,14 @@ def inventory_project_scope(ctx: Context, p) -> str:
         permission = (
             Perm.INVENTORY_RESERVE if isinstance(p, Reserve | Release) else Perm.INVENTORY_MANAGE
         )
-        authorize(ctx.user, account.location.project_id, permission)
-        project_id = account.location.project_id
-    return project_scope(ctx, project_id)
+        authorize(ctx.user, account.location.workspace_id, permission)
+        workspace_id = account.location.workspace_id
+    return workspace_scope(ctx, workspace_id)
 
 
 def authorize_inventory_replay(ctx: Context, p, stored_result: dict) -> None:
     """Recheck current scope/authority without appending ledger or reservation records."""
-    inventory_project_scope(ctx, p)
+    inventory_workspace_scope(ctx, p)
 
 
 def require_stock_key(ctx):
@@ -334,7 +332,7 @@ def require_stock_key(ctx):
 
 def writable_work_batch(ctx, work_batch_id, expected_state):
     batch = get_work_batch(ctx.user, work_batch_id, lock=True)
-    authorize(ctx.user, batch.revision.definition.project_id, Perm.INVENTORY_MANAGE)
+    authorize(ctx.user, batch.revision.definition.workspace_id, Perm.INVENTORY_MANAGE)
     if str(batch.state) != str(expected_state):
         raise Conflict("Work state changed.", details={"current": work_batch_result(batch)})
     return batch
@@ -345,11 +343,11 @@ def writable_work_batch(ctx, work_batch_id, expected_state):
     CreateWorkBatch,
     summary="Register planned work against one exact authorized design revision.",
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def create_work_batch(ctx: Context, p: CreateWorkBatch):
     revision = get_revision(ctx.user, p.revision_id)
-    authorize(ctx.user, revision.definition.project_id, Perm.INVENTORY_MANAGE)
+    authorize(ctx.user, revision.definition.workspace_id, Perm.INVENTORY_MANAGE)
     require_stock_key(ctx)
     batch = WorkBatch.objects.create(
         revision=revision,
@@ -367,7 +365,7 @@ def create_work_batch(ctx: Context, p: CreateWorkBatch):
     summary="Append a reported completion count without inventing actual unit identities.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def record_work_completion(ctx: Context, p: RecordWorkCompletion):
     batch = writable_work_batch(ctx, p.work_batch_id, ctx.require_expected_state())
@@ -401,10 +399,10 @@ def record_work_completion(ctx: Context, p: RecordWorkCompletion):
     summary="Consume reserved stock for exact work; retain or release the unused reservation.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def consume(ctx: Context, p: Consume):
-    inventory_project_scope(ctx, p)
+    inventory_workspace_scope(ctx, p)
     reservation = get_reservation(ctx.user, p.reservation_id)
     account = writable_account(ctx, reservation.account_id, Perm.INVENTORY_MANAGE)
     batch = writable_work_batch(ctx, p.work_batch_id, p.expected_work_state)
@@ -451,10 +449,10 @@ def consume(ctx: Context, p: Consume):
     summary="Return only unused material from one exact consumption; reservations stay closed.",
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
-    idempotency_scope=lambda ctx, p: inventory_project_scope(ctx, p),
+    idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def return_unused(ctx: Context, p: ReturnUnused):
-    inventory_project_scope(ctx, p)
+    inventory_workspace_scope(ctx, p)
     origin = get_consumption(ctx.user, p.consumption_id)
     account = writable_account(ctx, origin.account_id, Perm.INVENTORY_MANAGE)
     batch = writable_work_batch(ctx, origin.work_batch_id, p.expected_work_state)

@@ -10,30 +10,34 @@ from specmate.access.permissions import Perm, authorize
 from specmate.operations import NotFound, PermissionDenied
 
 GLOBAL_SCOPE = "global"
-LEGACY_SCOPE = "legacy"
 
 
-def project_scope(ctx, project_id, permission=Perm.PROJECT_READ) -> str:
-    project = authorize(ctx.user, project_id, permission)
-    return f"project:{project.id}"
+def workspace_scope(ctx, scope_id, permission=Perm.WORKSPACE_READ) -> str:
+    """``workspace:<id>`` after checking current membership and permission.
+
+    ``scope_id`` is a workspace id, or (transitionally) a payload project id that the
+    shared resolver maps to its workspace.
+    """
+    workspace = authorize(ctx.user, scope_id, permission)
+    return f"workspace:{workspace.id}"
 
 
-def revision_scope(ctx, revision_id, permission=Perm.PROJECT_READ) -> str:
+def revision_scope(ctx, revision_id, permission=Perm.WORKSPACE_READ) -> str:
     from specmate.design.models import Revision
 
     revision = Revision.objects.select_related("definition").filter(id=revision_id).first()
     if revision is None:
         raise NotFound("Revision not found.")
-    return project_scope(ctx, revision.definition.project_id, permission)
+    return workspace_scope(ctx, revision.definition.workspace_id, permission)
 
 
 def validated_scope(value: str) -> str:
     """Reject missing/ambiguous hook output rather than silently sharing a namespace."""
     if value == GLOBAL_SCOPE:
         return value
-    if isinstance(value, str) and value.startswith("project:"):
+    if isinstance(value, str) and value.startswith("workspace:"):
         try:
-            canonical = f"project:{UUID(value.removeprefix('project:'))}"
+            canonical = f"workspace:{UUID(value.removeprefix('workspace:'))}"
         except ValueError:
             canonical = None
         if canonical == value:
@@ -42,23 +46,16 @@ def validated_scope(value: str) -> str:
 
 
 def builtin_scope(name, ctx, payload) -> str:
-    if name == "project.create":
-        return GLOBAL_SCOPE
-    if name in {
-        "definition.create",
-        "source.register_blob",
-        "source.create_original_bundle",
-        "build.request",
-    }:
-        scope = project_scope(ctx, payload.project_id)
-        if name == "definition.create":
-            return _authorize_retained_design(name, ctx, payload, scope)
-        return scope
+    if name == "definition.create":
+        scope = workspace_scope(ctx, payload.scope_id)
+        return _authorize_retained_design(name, ctx, payload, scope)
+    if name in {"source.register_blob", "source.create_original_bundle", "build.request"}:
+        return workspace_scope(ctx, payload.project_id)
     if name in {"draft.update", "draft.snapshot", "draft.freeze"}:
         from specmate.design.operations import scoped_draft
 
-        draft = scoped_draft(ctx, payload.draft_id, Perm.PROJECT_READ)
-        scope = f"project:{draft.definition.project_id}"
+        draft = scoped_draft(ctx, payload.draft_id, Perm.WORKSPACE_READ)
+        scope = f"workspace:{draft.definition.workspace_id}"
         return _authorize_retained_design(name, ctx, payload, scope)
     if name == "build.cancel":
         from specmate.builds.models import BuildAttempt
@@ -66,17 +63,17 @@ def builtin_scope(name, ctx, payload) -> str:
         build = BuildAttempt.objects.filter(id=payload.build_id).first()
         if build is None:
             raise NotFound("Build not found.")
-        return project_scope(ctx, build.project_id)
+        return workspace_scope(ctx, build.workspace_id)
     if name == "runner.revoke":
         from specmate.builds.models import RunnerCredential
         from specmate.builds.operations import _operator
 
-        # Operator revocation deliberately does not require project membership.
+        # Operator revocation deliberately does not require workspace membership.
         _operator(ctx)
         credential = RunnerCredential.objects.filter(id=payload.credential_id).first()
         if credential is None:
             raise NotFound("Runner not found.")
-        return f"project:{credential.project_id}"
+        return f"workspace:{credential.workspace_id}"
     raise PermissionDenied("This operation has no idempotency scope policy.")
 
 
@@ -91,10 +88,11 @@ def _authorize_retained_design(name, ctx, payload, scope):
     from specmate.operations.models import IdempotencyRecord
     from specmate.operations.replay import authorize_builtin_replay
 
-    records = IdempotencyRecord.objects.select_for_update().filter(
-        actor=ctx.user, operation=name, key=ctx.idempotency_key
+    retained = (
+        IdempotencyRecord.objects.select_for_update()
+        .filter(actor=ctx.user, operation=name, key=ctx.idempotency_key, scope=scope)
+        .first()
     )
-    retained = records.filter(scope=scope).first() or records.filter(scope=LEGACY_SCOPE).first()
     if retained is None:
         return scope
     stored = retained.result

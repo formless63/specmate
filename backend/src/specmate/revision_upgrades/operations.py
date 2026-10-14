@@ -19,7 +19,7 @@ from specmate.revision_upgrades.models import UpgradeApplication, UpgradeProposa
 def retained(ctx, name, scope):
     if ctx.idempotency_key is not None:
         for record in IdempotencyRecord.objects.filter(
-            actor=ctx.user, operation=name, key=ctx.idempotency_key, scope__in=[scope, "legacy"]
+            actor=ctx.user, operation=name, key=ctx.idempotency_key, scope=scope
         ):
             queries.rows(ctx.user, record.result["proposal_id"], edit=True)
             if "draft_id" in record.result:
@@ -42,7 +42,7 @@ def propose_scope(ctx, p):
     # A resolvable nested consumer must be currently editable before key diagnostics.
     if tuple(p.context_path) in closure.nodes:
         queries.consumer(ctx.user, snapshot, closure, p.context_path, edit=True)
-    scope = f"project:{snapshot.definition.project_id}"
+    scope = f"workspace:{snapshot.definition.workspace_id}"
     retained(ctx, "upgrade.propose", scope)
     return scope
 
@@ -53,7 +53,7 @@ def mutation_scope(ctx, p):
         evidence_fields(ctx.user, p.evidence)
     if isinstance(p, ApplyUpgrade) and p.draft_id:
         scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT)
-    scope = f"project:{data[1].definition.project_id}"
+    scope = f"workspace:{data[1].definition.workspace_id}"
     retained(ctx, "upgrade.review" if isinstance(p, ReviewUpgrade) else "upgrade.apply", scope)
     return scope
 

@@ -401,9 +401,9 @@ def build_package(user, p):
         raise ValidationFailed("Rights review must identify an exact selected package subject.")
     if p.purpose == "distribution":
         for revision in captured.values():
-            authorize(user, revision.definition.project_id, Perm.DESIGN_FREEZE)
+            authorize(user, revision.definition.workspace_id, Perm.DESIGN_FREEZE)
         for file in source_files.values():
-            authorize(user, file.revision.bundle.project_id, Perm.DESIGN_FREEZE)
+            authorize(user, file.revision.bundle.workspace_id, Perm.DESIGN_FREEZE)
         if any(review_value(reviews, subject)["decision"] != "permitted" for subject in subjects):
             raise ValidationFailed(
                 "Distribution requires an explicit permitted review for every subject."

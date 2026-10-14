@@ -28,7 +28,7 @@ from specmate.mechanical_proposals.contracts import (
 from specmate.mechanical_proposals.generators import UnknownReference, generate
 from specmate.mechanical_proposals.models import ProposalDraft, ProposalRevision
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.pcb.models import PcbInterpretation
 from specmate.pcb.population import scoped_interpretation
 from specmate.pcb.report import Report
@@ -48,10 +48,12 @@ def state_token(draft) -> str:
 # ---------------------------------------------------------------- authority
 
 
-def board_report(user, project_id, interpretation_id):
+def board_report(user, scope_id, interpretation_id):
     """Fresh authority over the exact accepted board interpretation, then its report."""
-    interpretation = scoped_interpretation(user, project_id, interpretation_id)
-    authorize_revision(user, interpretation.attempt.intake.source_revision, Perm.PROJECT_READ)
+    # scope_id is a workspace id or (transitionally) a payload project id.
+    workspace_id = authorize(user, scope_id, Perm.WORKSPACE_READ).id
+    interpretation = scoped_interpretation(user, workspace_id, interpretation_id)
+    authorize_revision(user, interpretation.attempt.intake.source_revision, Perm.WORKSPACE_READ)
     try:
         report = Report.model_validate_json(bytes(interpretation.canonical))
     except PydanticValidationError:
@@ -61,14 +63,14 @@ def board_report(user, project_id, interpretation_id):
     return interpretation, report
 
 
-def authorized_draft(user, draft_id, permission=Perm.PROJECT_READ, lock=False):
+def authorized_draft(user, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
     user = current_actor(user)
     query = ProposalDraft.objects.select_related("interpretation")
     draft = (query.select_for_update(of=("self",)) if lock else query).filter(id=draft_id).first()
     if draft is None:
         raise NotFound("Proposal draft not found.")
-    authorize(user, draft.project_id, permission)
-    board_report(user, draft.project_id, draft.interpretation_id)
+    authorize(user, draft.workspace_id, permission)
+    board_report(user, draft.workspace_id, draft.interpretation_id)
     return draft
 
 
@@ -96,7 +98,7 @@ def draft_view(user, draft):
     parameters = Parameters.model_validate(draft.parameters)
     return {
         "draft_id": str(draft.id),
-        "project_id": str(draft.project_id),
+        "workspace_id": str(draft.workspace_id),
         "interpretation_id": str(draft.interpretation_id),
         "name": draft.name,
         "parameters": parameters.model_dump(mode="json"),
@@ -106,7 +108,7 @@ def draft_view(user, draft):
         "updated_by_id": draft.updated_by_id,
         "created_at": draft.created_at.isoformat(),
         "updated_at": draft.updated_at.isoformat(),
-        "proposal": compute(user, draft.project_id, draft.interpretation_id, parameters),
+        "proposal": compute(user, draft.workspace_id, draft.interpretation_id, parameters),
         "revisions": [
             {"revision_id": str(r.id), "number": r.number, "sha256": r.sha256, "status": r.status}
             for r in draft.revisions.order_by("number")
@@ -114,14 +116,17 @@ def draft_view(user, draft):
     }
 
 
-def revision_record(user, revision_id, project_id=None):
+def revision_record(user, revision_id, scope_id=None):
     user = current_actor(user)
     query = ProposalRevision.objects.select_related("interpretation")
     revision = query.filter(id=revision_id).first()
-    if revision is None or (project_id is not None and str(revision.project_id) != str(project_id)):
+    if revision is None or (
+        scope_id is not None
+        and str(revision.workspace_id) != str(authorize(user, scope_id, Perm.WORKSPACE_READ).id)
+    ):
         raise NotFound("Retained proposal not found.")
-    authorize(user, revision.project_id, Perm.PROJECT_READ)
-    board_report(user, revision.project_id, revision.interpretation_id)
+    authorize(user, revision.workspace_id, Perm.WORKSPACE_READ)
+    board_report(user, revision.workspace_id, revision.interpretation_id)
     data = bytes(revision.canonical)
     if hashlib.sha256(data).hexdigest() != revision.sha256:
         raise ValidationFailed("Retained proposal integrity check failed.")
@@ -132,7 +137,7 @@ def revision_view(revision, with_proposal=True):
     view = {
         "revision_id": str(revision.id),
         "draft_id": str(revision.draft_id),
-        "project_id": str(revision.project_id),
+        "workspace_id": str(revision.workspace_id),
         "number": revision.number,
         "interpretation_id": str(revision.interpretation_id),
         "interpretation_sha256": revision.interpretation_sha256,
@@ -152,14 +157,14 @@ def revision_view(revision, with_proposal=True):
 
 def create_scope(ctx, p: CreateProposal):
     user = current_actor(ctx.user)
-    scope = project_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+    scope = workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
     board_report(user, p.project_id, p.interpretation_id)
     return scope
 
 
 def draft_scope(ctx, p):
     draft = authorized_draft(ctx.user, p.draft_id, Perm.DESIGN_EDIT)
-    return f"project:{draft.project_id}"
+    return f"workspace:{draft.workspace_id}"
 
 
 def create_replay(ctx, p, stored):
@@ -170,7 +175,7 @@ def create_replay(ctx, p, stored):
 def draft_replay(ctx, p, stored):
     authorized_draft(ctx.user, p.draft_id, Perm.DESIGN_EDIT)
     if "revision_id" in stored:
-        revision_record(ctx.user, stored["revision_id"], stored["project_id"])
+        revision_record(ctx.user, stored["revision_id"], stored["workspace_id"])
 
 
 @operation(
@@ -183,10 +188,10 @@ def draft_replay(ctx, p, stored):
 )
 def create(ctx: Context, p: CreateProposal):
     user = current_actor(ctx.user)
-    authorize(user, p.project_id, Perm.DESIGN_EDIT)
-    compute(user, p.project_id, p.interpretation_id, p.parameters)  # validates references
+    workspace = authorize(user, p.project_id, Perm.DESIGN_EDIT)
+    compute(user, workspace.id, p.interpretation_id, p.parameters)  # validates references
     draft = ProposalDraft.objects.create(
-        project_id=p.project_id,
+        workspace=workspace,
         interpretation_id=p.interpretation_id,
         name=p.name,
         parameters=p.parameters.model_dump(mode="json"),
@@ -212,7 +217,7 @@ def update(ctx: Context, p: UpdateProposal):
             "Proposal draft changed since it was read; nothing was saved.",
             details={"current_state": state_token(draft), "version": draft.version},
         )
-    compute(user, draft.project_id, draft.interpretation_id, p.parameters)
+    compute(user, draft.workspace_id, draft.interpretation_id, p.parameters)
     draft.parameters = p.parameters.model_dump(mode="json")
     if p.name is not None:
         draft.name = p.name
@@ -240,7 +245,7 @@ def retain(ctx: Context, p: RetainProposal):
             details={"current_state": state_token(draft), "version": draft.version},
         )
     parameters = Parameters.model_validate(draft.parameters)
-    proposal = compute(user, draft.project_id, draft.interpretation_id, parameters)
+    proposal = compute(user, draft.workspace_id, draft.interpretation_id, parameters)
     document = {
         "draft_id": str(draft.id),
         "draft_name": draft.name,
@@ -258,7 +263,7 @@ def retain(ctx: Context, p: RetainProposal):
         with transaction.atomic():
             revision = ProposalRevision.objects.create(
                 draft=draft,
-                project_id=draft.project_id,
+                workspace_id=draft.workspace_id,
                 number=number,
                 interpretation=draft.interpretation,
                 interpretation_sha256=draft.interpretation.sha256,
@@ -305,14 +310,14 @@ def read_retained(ctx: Context, p: RetainedRef):
 )
 def list_proposals(ctx: Context, p: ListProposals):
     user = current_actor(ctx.user)
-    authorize(user, p.project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, p.project_id, Perm.WORKSPACE_READ)
     drafts = list(
-        ProposalDraft.objects.filter(project_id=p.project_id).order_by("-created_at", "id")[
+        ProposalDraft.objects.filter(workspace=workspace).order_by("-created_at", "id")[
             : LIST_LIMIT + 1
         ]
     )
     for draft in drafts[:LIST_LIMIT]:
-        board_report(user, draft.project_id, draft.interpretation_id)
+        board_report(user, draft.workspace_id, draft.interpretation_id)
     return {
         "truncated": len(drafts) > LIST_LIMIT,
         "drafts": [
@@ -338,10 +343,10 @@ def list_proposals(ctx: Context, p: ListProposals):
 )
 def board_choices(ctx: Context, p: ListProposals):
     user = current_actor(ctx.user)
-    authorize(user, p.project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, p.project_id, Perm.WORKSPACE_READ)
     rows = []
     query = PcbInterpretation.objects.select_related("attempt__intake__source_revision").filter(
-        attempt__intake__source_revision__bundle__project_id=p.project_id
+        attempt__intake__source_revision__bundle__workspace=workspace
     )
     for interpretation in query.order_by("-created_at", "id")[:LIST_LIMIT]:
         _, report = board_report(user, p.project_id, interpretation.id)

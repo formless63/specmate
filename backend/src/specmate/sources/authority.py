@@ -9,7 +9,7 @@ from specmate.sources.models import (
 )
 
 
-def authorize_revision(user, revision, permission=Perm.PROJECT_READ):
+def authorize_revision(user, revision, permission=Perm.WORKSPACE_READ):
     pending = [revision]
     seen = set()
     while pending:
@@ -17,10 +17,10 @@ def authorize_revision(user, revision, permission=Perm.PROJECT_READ):
         if current.id in seen:
             continue
         seen.add(current.id)
-        authorize(user, current.bundle.project_id, permission)
-        for project_id in current.files.values_list("blob__project_id", flat=True).distinct():
-            authorize(user, project_id, Perm.PROJECT_READ)
-            if project_id != current.bundle.project_id:
+        authorize(user, current.bundle.workspace_id, permission)
+        for workspace_id in current.files.values_list("blob__workspace_id", flat=True).distinct():
+            authorize(user, workspace_id, Perm.WORKSPACE_READ)
+            if workspace_id != current.bundle.workspace_id:
                 raise NotFound("Source revision not found.")
         expansion = (
             SourceArchiveExpansion.objects.select_related(
@@ -30,7 +30,7 @@ def authorize_revision(user, revision, permission=Perm.PROJECT_READ):
             .first()
         )
         if expansion:
-            authorize(user, expansion.archive_file.blob.project_id, Perm.PROJECT_READ)
+            authorize(user, expansion.archive_file.blob.workspace_id, Perm.WORKSPACE_READ)
             pending.append(expansion.archive_file.revision)
         submission = (
             SourceEditSubmission.objects.select_related(
@@ -42,7 +42,7 @@ def authorize_revision(user, revision, permission=Perm.PROJECT_READ):
         if submission:
             pending.append(submission.baseline)
             if submission.archive_file:
-                authorize(user, submission.archive_file.blob.project_id, Perm.PROJECT_READ)
+                authorize(user, submission.archive_file.blob.workspace_id, Perm.WORKSPACE_READ)
                 pending.append(submission.archive_file.revision)
         if current.bundle.derived_from_id:
             pending.append(

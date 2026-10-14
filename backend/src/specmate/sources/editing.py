@@ -199,11 +199,11 @@ def _archive(
     if revision is None:
         raise NotFound("Source revision not found.")
     authorize_revision(ctx.user, revision, Perm.SOURCE_REGISTER)
-    if revision.bundle.project_id != baseline.bundle.project_id:
+    if revision.bundle.workspace_id != baseline.bundle.workspace_id:
         raise NotFound("Source revision not found.")
     file = (
         revision.files.select_related("blob")
-        .filter(path=p.archive.path, blob__project_id=baseline.bundle.project_id)
+        .filter(path=p.archive.path, blob__workspace_id=baseline.bundle.workspace_id)
         .first()
     )
     if file is None:
@@ -232,15 +232,14 @@ def _replay_authority(ctx: Context, p: SubmitEdit, result) -> None:
 
 def _submit_scope(ctx: Context, p: SubmitEdit) -> str:
     from specmate.operations.models import IdempotencyRecord
-    from specmate.operations.scope import LEGACY_SCOPE
 
     baseline, _ = _closure(ctx, p, authority_only=True)
-    scope = f"project:{baseline.bundle.project_id}"
+    scope = f"workspace:{baseline.bundle.workspace_id}"
     # Check a retained outcome's complete closure before revealing even a mismatch.
     prior = IdempotencyRecord.objects.select_for_update().filter(
         actor=ctx.user, operation="source.submit_edit", key=ctx.idempotency_key
     )
-    retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+    retained = prior.filter(scope=scope).first()
     if retained is not None:
         _replay_authority(ctx, p, retained.result)
     return scope
@@ -271,7 +270,7 @@ def _candidates(p: EditInput, baseline, archive):
     blobs = {
         b.sha256: b
         for b in SourceBlob.objects.filter(
-            project_id=baseline.bundle.project_id, sha256__in={f.sha256 for f in p.files}
+            workspace_id=baseline.bundle.workspace_id, sha256__in={f.sha256 for f in p.files}
         )
     }
     missing = sorted(f.path for f in p.files if f.sha256 not in blobs)
@@ -283,7 +282,7 @@ def _candidates(p: EditInput, baseline, archive):
     return [_Candidate(f.path, f.sha256, blobs[f.sha256].size) for f in p.files], []
 
 
-def _marker(candidates, baseline, project_id):
+def _marker(candidates, baseline, workspace_id):
     markers = [c for c in candidates if _reserved(c.path)]
     if not markers:
         return "absent", "", candidates
@@ -299,7 +298,7 @@ def _marker(candidates, baseline, project_id):
         with marker.staged.path.open("rb") as stream:
             raw = stream.read()
     else:
-        blob = SourceBlob.objects.get(project_id=project_id, sha256=marker.sha256)
+        blob = SourceBlob.objects.get(workspace_id=workspace_id, sha256=marker.sha256)
         raw = _verified(blob)
     try:
         value = json.loads(raw)
@@ -324,7 +323,7 @@ def review(p: EditInput, baseline, archive):
     """Compute the exact reviewed change set. Returns (review dict, final entries, staged)."""
     candidates, staged = _candidates(p, baseline, archive)
     try:
-        marker, prefix, candidates = _marker(candidates, baseline, baseline.bundle.project_id)
+        marker, prefix, candidates = _marker(candidates, baseline, baseline.bundle.workspace_id)
         present = {c.path for c in candidates}
         unknown = sorted(set(p.exclude_paths) - present)
         if unknown:
@@ -522,7 +521,7 @@ def submit_edit(ctx: Context, p: SubmitEdit) -> dict:
             if item.sha256 in kept:
                 blobstore.promote(item)
                 SourceBlob.objects.get_or_create(
-                    project_id=bundle.project_id,
+                    workspace_id=bundle.workspace_id,
                     sha256=item.sha256,
                     defaults={"size": item.size, "media_type": OCTET, "registered_by": ctx.user},
                 )
@@ -534,7 +533,7 @@ def submit_edit(ctx: Context, p: SubmitEdit) -> dict:
         ]
         if p.target == "new_derivative":
             bundle = SourceBundle.objects.create(
-                project_id=bundle.project_id,
+                workspace_id=bundle.workspace_id,
                 name=p.name,
                 role=SourceBundle.Role.DERIVATIVE,
                 derived_from=baseline,

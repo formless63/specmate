@@ -49,11 +49,6 @@
       "title": "Progress",
       "type": "string"
     },
-    "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
-    },
     "reported_completed_units": {
       "title": "Reported Completed Units",
       "type": "integer"
@@ -71,11 +66,16 @@
       "format": "uuid",
       "title": "Work Batch Id",
       "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
     "work_batch_id",
-    "project_id",
+    "workspace_id",
     "revision_id",
     "definition_id",
     "kind",

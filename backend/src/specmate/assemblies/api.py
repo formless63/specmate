@@ -27,7 +27,7 @@ def inspect_snapshot(request, snapshot_id: UUID):
 @router.get("/drafts/{draft_id}")
 def inspect_draft(request, draft_id: UUID):
     draft = scoped_draft(
-        Context(user=request.user, via="api", request_id="read"), draft_id, Perm.PROJECT_READ
+        Context(user=request.user, via="api", request_id="read"), draft_id, Perm.WORKSPACE_READ
     )
     if draft.definition.kind != "assembly":
         raise ValidationFailed("Draft is not an assembly.")

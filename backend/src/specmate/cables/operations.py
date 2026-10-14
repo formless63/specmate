@@ -25,7 +25,7 @@ from specmate.design.operations import (
 )
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 
 
 def cable_draft(ctx, draft_id, permission, lock=False):
@@ -41,10 +41,10 @@ def cable_draft(ctx, draft_id, permission, lock=False):
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateCable):
-        project = p.project_id
+        scope_id = p.project_id
     else:
-        project = cable_draft(ctx, p.draft_id, permission).definition.project_id
-    resolved = project_scope(ctx, project, permission)
+        scope_id = cable_draft(ctx, p.draft_id, permission).definition.workspace_id
+    resolved = workspace_scope(ctx, scope_id, permission)
     if isinstance(p, (CreateCable, UpdateCable)):
         authorize_content(ctx.user, {"cable": p.cable.model_dump(mode="json")}, authority_only=True)
     name = (
@@ -61,7 +61,7 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
             actor=ctx.user,
             operation=name,
             key=ctx.idempotency_key,
-            scope__in=[resolved, LEGACY_SCOPE],
+            scope=resolved,
         ):
             retained_authority(ctx, record.result, permission)
     return resolved

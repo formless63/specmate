@@ -21,14 +21,14 @@ router = Router(tags=["pcb"])
 
 @router.get("/projects/{project_id}/intakes")
 def list_intakes(request, project_id: UUID):
-    authorize(request.user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(request.user, project_id, Perm.WORKSPACE_READ)
     return [
         {
             "intake_id": str(i.id),
             "board_path": i.board_path,
             "source_revision_id": str(i.source_revision_id),
         }
-        for i in PcbIntake.objects.filter(source_revision__bundle__project_id=project_id).order_by(
+        for i in PcbIntake.objects.filter(source_revision__bundle__workspace=workspace).order_by(
             "created_at"
         )
     ]
@@ -71,7 +71,7 @@ def list_populations(request, intake_id: UUID):
         )
     }
     definitions = Definition.objects.filter(
-        project_id=intake.source_revision.bundle.project_id, kind="pcb_population"
+        workspace_id=intake.source_revision.bundle.workspace_id, kind="pcb_population"
     ).prefetch_related("drafts", "revisions")
     for definition in definitions:
         for draft in definition.drafts.all():
@@ -134,10 +134,10 @@ def read_population_revision(request, revision_id: UUID):
 @router.get("/projects/{project_id}/association-targets")
 def association_targets(request, project_id: UUID):
     """Offer exact selectable revisions/representations from the authorized project."""
-    authorize(request.user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(request.user, project_id, Perm.WORKSPACE_READ)
     revision_rows = list(
         Revision.objects.select_related("definition", "snapshot")
-        .filter(definition__project_id=project_id)
+        .filter(definition__workspace=workspace)
         .exclude(definition__kind="pcb_population")
         .order_by("definition__name", "number")[:2001]
     )
@@ -172,14 +172,16 @@ def association_targets(request, project_id: UUID):
         Representation.objects.select_related(
             "revision__definition", "source_file__revision__bundle", "source_file__blob"
         )
-        .filter(revision__definition__project_id=project_id, kind="model")
+        .filter(revision__definition__workspace=workspace, kind="model")
         .order_by("label")[:2001]
     )
     models = []
     for representation in model_rows[:2000]:
         authorize_snapshot(request.user, representation.revision.snapshot)
         authorize(
-            request.user, representation.source_file.revision.bundle.project_id, Perm.PROJECT_READ
+            request.user,
+            representation.source_file.revision.bundle.workspace_id,
+            Perm.WORKSPACE_READ,
         )
         models.append(
             {

@@ -38,7 +38,7 @@ def get_identity(user, definition_id, *, offset=0, limit=50):
     definition = Definition.objects.filter(id=definition_id).first()
     if definition is None:
         raise NotFound("Definition not found.")
-    authorize(user, definition.project_id, Perm.PROJECT_READ)
+    authorize(user, definition.workspace_id, Perm.WORKSPACE_READ)
     revisions = list(definition.revisions.order_by("number")[offset : offset + limit])
     return {
         "definition_id": str(definition.id),
@@ -64,7 +64,8 @@ def get_revision_catalog(user, revision_id, *, offset=0, limit=50):
     representations = Representation.objects.select_related(
         "revision", "source_file__blob", "source_file__revision__bundle"
     ).filter(
-        revision=revision, source_file__revision__bundle__project_id=revision.definition.project_id
+        revision=revision,
+        source_file__revision__bundle__workspace_id=revision.definition.workspace_id,
     )
     lots = PhysicalLot.objects.select_related("revision").filter(revision=revision)
     return {

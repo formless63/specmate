@@ -78,7 +78,7 @@ class Closure:
             )
             if revision is None:
                 raise NotFound("Cable reference unavailable.")
-            authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
             self.revisions[rid] = revision
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         # Recheck typed source evidence, not just membership or snapshot dependency rows.
@@ -149,7 +149,7 @@ def inspect_revision(user, revision_id):
     )
     if revision is None:
         raise NotFound("Cable revision unavailable.")
-    authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
     closure = Closure(
         user,
         json.loads(bytes(revision.snapshot.canonical))["content"],

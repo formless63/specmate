@@ -2,7 +2,7 @@
 
 import hashlib
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, transitional_project
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import canonical_bytes
 from specmate.facts.contracts import (
@@ -49,7 +49,7 @@ def describe_target(user, target):
     from specmate.assemblies.queries import resolve_occurrence
 
     fields = resolve_target(user, target)
-    result = {"target": target.model_dump(mode="json"), "project_id": str(fields["project"].id)}
+    result = {"target": target.model_dump(mode="json"), "workspace_id": str(fields["workspace"].id)}
     if target.kind == "project":
         result["label"] = fields["project"].name
     elif target.kind == "definition":
@@ -122,18 +122,18 @@ def attachment_result(attachment):
         "media_type": file.media_type,
         "rights": file.rights,
         "label": attachment.label,
-        "blob_project_id": str(file.blob.project_id),
+        "blob_workspace_id": str(file.blob.workspace_id),
     }
 
 
-def get_item(user, item_id, permission=Perm.PROJECT_READ, *, lock=False):
+def get_item(user, item_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     query = KnowledgeItem.objects
     if lock:
         query = query.select_for_update()
     item = query.filter(id=item_id).first()
     if item is None:
         raise NotFound("Knowledge item not found.")
-    authorize(user, item.project_id, permission)
+    authorize(user, item.workspace_id, permission)
     entries = list(item.entries.order_by("number")[: MAX_ENTRIES + 1])
     if len(entries) > MAX_ENTRIES:
         raise ValidationFailed("Knowledge history exceeds the supported limit.")
@@ -173,7 +173,8 @@ def item_summary(item, entries, by_entry):
     current = entries[-1]
     return {
         "item_id": str(item.id),
-        "project_id": str(item.project_id),
+        "workspace_id": str(item.workspace_id),
+        "project_id": str(item.project_id) if item.project_id else None,
         "kind": item.kind,
         "state": item.state_token,
         "current": entry_result(current, by_entry.get(current.id, [])),
@@ -230,8 +231,12 @@ def items_for_target(user, target, offset=0, limit=50):
 
 def project_items(user, project_id, offset=0, limit=50):
     user = current_actor(user)
-    project = authorize(user, project_id, Perm.PROJECT_READ)
-    items = KnowledgeItem.objects.filter(project=project).order_by("created_at", "id")
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    items = KnowledgeItem.objects.filter(workspace=workspace)
+    # TRANSITIONAL: a payload project id lists the items held by that project.
+    if project := transitional_project(project_id, workspace):
+        items = items.filter(project=project)
+    items = items.order_by("created_at", "id")
     page = list(items[offset : offset + limit + 1])
     rows = [
         item_summary(*readable)

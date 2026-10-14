@@ -27,11 +27,10 @@ from specmate.firmware_occurrences.contracts import (
 from specmate.firmware_occurrences.models import FirmwareAdoption
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE
 from specmate.pcb.firmware import STATUS, read_revision
 
 
-def owning_draft(ctx, draft_id, permission=Perm.PROJECT_READ, *, lock=False):
+def owning_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.base_revision_id:
         authorize_snapshot(ctx.user, draft.base_revision.snapshot)
@@ -43,7 +42,7 @@ def owning_draft(ctx, draft_id, permission=Perm.PROJECT_READ, *, lock=False):
 
 def inputs(ctx, p, *, edit=False, lock=False):
     draft, closure = owning_draft(
-        ctx, p.draft_id, Perm.DESIGN_EDIT if edit else Perm.PROJECT_READ, lock=lock
+        ctx, p.draft_id, Perm.DESIGN_EDIT if edit else Perm.WORKSPACE_READ, lock=lock
     )
     # Resolve the candidate's complete source/dependency closure before path diagnostics.
     candidate = read_revision(ctx.user, p.firmware_revision_id) if p.firmware_revision_id else None
@@ -98,7 +97,7 @@ def adoption_result(ctx, adoption_id, *, edit=False):
     )
     if row is None:
         raise NotFound("Firmware adoption unavailable.")
-    draft, _ = owning_draft(ctx, row.draft_id, Perm.DESIGN_EDIT if edit else Perm.PROJECT_READ)
+    draft, _ = owning_draft(ctx, row.draft_id, Perm.DESIGN_EDIT if edit else Perm.WORKSPACE_READ)
     if row.base_revision_id:
         authorize_snapshot(ctx.user, row.base_revision.snapshot)
     # Displaced declarations and ancestors remain part of retained evidence authority.
@@ -128,13 +127,13 @@ def adoption_replay(ctx, p, stored):
 
 def adoption_scope(ctx, p):
     draft, _, _ = inputs(ctx, p, edit=True)
-    scope = f"project:{draft.definition.project_id}"
+    scope = f"workspace:{draft.definition.workspace_id}"
     # Authorize current and retained outcomes before changed-payload/legacy conflicts.
     for prior in IdempotencyRecord.objects.select_for_update().filter(
         actor=ctx.user,
         operation="firmware_occurrence.adopt",
         key=ctx.idempotency_key,
-        scope__in=[scope, LEGACY_SCOPE],
+        scope=scope,
     ):
         adoption_replay(ctx, p, prior.result)
     return scope

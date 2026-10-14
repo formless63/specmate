@@ -59,8 +59,8 @@ def read_source(user, pin):
     )
     if file is None:
         raise NotFound("Source assertion file unavailable.")
-    authorize(user, file.revision.bundle.project_id, Perm.PROJECT_READ)
-    authorize(user, file.blob.project_id, Perm.PROJECT_READ)
+    authorize(user, file.revision.bundle.workspace_id, Perm.WORKSPACE_READ)
+    authorize(user, file.blob.workspace_id, Perm.WORKSPACE_READ)
     return file
 
 
@@ -103,7 +103,7 @@ class Closure:
                 )
                 if revision is None:
                     raise NotFound("Source assertion revision unavailable.")
-                authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+                authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
                 self.revisions[revision.id] = revision
                 content = json.loads(bytes(revision.snapshot.canonical))["content"]
                 assertion = parse_content(content, revision.definition.kind)
@@ -130,7 +130,7 @@ class Closure:
                 if interpretation is None:
                     raise NotFound("PCB source interpretation unavailable.")
                 source = interpretation.attempt.intake.source_revision
-                authorize(user, source.bundle.project_id, Perm.PROJECT_READ)
+                authorize(user, source.bundle.workspace_id, Perm.WORKSPACE_READ)
                 file = read_source(user, pin.source)
                 # Include the owning file even when the supplied pin differs.
                 original = (
@@ -140,7 +140,7 @@ class Closure:
                 )
                 if original is None:
                     raise NotFound("PCB source interpretation unavailable.")
-                authorize(user, original.blob.project_id, Perm.PROJECT_READ)
+                authorize(user, original.blob.workspace_id, Perm.WORKSPACE_READ)
                 pending[side] = (pin, interpretation, file, original)
         for revision in self.revisions.values():
             active = _AUTHORIZING.get()
@@ -438,7 +438,7 @@ def source_files(user, revision_id):
     revision = get_bundle_revision(user, revision_id)
     files = list(revision.files.select_related("blob"))
     for file in files:
-        authorize(user, file.blob.project_id, Perm.PROJECT_READ)
+        authorize(user, file.blob.workspace_id, Perm.WORKSPACE_READ)
     return {
         "source_revision_id": str(revision.id),
         "manifest_sha256": revision.manifest_sha256,

@@ -16,7 +16,7 @@ class ResolvedConfiguration(models.Model):
         INCOMPLETE = "incomplete"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT, related_name="+")
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     draft = models.ForeignKey("design.Draft", on_delete=models.PROTECT, related_name="+")
     draft_version = models.PositiveIntegerField()
     snapshot = models.OneToOneField(

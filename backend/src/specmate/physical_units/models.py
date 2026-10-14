@@ -8,7 +8,7 @@ from django.db import models
 
 class PhysicalUnit(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     revision = models.ForeignKey("design.Revision", on_delete=models.PROTECT)
     lot = models.ForeignKey("catalog.PhysicalLot", null=True, on_delete=models.PROTECT)
     variant = models.ForeignKey("catalog.ManufacturerVariant", null=True, on_delete=models.PROTECT)
@@ -23,7 +23,7 @@ class PhysicalUnit(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["project", "serial"], name="physical_unit_project_serial"
+                fields=["workspace", "serial"], name="physical_unit_workspace_serial"
             ),
             models.CheckConstraint(
                 condition=~models.Q(serial=""), name="physical_unit_serial_nonempty"

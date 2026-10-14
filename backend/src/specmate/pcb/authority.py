@@ -236,21 +236,21 @@ def authority_state(authority: PropertyAuthority) -> str:
     return f"authority-v{authority.version}"
 
 
-def authorize_authority(user, authority: PropertyAuthority, permission=Perm.PROJECT_READ):
+def authorize_authority(user, authority: PropertyAuthority, permission=Perm.WORKSPACE_READ):
     """Complete current closure: owner head, every projected source and owner change."""
     user = current_actor(user)
-    authorize(user, authority.project_id, permission)
+    authorize(user, authority.workspace_id, permission)
     authorize_revision(user, head_of(authority.owner_bundle_id), permission)
     revisions = set(authority.projections.values_list("source_revision_id", flat=True)) | set(
         authority.owner_changes.values_list("owner_revision_id", flat=True)
     )
     for revision in SourceBundleRevision.objects.select_related("bundle").filter(id__in=revisions):
         authorize_revision(user, revision)
-        if revision.bundle.project_id != authority.project_id:
+        if revision.bundle.workspace_id != authority.workspace_id:
             raise NotFound("Property authority not found.")
 
 
-def authority_for(ctx, authority_id, permission=Perm.PROJECT_READ, lock=False):
+def authority_for(ctx, authority_id, permission=Perm.WORKSPACE_READ, lock=False):
     rows = PropertyAuthority.objects.select_related("owner_bundle")
     authority = rows.filter(id=authority_id).first()
     if authority is None:
@@ -317,7 +317,7 @@ def read_authority(user, authority: PropertyAuthority) -> dict:
         status = "stale"
     return {
         "authority_id": str(authority.id),
-        "project_id": str(authority.project_id),
+        "workspace_id": str(authority.workspace_id),
         "property": authority.property,
         "extractor": authority.extractor,
         "state": authority_state(authority),
@@ -414,13 +414,13 @@ def _owner_revision(ctx, revision_id, permission=Perm.SOURCE_REGISTER):
 
 def _closure(ctx, p) -> str:
     if isinstance(p, Declare):
-        return f"project:{_owner_revision(ctx, p.owner_revision_id).bundle.project_id}"
+        return f"workspace:{_owner_revision(ctx, p.owner_revision_id).bundle.workspace_id}"
     authority = authority_for(ctx, p.authority_id, Perm.SOURCE_REGISTER)
     if isinstance(p, Reconcile):
         _interpretation(ctx, p.interpretation_id, authority)
     if isinstance(p, Transfer):
         _owner_revision(ctx, p.new_owner_revision_id)
-    return f"project:{authority.project_id}"
+    return f"workspace:{authority.workspace_id}"
 
 
 def _replay(ctx, p, stored) -> None:
@@ -443,14 +443,13 @@ def _replay(ctx, p, stored) -> None:
 def _scope(name):
     def resolve(ctx, p):
         from specmate.operations.models import IdempotencyRecord
-        from specmate.operations.scope import LEGACY_SCOPE
 
         scope = _closure(ctx, p)
         # Current authority over a retained outcome precedes any keyed mismatch.
         prior = IdempotencyRecord.objects.select_for_update().filter(
             actor=ctx.user, operation=name, key=ctx.idempotency_key
         )
-        retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+        retained = prior.filter(scope=scope).first()
         if retained is not None:
             _replay(ctx, p, retained.result)
         return scope
@@ -468,7 +467,7 @@ def _interpretation(ctx, interpretation_id, authority) -> PcbInterpretation:
         raise NotFound("PCB interpretation not found.")
     source = interpretation.attempt.intake.source_revision
     authorize_revision(ctx.user, source, Perm.SOURCE_REGISTER)
-    if source.bundle.project_id != authority.project_id:
+    if source.bundle.workspace_id != authority.workspace_id:
         raise NotFound("PCB interpretation not found.")
     return interpretation
 
@@ -511,7 +510,7 @@ def declare(ctx: Context, p: Declare) -> dict:
     try:
         with transaction.atomic():
             authority = PropertyAuthority.objects.create(
-                project_id=bundle.project_id,
+                workspace_id=bundle.workspace_id,
                 property=p.property,
                 lineage_root=root,
                 owner_bundle=bundle,
@@ -651,7 +650,7 @@ def transfer(ctx: Context, p: Transfer) -> dict:
     list(bundles.order_by("id"))
     if revision.bundle_id == authority.owner_bundle_id:
         raise ValidationFailed("The selected revision is already in the owning bundle.")
-    if revision.bundle.project_id != authority.project_id:
+    if revision.bundle.workspace_id != authority.workspace_id:
         raise NotFound("Source revision not found.")
     head = head_of(revision.bundle_id)
     authorize_revision(ctx.user, head, Perm.SOURCE_REGISTER)
@@ -704,9 +703,9 @@ def read(ctx: Context, p: AuthorityRef) -> dict:
 
 def list_authorities(user, project_id) -> list[dict]:
     user = current_actor(user)
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     result = []
-    rows = PropertyAuthority.objects.select_related("owner_bundle").filter(project_id=project_id)
+    rows = PropertyAuthority.objects.select_related("owner_bundle").filter(workspace=workspace)
     for authority in rows.order_by("created_at")[:200]:
         authorize_authority(user, authority)
         head = head_of(authority.owner_bundle_id)

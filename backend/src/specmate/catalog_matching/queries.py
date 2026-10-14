@@ -21,7 +21,7 @@ def current_actor(user):
 def authorize_file(user, source_file):
     if source_file is not None:
         get_bundle_revision(user, source_file.revision_id)
-        authorize(user, source_file.blob.project_id, Perm.PROJECT_READ)
+        authorize(user, source_file.blob.workspace_id, Perm.WORKSPACE_READ)
 
 
 def candidate_rows(user, candidate_id, *, edit=False, lock=False):
@@ -46,7 +46,7 @@ def candidate_rows(user, candidate_id, *, edit=False, lock=False):
     for review in reviews:
         authorize_file(user, review.source_file)
     if edit:
-        authorize(user, source.definition.project_id, Perm.DESIGN_EDIT)
+        authorize(user, source.definition.workspace_id, Perm.DESIGN_EDIT)
     return candidate, source, target, reviews
 
 
@@ -67,7 +67,7 @@ def revision_identity(revision):
     return RevisionIdentity(
         revision_id=revision.id,
         definition_id=revision.definition_id,
-        project_id=revision.definition.project_id,
+        workspace_id=revision.definition.workspace_id,
         name=revision.definition.name,
         kind=revision.definition.kind,
         number=revision.number,
@@ -145,12 +145,12 @@ def list_evidence_files(user, project_id, *, after=None, limit=50):
     from specmate.sources.models import SourceBundleFile
 
     user = current_actor(user)
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     if not 1 <= limit <= 100:
         raise ValidationFailed("Limit must be between 1 and 100.")
     query = (
         SourceBundleFile.objects.select_related("revision__bundle", "blob")
-        .filter(revision__bundle__project_id=project_id, blob__project_id=project_id)
+        .filter(revision__bundle__workspace=workspace, blob__workspace=workspace)
         .order_by("id")
     )
     if after is not None:

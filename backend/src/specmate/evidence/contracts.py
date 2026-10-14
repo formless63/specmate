@@ -81,7 +81,7 @@ class EvidenceItem(StrictModel):
     kind: Kind
     kind_label: str
     source: Source
-    project_id: UUID
+    workspace_id: UUID
     subject: SubjectRef
     statement: str
     status: str
@@ -99,6 +99,7 @@ class EvidenceItem(StrictModel):
 
 class EvidenceList(StrictModel):
     project_id: UUID
+    workspace_id: UUID
     items: list[EvidenceItem]
     offset: int
     limit: int

@@ -1,4 +1,4 @@
-"""Project-scoped source bytes and versioned original/derivative bundles.
+"""Workspace-held source bytes and versioned original/derivative bundles.
 
 SourceBlob, SourceBundleRevision and SourceBundleFile are immutable (database triggers).
 """
@@ -8,15 +8,15 @@ import uuid
 from django.conf import settings
 from django.db import models
 
-from specmate.access.models import Project
-
 
 class SourceBlob(models.Model):
-    """Registration of exact bytes in one project. Identical bytes in another project
-    are a separate registration; existence is never revealed across projects."""
+    """Registration of exact bytes in one workspace. Identical bytes in another workspace
+    are a separate registration; existence is never revealed across workspaces."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name="source_blobs")
+    workspace = models.ForeignKey(
+        "access.Workspace", on_delete=models.PROTECT, related_name="source_blobs"
+    )
     sha256 = models.CharField(max_length=64)
     size = models.PositiveBigIntegerField()
     media_type = models.CharField(max_length=200)
@@ -25,7 +25,9 @@ class SourceBlob(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["project", "sha256"], name="source_blob_project_hash")
+            models.UniqueConstraint(
+                fields=["workspace", "sha256"], name="source_blob_workspace_hash"
+            )
         ]
 
 
@@ -35,7 +37,9 @@ class SourceBundle(models.Model):
         DERIVATIVE = "derivative"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name="source_bundles")
+    workspace = models.ForeignKey(
+        "access.Workspace", on_delete=models.PROTECT, related_name="source_bundles"
+    )
     name = models.CharField(max_length=200)
     role = models.CharField(max_length=20, choices=Role.choices)
     derived_from = models.ForeignKey(

@@ -3,7 +3,7 @@ from django.db import models
 
 
 class IdempotencyRecord(models.Model):
-    """Stored outcome of a keyed request, scoped to actor, project namespace and operation."""
+    """Stored outcome of a keyed request, scoped to actor, workspace namespace and operation."""
 
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     operation = models.CharField(max_length=100)
@@ -20,9 +20,9 @@ class IdempotencyRecord(models.Model):
                 name="idempotency_actor_scope_operation_key",
             ),
             models.CheckConstraint(
-                condition=models.Q(scope__in=["global", "legacy"])
+                condition=models.Q(scope="global")
                 | models.Q(
-                    scope__regex=r"^project:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    scope__regex=r"^workspace:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
                 ),
                 name="idempotency_valid_scope",
             ),

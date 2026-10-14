@@ -31,7 +31,7 @@ def authorize_snapshot_origin(user, snapshot_id):
     snapshot = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
     if snapshot is None:
         raise NotFound("Assembly snapshot unavailable.")
-    authorize(user, snapshot.definition.project_id, Perm.PROJECT_READ)
+    authorize(user, snapshot.definition.workspace_id, Perm.WORKSPACE_READ)
     authorize_origin(user, snapshot.definition)
 
 
@@ -46,7 +46,7 @@ def authorize_evidence(user, rows):
         if len(visited) > MAX_ASSERTIONS:
             raise ValidationFailed("Impact evidence exceeds the supported closure limit.")
         if row.subject_id not in subjects:
-            authorize(user, row.subject.project_id, Perm.PROJECT_READ)
+            authorize(user, row.subject.workspace_id, Perm.WORKSPACE_READ)
             if row.subject.kind == "occurrence":
                 authorize_snapshot_origin(user, row.subject.snapshot_id)
             elif row.subject.kind == "definition":
@@ -65,7 +65,7 @@ def authorize_evidence(user, rows):
 
 def authorized_inputs(ctx, p):
     user = current_actor(ctx.user)
-    authorize(user, p.project_id, Perm.PROJECT_READ)
+    workspace_id = authorize(user, p.project_id, Perm.WORKSPACE_READ).id
     # Resolve both complete frozen closures before kind, path or comparison diagnostics.
     revisions, snapshots = [], []
     for ref in (p.baseline, p.candidate):
@@ -80,11 +80,11 @@ def authorized_inputs(ctx, p):
     for revision, snapshot in zip(revisions, snapshots, strict=True):
         # A consumer owns the assembly context, while the assigned exact firmware
         # may retain its readable library ownership. Standalone reads stay local.
-        if snapshot is None and revision.definition.project_id != p.project_id:
+        if snapshot is None and revision.definition.workspace_id != workspace_id:
             raise NotFound("Firmware revision unavailable in this project.")
-    if any(snapshot and snapshot.definition.project_id != p.project_id for snapshot in snapshots):
+    if any(snapshot and snapshot.definition.workspace_id != workspace_id for snapshot in snapshots):
         raise NotFound("Assembly snapshot unavailable in this project.")
-    if any(row.subject.project_id != p.project_id for row in selected):
+    if any(row.subject.workspace_id != workspace_id for row in selected):
         raise NotFound("Historical assertion unavailable in this project.")
     if len(selected) != len(p.assertion_ids):
         raise NotFound("Historical assertion unavailable.")
@@ -115,7 +115,7 @@ def authorized_inputs(ctx, p):
         .filter(
             revision_evidence
             | (
-                Q(subject__project_id=p.project_id)
+                Q(subject__workspace_id=workspace_id)
                 & (contextual_evidence | Q(id__in=p.assertion_ids))
             )
         )

@@ -45,7 +45,7 @@ def source_for(ctx, payload):
     authorize_revision(ctx.user, source, Perm.SOURCE_REGISTER)
     file = (
         source.files.select_related("blob")
-        .filter(path=payload.path, blob__project_id=source.bundle.project_id)
+        .filter(path=payload.path, blob__workspace_id=source.bundle.workspace_id)
         .first()
     )
     if file is None:
@@ -69,16 +69,15 @@ def replay_authority(ctx, payload, result):
 
 def expansion_scope(ctx, payload):
     from specmate.operations.models import IdempotencyRecord
-    from specmate.operations.scope import LEGACY_SCOPE
 
     source, _ = source_for(ctx, payload)
-    scope = f"project:{source.bundle.project_id}"
+    scope = f"workspace:{source.bundle.workspace_id}"
     # Shared execution compares fingerprints after scope resolution. Check retained
     # output/parent authority here too, before even revealing a mismatch outcome.
     prior = IdempotencyRecord.objects.select_for_update().filter(
         actor=ctx.user, operation="source.expand_zip", key=ctx.idempotency_key
     )
-    retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+    retained = prior.filter(scope=scope).first()
     if retained is not None:
         replay_authority(ctx, payload, retained.result)
     return scope
@@ -108,7 +107,7 @@ def expand_zip(ctx: Context, p: ExpandZip):
         for member, item in staged:
             blobstore.promote(item)
             SourceBlob.objects.get_or_create(
-                project_id=source.bundle.project_id,
+                workspace_id=source.bundle.workspace_id,
                 sha256=item.sha256,
                 defaults={
                     "size": item.size,
@@ -125,7 +124,7 @@ def expand_zip(ctx: Context, p: ExpandZip):
                 )
             )
         bundle = SourceBundle.objects.create(
-            project_id=source.bundle.project_id,
+            workspace_id=source.bundle.workspace_id,
             name=p.name,
             role=SourceBundle.Role.DERIVATIVE,
             derived_from=source,

@@ -72,11 +72,6 @@
       ],
       "title": "Physical Quantity"
     },
-    "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
-    },
     "quantity_status": {
       "enum": [
         "known",
@@ -109,11 +104,16 @@
       ],
       "title": "Unit",
       "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
     "account_id",
-    "project_id",
+    "workspace_id",
     "lot_id",
     "lot_label",
     "revision_id",

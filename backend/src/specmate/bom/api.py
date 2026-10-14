@@ -15,7 +15,7 @@ router = Router(tags=["bom"])
 @router.get("/drafts/{draft_id}")
 def draft(request, draft_id: UUID):
     value = bom_draft(
-        Context(user=request.user, via="api", request_id="read"), draft_id, Perm.PROJECT_READ
+        Context(user=request.user, via="api", request_id="read"), draft_id, Perm.WORKSPACE_READ
     )
     return {"definition_id": str(value.definition_id), **draft_state(value)}
 

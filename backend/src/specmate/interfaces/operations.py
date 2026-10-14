@@ -26,7 +26,7 @@ from specmate.interfaces.queries import (
 )
 from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 
 
 def interface_draft(ctx, draft_id, permission, lock=False):
@@ -42,10 +42,10 @@ def interface_draft(ctx, draft_id, permission, lock=False):
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateInterface):
-        project = p.project_id
+        scope_id = p.project_id
     else:
-        project = interface_draft(ctx, p.draft_id, permission).definition.project_id
-    namespace = project_scope(ctx, project, permission)
+        scope_id = interface_draft(ctx, p.draft_id, permission).definition.workspace_id
+    namespace = workspace_scope(ctx, scope_id, permission)
     if isinstance(p, (CreateInterface, UpdateInterface)):
         authorize_content(ctx.user, {"interface": p.interface.model_dump(mode="json")})
     if isinstance(p, CreateInterface):
@@ -59,7 +59,7 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
             actor=ctx.user,
             operation=name,
             key=ctx.idempotency_key,
-            scope__in=[namespace, "legacy"],
+            scope=namespace,
         ):
             authorize_stored(ctx, record.result)
     return namespace

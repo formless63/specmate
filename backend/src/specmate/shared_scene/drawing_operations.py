@@ -6,16 +6,21 @@ import json
 import zipfile
 from uuid import UUID
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, workspace_for_project
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Snapshot
 from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.shared_scene.drawing_contracts import CreateDrawing, ReadDrawing, ReadDrawingScene
 from specmate.shared_scene.drawing_render import render_drawing
 from specmate.shared_scene.models import SceneDrawing
 from specmate.shared_scene.projection import read_scene
+
+
+def _scope_workspace(scope_id):
+    """TRANSITIONAL: a payload project id selects its workspace (a workspace id passes)."""
+    return str(workspace_for_project(scope_id) or scope_id)
 
 
 def authorized_scene(user, snapshot_id, project_id=None):
@@ -23,9 +28,11 @@ def authorized_scene(user, snapshot_id, project_id=None):
     snapshot = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
     if snapshot is None:
         raise NotFound("Scene unavailable.")
-    authorize(user, snapshot.definition.project_id, Perm.PROJECT_READ)
-    if project_id is not None and str(snapshot.definition.project_id) != str(project_id):
-        raise NotFound("Scene unavailable in this project.")
+    authorize(user, snapshot.definition.workspace_id, Perm.WORKSPACE_READ)
+    if project_id is not None and str(snapshot.definition.workspace_id) != _scope_workspace(
+        project_id
+    ):
+        raise NotFound("Scene unavailable in this workspace.")
     return snapshot, read_scene(user, snapshot_id)
 
 
@@ -33,12 +40,12 @@ def drawing_record(user, drawing_id, project_id=None):
     user = current_actor(user)
     query = SceneDrawing.objects.filter(id=drawing_id)
     if project_id is not None:
-        query = query.filter(project_id=project_id)
+        query = query.filter(workspace_id=_scope_workspace(project_id))
     drawing = query.first()
     if drawing is None:
         raise NotFound("Drawing unavailable.")
-    authorize(user, drawing.project_id, Perm.PROJECT_READ)
-    authorized_scene(user, drawing.snapshot_id, drawing.project_id)
+    authorize(user, drawing.workspace_id, Perm.WORKSPACE_READ)
+    authorized_scene(user, drawing.snapshot_id, drawing.workspace_id)
     if hashlib.sha256(bytes(drawing.svg)).hexdigest() != drawing.svg_sha256 or (
         hashlib.sha256(bytes(drawing.manifest)).hexdigest() != drawing.manifest_sha256
     ):
@@ -52,7 +59,7 @@ def metadata(drawing):
     manifest = json.loads(bytes(drawing.manifest))
     return {
         "drawing_id": str(drawing.id),
-        "project_id": str(drawing.project_id),
+        "workspace_id": str(drawing.workspace_id),
         "snapshot_id": str(drawing.snapshot_id),
         "renderer_version": drawing.renderer_version,
         "purpose": drawing.purpose,
@@ -69,7 +76,7 @@ def metadata(drawing):
 
 def drawing_scope(ctx, payload):
     snapshot, _ = authorized_scene(ctx.user, payload.snapshot_id, payload.project_id)
-    scope = project_scope(ctx, snapshot.definition.project_id)
+    scope = workspace_scope(ctx, snapshot.definition.workspace_id)
     # Protect historic receipts before even the generic mismatched-fingerprint response.
     prior = (
         IdempotencyRecord.objects.select_for_update()
@@ -77,7 +84,7 @@ def drawing_scope(ctx, payload):
             actor=ctx.user,
             operation="shared_scene.create_drawing",
             key=ctx.idempotency_key,
-            scope__in=[scope, LEGACY_SCOPE],
+            scope=scope,
         )
         .first()
     )
@@ -104,7 +111,7 @@ def create_drawing(ctx: Context, payload: CreateDrawing):
     snapshot, scene = authorized_scene(ctx.user, payload.snapshot_id, payload.project_id)
     svg, manifest = render_drawing(scene, payload.options, payload.renderer_version)
     drawing = SceneDrawing.objects.create(
-        project_id=snapshot.definition.project_id,
+        workspace_id=snapshot.definition.workspace_id,
         snapshot=snapshot,
         renderer_version=payload.renderer_version,
         purpose=payload.purpose,

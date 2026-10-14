@@ -7,7 +7,13 @@ from uuid import UUID
 from django.db.models import Q
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from specmate.access.permissions import Perm, authorize, visible_projects
+from specmate.access.permissions import (
+    Perm,
+    authorize,
+    member_workspaces,
+    transitional_project,
+    visible_projects,
+)
 from specmate.catalog.models import ManufacturerVariant, PhysicalLot
 from specmate.design.models import Definition, Revision, Snapshot
 from specmate.design.operations import authorize_snapshot
@@ -110,27 +116,37 @@ def visible_page(queryset, payload, render):
 
 
 def search_catalog(user, payload):
+    workspaces = member_workspaces(user)
     projects = visible_projects(user)
     if payload.project_id:
-        authorize(user, payload.project_id, Perm.PROJECT_READ)
-        projects = projects.filter(id=payload.project_id)
+        workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
+        workspaces = workspaces.filter(id=workspace.id)
+        projects = projects.filter(workspace=workspace)
+        # TRANSITIONAL: a payload project id narrows the project lens to that project.
+        if project := transitional_project(payload.project_id, workspace):
+            projects = projects.filter(id=project.id)
     text = payload.query
     kind = payload.kind
     if kind == "project":
         query = projects.filter(name__icontains=text)
 
         def render(row):
-            authorize(user, row.id, Perm.PROJECT_READ)
-            return {"record_id": str(row.id), "project_id": str(row.id), "label": row.name}
-
-    elif kind == "definition":
-        query = Definition.objects.filter(project__in=projects, name__icontains=text)
-
-        def render(row):
-            authorize(user, row.project_id, Perm.PROJECT_READ)
+            authorize(user, row.workspace_id, Perm.WORKSPACE_READ)
             return {
                 "record_id": str(row.id),
-                "project_id": str(row.project_id),
+                "project_id": str(row.id),
+                "workspace_id": str(row.workspace_id),
+                "label": row.name,
+            }
+
+    elif kind == "definition":
+        query = Definition.objects.filter(workspace__in=workspaces, name__icontains=text)
+
+        def render(row):
+            authorize(user, row.workspace_id, Perm.WORKSPACE_READ)
+            return {
+                "record_id": str(row.id),
+                "workspace_id": str(row.workspace_id),
                 "label": row.name,
                 "definition_kind": row.kind,
             }
@@ -138,14 +154,14 @@ def search_catalog(user, payload):
     elif kind == "source_bundle":
         query = SourceBundle.objects.filter(
             Q(name__icontains=text) | Q(revisions__files__path__icontains=text),
-            project__in=projects,
+            workspace__in=workspaces,
         ).distinct()
 
         def render(row):
-            authorize(user, row.project_id, Perm.PROJECT_READ)
+            authorize(user, row.workspace_id, Perm.WORKSPACE_READ)
             return {
                 "record_id": str(row.id),
-                "project_id": str(row.project_id),
+                "workspace_id": str(row.workspace_id),
                 "label": row.name,
                 "role": row.role,
             }
@@ -154,11 +170,11 @@ def search_catalog(user, payload):
         if kind == "variant":
             query = ManufacturerVariant.objects.select_related("revision__definition").filter(
                 Q(manufacturer__icontains=text) | Q(part_number__icontains=text),
-                revision__definition__project__in=projects,
+                revision__definition__workspace__in=workspaces,
             )
         elif kind == "lot":
             query = PhysicalLot.objects.select_related("revision__definition").filter(
-                revision__definition__project__in=projects,
+                revision__definition__workspace__in=workspaces,
                 label__icontains=text,
             )
         else:
@@ -166,7 +182,7 @@ def search_catalog(user, payload):
                 "lot__revision__definition", "location"
             ).filter(
                 Q(lot__label__icontains=text) | Q(location__name__icontains=text),
-                location__project__in=projects,
+                location__workspace__in=workspaces,
             )
 
         def render(row):
@@ -179,8 +195,10 @@ def search_catalog(user, payload):
                 get_revision(user, revision.id)
             result = {
                 "record_id": str(row.id),
-                "project_id": str(
-                    row.location.project_id if kind == "stock" else revision.definition.project_id
+                "workspace_id": str(
+                    row.location.workspace_id
+                    if kind == "stock"
+                    else revision.definition.workspace_id
                 ),
                 "revision_id": str(revision.id),
                 "definition_id": str(revision.definition_id),
@@ -202,7 +220,7 @@ def where_used(user, payload):
     # A pin is evidence of a captured dependency, not an occurrence count or compatibility.
     query = Snapshot.objects.select_related("definition").filter(
         dependencies__revision_id=payload.revision_id,
-        definition__project__in=visible_projects(user),
+        definition__workspace__in=member_workspaces(user),
     )
 
     def render(snapshot):
@@ -210,7 +228,7 @@ def where_used(user, payload):
         return {
             "record_id": str(snapshot.id),
             "snapshot_id": str(snapshot.id),
-            "project_id": str(snapshot.definition.project_id),
+            "workspace_id": str(snapshot.definition.workspace_id),
             "definition_id": str(snapshot.definition_id),
             "label": snapshot.definition.name,
             "relation": "exact_revision_pin",
@@ -267,7 +285,7 @@ def revision_labels(user, payload):
         )
         if revision is not None:
             try:
-                authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+                authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
                 authorize_snapshot(user, revision.snapshot, _authorized=authorized)
             except (NotFound, PermissionDenied):
                 pass

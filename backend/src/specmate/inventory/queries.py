@@ -34,7 +34,7 @@ def get_location(user, location_id):
     location = Location.objects.filter(id=location_id).first()
     if location is None:
         raise NotFound("Location not found.")
-    authorize(user, location.project_id, Perm.PROJECT_READ)
+    authorize(user, location.workspace_id, Perm.WORKSPACE_READ)
     return location
 
 
@@ -45,7 +45,7 @@ def get_account(user, account_id, *, lock=False):
     account = query.filter(id=account_id).first()
     if account is None:
         raise NotFound("Stock account not found.")
-    authorize(user, account.location.project_id, Perm.PROJECT_READ)
+    authorize(user, account.location.workspace_id, Perm.WORKSPACE_READ)
     get_revision(user, account.lot.revision_id)
     authorize_current_assertion(user, account)
     return account
@@ -98,7 +98,7 @@ def account_result(account):
     reserved = reserved_quantity(account)
     return AccountResult(
         account_id=account.id,
-        project_id=account.location.project_id,
+        workspace_id=account.location.workspace_id,
         lot_id=account.lot_id,
         lot_label=account.lot.label,
         revision_id=account.lot.revision_id,
@@ -165,7 +165,7 @@ def work_batch_result(batch):
     completed = batch.completions.aggregate(total=Sum("units_completed"))["total"] or 0
     return WorkBatchResult(
         work_batch_id=batch.id,
-        project_id=batch.revision.definition.project_id,
+        workspace_id=batch.revision.definition.workspace_id,
         revision_id=batch.revision_id,
         definition_id=batch.revision.definition_id,
         kind=batch.kind,
@@ -221,34 +221,34 @@ def entry_result(entry):
 def location_result(location):
     return {
         "location_id": str(location.id),
-        "project_id": str(location.project_id),
+        "workspace_id": str(location.workspace_id),
         "name": location.name,
     }
 
 
 @transaction.atomic
 def list_inventory(user, project_id, *, offset=0, limit=50):
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     # Lock the bounded accounts so quantities, reservations and state agree in this response.
     accounts = list(
         StockAccount.objects.select_related("lot__revision__definition", "location")
         .select_for_update(of=("self",))
-        .filter(location__project_id=project_id)
+        .filter(location__workspace=workspace)
         .order_by("created_at", "id")[offset : offset + limit]
     )
     for account in accounts:
         get_revision(user, account.lot.revision_id)
         authorize_current_assertion(user, account)
-    lots = PhysicalLot.objects.filter(revision__definition__project_id=project_id).order_by(
+    lots = PhysicalLot.objects.filter(revision__definition__workspace=workspace).order_by(
         "created_at", "id"
     )[offset : offset + limit]
     for lot in lots:
         get_revision(user, lot.revision_id)
-    locations = Location.objects.filter(project_id=project_id).order_by("name", "id")[
+    locations = Location.objects.filter(workspace=workspace).order_by("name", "id")[
         offset : offset + limit
     ]
     batches = (
-        WorkBatch.objects.filter(revision__definition__project_id=project_id)
+        WorkBatch.objects.filter(revision__definition__workspace=workspace)
         .select_related("revision__definition")
         .select_for_update(of=("self",))
         .order_by("created_at", "id")[offset : offset + limit]
@@ -258,6 +258,7 @@ def list_inventory(user, project_id, *, offset=0, limit=50):
     return {
         "work_batches": [work_batch_result(batch) for batch in batches],
         "project_id": str(project_id),
+        "workspace_id": str(workspace.id),
         "accounts": [account_result(account) for account in accounts],
         "locations": [location_result(location) for location in locations],
         "lots": [{"lot_id": str(lot.id), "label": lot.label} for lot in lots],

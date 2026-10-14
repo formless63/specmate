@@ -8,7 +8,7 @@ from specmate.access.permissions import Perm, authorize
 from specmate.design.models import Definition, Draft
 from specmate.design.operations import check_state, draft_state, scoped_draft
 from specmate.operations import Context, NotFound, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.workshop_profiles.queries import authorize_profile_content
 from specmate.workshop_profiles.schemas import (
     StrictModel,
@@ -34,13 +34,13 @@ class FreezeProfile(StrictModel):
 
 def profile_scope(ctx, p) -> str:
     if isinstance(p, CreateProfile):
-        return project_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+        return workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
     permission = Perm.DESIGN_FREEZE if isinstance(p, FreezeProfile) else Perm.DESIGN_EDIT
     draft = scoped_draft(ctx, p.draft_id, permission)
     if draft.definition.kind != "workshop_profile":
         raise NotFound("Workshop profile draft not found.")
     authorize_profile_content(ctx.user, draft.definition, draft.content)
-    return project_scope(ctx, draft.definition.project_id, permission)
+    return workspace_scope(ctx, draft.definition.workspace_id, permission)
 
 
 def authorize_profile_replay(ctx, p, stored) -> None:
@@ -52,14 +52,14 @@ def authorize_profile_replay(ctx, p, stored) -> None:
         revision = get_revision(ctx.user, stored["revision_id"])
         if (
             revision.definition.kind != "workshop_profile"
-            or scope != f"project:{revision.definition.project_id}"
+            or scope != f"workspace:{revision.definition.workspace_id}"
         ):
             raise NotFound("Workshop profile revision not found.")
         return
     definition = Definition.objects.filter(
         id=stored["definition_id"], kind="workshop_profile"
     ).first()
-    if definition is None or scope != f"project:{definition.project_id}":
+    if definition is None or scope != f"workspace:{definition.workspace_id}":
         raise NotFound("Workshop profile not found.")
     authorize_profile_content(ctx.user, definition, stored["content"])
 
@@ -72,10 +72,10 @@ def authorize_profile_replay(ctx, p, stored) -> None:
     authorize_replay=authorize_profile_replay,
 )
 def create_profile(ctx: Context, p: CreateProfile) -> dict:
-    project = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
     content = validate_profile_content({"profile": p.profile.model_dump(mode="json")})
     definition = Definition(
-        project=project, kind="workshop_profile", name=p.name, created_by=ctx.user
+        workspace=workspace, kind="workshop_profile", name=p.name, created_by=ctx.user
     )
     authorize_profile_content(ctx.user, definition, content)
     definition.save()

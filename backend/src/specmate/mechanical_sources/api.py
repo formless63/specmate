@@ -37,8 +37,8 @@ def read_frozen(request, revision_id: UUID):
 @router.get("/projects/{project_id}/records")
 def list_records(request, project_id: UUID, after: UUID | None = None):
     ctx = context(request)
-    authorize(ctx.user, project_id, Perm.PROJECT_READ)
-    query = Definition.objects.filter(project_id=project_id, kind=KIND).order_by("id")
+    workspace = authorize(ctx.user, project_id, Perm.WORKSPACE_READ)
+    query = Definition.objects.filter(workspace=workspace, kind=KIND).order_by("id")
     if after:
         query = query.filter(id__gt=after)
     candidates = list(query.prefetch_related("drafts", "revisions")[:51])
@@ -71,7 +71,7 @@ def target_result(user, revision):
             json.loads(bytes(revision.snapshot.canonical))["content"]["pcb_population"]
         )
         interpretation = scoped_interpretation(
-            user, revision.definition.project_id, population.interpretation_id
+            user, revision.definition.workspace_id, population.interpretation_id
         )
         get_bundle_revision(user, population.source_revision_id)
         report = Report.model_validate_json(bytes(interpretation.canonical))
@@ -127,11 +127,11 @@ def read_target(request, revision_id: UUID):
 @router.get("/projects/{project_id}/targets")
 def list_targets(request, project_id: UUID, after: UUID | None = None):
     user = current_actor(request.user)
-    authorize(user, project_id, Perm.PROJECT_READ)
-    # Reuse may cross currently accessible projects; no copying or privilege grant implied.
+    authorize(user, project_id, Perm.WORKSPACE_READ)
+    # Reuse may cross currently accessible workspaces; no copying or privilege grant implied.
     query = (
         Revision.objects.select_related("definition", "snapshot", "snapshot__definition")
-        .filter(definition__project__memberships__user=user)
+        .filter(definition__workspace__members__user=user)
         .order_by("id")
     )
     if after:

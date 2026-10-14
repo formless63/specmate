@@ -26,10 +26,10 @@ from specmate.end_preparation.contracts import (
 from specmate.end_preparation.queries import closure, dependency_revisions, inspect_profile
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 
 
-def profile_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+def profile_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
     ctx = replace(ctx, user=current_actor(ctx.user))
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "end_preparation_profile":
@@ -53,9 +53,9 @@ def scope(ctx, payload, permission=Perm.DESIGN_EDIT):
     project_id = (
         payload.project_id
         if isinstance(payload, CreateProfile)
-        else profile_draft(ctx, payload.draft_id, permission).definition.project_id
+        else profile_draft(ctx, payload.draft_id, permission).definition.workspace_id
     )
-    namespace = project_scope(ctx, project_id, permission)
+    namespace = workspace_scope(ctx, project_id, permission)
     if isinstance(payload, (CreateProfile, UpdateProfile)):
         closure(
             ctx.user,
@@ -74,7 +74,7 @@ def scope(ctx, payload, permission=Perm.DESIGN_EDIT):
             actor=ctx.user,
             operation=name,
             key=ctx.idempotency_key,
-            scope__in=[namespace, LEGACY_SCOPE],
+            scope=namespace,
         ):
             retained(ctx, record.result, permission)
     return namespace

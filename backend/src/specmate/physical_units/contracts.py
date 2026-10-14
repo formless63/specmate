@@ -29,7 +29,7 @@ class LinkWorkUnit(Payload):
 
 class PhysicalUnitResult(BaseModel):
     unit_id: UUID
-    project_id: UUID
+    workspace_id: UUID
     revision_id: UUID
     definition_id: UUID
     serial: str

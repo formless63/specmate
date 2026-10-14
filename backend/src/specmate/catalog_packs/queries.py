@@ -23,7 +23,7 @@ def current_actor(user):
 def authorize_file(user, file):
     if file is not None:
         get_bundle_revision(user, file.revision_id)
-        authorize(user, file.blob.project_id, Perm.PROJECT_READ)
+        authorize(user, file.blob.workspace_id, Perm.WORKSPACE_READ)
 
 
 def manifest_of(version):
@@ -40,7 +40,7 @@ def version_closure(user, versions):
         if len(visited) >= 2000:
             raise ValidationFailed("Pack closure exceeds the supported inspection bound.")
         visited.add(version.id)
-        authorize(user, version.pack.project_id, Perm.PROJECT_READ)
+        authorize(user, version.pack.workspace_id, Perm.WORKSPACE_READ)
         authorize_file(user, version.manifest_source)
         for entry in version.entries.select_related("source_file__blob"):
             if entry.revision_id:
@@ -62,14 +62,14 @@ def pack_rows(user, pack_id, *, edit=False, lock=False):
     pack = query.filter(id=pack_id).first()
     if pack is None:
         raise NotFound("Catalog pack not found.")
-    authorize(user, pack.project_id, Perm.PROJECT_READ)
+    authorize(user, pack.workspace_id, Perm.WORKSPACE_READ)
     versions = list(
         pack.versions.select_related("pack", "manifest_source__blob").order_by("created_at", "id")
     )
     version_closure(user, versions)
     decisions = list(pack.decisions.select_related("version").order_by("sequence"))
     if edit:
-        authorize(user, pack.project_id, Perm.DESIGN_EDIT)
+        authorize(user, pack.workspace_id, Perm.DESIGN_EDIT)
     return pack, versions, decisions
 
 
@@ -87,7 +87,7 @@ def active_version(decisions):
 def pack_result(pack, versions, decisions):
     result = {
         "pack_id": str(pack.id),
-        "project_id": str(pack.project_id),
+        "workspace_id": str(pack.workspace_id),
         "package_key": pack.package_key,
         "state": pack_state(decisions),
         "installed_version_id": str(active_version(decisions))
@@ -181,10 +181,10 @@ def get_version(user, version_id):
 
 def list_packs(user, project_id, *, after=None, limit=25):
     user = current_actor(user)
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     if not 1 <= limit <= 100:
         raise ValidationFailed("Limit must be between 1 and 100.")
-    query = CatalogPack.objects.filter(project_id=project_id).order_by("id")
+    query = CatalogPack.objects.filter(workspace=workspace).order_by("id")
     if after is not None:
         cursor = query.filter(id=after).first()
         if cursor is None:

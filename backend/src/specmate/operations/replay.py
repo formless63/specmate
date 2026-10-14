@@ -7,10 +7,8 @@ from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 
 
 def authorize_builtin_replay(name, ctx, payload, stored):
-    if name == "project.create":
-        authorize(ctx.user, stored["project_id"], Perm.PROJECT_READ)
-    elif name == "definition.create":
-        authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+    if name == "definition.create":
+        authorize(ctx.user, payload.scope_id, Perm.ITEM_CREATE)
         from specmate.design.models import Definition
         from specmate.design.operations import authorize_design_content
 
@@ -44,7 +42,7 @@ def authorize_builtin_replay(name, ctx, payload, stored):
             revision = Revision.objects.select_related("definition").filter(id=revision_id).first()
             if revision is None:
                 raise NotFound("Revision not found.")
-            authorize(ctx.user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(ctx.user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
     elif name in {"source.register_blob", "source.create_original_bundle"}:
         authorize(ctx.user, payload.project_id, Perm.SOURCE_REGISTER)
         if name == "source.register_blob":
@@ -53,10 +51,10 @@ def authorize_builtin_replay(name, ctx, payload, stored):
         from specmate.builds.models import BuildAttempt
         from specmate.builds.recipes import approved_recipe
 
-        authorize(ctx.user, payload.project_id, Perm.BUILD_EXECUTE)
+        workspace = authorize(ctx.user, payload.project_id, Perm.BUILD_EXECUTE)
         build = BuildAttempt.objects.filter(
             id=stored["build_id"],
-            project_id=payload.project_id,
+            workspace=workspace,
             source_revision_id=payload.source_revision_id,
             requested_by=ctx.user,
         ).first()
@@ -68,9 +66,9 @@ def authorize_builtin_replay(name, ctx, payload, stored):
         from specmate.builds.operations import _stage_for_build
 
         stage = _stage_for_build(payload.build_id)
-        authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
+        authorize(ctx.user, stage.build.workspace_id, Perm.WORKSPACE_READ)
         if ctx.user.pk != stage.build.requested_by_id:
-            authorize(ctx.user, stage.build.project_id, Perm.BUILD_EXECUTE)
+            authorize(ctx.user, stage.build.workspace_id, Perm.BUILD_EXECUTE)
     elif name == "runner.revoke":
         from specmate.builds.operations import _operator
 

@@ -37,7 +37,7 @@ def proposal_references(ctx, payload):
     source = get_revision(ctx.user, payload.source_revision_id)
     target = get_revision(ctx.user, payload.target_revision_id)
     evidence = evidence_fields(ctx.user, payload.evidence)
-    authorize(ctx.user, source.definition.project_id, Perm.DESIGN_EDIT)
+    authorize(ctx.user, source.definition.workspace_id, Perm.DESIGN_EDIT)
     # Authorize every reference before semantic diagnostics reveal its relationship.
     if source.definition_id == target.definition_id:
         raise ValidationFailed("Matching requires distinct engineering definition identities.")
@@ -46,7 +46,7 @@ def proposal_references(ctx, payload):
 
 def proposal_scope(ctx, payload):
     source, _, _ = proposal_references(ctx, payload)
-    scope = f"project:{source.definition.project_id}"
+    scope = f"workspace:{source.definition.workspace_id}"
     authorize_retained_outcome(ctx, "catalog.propose_match", scope)
     return scope
 
@@ -54,7 +54,7 @@ def proposal_scope(ctx, payload):
 def review_scope(ctx, payload):
     _, source, _, _ = candidate_rows(ctx.user, payload.candidate_id, edit=True)
     evidence_fields(ctx.user, payload.evidence)
-    scope = f"project:{source.definition.project_id}"
+    scope = f"workspace:{source.definition.workspace_id}"
     authorize_retained_outcome(ctx, "catalog.review_match", scope)
     return scope
 
@@ -63,7 +63,7 @@ def authorize_retained_outcome(ctx, name, scope):
     """Recheck old references before the executor exposes a keyed mismatch diagnostic."""
     if ctx.idempotency_key is not None:
         for record in IdempotencyRecord.objects.filter(
-            actor=ctx.user, operation=name, key=ctx.idempotency_key, scope__in=[scope, "legacy"]
+            actor=ctx.user, operation=name, key=ctx.idempotency_key, scope=scope
         ):
             candidate_rows(ctx.user, record.result["candidate_id"], edit=True)
 

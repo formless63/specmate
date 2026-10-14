@@ -28,7 +28,7 @@ from specmate.harnesses.queries import (
 )
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 
 
 def harness_draft(ctx, draft_id, permission, lock=False):
@@ -45,10 +45,10 @@ def harness_draft(ctx, draft_id, permission, lock=False):
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateHarness):
-        project = p.project_id
+        scope_id = p.project_id
     else:
-        project = harness_draft(ctx, p.draft_id, permission).definition.project_id
-    namespace = project_scope(ctx, project, permission)
+        scope_id = harness_draft(ctx, p.draft_id, permission).definition.workspace_id
+    namespace = workspace_scope(ctx, scope_id, permission)
     if isinstance(p, (CreateHarness, UpdateHarness)):
         authorize_content(
             ctx.user, {"harness": p.harness.model_dump(mode="json")}, authority_only=True
@@ -66,9 +66,7 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
         records = IdempotencyRecord.objects.select_for_update().filter(
             actor=ctx.user, operation=name, key=ctx.idempotency_key
         )
-        prior = (
-            records.filter(scope=namespace).first() or records.filter(scope=LEGACY_SCOPE).first()
-        )
+        prior = records.filter(scope=namespace).first()
         if prior:
             retained(ctx, prior.result)
     return namespace
@@ -77,7 +75,7 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
 def retained(ctx, stored):
     draft = stored.get("draft", stored)
     if draft.get("draft_id"):
-        harness_draft(ctx, draft["draft_id"], Perm.PROJECT_READ)
+        harness_draft(ctx, draft["draft_id"], Perm.WORKSPACE_READ)
     if "content" in stored:
         authorize_content(ctx.user, stored["content"])
     if "revision_id" in stored:

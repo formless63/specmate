@@ -10,8 +10,6 @@ from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
 
-from specmate.access.models import Project
-
 kind_validator = RegexValidator(r"^[a-z][a-z0-9_]{0,49}$", "Kind must be a lowercase slug.")
 
 
@@ -19,7 +17,9 @@ class Definition(models.Model):
     """A reusable engineering identity. Content lives in drafts and frozen revisions."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name="definitions")
+    workspace = models.ForeignKey(
+        "access.Workspace", on_delete=models.PROTECT, related_name="definitions"
+    )
     kind = models.CharField(max_length=50, validators=[kind_validator])
     name = models.CharField(max_length=200)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)

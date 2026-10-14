@@ -14,7 +14,7 @@ from specmate.builds.recipes import Recipe, approved_recipe
 from specmate.catalog_matching.queries import current_actor
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE, project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.pcb.models import PcbInterpretation
 from specmate.pcb.operations import intake_for
 from specmate.pcb.report import Report as IntakeReport
@@ -46,7 +46,7 @@ def authorize_bundle(user, revision_id):
     return revision
 
 
-def source_for(ctx, intake_id, permission=Perm.PROJECT_READ):
+def source_for(ctx, intake_id, permission=Perm.WORKSPACE_READ):
     intake = intake_for(ctx, intake_id, permission)
     authorize_bundle(ctx.user, intake.source_revision_id)
     file = (
@@ -67,7 +67,7 @@ def qualified_intake(ctx, intake, file):
     item = PcbInterpretation.objects.filter(attempt__intake=intake).order_by("-created_at").first()
     if item is None:
         raise Unsupported("An accepted native intake interpretation is required.")
-    authorize(ctx.user, item.output.stage.build.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, item.output.stage.build.workspace_id, Perm.WORKSPACE_READ)
     authorize_bundle(ctx.user, item.output.source_revision_id)
     if hashlib.sha256(bytes(item.canonical)).hexdigest() != item.sha256:
         raise ValidationFailed("Accepted native intake hash is inconsistent.")
@@ -88,17 +88,17 @@ def qualified_intake(ctx, intake, file):
     return item
 
 
-def scoped_build(ctx, intake_id, build_id, permission=Perm.PROJECT_READ):
+def scoped_build(ctx, intake_id, build_id, permission=Perm.WORKSPACE_READ):
     intake, file = source_for(ctx, intake_id, permission)
     build = BuildAttempt.objects.select_related("stage").filter(id=build_id).first()
     if build is None:
         raise NotFound("Fabrication build unavailable.")
-    authorize(ctx.user, build.project_id, permission)
+    authorize(ctx.user, build.workspace_id, permission)
     authorize_bundle(ctx.user, build.source_revision_id)
     for output in build.stage.outputs.all():
         authorize_bundle(ctx.user, output.source_revision_id)
     if (
-        build.project_id != intake.source_revision.bundle.project_id
+        build.workspace_id != intake.source_revision.bundle.workspace_id
         or build.source_revision_id != file.revision_id
     ):
         raise NotFound("Fabrication build unavailable for this exact intake.")
@@ -117,13 +117,13 @@ def retained(ctx, stored):
 
 def scope(ctx, p):
     intake, file = source_for(ctx, p.intake_id, Perm.BUILD_EXECUTE)
-    namespace = project_scope(ctx, intake.source_revision.bundle.project_id, Perm.BUILD_EXECUTE)
+    namespace = workspace_scope(ctx, intake.source_revision.bundle.workspace_id, Perm.BUILD_EXECUTE)
     if ctx.idempotency_key is not None:
         for record in IdempotencyRecord.objects.filter(
             actor=ctx.user,
             operation="pcb_fabrication.request",
             key=ctx.idempotency_key,
-            scope__in=[namespace, LEGACY_SCOPE],
+            scope=namespace,
         ):
             retained(ctx, record.result)
     qualified_intake(ctx, intake, file)
@@ -152,7 +152,7 @@ def request(ctx, p):
     result = request_build(
         ctx,
         RequestBuild(
-            project_id=intake.source_revision.bundle.project_id,
+            project_id=intake.source_revision.bundle.workspace_id,
             source_revision_id=file.revision_id,
             recipe_id=p.recipe_id,
         ),

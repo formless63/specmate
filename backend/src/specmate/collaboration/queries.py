@@ -3,8 +3,8 @@
 import json
 from functools import wraps
 
-from specmate.access.models import Membership
-from specmate.access.permissions import Perm, authorize
+from specmate.access.models import WorkspaceMember
+from specmate.access.permissions import Perm, authorize, transitional_project
 from specmate.catalog.discovery import WhereUsed, visible_page, where_used
 from specmate.catalog_matching.queries import (
     authorize_file,
@@ -152,7 +152,7 @@ def knowledge_pin(user, pin):
 
 
 @private_inputs
-def review_rows(user, review_id, permission=Perm.PROJECT_READ, *, lock=False):
+def review_rows(user, review_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     user = current_actor(user)
     query = ChangeReview.objects.select_related("knowledge_entry")
     if lock:
@@ -160,7 +160,7 @@ def review_rows(user, review_id, permission=Perm.PROJECT_READ, *, lock=False):
     review = query.filter(id=review_id).first()
     if review is None:
         raise NotFound("Change review unavailable.")
-    authorize(user, review.project_id, permission)
+    authorize(user, review.workspace_id, permission)
     old, candidate = revision_pair(user, review.old_revision_id, review.candidate_revision_id)
     if review.knowledge_entry_id:
         get_item(user, review.knowledge_entry.item_id)
@@ -184,13 +184,13 @@ def status(entries):
     return "closed" if lifecycle and lifecycle[-1] == "close" else "open"
 
 
-def summary(user, review_id, *, permission=Perm.PROJECT_READ):
+def summary(user, review_id, *, permission=Perm.WORKSPACE_READ):
     user = current_actor(user)
     review, old, candidate, entries = review_rows(user, review_id, permission)
     members = dict(
-        Membership.objects.filter(project_id=review.project_id, user__is_active=True).values_list(
-            "user_id", "user__username"
-        )
+        WorkspaceMember.objects.filter(
+            workspace_id=review.workspace_id, user__is_active=True
+        ).values_list("user_id", "user__username")
     )
     pinned = None
     if review.knowledge_entry_id:
@@ -204,7 +204,8 @@ def summary(user, review_id, *, permission=Perm.PROJECT_READ):
         )[1]
     result = {
         "review_id": str(review.id),
-        "project_id": str(review.project_id),
+        "workspace_id": str(review.workspace_id),
+        "project_id": str(review.project_id) if review.project_id else None,
         "title": review.title,
         "old": revision_identity(old).model_dump(mode="json"),
         "candidate": revision_identity(candidate).model_dump(mode="json"),
@@ -257,8 +258,11 @@ def inspect(user, review_id):
 
 def project_reviews(user, payload):
     user = current_actor(user)
-    authorize(user, payload.project_id, Perm.PROJECT_READ)
-    query = ChangeReview.objects.filter(project_id=payload.project_id)
+    workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
+    query = ChangeReview.objects.filter(workspace=workspace)
+    # TRANSITIONAL: a payload project id filters by the reviews' project context.
+    if project := transitional_project(payload.project_id, workspace):
+        query = query.filter(project=project)
 
     def render(row):
         result = summary(user, row.id)
@@ -301,10 +305,10 @@ def notification_result(user, notification_id):
 
 def inbox(user, payload):
     user = current_actor(user)
-    authorize(user, payload.project_id, Perm.PROJECT_READ)
-    query = InternalNotification.objects.filter(
-        recipient=user, entry__review__project_id=payload.project_id
-    )
+    workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
+    query = InternalNotification.objects.filter(recipient=user, entry__review__workspace=workspace)
+    if project := transitional_project(payload.project_id, workspace):
+        query = query.filter(entry__review__project=project)
     if payload.unread_only:
         query = query.filter(read_at__isnull=True)
     return visible_page(query, payload, lambda row: notification_result(user, row.id))
@@ -316,8 +320,8 @@ def notify(entry, actor):
     recipient_ids = {*review.recipients.values_list("user_id", flat=True), review.created_by_id} - {
         actor.pk
     }
-    for membership in Membership.objects.select_related("user").filter(
-        project_id=review.project_id, user_id__in=recipient_ids, user__is_active=True
+    for membership in WorkspaceMember.objects.select_related("user").filter(
+        workspace_id=review.workspace_id, user_id__in=recipient_ids, user__is_active=True
     ):
         try:
             review_rows(membership.user, review.id)

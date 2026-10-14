@@ -69,10 +69,10 @@ def file_pin(user, pin):
 
 
 def registration_refs(ctx, payload):
-    authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
     if payload.pack_id:
         pack, _, _ = pack_rows(ctx.user, payload.pack_id, edit=True)
-        if pack.project_id != payload.project_id:
+        if pack.workspace_id != workspace.id:
             raise ValidationFailed("Pack belongs to another owning project.")
         if pack.package_key != payload.manifest.package_key:
             raise ValidationFailed("A version must retain its pack's exact package identity.")
@@ -106,14 +106,14 @@ def authorize_retained(ctx, operation_name, scope):
             actor=ctx.user,
             operation=operation_name,
             key=ctx.idempotency_key,
-            scope__in=[scope, "legacy"],
+            scope=scope,
         ):
             pack_rows(ctx.user, record.result["pack_id"], edit=True, lock=True)
 
 
 def register_scope(ctx, payload):
     registration_refs(ctx, payload)
-    scope = f"project:{payload.project_id}"
+    scope = f"workspace:{authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT).id}"
     authorize_retained(ctx, "catalog_pack.register", scope)
     return scope
 
@@ -130,7 +130,7 @@ def change_scope(name):
             if version is None:
                 raise NotFound("Pack version not found.")
             version_closure(ctx.user, [version])
-        scope = f"project:{pack.project_id}"
+        scope = f"workspace:{pack.workspace_id}"
         authorize_retained(ctx, name, scope)
         return scope
 
@@ -186,18 +186,17 @@ def register(ctx: Context, payload: RegisterPackVersion):
                 "Manifest source is unavailable or is not supported inert JSON."
             ) from None
     # Serialize identity/version duplicate diagnostics after authorizing all refs.
-    authorize(
-        ctx.user, payload.project_id, Perm.DESIGN_EDIT
-    ).__class__.objects.select_for_update().get(id=payload.project_id)
+    workspace = authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+    workspace.__class__.objects.select_for_update().get(id=workspace.id)
     if payload.pack_id:
         pack, _, _ = pack_rows(ctx.user, payload.pack_id, edit=True, lock=True)
     else:
         if CatalogPack.objects.filter(
-            project_id=payload.project_id, package_key=payload.manifest.package_key
+            workspace=workspace, package_key=payload.manifest.package_key
         ).exists():
             raise Conflict("This package is registered; select it explicitly to add a version.")
         pack = CatalogPack.objects.create(
-            project_id=payload.project_id,
+            workspace=workspace,
             package_key=payload.manifest.package_key,
             registered_by=ctx.user,
         )
@@ -313,7 +312,7 @@ def adopt(ctx: Context, payload: AdoptPack):
     for pin in version.dependencies.select_related("dependency__pack"):
         dependency_pack, _, dependency_decisions = pack_rows(ctx.user, pin.dependency.pack_id)
         if (
-            dependency_pack.project_id != pack.project_id
+            dependency_pack.workspace_id != pack.workspace_id
             or active_version(dependency_decisions) != pin.dependency_id
         ):
             raise Conflict("Each exact dependency version must be enabled in the owning project.")
@@ -326,7 +325,7 @@ def adopt(ctx: Context, payload: AdoptPack):
             source = get_revision(ctx.user, entry.revision_id)
             content = json.loads(bytes(source.snapshot.canonical))["content"]
             prototype = Definition(
-                project_id=pack.project_id,
+                workspace_id=pack.workspace_id,
                 kind=source.definition.kind,
                 name=item.label,
                 created_by=ctx.user,
@@ -349,7 +348,7 @@ def adopt(ctx: Context, payload: AdoptPack):
         created = create_definition(
             ctx,
             CreateDefinition(
-                project_id=pack.project_id,
+                workspace_id=pack.workspace_id,
                 kind=entry.revision.definition.kind,
                 name=item.label,
                 content=content,

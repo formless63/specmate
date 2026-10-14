@@ -7,7 +7,6 @@ from specmate.access.permissions import Perm, authorize
 from specmate.catalog_matching.queries import current_actor
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE
 from specmate.preparation_documents.contracts import (
     GENERATOR,
     Configuration,
@@ -24,8 +23,8 @@ from specmate.sources import blobstore
 def configuration_scope(ctx, p):
     user, captured, _, _ = authorize_inputs(ctx.user, p)
     root = captured[p.root_revision_id]
-    authorize(user, root.definition.project_id, Perm.DESIGN_EDIT)
-    namespace = f"project:{root.definition.project_id}"
+    authorize(user, root.definition.workspace_id, Perm.DESIGN_EDIT)
+    namespace = f"workspace:{root.definition.workspace_id}"
     if ctx.idempotency_key is not None:
         # A changed request may omit inputs still protected by its retained receipt.
         # Scope runs before the shared executor exposes key/CAS diagnostics.
@@ -33,20 +32,20 @@ def configuration_scope(ctx, p):
             actor=user,
             operation="preparation_documents.generate",
             key=ctx.idempotency_key,
-            scope__in=[namespace, LEGACY_SCOPE],
+            scope=namespace,
         ):
             authorized_set(user, prior.result["document_set_id"], Perm.DESIGN_EDIT)
     return namespace
 
 
-def authorized_set(user, set_id, permission=Perm.PROJECT_READ):
+def authorized_set(user, set_id, permission=Perm.WORKSPACE_READ):
     user = current_actor(user)
     record = (
         DocumentSet.objects.select_related("root_revision__definition").filter(id=set_id).first()
     )
     if record is None:
         raise NotFound("Document set not found.")
-    authorize(user, record.root_revision.definition.project_id, permission)
+    authorize(user, record.root_revision.definition.workspace_id, permission)
     authorize_inputs(user, Configuration.model_validate(record.configuration))
     return record
 

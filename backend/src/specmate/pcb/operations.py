@@ -44,13 +44,13 @@ class RegisterIntake(Payload):
         return check_package_path(value) if value else value
 
 
-def intake_for(ctx, intake_id, perm=Perm.PROJECT_READ):
+def intake_for(ctx, intake_id, perm=Perm.WORKSPACE_READ):
     intake = (
         PcbIntake.objects.select_related("source_revision__bundle").filter(id=intake_id).first()
     )
     if intake is None:
         raise NotFound("PCB intake not found.")
-    authorize(ctx.user, intake.source_revision.bundle.project_id, perm)
+    authorize(ctx.user, intake.source_revision.bundle.workspace_id, perm)
     return intake
 
 
@@ -92,7 +92,7 @@ def intake_result(intake):
         )
     return {
         "intake_id": str(intake.id),
-        "project_id": str(intake.source_revision.bundle.project_id),
+        "workspace_id": str(intake.source_revision.bundle.workspace_id),
         "source_revision_id": str(intake.source_revision_id),
         "source_manifest_sha256": intake.source_revision.manifest_sha256,
         "board_path": intake.board_path,
@@ -117,9 +117,9 @@ def intake_result(intake):
     summary="Preserve a source revision for PCB intake without parsing or executing it.",
 )
 def register_intake(ctx: Context, p: RegisterIntake):
-    project = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.project_id, Perm.SOURCE_REGISTER)
     source = SourceBundleRevision.objects.filter(
-        id=p.source_revision_id, bundle__project=project
+        id=p.source_revision_id, bundle__workspace=workspace
     ).first()
     if source is None:
         raise NotFound("Source revision not found.")
@@ -169,7 +169,7 @@ def request_extraction(ctx: Context, p: RequestExtraction):
     build = request_build(
         ctx,
         RequestBuild(
-            project_id=intake.source_revision.bundle.project_id,
+            project_id=intake.source_revision.bundle.workspace_id,
             source_revision_id=intake.source_revision_id,
             recipe_id=p.recipe_id,
         ),
@@ -201,7 +201,7 @@ def accept_extraction(ctx: Context, p: AttemptRef):
     file = validate_recipe(intake, Recipe.model_validate(attempt.build.recipe))
     if (
         attempt.build.source_revision_id != intake.source_revision_id
-        or attempt.build.project_id != intake.source_revision.bundle.project_id
+        or attempt.build.workspace_id != intake.source_revision.bundle.workspace_id
     ):
         raise ValidationFailed("Build provenance does not match intake.")
     stage = BuildStage.objects.select_for_update().get(build=attempt.build)
@@ -308,9 +308,9 @@ def failure_diagnostic(attempt):
 def authorize_pcb_replay(ctx: Context, payload: Payload, stored_result: dict):
     """Recheck scope before the shared layer returns a saved command response."""
     if isinstance(payload, RegisterIntake):
-        project = authorize(ctx.user, payload.project_id, Perm.SOURCE_REGISTER)
+        workspace = authorize(ctx.user, payload.project_id, Perm.SOURCE_REGISTER)
         if not SourceBundleRevision.objects.filter(
-            id=payload.source_revision_id, bundle__project=project
+            id=payload.source_revision_id, bundle__workspace=workspace
         ).exists():
             raise NotFound("Source revision not found.")
         intake = intake_for(ctx, stored_result["intake_id"], Perm.SOURCE_REGISTER)
@@ -351,7 +351,7 @@ def authorize_pcb_replay(ctx: Context, payload: Payload, stored_result: dict):
             or interpretation.output.rights != file.rights
             or interpretation.output_id != UUID(stored_result["output_id"])
             or attempt.build.source_revision_id != intake.source_revision_id
-            or attempt.build.project_id != intake.source_revision.bundle.project_id
+            or attempt.build.workspace_id != intake.source_revision.bundle.workspace_id
         ):
             raise ValidationFailed("Saved PCB interpretation provenance is invalid.")
         output = interpretation.output
@@ -369,12 +369,12 @@ def authorize_pcb_replay(ctx: Context, payload: Payload, stored_result: dict):
 
 
 def pcb_scope(ctx, payload):
-    from specmate.operations.scope import project_scope
+    from specmate.operations.scope import workspace_scope
 
     if isinstance(payload, RegisterIntake):
-        scope = project_scope(ctx, payload.project_id, Perm.SOURCE_REGISTER)
+        scope = workspace_scope(ctx, payload.project_id, Perm.SOURCE_REGISTER)
         if not SourceBundleRevision.objects.filter(
-            id=payload.source_revision_id, bundle__project_id=payload.project_id
+            id=payload.source_revision_id, bundle__workspace_id=scope.removeprefix("workspace:")
         ).exists():
             raise NotFound("Source revision not found.")
         return scope
@@ -387,7 +387,7 @@ def pcb_scope(ctx, payload):
         intake = intake_for(ctx, attempt.intake_id, Perm.SOURCE_REGISTER)
     else:
         raise Unsupported("PCB scope payload is unsupported.")
-    return project_scope(ctx, intake.source_revision.bundle.project_id)
+    return workspace_scope(ctx, intake.source_revision.bundle.workspace_id)
 
 
 class CreatePopulation(Payload):
@@ -408,7 +408,7 @@ class ReadPopulation(PopulationDraftRef):
     option_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
 
 
-def population_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
+def population_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "pcb_population":
         raise NotFound("PCB population draft not found.")
@@ -417,7 +417,7 @@ def population_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False):
 
 
 def population_scope(ctx, payload, permission=Perm.DESIGN_EDIT):
-    from specmate.operations.scope import project_scope
+    from specmate.operations.scope import workspace_scope
 
     if isinstance(payload, CreatePopulation):
         interpretation = (
@@ -427,11 +427,11 @@ def population_scope(ctx, payload, permission=Perm.DESIGN_EDIT):
         )
         if interpretation is None:
             raise NotFound("PCB interpretation not found.")
-        project_id = interpretation.attempt.intake.source_revision.bundle.project_id
-        scoped_interpretation(ctx.user, project_id, payload.interpretation_id)
+        workspace_id = interpretation.attempt.intake.source_revision.bundle.workspace_id
+        scoped_interpretation(ctx.user, workspace_id, payload.interpretation_id)
     else:
-        project_id = population_draft(ctx, payload.draft_id, permission).definition.project_id
-    return project_scope(ctx, project_id, permission)
+        workspace_id = population_draft(ctx, payload.draft_id, permission).definition.workspace_id
+    return workspace_scope(ctx, workspace_id, permission)
 
 
 def population_replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
@@ -475,8 +475,8 @@ def create_population(ctx: Context, p: CreatePopulation):
     if interpretation is None:
         raise NotFound("PCB interpretation not found.")
     source = interpretation.attempt.intake.source_revision
-    scoped_interpretation(ctx.user, source.bundle.project_id, p.interpretation_id)
-    authorize(ctx.user, source.bundle.project_id, Perm.DESIGN_EDIT)
+    scoped_interpretation(ctx.user, source.bundle.workspace_id, p.interpretation_id)
+    authorize(ctx.user, source.bundle.workspace_id, Perm.DESIGN_EDIT)
     report = Report.model_validate_json(bytes(interpretation.canonical))
     population = Population(
         interpretation_id=interpretation.id,
@@ -494,7 +494,7 @@ def create_population(ctx: Context, p: CreatePopulation):
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=source.bundle.project_id,
+            workspace_id=source.bundle.workspace_id,
             kind="pcb_population",
             name=p.name,
             content={"pcb_population": population.model_dump(mode="json")},
@@ -546,7 +546,7 @@ def read_population(ctx: Context, p: ReadPopulation):
     draft = population_draft(ctx, p.draft_id)
     population = Population.model_validate(draft.content["pcb_population"])
     interpretation = scoped_interpretation(
-        ctx.user, draft.definition.project_id, population.interpretation_id
+        ctx.user, draft.definition.workspace_id, population.interpretation_id
     )
     report = Report.model_validate_json(bytes(interpretation.canonical))
     return {

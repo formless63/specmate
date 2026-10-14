@@ -13,8 +13,7 @@ from uuid import UUID
 from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field
 
-from specmate.access.models import Membership
-from specmate.access.permissions import Perm, authorize, permissions_for
+from specmate.access.permissions import Perm, authorize, held_permissions
 from specmate.builds.models import BuildStage, RunnerCredential
 from specmate.builds.operations import _cancel, _expire, _operator
 from specmate.diagnostics import checks
@@ -50,10 +49,9 @@ class ProjectRef(Payload):
     supports_idempotency=False,
 )
 def project_status(ctx: Context, p: ProjectRef) -> dict[str, Any]:
-    project = authorize(ctx.user, p.project_id, Perm.PROJECT_READ)
-    membership = Membership.objects.get(project=project, user=ctx.user)
-    can_execute = Perm.BUILD_EXECUTE in permissions_for(membership)
-    ids = [project.id]
+    workspace = authorize(ctx.user, p.project_id, Perm.WORKSPACE_READ)
+    can_execute = Perm.BUILD_EXECUTE in held_permissions(ctx.user, workspace.id)
+    ids = [workspace.id]
     mode = checks.work_mode()
     storage = checks.storage(ids, detail=False)
     queue = checks.queue(ids)
@@ -61,7 +59,9 @@ def project_status(ctx: Context, p: ProjectRef) -> dict[str, Any]:
     tool_states = checks.tools(ids)
     now = timezone.now()
     stages = (
-        BuildStage.objects.filter(build__project=project, state__in=PENDING + checks.ACTIVE_STATES)
+        BuildStage.objects.filter(
+            build__workspace=workspace, state__in=PENDING + checks.ACTIVE_STATES
+        )
         .select_related("build")
         .order_by("created_at")[:LISTED_BUILDS]
     )
@@ -76,10 +76,11 @@ def project_status(ctx: Context, p: ProjectRef) -> dict[str, Any]:
         }
         for s in stages
     ]
-    # Counts across projects would leak work elsewhere, so the user view omits the
-    # installation-wide queue and reports only this project's.
+    # Counts across workspaces would leak work elsewhere, so the user view omits the
+    # installation-wide queue and reports only this workspace's.
     return {
-        "project_id": str(project.id),
+        "project_id": str(p.project_id),
+        "workspace_id": str(workspace.id),
         "evaluated_at": now.isoformat(),
         "work": {k: mode[k] for k in ("mode", "accepting_new_work", "reason", "state_token")},
         "queue": {k: queue[k] for k in ("states", "pending", "active", "oldest_pending_seconds")},
@@ -158,7 +159,7 @@ def installation_report(ctx: Context, p: NoPayload) -> dict[str, Any]:
         "credentials": [
             {
                 "credential_id": str(c.id),
-                "project_id": str(c.project_id),
+                "workspace_id": str(c.workspace_id),
                 "recipe_ids": c.recipe_ids,
                 "expires_at": c.expires_at.isoformat(),
                 "revoked": c.revoked_at is not None,

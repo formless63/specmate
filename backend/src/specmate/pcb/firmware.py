@@ -191,7 +191,7 @@ def validate_content(kind: str, content: dict) -> dict:
     return {"firmware": firmware.model_dump(mode="json")} if firmware else content
 
 
-def _source_revisions(user, project_id, firmware: Firmware) -> list[SourceBundleRevision]:
+def _source_revisions(user, workspace_id, firmware: Firmware) -> list[SourceBundleRevision]:
     """Authorize the whole source set before exposing pin mismatch diagnostics."""
     revisions = []
     for pin in firmware.sources:
@@ -203,7 +203,7 @@ def _source_revisions(user, project_id, firmware: Firmware) -> list[SourceBundle
         if revision is None:
             raise NotFound("Source revision not found.")
         authorize_revision(user, revision)
-        if revision.bundle.project_id != project_id:
+        if revision.bundle.workspace_id != workspace_id:
             raise NotFound("Source revision not found.")
         revisions.append(revision)
     return revisions
@@ -235,11 +235,11 @@ def _sources(firmware: Firmware, revisions: list[SourceBundleRevision]) -> list[
     return pinned
 
 
-def _target(user, project_id, target: Target):
+def _target(user, workspace_id, target: Target):
     from specmate.queries import get_revision
 
     revision = get_revision(user, target.population_revision_id)
-    if revision.definition.project_id != project_id:
+    if revision.definition.workspace_id != workspace_id:
         raise NotFound("Target population revision not found.")
     if revision.definition.kind != "pcb_population":
         raise ValidationFailed("The firmware target must be a frozen PCB population revision.")
@@ -248,7 +248,7 @@ def _target(user, project_id, target: Target):
     pcb_population.authorize_content(user, revision.definition, content)
     population = pcb_population.Population.model_validate(content["pcb_population"])
     interpretation = pcb_population.scoped_interpretation(
-        user, project_id, population.interpretation_id
+        user, workspace_id, population.interpretation_id
     )
     if interpretation.sha256 != population.interpretation_sha256:
         raise ValidationFailed("The population no longer matches its accepted interpretation.")
@@ -261,8 +261,8 @@ def closure(user, definition: Definition, content: dict) -> list[UUID]:
     firmware = parse_content(content, definition.kind)
     if firmware is None:
         return []
-    sources = _source_revisions(user, definition.project_id, firmware)
-    revision, *_ = _target(user, definition.project_id, firmware.target)
+    sources = _source_revisions(user, definition.workspace_id, firmware)
+    revision, *_ = _target(user, definition.workspace_id, firmware.target)
     _sources(firmware, sources)
     return [revision.id]
 
@@ -292,9 +292,9 @@ def _decision(option, component_id):
 
 
 def evaluate(user, definition: Definition, firmware: Firmware) -> dict:
-    source_revisions = _source_revisions(user, definition.project_id, firmware)
+    source_revisions = _source_revisions(user, definition.workspace_id, firmware)
     revision, population, interpretation, report = _target(
-        user, definition.project_id, firmware.target
+        user, definition.workspace_id, firmware.target
     )
     sources = _sources(firmware, source_revisions)
     components = {c.id: c for c in report.components}
@@ -590,7 +590,7 @@ class AssignmentReview(Payload):
     assembly_snapshot_id: UUID
 
 
-def firmware_draft(ctx, draft_id, permission=Perm.PROJECT_READ, lock=False) -> Draft:
+def firmware_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False) -> Draft:
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != KIND:
         raise NotFound("Firmware draft not found.")
@@ -604,14 +604,14 @@ def _content(firmware: Firmware) -> dict:
 
 def _scope_closure(ctx, p, permission) -> str:
     if isinstance(p, CreateFirmware):
-        authorize(ctx.user, p.project_id, permission)
-        probe = Definition(project_id=p.project_id, kind=KIND)
+        workspace = authorize(ctx.user, p.project_id, permission)
+        probe = Definition(workspace=workspace, kind=KIND)
         closure(ctx.user, probe, _content(p.firmware))
-        return f"project:{p.project_id}"
+        return f"workspace:{workspace.id}"
     draft = firmware_draft(ctx, p.draft_id, permission)
     if isinstance(p, UpdateFirmware):
         closure(ctx.user, draft.definition, _content(p.firmware))
-    return f"project:{draft.definition.project_id}"
+    return f"workspace:{draft.definition.workspace_id}"
 
 
 def _replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
@@ -620,7 +620,7 @@ def _replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     draft = Draft.objects.select_related("definition").filter(id=draft_id).first()
     if draft is None or draft.definition.kind != KIND:
         raise NotFound("Firmware draft not found.")
-    authorize(ctx.user, draft.definition.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, draft.definition.workspace_id, Perm.WORKSPACE_READ)
     if "content" in stored:
         closure(ctx.user, draft.definition, stored["content"])
     if "revision_id" in stored:
@@ -635,14 +635,13 @@ def _replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
 def _scope(name, permission=Perm.DESIGN_EDIT):
     def resolve(ctx, p):
         from specmate.operations.models import IdempotencyRecord
-        from specmate.operations.scope import LEGACY_SCOPE
 
         scope = _scope_closure(ctx, p, permission)
         # Current authority over a retained outcome precedes any keyed mismatch.
         prior = IdempotencyRecord.objects.select_for_update().filter(
             actor=ctx.user, operation=name, key=ctx.idempotency_key
         )
-        retained = prior.filter(scope=scope).first() or prior.filter(scope=LEGACY_SCOPE).first()
+        retained = prior.filter(scope=scope).first()
         if retained is not None:
             _replay(ctx, p, retained.result, permission)
         return scope
@@ -659,8 +658,8 @@ def _scope(name, permission=Perm.DESIGN_EDIT):
     authorize_replay=_replay,
 )
 def create_firmware(ctx: Context, p: CreateFirmware) -> dict:
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
-    closure(ctx.user, Definition(project_id=p.project_id, kind=KIND), _content(p.firmware))
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    closure(ctx.user, Definition(workspace=workspace, kind=KIND), _content(p.firmware))
     return create_definition(
         ctx,
         CreateDefinition(
@@ -816,9 +815,9 @@ def review_assignments(ctx: Context, p: AssignmentReview) -> dict:
 
 
 def list_firmware(user, project_id) -> list[dict]:
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     rows = []
-    for definition in Definition.objects.filter(project_id=project_id, kind=KIND).order_by(
+    for definition in Definition.objects.filter(workspace=workspace, kind=KIND).order_by(
         "created_at"
     )[:500]:
         draft = Draft.objects.filter(definition=definition).first()
@@ -836,10 +835,10 @@ def list_firmware(user, project_id) -> list[dict]:
 
 def list_targets(user, project_id) -> list[dict]:
     """Frozen population revisions that can be firmware targets, closure-authorized."""
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     rows = []
     revisions = Revision.objects.select_related("definition", "snapshot").filter(
-        definition__project_id=project_id, definition__kind="pcb_population"
+        definition__workspace=workspace, definition__kind="pcb_population"
     )
     for revision in revisions.order_by("definition__name", "number")[:500]:
         from specmate.design.operations import authorize_snapshot

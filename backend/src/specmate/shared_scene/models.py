@@ -8,7 +8,7 @@ class SceneDrawing(models.Model):
     """Immutable derived inspection bytes, not design state or release evidence."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     snapshot = models.ForeignKey("design.Snapshot", on_delete=models.PROTECT)
     renderer_version = models.CharField(max_length=50)
     purpose = models.CharField(max_length=50)

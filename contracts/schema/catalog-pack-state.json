@@ -68,11 +68,6 @@
       "title": "Package Key",
       "type": "string"
     },
-    "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
-    },
     "state": {
       "title": "State",
       "type": "string"
@@ -83,11 +78,16 @@
       },
       "title": "Versions",
       "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
     "pack_id",
-    "project_id",
+    "workspace_id",
     "package_key",
     "state",
     "installed_version_id",

@@ -19,8 +19,8 @@ router = Router(tags=["preparation-documents"])
 @router.get("/projects/{project_id}")
 def records(request, project_id: UUID):
     user = current_actor(request.user)
-    authorize(user, project_id, Perm.PROJECT_READ)
-    rows = DocumentSet.objects.filter(root_revision__definition__project_id=project_id).order_by(
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    rows = DocumentSet.objects.filter(root_revision__definition__workspace=workspace).order_by(
         "-created_at", "id"
     )[:50]
     visible = []

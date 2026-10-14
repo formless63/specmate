@@ -21,7 +21,7 @@ from specmate.design.operations import (
     update_draft,
 )
 from specmate.operations import Context, NotFound, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 
 
 def bom_draft(ctx, draft_id, permission, lock=False):
@@ -34,10 +34,10 @@ def bom_draft(ctx, draft_id, permission, lock=False):
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateBom):
-        project = p.project_id
+        scope_id = p.project_id
     else:
-        project = bom_draft(ctx, p.draft_id, permission).definition.project_id
-    return project_scope(ctx, project, permission)
+        scope_id = bom_draft(ctx, p.draft_id, permission).definition.workspace_id
+    return workspace_scope(ctx, scope_id, permission)
 
 
 def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):

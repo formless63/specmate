@@ -23,7 +23,7 @@ class PlacementInputs(StrictModel):
 )
 def inspect_inputs(ctx: Context, p: PlacementInputs):
     user = current_actor(ctx.user)
-    draft = scoped_draft(replace(ctx, user=user), p.draft_id, Perm.PROJECT_READ)
+    draft = scoped_draft(replace(ctx, user=user), p.draft_id, Perm.WORKSPACE_READ)
     if draft.base_revision_id:
         authorize_snapshot(user, draft.base_revision.snapshot)
     closure = Closure(user, draft.content, kind=draft.definition.kind)

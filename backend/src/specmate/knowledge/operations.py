@@ -1,7 +1,7 @@
 from django.utils import timezone
 from pydantic import TypeAdapter
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, transitional_project
 from specmate.facts.contracts import Target
 from specmate.facts.queries import resolve_target, source_file
 from specmate.knowledge.contracts import (
@@ -38,21 +38,23 @@ from specmate.operations import (
     ValidationFailed,
     operation,
 )
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 
 
-def _attachments(ctx, project_id, refs):
+def _attachments(ctx, workspace_id, refs):
     files = []
     for ref in refs:
         file = source_file(ctx.user, ref)
-        if file.revision.bundle.project_id != project_id:
-            raise ValidationFailed("Attachments reference files registered in the item's project.")
+        if file.revision.bundle.workspace_id != workspace_id:
+            raise ValidationFailed(
+                "Attachments reference files registered in the item's workspace."
+            )
         files.append((file, ref.label))
     return files
 
 
 def _write_entry(ctx, item, number, content):
-    files = _attachments(ctx, item.project_id, content.attachments)
+    files = _attachments(ctx, item.workspace_id, content.attachments)
     entry = KnowledgeEntry.objects.create(
         item=item,
         number=number,
@@ -70,6 +72,8 @@ def _write_entry(ctx, item, number, content):
 
 def _link(ctx, item, target):
     fields = resolve_target(ctx.user, target)
+    if fields["workspace"].id != item.workspace_id:
+        raise ValidationFailed("Knowledge links stay inside the item's workspace.")
     key = fingerprint(target)
     existing = item.links.filter(fingerprint=key, removed_at__isnull=True).first()
     if existing is not None:
@@ -78,7 +82,7 @@ def _link(ctx, item, target):
         raise ValidationFailed("Knowledge links exceed the supported limit.")
     link = KnowledgeLink.objects.create(
         item=item,
-        target_project=fields["project"],
+        target_project=fields.get("project"),
         kind=fields["kind"],
         definition=fields.get("definition"),
         revision=fields.get("revision"),
@@ -97,7 +101,7 @@ def _item_project(ctx, item_id):
     item = KnowledgeItem.objects.filter(id=item_id).first()
     if item is None:
         raise NotFound("Knowledge item not found.")
-    return project_scope(ctx, item.project_id, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, item.workspace_id, Perm.DESIGN_EDIT)
 
 
 def _authorize_stored_item(ctx, stored):
@@ -111,12 +115,12 @@ def _authorize_stored_item(ctx, stored):
 
 
 def _create_scope(ctx, p):
-    return project_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
 
 
 def _create_replay(ctx, p, stored):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
-    _attachments(ctx, p.project_id, p.content.attachments)
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    _attachments(ctx, workspace.id, p.content.attachments)
     for target in p.links:
         resolve_target(ctx.user, target)
     _authorize_stored_item(ctx, stored)
@@ -130,8 +134,13 @@ def _create_replay(ctx, p, stored):
     authorize_replay=_create_replay,
 )
 def create_item(ctx: Context, p: CreateItem):
-    project = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
-    item = KnowledgeItem.objects.create(project=project, kind=p.kind, created_by=ctx.user)
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    item = KnowledgeItem.objects.create(
+        workspace=workspace,
+        project=transitional_project(p.project_id, workspace),
+        kind=p.kind,
+        created_by=ctx.user,
+    )
     _write_entry(ctx, item, 1, p.content)
     for target in p.links:
         _link(ctx, item, target)
@@ -215,7 +224,7 @@ def _scoped_link(ctx, link_id, *, lock=False):
 
 
 def _unlink_scope(ctx, p):
-    return project_scope(ctx, _scoped_link(ctx, p.link_id).item.project_id, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, _scoped_link(ctx, p.link_id).item.workspace_id, Perm.DESIGN_EDIT)
 
 
 def _unlink_replay(ctx, p, stored):

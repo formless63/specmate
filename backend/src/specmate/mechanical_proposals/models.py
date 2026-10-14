@@ -11,7 +11,7 @@ from django.db import models
 
 class ProposalDraft(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT, related_name="+")
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     interpretation = models.ForeignKey(
         "pcb.PcbInterpretation", on_delete=models.PROTECT, related_name="+"
     )
@@ -31,7 +31,7 @@ class ProposalDraft(models.Model):
         constraints = [
             models.CheckConstraint(condition=models.Q(version__gte=1), name="proposal_version"),
         ]
-        indexes = [models.Index(fields=["project", "created_at"])]
+        indexes = [models.Index(fields=["workspace", "created_at"])]
 
 
 class ProposalRevision(models.Model):
@@ -39,7 +39,7 @@ class ProposalRevision(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     draft = models.ForeignKey(ProposalDraft, on_delete=models.PROTECT, related_name="revisions")
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT, related_name="+")
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     number = models.PositiveIntegerField()
     interpretation = models.ForeignKey(
         "pcb.PcbInterpretation", on_delete=models.PROTECT, related_name="+"

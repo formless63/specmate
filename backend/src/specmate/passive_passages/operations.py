@@ -30,7 +30,7 @@ def retained(ctx, operation_name, scope):
             actor=ctx.user,
             operation=operation_name,
             key=ctx.idempotency_key,
-            scope__in=[scope, "legacy"],
+            scope=scope,
         ):
             result = record.result
             if operation_name in {"passage.create", "passage.update"}:
@@ -46,11 +46,11 @@ def retained(ctx, operation_name, scope):
 
 
 def create_scope(ctx, p):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
     queries.closure(
         ctx.user, {"passages": p.model.model_dump(mode="json")}, "passage_model", validate=False
     )
-    scope = f"project:{p.project_id}"
+    scope = f"workspace:{workspace.id}"
     retained(ctx, "passage.create", scope)
     return scope
 
@@ -65,7 +65,7 @@ def change_scope(name, permission):
                 "passage_model",
                 validate=False,
             )
-        scope = f"project:{draft.definition.project_id}"
+        scope = f"workspace:{draft.definition.workspace_id}"
         retained(ctx, name, scope)
         return scope
 
@@ -75,7 +75,7 @@ def change_scope(name, permission):
 def review_scope(ctx, p):
     revision, _, _, _ = queries.rows(ctx.user, p.revision_id, edit=True)
     evidence_fields(ctx.user, p.evidence)
-    scope = f"project:{revision.definition.project_id}"
+    scope = f"workspace:{revision.definition.workspace_id}"
     retained(ctx, "passage.review", scope)
     return scope
 

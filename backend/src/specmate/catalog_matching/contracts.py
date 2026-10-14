@@ -63,7 +63,7 @@ class EvidenceResult(BaseModel):
 class RevisionIdentity(BaseModel):
     revision_id: UUID
     definition_id: UUID
-    project_id: UUID
+    workspace_id: UUID
     name: str
     kind: str
     number: int

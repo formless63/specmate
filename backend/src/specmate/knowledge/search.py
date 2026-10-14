@@ -2,7 +2,12 @@
 
 from django.db.models import F, Q
 
-from specmate.access.permissions import Perm, authorize, visible_projects
+from specmate.access.permissions import (
+    Perm,
+    authorize,
+    member_workspaces,
+    transitional_project,
+)
 from specmate.catalog.discovery import visible_page
 from specmate.catalog_matching.queries import current_actor
 from specmate.knowledge.models import KnowledgeEntry
@@ -30,14 +35,18 @@ def snippet(text, query):
 
 def _search_knowledge(user, payload):
     user = current_actor(user)
+    workspace = None
     if payload.project_id:
-        authorize(user, payload.project_id, Perm.PROJECT_READ)
+        workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
     target = describe_target(user, payload.target) if payload.target else None
     query = KnowledgeEntry.objects.select_related("item").filter(
-        item__project__in=visible_projects(user)
+        item__workspace__in=member_workspaces(user)
     )
-    if payload.project_id:
-        query = query.filter(item__project_id=payload.project_id)
+    if workspace is not None:
+        # TRANSITIONAL: the scope id selects a workspace and, if a project, its held items.
+        query = query.filter(item__workspace=workspace)
+        if project := transitional_project(payload.project_id, workspace):
+            query = query.filter(item__project=project)
     if payload.kind:
         query = query.filter(item__kind=payload.kind)
     if not payload.include_history:
@@ -84,7 +93,8 @@ def _search_knowledge(user, payload):
         return {
             "record_id": str(entry.id),
             "item_id": str(item.id),
-            "project_id": str(item.project_id),
+            "workspace_id": str(item.workspace_id),
+            "project_id": str(item.project_id) if item.project_id else None,
             "kind": item.kind,
             "entry_id": str(entry.id),
             "entry_number": entry.number,
@@ -102,7 +112,7 @@ def _search_knowledge(user, payload):
     # request closed; foreign target links still follow the owned-note filter policy.
     user = current_actor(user)
     if payload.project_id:
-        authorize(user, payload.project_id, Perm.PROJECT_READ)
+        authorize(user, payload.project_id, Perm.WORKSPACE_READ)
     if payload.target:
         target = describe_target(user, payload.target)
     # Cursor and lookahead items also determine the disclosed page/cursor. Their

@@ -1,11 +1,11 @@
 """Controlled assertions of actual units and their relationship to planned work."""
 
-from specmate.access.models import Project
+from specmate.access.models import Workspace
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog.models import ManufacturerVariant, PhysicalLot
 from specmate.inventory.queries import get_work_batch, work_batch_result
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.physical_units.contracts import LinkWorkUnit, RegisterPhysicalUnit
 from specmate.physical_units.models import PhysicalUnit, WorkUnitLink
 from specmate.physical_units.queries import get_unit, link_result, unit_result
@@ -14,8 +14,7 @@ from specmate.queries import get_revision
 
 def _unit_references(ctx, p):
     revision = get_revision(ctx.user, p.revision_id)
-    project_id = revision.definition.project_id
-    authorize(ctx.user, project_id, Perm.INVENTORY_MANAGE)
+    authorize(ctx.user, revision.definition.workspace_id, Perm.INVENTORY_MANAGE)
     lot = None
     if p.lot_id:
         lot = PhysicalLot.objects.select_related("revision__definition").filter(id=p.lot_id).first()
@@ -46,21 +45,21 @@ def _unit_references(ctx, p):
 def _work_references(ctx, p):
     unit = get_unit(ctx.user, p.unit_id)
     batch = get_work_batch(ctx.user, p.work_batch_id)
-    authorize(ctx.user, unit.project_id, Perm.INVENTORY_MANAGE)
+    authorize(ctx.user, unit.workspace_id, Perm.INVENTORY_MANAGE)
     if (
-        unit.project_id != batch.revision.definition.project_id
+        unit.workspace_id != batch.revision.definition.workspace_id
         or unit.revision_id != batch.revision_id
     ):
-        raise ValidationFailed("Unit and planned work must share the exact project and revision.")
+        raise ValidationFailed("Unit and planned work must share the exact workspace and revision.")
     return unit, batch
 
 
 def _scope(ctx, p):
     if isinstance(p, RegisterPhysicalUnit):
         revision, _, _ = _unit_references(ctx, p)
-        return project_scope(ctx, revision.definition.project_id)
+        return workspace_scope(ctx, revision.definition.workspace_id)
     unit, _ = _work_references(ctx, p)
-    return project_scope(ctx, unit.project_id)
+    return workspace_scope(ctx, unit.workspace_id)
 
 
 def _replay(ctx, p, stored_result):
@@ -82,12 +81,12 @@ def _require_key(ctx):
 def register_unit(ctx: Context, p: RegisterPhysicalUnit):
     revision, lot, variant = _unit_references(ctx, p)
     _require_key(ctx)
-    project = Project.objects.select_for_update().get(id=revision.definition.project_id)
-    authorize(ctx.user, project.id, Perm.INVENTORY_MANAGE)
-    if PhysicalUnit.objects.filter(project=project, serial=p.serial).exists():
-        raise Conflict("This serial is already registered in the project.")
+    workspace = Workspace.objects.select_for_update().get(id=revision.definition.workspace_id)
+    authorize(ctx.user, workspace.id, Perm.INVENTORY_MANAGE)
+    if PhysicalUnit.objects.filter(workspace=workspace, serial=p.serial).exists():
+        raise Conflict("This serial is already registered in the workspace.")
     unit = PhysicalUnit.objects.create(
-        project=project,
+        workspace=workspace,
         revision=revision,
         lot=lot,
         variant=variant,
@@ -114,11 +113,11 @@ def link_work_unit(ctx: Context, p: LinkWorkUnit):
     _require_key(ctx)
     # Serialize all work writes on the target state token.
     batch = get_work_batch(ctx.user, batch.id, lock=True)
-    authorize(ctx.user, unit.project_id, Perm.INVENTORY_MANAGE)
+    authorize(ctx.user, unit.workspace_id, Perm.INVENTORY_MANAGE)
     if str(batch.state) != ctx.require_expected_state():
         raise Conflict("Work state changed.", details={"current": work_batch_result(batch)})
     unit = get_unit(ctx.user, unit.id, lock=True)
-    authorize(ctx.user, unit.project_id, Perm.INVENTORY_MANAGE)
+    authorize(ctx.user, unit.workspace_id, Perm.INVENTORY_MANAGE)
     if WorkUnitLink.objects.filter(unit=unit).exists():
         raise Conflict("This physical unit is already linked to planned work.")
     link = WorkUnitLink.objects.create(

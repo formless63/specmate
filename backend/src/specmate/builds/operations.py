@@ -21,7 +21,7 @@ from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from specmate.access.models import Installation
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, transitional_project
 from specmate.builds.models import (
     BuildAttempt,
     BuildOutbox,
@@ -124,7 +124,7 @@ def _execution_allowed(build: BuildAttempt) -> bool:
     if not build.requested_by.is_active:
         return False
     try:
-        authorize(build.requested_by, build.project_id, Perm.BUILD_EXECUTE)
+        authorize(build.requested_by, build.workspace_id, Perm.BUILD_EXECUTE)
         recipe = approved_recipe(build.recipe_id)
         from specmate.firmware_builds.operations import execution_allowed
 
@@ -171,22 +171,24 @@ class RequestBuild(Payload):
     status="accepted_async",
 )
 def request_build(ctx: Context, p: RequestBuild) -> dict:
-    project = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
+    workspace = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
     if not ctx.idempotency_key:
         raise ValidationFailed("build.request requires an idempotency key.")
     from specmate.diagnostics.guards import require_accepting_work
 
     require_accepting_work()
     source = SourceBundleRevision.objects.filter(
-        id=p.source_revision_id, bundle__project=project
+        id=p.source_revision_id, bundle__workspace=workspace
     ).first()
     if source is None:
         raise NotFound("Source revision not found.")
     recipe = approved_recipe(p.recipe_id)
-    return _create_attempt(ctx, project, source, recipe, p)
+    return _create_attempt(ctx, workspace, source, recipe, p)
 
 
-def _create_attempt(ctx, project, source, recipe, p, retry_of: BuildAttempt | None = None) -> dict:
+def _create_attempt(
+    ctx, workspace, source, recipe, p, retry_of: BuildAttempt | None = None
+) -> dict:
     """Shared by first requests and deliberate retries; every attempt gets a new identity."""
     from specmate.firmware_builds.operations import authorize_request
 
@@ -208,7 +210,9 @@ def _create_attempt(ctx, project, source, recipe, p, retry_of: BuildAttempt | No
     build_id = uuid.uuid4()
     build = BuildAttempt.objects.create(
         id=build_id,
-        project=project,
+        workspace=workspace,
+        # Optional navigation context; a retry keeps the original attempt's context.
+        project=retry_of.project if retry_of else transitional_project(p.project_id, workspace),
         requested_by=ctx.user,
         source_revision=source,
         recipe_id=recipe.id,
@@ -291,7 +295,7 @@ def poll_build(ctx: Context, p: BuildRef) -> dict:
 )
 def get_build(ctx: Context, p: BuildRef) -> dict:
     stage = _stage_for_build(p.build_id)
-    authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, stage.build.workspace_id, Perm.WORKSPACE_READ)
     _authorize_compiler_read(ctx, stage)
     return {**stage_result(stage), "receipt": stage.receipt}
 
@@ -308,7 +312,7 @@ class ArtifactRef(BuildRef):
 )
 def get_output(ctx: Context, p: ArtifactRef) -> dict:
     stage = _stage_for_build(p.build_id)
-    authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, stage.build.workspace_id, Perm.WORKSPACE_READ)
     _authorize_compiler_read(ctx, stage)
     if stage.state != "succeeded":
         raise NotFound("Accepted output not found.")
@@ -342,9 +346,9 @@ def _authorize_compiler_read(ctx, stage):
 )
 def cancel_build(ctx: Context, p: BuildRef) -> dict:
     stage = _stage_for_build(p.build_id)
-    authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, stage.build.workspace_id, Perm.WORKSPACE_READ)
     if ctx.user.pk != stage.build.requested_by_id:
-        authorize(ctx.user, stage.build.project_id, Perm.BUILD_EXECUTE)
+        authorize(ctx.user, stage.build.workspace_id, Perm.BUILD_EXECUTE)
     if ctx.expected_state != stage_result(stage)["state_token"]:
         raise Conflict("Build changed since expected state.", details=stage_result(stage))
     _cancel(stage, "requested")
@@ -374,13 +378,13 @@ def enroll_runner(ctx: Context, p: EnrollRunner) -> dict:
     _operator(ctx)
     if ctx.idempotency_key:
         raise ValidationFailed("Credential issuance cannot retain an idempotent token response.")
-    project = authorize(ctx.user, p.project_id, Perm.PROJECT_ADMIN)
+    workspace = authorize(ctx.user, p.project_id, Perm.WORKSPACE_ADMIN)
     for recipe_id in p.recipe_ids:
         approved_recipe(recipe_id)
     token = secrets.token_urlsafe(48)
     credential = RunnerCredential.objects.create(
         name=p.name,
-        project=project,
+        workspace=workspace,
         recipe_ids=sorted(set(p.recipe_ids)),
         token_sha256=hashlib.sha256(token.encode()).hexdigest(),
         expires_at=timezone.now() + timedelta(hours=p.lifetime_hours),
@@ -456,7 +460,9 @@ def claim_lease(ctx: Context, p: ClaimLease) -> dict:
         BuildStage.objects.select_for_update(skip_locked=True)
         .select_related("build", "build__requested_by", "build__source_revision")
         .filter(
-            state="queued", build__project=runner.project, build__recipe_id__in=runner.recipe_ids
+            state="queued",
+            build__workspace=runner.workspace,
+            build__recipe_id__in=runner.recipe_ids,
         )
         .order_by("created_at")[:20]
     )
@@ -491,7 +497,7 @@ def _runner_stage(ctx: Context, p: StageLease, *, allow_expired=False, allow_ter
         .filter(
             id=p.stage_id,
             runner=runner,
-            build__project=runner.project,
+            build__workspace=runner.workspace,
             build__recipe_id__in=runner.recipe_ids,
         )
         .first()

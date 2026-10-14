@@ -17,7 +17,7 @@ def get_unit(user, unit_id, *, lock=False):
     unit = query.filter(id=unit_id).first()
     if unit is None:
         raise NotFound("Physical unit not found.")
-    authorize(user, unit.project_id, Perm.PROJECT_READ)
+    authorize(user, unit.workspace_id, Perm.WORKSPACE_READ)
     get_revision(user, unit.revision_id)
     if unit.lot_id:
         get_revision(user, unit.lot.revision_id)
@@ -30,7 +30,7 @@ def unit_result(unit):
     work_link = WorkUnitLink.objects.filter(unit=unit).first()
     return PhysicalUnitResult(
         unit_id=unit.id,
-        project_id=unit.project_id,
+        workspace_id=unit.workspace_id,
         revision_id=unit.revision_id,
         definition_id=unit.revision.definition_id,
         serial=unit.serial,
@@ -61,10 +61,10 @@ def link_result(link):
 
 @transaction.atomic
 def list_units(user, project_id, *, offset=0, limit=50):
-    authorize(user, project_id, Perm.PROJECT_READ)
+    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     units = list(
         PhysicalUnit.objects.select_related("revision__definition", "lot", "variant")
-        .filter(project_id=project_id)
+        .filter(workspace=workspace)
         .order_by("created_at", "id")[offset : offset + limit]
     )
     for unit in units:
@@ -74,6 +74,7 @@ def list_units(user, project_id, *, offset=0, limit=50):
             get_work_batch(user, link.work_batch_id)
     return {
         "project_id": str(project_id),
+        "workspace_id": str(workspace.id),
         "units": [unit_result(unit) for unit in units],
         "offset": offset,
         "limit": limit,

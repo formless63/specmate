@@ -203,8 +203,8 @@ def register_blob(
 
 
 @api.get("/v0/projects", tags=["projects"])
-def list_projects(request):
-    return queries.list_projects(request.user)
+def list_projects(request, include_archived: bool = False):
+    return queries.list_projects(request.user, include_archived=include_archived)
 
 
 @api.get("/v0/projects/{project_id}/definitions", tags=["design"])

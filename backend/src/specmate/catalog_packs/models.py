@@ -6,14 +6,14 @@ from django.db import models
 
 class CatalogPack(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     package_key = models.CharField(max_length=100)
     registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["project", "package_key"], name="pack_project_key"),
+            models.UniqueConstraint(fields=["workspace", "package_key"], name="pack_workspace_key"),
             models.CheckConstraint(condition=~models.Q(package_key=""), name="pack_key_nonempty"),
         ]
 

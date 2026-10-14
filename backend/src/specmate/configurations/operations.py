@@ -30,12 +30,11 @@ from specmate.design.operations import (
 )
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE
 
 HISTORY = 100
 
 
-def configuration_draft(ctx, draft_id, permission=Perm.PROJECT_READ, *, lock=False):
+def configuration_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "configuration":
         raise ValidationFailed("Select a configuration draft.")
@@ -81,7 +80,7 @@ def preview(ctx, draft):
     }
 
 
-def resolved_result(ctx, row_id, *, permission=Perm.PROJECT_READ):
+def resolved_result(ctx, row_id, *, permission=Perm.WORKSPACE_READ):
     row = (
         ResolvedConfiguration.objects.select_related("snapshot__definition", "draft__definition")
         .filter(id=row_id)
@@ -89,11 +88,11 @@ def resolved_result(ctx, row_id, *, permission=Perm.PROJECT_READ):
     )
     if row is None:
         raise NotFound("Resolved configuration unavailable.")
-    authorize(ctx.user, row.project_id, permission)
+    authorize(ctx.user, row.workspace_id, permission)
     authorize_snapshot(ctx.user, row.snapshot)
     return row, {
         **summary(row),
-        "project_id": str(row.project_id),
+        "workspace_id": str(row.workspace_id),
         "draft_id": str(row.draft_id),
         "definition_id": str(row.snapshot.definition_id),
         "snapshot_sha256": row.snapshot.sha256,
@@ -119,7 +118,7 @@ def resolve_configuration(ctx: Context, p: ResolveConfiguration):
     snapshot = Snapshot.objects.select_related("definition").filter(id=p.snapshot_id).first()
     if snapshot is None:
         raise NotFound("Configuration snapshot unavailable.")
-    authorize(ctx.user, snapshot.definition.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, snapshot.definition.workspace_id, Perm.WORKSPACE_READ)
     if snapshot.definition.kind != "configuration":
         raise ValidationFailed("Select a configuration snapshot.")
     authorize_snapshot(ctx.user, snapshot)
@@ -142,13 +141,13 @@ def capture_replay(ctx, p, stored):
 
 def capture_scope(ctx, p):
     draft = configuration_draft(ctx, p.draft_id)
-    scope = f"project:{draft.definition.project_id}"
+    scope = f"workspace:{draft.definition.workspace_id}"
     # Authorize retained outcomes before changed-payload or legacy diagnostics.
     for prior in IdempotencyRecord.objects.select_for_update().filter(
         actor=ctx.user,
         operation="configuration.capture",
         key=ctx.idempotency_key,
-        scope__in=[scope, LEGACY_SCOPE],
+        scope=scope,
     ):
         capture_replay(ctx, p, prior.result)
     return scope
@@ -174,7 +173,7 @@ def capture(ctx: Context, p: CaptureResolution):
     _, snapshot = _capture(ctx, CaptureDraft(draft_id=draft.id), Perm.DESIGN_EDIT)
     body = canonical(resolution)
     row = ResolvedConfiguration.objects.create(
-        project_id=draft.definition.project_id,
+        workspace_id=draft.definition.workspace_id,
         draft=draft,
         draft_version=draft.version,
         snapshot=snapshot,

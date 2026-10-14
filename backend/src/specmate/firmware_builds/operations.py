@@ -32,7 +32,6 @@ from specmate.firmware_builds.pack import (
 )
 from specmate.operations import NotFound, PermissionDenied, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import LEGACY_SCOPE
 from specmate.pcb.firmware import read_revision
 from specmate.queries import get_revision
 from specmate.sources import blobstore
@@ -42,15 +41,15 @@ from specmate.sources.models import SourceBundleRevision
 _REQUEST = ContextVar("firmware_compile_request", default=None)
 
 
-def inputs(user, p, permission=Perm.PROJECT_READ):
+def inputs(user, p, permission=Perm.WORKSPACE_READ):
     user = current_actor(user)
     read = read_revision(user, p.firmware_revision_id)
     revision = Revision.objects.get(id=p.firmware_revision_id)
-    authorize(user, revision.definition.project_id, permission)
+    authorize(user, revision.definition.workspace_id, permission)
     occurrence = None
     if p.assembly_snapshot_id:
         snapshot, closure = get_snapshot(user, p.assembly_snapshot_id)
-        authorize(user, snapshot.definition.project_id, permission)
+        authorize(user, snapshot.definition.workspace_id, permission)
         node = closure.nodes.get(tuple(p.path))
         if node is None:
             raise NotFound("Exact frozen board occurrence unavailable.")
@@ -78,7 +77,7 @@ def inputs(user, p, permission=Perm.PROJECT_READ):
     return revision, read, spec
 
 
-def executable_inputs(user, p, permission=Perm.PROJECT_READ):
+def executable_inputs(user, p, permission=Perm.WORKSPACE_READ):
     revision, read, spec = inputs(user, p, permission)
     supported(spec)
     if read["evaluation"]["readiness"] == "blocked":
@@ -102,7 +101,7 @@ def checked_recipe(spec, recipe):
         )
 
 
-def recipe_inputs(user, recipe, permission=Perm.PROJECT_READ):
+def recipe_inputs(user, recipe, permission=Perm.WORKSPACE_READ):
     """Shared-build hook: authorize compiler source/board/occurrence closure at every lease."""
     if not recipe.id.startswith(ADAPTER + "-"):
         return None
@@ -129,7 +128,8 @@ def authorize_request(ctx, p, recipe):
             raise PermissionDenied(
                 "Use firmware_build.request with explicit source-execution consent."
             )
-        if source.id != p.source_revision_id or source.bundle.project_id != p.project_id:
+        workspace = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
+        if source.id != p.source_revision_id or source.bundle.workspace_id != workspace.id:
             raise ValidationFailed("Compiler build source differs from its exact firmware pin.")
 
 
@@ -140,7 +140,7 @@ def execution_allowed(build):
         raise ValidationFailed("Compiler execution source differs from its exact frozen input.")
 
 
-def scoped_build(ctx, p, permission=Perm.PROJECT_READ):
+def scoped_build(ctx, p, permission=Perm.WORKSPACE_READ):
     revision, _, spec = inputs(ctx.user, p, permission)
     build = (
         BuildAttempt.objects.select_related("stage", "source_revision__bundle")
@@ -149,11 +149,11 @@ def scoped_build(ctx, p, permission=Perm.PROJECT_READ):
     )
     if build is None:
         raise NotFound("Compiler build unavailable.")
-    authorize(ctx.user, build.project_id, permission)
+    authorize(ctx.user, build.workspace_id, permission)
     authorize_revision(current_actor(ctx.user), build.source_revision)
     for output in build.stage.outputs.select_related("source_revision__bundle"):
         authorize_revision(current_actor(ctx.user), output.source_revision)
-    if build.project_id != revision.definition.project_id:
+    if build.workspace_id != revision.definition.workspace_id:
         raise NotFound("Compiler build unavailable for this firmware.")
     try:
         checked_recipe(spec, Recipe.model_validate(build.recipe))
@@ -175,15 +175,15 @@ def scope(ctx, p):
     # Resolve only the owning firmware scope before retained evidence. Incoming
     # occurrence diagnostics must not bypass authority over an earlier build.
     revision = get_revision(current_actor(ctx.user), p.firmware_revision_id)
-    authorize(ctx.user, revision.definition.project_id, Perm.BUILD_EXECUTE)
+    authorize(ctx.user, revision.definition.workspace_id, Perm.BUILD_EXECUTE)
     if revision.definition.kind != "firmware":
         raise NotFound("Firmware revision unavailable.")
-    namespace = f"project:{revision.definition.project_id}"
+    namespace = f"workspace:{revision.definition.workspace_id}"
     for prior in IdempotencyRecord.objects.filter(
         actor=ctx.user,
         operation="firmware_build.request",
         key=ctx.idempotency_key,
-        scope__in=[namespace, LEGACY_SCOPE],
+        scope=namespace,
     ):
         retained(ctx, prior.result)
     inputs(ctx.user, p, Perm.BUILD_EXECUTE)
@@ -212,7 +212,7 @@ def request(ctx, p):
         result = request_build(
             ctx,
             RequestBuild(
-                project_id=revision.definition.project_id,
+                project_id=revision.definition.workspace_id,
                 source_revision_id=source.id,
                 recipe_id=p.recipe_id,
             ),

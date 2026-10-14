@@ -131,7 +131,7 @@ class ListInventory(Payload):
 
 class AccountResult(BaseModel):
     account_id: UUID
-    project_id: UUID
+    workspace_id: UUID
     lot_id: UUID
     lot_label: str
     revision_id: UUID
@@ -193,7 +193,7 @@ class ReturnUnused(Assertion):
 
 class WorkBatchResult(BaseModel):
     work_batch_id: UUID
-    project_id: UUID
+    workspace_id: UUID
     revision_id: UUID
     definition_id: UUID
     kind: Literal["job", "batch"]

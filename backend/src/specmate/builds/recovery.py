@@ -30,7 +30,7 @@ from specmate.builds.operations import (
 )
 from specmate.builds.recipes import approved_recipe
 from specmate.operations import Conflict, NotFound, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 from specmate.sources.models import SourceBundleRevision
 
 # Event details safe for project readers; runner identities and fencing tokens are not.
@@ -43,14 +43,14 @@ def _build_scope(ctx, p) -> str:
     build = BuildAttempt.objects.filter(id=p.build_id).first()
     if build is None:
         raise NotFound("Build not found.")
-    return project_scope(ctx, build.project_id)
+    return workspace_scope(ctx, build.workspace_id)
 
 
 def _controls(ctx, stage: BuildStage) -> None:
     """Whoever requested a build may cancel or resolve it; anyone else needs execution authority."""
-    authorize(ctx.user, stage.build.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, stage.build.workspace_id, Perm.WORKSPACE_READ)
     if ctx.user.pk != stage.build.requested_by_id:
-        authorize(ctx.user, stage.build.project_id, Perm.BUILD_EXECUTE)
+        authorize(ctx.user, stage.build.workspace_id, Perm.BUILD_EXECUTE)
 
 
 def _runner_unavailable(stage: BuildStage) -> bool:
@@ -135,7 +135,7 @@ def retry_build(ctx, p: BuildRef) -> dict:
         raise ValidationFailed("build.retry requires an idempotency key.")
     stage = _stage_for_build(p.build_id)
     build = stage.build
-    authorize(ctx.user, build.project_id, Perm.BUILD_EXECUTE)
+    authorize(ctx.user, build.workspace_id, Perm.BUILD_EXECUTE)
     _check_state(ctx, stage)
     if stage.state == "succeeded":
         raise ValidationFailed("A succeeded build has nothing to retry.")
@@ -151,14 +151,14 @@ def retry_build(ctx, p: BuildRef) -> dict:
     if recipe.model_dump(mode="json") != build.recipe:
         raise Conflict("The approved recipe changed; request a new build deliberately.")
     source = SourceBundleRevision.objects.filter(
-        id=build.source_revision_id, bundle__project_id=build.project_id
+        id=build.source_revision_id, bundle__workspace_id=build.workspace_id
     ).first()
     if source is None:
         raise NotFound("Source revision not found.")
     request = RequestBuild(
-        project_id=build.project_id, source_revision_id=source.id, recipe_id=recipe.id
+        project_id=build.workspace_id, source_revision_id=source.id, recipe_id=recipe.id
     )
-    result = _create_attempt(ctx, build.project, source, recipe, request, retry_of=build)
+    result = _create_attempt(ctx, build.workspace, source, recipe, request, retry_of=build)
     return {**result, "retry_of": str(build.id)}
 
 
@@ -166,7 +166,7 @@ def _retry_replay(ctx, p, stored) -> None:
     previous = BuildAttempt.objects.filter(id=p.build_id).first()
     if previous is None:
         raise NotFound("Build not found.")
-    authorize(ctx.user, previous.project_id, Perm.BUILD_EXECUTE)
+    authorize(ctx.user, previous.workspace_id, Perm.BUILD_EXECUTE)
     if not BuildAttempt.objects.filter(id=stored["build_id"], retry_of=previous).exists():
         raise NotFound("Build not found.")
 
@@ -218,7 +218,7 @@ class HistoryRead(BuildRef):
 def history(ctx, p: HistoryRead) -> dict:
     stage = _stage_for_build(p.build_id)
     build = stage.build
-    authorize(ctx.user, build.project_id, Perm.PROJECT_READ)
+    authorize(ctx.user, build.workspace_id, Perm.WORKSPACE_READ)
     _authorize_compiler_read(ctx, stage)
     retried = _retry_of(build)
     return {
@@ -266,9 +266,9 @@ class ListBuilds(Payload):
 def list_builds(ctx, p: ListBuilds) -> dict:
     from specmate.firmware_builds.pack import ADAPTER
 
-    authorize(ctx.user, p.project_id, Perm.PROJECT_READ)
+    workspace = authorize(ctx.user, p.project_id, Perm.WORKSPACE_READ)
     rows = list(
-        BuildAttempt.objects.filter(project_id=p.project_id)
+        BuildAttempt.objects.filter(workspace=workspace)
         .exclude(recipe_id__startswith=ADAPTER + "-")
         .select_related("stage")
         .order_by("-created_at", "-id")[: LIST_LIMIT + 1]

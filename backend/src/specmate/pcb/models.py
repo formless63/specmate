@@ -51,7 +51,7 @@ class PropertyAuthority(models.Model):
         BOARD_OUTLINE = "pcb.board_outline"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT, related_name="+")
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
     property = models.CharField(max_length=100, choices=Property.choices)
     lineage_root = models.ForeignKey(
         "sources.SourceBundle", on_delete=models.PROTECT, related_name="+"

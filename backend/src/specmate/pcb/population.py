@@ -145,7 +145,7 @@ def validate_content(kind: str, content: dict) -> dict:
     return {"pcb_population": population.model_dump(mode="json")} if population else content
 
 
-def scoped_interpretation(user, project_id, interpretation_id) -> PcbInterpretation:
+def scoped_interpretation(user, workspace_id, interpretation_id) -> PcbInterpretation:
     interpretation = (
         PcbInterpretation.objects.select_related("attempt__intake__source_revision__bundle")
         .filter(id=interpretation_id)
@@ -154,13 +154,13 @@ def scoped_interpretation(user, project_id, interpretation_id) -> PcbInterpretat
     if interpretation is None:
         raise NotFound("PCB interpretation not found.")
     source = interpretation.attempt.intake.source_revision
-    authorize(user, source.bundle.project_id, Perm.PROJECT_READ)
-    if source.bundle.project_id != project_id:
+    authorize(user, source.bundle.workspace_id, Perm.WORKSPACE_READ)
+    if source.bundle.workspace_id != workspace_id:
         raise NotFound("PCB interpretation not found.")
     return interpretation
 
 
-def _authorize_evidence(user, project_id, evidence: Evidence):
+def _authorize_evidence(user, workspace_id, evidence: Evidence):
     if evidence.kind != "source_file":
         return None
     file = (
@@ -170,8 +170,8 @@ def _authorize_evidence(user, project_id, evidence: Evidence):
     )
     if file is None:
         raise NotFound("Evidence source not found.")
-    authorize(user, file.revision.bundle.project_id, Perm.PROJECT_READ)
-    if file.revision.bundle.project_id != project_id:
+    authorize(user, file.revision.bundle.workspace_id, Perm.WORKSPACE_READ)
+    if file.revision.bundle.workspace_id != workspace_id:
         raise NotFound("Evidence source not found.")
     return file
 
@@ -201,7 +201,7 @@ def closure(user, definition, content) -> list[UUID]:
 
 def _closure(user, definition, population: Population) -> list[UUID]:
     interpretation = scoped_interpretation(
-        user, definition.project_id, population.interpretation_id
+        user, definition.workspace_id, population.interpretation_id
     )
     source = interpretation.attempt.intake.source_revision
     # Authorize all references and their frozen source closures before diagnostics
@@ -209,7 +209,7 @@ def _closure(user, definition, population: Population) -> list[UUID]:
     references = []
     for association in population.associations:
         file = (
-            _authorize_evidence(user, definition.project_id, association.evidence)
+            _authorize_evidence(user, definition.workspace_id, association.evidence)
             if association.evidence
             else None
         )
@@ -227,9 +227,9 @@ def _closure(user, definition, population: Population) -> list[UUID]:
             )
             if representation is None:
                 raise NotFound("Model representation not found.")
-            authorize(user, representation.revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(user, representation.revision.definition.workspace_id, Perm.WORKSPACE_READ)
             authorize(
-                user, representation.source_file.revision.bundle.project_id, Perm.PROJECT_READ
+                user, representation.source_file.revision.bundle.workspace_id, Perm.WORKSPACE_READ
             )
             target = representation.revision
         else:
@@ -240,7 +240,7 @@ def _closure(user, definition, population: Population) -> list[UUID]:
             )
             if target is None:
                 raise NotFound("Association target not found.")
-            authorize(user, target.definition.project_id, Perm.PROJECT_READ)
+            authorize(user, target.definition.workspace_id, Perm.WORKSPACE_READ)
         _authorize_snapshot(user, target.snapshot)
         body = None
         if association.kind == "port" and target.definition.kind == "pinout":
@@ -254,7 +254,7 @@ def _closure(user, definition, population: Population) -> list[UUID]:
                 )
                 if body is None:
                     raise NotFound("Pinout body revision not found.")
-                authorize(user, body.definition.project_id, Perm.PROJECT_READ)
+                authorize(user, body.definition.workspace_id, Perm.WORKSPACE_READ)
                 _authorize_snapshot(user, body.snapshot)
         references.append((association, target, representation, file, body))
 
@@ -289,13 +289,14 @@ def _closure(user, definition, population: Population) -> list[UUID]:
         if representation:
             if (
                 representation.kind != "model"
-                or representation.revision.definition.project_id != definition.project_id
-                or representation.source_file.revision.bundle.project_id != definition.project_id
+                or representation.revision.definition.workspace_id != definition.workspace_id
+                or representation.source_file.revision.bundle.workspace_id
+                != definition.workspace_id
             ):
                 raise ValidationFailed(
                     "Model association requires a same-project model representation."
                 )
-        if target.definition.project_id != definition.project_id:
+        if target.definition.workspace_id != definition.workspace_id:
             raise ValidationFailed("Association target must belong to the PCB project.")
         dependencies.add(target.id)
         if association.kind == "port":
@@ -329,7 +330,7 @@ def review_payload(user, definition, content) -> dict:
         raise ValidationFailed("PCB population content is required.")
     closure(user, definition, content)
     interpretation = scoped_interpretation(
-        user, definition.project_id, population.interpretation_id
+        user, definition.workspace_id, population.interpretation_id
     )
     source = interpretation.attempt.intake.source_revision
     report = Report.model_validate_json(bytes(interpretation.canonical))

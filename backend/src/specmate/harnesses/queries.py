@@ -80,7 +80,7 @@ class Closure:
             )
             if revision is None:
                 raise NotFound("Harness reference unavailable.")
-            authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
             self.revisions[rid] = revision
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         for revision in self.revisions.values():

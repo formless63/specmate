@@ -48,11 +48,6 @@
       "title": "Physical Qualification",
       "type": "boolean"
     },
-    "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
-    },
     "registered_by_id": {
       "title": "Registered By Id",
       "type": "integer"
@@ -98,11 +93,16 @@
         }
       ],
       "title": "Work Batch Id"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
     "unit_id",
-    "project_id",
+    "workspace_id",
     "revision_id",
     "definition_id",
     "serial",

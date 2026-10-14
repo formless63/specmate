@@ -6,7 +6,11 @@ from django.db import models
 
 class ChangeReview(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey("access.Project", on_delete=models.PROTECT)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    # Optional project context: navigation and filtering only, never an owner or authority.
+    project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
     old_revision = models.ForeignKey("design.Revision", on_delete=models.PROTECT, related_name="+")
     candidate_revision = models.ForeignKey(
         "design.Revision", on_delete=models.PROTECT, related_name="+"

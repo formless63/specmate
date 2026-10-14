@@ -24,21 +24,21 @@ from specmate.design.operations import (
     update_draft,
 )
 from specmate.operations import Context, ValidationFailed, operation
-from specmate.operations.scope import project_scope
+from specmate.operations.scope import workspace_scope
 
 
 def create_scope(ctx, p):
-    return project_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
 
 
 def edit_scope(ctx, p):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT)
-    return project_scope(ctx, draft.definition.project_id, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, draft.definition.workspace_id, Perm.DESIGN_EDIT)
 
 
 def freeze_scope(ctx, p):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE)
-    return project_scope(ctx, draft.definition.project_id, Perm.DESIGN_FREEZE)
+    return workspace_scope(ctx, draft.definition.workspace_id, Perm.DESIGN_FREEZE)
 
 
 def authorize_create_replay(ctx, p, stored):

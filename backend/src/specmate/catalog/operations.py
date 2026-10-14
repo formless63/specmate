@@ -16,11 +16,13 @@ def authorize_catalog_replay(ctx: Context, p, stored_result: dict) -> None:
     Registration results only disclose records scoped by these pinned references.
     """
     revision = get_revision(ctx.user, p.revision_id)
-    authorize(ctx.user, revision.definition.project_id, Perm.DESIGN_EDIT)
+    authorize(ctx.user, revision.definition.workspace_id, Perm.DESIGN_EDIT)
     if isinstance(p, RegisterRepresentation):
         source = get_bundle_revision(ctx.user, p.source_bundle_revision_id)
-        if source.bundle.project_id != revision.definition.project_id:
-            raise ValidationFailed("Representation source must belong to the definition's project.")
+        if source.bundle.workspace_id != revision.definition.workspace_id:
+            raise ValidationFailed(
+                "Representation source must belong to the definition's workspace."
+            )
     if isinstance(p, RegisterLot) and p.variant_id:
         variant = (
             ManufacturerVariant.objects.select_related("revision__definition")
@@ -29,7 +31,7 @@ def authorize_catalog_replay(ctx: Context, p, stored_result: dict) -> None:
         )
         if variant is None:
             raise NotFound("Variant not found.")
-        authorize(ctx.user, variant.revision.definition.project_id, Perm.PROJECT_READ)
+        authorize(ctx.user, variant.revision.definition.workspace_id, Perm.WORKSPACE_READ)
         if variant.revision_id != revision.id:
             raise ValidationFailed("Lot and manufacturer variant must pin the same revision.")
 
@@ -40,7 +42,7 @@ def catalog_scope(ctx: Context, p) -> str:
 
 def editable_revision(ctx, revision_id):
     revision = get_revision(ctx.user, revision_id)
-    authorize(ctx.user, revision.definition.project_id, Perm.DESIGN_EDIT)
+    authorize(ctx.user, revision.definition.workspace_id, Perm.DESIGN_EDIT)
     # Serialize duplicate checks without modifying the immutable revision.
     Revision.objects.select_for_update().get(id=revision.id)
     return revision
@@ -79,8 +81,8 @@ def register_variant(ctx: Context, p: RegisterVariant) -> dict:
 def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
     revision = editable_revision(ctx, p.revision_id)
     source = get_bundle_revision(ctx.user, p.source_bundle_revision_id)
-    if source.bundle.project_id != revision.definition.project_id:
-        raise ValidationFailed("Representation source must belong to the definition's project.")
+    if source.bundle.workspace_id != revision.definition.workspace_id:
+        raise ValidationFailed("Representation source must belong to the definition's workspace.")
     source_file = (
         SourceBundleFile.objects.select_related("blob", "revision")
         .filter(revision=source, path=p.source_path)
@@ -120,7 +122,7 @@ def register_lot(ctx: Context, p: RegisterLot) -> dict:
         )
         if variant is None:
             raise NotFound("Variant not found.")
-        authorize(ctx.user, variant.revision.definition.project_id, Perm.PROJECT_READ)
+        authorize(ctx.user, variant.revision.definition.workspace_id, Perm.WORKSPACE_READ)
         if variant.revision_id != revision.id:
             raise ValidationFailed("Lot and manufacturer variant must pin the same revision.")
     lot = PhysicalLot.objects.create(

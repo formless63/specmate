@@ -77,7 +77,7 @@ class Closure:
             )
             if revision is None:
                 raise NotFound("BOM reference unavailable.")
-            authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
             self.revisions[rid] = revision
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         # Project membership alone does not authorize typed source-file references,
@@ -161,7 +161,7 @@ def read_revision(user, revision_id):
     )
     if revision is None:
         raise NotFound("BOM plan unavailable.")
-    authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+    authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
     authorize_origin(user, revision.definition)
     closure = Closure(
         user,
