@@ -38,6 +38,7 @@ export const AREAS: AreaDef[] = [
   { id: "sources", label: "Sources", key: "4", tools: [
     { id: "sources", label: "Sources" },
     { id: "mechanical-sources", label: "Mechanical sources" },
+    { id: "builds", label: "Builds" },
   ] },
   { id: "make", label: "Make", key: "5", tools: [
     { id: "bom", label: "BOM planning" },

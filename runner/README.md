@@ -51,7 +51,9 @@ cancellation refer to the actual container. A cancellation is reported only afte
 termination is confirmed. Loss of application control stops execution and preserves
 its receipt. Refused lease authority stops the old container and fences its local
 receipt without attempting result registration. An identical completion can be
-replayed after acknowledgment loss without launching the tool again.
+replayed after acknowledgment loss without launching the tool again. A persisted tool failure is replayed
+unchanged even if cancellation is requested before acceptance; a runner shutdown reports a
+failure, never a cancellation, and an unconfirmed stop reports nothing.
 
 The runner refuses undeclared files, path traversal, links, special files, absent
 required output and excessive file counts/sizes. It hashes output after the container
