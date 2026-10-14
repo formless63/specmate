@@ -21,6 +21,12 @@ from specmate.access.permissions import memoized_membership
 _without_origin: ContextVar[set | None] = ContextVar("closure_without_origin", default=None)
 
 
+# Exact revisions whose complete closure this traversal already authorized, by actor.
+_authorized_revisions: ContextVar[dict | None] = ContextVar(
+    "closure_authorized_revisions", default=None
+)
+
+
 @contextmanager
 def closure_reads() -> Iterator[None]:
     """Reuse membership and origin-presence reads inside one read-only traversal."""
@@ -28,11 +34,27 @@ def closure_reads() -> Iterator[None]:
         yield
         return
     token = _without_origin.set(set())
+    revisions = _authorized_revisions.set({})
     try:
         with memoized_membership():
             yield
     finally:
+        _authorized_revisions.reset(revisions)
         _without_origin.reset(token)
+
+
+def authorized_revision(user: Any, revision_id: Any) -> Any:
+    """The revision this traversal already fully authorized for this actor, else None."""
+    known = _authorized_revisions.get()
+    if known is None:
+        return None
+    return known.get((getattr(user, "pk", None), str(revision_id)))
+
+
+def remember_authorized_revision(user: Any, revision: Any) -> None:
+    known = _authorized_revisions.get()
+    if known is not None:
+        known[(getattr(user, "pk", None), str(revision.id))] = revision
 
 
 def prefetch_origins(definition_ids: Iterable[Any]) -> None:

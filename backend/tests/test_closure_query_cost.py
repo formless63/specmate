@@ -16,6 +16,7 @@ from specmate.operations import NotFound
 from specmate.queries import get_revision
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ, part
 from .test_bom import assembly as bom_assembly
 from .test_bom import capture as bom_capture
@@ -130,3 +131,141 @@ def test_mixed_label_batch_keeps_per_label_readability(users, systems, other_wor
     # The membership memo never outlives one operation: a later outsider read is denied.
     hidden = op(users["outsider"], "catalog.revision_labels", {"revision_ids": ids[:1]})
     assert hidden["labels"] == [{"revision_id": ids[0], "readable": False}]
+
+
+def test_release_review_cost_does_not_grow_with_pinned_revisions(users, project):
+    owner = users["owner"]
+
+    def review(size):
+        _, root = system(owner, project, size)
+        payload = {"root_revision_id": root["revision_id"], "quantity": 1}
+        return lambda: op(owner, "release.review", payload)
+
+    small, large = queries(review(3)), queries(review(12))
+    assert large <= small + SLACK, (small, large)
+
+
+def test_release_review_still_reports_evidence_for_pinned_revisions(users, project):
+    from .test_facts import append, fact, subject
+
+    owner = users["owner"]
+    parts, root = system(owner, project, 3)
+    append(
+        owner,
+        subject(owner, {"kind": "revision", "revision_id": parts[1]["revision_id"]}),
+        fact(
+            "continuity_checked",
+            role="actual",
+            value={"kind": "boolean", "value": True},
+            provenance={
+                "method": "source_observation",
+                "evidence": [{"kind": "citation", "citation": "Synthetic review note"}],
+            },
+        ),
+    )
+    review = op(owner, "release.review", {"root_revision_id": root["revision_id"], "quantity": 1})
+    evidence = review["review"]["evidence"]
+    assert [row["revision_id"] for row in evidence["items"]] == [parts[1]["revision_id"]]
+    assert evidence["counts"] == {"exact_revision": 1}
+    assert evidence["evaluated_revisions"] == 4
+
+
+def test_interface_closure_cost_does_not_grow_with_assembly_parts(users, project):
+    from .test_interfaces import create as create_interface
+    from .test_interfaces import freeze as freeze_interface
+    from .test_interfaces import pinout
+
+    owner = users["owner"]
+    body = freeze_interface(owner, create_interface(owner, project))
+    pins = pinout(body)
+    cost = []
+    for size in (3, 12):
+        _, assembly = system(owner, project, size)
+        mapping = {
+            "kind": "interface_map",
+            "assembly_revision_id": assembly["revision_id"],
+            "external_pinout_revision_id": freeze_interface(
+                owner, create_interface(owner, project, pins)
+            )["revision_id"],
+            "passages": [],
+        }
+        cost.append(queries(lambda mapping=mapping: create_interface(owner, project, mapping)))
+    assert cost[1] <= cost[0] + SLACK, cost
+
+
+def test_configuration_history_cost_does_not_grow_with_resolved_records(users, project):
+    from .test_configurations import capture as capture_configuration
+    from .test_configurations import configuration as create_configuration
+    from .test_configurations import frozen, option_set_content, select
+
+    owner = users["owner"]
+    parts = [frozen(owner, project, f"Synthetic sensor {n}") for n in "AB"]
+    options = op(
+        owner,
+        "definition.create",
+        {
+            "workspace_id": workspace_of(project),
+            "kind": "option_set",
+            "name": "Synthetic options",
+            "content": option_set_content(parts),
+        },
+    )
+    frozen_options = op(
+        owner, "draft.freeze", {"draft_id": options["draft_id"]}, expected_state=options["state"]
+    )
+    draft = create_configuration(owner, project, frozen_options["revision_id"])
+    cost, recorded = [], 0
+    for target in (3, 12):
+        while recorded < target:
+            choice = "ab"[recorded % 2]
+            select(
+                owner,
+                draft,
+                [
+                    {"option_key": "sensor", "choice_key": choice},
+                    {"option_key": "finish", "choice_key": "bead"},
+                ],
+            )
+            capture_configuration(owner, draft["draft_id"], basis=f"Synthetic basis {recorded}")
+            recorded += 1
+        cost.append(
+            queries(lambda: op(owner, "configuration.resolve", {"draft_id": draft["draft_id"]}))
+        )
+    assert cost[1] <= cost[0] + SLACK, cost
+
+
+def test_harness_closure_cost_does_not_grow_with_sections(users, project):
+    from .test_cables import STOCK
+    from .test_cables import capture as capture_stock
+    from .test_harnesses import create as create_harness
+    from .test_harnesses import fixture as harness_fixture
+
+    owner = users["owner"]
+    _, _, _, base = harness_fixture(owner, project)
+    cost = []
+    for size in (3, 12):
+        harness = {**base, "sections": list(base["sections"][:2])}
+        for i in range(size - 2):
+            stock = capture_stock(
+                owner,
+                op(
+                    owner,
+                    "wire_stock.create",
+                    {
+                        "workspace_id": workspace_of(project),
+                        "name": f"Stock {size}-{i}",
+                        "stock": STOCK,
+                    },
+                ),
+                "wire_stock.freeze",
+            )
+            harness["sections"].append(
+                {
+                    "local_id": f"extra-{i}",
+                    "stock_revision_id": stock["revision_id"],
+                    "planned_cut_length_mm": 10,
+                    "cut_basis": "Explicit extra cut",
+                }
+            )
+        cost.append(queries(lambda harness=harness: create_harness(owner, project, harness)))
+    assert cost[1] <= cost[0] + SLACK, cost

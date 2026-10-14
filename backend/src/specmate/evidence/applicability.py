@@ -132,6 +132,52 @@ def classify(selected, evidence_revision, *, unit=False, batch=False):
     }
 
 
+def definitions_with_evidence(workspace_id, definition_ids):
+    """Definitions that may have any evidence row: four reads however many are asked.
+
+    A superset test only (visibility is still decided per row by ``applicability_items``);
+    a definition outside it has no assertion, recorded pin or subject test to classify.
+    """
+    wanted = set(definition_ids)
+    if not wanted:
+        return set()
+    subjects = FactAssertion.objects.filter(subject__workspace_id=workspace_id)
+    found = set(
+        subjects.filter(subject__kind="definition", subject__definition_id__in=wanted)
+        .order_by()
+        .values_list("subject__definition_id", flat=True)
+        .distinct()
+    )
+    for kind, path in (
+        ("revision", "subject__revision__definition_id"),
+        ("occurrence", "subject__snapshot__revision__definition_id"),
+        ("physical_unit", "subject__physical_unit__revision__definition_id"),
+    ):
+        found.update(
+            subjects.filter(subject__kind=kind, **{f"{path}__in": wanted})
+            .order_by()
+            .values_list(path, flat=True)
+            .distinct()
+        )
+    found.update(
+        RecordedPin.objects.filter(
+            revision__definition_id__in=wanted, record__workspace_id=workspace_id
+        )
+        .order_by()
+        .values_list("revision__definition_id", flat=True)
+        .distinct()
+    )
+    found.update(
+        SubjectTest.objects.filter(
+            workspace_id=workspace_id, design_revision__definition_id__in=wanted
+        )
+        .order_by()
+        .values_list("design_revision__definition_id", flat=True)
+        .distinct()
+    )
+    return found
+
+
 def applicability_items(user, p, selected, scan):
     siblings = {
         r.id: r

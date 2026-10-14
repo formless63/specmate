@@ -25,7 +25,7 @@ from specmate.catalog_matching.queries import current_actor
 from specmate.configurations.operations import constraint_summary, resolved_result
 from specmate.design.models import Revision
 from specmate.design.operations import canonical_bytes
-from specmate.evidence.applicability import applicability_items
+from specmate.evidence.applicability import applicability_items, definitions_with_evidence
 from specmate.export_packages.contracts import ExportRequest
 from specmate.export_packages.queries import build_package, digest
 from specmate.operations import ValidationFailed
@@ -283,7 +283,11 @@ def evidence_section(user, workspace_id, revisions, unresolved):
     ordered = sorted(revisions.values(), key=lambda r: str(r.id))
     evaluated, skipped = ordered[:EVIDENCE_REVISION_LIMIT], ordered[EVIDENCE_REVISION_LIMIT:]
     items, statuses = [], Counter()
+    # Revisions of a definition without any evidence row classify nothing; skip their reads.
+    candidates = definitions_with_evidence(workspace_id, {r.definition_id for r in evaluated})
     for revision in evaluated:
+        if revision.definition_id not in candidates:
+            continue
         scan = SimpleNamespace(limit_reached=False)
         rows = applicability_items(user, SimpleNamespace(workspace_id=workspace_id), revision, scan)
         for _, evidence, applicability in rows:
