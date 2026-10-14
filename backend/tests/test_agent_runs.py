@@ -256,6 +256,97 @@ def test_budget_counts_failures_and_stops_the_run(users, workspace):
         new_stock(users, run, workspace, key="b3")
 
 
+def test_validation_failures_do_not_consume_budget(users, workspace):
+    run = start(users, workspace, max_actions=1)
+    invalid = act(users, run, "v1", "definition.create", {"workspace_id": workspace})
+    assert invalid["step"]["outcome"] == "failed" and invalid["step"]["budget_consumed"] == 0
+    assert invalid["step"]["error"]["code"] == "validation_failed"
+    assert invalid["run"]["status"] == "active"
+    assert invalid["run"]["budget"]["actions_used"] == 0
+    # The recorded failure replays under its step key; a corrected request uses a new one.
+    assert act(users, run, "v1", "definition.create", {"workspace_id": workspace})["replayed"]
+    new_stock(users, run, workspace, key="v2")
+    assert read(users, run)["run"]["status"] == "exhausted"
+
+
+def _build_run(users, workspace, settings, **extra):
+    from . import test_builds as build_tests
+
+    recipe = build_tests.recipe.__wrapped__(settings)
+    source = build_tests.source.__wrapped__(users, workspace)
+    payload = {"workspace_id": workspace, "source_revision_id": source, "recipe_id": recipe["id"]}
+    run = start(users, workspace, sponsor="owner", **extra)
+    return run, payload
+
+
+def test_granted_build_request_runs_once_with_a_derived_step_key(users, workspace, settings):
+    from specmate.builds.models import BuildAttempt
+
+    run, payload = _build_run(users, workspace, settings, boundary_actions=["build.request"])
+    first = act(users, run, "build-1", "build.request", payload)
+    assert first["step"]["outcome"] == "applied", first["step"]["error"]
+    assert first["step"]["budget_consumed"] == 1
+    build_id = first["step"]["result"]["build_id"]
+    # Retrying the step replays its recorded result: no second build, no budget.
+    again = act(users, run, "build-1", "build.request", payload)
+    assert again["replayed"] is True and again["step"] == first["step"]
+    assert BuildAttempt.objects.filter(workspace_id=workspace).count() == 1
+    assert read(users, run)["run"]["budget"]["actions_used"] == 1
+    # A new step is a new request and builds again.
+    second = act(users, run, "build-2", "build.request", payload)
+    assert second["step"]["result"]["build_id"] != build_id
+    assert BuildAttempt.objects.filter(workspace_id=workspace).count() == 2
+
+
+def test_explicit_idempotency_key_replays_the_inner_build(users, workspace, settings):
+    from specmate.builds.models import BuildAttempt
+
+    run, payload = _build_run(
+        users,
+        workspace,
+        settings,
+        allowed_actions=["discovery.capabilities"],
+        boundary_actions=["build.request"],
+    )
+    first = act(users, run, "b1", "build.request", payload, idempotency_key="nightly-1")
+    retry = act(users, run, "b2", "build.request", payload, idempotency_key="nightly-1")
+    assert retry["step"]["result"] == first["step"]["result"]
+    assert retry["step"]["budget_consumed"] == 0
+    assert BuildAttempt.objects.filter(workspace_id=workspace).count() == 1
+    assert read(users, run)["run"]["budget"]["actions_used"] == 1
+    # The key is part of the step fingerprint.
+    with pytest.raises(IdempotencyMismatch):
+        act(users, run, "b1", "build.request", payload, idempotency_key="nightly-2")
+    # Fresh-evaluation operations get no derived key and refuse an explicit one, unrecorded.
+    discovered = act(users, run, "b3", "discovery.capabilities", {"workspace_id": workspace})
+    assert discovered["step"]["outcome"] == "applied", discovered["step"]["error"]
+    with pytest.raises(ValidationFailed):
+        act(users, run, "b4", "discovery.capabilities", {}, idempotency_key="k")
+    assert not AgentRunStep.objects.filter(run_id=run["run_id"], step_key="b4").exists()
+
+
+def test_ungranted_build_request_is_still_refused(users, workspace, settings):
+    from specmate.builds.models import BuildAttempt
+
+    run, payload = _build_run(users, workspace, settings)
+    stop = act(users, run, "b1", "build.request", payload)
+    assert stop["step"]["kind"] == "boundary" and stop["run"]["status"] == "paused"
+    assert BuildAttempt.objects.filter(workspace_id=workspace).count() == 0
+    # The agent account cannot request a build by itself either.
+    with pytest.raises(PermissionDenied):
+        op(users["viewer"], "build.request", payload, idempotency_key="direct")
+
+
+def test_keyed_native_requests_get_a_step_key_inside_runs():
+    from specmate.operations import registry
+    from specmate.operations.scope import BUILTIN_SCOPED, has_scope_policy
+
+    assert BUILTIN_SCOPED <= set(registry)
+    for name in ["pcb_fabrication.request", "build.request", "build.retry", "build.reproduce"]:
+        assert has_scope_policy(registry[name]), name
+    assert not has_scope_policy(registry["discovery.capabilities"])
+
+
 def test_deadline_stops_the_run(users, workspace):
     run = start(users, workspace)
     AgentRun.objects.filter(id=run["run_id"]).update(
