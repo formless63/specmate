@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Checkbox, Group, Select, Stack, Table, Text
 import { useState } from 'react';
 import { command, preserve, registerBlob, SourceError, type EditReview, type RevisionDetail } from './api';
 import { randomUUID } from '../../lib/random-id';
+import { ExactPins, RevisionLabel } from "../../lib/IdentityLabel";
 
 const MAX_FILES = 1000;
 const MAX_FILE = 16 * 1024 * 1024;
@@ -113,7 +114,7 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
     <Title order={4}>Edit outside Specmate</Title>
     <Text size="sm">Download this exact revision, edit it with its native tool, then submit the edited files for review. Git is not required. Specmate keeps this revision unchanged and never merges edits. Files stay inert: re-entry does not run, validate or qualify them.</Text>
     <a href={`/api/v0/sources/revisions/${detail.revision_id}/handoff`}>Download editing handoff ZIP</a>
-    <Text size="xs">The ZIP contains the exact files and SPECMATE-HANDOFF.json identifying this baseline (revision {detail.revision_id}). Keep the marker so a different baseline is detected; it grants no authority.</Text>
+    <Text size="xs">The ZIP contains the exact files and SPECMATE-HANDOFF.json identifying this baseline (<RevisionLabel id={detail.revision_id} known={{ name: detail.name, kind: detail.role, number: detail.number }} />). Keep the marker so a different baseline is detected; it grants no authority.</Text>
     {canWrite && <Stack>
       <Title order={5}>Submit edited files</Title>
       {error && <Alert color="red">{error}</Alert>}
@@ -169,10 +170,10 @@ export function EditProvenanceCard({ detail }: { detail: RevisionDetail }) {
   const edit = detail.edit_submission;
   if (!edit) return null;
   return <Card withBorder><Text fw={600}>Edit re-entry provenance</Text>
-    <Text>Baseline revision: {edit.baseline_revision_id} (revision {edit.baseline_number})</Text>
+    <Text>Baseline <span className="sb-mono">r{edit.baseline_number}</span> <ExactPins pins={[{ label: 'Baseline revision ID', value: edit.baseline_revision_id }]} /></Text>
     <Text size="sm">Baseline manifest SHA-256: {edit.baseline_manifest_sha256}</Text>
     <Text>Submitted as: {edit.target === 'next_revision' ? 'next revision of the derivative' : 'separate derivative'}</Text>
-    {edit.source.kind === 'zip' ? <Text size="sm">Edited archive: {edit.source.path} · revision {edit.source.revision_id} · SHA-256 {edit.source.sha256} · parser {edit.source.parser}</Text> : <Text size="sm">Edited files registered individually</Text>}
+    {edit.source.kind === 'zip' ? <Text size="sm">Edited archive: {edit.source.path} · <ExactPins pins={[{ label: 'Edited archive revision ID', value: edit.source.revision_id }]} /> · SHA-256 {edit.source.sha256} · parser {edit.source.parser}</Text> : <Text size="sm">Edited files registered individually</Text>}
     <Text size="sm">Handoff marker: {edit.marker}{edit.root_prefix ? ` · root folder ${edit.root_prefix}/` : ''}</Text>
     <Text size="sm">Review SHA-256: {edit.review_sha256}</Text>
     <Text>Summary: {edit.summary}</Text>

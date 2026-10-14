@@ -142,8 +142,10 @@ test("deliberate freezing uses the saved token and exposes exact immutable asses
   expect(f.calls).toHaveLength(1);
   expect(f.calls[0]!.operation).toBe("interface.freeze");
   expect(f.calls[0]!.expected_state).toBe("draft-v1");
-  expect(screen.getByText(/Frozen revision frozen · snapshot snapshot/)).toBeTruthy();
-  expect(screen.getByText(/Exact left pinout left-exact · exact right pinout right-exact/)).toBeTruthy();
+  expect(screen.getAllByText('frozen', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('snapshot', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('left-exact', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('right-exact', { selector: 'code' }).length).toBeGreaterThan(0);
 });
 
 

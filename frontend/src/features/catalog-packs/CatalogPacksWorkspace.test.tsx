@@ -47,14 +47,15 @@ test("registers structured exact content, installs it, and deliberately creates 
   render(<MantineProvider><CatalogPacksWorkspace projectId="project-1" /></MantineProvider>);
   await screen.findByRole("option", { name: "Source item · part" }); fillRegistration();
   fireEvent.change(screen.getByLabelText(/Entry 1 source definition/), { target: { value: "source-definition" } });
-  await screen.findByRole("option", { name: "Revision 2 · source-revision" });
+  await screen.findByRole("option", { name: "Source item · r2" });
   fireEvent.change(screen.getByLabelText(/Entry 1 exact source revision/), { target: { value: "source-revision" } });
   await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([path]) => path === "/api/v0/revisions/source-revision")).toBe(true));
   fireEvent.click(screen.getByRole("button", { name: "Register exact version" }));
   expect(await screen.findByText(/Canonical manifest SHA-256/)).toBeTruthy();
   expect(screen.getByText(/Declared pack rights:/).textContent).toBe("Declared pack rights:  unknown rights ");
   expect(screen.getByText(/Signature: unsigned · publisher claim unverified/)).toBeTruthy();
-  expect(screen.getByText(/Definition source-definition · revision source-revision/)).toBeTruthy();
+  expect(screen.getAllByText('source-definition', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('source-revision', { selector: 'code' }).length).toBeGreaterThan(0);
   fireEvent.change(screen.getByLabelText("Pack decision basis"), { target: { value: "Reviewed inert catalog installation." } });
   fireEvent.click(screen.getByRole("button", { name: "Install selected version" }));
   await screen.findByText("1: install · version 1.0");

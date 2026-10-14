@@ -164,10 +164,10 @@ test('native mutation denial revalidates a frozen comparison that retains the sa
     return new Response(JSON.stringify(url.includes('/revisions/frozen') ? frozen : { attempts: [attempt], limit: 100 }), { status: 200 });
   }));
   wrap(<><NativeExtraction projectId="project" /><PcbDisagreementInspector revisionId="frozen" /></>);
-  expect(await screen.findAllByText(/Source revision:/)).toHaveLength(2);
+  expect((await screen.findAllByText(SOURCE, { selector: 'code' })).length).toBeGreaterThanOrEqual(2);
   denied = true;
   fireEvent.click(await screen.findByRole('button', { name: 'Accept extraction attempt' }));
-  await waitFor(() => expect(screen.queryByText(/Source revision:/)).toBeNull());
+  await waitFor(() => expect(screen.queryAllByText(SOURCE, { selector: 'code' })).toHaveLength(0));
   expect(screen.queryByText(/Report SHA-256:/)).toBeNull();
   expect(await screen.findAllByText('Frozen native source denied.')).toHaveLength(2);
 });

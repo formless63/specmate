@@ -6,6 +6,8 @@ import type { Definition, Identity } from '../identity/api';
 import type { Projection } from '../assemblies/api';
 import { download, requestJson, review, saveArchive, type Review, type RightsReview, type Selection } from './api';
 import { ApiError } from '../workspace/api';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function SelectedPackagesPanel({ projectId }: { projectId: string }) {
   // Keying the workspace resets all selection/review state on project change.
@@ -70,22 +72,22 @@ function PackageWorkspace({ projectId }: { projectId: string }) {
     {[definitions, identity, root, projection].filter(q => q.isError).map((q, i) => <Alert key={i} color="red">{q.error?.message}</Alert>)}
     {!hidden && <>
       <Select label="Package root definition" searchable disabled={busy} data={(definitions.data ?? []).map(row => ({ value: row.definition_id, label: `${row.name} (${row.kind})` }))} value={definitionId} onChange={value => { reset(); setDefinitionId(value); setOffset(0); setRootId(null); setPath([]); }} />
-      <Select label="Exact package root revision" disabled={busy} data={(identity.data?.revisions ?? []).map(row => ({ value: row.revision_id, label: `Revision ${row.number} · ${row.revision_id}` }))} value={rootId} onChange={value => { reset(); setRootId(value); setPath([]); }} />
+      <Select label="Exact package root revision" disabled={busy} data={(identity.data?.revisions ?? []).map((row) => ({ value: row.revision_id, label: revisionOptionLabel(identity.data?.name, row.number) }))} value={rootId} onChange={value => { reset(); setRootId(value); setPath([]); }} />
       <Group><Button disabled={busy || offset === 0} onClick={() => { reset(); setRootId(null); setPath([]); setOffset(n => Math.max(0, n - 50)); }}>Earlier frozen revisions</Button><Button disabled={busy || (identity.data?.revisions.length ?? 0) < 50} onClick={() => { reset(); setRootId(null); setPath([]); setOffset(n => n + 50); }}>Later frozen revisions</Button></Group>
       {rootId && <Card withBorder><Stack><Title order={3}>Select the export boundary</Title>
         <Button variant={path.length ? 'outline' : 'filled'} disabled={busy} onClick={() => { reset(); setPath([]); }}>Whole exact revision</Button>
         {projection.data?.occurrences.map(row => <Button key={JSON.stringify(row.address.path)} variant={JSON.stringify(row.address.path) === JSON.stringify(path) ? 'filled' : 'outline'} disabled={busy} onClick={() => { reset(); setPath(row.address.path); }}>{row.address.path.join('/')} · {row.display_ref || row.kind}</Button>)}
-        <Text>Selected address: {path.join('/') || 'standalone exact root'} · {selectedRoot?.revision_id}</Text>
+        <Text>Selected address: {path.join('/') || 'standalone exact root'} · <RevisionLabel id={selectedRoot?.revision_id} /></Text>
       </Stack></Card>}
       <Select label="Package purpose" disabled={busy} data={[{ value: 'authorized_review', label: 'Private authorized review' }, { value: 'distribution', label: 'Reviewed distribution data', disabled: !freezeGate.allowed }]} value={purpose} onChange={value => { generation.current += 1; setPurpose(value as Selection['purpose']); setRetained(previous => previous ? { ...previous, sha256: '' } : null); setError(null); }} />
       <ReadOnlyNote permission="design.freeze">Reviewed distribution data is unavailable; private review remains available.</ReadOnlyNote>
       <Text size="sm">Private review may preserve unknown distribution rights visibly. Source bytes require an explicit permitted declaration. Distribution requires review of every design and source file and separate engineering authority; generation publishes nothing.</Text>
       <Button disabled={busy || !rootId} loading={busy} onClick={() => void inspect()}>Review exact selected package</Button>
       {reviewed && <Card withBorder><Stack><Title order={3}>Selected package review</Title>
-        <Text>Selected revision: {reviewed.manifest.scope.selected_revision_id}</Text><Text>Selected SHA-256: {reviewed.manifest.scope.selected_sha256}</Text>
+        <Text><RevisionLabel id={reviewed.manifest.scope.selected_revision_id} role="Selected" /></Text><Text>Selected SHA-256: {reviewed.manifest.scope.selected_sha256}</Text>
         <Text>Completeness: {reviewed.manifest.completeness} · {reviewed.manifest.rights}</Text>
         <Title order={4}>Selected occurrence pins</Title>
-        {reviewed.manifest.occurrences.map(row => <Text key={JSON.stringify(row.path)}>{row.path.join('/') || 'Selected root'} · {row.revision_id} · firmware {row.assignments.firmware_revision_id ?? 'unassigned'}</Text>)}
+        {reviewed.manifest.occurrences.map(row => <Text key={JSON.stringify(row.path)}>{row.path.join('/') || 'Selected root'} · <RevisionLabel id={row.revision_id} /> · firmware {row.assignments.firmware_revision_id ?? 'unassigned'}</Text>)}
         <Title order={4}>Boundary declarations</Title>
         {reviewed.manifest.boundary_interfaces.map((row, index) => <Stack key={index}><Text>{row.path.join('/') || 'Selected root'} · {row.kind} · {row.boundary_exposure}</Text><pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(row.declaration ?? { endpoints: row.endpoints, terminals: row.terminals }, null, 2)}</pre></Stack>)}
         {reviewed.manifest.boundary_crossings.map((row, index) => <Text key={index}>{row.kind} · {row.selected_terminals.map(t => `${t.path.join('/') || 'Selected root'}:${t.feature_id ?? 'whole occurrence'}`).join(', ')} · external contract {row.external_contract}</Text>)}

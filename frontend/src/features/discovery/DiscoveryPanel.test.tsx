@@ -40,7 +40,8 @@ test("searches accessible projects, pages visible matches, and inspects exact pi
   fireEvent.click(screen.getAllByRole("button", { name: "Inspect uses" })[0]!);
   fireEvent.click(await screen.findByRole("button", { name: "Inspect revision 2" }));
   expect(await screen.findByText("Parent bracket")).toBeTruthy();
-  expect(screen.getByText(/Snapshot snap-1 · definition parent-1/)).toBeTruthy();
+  expect(screen.getAllByText('snap-1', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('parent-1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(calls.some((path) => path.includes("after=def-1"))).toBe(true);
 });
 

@@ -4,6 +4,7 @@ import { randomUUID } from '../../lib/random-id';
 import { command, request, SourceError, type RevisionDetail, type SourcePage } from '../sources/api';
 import { MechanicalUncertaintyEditor, MechanicalUncertaintyRead } from './MechanicalUncertainty';
 import type { MechanicalFile, MechanicalRead, MechanicalSource, MechanicalSourcePin, ModelChoice, ModelPin, RecordPage, TargetChoice, TargetPage, TargetPin } from './api';
+import { ExactPins, RevisionLabel } from "../../lib/IdentityLabel";
 
 const keyFor = (prefix: string, rows: { local_id: string }[]) => {
   let i = 1; while (rows.some(row => row.local_id === `${prefix}${i}`)) i += 1; return `${prefix}${i}`;
@@ -20,19 +21,19 @@ export function MechanicalEvaluation({ read }: { read: MechanicalRead }) {
     <Text size="sm">Native execution: none · Geometry validation: not performed · Clearance, fit and manufacturability: not evaluated · Physical qualification: false</Text>
     <Table><Table.Thead><Table.Tr><Table.Th>Preserved source</Table.Th><Table.Th>Exact pins and ancestry</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
       {read.evaluation.sources.map(source => <Table.Tr key={source.local_id}><Table.Td>{source.name} revision {source.number} ({source.role})</Table.Td><Table.Td>
-        <Text size="xs">{source.source_revision_id} · manifest {source.source_manifest_sha256}</Text>
+        <Text size="xs"><RevisionLabel kind="source" id={source.source_revision_id} /> · manifest {source.source_manifest_sha256}</Text>
         <Text size="xs">Original/derivative ancestry: {source.derived_from ?? 'original'} · {source.ancestry.join(', ') || 'none'}</Text>
         {source.files.map(file => <Text size="xs" key={file.path}>{file.path} · {file.sha256} · rights {file.rights} · {file.role}/{file.format}</Text>)}
       </Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
     {read.evaluation.targets.map(target => <Card withBorder key={target.local_id}><Text>{target.local_id}: {target.name} revision {target.number} · {target.role}</Text>
-      <Text size="xs">Revision {target.revision_id} · snapshot {target.snapshot_sha256}</Text>
-      {target.board && <Text size="xs">Board interpretation {target.board.interpretation_id} · {target.board.interpretation_sha256} · native source {target.board.source_revision_id} · manifest {target.board.source_manifest_sha256} · option {target.board.option_id ?? 'unknown'}</Text>}
+      <Text size="xs"><RevisionLabel id={target.revision_id} snapshotId={target.snapshot_sha256} /></Text>
+      {target.board && <Text size="xs">Board interpretation {target.board.interpretation_id} · {target.board.interpretation_sha256} · <RevisionLabel kind="source" id={target.board.source_revision_id} role="native source" /> · manifest {target.board.source_manifest_sha256} · option {target.board.option_id ?? 'unknown'}</Text>}
       {target.component && <Text size="sm">Native component: {target.component.reference} · {target.native_component_id}</Text>}
       {target.board_geometry && <Text size="sm">Extracted board input: {target.board_geometry.outline.length} outline polygons · {target.board_geometry.coverage.outline} · {target.board_geometry.units} · {target.board_geometry.coordinate_frame} · {target.board_geometry.extractor.adapter}/{target.board_geometry.extractor.tool_version}. {target.board_geometry.unsupported.join('; ')}</Text>}
     </Card>)}
     {read.evaluation.models.map(model => <Card withBorder key={model.local_id}><Text>{model.label} · target {model.target_local_id} · {model.purpose}</Text>
-      <Text size="xs">Representation {model.representation_id} · revision {model.revision_id} · snapshot {model.snapshot_sha256} · source {model.source_local_id}/{model.path} · {model.sha256} · rights {model.rights}</Text>
+      <Text size="xs">Representation {model.representation_id} · <RevisionLabel id={model.revision_id} snapshotId={model.snapshot_sha256} /> · source {model.source_local_id}/{model.path} · {model.sha256} · rights {model.rights}</Text>
       <Text size="sm">Units {model.units ?? 'unknown'} · frame {model.frame ?? 'unknown'} · accuracy {model.accuracy ?? 'unknown'} · {model.basis}</Text>
     </Card>)}
     <MechanicalUncertaintyRead assessment={read.evaluation.uncertainty_assessment} />
@@ -227,7 +228,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
         {record.revisions.map(revision => <Button key={revision.revision_id} size="xs" variant="subtle" onClick={() => void open(`mechanical-sources/revisions/${revision.revision_id}`)}>Revision {revision.number}</Button>)}
       </Group></Card>)}
       {records.next_after && <Button variant="subtle" onClick={() => void more('records')}>More mechanical records</Button>}
-      {read && <Card withBorder><Stack><Title order={4}>{read.name}{read.revision_number ? ` revision ${read.revision_number}` : ' draft'}</Title><Text size="xs">Definition {read.definition_id} · {read.revision_id ? `revision ${read.revision_id} · frozen snapshot ${read.snapshot_sha256}` : `state ${read.state}`}</Text><MechanicalEvaluation read={read} />
+      {read && <Card withBorder><Stack><Title order={4}>{read.name}{read.revision_number ? ` revision ${read.revision_number}` : ' draft'}</Title><Text size="xs">{read.revision_id ? <RevisionLabel id={read.revision_id} sha256={read.snapshot_sha256} extraPins={[{ label: 'Definition ID', value: read.definition_id }]} /> : <>Draft · state {read.state} <ExactPins pins={[{ label: 'Definition ID', value: read.definition_id }]} /></>}</Text><MechanicalEvaluation read={read} />
         {edit && read.draft_id && !form && <Button onClick={() => { generation.current += 1; setBusy(false); setForm(structuredClone(read.content.mechanical_source)); pendingSave.current = null; }}>Edit mechanical draft</Button>}
         {permissions.includes('design.freeze') && read.draft_id && !form && <Button disabled={busy || read.evaluation.readiness === 'blocked'} onClick={() => void freeze()}>Freeze mechanical declarations</Button>}
       </Stack></Card>}
@@ -238,7 +239,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
         <Select label="Preserved source revision" data={sources.revisions.map(s => ({ value: s.revision_id, label: `${s.name} revision ${s.number} (${s.role})` }))} onChange={value => value && void addSource(value)} value={null} searchable />
         {sources.next_after && <Button variant="subtle" onClick={() => void more('sources')}>More source revisions</Button>}
         <Group align="end"><TextInput label="Exact accessible source revision ID" value={sourceId} onChange={e => setSourceId(e.currentTarget.value)} /><Button disabled={!sourceId} onClick={() => void addSource(sourceId)}>Add exact source</Button></Group>
-        {form.sources.map(source => <Card withBorder key={source.local_id}><Stack gap="xs"><Text>{source.local_id} · revision {source.source_revision_id} · manifest {source.source_manifest_sha256}</Text>
+        {form.sources.map(source => <Card withBorder key={source.local_id}><Stack gap="xs"><Text>{source.local_id} · <RevisionLabel kind="source" id={source.source_revision_id} /> · manifest {source.source_manifest_sha256}</Text>
           {source.files.map(file => <Group key={file.path} align="end"><Text size="sm">{file.path} · rights {file.rights}</Text>
             <Select label={`Role for ${source.local_id}/${file.path}`} data={roleOptions} value={file.role} onChange={value => value && setForm(prior => prior ? { ...prior, sources: prior.sources.map(s => s.local_id === source.local_id ? { ...s, files: s.files.map(f => f.path === file.path ? { ...f, role: value as MechanicalFile['role'] } : f) } : s) } : prior)} />
             <Select label={`Format for ${source.local_id}/${file.path}`} data={formats} value={file.format} onChange={value => value && setForm(prior => prior ? { ...prior, sources: prior.sources.map(s => s.local_id === source.local_id ? { ...s, files: s.files.map(f => f.path === file.path ? { ...f, format: value as MechanicalFile['format'] } : f) } : s) } : prior)} />
@@ -248,7 +249,7 @@ export function MechanicalSourcesPanel({ projectId, permissions, onAccessLost }:
         <Select label="Exact board, component or hardware revision" data={targets.targets.map(t => ({ value: t.revision_id, label: `${t.name} revision ${t.number} (${t.kind})` }))} value={null} searchable onChange={value => value && void addTarget(value)} />
         {targets.next_after && <Button variant="subtle" onClick={() => void more('targets')}>More target revisions</Button>}
         <Group align="end"><TextInput label="Exact accessible target revision ID" value={targetId} onChange={e => setTargetId(e.currentTarget.value)} /><Button disabled={!targetId} onClick={() => void addTarget(targetId)}>Add exact target</Button></Group>
-        {form.targets.map(target => { const detail = targets.targets.find(t => t.revision_id === target.revision_id); return <Card withBorder key={target.local_id}><Stack gap="xs"><Text>{target.local_id} · revision {target.revision_id} · snapshot {target.snapshot_sha256}</Text>
+        {form.targets.map(target => { const detail = targets.targets.find(t => t.revision_id === target.revision_id); return <Card withBorder key={target.local_id}><Stack gap="xs"><Text>{target.local_id} · <RevisionLabel id={target.revision_id} snapshotId={target.snapshot_sha256} /></Text>
           <Select label={`Target role for ${target.local_id}`} value={target.role} data={target.board ? ['board', 'component'] : ['board', 'component', 'hardware']} onChange={value => value && changeTarget(target.local_id, { role: value as TargetPin['role'], native_component_id: null })} />
           <TextInput label={`Target basis for ${target.local_id}`} value={target.basis} onChange={e => changeTarget(target.local_id, { basis: e.currentTarget.value })} />
           {target.board && <Select label={`Board option for ${target.local_id}`} clearable value={target.board.option_id} data={detail?.board?.options.map(o => ({ value: o.local_id, label: o.name })) ?? []} onChange={value => changeTarget(target.local_id, { board: { ...target.board!, option_id: value } })} />}

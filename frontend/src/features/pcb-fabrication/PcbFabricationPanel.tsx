@@ -2,6 +2,7 @@ import { Alert, Anchor, Button, Card, Group, Stack, Table, Text, Title } from '@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { command } from '../pcb/api';
 import { options, outputUrl, review, type Options, type Review } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function PcbFabricationPanel({ intakeId, canExecute = false }: { intakeId: string; canExecute?: boolean }) {
   const [state, setState] = useState<{ intakeId: string; options?: Options; review?: Review; error?: string }>({ intakeId });
@@ -76,7 +77,7 @@ function FabricationReview({ item }: { item: Review }) {
   return <Stack><Title order={4}>Registered export evidence</Title>
     <Text>Native export completed. DRC: {counts.violations} violations, {counts.unconnected_items} unconnected items. Schematic parity was not checked.</Text>
     <Text size="sm">Exact source: {item.source.path} · {item.source.sha256} · Rights: {item.source.rights}</Text>
-    <Text size="xs">Source revision: {item.source.source_revision_id} · Manifest: {item.source.manifest_sha256}</Text>
+    <Text size="xs"><RevisionLabel kind="source" id={item.source.source_revision_id} role="Source" /> · Manifest: {item.source.manifest_sha256}</Text>
     <Text size="xs">Recipe: {item.recipe_id} · Image: {item.image} · Report: {item.report_sha256}</Text>
     <Text size="sm">Gerber layers: {item.report.layers.join(', ')}. Drill format: {item.report.drill_format}.</Text>
     <Table><Table.Thead><Table.Tr><Table.Th>Registered output</Table.Th><Table.Th>SHA-256 / rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{item.outputs.map(output => <Table.Tr key={output.output_id}><Table.Td><Anchor href={outputUrl(item, output.output_id)}>{output.path}</Anchor><Text size="xs">{output.size} bytes · {output.media_type}</Text></Table.Td><Table.Td><Text size="xs">{output.sha256}</Text><Text size="xs">{output.rights}</Text></Table.Td></Table.Tr>)}</Table.Tbody></Table>

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { applyUpgrade, inspectAssembly, loadProposal, proposeUpgrade, reviewUpgrade } from "./api";
 import type { Applied, Assembly, Feature, Impacts, Proposal } from "./api";
 import { read, type Definition } from "../identity/api";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = { projectId: string; canEdit: boolean; onApplied?: (draft: Applied) => void; initialProposalId?: string | null; principalKey?: string; active?: boolean };
 const disciplines = ["electrical", "mechanical", "firmware", "manufacturing", "evidence"] as const;
@@ -129,14 +130,14 @@ function Workspace({ projectId, canEdit, onApplied, initialProposalId, active = 
       <TextInput label="Candidate later revision ID" value={candidateRevision} onChange={(e) => changeIdentity(setCandidateRevision, e.currentTarget.value)} />
     </Group>
     <Button disabled={busy || !snapshot} onClick={() => void run(() => receive(inspectAssembly(snapshot), (a) => { setAssembly(a); setPaths([]); setProposal(undefined); }))}>Inspect owning occurrences</Button>
-    {active && !busy && assembly && <Stack gap="xs">{assembly.occurrences.filter((o) => o.address.path.length === 1).map((o) => <Checkbox key={o.address.path.join("/")} label={`${o.address.path.join(" / ")} · ${o.name} · ${o.display_ref || "no display reference"} · ${o.revision_id}`} checked={paths.some((p) => p.join("/") === o.address.path.join("/"))} disabled={busy || !canEdit || o.revision_id !== oldRevision} onChange={(e) => { const checked = e.currentTarget.checked; setProposal(undefined); setApplied(undefined); setPaths((prior) => checked ? [...prior, o.address.path] : prior.filter((p) => p.join("/") !== o.address.path.join("/"))); }} />)}</Stack>}
+    {active && !busy && assembly && <Stack gap="xs">{assembly.occurrences.filter((o) => o.address.path.length === 1).map((o) => <Checkbox key={o.address.path.join("/")} label={`${o.address.path.join(" / ")} · ${o.name} · ${o.display_ref || "no display reference"}`} description={<RevisionLabel id={o.revision_id} />} checked={paths.some((p) => p.join("/") === o.address.path.join("/"))} disabled={busy || !canEdit || o.revision_id !== oldRevision} onChange={(e) => { const checked = e.currentTarget.checked; setProposal(undefined); setApplied(undefined); setPaths((prior) => checked ? [...prior, o.address.path] : prior.filter((p) => p.join("/") !== o.address.path.join("/"))); }} />)}</Stack>}
     <Textarea label="Proposal basis" value={basis} onChange={(e) => setBasis(e.currentTarget.value)} />
     <Button disabled={busy || !canEdit || !paths.length || !oldRevision || !candidateRevision || !basis.trim()} onClick={() => void run(() => receive(proposeUpgrade({ owning_snapshot_id: snapshot, old_revision_id: oldRevision, candidate_revision_id: candidateRevision, paths, basis }), show))}>Save upgrade proposal</Button>
     {active && !busy && proposal && <Stack>
       <Title order={3}>Exact proposal {proposal.proposal_id}</Title>
       <Text>Owning snapshot {proposal.owning_snapshot_id} · SHA-256 {proposal.owning_sha256}</Text>
-      <Text>Old: {proposal.old.name} revision {proposal.old.number} · {proposal.old.revision_id} · {proposal.old.sha256}</Text>
-      <Text>Candidate: {proposal.candidate.name} revision {proposal.candidate.number} · {proposal.candidate.revision_id} · {proposal.candidate.sha256}</Text>
+      <Text><RevisionLabel role="Old" id={proposal.old.revision_id} sha256={proposal.old.sha256} known={{ name: proposal.old.name, number: proposal.old.number }} /></Text>
+      <Text><RevisionLabel role="Candidate" id={proposal.candidate.revision_id} sha256={proposal.candidate.sha256} known={{ name: proposal.candidate.name, number: proposal.candidate.number }} /></Text>
       <Text>Decision: {proposal.decision} · {proposal.state}. Compatibility, validity and qualification: not evaluated.</Text>
       <Table><Table.Thead><Table.Tr><Table.Th>Occurrence path</Table.Th><Table.Th>Old pin</Table.Th><Table.Th>Candidate pin</Table.Th><Table.Th>Firmware old → candidate</Table.Th><Table.Th>Placement old → candidate</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{proposal.occurrences.map((o) => <Table.Tr key={o.path.join("/")}><Table.Td>{o.path.join(" / ")}{o.selected ? " (selected)" : ""}</Table.Td><Table.Td>{o.old_revision_id ?? "absent"}</Table.Td><Table.Td>{o.candidate_revision_id ?? "removed"}</Table.Td><Table.Td>{o.old_assignments?.firmware_revision_id ?? "unassigned"} → {o.candidate_assignments?.firmware_revision_id ?? "unassigned"}</Table.Td><Table.Td>{placement(o.old_placement)} → {placement(o.candidate_placement)}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
       <Title order={3}>Authored relationships before and after</Title>

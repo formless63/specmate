@@ -31,7 +31,8 @@ test("reading exact suggestions makes no commands; only deliberate use returns t
   await load();
   expect(use).not.toHaveBeenCalled();
   expect(screen.getByText(/unreviewed, compatibility not evaluated/)).toBeTruthy();
-  expect(screen.getByText(/Target definition target-definition · revision target-revision/)).toBeTruthy();
+  expect(screen.getAllByText('target-definition', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('target-revision', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(fetch.mock.calls.every(([path]) => !path.endsWith("operations"))).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Use exact pins in proposal" }));
   expect(use).toHaveBeenCalledExactlyOnceWith(suggestion);

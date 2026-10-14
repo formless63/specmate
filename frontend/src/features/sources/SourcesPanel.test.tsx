@@ -46,7 +46,9 @@ function setup(mode: 'success' | 'reject' | 'deny' = 'success', write = true) {
 test('expansion is deliberate and reopened derivative shows exact archive provenance', async () => {
   const { hasExpanded } = setup();
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' }));
-  await screen.findByText('Revision: original-id');
+  await screen.findByRole('heading', { name: 'Exact source revision' });
+  // The readable name leads; the exact revision ID stays in the list entry's and the detail's pins.
+  expect(screen.getAllByText('original-id', { selector: 'code' }).length).toBeGreaterThanOrEqual(2);
   expect(hasExpanded()).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: 'Expand ZIP into derivative' }));
   expect(await screen.findByText('Archive SHA-256: archive-hash')).toBeTruthy();
@@ -61,7 +63,7 @@ test('unsupported archive keeps its preserved original available', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Expand ZIP into derivative' }));
   expect(await screen.findByText('Unsupported or unsafe ZIP archive; no expanded bundle was created.')).toBeTruthy();
-  expect(screen.getByText('Revision: original-id')).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Exact source revision' })).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Download source.zip' }).getAttribute('href')).toContain('original-id/file?path=source.zip');
   expect(screen.queryByText('ZIP expansion provenance')).toBeNull();
 });
@@ -72,7 +74,7 @@ test('authority denial clears retained file metadata and source list', async () 
   fireEvent.click(await screen.findByRole('button', { name: 'Expand ZIP into derivative' }));
   expect(await screen.findByText('Source revision not found.')).toBeTruthy();
   expect(screen.queryByText('archive-hash')).toBeNull();
-  expect(screen.queryByText('Revision: original-id')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Inspect Synthetic archive revision 1' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Preserve source' })).toBeNull();
 });
@@ -89,10 +91,10 @@ test('read-only viewer can inspect source rights without intake controls', async
 test('project change discards the prior detail and late response', async () => {
   const { view } = setup();
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' }));
-  await screen.findByText('Revision: original-id');
+  await screen.findByRole('heading', { name: 'Exact source revision' });
   vi.stubGlobal('fetch', vi.fn(async () => reply({ revisions: [], next_after: null })));
   view.rerender(<MantineProvider><SourcesPanel projectId="project-b" permissions={['project.read']} /></MantineProvider>);
-  await waitFor(() => expect(screen.queryByText('Revision: original-id')).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull());
   expect(screen.queryByText('archive-hash')).toBeNull();
 });
 
@@ -101,7 +103,7 @@ test('preservation calls the upload workflow without implicit expansion', async 
   const { hasExpanded } = setup();
   fireEvent.change(screen.getByLabelText('Original source file'), { target: { files: [new File(['original'], 'source.zip')] } });
   fireEvent.click(screen.getByRole('button', { name: 'Preserve source' }));
-  await screen.findByText('Revision: original-id');
+  await screen.findByRole('heading', { name: 'Exact source revision' });
   expect(preserved).toHaveBeenCalledWith('project-a', expect.any(File), 'source.zip', 'unknown');
   expect(hasExpanded()).toBe(false);
 });
@@ -123,10 +125,10 @@ test.each(['refresh', 'inspect'])('late same-project %s denial clears newer insp
   defer = true;
   fireEvent.click(action === 'refresh' ? screen.getByRole('button', { name: 'Refresh sources' }) : inspect);
   fireEvent.click(inspect);
-  await screen.findByText('Revision: original-id');
+  await screen.findByRole('heading', { name: 'Exact source revision' });
   rejectRead(reply({ error: { message: 'Source revision not found.' } }, 404));
   await screen.findByText('Source revision not found.');
-  expect(screen.queryByText('Revision: original-id')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull();
   expect(screen.queryByText('archive-hash')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Inspect Synthetic archive revision 1' })).toBeNull();
 });
@@ -146,5 +148,5 @@ test('post-preservation inventory denial prevents a subsequent detail request', 
   fireEvent.click(screen.getByRole('button', { name: 'Preserve source' }));
   await screen.findByText('Source revision not found.');
   expect(fetchMock.mock.calls.every(([url]) => url.includes('sources/projects/'))).toBe(true);
-  expect(screen.queryByText('Revision: original-id')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull();
 });

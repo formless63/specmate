@@ -29,12 +29,12 @@ function initial(path: string) {
 async function selectSource() {
   await screen.findAllByRole("option", { name: "Source item · part" });
   fireEvent.change(screen.getByLabelText("Source definition"), { target: { value: "def-source" } });
-  await screen.findByRole("option", { name: "Revision 2 · revision-source" });
+  await screen.findByRole("option", { name: "Source item · r2" });
   fireEvent.change(screen.getByLabelText("Source exact revision"), { target: { value: "revision-source" } });
 }
 async function selectTarget() {
   fireEvent.change(screen.getByLabelText("Target definition"), { target: { value: "def-target" } });
-  await screen.findByRole("option", { name: "Revision 3 · revision-target" });
+  await screen.findByRole("option", { name: "Target item · r3" });
   fireEvent.change(screen.getByLabelText("Target exact revision"), { target: { value: "revision-target" } });
 }
 
@@ -64,7 +64,8 @@ test("supplier suggestions fill exact proposal pins only after deliberate use an
   fireEvent.click(screen.getByRole("button", { name: "Suggest exact identifier matches" }));
   fireEvent.click(await screen.findByRole("button", { name: "Use exact pins in proposal" }));
   expect(submitted).toHaveLength(0);
-  expect(screen.getByText("Target proposal pin: revision-target · definition def-target")).toBeTruthy();
+  expect(screen.getAllByText("revision-target", { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("def-target", { selector: 'code' }).length).toBeGreaterThan(0);
   expect((screen.getByLabelText(/^Observed source identifier/) as HTMLInputElement).value).toBe("SYN-PAIR");
   fireEvent.click(screen.getByRole("button", { name: "Create candidate" }));
   await waitFor(() => expect(submitted).toHaveLength(1));
@@ -111,8 +112,9 @@ test("proposes exact pins with registered evidence and appends reviewed correspo
   expect(await screen.findByText("Correspondence review")).toBeTruthy();
   expect(screen.getByText("Path: docs/part.txt", { exact: false }).textContent).toBe("Path: docs/part.txt ");
   expect(screen.getByText("Declared rights:", { exact: false }).textContent).toBe("Declared rights:  declared rights ");
-  expect(screen.getByText(/Definition def-source · revision revision-source/)).toBeTruthy();
-  expect(screen.getByText(/Definition def-target · revision revision-target/)).toBeTruthy();
+  expect(screen.getAllByText("def-source", { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("revision-source", { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('def-target', { selector: 'code' }).length).toBeGreaterThan(0); expect(screen.getAllByText('revision-target', { selector: 'code' }).length).toBeGreaterThan(0);
   fireEvent.change(screen.getByLabelText("Review decision"), { target: { value: "accepted" } });
   fireEvent.change(screen.getByLabelText(/Review basis/), { target: { value: "Reviewed correspondence only." } });
   fireEvent.change(screen.getByLabelText("Review evidence status"), { target: { value: "unverified_citation" } });
@@ -140,7 +142,7 @@ test("focus rechecks access and clears revoked history, identifiers, options and
   fireEvent(window, new Event("focus"));
   await waitFor(() => expect(screen.queryByText("Correspondence review")).toBeNull());
   await waitFor(() => expect(screen.getAllByText("Project not found.").length).toBeGreaterThan(0));
-  expect(screen.queryByText(/Definition def-target/)).toBeNull();
+  expect(screen.queryAllByText('def-target', { selector: 'code' })).toHaveLength(0);
   expect(screen.queryByRole("option", { name: "Source item · part" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Append review" })).toBeNull();
   expect((screen.getByRole("button", { name: "Create candidate" }) as HTMLButtonElement).disabled).toBe(true);
@@ -162,7 +164,7 @@ test("failed same candidate reread clears previously authorized history", async 
   fireEvent.click(screen.getByRole("button", { name: "Review candidate" }));
   expect(await screen.findByText("Evidence access changed.")).toBeTruthy();
   expect(screen.queryByText("Correspondence review")).toBeNull();
-  expect(screen.queryByText(/Definition def-target/)).toBeNull();
+  expect(screen.queryAllByText('def-target', { selector: 'code' })).toHaveLength(0);
   expect(screen.queryByRole("option", { name: "Source item · part" })).toBeNull();
   expect((screen.getByRole("button", { name: "Create candidate" }) as HTMLButtonElement).disabled).toBe(true);
 });

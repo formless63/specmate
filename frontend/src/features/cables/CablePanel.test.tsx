@@ -70,7 +70,7 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   fireEvent.click(editor.getByText('Save cable draft'));
   await screen.findByText('draft-v2');
   fireEvent.click(screen.getByText('Freeze cable revision'));
-  await screen.findByText('Exact revision cable-rev');
+  await screen.findAllByText('cable-rev', { selector: 'code' });
   expect(commands[0]).toMatchObject({ operation: 'cable.create', payload: { cable: { stock_revision_id: 'stock-rev', assignments: [{ endpoint_id: 'a', element_path: 'stock.core', contact_id: 'one' }, { endpoint_id: 'b', element_path: 'stock.core', contact_id: 'two' }] } } });
   expect(commands[1]).toMatchObject({ operation: 'cable.update', expected_state: 'draft-v1', payload: { cable: { lengths: { route: { amount_mm: '1100.000001' } } } } });
   expect(commands[2]).toMatchObject({ operation: 'cable.freeze', expected_state: 'draft-v2' });
@@ -184,12 +184,12 @@ test('a denied reference identity refresh clears its retained revision choices',
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(denied ? { error: { message: 'Reference access denied.' } } : { revisions: [{ revision_id: 'private-stock-rev', number: 1 }] }), { status: denied ? 404 : 200 })));
   render(wrap(<CableEditor value={initialCable()} onChange={vi.fn()} definitions={[{ definition_id: 'stock-definition', name: 'Synthetic stock', kind: 'wire_stock' }]} />, cache));
   await select('Cable stock definition', 'Synthetic stock');
-  await select('Cable stock revision', 'Revision 1 · private-stock-rev');
+  await select('Cable stock revision', 'Revision 1');
   denied = true;
   await act(async () => { await cache.refetchQueries({ queryKey: ['cable-reference', 'stock-definition', 0] }); });
   expect(await screen.findByText('Reference access denied.')).toBeTruthy();
   expect((screen.getByRole('combobox', { name: 'Cable stock revision' }) as HTMLInputElement).disabled).toBe(true);
-  expect(screen.queryByText('Revision 1 · private-stock-rev')).toBeNull();
+  expect(screen.queryByText('Revision 1')).toBeNull();
 });
 
 test.each([
@@ -242,7 +242,7 @@ test.each([
   fireEvent.click(screen.getByText('Create cable draft'));
   await screen.findByText('Edit draft');
   fireEvent.click(screen.getByText('Freeze cable revision'));
-  await screen.findByText('Exact revision cable-rev');
+  await screen.findAllByText('cable-rev', { selector: 'code' });
   await screen.findByText('saved-v2');
   const createEditor = () => within(screen.getByText('New reusable definition').closest('.mantine-Card-root')! as HTMLElement);
   const draftEditor = () => within(screen.getByText('Edit draft').closest('.mantine-Card-root')! as HTMLElement);
@@ -255,7 +255,7 @@ test.each([
   expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
   expect(screen.queryByDisplayValue('777.000001')).toBeNull();
   expect(screen.queryByDisplayValue('stock-rev')).toBeNull();
-  expect(screen.queryByText('Exact revision cable-rev')).toBeNull();
+  expect(screen.queryAllByText('cable-rev', { selector: 'code' })).toHaveLength(0);
   expect(screen.queryByRole('button', { name: 'Save cable draft' })).toBeNull();
   // A long-lived denial may garbage-collect hidden source queries. Their original
   // read functions must still be rechecked before revealing the retained editor.

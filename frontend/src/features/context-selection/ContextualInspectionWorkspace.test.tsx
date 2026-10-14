@@ -55,7 +55,7 @@ test('second repeated board/native feature stays selected through board, cable, 
   fireEvent.click(screen.getByRole('button', { name: 'Read exact contextual BOM' }));
   await screen.findByRole('button', { name: 'BOM use right/board' });
   fireEvent.click(screen.getByLabelText('Group BOM rows by reusable revision'));
-  expect(region('BOM context').getByText('board-r1 · 2 contextual rows')).toBeTruthy();
+  expect(region('BOM context').getByText(/· 2 contextual rows/)).toBeTruthy(); expect(region('BOM context').getAllByText('board-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(region('BOM context').getByRole('button', { name: 'BOM use right/board' }).getAttribute('aria-pressed')).toBe('true');
   expect(region('BOM context').getByRole('button', { name: 'BOM use left/board' }).getAttribute('aria-pressed')).toBe('false');
   expect(selected().getByText('Stable feature: component:one')).toBeTruthy();
@@ -79,7 +79,7 @@ test('explicit cable endpoint and viewport callbacks update all views without la
   tab('Context scene'); fireEvent.click(screen.getByRole('button', { name: 'Open connected scene' })); fireEvent.click(await screen.findByRole('button', { name: 'Viewport pick right board' }));
   expect(selected().getByText('Selected occurrence: right/board')).toBeTruthy(); expect(selected().getByText('Stable feature: Whole occurrence')).toBeTruthy();
   tab('Context inspector'); fireEvent.click(screen.getByRole('button', { name: 'Select reusable revision independently' }));
-  expect(selected().getByText(/Independent reusable revision: board-r1/)).toBeTruthy();
+  expect(selected().getAllByText('board-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(region('Context inspector').getByText(/No occurrence inspector is selected/)).toBeTruthy();
 });
 

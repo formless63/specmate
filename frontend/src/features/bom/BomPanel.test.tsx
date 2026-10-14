@@ -56,7 +56,7 @@ test("new plan chooses exact root and sends explicit unknown count and root buy 
   fireEvent.change(screen.getByLabelText("BOM plan name"), { target: { value: "Boundary plan" } });
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Root assembly definition" })).toBeTruthy());
   await choose("Root assembly definition", "Synthetic assembly (assembly)");
-  await choose("Root assembly exact revision", "Revision 1 · root-rev");
+  await choose("Root assembly exact revision", "Revision 1");
   await screen.findByRole("combobox", { name: "Decision for Root assembly" });
   await choose("Decision for Root assembly", "buy");
   fireEvent.change(screen.getByLabelText("Decision basis for Root assembly"), { target: { value: "Bought populated assembly" } });
@@ -81,7 +81,7 @@ test("exact dimensional occurrence demand and additive waste remain strings in c
   render(wrap(<BomPanel projectId="project" />));
   fireEvent.change(screen.getByLabelText("BOM plan name"), { target: { value: "Dimensional plan" } });
   await choose("Root assembly definition", "Synthetic assembly (assembly)");
-  await choose("Root assembly exact revision", "Revision 1 · root-rev");
+  await choose("Root assembly exact revision", "Revision 1");
   fireEvent.click(await screen.findByLabelText("Declare material demand for Root assembly"));
   await choose("Root assembly net demand per root assembly unit", "mm");
   fireEvent.change(screen.getByLabelText("Root assembly net demand per root assembly"), { target: { value: "1234.5000" } });

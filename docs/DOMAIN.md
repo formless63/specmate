@@ -21,6 +21,15 @@ ID are different identifiers. Matching candidates must carry evidence and review
 similar connector bodies need not be interchangeable or one identity. A symbol/model is
 a representation linked to a definition, not the stocked physical item itself.
 
+Views lead with identity a person can read: definition or source name, kind and revision
+number (`Name · kind · r2`). Exact revision IDs, snapshot IDs and hashes stay available as
+expandable evidence with a copy control, never as the primary label. `catalog.revision_labels`
+resolves names for exact design and source revision IDs the caller already holds, under the
+same read authority as reading the revision itself, including its complete pinned closure.
+A missing revision, one in a project the actor cannot read, and one with an unreadable
+dependency return the same entry with no name, kind or number, and the view says
+"Not readable by you".
+
 Discovery compares explicitly selected old and later revisions of one definition through
 `catalog.revision_impact`. It reports changed design content and dependency pins and
 lists currently accessible parent snapshots retaining the old exact pin. Both revisions

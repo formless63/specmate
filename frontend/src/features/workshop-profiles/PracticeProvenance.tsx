@@ -1,5 +1,6 @@
 import { Stack, Text, Title } from '@mantine/core';
 import type { Suggestion, WorkshopProfile } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 function valueText(value: unknown, unit?: string): string {
   if (value === null) return 'Unknown';
@@ -16,7 +17,7 @@ export function SuggestionProvenance<T>({ label, suggestion, unit }: {
     {suggestion.note && <Text size="sm" c="dimmed">Basis note: {suggestion.note}</Text>}
     {source?.kind === 'citation' && <Text size="sm" c="dimmed">Unverified citation: {source.citation}</Text>}
     {source?.kind === 'source_file' && <>
-      <Text size="sm" c="dimmed">Registered source file · bundle revision {source.bundle_revision_id} · path <code style={{ whiteSpace: 'pre-wrap' }}>“{source.path}”</code></Text>
+      <Text size="sm" c="dimmed">Registered source file · <RevisionLabel kind="source" id={source.bundle_revision_id} role="bundle" /> · path <code style={{ whiteSpace: 'pre-wrap' }}>“{source.path}”</code></Text>
       <Text size="sm" c="dimmed">SHA-256 {source.sha256} · rights <code style={{ whiteSpace: 'pre-wrap' }}>“{source.rights}”</code></Text>
       {source.locator && <Text size="sm" c="dimmed">Locator: {source.locator}</Text>}
     </>}

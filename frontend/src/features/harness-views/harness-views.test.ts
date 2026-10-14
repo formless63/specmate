@@ -86,6 +86,19 @@ describe('formboard drawing', () => {
 
 describe('build sheet', () => {
   const model = buildSheetModel({ title: 'Synthetic harness', revisionId: 'rev-1', harness: harness(), stocks: stocks(), quantity: 3 });
+  it('prints names first and keeps every exact revision ID in an Exact pins page', () => {
+    const labelled = buildSheetModel({ title: 'Synthetic harness', revisionId: 'rev-1', harness: harness(), stocks: stocks(), quantity: 1,
+      labels: { 'rev-1': 'Power harness r4', 'body-1': 'Header body r1', 'pin-1': 'Header pinout r2' } });
+    const html = renderBuildSheetHtml(labelled);
+    expect(html).toContain('Revision Power harness r4');
+    expect(html).toContain('Body Header body r1 · pinout Header pinout r2');
+    expect(html).not.toContain('Revision rev-1');
+    expect(html).toContain('data-stage="pins"');
+    expect(html).toContain('<td>Power harness r4</td><td>rev-1</td>');
+    expect(html).toContain('<td>body-1</td>');
+    // Unlabelled sheets keep printing the IDs they were given and add no pins page.
+    expect(renderBuildSheetHtml(model)).not.toContain('data-stage="pins"');
+  });
   it('keeps exact planned lengths and reports an unknown total honestly', () => {
     expect(model.cuts.map(c => c.totalMm)).toEqual(['1500', '751.5', null]);
     expect(model.totalCutMm).toBeNull();

@@ -86,3 +86,37 @@ def test_payload_is_bounded_and_unique_and_http_shares_the_operation(users, proj
     assert body[0]["name"] == "Labelled bracket" and body[1]["readable"] is False
     anonymous = api().get("/api/v0/catalog/revision-labels", {"revision_ids": [rid]})
     assert anonymous.status_code == 401
+
+
+def source_label_rows(user, *ids):
+    return op(user, "catalog.revision_labels", {"source_revision_ids": list(ids)})["source_labels"]
+
+
+def test_source_revision_names_follow_source_read_authority(users, project):
+    from .test_sources import ORIGINAL, files, register
+
+    owner = users["owner"]
+    register(owner, project, ORIGINAL)
+    original = op(
+        owner,
+        "source.create_original_bundle",
+        {"project_id": project, "name": "Labelled source", "files": files(ORIGINAL)},
+    )
+    revision_id = original["revision_id"]
+    row = source_label_rows(users["viewer"], revision_id)[0]
+    assert row["readable"] and row["name"] == "Labelled source"
+    assert row["kind"] == "original" and row["number"] == 1
+    missing = str(uuid.uuid4())
+    hidden = source_label_rows(users["outsider"], revision_id, missing)
+    assert hidden == [
+        {"revision_id": revision_id, "readable": False},
+        {"revision_id": missing, "readable": False},
+    ]
+    both = op(
+        users["viewer"],
+        "catalog.revision_labels",
+        {"revision_ids": [revision_id], "source_revision_ids": [revision_id]},
+    )
+    # The two identifier namespaces are distinct: a source ID is not a design revision.
+    assert both["labels"] == [{"revision_id": revision_id, "readable": False}]
+    assert both["source_labels"][0]["readable"] is True

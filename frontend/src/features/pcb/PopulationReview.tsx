@@ -4,6 +4,7 @@ import {
   getPopulationDraftReview, getPopulationRevisionReview, PcbRequestError,
   type FrozenPopulationReview, type PopulationReview,
 } from "./api";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = {
   kind: "draft" | "revision"; id: string;
@@ -65,11 +66,11 @@ function Readout({ review, kind }: { review: PopulationReview; kind: Props["kind
 
   return <Stack>
     <Title order={4}>{frozen ? `Frozen population revision #${frozen.number}` : "Current draft review"}</Title>
-    {frozen && <><Text size="sm">Revision {frozen.revision_id} · frozen {frozen.frozen_at}</Text>
+    {frozen && <><Text size="sm"><RevisionLabel id={frozen.revision_id} /> · frozen {frozen.frozen_at}</Text>
       <Text size="xs">Snapshot {frozen.snapshot_id} · SHA-256 {frozen.snapshot_sha256}</Text></>}
     <Text size="sm">Accepted interpretation {review.interpretation.interpretation_id} · SHA-256 {review.interpretation.sha256}</Text>
     <Text size="xs">Native output {review.interpretation.output_id} · extraction {review.interpretation.attempt_id}</Text>
-    <Text size="xs">Original board {review.interpretation.board_path} · source revision {review.interpretation.source_revision_id} · manifest SHA-256 {review.interpretation.source_manifest_sha256}</Text>
+    <Text size="xs">Original board {review.interpretation.board_path} · <RevisionLabel kind="source" id={review.interpretation.source_revision_id} role="source" /> · manifest SHA-256 {review.interpretation.source_manifest_sha256}</Text>
     <Text size="xs">Native board SHA-256 {review.report.source_sha256}</Text>
     <Group><Badge>{review.population.options.length} options</Badge><Badge>{review.associations.length} association records</Badge></Group>
     <Select label={frozen ? "Option in frozen revision" : "Option in current draft"}
@@ -107,10 +108,10 @@ function Readout({ review, kind }: { review: PopulationReview; kind: Props["kind
             {association.pad_id && <Text size="xs">Pad {pad?.terminal ?? "Unknown"} · {association.pad_id}</Text>}
           </Table.Td>
           <Table.Td><Text>{target.definition_name} · {target.definition_kind}{target.revision_number ? ` #${target.revision_number}` : ""}</Text>
-            <Text size="xs">Revision {target.revision_id}</Text>
+            <Text size="xs"><RevisionLabel id={target.revision_id} /></Text>
             {association.target_contact_id && <Text size="xs">Body contact {association.target_contact_id}</Text>}
             {target.representation_id && <><Text size="xs">Model {target.representation_label} · {target.representation_id}</Text>
-              <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>Model source {target.source_path} · revision {target.source_revision_id}</Text>
+              <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>Model source {target.source_path} · <RevisionLabel kind="source" id={target.source_revision_id} /></Text>
               <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>SHA-256 {target.source_sha256} · rights {target.source_rights}</Text></>}
           </Table.Td>
           <Table.Td><Badge>{association.review}</Badge>
@@ -118,7 +119,7 @@ function Readout({ review, kind }: { review: PopulationReview; kind: Props["kind
           <Table.Td>{association.evidence?.kind === "citation"
             ? <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>Citation: {association.evidence.citation}</Text>
             : association.evidence?.kind === "source_file"
-              ? <Stack gap={0}><Text size="xs" style={{ whiteSpace: "pre-wrap" }}>File {association.evidence.path} · revision {association.evidence.source_revision_id}</Text>
+              ? <Stack gap={0}><Text size="xs" style={{ whiteSpace: "pre-wrap" }}>File {association.evidence.path} · <RevisionLabel kind="source" id={association.evidence.source_revision_id} /></Text>
                 <Text size="xs" style={{ whiteSpace: "pre-wrap" }}>SHA-256 {association.evidence.sha256} · rights {association.evidence.rights}</Text></Stack>
               : <Text size="xs">No evidence filed</Text>}
           </Table.Td>

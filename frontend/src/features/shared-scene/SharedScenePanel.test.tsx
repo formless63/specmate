@@ -22,7 +22,8 @@ test('repeated boards retain independent occurrence and feature selection with e
   fireEvent.click(right);
   expect(right.getAttribute('aria-pressed')).toBe('true'); expect(left.getAttribute('aria-pressed')).toBe('false');
   expect(screen.getByText(/Contextual firmware: firmware-right/)).toBeTruthy();
-  expect(screen.getByText(/Definition board · exact revision board-r1/)).toBeTruthy();
+  expect(screen.getAllByText('board', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('board-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.getByText(/component envelopes unknown/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'component:one · U1 · native_component' }));
   expect(screen.getByText(/Selected feature component:one · placement unknown/)).toBeTruthy();
@@ -30,7 +31,7 @@ test('repeated boards retain independent occurrence and feature selection with e
   fireEvent.click(left); expect(screen.getByText(/Contextual firmware: firmware-left/)).toBeTruthy();
   expect(screen.queryByText(/Selected feature/)).toBeNull();
   // Viewing, selection and layout have no engineering write transport.
-  expect(api.mock.calls.every(([url]) => url.startsWith('/api/v0/shared-scenes/'))).toBe(true);
+  expect(api.mock.calls.filter(([url]) => !url.startsWith('/api/v0/catalog/revision-labels')).every(([url]) => url.startsWith('/api/v0/shared-scenes/'))).toBe(true);
   expect(screen.queryByLabelText('Interactive shared engineering scene')).toBeNull();
 });
 

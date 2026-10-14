@@ -1,6 +1,7 @@
 import { Alert, Button, Card, Checkbox, Group, NumberInput, Stack, Text, TextInput } from '@mantine/core';
 import { useState } from 'react';
 import type { Occurrence } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function PlacementEditor({ occurrence, busy, onSave, onRemove, authorized = true }: { occurrence: Occurrence; busy: boolean; onSave: (changes: Partial<Occurrence>) => void; onRemove: () => void; authorized?: boolean }) {
   const [displayRef, setDisplayRef] = useState(occurrence.display_ref);
@@ -17,7 +18,7 @@ export function PlacementEditor({ occurrence, busy, onSave, onRemove, authorized
   }
   if (!authorized) return null;
   return <Card withBorder><Stack gap="xs">
-    <Text>Local ID: {occurrence.local_id} · Exact revision: {occurrence.revision_id}</Text>
+    <Text>Local ID: {occurrence.local_id} · <RevisionLabel id={occurrence.revision_id} /></Text>
     <TextInput label={`Display reference for ${occurrence.local_id}`} value={displayRef} onChange={event => setDisplayRef(event.currentTarget.value)} />
     <Checkbox label={`Known placement for ${occurrence.local_id}`} checked={known} onChange={event => setKnown(event.currentTarget.checked)} />
     <Text>Canonical frame: right handed, Z up, millimetres in the containing assembly. Unknown placement stores no coordinates or rotation.</Text>

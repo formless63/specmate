@@ -42,7 +42,7 @@ test("body create, tokened edit and freeze preserve physical roles and unknown o
   fireEvent.click(editor.getByText("Save interface draft"));
   await screen.findByText("draft-v2");
   fireEvent.click(screen.getByText("Freeze interface revision"));
-  await screen.findByText("Exact revision exact-body");
+  await screen.findAllByText("exact-body", { selector: "code" });
   expect(calls).toHaveLength(3);
   expect(calls[0]).toMatchObject({ operation: "interface.create", payload: { project_id: "project", interface: { contacts: [{ contact_id: "a", physical_role: "contact", position_mm: null }], drawing_orientation: { viewing_side: "unknown", rotation_degrees: null, datum: null } } } });
   expect(calls[1]).toMatchObject({ operation: "interface.update", expected_state: "draft-v1", payload: { interface: { family: "Synthetic family" } } });
@@ -58,7 +58,8 @@ test("trace exposes the exact repeated occurrence and preserves declaration unce
   fireEvent.change(await screen.findByLabelText("External contact to trace"), { target: { value: "a" } });
   fireEvent.click(screen.getByText("Trace declared path"));
   expect(await screen.findByText("a → right / board · header.pin3")).toBeTruthy();
-  expect(screen.getByText("Revision board-rev · assembly snapshot root-snapshot")).toBeTruthy();
+  expect(screen.getAllByText("board-rev", { selector: "code" }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("root-snapshot", { selector: "code" }).length).toBeGreaterThan(0);
   expect(screen.getByText("Feature status: not_evaluated; condition: unknown")).toBeTruthy();
   expect(screen.getByText("Path: declared. Continuity: not_evaluated.")).toBeTruthy();
 });

@@ -3,6 +3,7 @@ import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Text
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { command, read, type Catalog, type Definition, type Identity } from "./api";
+import { IdentityLabel, RevisionLabel } from "../../lib/IdentityLabel";
 
 export function IdentityPanel({ projectId }: { projectId: string }) {
   return <IdentityWorkspace key={projectId} projectId={projectId} />;
@@ -40,7 +41,7 @@ function IdentityWorkspace({ projectId }: { projectId: string }) {
     <Select label="Definition" placeholder="Choose a definition" searchable data={(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitionId} onChange={(value) => { setDefinitionId(value); setRevisionId(null); setIdentityOffset(0); }} />
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
-      <Text size="sm">Definition ID: {identity.data.definition_id}</Text>
+      <Text size="sm"><IdentityLabel name={identity.data.name} kind={identity.data.kind} pins={[{ label: 'Definition ID', value: identity.data.definition_id }]} /></Text>
       {identity.data.drafts.map((draft) => <Group key={draft.draft_id}><Text size="sm">Draft {draft.draft_id} · {draft.state}</Text><Button size="xs" loading={freeze.isPending} onClick={() => freeze.mutate(draft)} {...freezeGate.props}>Freeze current draft</Button></Group>)}
       <Text size="sm" c="dimmed">Freezing records the current draft. It does not qualify a part for manufacture.</Text>
       {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
@@ -68,7 +69,7 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
   const registration = useMutation({ mutationFn: ({ operation, payload }: { operation: string; payload: object }) => command(operation, { revision_id: revisionId, ...payload }), onSuccess: async () => { await cache.invalidateQueries({ queryKey: ["catalog", revisionId] }); } });
   const register = (operation: string, payload: object) => registration.mutate({ operation: `catalog.register_${operation}`, payload });
   return <Stack>
-    <Text size="sm">Revision ID: {revisionId}</Text>
+    <Text size="sm"><RevisionLabel id={revisionId} /></Text>
     {catalog.isError && <Alert color="red">{catalog.error.message}</Alert>}
     {registration.isError && <Alert color="red">{registration.error.message}</Alert>}
     {registration.isSuccess && <Alert color="green">Identity registered.</Alert>}

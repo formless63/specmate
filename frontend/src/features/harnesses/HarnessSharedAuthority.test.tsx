@@ -29,7 +29,7 @@ function server() {
   }));
   return { reads, payloads, commands, deny: (value: boolean) => { deny = value; }, newer: () => { newer = true; }, pending: () => { pending = deferred<Response>(); return pending; }, clearPending: () => { pending = null; } };
 }
-async function open() { await choose('Existing harness definition', 'Synthetic Harness (harness)'); await choose('Edit harness draft', 'draft · original-v1'); await screen.findByLabelText('Physical end piece/cut basis'); fireEvent.change(screen.getByLabelText('Physical end piece/cut basis'), { target: { value: 'retained unsaved declaration' } }); await choose('Inspect frozen harness', 'Revision 1 · old'); await screen.findByText(/frozen old basis/); }
+async function open() { await choose('Existing harness definition', 'Synthetic Harness (harness)'); await choose('Edit harness draft', 'draft · original-v1'); await screen.findByLabelText('Physical end piece/cut basis'); fireEvent.change(screen.getByLabelText('Physical end piece/cut basis'), { target: { value: 'retained unsaved declaration' } }); await choose('Inspect frozen harness', 'Revision 1'); await screen.findByText(/frozen old basis/); }
 
 test('frozen denial gates draft and failed restoration cannot reveal newer saved or unsaved evidence', async () => {
   const api = server(); render(wrap(<HarnessPanel projectId="project" />)); await open(); api.deny(true); fireEvent.click(screen.getByText('Refresh frozen Harness access')); await screen.findByText(/Frozen Harness access must be rechecked/); expect(screen.queryByLabelText('Physical end piece/cut basis')).toBeNull(); expect(screen.queryByText(/frozen old basis/)).toBeNull();
@@ -39,7 +39,7 @@ test('frozen denial gates draft and failed restoration cannot reveal newer saved
 
 test.each(['revision', 'quantity'])('detached inspector denial after %s browsing still gates the same editor', async mode => {
   const api = server(); render(wrap(<HarnessPanel projectId="project" />)); await open(); const pending = api.pending(); fireEvent.click(screen.getByText('Refresh frozen Harness access')); await waitFor(() => expect(api.reads.filter(path => path.includes('/revisions/old?'))).toHaveLength(2));
-  if (mode === 'revision') { await choose('Inspect frozen harness', 'Revision 2 · new'); await screen.findByText(/frozen new basis/); }
+  if (mode === 'revision') { await choose('Inspect frozen harness', 'Revision 2'); await screen.findByText(/frozen new basis/); }
   else { fireEvent.change(screen.getByLabelText('Harness quantity'), { target: { value: '2' } }); await screen.findByText(/frozen old basis/); }
   api.clearPending(); api.deny(true); await act(async () => { pending.resolve(response({ error: { message: 'Detached frozen denial' } }, 403)); }); await screen.findByText(/Frozen Harness access must be rechecked/); expect(screen.queryByLabelText('Physical end piece/cut basis')).toBeNull(); fireEvent.click(screen.getByText('Restore Harness draft access')); await screen.findByText('Frozen source unavailable'); expect(screen.queryByLabelText('Physical end piece/cut basis')).toBeNull();
 });

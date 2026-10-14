@@ -3,6 +3,7 @@ import { useState } from "react";
 import { evidenceLabel, scopeLabel, type Graph } from "../copper/api";
 import { CopperProvenance } from "../copper/CopperProvenance";
 import type { Evidence, Interpretation } from "./api";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const readable = (value: string) => value.replaceAll("_", " ");
 const PAGE_SIZE = 20;
@@ -16,7 +17,7 @@ function SourceEvidence({ evidence }: { evidence: string | Evidence }) {
   if (typeof evidence === "string") return <Text size="sm">{evidenceLabel(evidence)}</Text>;
   return <Stack gap={2}><Text size="sm">Evidence: {readable(evidence.status)}</Text>
     {evidence.citation && <Text size="sm">Citation (unverified): {evidence.citation}</Text>}
-    {evidence.source_bundle_revision_id && <Text size="sm">Source bundle revision: {evidence.source_bundle_revision_id} · Path: {evidence.source_path ?? "unspecified"}</Text>}
+    {evidence.source_bundle_revision_id && <Text size="sm"><RevisionLabel kind="source" id={evidence.source_bundle_revision_id} role="Source bundle" /> · Path: {evidence.source_path ?? "unspecified"}</Text>}
     {evidence.sha256 && <Text size="xs">Source SHA-256: {evidence.sha256} · Rights: {evidence.rights ?? "unspecified"}</Text>}
   </Stack>;
 }
@@ -48,7 +49,7 @@ export function PathExplanation({ result, graph }: { result: Interpretation; gra
     <Text fw={600}>{readable(result.status)} · {readable(result.reason)}</Text>
     <Text>Query semantics: {readable(result.query)}. Candidate reachability is a declared model result; no returned path is physical proof. No candidate path does not prove physical disconnection.</Text>
     <Text>{queryMeaning[result.query] ?? "This query has no supported explanation of its semantics; no behavior is inferred."}</Text>
-    <Text>Model {result.revision_id} · {result.sha256} · review {result.review_id ?? "not accepted"}</Text><Text size="sm">Review state: {result.review_state}</Text>
+    <Text><RevisionLabel id={result.revision_id} role="Model" sha256={result.sha256} /> · review {result.review_id ?? "not accepted"}</Text><Text size="sm">Review state: {result.review_state}</Text>
     <Text>Exact query root: {result.root_revision_id ?? "not supplied"} · Snapshot SHA-256: {result.root_snapshot_sha256 ?? "not supplied"}</Text>
     {!exactGraph && <Alert color="yellow">The inspected graph does not match the query root revision and snapshot hash. Endpoint metadata is unavailable; identities and provenance supplied by the query remain visible.</Alert>}
     <Text>Physical continuity: {readable(result.physical_continuity)}. Signal transfer: {readable(result.signal_transfer)}. Physical qualification: {readable(result.physical_qualification)}.</Text>

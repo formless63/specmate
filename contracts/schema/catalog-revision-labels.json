@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "Display identity for exact revision IDs the caller already holds.",
+  "description": "Display identity for exact design and source revision IDs the caller already holds.",
   "properties": {
     "revision_ids": {
       "items": {
@@ -8,14 +8,19 @@
         "type": "string"
       },
       "maxItems": 50,
-      "minItems": 1,
       "title": "Revision Ids",
+      "type": "array"
+    },
+    "source_revision_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Source Revision Ids",
       "type": "array"
     }
   },
-  "required": [
-    "revision_ids"
-  ],
   "title": "RevisionLabels",
   "type": "object"
 }

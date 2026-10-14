@@ -48,3 +48,24 @@ test('a harness with no sections draws nothing', () => {
   render(wrap(<HarnessViews revisionId="rev-1" harness={empty} />));
   expect(screen.getByText(/nothing to draw/)).toBeTruthy();
 });
+
+test('names lead on the formboard and build sheet while exact IDs stay available as evidence', async () => {
+  const names: Record<string, [string, number]> = { 'rev-1': ['Power harness', 4], 'rev-pair': ['Shielded pair', 2], 'rev-coax': ['Braided coax', 1] };
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.includes('catalog/revision-labels')) {
+      const ids = new URL(url, 'http://x').searchParams.getAll('revision_ids');
+      return new Response(JSON.stringify({ labels: ids.map(id => names[id] ? { revision_id: id, readable: true, definition_id: `def-${id}`, name: names[id]![0], kind: 'x', number: names[id]![1] } : { revision_id: id, readable: false }), source_labels: [] }));
+    }
+    return new Response(JSON.stringify({ content: { stock: url.includes('rev-pair') ? shieldedPair() : braidedCoax() } }));
+  }));
+  render(wrap(<HarnessViews revisionId="rev-1" harness={harness()} />));
+  const board = await screen.findByLabelText('Formboard drawing');
+  await waitFor(() => expect(board.innerHTML).toContain('Shielded pair r2'));
+  expect(board.innerHTML).toContain('Braided coax r1');
+  expect(board.innerHTML).not.toContain('Stock rev-');
+  fireEvent.click(await screen.findByRole('tab', { name: 'Build sheet' }));
+  await waitFor(() => expect((screen.getByTitle('Build sheet') as HTMLIFrameElement).getAttribute('srcdoc')).toContain('Revision Power harness r4'));
+  const sheet = (screen.getByTitle('Build sheet') as HTMLIFrameElement).getAttribute('srcdoc')!;
+  expect(sheet).toContain('data-stage="pins"');
+  expect(sheet).toContain('<td>rev-1</td>');
+});

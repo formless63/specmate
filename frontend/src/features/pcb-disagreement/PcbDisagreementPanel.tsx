@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { NativeExtraction } from './NativeExtraction';
 import { AssertionEditor, AssertionTable, ComparisonEditor, SourceSummary } from './Editors';
 import { blankAssertion, blankComparison, command, label, read, terminalLabel, type Comparison, type Definition, type Draft, type Finding, type Frozen, type Identity, type Projection, type Review, type Value } from './api';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function PcbDisagreementPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
@@ -29,7 +31,7 @@ function Workspace({ projectId }: { projectId: string }) {
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}{identity.isError && <Alert color="red">{identity.error.message}</Alert>}{draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     <Select label="Existing source review definition" searchable value={denied ? null : definition} disabled={definitions.isError} data={rows.filter(d => ['pcb_assertion', 'pcb_comparison'].includes(d.kind)).map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={id => { setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); }} />
-    {identity.data && !denied && <><Select label="Source review draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} /><Select label="Frozen source review revision" value={revision} data={identity.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={setRevision} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier source reviews</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Later source reviews</Button></Group></>}
+    {identity.data && !denied && <><Select label="Source review draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} /><Select label="Frozen source review revision" value={revision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevision} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier source reviews</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Later source reviews</Button></Group></>}
     {draft.data && !draft.isError && !denied && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} projectId={projectId} definitions={rows} onDenied={setDraftDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ['pcb-review-draft', draftId] }); }} /><Button disabled={draftDenied} loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze source review revision</Button></>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
     {revision && !denied && !draft.isError && <PcbDisagreementInspector key={revision} revisionId={revision} />}
@@ -72,5 +74,5 @@ export function ProjectionView({ projection, reviewValue, onReviewChange }: { pr
 }
 export function PcbDisagreementInspector({ revisionId }: { revisionId: string }) {
   const query = useQuery({ queryKey: ['pcb-review-frozen', revisionId], queryFn: () => read<Frozen>(`pcb-disagreement/revisions/${revisionId}`) });
-  return <Card withBorder><Stack><Title order={3}>Frozen source review</Title><Text>Exact revision: {revisionId}</Text>{query.isError && <Alert color="red">{query.error.message}</Alert>}{query.data && !query.isError && <ProjectionView projection={query.data.projection} />}</Stack></Card>;
+  return <Card withBorder><Stack><Title order={3}>Frozen source review</Title><Text><RevisionLabel id={revisionId} /></Text>{query.isError && <Alert color="red">{query.error.message}</Alert>}{query.data && !query.isError && <ProjectionView projection={query.data.projection} />}</Stack></Card>;
 }

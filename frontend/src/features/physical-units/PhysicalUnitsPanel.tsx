@@ -5,6 +5,8 @@ import { useState } from "react";
 import type { Catalog, Definition, Identity } from "../identity/api";
 import { read } from "../identity/api";
 import { command, request, type Command, type Inventory, type WorkBatch } from "../inventory/api";
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Unit = {
   unit_id: string; project_id: string; revision_id: string; serial: string;
@@ -79,7 +81,7 @@ export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
       <NativeSelect label="Definition" value={definitionId} onChange={(e) => { setDefinitionId(e.currentTarget.value); setRevisionId(""); setLotId(""); setVariantId(""); setRevisionOffset(0); }}
         data={[{ value: "", label: "Choose definition" }, ...(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: d.name }))]} />
       <NativeSelect label="Exact frozen revision" value={revisionId} onChange={(e) => { setRevisionId(e.currentTarget.value); setLotId(""); setVariantId(""); }}
-        data={[{ value: "", label: "Choose revision" }, ...(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))]} />
+        data={[{ value: "", label: "Choose revision" }, ...(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))]} />
       {definitionId && <Group><Button disabled={revisionOffset === 0} onClick={() => setRevisionOffset(Math.max(0, revisionOffset - 50))}>Previous revisions</Button><Button disabled={(identity.data?.revisions.length ?? 0) < 50} onClick={() => setRevisionOffset(revisionOffset + 50)}>Next revisions</Button></Group>}
       <TextInput label="Unit serial" value={serial} onChange={(e) => setSerial(e.currentTarget.value)} />
       <NativeSelect label="Actual origin" value={origin} onChange={(e) => setOrigin(e.currentTarget.value)} data={["obtained", "assembled"]} />
@@ -96,7 +98,7 @@ export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Actual subjects</Title>
-      {(units.data?.units ?? []).map((unit) => <Group key={unit.unit_id}><Text>{unit.serial} · {unit.origin} · revision {unit.revision_id} · {unit.work_batch_id ? "linked to work" : "no work link"}</Text><Button size="xs" onClick={() => { setSelectedUnit(unit.unit_id); setSelectedWork(""); setUsageOffset(0); }}>Inspect</Button></Group>)}
+      {(units.data?.units ?? []).map((unit) => <Group key={unit.unit_id}><Text>{unit.serial} · {unit.origin} · <RevisionLabel id={unit.revision_id} /> · {unit.work_batch_id ? "linked to work" : "no work link"}</Text><Button size="xs" onClick={() => { setSelectedUnit(unit.unit_id); setSelectedWork(""); setUsageOffset(0); }}>Inspect</Button></Group>)}
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous units</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={(units.data?.units.length ?? 0) < 50} onClick={() => setOffset(offset + 50)}>Next units</Button></Group>
       {selected && <Stack>
         <Title order={4}>{selected.serial}</Title>

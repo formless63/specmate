@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command, request, SourceError, type RevisionDetail } from '../sources/api';
 import type { Authority, AuthoritySummary, Candidate, OutlineSummary, OutlineValue, Projection } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const statusText: Record<Authority['status'], string> = {
   unreconciled: 'No extraction of the owner has been reconciled yet. The outline is unknown here.',
@@ -37,7 +38,7 @@ function ProjectionCard({ projection, title }: { projection: Projection; title: 
     <Text fw={600}>{title} · projection version {projection.version} · {projection.status}</Text>
     <SummaryText summary={projection.summary} />
     <OutlinePreview value={projection.value} label={`${title} outline`} />
-    <Text size="xs">Source revision {projection.source_revision_id} (revision {projection.source_number}) · {projection.source_path}</Text>
+    <Text size="xs"><RevisionLabel kind="source" id={projection.source_revision_id} role="Source" /> (revision {projection.source_number}) · {projection.source_path}</Text>
     <Text size="xs" style={{ overflowWrap: 'anywhere' }}>Source SHA-256 {projection.source_sha256} · report SHA-256 {projection.report_sha256}</Text>
     <Text size="xs">Interpretation {projection.interpretation_id} · build {projection.build_id} · {projection.adapter} · KiCad {projection.tool_version} format {projection.native_format_version}</Text>
     {projection.changes.kind !== 'initial' && <Text size="xs">Change: {projection.changes.kind}{projection.changes.vertices ? ` · ${projection.changes.vertices.added} vertices added, ${projection.changes.vertices.removed} removed` : ''}</Text>}
@@ -140,7 +141,7 @@ export function PropertyAuthorityPanel({ projectId, canWrite, detail, onOpenRevi
       <Text size="sm">{selected.editable_copy}</Text>
       <Card withBorder><Stack gap={4}>
         <Text fw={600}>Owner: {selected.owner.name} ({selected.owner.role}) · {selected.owner.path}</Text>
-        <Text size="xs">Current revision {selected.owner.head_revision_id} (revision {selected.owner.head_number}) · extractor {selected.extractor}</Text>
+        <Text size="xs"><RevisionLabel kind="source" id={selected.owner.head_revision_id} role="Current" /> (revision {selected.owner.head_number}) · extractor {selected.extractor}</Text>
         <Text size="xs" style={{ overflowWrap: 'anywhere' }}>File SHA-256 {selected.owner.head_file_sha256 ?? 'missing'} · declared rights {selected.owner.head_file_rights ?? 'unknown'}</Text>
         {selected.owner.editable
           ? <Group><Button size="xs" variant="light" onClick={() => onOpenRevision(selected.owner.head_revision_id)}>Edit outline through owning source</Button><a href={selected.owner.handoff_url}>Download owner editing handoff</a></Group>
@@ -158,11 +159,11 @@ export function PropertyAuthorityPanel({ projectId, canWrite, detail, onOpenRevi
       </Stack></Card>)}
       {selected.non_owner_evidence.items.length > 0 && <Stack gap={4}><Text fw={600}>Preserved non-owner evidence</Text>
         <Text size="xs">Extractions of other bundles in this lineage are kept for review and never become the outline.{selected.non_owner_evidence.truncated ? ' Only the first 50 are shown.' : ''}</Text>
-        <Table><Table.Tbody>{selected.non_owner_evidence.items.map(item => <Table.Tr key={item.interpretation_id}><Table.Td>{item.bundle_name}</Table.Td><Table.Td>{item.source_revision_id}</Table.Td><Table.Td><SummaryText summary={item.summary} /></Table.Td><Table.Td>{item.differs_from_projection === null ? 'No projection to compare' : item.differs_from_projection ? 'Differs from projection' : 'Matches projection'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+        <Table><Table.Tbody>{selected.non_owner_evidence.items.map(item => <Table.Tr key={item.interpretation_id}><Table.Td>{item.bundle_name}</Table.Td><Table.Td><RevisionLabel kind="source" id={item.source_revision_id} /></Table.Td><Table.Td><SummaryText summary={item.summary} /></Table.Td><Table.Td>{item.differs_from_projection === null ? 'No projection to compare' : item.differs_from_projection ? 'Differs from projection' : 'Matches projection'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
       </Stack>}
       {canWrite && detail && detail.revision_id !== selected.owner.head_revision_id && <Button variant="light" disabled={busy || !basis.trim()} onClick={() => void transfer()}>Transfer ownership to {detail.name} revision {detail.number}</Button>}
       {selected.history.length > 1 && <Stack gap="xs"><Text fw={600}>Earlier projections (immutable)</Text>{selected.history.slice(1).map(item => <ProjectionCard key={item.projection_id} projection={item} title="Earlier projection" />)}</Stack>}
-      <Stack gap={2}><Text fw={600}>Owner history</Text>{selected.owner_changes.map(change => <Text size="xs" key={change.version}>v{change.version}: {change.owner_path} in revision {change.owner_revision_id} · {change.basis} · {change.changed_by}</Text>)}</Stack>
+      <Stack gap={2}><Text fw={600}>Owner history</Text>{selected.owner_changes.map(change => <Text size="xs" key={change.version}>v{change.version}: {change.owner_path} <RevisionLabel kind="source" id={change.owner_revision_id} role="in" /> · {change.basis} · {change.changed_by}</Text>)}</Stack>
     </Stack>}
     </>}
   </Stack></Card>;

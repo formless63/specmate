@@ -62,7 +62,7 @@ test('same revision impact refresh removes retained sensitive results on current
   const result: Impact = { before_revision_id: 'old', after_revision_id: 'new', before_sha256: 'before-hash', after_sha256: 'after-hash', route_changed: true, preparation_review_required: true, document_review_required: true, stock_revision_changed: false, changes: [{ target: 'route', before: row('route'), after: row('route', '1100') }] };
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(denied ? { error: { message: 'Length source access denied.' } } : result), { status: denied ? 404 : 200 })));
   render(wrap(<LengthImpactView afterRevision="new" revisions={[{ revision_id: 'old', number: 1 }, { revision_id: 'new', number: 2 }]} />, cache));
-  await select('Compare lengths from frozen revision', 'Revision 1 · old');
+  await select('Compare lengths from frozen revision', 'Revision 1');
   await screen.findByText(/route: declared 1000.000001 mm → 1100 mm/);
   denied = true;
   fireEvent.click(screen.getByText('Refresh length impact access'));

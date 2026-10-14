@@ -293,3 +293,16 @@ span.sb-project-button { border-bottom-color: transparent; cursor: default; }
 html[data-mantine-color-scheme] .mantine-NumberInput-controls { width: 22px; }
 html[data-mantine-color-scheme] .mantine-NumberInput-control { min-height: 0; height: 50%; width: 22px; line-height: 0; }
 html[data-mantine-color-scheme] .mantine-NumberInput-control svg { width: 9px; height: 9px; }
+
+/* Identity labels: name first; exact IDs and hashes are expandable evidence. */
+.sb-ident { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; max-width: 100%; }
+.sb-ident-name { font-family: var(--sb-font-ui); font-weight: 500; overflow-wrap: anywhere; }
+.sb-ident-unknown { font-weight: 400; font-style: italic; color: var(--sb-text-secondary); }
+.sb-ident-rev { font-size: 12px; color: var(--sb-text-secondary); }
+.sb-exact { display: inline-block; font-size: 11px; }
+.sb-exact-toggle { display: inline; padding: 0; border: 0; background: transparent; cursor: pointer; font-family: var(--sb-font-data); font-size: 11px; color: var(--sb-accent); }
+.sb-exact-body { display: grid; gap: 3px; margin-top: 4px; padding: 6px 8px; background: var(--sb-surface-canvas); border: 1px solid var(--sb-border-subtle); }
+.sb-exact-body[hidden] { display: none; }
+.sb-exact-row { display: grid; text-transform: none; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.sb-exact-value { font-size: 10.5px; overflow-wrap: anywhere; background: transparent; }
+.sb-exact-copy { font-family: var(--sb-font-data); font-size: 10.5px; color: var(--sb-accent); background: transparent; border: 0; padding: 0 2px; cursor: pointer; }

@@ -5,6 +5,7 @@ import type { FirmwareRead, FirmwareSummary } from '../firmware/api';
 import { operation, type OccurrenceInspection } from '../firmware-occurrences/api';
 import { read, type Definition, type Identity } from '../identity/api';
 import { compareImpact, type FirmwareReference, type ImpactResult } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function FirmwareImpactPanel({ projectId }: { projectId: string }) {
   return <Workspace key={projectId} projectId={projectId} />;
@@ -141,7 +142,7 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
       <Group><Button disabled={!offset} onClick={() => { onChange({}); setOffset(Math.max(0, offset - 50)); }}>Previous {label.toLowerCase()} assembly revisions</Button><Button disabled={identity.revisions.length < 50} onClick={() => { onChange({}); setOffset(offset + 50); }}>Next {label.toLowerCase()} assembly revisions</Button></Group>
     </>}
     {inspection && <NativeSelect label={`${label} exact board occurrence`} value={path} data={[{ value: '', label: firmwareId ? 'Select occurrence or compare without context' : 'Select assigned board occurrence' }, ...inspection.occurrences.filter(item => item.kind === 'pcb_population' && !!item.firmware_revision_id && (!firmwareId || item.firmware_revision_id === firmwareId)).map(item => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={event => { void chooseOccurrence(event.currentTarget.value); }} />}
-    {assigned && <Text>{label} assigned firmware: {assigned.name} · frozen revision {assigned.revision_number} · {assigned.revision_id} · snapshot {assigned.snapshot_sha256}</Text>}
+    {assigned && <Text>{label} assigned firmware: <RevisionLabel id={assigned.revision_id} sha256={assigned.snapshot_sha256} known={assigned.revision_number == null ? undefined : { name: assigned.name, number: assigned.revision_number }} /></Text>}
     {error && <Alert color="red">{error}</Alert>}
   </Stack>;
 }
@@ -192,8 +193,8 @@ function ImpactReview({ result }: { result: ImpactResult }) {
     <Text>Comparison hash: {result.comparison_sha256}</Text>
     {(['baseline', 'candidate'] as const).map(side => <Card key={side} withBorder><Stack>
       <Text fw={600}>{side === 'baseline' ? 'Baseline exact pins' : 'Candidate exact pins'}</Text>
-      <Text>Firmware {result[side].inputs.firmware_revision_id} · snapshot {result[side].inputs.firmware_snapshot_sha256}</Text>
-      <Text>Population {result[side].inputs.target.population_revision_id} · option {result[side].inputs.target.option_id} · native component {result[side].inputs.target.component_id}</Text>
+      <Text><RevisionLabel id={result[side].inputs.firmware_revision_id} role="Firmware" snapshotId={result[side].inputs.firmware_snapshot_sha256} /></Text>
+      <Text><RevisionLabel id={result[side].inputs.target.population_revision_id} role="Population" /> · option {result[side].inputs.target.option_id} · native component {result[side].inputs.target.component_id}</Text>
       <Text>Native interpretation {result[side].evaluation.target.interpretation_id} · {result[side].evaluation.target.interpretation_sha256}</Text>
       <details><summary>Declared assumption evaluation: {result[side].evaluation.readiness}</summary>
         <Table><Table.Thead><Table.Tr><Table.Th>Assumption</Table.Th><Table.Th>Status</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead><Table.Tbody>

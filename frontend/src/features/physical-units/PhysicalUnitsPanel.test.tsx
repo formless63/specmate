@@ -36,7 +36,7 @@ test("registers one actual unit without reporting plan completion or qualificati
   mount();
   await screen.findByRole("option", { name: "Synthetic assembly" });
   fireEvent.change(screen.getByLabelText("Definition"), { target: { value: "definition-1" } });
-  await screen.findByRole("option", { name: "Revision 1 · revision-1" });
+  await screen.findByRole("option", { name: "Revision 1" });
   fireEvent.change(screen.getByLabelText("Exact frozen revision"), { target: { value: "revision-1" } });
   fireEvent.change(screen.getByLabelText("Unit serial"), { target: { value: "UNIT-1" } });
   await screen.findByRole("option", { name: "Actual lot" });
@@ -48,7 +48,8 @@ test("registers one actual unit without reporting plan completion or qualificati
   expect(calls[0]).toMatchObject({ operation: "physical_units.register", payload: {
     revision_id: "revision-1", serial: "UNIT-1", lot_id: "lot-1", assertion_status: "observed",
   } });
-  expect(await screen.findByText(/UNIT-1 · assembled · revision revision-1/)).toBeTruthy();
+  expect(await screen.findByText(/UNIT-1 · assembled/)).toBeTruthy();
+  expect(screen.getAllByText('revision-1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.getByText(/Neither record reports completion, changes stock, or qualifies the unit/)).toBeTruthy();
 });
 
@@ -107,7 +108,7 @@ test.each([
   render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={[...permissions]}><PhysicalUnitsPanel projectId="project-1" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   await screen.findByRole("option", { name: "Synthetic assembly" });
   fireEvent.change(screen.getByLabelText("Definition"), { target: { value: "definition-1" } });
-  await screen.findByRole("option", { name: "Revision 1 · revision-1" });
+  await screen.findByRole("option", { name: "Revision 1" });
   fireEvent.change(screen.getByLabelText("Exact frozen revision"), { target: { value: "revision-1" } });
   fireEvent.change(screen.getByLabelText("Unit serial"), { target: { value: "UNIT-1" } });
   fireEvent.change(screen.getByLabelText("Assertion source"), { target: { value: "Traveler" } });

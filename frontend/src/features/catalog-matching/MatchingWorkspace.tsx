@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { read, type Definition, type Identity } from "../identity/api";
 import { MatchingRequestError, candidateDetail, candidates, evidenceFiles, proposeMatch, reviewMatch, type Candidate, type CandidatePage, type Evidence, type EvidenceFile, type Project } from "./api";
 import { SupplierSuggestions } from "./SupplierSuggestions";
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Pin = { revision_id: string; definition_id: string };
 const unknownEvidence: Evidence = { status: "unknown" };
@@ -119,7 +121,7 @@ function Workspace({ projectId }: { projectId: string }) {
       setKind("supplier"); setSourceIdentifier(value.part_number); setTargetIdentifier(value.part_number);
       setBasis(`Exact asserted manufacturer/part pair ${value.manufacturer} / ${value.part_number}; source association ${value.source_variant_id}, target association ${value.target_variant_id}. Correspondence remains unreviewed.`);
     }} />}
-    {target && <Text size="sm">Target proposal pin: {target.revision_id} · definition {target.definition_id}</Text>}
+    {target && <Text size="sm"><RevisionLabel id={target.revision_id} role="Target proposal pin" extraPins={[{ label: 'Definition ID', value: target.definition_id }]} /></Text>}
     <Card withBorder>
       <form onSubmit={(event) => void create(event)}><Stack>
         <Title order={3}>Propose correspondence</Title>
@@ -186,7 +188,7 @@ function RevisionPicker({ projectId, label, onChange }: { projectId: string; lab
   return <Stack gap="xs">
     {error && <Alert color="red">{error}</Alert>}
     <NativeSelect label={`${label} definition`} value={definitionId} onChange={(event) => void chooseDefinition(event.currentTarget.value)} data={[{ value: "", label: "Select a definition" }, ...definitions.map((d) => ({ value: d.definition_id, label: `${d.name} · ${d.kind}` }))]} />
-    <NativeSelect label={`${label} exact revision`} value={revisionId} onChange={(event) => { const value = event.currentTarget.value; setRevisionId(value); onChange(value ? { revision_id: value, definition_id: definitionId } : null); }} data={[{ value: "", label: "Select a frozen revision" }, ...(identity?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))]} />
+    <NativeSelect label={`${label} exact revision`} value={revisionId} onChange={(event) => { const value = event.currentTarget.value; setRevisionId(value); onChange(value ? { revision_id: value, definition_id: definitionId } : null); }} data={[{ value: "", label: "Select a frozen revision" }, ...(identity?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity?.name, r.number) }))]} />
     {identity?.revisions.length === 0 && <Text>No frozen revisions. Create and freeze a revision in the identity workspace.</Text>}
     {more && <Button variant="light" onClick={() => void moreRevisions()}>More {label.toLowerCase()} revisions</Button>}
   </Stack>;
@@ -241,7 +243,7 @@ function EvidenceView({ evidence }: { evidence: Evidence }) {
     <Text>Evidence: {evidence.status.replaceAll("_", " ")}</Text>
     {evidence.citation && <Text style={{ whiteSpace: "pre-wrap" }}>{evidence.citation}</Text>}
     {evidence.source_bundle_revision_id && <>
-      <Text size="sm">Bundle revision: {evidence.source_bundle_revision_id}</Text>
+      <Text size="sm"><RevisionLabel kind="source" id={evidence.source_bundle_revision_id} role="Bundle" /></Text>
       <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>Path: {evidence.source_path}</Text>
       <Text size="sm">SHA-256: {evidence.sha256}</Text>
       <Text size="sm">Media type: {evidence.media_type ?? "unknown"}</Text>
@@ -278,7 +280,7 @@ function ReviewPanel({ candidate, projects, projectId, canEdit, onUpdated, onRev
     <Text>Accepted means reviewed correspondence only. Interchangeability and physical qualification are unevaluated.</Text>
     {([candidate.source, candidate.target] as const).map((pin, index) => <Stack gap={0} key={pin.revision_id}>
       <Text fw={600}>{index === 0 ? "Source" : "Target"}: {pin.name} · {pin.kind} · revision {pin.number}</Text>
-      <Text size="sm">Definition {pin.definition_id} · revision {pin.revision_id}</Text>
+      <Text size="sm"><RevisionLabel id={pin.revision_id} extraPins={[{ label: 'Definition ID', value: pin.definition_id }]} /></Text>
       <Text size="sm">Snapshot SHA-256 {pin.sha256}</Text>
     </Stack>)}
     <Text>{candidate.basis}</Text>
