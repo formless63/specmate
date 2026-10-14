@@ -41,11 +41,6 @@
       "title": "Offset",
       "type": "integer"
     },
-    "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
-    },
     "subject_id": {
       "anyOf": [
         {
@@ -58,10 +53,15 @@
       ],
       "default": null,
       "title": "Subject Id"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
-    "project_id"
+    "workspace_id"
   ],
   "title": "ListEvidence",
   "type": "object"

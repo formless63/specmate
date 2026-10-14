@@ -16,7 +16,7 @@ function useWork(id: string, offset = 0) {
     queryFn: () => read<WorkDetail>(`inventory/work-batches/${id}?offset=${offset}&limit=50`) });
 }
 
-export function WorkPanel({ projectId, batches, pending, submit }: { projectId: string; batches: WorkBatch[]; pending: boolean; submit: Submit }) {
+export function WorkPanel({ workspaceId, projectId, batches, pending, submit }: { workspaceId: string; projectId?: string; batches: WorkBatch[]; pending: boolean; submit: Submit }) {
   const manageGate = usePermission("inventory.manage");
   const [definition, setDefinition] = useState("");
   const [revision, setRevision] = useState("");
@@ -25,7 +25,7 @@ export function WorkPanel({ projectId, batches, pending, submit }: { projectId: 
   const [label, setLabel] = useState("");
   const [planned, setPlanned] = useState("");
   const [selected, setSelected] = useState("");
-  const definitions = useQuery({ queryKey: ["identity-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ["identity", definition, revisionOffset], enabled: !!definition, queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${revisionOffset}`) });
   return <Card withBorder><Stack>
     <Title order={3}>Planned jobs and batches</Title>
@@ -38,7 +38,7 @@ export function WorkPanel({ projectId, batches, pending, submit }: { projectId: 
     <NativeSelect label="Work kind" value={kind} onChange={(e) => setKind(e.currentTarget.value)} data={["job", "batch"]} />
     <TextInput label="Work label" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
     <TextInput label="Planned unit count (blank means unknown)" value={planned} onChange={(e) => setPlanned(e.currentTarget.value)} />
-    <Button loading={pending} disabled={!revision || !label.trim() || (!!planned && !positiveCount(planned))} onClick={() => submit("inventory.create_work_batch", { revision_id: revision, kind, label, planned_units: planned ? Number(planned) : null })} {...manageGate.props}>Register planned work</Button><ReadOnlyNote permission="inventory.manage">Registering work and recording usage are unavailable.</ReadOnlyNote>
+    <Button loading={pending} disabled={!revision || !label.trim() || (!!planned && !positiveCount(planned))} onClick={() => submit("inventory.create_work_batch", { revision_id: revision, kind, label, planned_units: planned ? Number(planned) : null, ...(projectId ? { project_id: projectId } : {}) })} {...manageGate.props}>Register planned work</Button><ReadOnlyNote permission="inventory.manage">Registering work and recording usage are unavailable.</ReadOnlyNote>
     {batches.map((batch) => <Group key={batch.work_batch_id}><Text>{batch.label} · {batch.kind} · reported {batch.reported_completed_units} / {batch.planned_units ?? "Unknown planned count"} · {batch.progress}</Text><Button size="xs" onClick={() => setSelected(batch.work_batch_id)}>Inspect work {batch.label}</Button></Group>)}
     {selected && <WorkHistory key={selected} workId={selected} pending={pending} submit={submit} />}
   </Stack></Card>;

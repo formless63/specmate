@@ -5,9 +5,8 @@ from decimal import Decimal
 from threading import Barrier
 
 import pytest
-from django.db import DatabaseError, close_old_connections, connection, transaction
+from django.db import DatabaseError, IntegrityError, close_old_connections, connection, transaction
 
-from specmate.access.models import WorkspaceMember
 from specmate.inventory.contracts import ChangeStock
 from specmate.inventory.models import Reservation, ReservationRelease, StockAccount, StockEntry
 from specmate.inventory.operations import authorize_inventory_replay
@@ -21,15 +20,15 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import op, remove_member, set_grants, set_role
 from .test_design import freeze
 from .test_transports import api, post_op
 
 
 @pytest.fixture
-def location(users, project):
+def location(users, workspace):
     return op(
-        users["owner"], "inventory.create_location", {"project_id": project, "name": "Shelf A"}
+        users["owner"], "inventory.create_location", {"workspace_id": workspace, "name": "Shelf A"}
     )
 
 
@@ -198,10 +197,11 @@ def test_negative_stock_and_zero_changes_rejected(users, stock):
     assert zero["quantity_status"] == "known" and zero["physical_quantity"] == "0"
 
 
-def test_permissions_and_scoped_api_reads_writes(users, project, stock):
+def test_permissions_and_scoped_api_reads_writes(users, workspace, stock):
     payload = assertion({"amount": "1", "unit": "ea"}, account_id=stock["account_id"])
     for name, error, status in [
         ("editor", PermissionDenied, 403),
+        ("contributor", PermissionDenied, 403),
         ("viewer", PermissionDenied, 403),
         ("outsider", NotFound, 404),
     ]:
@@ -217,18 +217,24 @@ def test_permissions_and_scoped_api_reads_writes(users, project, stock):
         post_op(api(), "inventory.receive", payload, expected_state=stock["state"]).status_code
         == 401
     )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=["inventory.reserve"]
-    )
+    # Editors reserve by role; contributors and viewers cannot, and no grant adds it.
+    with pytest.raises(IntegrityError), transaction.atomic():
+        set_grants(users["viewer"], ["inventory.reserve"])
+    for name in ("viewer", "contributor"):
+        with pytest.raises(PermissionDenied):
+            reserve(users[name], stock)
     result = reserve(users["editor"], stock)
     with pytest.raises(PermissionDenied):
         mutate(users["editor"], "receive", result["account"], payload["quantity"])
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=["inventory.manage"]
-    )
+    set_grants(users["editor"], ["inventory.manage"])
     received = mutate(users["editor"], "receive", result["account"], payload["quantity"])
-    assert reserve(users["editor"], received, "1")["account"]["reserved_quantity"] == "8"
-    url = f"/api/v0/inventory/projects/{project}"
+    reserved = reserve(users["editor"], received, "1")
+    assert reserved["account"]["reserved_quantity"] == "8"
+    # inventory.manage implies reserving even for a role that lacks it.
+    set_grants(users["contributor"], ["inventory.manage"])
+    implied = reserve(users["contributor"], reserved["account"], "1")
+    assert implied["account"]["reserved_quantity"] == "9"
+    url = f"/api/v0/inventory/workspaces/{workspace}"
     assert api(users["viewer"]).get(url).json()["accounts"][0]["physical_quantity"] == "11"
     assert api(users["viewer"]).get(url + "?offset=1&limit=1").json()["accounts"] == []
     assert api(users["viewer"]).get(url + "?limit=101").status_code == 422
@@ -258,40 +264,54 @@ def test_idempotency_and_state_conflict(users, stock):
     assert ReservationRelease.objects.count() == 1
 
 
-def test_replay_guard_rechecks_current_permissions(users, project, stock):
+def test_replay_guard_rechecks_current_permissions(users, stock):
     payload = assertion({"amount": "1", "unit": "ea"}, account_id=stock["account_id"])
     result = op(users["owner"], "inventory.receive", payload, expected_state=stock["state"])
     ctx = Context(user=users["owner"], via="job", request_id="replay")
     parsed = ChangeStock.model_validate(payload)
     authorize_inventory_replay(ctx, parsed, result)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
-        role="viewer"
-    )
+    set_role(users["owner"], "viewer")
     with pytest.raises(PermissionDenied):
         authorize_inventory_replay(ctx, parsed, result)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).delete()
+    remove_member(users["owner"])
     with pytest.raises(NotFound):
         authorize_inventory_replay(ctx, parsed, result)
     assert StockEntry.objects.count() == 2
 
 
-def test_cross_project_location_rejected_and_unknown_lot_hidden(users, lot, location):
-    other_project = op(users["owner"], "project.create", {"name": "Other scope"})["project_id"]
-    other_location = op(
-        users["owner"],
+def test_foreign_workspace_location_is_hidden_and_guarded_by_the_database(
+    users, lot, location, other_workspace, workspace
+):
+    foreign_location = op(
+        users["outsider"],
         "inventory.create_location",
-        {"project_id": other_project, "name": "Other shelf"},
+        {"workspace_id": other_workspace, "name": "Foreign shelf"},
     )
-    with pytest.raises(ValidationFailed):
-        open_account(users, lot, other_location)
+    # The owner cannot see a location of another workspace at all.
+    with pytest.raises(NotFound):
+        open_account(users, lot, foreign_location)
     with pytest.raises(DatabaseError), transaction.atomic():
         StockAccount.objects.create(
             lot_id=lot["lot_id"],
-            location_id=other_location["location_id"],
+            location_id=foreign_location["location_id"],
             dimension="count",
             registered_by=users["owner"],
         )
     assert not StockAccount.objects.exists()
+
+
+def test_one_lot_is_stocked_at_several_locations_of_the_same_workspace(
+    users, workspace, lot, location
+):
+    second = op(
+        users["owner"], "inventory.create_location", {"workspace_id": workspace, "name": "Shelf C"}
+    )
+    first_account = open_account(users, lot, location)
+    second_account = open_account(users, lot, second, amount="4")
+    assert first_account["workspace_id"] == second_account["workspace_id"] == workspace
+    listed = list_inventory(users["viewer"], workspace)
+    assert {a["location_name"] for a in listed["accounts"]} == {"Shelf A", "Shelf C"}
+    assert listed["workspace_id"] == workspace and "project_id" in listed
 
 
 def test_database_protects_history_balance_units_and_reserved_stock(users, stock):
@@ -388,17 +408,14 @@ def test_competing_seven_against_ten_one_winner(users, stock, raw):
         results = list(pool.map(lambda _: compete(), range(2)))
     assert sorted(results) == ["conflict", "reserved"]
     assert Reservation.objects.count() == 1
-    result = list_inventory(users["owner"], stock["project_id"])["accounts"][0]
+    result = list_inventory(users["owner"], stock["workspace_id"])["accounts"][0]
     assert result["physical_quantity"] == "10" and result["available_quantity"] == "3"
 
 
 @pytest.mark.parametrize("via", ["api", "job", "mcp"])
-def test_retained_reservation_rechecks_revoked_grant_across_contexts(users, project, stock, via):
+def test_retained_reservation_rechecks_a_downgraded_role_across_contexts(users, stock, via):
     from specmate.operations import execute
 
-    membership = WorkspaceMember.objects.get(workspace__projects=project, user=users["editor"])
-    membership.grants = ["inventory.reserve"]
-    membership.save(update_fields=["grants"])
     payload = {
         "account_id": stock["account_id"],
         "quantity": {"amount": "7", "unit": "ea"},
@@ -409,12 +426,11 @@ def test_retained_reservation_rechecks_revoked_grant_across_contexts(users, proj
         via=via,
         request_id="replay",
         expected_state=stock["state"],
-        idempotency_key="revoked-reservation",
+        idempotency_key="downgraded-reservation",
     )
     first = execute("inventory.reserve", ctx, payload)
     assert execute("inventory.reserve", ctx, payload).replayed
-    membership.grants = []
-    membership.save(update_fields=["grants"])
+    set_role(users["editor"], "contributor")
     with pytest.raises(PermissionDenied):
         execute("inventory.reserve", ctx, payload)
     if via == "api":
@@ -426,15 +442,15 @@ def test_retained_reservation_rechecks_revoked_grant_across_contexts(users, proj
             idempotency_key=ctx.idempotency_key,
         )
         assert response.status_code == 403
-    membership.delete()
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         execute("inventory.reserve", ctx, payload)
     assert Reservation.objects.count() == 1
     assert first.result["account"]["physical_quantity"] == "10"
 
 
-def test_live_inventory_rejects_cached_read_keys(users, project, stock):
-    payload = {"project_id": project}
+def test_live_inventory_rejects_cached_read_keys(users, workspace, stock):
+    payload = {"workspace_id": workspace}
     with pytest.raises(ValidationFailed):
         op(users["owner"], "inventory.list", payload, idempotency_key="cached-stock")
     assert (
@@ -449,7 +465,7 @@ def test_live_inventory_rejects_cached_read_keys(users, project, stock):
     )
 
 
-def test_api_receipt_replay_and_revocation_use_ledger_operation(users, project, stock):
+def test_api_receipt_replay_and_role_downgrade_use_ledger_operation(users, stock):
     payload = assertion({"amount": "1", "unit": "ea"}, account_id=stock["account_id"])
     kwargs = {"expected_state": stock["state"], "idempotency_key": "api-receipt-once"}
     client = api(users["owner"])
@@ -457,9 +473,7 @@ def test_api_receipt_replay_and_revocation_use_ledger_operation(users, project, 
     assert first.status_code == 200 and first.json()["result"]["physical_quantity"] == "11"
     replay = post_op(client, "inventory.receive", payload, **kwargs)
     assert replay.status_code == 200 and replay.json()["replayed"]
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
-        role="viewer"
-    )
+    set_role(users["owner"], "viewer")
     assert post_op(client, "inventory.receive", payload, **kwargs).status_code == 403
     assert StockEntry.objects.count() == 2
 
@@ -486,10 +500,10 @@ def test_failed_opening_rolls_back_account_and_key(users, lot, location):
     assert StockAccount.objects.count() == StockEntry.objects.count() == 1
 
 
-def test_lot_dimension_stays_fixed_across_locations(users, project, lot, location):
+def test_lot_dimension_stays_fixed_across_locations(users, workspace, lot, location):
     open_account(users, lot, location)
     other = op(
-        users["owner"], "inventory.create_location", {"project_id": project, "name": "Shelf B"}
+        users["owner"], "inventory.create_location", {"workspace_id": workspace, "name": "Shelf B"}
     )
     with pytest.raises(ValidationFailed):
         open_account(users, lot, other, dimension="length", unit="m")
@@ -503,19 +517,20 @@ def test_lot_dimension_stays_fixed_across_locations(users, project, lot, locatio
     assert StockAccount.objects.count() == 1
 
 
-def test_inventory_keys_are_namespaced_by_exact_project(users, project, stock):
+def test_inventory_keys_are_namespaced_by_exact_workspace(users, workspace, other_workspace, stock):
     name = "Keyed shelf"
     first = op(
         users["owner"],
         "inventory.create_location",
-        {"project_id": project, "name": name},
+        {"workspace_id": workspace, "name": name},
         idempotency_key="same-location-key",
     )
-    other = op(users["owner"], "project.create", {"name": "Separate inventory scope"})["project_id"]
+    # The foreign workspace administrator reuses the very same key independently.
+    outsider = users["outsider"]
     second = op(
-        users["owner"],
+        outsider,
         "inventory.create_location",
-        {"project_id": other, "name": name},
+        {"workspace_id": other_workspace, "name": name},
         idempotency_key="same-location-key",
     )
     assert first["location_id"] != second["location_id"]
@@ -523,23 +538,32 @@ def test_inventory_keys_are_namespaced_by_exact_project(users, project, stock):
         op(
             users["owner"],
             "inventory.create_location",
-            {"project_id": project, "name": name},
+            {"workspace_id": workspace, "name": name},
             idempotency_key="same-location-key",
         )
         == first
     )
     other_definition = op(
-        users["owner"],
+        outsider,
         "definition.create",
-        {"project_id": other, "kind": "part", "name": "Separate stock"},
+        {"workspace_id": other_workspace, "kind": "part", "name": "Separate stock"},
     )
-    other_revision = freeze(users["owner"], other_definition["draft_id"], other_definition["state"])
+    other_revision = freeze(outsider, other_definition["draft_id"], other_definition["state"])
     other_lot = op(
-        users["owner"],
+        outsider,
         "catalog.register_lot",
         {"revision_id": other_revision["revision_id"], "label": "Other batch"},
     )
-    other_stock = open_account(users, other_lot, second)
+    other_stock = op(
+        outsider,
+        "inventory.open_stock",
+        assertion(
+            {"amount": "10", "unit": "ea"},
+            lot_id=other_lot["lot_id"],
+            location_id=second["location_id"],
+            dimension="count",
+        ),
+    )
     a = mutate(
         users["owner"],
         "receive",
@@ -548,7 +572,7 @@ def test_inventory_keys_are_namespaced_by_exact_project(users, project, stock):
         idempotency_key="same-receipt-key",
     )
     b = mutate(
-        users["owner"],
+        outsider,
         "receive",
         other_stock,
         {"amount": "2", "unit": "ea"},
@@ -567,7 +591,7 @@ def test_inventory_keys_are_namespaced_by_exact_project(users, project, stock):
     )
     assert (
         mutate(
-            users["owner"],
+            outsider,
             "receive",
             other_stock,
             {"amount": "2", "unit": "ea"},
@@ -586,10 +610,7 @@ def test_inventory_keys_are_namespaced_by_exact_project(users, project, stock):
     assert StockEntry.objects.count() == 4
 
 
-def test_inventory_keys_are_separate_for_actor_and_operation(users, project, stock):
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=["inventory.reserve"]
-    )
+def test_inventory_keys_are_separate_for_actor_and_operation(users, stock):
     a = reserve(users["owner"], stock, "1", idempotency_key="shared-key")
     b = reserve(users["editor"], a["account"], "1", idempotency_key="shared-key")
     assert a["reservation"]["reservation_id"] != b["reservation"]["reservation_id"]
@@ -604,11 +625,77 @@ def test_inventory_keys_are_separate_for_actor_and_operation(users, project, sto
     assert released["account"]["reserved_quantity"] == "1"
 
 
-def test_current_scope_is_checked_before_key_mismatch_disclosure(users, project, stock):
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=["inventory.reserve"]
-    )
+def test_current_scope_is_checked_before_key_mismatch_disclosure(users, stock):
     reserve(users["editor"], stock, "1", idempotency_key="scoped-key")
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         reserve(users["editor"], stock, "2", idempotency_key="scoped-key")
+
+
+def test_reservations_and_work_batches_carry_an_optional_project_context(
+    users, workspace, project, stock
+):
+    plain = reserve(users["owner"], stock, "1")
+    assert plain["reservation"]["project_id"] is None
+    held = op(
+        users["editor"],
+        "inventory.reserve",
+        {
+            "account_id": stock["account_id"],
+            "quantity": {"amount": "2", "unit": "ea"},
+            "purpose": "Project build",
+            "project_id": project,
+        },
+        expected_state=plain["account"]["state"],
+    )
+    assert held["reservation"]["project_id"] == project
+    # The context is navigation only: the stock stays one workspace ledger.
+    assert held["account"]["reserved_quantity"] == "3"
+    revision = stock["revision_id"]
+    batch = op(
+        users["owner"],
+        "inventory.create_work_batch",
+        {"revision_id": revision, "label": "In project", "project_id": project},
+        idempotency_key="project-batch",
+    )
+    free = op(
+        users["owner"],
+        "inventory.create_work_batch",
+        {"revision_id": revision, "label": "Free batch"},
+        idempotency_key="free-batch",
+    )
+    assert batch["project_id"] == project and free["project_id"] is None
+    everything = list_inventory(users["viewer"], workspace)
+    assert {b["work_batch_id"] for b in everything["work_batches"]} == {
+        batch["work_batch_id"],
+        free["work_batch_id"],
+    }
+    filtered = list_inventory(users["viewer"], workspace, project_id=project)
+    assert [b["work_batch_id"] for b in filtered["work_batches"]] == [batch["work_batch_id"]]
+    assert filtered["project_id"] == project
+    detail = account_detail(users["viewer"], stock["account_id"])
+    assert {r["project_id"] for r in detail["reservations"]} == {None, project}
+
+
+def test_project_context_of_another_workspace_is_not_found(users, stock):
+    foreign = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
+    with pytest.raises(NotFound):
+        op(
+            users["editor"],
+            "inventory.reserve",
+            {
+                "account_id": stock["account_id"],
+                "quantity": {"amount": "1", "unit": "ea"},
+                "purpose": "Foreign context",
+                "project_id": foreign,
+            },
+            expected_state=stock["state"],
+        )
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            "inventory.create_work_batch",
+            {"revision_id": stock["revision_id"], "label": "x", "project_id": foreign},
+            idempotency_key="foreign-batch",
+        )
+    assert not Reservation.objects.exists()

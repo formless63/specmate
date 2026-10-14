@@ -1,16 +1,17 @@
 # Scoped facts, explicit unknowns and provenance
 
-`facts.register_subject` resolves a project, definition, exact revision, contextual
+`facts.register_subject` resolves a project (a project may itself be a subject), definition, exact revision, contextual
 occurrence or actual physical unit to a fact ledger. Occurrence targets use the root assembly snapshot and
 ordered local ID path, optionally extended by a stable feature ID. Two repeated uses
 have separate ledgers. Feature existence remains explicitly `not_evaluated` until a
 discipline registry provides that evidence.
 
 An actual-unit target resolves one immutable serialized unit and its exact as-obtained
-or as-built revision through current project and revision access checks. Two units of
+or as-built revision through current workspace and revision access checks. Two units of
 one revision have separate ledgers; a later revision receives no copied observations.
 Registering or appending to a unit ledger requires `inventory.manage`. Existing design
-subjects retain `design.edit` write authority; current project read and all evidence
+subjects need `item.create` (appending a fact is an additive record, so contributors may
+record facts); current workspace read and all evidence
 closure checks govern disclosure. The facts panel selects actual units by serial and
 shows unit identity independently from design and occurrence targets.
 
@@ -18,7 +19,7 @@ shows unit identity independently from design and occurrence targets.
 Corrections, competing sources and later observations append new records. Neither an
 assertion nor its source/input links can be updated or deleted in PostgreSQL. Actors
 and request IDs come from the shared operation context. Register and append operations
-have authorized project idempotency namespaces and current authority replay checks.
+have authorized workspace idempotency namespaces and current authority replay checks.
 
 Each assertion declares its property, status, purpose, value role, conditions, basis and
 provenance. Status is `known`, `unknown`, `conflicting`, `not_applicable` or

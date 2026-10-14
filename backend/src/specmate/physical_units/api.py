@@ -13,9 +13,9 @@ class Page(Schema):
     limit: int = Field(default=50, ge=1, le=100)
 
 
-@router.get("/projects/{project_id}")
-def get_project_units(request, project_id: UUID, page: Query[Page]):
-    return list_units(request.user, project_id, **page.model_dump())
+@router.get("/workspaces/{workspace_id}")
+def get_workspace_units(request, workspace_id: UUID, page: Query[Page]):
+    return list_units(request.user, workspace_id, **page.model_dump())
 
 
 @router.get("/units/{unit_id}")

@@ -29,7 +29,7 @@ packages on the host. Optional local KiCad/FreeCAD graphical editing is a source
 | postgres | Standard PostgreSQL 18 | Separate app/Temporal/Visibility databases and roles. |
 | temporal | Compact production server roles | Private workflow coordination. |
 | jobs | Application workflow worker | Trusted commands/stages, no imported in-process execution or socket. |
-| temporal-ui | Operator-only UI, enabled by default but disableable | Not ordinary project-member access. |
+| temporal-ui | Operator-only UI, enabled by default but disableable | Not ordinary workspace-member access. |
 | runner | Enabled native executor | Narrow job leases + runtime authority, no direct engineering DB access. |
 
 Heavy tool containers run only for jobs. Cached images are not running services. No
@@ -73,9 +73,10 @@ outcome is unknown (`stale_evidence`). Dispatch backlog and an installation stop
 reported separately. A check that did not run is `not_evaluated`, never healthy; the
 workflow engine is not queried by these reads.
 
-Any project member with read access can read that project's queue, runner, tool, storage
-and finding state (`GET /api/v0/diagnostics/projects/{id}/status`), which feeds the
-workbench status area. It never includes other projects' work or storage numbers. The
+Any workspace member can read that workspace's queue, runner, tool, storage and finding
+state (`diagnostics.workspace_status`, `GET /api/v0/diagnostics/workspaces/{id}/status`),
+which feeds the workbench status area. It never includes other workspaces' work or storage
+numbers. The
 local operator uses `python manage.py work_control diagnose` for installation-wide detail.
 
 `work_control drain` refuses new build requests while accepted work finishes.
@@ -126,7 +127,7 @@ Then shared artifact storage, additional app/workflow workers, organizational id
 and measured observability. Qualify Temporal/database high availability and Visibility
 index maintenance deliberately; PostgreSQL Visibility is not a claim of unlimited scale.
 Only operators access Temporal UI/admin tools. Internal service access must not bypass
-project permissions through public proxies or a shared runner credential.
+workspace permissions through public proxies or a shared runner credential.
 
 External references: [Temporal deployment](https://docs.temporal.io/self-hosted-guide/deployment),
 [PostgreSQL Visibility](https://docs.temporal.io/self-hosted-guide/visibility/postgresql),

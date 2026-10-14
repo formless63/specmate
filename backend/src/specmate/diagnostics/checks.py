@@ -67,10 +67,10 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
     "no_runner_enrolled": (
         "tool_unavailable",
         "blocking",
-        "Work is waiting but no runner credential is enrolled for this project.",
+        "Work is waiting but no runner credential is enrolled for this workspace.",
         "Native execution is not enabled here. Stored sources are safe; ask the operator "
-        "to enable a runner for this project and recipe.",
-        "Enroll a scoped credential for the project and recipe, then start the optional "
+        "to enable a runner for this workspace and recipe.",
+        "Enroll a scoped credential for the workspace and recipe, then start the optional "
         "runner profile. See the deployment guide for the runner authority boundary.",
     ),
     "storage_root_missing": (
@@ -89,7 +89,7 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
         "Stored files cannot be read right now. Your records are intact; ask the operator "
         "to repair storage access.",
         "The application account cannot access the artifact root. Fix ownership or mode "
-        "on the volume; this is a filesystem problem, not a project permission.",
+        "on the volume; this is a filesystem problem, not a workspace permission.",
     ),
     "storage_read_only": (
         "storage_failure",
@@ -121,7 +121,7 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
         "permission_denied",
         "attention",
         "Recent builds were cancelled because their execution authority was withdrawn.",
-        "The requester or project grant no longer allows execution. A project "
+        "The requester or workspace grant no longer allows execution. A workspace "
         "administrator can restore the Native execution grant; then request a new build.",
         "The requesting account lost build execution or was deactivated. Restore the "
         "grant if intended; cancelled work is not resumed.",
@@ -137,16 +137,16 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
     "runner_credential_unusable": (
         "permission_denied",
         "blocking",
-        "Every runner credential for this project is expired or revoked.",
+        "Every runner credential for this workspace is expired or revoked.",
         "Waiting builds cannot start. Ask the operator to issue a new scoped credential.",
-        "Issue a new project and recipe scoped credential; expired ones cannot be renewed.",
+        "Issue a new workspace and recipe scoped credential; expired ones cannot be renewed.",
     ),
     "actor_cannot_execute": (
         "permission_denied",
         "info",
-        "Your account can read this project but cannot request or cancel native builds.",
-        "Ask a project administrator for the Native execution grant if you need it.",
-        "Not an operator action: grants are managed per project by its administrators.",
+        "Your account can read this workspace but cannot request or cancel native builds.",
+        "Ask a workspace administrator for the Native execution grant if you need it.",
+        "Not an operator action: grants are managed per workspace by its administrators.",
     ),
     "lease_expired_unreconciled": (
         "stale_evidence",

@@ -15,7 +15,7 @@ function wrap(child: React.ReactNode) {
 }
 
 function ledger(): Facts {
-  return { subject_id: "subject", project_id: "project-1", target: { kind: "project", project_id: "project-1" }, state: "facts-v1", offset: 0, limit: 50, has_more: false, assertions: [], assessments: { cut_allowance: [{ status: "unknown", value: null, assertion_ids: [], reason: "No assertion records this property." }] } };
+  return { subject_id: "subject", workspace_id: "ws-1", target: { kind: "project", project_id: "project-1" }, state: "facts-v1", offset: 0, limit: 50, has_more: false, assertions: [], assessments: { cut_allowance: [{ status: "unknown", value: null, assertion_ids: [], reason: "No assertion records this property." }] } };
 }
 
 async function select(label: string, text: string) {
@@ -78,9 +78,9 @@ test("panel registers the real project identity before opening its ledger", asyn
   const calls: { operation: string; payload: unknown }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
     if (options?.method === "POST") { calls.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: ledger() }), { status: 200 }); }
-    return new Response(JSON.stringify(url.includes("/projects/") ? [ledger()] : ledger()), { status: 200 });
+    return new Response(JSON.stringify(url.includes("/workspaces/") ? [ledger()] : ledger()), { status: 200 });
   }));
-  render(wrap(<FactsPanel projectId="project-1" />));
+  render(wrap(<FactsPanel workspaceId="ws-1" projectId="project-1" />));
   fireEvent.click(screen.getByText("Open fact ledger"));
   await screen.findByText("cut_allowance: unknown");
   expect(calls[0]).toEqual(expect.objectContaining({ operation: "facts.register_subject", payload: { target: { kind: "project", project_id: "project-1" } } }));
@@ -94,12 +94,12 @@ test("panel selects a serialized unit and labels its independent fact ledger", a
       calls.push(JSON.parse(String(options.body)));
       return new Response(JSON.stringify({ result: unitLedger }), { status: 200 });
     }
-    const body = url.includes("physical-units/projects/")
+    const body = url.includes("physical-units/workspaces/")
       ? { units: [{ unit_id: "unit-1", serial: "SERIAL-1", revision_id: "rev-1" }] }
-      : url.includes("facts/projects/") ? [unitLedger] : unitLedger;
+      : url.includes("facts/workspaces/") ? [unitLedger] : unitLedger;
     return new Response(JSON.stringify(body), { status: 200 });
   }));
-  render(wrap(<FactsPanel projectId="project-1" />));
+  render(wrap(<FactsPanel workspaceId="ws-1" projectId="project-1" />));
   await select("Fact subject kind", "Physical unit");
   await select("Actual physical unit", "SERIAL-1 · revision rev-1");
   fireEvent.click(screen.getByText("Open fact ledger"));
@@ -144,8 +144,8 @@ test("display keeps explicit false, unknown, bounds and tolerance distinct", () 
 
 test.each([
   ["read-only", ["project.read"], "project", true],
-  ["editor", ["project.read", "design.edit"], "project", false],
-  ["editor on a physical unit", ["project.read", "design.edit"], "physical_unit", true],
+  ["editor", ["project.read", "item.create"], "project", false],
+  ["editor on a physical unit", ["project.read", "item.create"], "physical_unit", true],
   ["inventory manager on a physical unit", ["project.read", "inventory.manage"], "physical_unit", false],
 ] as const)("%s permissions gate recording assertions (%s subject)", async (_name, permissions, kind, off) => {
   const body = ledger();
@@ -157,17 +157,17 @@ test.each([
   fireEvent.change(screen.getByLabelText("Evidence citation"), { target: { value: "Original synthetic missing allowance record." } });
   const record = screen.getByRole("button", { name: "Record immutable assertion" }) as HTMLButtonElement;
   expect(record.disabled).toBe(off);
-  expect(record.title).toBe(off ? `Read-only access: requires ${kind === "project" ? "Edit" : "Inventory management"}` : "");
+  expect(record.title).toBe(off ? `Read-only access: requires ${kind === "project" ? "Creating records" : "Inventory management"}` : "");
 });
 
 test("read-only permissions disable opening a new fact ledger but not reading existing subjects", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
-  render(wrap(<PermissionsProvider permissions={["project.read"]}><FactsPanel projectId="project-1" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={["project.read"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   const open = await screen.findByRole("button", { name: "Open fact ledger" }) as HTMLButtonElement;
   expect(open.disabled).toBe(true);
-  expect(open.title).toBe("Read-only access: requires Edit");
+  expect(open.title).toBe("Read-only access: requires Creating records");
   cleanup();
-  render(wrap(<PermissionsProvider permissions={["project.read", "design.edit"]}><FactsPanel projectId="project-1" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={["project.read", "item.create"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   expect(((await screen.findByRole("button", { name: "Open fact ledger" })) as HTMLButtonElement).disabled).toBe(false);
 });
 

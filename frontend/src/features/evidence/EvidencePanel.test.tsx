@@ -10,7 +10,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function item(over: Partial<EvidenceItem> & Pick<EvidenceItem, "evidence_id" | "kind" | "kind_label" | "statement">): EvidenceItem {
   return {
-    source: "facts", project_id: "project-1", subject: { scope: "project", kind: "project", id: "project-1", label: "Project" }, status: "known", conditions: [],
+    source: "facts", workspace_id: "ws-1", subject: { scope: "project", kind: "project", id: "project-1", label: "Project" }, status: "known", conditions: [],
     method: { name: "source_observation" }, basis: { origin: "manual_entry", references: ["citation:Typed from a label."], independently_verified: false },
     recorded_at: "2026-01-01T00:00:00Z", establishes: ["It was reported."], does_not_establish: ["That it was measured."], warnings: [], physical_qualification: false, ...over,
   };
@@ -23,7 +23,7 @@ const kinds = [
 
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={client}><EvidencePanel projectId="project-1" /></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={client}><EvidencePanel workspaceId="ws-1" /></QueryClientProvider></MantineProvider>);
 }
 
 test("a manual rating and a physical measurement are labelled as different kinds", async () => {
@@ -31,7 +31,7 @@ test("a manual rating and a physical measurement are labelled as different kinds
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     urls.push(url);
     if (url.includes("taxonomy")) return new Response(JSON.stringify({ kinds }), { status: 200 });
-    return new Response(JSON.stringify({ project_id: "project-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [
+    return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [
       item({ evidence_id: "fact:1", kind: "source_claim", kind_label: "Declared claim", statement: "Declared rating: current_rating = 2 A" }),
       item({ evidence_id: "fact:2", kind: "physical_measurement", kind_label: "Physical measurement", statement: "width = 11 mm", subject: { scope: "actual", kind: "physical_unit", id: "u", label: "Physical unit SN-1" },
         method: { name: "measurement", instrument: "Synthetic caliper", procedure: "Synthetic procedure" }, basis: { origin: "instrument_record", references: [], independently_verified: false } }),
@@ -46,7 +46,7 @@ test("a manual rating and a physical measurement are labelled as different kinds
   expect(screen.getByText("Instrument: Synthetic caliper")).toBeTruthy();
   expect(screen.getByText("Actual unit")).toBeTruthy();
   expect(screen.getAllByText(/Does not establish: That it was measured\./).length).toBe(2);
-  expect(urls.some((url) => url === `/api/v0/${evidenceQuery("project-1", [], 0)}`)).toBe(true);
+  expect(urls.some((url) => url === `/api/v0/${evidenceQuery("ws-1", [], 0)}`)).toBe(true);
 });
 
 test("an empty project never reads as a pass and failures are shown", async () => {
@@ -57,12 +57,12 @@ test("an empty project never reads as a pass and failures are shown", async () =
   mount();
   expect(await screen.findByText("Project not found.")).toBeTruthy();
   cleanup();
-  vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("taxonomy") ? { kinds } : { project_id: "project-1", items: [], offset: 0, limit: 50, has_more: false, scan_limit_reached: false }), { status: 200 })));
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("taxonomy") ? { kinds } : { workspace_id: "ws-1", items: [], offset: 0, limit: 50, has_more: false, scan_limit_reached: false }), { status: 200 })));
   mount();
   expect(await screen.findByText(/Absence is not a pass/)).toBeTruthy();
 });
 
 test("kind filters query only the selected kinds from the first page", () => {
-  expect(evidenceQuery("p", ["review", "calculation"], 50)).toBe("evidence/projects/p?kind=review&kind=calculation&offset=50&limit=50");
+  expect(evidenceQuery("p", ["review", "calculation"], 50)).toBe("evidence/workspaces/p?kind=review&kind=calculation&offset=50&limit=50");
   void fireEvent; void waitFor;
 });

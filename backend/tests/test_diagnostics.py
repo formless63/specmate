@@ -160,8 +160,8 @@ def runner_op(credential, name, payload=None):
     ).result
 
 
-def status(user, project):
-    return op(user, "diagnostics.project_status", {"project_id": project})
+def status(user, workspace):
+    return op(user, "diagnostics.workspace_status", {"workspace_id": workspace})
 
 
 def codes(report):
@@ -176,8 +176,10 @@ def lease_one(users, credential, build):
 # ---- scoped project status -------------------------------------------------------------
 
 
-def test_status_without_runner_names_the_missing_tool_not_a_generic_failure(users, project, build):
-    report = status(users["viewer"], project)
+def test_status_without_runner_names_the_missing_tool_not_a_generic_failure(
+    users, project, build, workspace
+):
+    report = status(users["viewer"], workspace)
     assert report["queue"]["pending"] == 1
     assert report["runner"]["state"] == "not_enrolled"
     assert "no_runner_enrolled" in codes(report)
@@ -188,20 +190,19 @@ def test_status_without_runner_names_the_missing_tool_not_a_generic_failure(user
     # A viewer sees the state but is told, separately, that it cannot execute.
     assert report["can_execute"] is False
     assert "actor_cannot_execute" in codes(report)
-    assert status(users["owner"], project)["can_execute"] is True
+    assert status(users["owner"], workspace)["can_execute"] is True
 
 
-def test_status_is_scoped_to_readable_projects_without_cross_project_counts(
-    users, project, build, recipe
+def test_status_is_scoped_to_member_workspaces_without_cross_workspace_counts(
+    users, workspace, other_workspace, build, recipe
 ):
-    other = op(users["outsider"], "project.create", {"name": "Other bench"})["project_id"]
-    report = status(users["outsider"], other)
+    report = status(users["outsider"], other_workspace)
     assert report["queue"]["pending"] == 0
     assert report["builds"] == []
     assert report["tools"] == []
     assert report["dispatch"]["undelivered"] == 0
     with pytest.raises(NotFound):
-        status(users["outsider"], project)
+        status(users["outsider"], workspace)
     with pytest.raises(NotFound):
         status(users["outsider"], str(uuid.uuid4()))
     # Operators' installation-wide report is a separate, internal-only operation.
@@ -209,35 +210,37 @@ def test_status_is_scoped_to_readable_projects_without_cross_project_counts(
         op(users["owner"], "diagnostics.installation", {})
 
 
-def test_status_rejects_unknown_fields_and_anonymous_callers(users, project):
+def test_status_rejects_unknown_fields_and_anonymous_callers(users, project, workspace):
     with pytest.raises(ValidationFailed):
-        op(users["owner"], "diagnostics.project_status", {"project_id": project, "extra": 1})
+        op(users["owner"], "diagnostics.workspace_status", {"workspace_id": workspace, "extra": 1})
     from specmate.operations import Unauthenticated
 
     with pytest.raises(Unauthenticated):
         execute(
-            "diagnostics.project_status",
+            "diagnostics.workspace_status",
             Context(user=None, via="api", request_id="r"),
-            {"project_id": project},
+            {"workspace_id": workspace},
         )
 
 
-def test_reading_status_never_changes_work(users, project, build):
+def test_reading_status_never_changes_work(users, project, build, workspace):
     before = list(BuildStage.objects.values_list("id", "state", "version"))
     for _ in range(3):
-        status(users["viewer"], project)
+        status(users["viewer"], workspace)
     assert list(BuildStage.objects.values_list("id", "state", "version")) == before
 
 
-def test_unapproved_or_changed_recipe_is_tool_unavailable(users, project, build, settings, recipe):
+def test_unapproved_or_changed_recipe_is_tool_unavailable(
+    users, project, build, settings, recipe, workspace
+):
     settings.SPECMATE_APPROVED_RECIPES = {}
-    report = status(users["owner"], project)
+    report = status(users["owner"], workspace)
     assert {"recipe_not_approved"} <= codes(report)
     assert report["tools"][0]["status"] == "not_approved"
     settings.SPECMATE_APPROVED_RECIPES = {
         recipe["id"]: {**recipe, "limits": {**recipe["limits"], "cpus": 2}}
     }
-    report = status(users["owner"], project)
+    report = status(users["owner"], workspace)
     assert "recipe_changed" in codes(report)
     assert "recipe_not_approved" not in codes(report)
 
@@ -245,41 +248,41 @@ def test_unapproved_or_changed_recipe_is_tool_unavailable(users, project, build,
 # ---- storage ---------------------------------------------------------------------------
 
 
-def storage_codes(users, project):
-    return codes(status(users["owner"], project))
+def storage_codes(users, workspace):
+    return codes(status(users["owner"], workspace))
 
 
-def test_fresh_storage_is_not_initialized_rather_than_healthy(users, project):
-    report = status(users["owner"], project)
+def test_fresh_storage_is_not_initialized_rather_than_healthy(users, project, workspace):
+    report = status(users["owner"], workspace)
     assert report["storage"]["state"] == "not_initialized"
     assert not any(f["category"] == "storage_failure" for f in report["findings"])
 
 
 def test_storage_root_missing_blob_missing_and_read_only_are_distinct(
-    users, project, source, artifact_root
+    users, project, source, artifact_root, workspace
 ):
-    assert status(users["owner"], project)["storage"]["state"] == "available"
+    assert status(users["owner"], workspace)["storage"]["state"] == "available"
     blob = artifact_root / "blobs" / "sha256" / digest(SOURCE)[:2] / digest(SOURCE)[2:4]
     blob_file = blob / digest(SOURCE)
     saved = blob_file.read_bytes()
     blob_file.chmod(0o644)
     blob_file.unlink()
-    report = status(users["owner"], project)
+    report = status(users["owner"], workspace)
     assert "storage_blobs_missing" in codes(report)
     assert report["storage"]["missing"] == 1
     assert "missing_sha256" not in report["storage"]  # hashes are operator evidence
     blob_file.write_bytes(saved + b"x")  # wrong size is also not usable
-    assert "storage_blobs_missing" in storage_codes(users, project)
+    assert "storage_blobs_missing" in storage_codes(users, workspace)
     blob_file.write_bytes(saved)
-    assert status(users["owner"], project)["storage"]["state"] == "available"
+    assert status(users["owner"], workspace)["storage"]["state"] == "available"
     if os.geteuid() != 0:
         artifact_root.chmod(0o500)
         try:
-            assert "storage_read_only" in storage_codes(users, project)
+            assert "storage_read_only" in storage_codes(users, workspace)
         finally:
             artifact_root.chmod(0o700)
     os.rename(artifact_root, artifact_root.with_name("moved"))
-    report = status(users["owner"], project)
+    report = status(users["owner"], workspace)
     assert "storage_root_missing" in codes(report)
     finding = next(f for f in report["findings"] if f["category"] == "storage_failure")
     assert "re-upload" in finding["recovery"]
@@ -287,35 +290,35 @@ def test_storage_root_missing_blob_missing_and_read_only_are_distinct(
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
 def test_storage_permission_failure_is_not_reported_as_missing(
-    users, project, source, artifact_root
+    users, project, source, artifact_root, workspace
 ):
     blobs = artifact_root / "blobs"
     blobs.chmod(0)
     try:
-        report = status(users["owner"], project)
+        report = status(users["owner"], workspace)
     finally:
         blobs.chmod(0o700)
     assert "storage_root_permission" in codes(report)
     assert "storage_root_missing" not in codes(report)
 
 
-def test_low_space_is_reported_with_its_own_recovery(users, project, source, settings):
+def test_low_space_is_reported_with_its_own_recovery(users, project, source, settings, workspace):
     settings.SPECMATE_MIN_FREE_BYTES = 1 << 62
-    assert "storage_low_space" in storage_codes(users, project)
+    assert "storage_low_space" in storage_codes(users, workspace)
 
 
 # ---- permission denial and stale evidence -----------------------------------------------
 
 
 def test_withdrawn_authority_and_revoked_runner_are_permission_denials(
-    users, project, build, credential, operator
+    users, project, build, credential, operator, workspace
 ):
     lease = lease_one(users, credential, build)
     WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
         role="viewer"
     )
     runner_op(credential, "runner.heartbeat", {**_fence(lease)})
-    report = status(users["editor"], project)
+    report = status(users["editor"], workspace)
     assert "execution_authority_withdrawn" in codes(report)
     denial = next(f for f in report["findings"] if f["code"] == "execution_authority_withdrawn")
     assert denial["category"] == "permission_denied"
@@ -324,10 +327,10 @@ def test_withdrawn_authority_and_revoked_runner_are_permission_denials(
 
 
 def test_revoked_credential_with_waiting_work_is_permission_denied_not_tool_missing(
-    users, project, build, credential, operator
+    users, project, build, credential, operator, workspace
 ):
     internal(operator, "runner.revoke", {"credential_id": credential["credential_id"]})
-    report = status(users["owner"], project)
+    report = status(users["owner"], workspace)
     assert report["runner"]["state"] == "credential_unusable"
     assert "runner_credential_unusable" in codes(report)
     assert "no_runner_enrolled" not in codes(report)
@@ -338,12 +341,12 @@ def _fence(lease):
 
 
 def test_expired_lease_is_stale_evidence_and_reconcile_never_fabricates(
-    users, project, build, credential, operator
+    users, project, build, credential, operator, workspace
 ):
     lease = lease_one(users, credential, build)
     runner_op(credential, "runner.heartbeat", _fence(lease))
     BuildStage.objects.update(lease_expires_at=timezone.now() - timedelta(seconds=5))
-    report = status(users["viewer"], project)
+    report = status(users["viewer"], workspace)
     assert "lease_expired_unreconciled" in codes(report)
     assert report["builds"][0]["lease_expired"] is True
     assert report["runner"]["state"] == "lease_expired"
@@ -352,7 +355,7 @@ def test_expired_lease_is_stale_evidence_and_reconcile_never_fabricates(
     assert result["requeued"] == 0
     stage = BuildStage.objects.get()
     assert stage.state == "interrupted" and stage.receipt is None
-    report = status(users["viewer"], project)
+    report = status(users["viewer"], workspace)
     assert "interrupted_awaiting_reconciliation" in codes(report)
     assert "lease_expired_unreconciled" not in codes(report)
     again = internal(operator, "installation.reconcile").result
@@ -374,11 +377,11 @@ def test_reconcile_requires_operator_authority(users, build, operator):
         internal(users["editor"], "installation.reconcile")
 
 
-def test_undelivered_dispatch_is_its_own_category(users, project, build):
+def test_undelivered_dispatch_is_its_own_category(users, project, build, workspace):
     from specmate.builds.models import BuildOutbox
 
     BuildOutbox.objects.update(last_error="ConnectError")
-    report = status(users["owner"], project)
+    report = status(users["owner"], workspace)
     finding = next(f for f in report["findings"] if f["code"] == "dispatch_undelivered")
     assert finding["category"] == "dispatch_stalled"
     assert finding["evidence"]["error_codes"] == ["ConnectError"]
@@ -389,7 +392,7 @@ def test_undelivered_dispatch_is_its_own_category(users, project, build):
 
 
 def test_drain_refuses_new_requests_but_lets_accepted_work_finish(
-    users, project, source, recipe, build, credential, operator
+    users, project, source, recipe, build, credential, operator, workspace
 ):
     result = stop(operator, "drain")
     assert result["mode"] == "draining" and result["quiescent"] is False
@@ -403,7 +406,7 @@ def test_drain_refuses_new_requests_but_lets_accepted_work_finish(
         )
     assert refused.value.http_status == 503
     assert BuildStage.objects.count() == 1
-    report = status(users["viewer"], project)
+    report = status(users["viewer"], workspace)
     assert "installation_draining" in codes(report)
     assert report["work"]["accepting_new_work"] is False
     # The accepted build can still be dispatched, leased and completed.
@@ -424,7 +427,7 @@ def test_drain_refuses_new_requests_but_lets_accepted_work_finish(
 
 
 def test_interrupt_cancels_unstarted_asks_active_to_stop_and_never_marks_them_done(
-    users, project, request_one, credential, operator
+    users, project, request_one, credential, operator, workspace
 ):
     running = request_one()
     lease = lease_one(users, credential, running)
@@ -445,7 +448,7 @@ def test_interrupt_cancels_unstarted_asks_active_to_stop_and_never_marks_them_do
     assert active.state == "cancellation_requested" and active.receipt is None
     # No new leases while interrupting; the active runner still sees its cancellation.
     assert runner_op(credential, "runner.lease")["lease"]["cancellation_requested"] is True
-    report = status(users["viewer"], project)
+    report = status(users["viewer"], workspace)
     assert "installation_interrupting" in codes(report)
     # The runner confirms termination; only then is the installation quiescent.
     runner_op(credential, "runner.complete", {**_fence(lease), "outcome": "cancelled"})
@@ -596,10 +599,10 @@ def test_database_protects_work_history_and_control(operator):
             mutation()
 
 
-def test_closing_a_browser_does_not_cancel_work(users, project, build, credential):
+def test_closing_a_browser_does_not_cancel_work(users, project, build, credential, workspace):
     client = Client()
     client.force_login(users["owner"])
-    assert client.get(f"/api/v0/diagnostics/projects/{project}/status").status_code == 200
+    assert client.get(f"/api/v0/diagnostics/workspaces/{workspace}/status").status_code == 200
     client.logout()
     stage = BuildStage.objects.get()
     assert stage.state == "waiting_dispatch" and stage.cancellation_requested_at is None
@@ -608,25 +611,27 @@ def test_closing_a_browser_does_not_cancel_work(users, project, build, credentia
 # ---- transports ------------------------------------------------------------------------
 
 
-def test_status_api_is_session_scoped_private_and_matches_the_operation(users, project, build):
+def test_status_api_is_session_scoped_private_and_matches_the_operation(
+    users, project, build, workspace
+):
     client = Client()
-    anonymous = client.get(f"/api/v0/diagnostics/projects/{project}/status")
+    anonymous = client.get(f"/api/v0/diagnostics/workspaces/{workspace}/status")
     assert anonymous.status_code == 401
     client.force_login(users["outsider"])
-    assert client.get(f"/api/v0/diagnostics/projects/{project}/status").status_code == 404
+    assert client.get(f"/api/v0/diagnostics/workspaces/{workspace}/status").status_code == 404
     client.force_login(users["viewer"])
-    response = client.get(f"/api/v0/diagnostics/projects/{project}/status")
+    response = client.get(f"/api/v0/diagnostics/workspaces/{workspace}/status")
     assert response.status_code == 200
     assert response["Cache-Control"] == "private, no-store"
     body = response.json()
-    assert body["project_id"] == project and body["queue"]["pending"] == 1
+    assert body["workspace_id"] == workspace and body["queue"]["pending"] == 1
     generic = client.post(
         "/api/v0/operations",
         data=json.dumps(
             {
-                "operation": "diagnostics.project_status",
+                "operation": "diagnostics.workspace_status",
                 "request_id": "r1",
-                "payload": {"project_id": project},
+                "payload": {"workspace_id": workspace},
             }
         ),
         content_type="application/json",
@@ -664,12 +669,12 @@ def test_work_control_command_round_trips_through_the_operation_layer(
 
 
 def test_operator_report_has_numbers_and_hashes_users_never_see(
-    users, project, source, operator, artifact_root
+    users, project, source, operator, artifact_root, workspace
 ):
     report = internal(operator, "diagnostics.installation").result
     assert report["storage"]["free_bytes"] > 0
     assert report["approved_recipes"] == []
-    user_view = status(users["owner"], project)
+    user_view = status(users["owner"], workspace)
     assert "free_bytes" not in user_view["storage"]
     assert "credentials" not in user_view and "approved_recipes" not in user_view
     # Distinct operator and user recovery text for the same cause.
@@ -681,7 +686,7 @@ def test_operator_report_has_numbers_and_hashes_users_never_see(
     )
     user_finding = next(
         f
-        for f in status(users["owner"], project)["findings"]
+        for f in status(users["owner"], workspace)["findings"]
         if f["code"] == "storage_root_missing"
     )
     assert op_finding["recovery"] != user_finding["recovery"]

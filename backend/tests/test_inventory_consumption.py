@@ -9,7 +9,6 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import WorkspaceMember
 from specmate.inventory.contracts import Quantity
 from specmate.inventory.models import StockAccount, StockEntry, WorkBatch, WorkCompletion
 from specmate.inventory.queries import account_detail, latest_entry, work_batch_detail
@@ -21,16 +20,16 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import op, remove_member, set_grants, set_role
 from .test_design import freeze
 from .test_inventory import assertion, open_account, reserve
 from .test_transports import api, post_op
 
 
 @pytest.fixture
-def location(users, project):
+def location(users, workspace):
     return op(
-        users["owner"], "inventory.create_location", {"project_id": project, "name": "Shelf A"}
+        users["owner"], "inventory.create_location", {"workspace_id": workspace, "name": "Shelf A"}
     )
 
 
@@ -222,11 +221,13 @@ def test_progress_reports_partial_counts_and_unknown_plan_is_not_zero(users, wor
     )
 
 
-def test_usage_does_not_imply_completion_and_target_revision_stays_distinct(users, project, stock):
+def test_usage_does_not_imply_completion_and_target_revision_stays_distinct(
+    users, project, stock, workspace
+):
     target = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "assembly", "name": "Build target"},
+        {"workspace_id": workspace, "kind": "assembly", "name": "Build target"},
     )
     revision = freeze(users["owner"], target["draft_id"], target["state"])
     work = create_work(users["owner"], revision["revision_id"])
@@ -243,22 +244,19 @@ def test_scope_current_grants_and_replay_are_authoritative(users, project, stock
     reserved = reserve(users["owner"], stock)
     for who, error in [
         ("editor", PermissionDenied),
+        ("contributor", PermissionDenied),
         ("viewer", PermissionDenied),
         ("outsider", NotFound),
     ]:
         with pytest.raises(error):
             use(users[who], reserved, work)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=["inventory.manage"]
-    )
+    set_grants(users["editor"], ["inventory.manage"])
     used = use(users["editor"], reserved, work)
     assert use(users["editor"], reserved, work) == used
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=[]
-    )
+    set_grants(users["editor"], [])
     with pytest.raises(PermissionDenied):
         use(users["editor"], reserved, work)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         use(users["editor"], reserved, work)
     assert StockEntry.objects.count() == 2
@@ -307,19 +305,18 @@ def test_work_and_completion_database_history_is_immutable(users, work):
         WorkCompletion.objects.all().delete()
 
 
-def test_accessible_cross_project_work_target_still_rejected_by_service_and_database(
-    users, stock, work
+def test_foreign_workspace_work_target_is_hidden_and_rejected_by_the_database(
+    users, stock, work, other_workspace
 ):
-    other = op(users["owner"], "project.create", {"name": "Other work project"})["project_id"]
     definition = op(
-        users["owner"],
+        users["outsider"],
         "definition.create",
-        {"project_id": other, "kind": "part", "name": "Other target"},
+        {"workspace_id": other_workspace, "kind": "part", "name": "Other target"},
     )
-    revision = freeze(users["owner"], definition["draft_id"], definition["state"])
-    other_work = create_work(users["owner"], revision["revision_id"], key="other-work")
+    revision = freeze(users["outsider"], definition["draft_id"], definition["state"])
+    other_work = create_work(users["outsider"], revision["revision_id"], key="other-work")
     reserved = reserve(users["owner"], stock)
-    with pytest.raises(ValidationFailed):
+    with pytest.raises(NotFound):
         use(users["owner"], reserved, other_work)
     with pytest.raises(DatabaseError), transaction.atomic():
         StockEntry.objects.create(
@@ -454,13 +451,12 @@ def test_raw_json_underflow_and_decimal_context_do_not_silently_round(users, sto
     assert {choice.get("type") for choice in schema["anyOf"]} == {"string", "integer"}
 
 
-def test_current_nested_target_access_is_checked_before_reads_replay_and_conflict(
-    users, project, stock
+def test_membership_removal_is_checked_before_reads_replay_and_conflict(
+    users, project, stock, workspace
 ):
     from .test_assemblies import create, occ, part
 
-    private = op(users["owner"], "project.create", {"name": "Restricted work components"})
-    _, child = part(users["owner"], private["project_id"])
+    _, child = part(users["owner"], project)
     target = create(users["owner"], project, [occ("child", child)])
     revision = freeze(users["owner"], target["draft_id"], target["state"])
     work = create_work(users["owner"], revision["revision_id"])
@@ -468,9 +464,7 @@ def test_current_nested_target_access_is_checked_before_reads_replay_and_conflic
     used = use(users["owner"], reserved, work)
     returned = give_back(users["owner"], used)
     completion = complete(users["owner"], returned["work_batch"])
-    WorkspaceMember.objects.filter(
-        workspace__projects=private["project_id"], user=users["owner"]
-    ).delete()
+    remove_member(users["owner"])
     for command in [
         lambda: create_work(users["owner"], revision["revision_id"]),
         lambda: use(users["owner"], reserved, work),
@@ -484,7 +478,7 @@ def test_current_nested_target_access_is_checked_before_reads_replay_and_conflic
     for url in [
         f"inventory/work-batches/{work['work_batch_id']}",
         f"inventory/accounts/{stock['account_id']}",
-        f"inventory/projects/{project}",
+        f"inventory/workspaces/{workspace}",
     ]:
         assert client.get(f"/api/v0/{url}").status_code == 404
     assert StockEntry.objects.count() == 3 and WorkCompletion.objects.count() == 1
@@ -529,9 +523,7 @@ def test_http_consumption_return_completion_and_revoked_replay(users, project, s
     )
     assert reported.status_code == 200
     assert reported.json()["result"]["work_batch"]["reported_completed_units"] == 2
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
-        role="viewer"
-    )
+    set_role(users["owner"], "viewer")
     for name, data, envelope in [
         ("consume", payload, kwargs),
         ("return_unused", back_payload, back_kwargs),
@@ -541,13 +533,12 @@ def test_http_consumption_return_completion_and_revoked_replay(users, project, s
     assert StockEntry.objects.count() == 3 and WorkCompletion.objects.count() == 1
 
 
-def test_stock_revision_closure_is_checked_for_reads_new_writes_and_replay(
-    users, project, location
+def test_membership_removal_blocks_stock_reads_new_writes_and_replay(
+    users, project, location, workspace
 ):
     from .test_assemblies import create, occ, part
 
-    restricted = op(users["owner"], "project.create", {"name": "Restricted stock dependencies"})
-    _, child = part(users["owner"], restricted["project_id"])
+    _, child = part(users["owner"], project)
     target = create(users["owner"], project, [occ("child", child)])
     revision = freeze(users["owner"], target["draft_id"], target["state"])
     lot = op(
@@ -560,9 +551,7 @@ def test_stock_revision_closure_is_checked_for_reads_new_writes_and_replay(
     )
     stock = open_account(users, lot, location)
     reserved = reserve(users["owner"], stock)
-    WorkspaceMember.objects.filter(
-        workspace__projects=restricted["project_id"], user=users["owner"]
-    ).delete()
+    remove_member(users["owner"])
     for command in [
         lambda: open_account(users, lot, location),
         lambda: reserve(users["owner"], stock),
@@ -578,7 +567,7 @@ def test_stock_revision_closure_is_checked_for_reads_new_writes_and_replay(
     ]:
         with pytest.raises(NotFound):
             command()
-    for url in [f"inventory/accounts/{stock['account_id']}", f"inventory/projects/{project}"]:
+    for url in [f"inventory/accounts/{stock['account_id']}", f"inventory/workspaces/{workspace}"]:
         assert api(users["owner"]).get(f"/api/v0/{url}").status_code == 404
     assert StockEntry.objects.count() == 1
 
@@ -586,9 +575,7 @@ def test_stock_revision_closure_is_checked_for_reads_new_writes_and_replay(
 def test_mcp_context_work_commands_share_idempotency_and_current_authority(users, project, stock):
     from specmate.operations import Context, execute
 
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=["inventory.manage"]
-    )
+    set_grants(users["editor"], ["inventory.manage"])
     calls = []
 
     def invoke(name, payload, state=None):
@@ -645,9 +632,7 @@ def test_mcp_context_work_commands_share_idempotency_and_current_authority(users
     for name, ctx, payload, original in calls:
         replay = execute(name, ctx, payload)
         assert replay.replayed and replay.result == original
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=[]
-    )
+    set_grants(users["editor"], [])
     for name, ctx, payload, _ in calls:
         with pytest.raises(PermissionDenied):
             execute(name, ctx, payload)

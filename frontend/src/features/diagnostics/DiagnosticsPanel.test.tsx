@@ -4,13 +4,13 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
 import { DiagnosticsPanel } from "./DiagnosticsPanel";
 import { StatusIndicator } from "./StatusIndicator";
-import type { ProjectStatus } from "./status";
+import type { WorkspaceStatus } from "./status";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const status: ProjectStatus = {
-  project_id: "p1", evaluated_at: "2026-01-01T12:00:00Z",
+const status: WorkspaceStatus = {
+  workspace_id: "w1", evaluated_at: "2026-01-01T12:00:00Z",
   work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" },
   queue: { states: { queued: 1, running: 1 }, pending: 1, active: 1, oldest_pending_seconds: 5 },
   dispatch: { undelivered: 0, oldest_undelivered_seconds: null },
@@ -31,7 +31,7 @@ const reply = (body: unknown, code = 200) => new Response(JSON.stringify(body), 
 
 function show(permissions: string[], fetchMock: ReturnType<typeof vi.fn>) {
   vi.stubGlobal("fetch", fetchMock);
-  return render(<MantineProvider><PermissionsProvider permissions={permissions}><DiagnosticsPanel projectId="p1" /></PermissionsProvider></MantineProvider>);
+  return render(<MantineProvider><PermissionsProvider permissions={permissions}><DiagnosticsPanel workspaceId="w1" /></PermissionsProvider></MantineProvider>);
 }
 
 test("distinct categories each show their own summary and recovery path", async () => {
@@ -77,7 +77,7 @@ test("an unreadable status is shown as not evaluated rather than healthy", async
 test("the top-bar indicator pairs its LED with words from the scoped read and opens the tool", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => reply(status)));
   const onOpen = vi.fn();
-  render(<MantineProvider><StatusIndicator projectId="p1" onOpen={onOpen} /></MantineProvider>);
+  render(<MantineProvider><StatusIndicator workspaceId="w1" onOpen={onOpen} /></MantineProvider>);
   const button = await screen.findByRole("button", { name: /Storage failure \+1\. Open status and recovery/ });
   expect(document.querySelector(".sb-led")?.getAttribute("data-state")).toBe("failed");
   fireEvent.click(button);
@@ -89,7 +89,7 @@ test("the indicator reports unavailable, not the last good state, when a later r
   try {
     let fail = false;
     vi.stubGlobal("fetch", vi.fn(async () => fail ? reply({ error: { message: "x" } }, 500) : reply({ ...status, findings: [], queue: { ...status.queue, active: 0, pending: 0 } })));
-    render(<MantineProvider><StatusIndicator projectId="p1" onOpen={() => {}} /></MantineProvider>);
+    render(<MantineProvider><StatusIndicator workspaceId="w1" onOpen={() => {}} /></MantineProvider>);
     await screen.findByRole("button", { name: /No jobs/ });
     fail = true;
     await vi.advanceTimersByTimeAsync(15500);

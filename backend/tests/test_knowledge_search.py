@@ -21,9 +21,8 @@ from specmate.operations import NotFound, Unauthenticated, ValidationFailed
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob
 
-from .conftest import ensure_member, op
-from .test_knowledge import attachment_ref, create, preserve
-from .test_shared_read_authority import adopted_assembly  # noqa: F401
+from .conftest import member, op, remove_member
+from .test_knowledge import attachment_ref, create, part, preserve
 from .test_transports import api, post_op
 
 
@@ -114,13 +113,10 @@ def test_text_metadata_history_pagination_and_shared_transports(users, project):
         search(users["outsider"], "calibration", project_id=project)
 
 
-def test_private_attachment_ancestry_never_supplies_snippet_cursor_or_preview(users, project):
-    remote = op(users["owner"], "project.create", {"name": "Private source ancestry"})["project_id"]
-    for key in ("editor", "viewer"):
-        ensure_member(users[key], "editor", project=remote)
+def test_membership_loss_never_supplies_snippet_cursor_or_preview(users, project):
     baseline = preserve(
         users["owner"],
-        remote,
+        project,
         "Original permitted source",
         b"SECRET NEEDLE\n",
         "note.txt",
@@ -131,54 +127,75 @@ def test_private_attachment_ancestry_never_supplies_snippet_cursor_or_preview(us
         "source.derive_bundle",
         {"source_revision_id": baseline["revision_id"], "name": "Exact working source"},
     )
-    hidden = create(
+    held = create(
         users["editor"],
-        remote,
+        project,
         kind="note",
         title="SECRET NEEDLE",
         attachments=[attachment_ref(derived, "note.txt", "NEEDLE attachment")],
     )
-    clean = create(
-        users["editor"], project, kind="note", title="Public needle", body="Visible body"
-    )
+    create(users["editor"], project, kind="note", title="Public needle", body="Visible body")
     before = search(users["viewer"], "needle", limit=1)
     assert before["next_after"] is not None
     payload = {
-        "item_id": hidden["item_id"],
-        "entry_id": hidden["current"]["entry_id"],
+        "item_id": held["item_id"],
+        "entry_id": held["current"]["entry_id"],
         "bundle_revision_id": derived["revision_id"],
         "path": "note.txt",
     }
     prior = op(users["viewer"], "knowledge.preview", payload)
     assert prior["text"] == "SECRET NEEDLE\n"
-    # An old attachment remains protected even after the current entry drops it.
+    # An old attachment stays reachable only for members, even after the entry drops it.
     op(
         users["editor"],
         "knowledge.revise",
         {
-            "item_id": hidden["item_id"],
+            "item_id": held["item_id"],
             "content": {"title": "SECRET NEEDLE current", "body": "Changed without attachment"},
         },
-        expected_state=hidden["state"],
+        expected_state=held["state"],
     )
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["viewer"]).delete()
+    assert len(search(users["viewer"], "needle", include_history=True)["results"]) == 3
+    remove_member(users["viewer"])
     page = search(users["viewer"], "needle", include_history=True, limit=1)
-    assert [r["item_id"] for r in page["results"]] == [clean["item_id"]]
-    assert page["next_after"] is None and "SECRET" not in json.dumps(page)
+    assert page["results"] == [] and page["next_after"] is None
+    assert "SECRET" not in json.dumps(page)
     assert search(users["viewer"], "SECRET", include_history=True)["results"] == []
     with pytest.raises(NotFound):
-        search(users["viewer"], "needle", after=hidden["current"]["entry_id"], include_history=True)
+        search(users["viewer"], "needle", after=held["current"]["entry_id"], include_history=True)
     for data in (payload, {**payload, "path": "wrong.txt"}):
         with pytest.raises(NotFound):
             op(users["viewer"], "knowledge.preview", data)
-    ensure_member(users["viewer"], "viewer", project=remote)
+    member(users["viewer"], "viewer")
     assert op(users["viewer"], "knowledge.preview", payload) == prior
     assert len(search(users["viewer"], "needle", include_history=True)["results"]) == 3
 
 
-def test_catalog_origin_filters_links_without_hiding_local_note(users, project, adopted_assembly):  # noqa: F811
-    remote, adopted, frozen = adopted_assembly
-    target = {"kind": "revision", "revision_id": frozen["revision_id"]}
+def test_search_filters_by_workspace_and_project_context(users, workspace, project):
+    held = create(users["editor"], project, kind="note", title="Held needle", body="x")
+    library = op(
+        users["editor"],
+        "knowledge.create",
+        {
+            "workspace_id": workspace,
+            "kind": "note",
+            "content": {"title": "Library needle", "body": "y"},
+        },
+    )
+    both = search(users["viewer"], "needle", workspace_id=workspace)
+    assert {r["item_id"] for r in both["results"]} == {held["item_id"], library["item_id"]}
+    only = search(users["viewer"], "needle", project_id=project)
+    assert [r["item_id"] for r in only["results"]] == [held["item_id"]]
+    assert only["results"][0]["project_id"] == project
+    assert library["project_id"] is None
+    with pytest.raises(NotFound):
+        search(users["outsider"], "needle", workspace_id=workspace)
+    assert search(users["outsider"], "needle")["results"] == []
+
+
+def test_membership_loss_hides_the_note_and_its_exact_target_search(users, project):
+    _, r1, _ = part(users["owner"], project, "Searchable bracket")
+    target = {"kind": "revision", "revision_id": r1["revision_id"]}
     note = create(
         users["owner"],
         project,
@@ -195,13 +212,9 @@ def test_catalog_origin_filters_links_without_hiding_local_note(users, project, 
         == before
     )
     assert before["results"][0]["links"][0]["target"] == {**target, "feature_id": None}
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["viewer"]).delete()
-    own = search(users["viewer"], "Owned")
-    assert own["results"][0]["title"] == note["current"]["title"]
-    assert own["results"][0]["links"] == []
-    assert frozen["revision_id"] not in json.dumps(own) and str(
-        adopted.definition_id
-    ) not in json.dumps(own)
+    assert before["results"][0]["title"] == note["current"]["title"]
+    remove_member(users["viewer"])
+    assert search(users["viewer"], "Owned")["results"] == []
     with pytest.raises(NotFound):
         search(users["viewer"], "Owned", target=target)
     assert (
@@ -210,7 +223,7 @@ def test_catalog_origin_filters_links_without_hiding_local_note(users, project, 
         .status_code
         == 404
     )
-    ensure_member(users["viewer"], "viewer", project=remote)
+    member(users["viewer"], "viewer")
     assert search(users["viewer"], "Owned", target=target) == before
 
 
@@ -231,7 +244,7 @@ def test_captured_inactive_actor_and_wrong_item_precede_preview_diagnostics(user
         op(actor, "knowledge.preview", {**payload, "item_id": other["item_id"]})
 
 
-def test_inert_text_independent_hash_rights_and_readonly_preview(users, project):
+def test_inert_text_independent_hash_rights_and_readonly_preview(users, project, workspace):
     raw = b"<script>window.bad=true</script>\nOriginal UTF-8 text.\n"
     item, payload = attachment(users, project, raw)
     before = SourceBlob.objects.count()
@@ -240,7 +253,7 @@ def test_inert_text_independent_hash_rights_and_readonly_preview(users, project)
         result["text"] == raw.decode()
         and result["preview_sha256"] == hashlib.sha256(raw).hexdigest()
     )
-    assert result["attachment"]["blob_project_id"] == project
+    assert result["attachment"]["blob_workspace_id"] == workspace
     assert result["attachment"]["rights"] == "synthetic-original"
     assert result["qualification"] == "not_evaluated" and SourceBlob.objects.count() == before
     metadata = search(users["viewer"], "note.txt")["results"][0]
@@ -416,7 +429,7 @@ def test_preview_rechecks_independently_committed_revocation_before_return(
     with pytest.raises(NotFound):
         op(users["viewer"], "knowledge.preview", payload)
     monkeypatch.setattr(previews, hook, original)
-    ensure_member(users["viewer"], "viewer", project=project)
+    member(users["viewer"], "viewer")
     assert op(users["viewer"], "knowledge.preview", payload) == prior
 
 
@@ -439,25 +452,19 @@ def test_search_rechecks_independently_committed_revocation_after_snippet_render
     with pytest.raises(NotFound):
         search(users["viewer"], "needle")
     monkeypatch.setattr(module, "snippet", original)
-    ensure_member(users["viewer"], "viewer", project=project)
+    member(users["viewer"], "viewer")
     assert search(users["viewer"], "needle") == prior
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize(
-    "exact_target", [False, True], ids=["owned-note-link-filter", "exact-target-denial"]
-)
-def test_catalog_revocation_during_search_keeps_owned_note_policy(
-    users,
-    project,
-    adopted_assembly,  # noqa: F811
-    monkeypatch,
-    exact_target,
+@pytest.mark.parametrize("exact_target", [False, True], ids=["plain", "exact-target"])
+def test_membership_revocation_during_search_fails_closed(
+    users, project, monkeypatch, exact_target
 ):
     from specmate.knowledge import search as module
 
-    remote, _, frozen = adopted_assembly
-    target = {"kind": "revision", "revision_id": frozen["revision_id"]}
+    _, r1, _ = part(users["owner"], project, "Searchable bracket")
+    target = {"kind": "revision", "revision_id": r1["revision_id"]}
     create(
         users["owner"],
         project,
@@ -470,22 +477,16 @@ def test_catalog_revocation_during_search_keeps_owned_note_policy(
     prior = search(users["viewer"], "needle", **scope)
     original = module.snippet
 
-    def revoke_origin(*args):
+    def revoke_after_render(*args):
         result = original(*args)
-        committed_revoke(remote, users["viewer"])
+        committed_revoke(project, users["viewer"])
         return result
 
-    monkeypatch.setattr(module, "snippet", revoke_origin)
-    if exact_target:
-        with pytest.raises(NotFound):
-            search(users["viewer"], "needle", **scope)
-    else:
-        result = search(users["viewer"], "needle")
-        assert result["results"][0]["title"] == "Owned needle"
-        assert result["results"][0]["links"] == []
-        assert frozen["revision_id"] not in json.dumps(result)
+    monkeypatch.setattr(module, "snippet", revoke_after_render)
+    with pytest.raises(NotFound):
+        search(users["viewer"], "needle", **scope)
     monkeypatch.setattr(module, "snippet", original)
-    ensure_member(users["viewer"], "viewer", project=remote)
+    member(users["viewer"], "viewer")
     assert search(users["viewer"], "needle", **scope) == prior
 
 
@@ -515,7 +516,7 @@ def test_revocation_during_mismatching_blob_read_precedes_integrity_diagnostics(
     monkeypatch.setattr(blobstore, "open_blob", mismatching_stream)
     with pytest.raises(NotFound):
         op(users["viewer"], "knowledge.preview", payload)
-    ensure_member(users["viewer"], "viewer", project=project)
+    member(users["viewer"], "viewer")
     revoke = False
     with pytest.raises(ValidationFailed, match="registered integrity"):
         op(users["viewer"], "knowledge.preview", payload)
@@ -525,28 +526,29 @@ def test_revocation_during_mismatching_blob_read_precedes_integrity_diagnostics(
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("stage", ["lookahead", "cursor"])
-def test_consumed_pagination_records_reauthorize_after_committed_source_revocation(
+def test_consumed_pagination_records_reauthorize_after_committed_membership_revocation(
     users, project, monkeypatch, stage
 ):
     from specmate.knowledge import search as module
 
     rows = []
     for label in ("first", "second"):
-        scope = op(users["owner"], "project.create", {"name": "Independent " + label + " source"})[
-            "project_id"
-        ]
-        ensure_member(users["viewer"], "viewer", project=scope)
         source = preserve(
-            users["owner"], scope, "Original " + label, label.encode(), "note.txt", "text/plain"
+            users["owner"],
+            project,
+            "Original " + label,
+            label.encode(),
+            "note.txt",
+            "text/plain",
         )
         item = create(
             users["owner"],
-            scope,
+            project,
             kind="note",
             title="Needle " + label,
             attachments=[attachment_ref(source, "note.txt", "Exact independent source")],
         )
-        rows.append((item, scope))
+        rows.append((item, project))
     rows.sort(key=lambda row: row[0]["current"]["entry_id"])
     cursor = rows[0][0]["current"]["entry_id"]
     options = {"limit": 1}
@@ -575,7 +577,7 @@ def test_consumed_pagination_records_reauthorize_after_committed_source_revocati
         workspace__projects=revoked_scope, user=users["viewer"]
     ).exists()
     monkeypatch.setattr(module, "snippet", original)
-    ensure_member(users["viewer"], "viewer", project=revoked_scope)
+    member(users["viewer"], "viewer")
     assert search(users["viewer"], "Needle", **options) == baseline
 
 

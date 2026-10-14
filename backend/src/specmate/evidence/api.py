@@ -22,12 +22,12 @@ def get_taxonomy(request):
     return taxonomy()
 
 
-@router.get("/projects/{project_id}")
-def get_project_evidence(request, project_id: UUID, query: Query[EvidenceQuery]):
+@router.get("/workspaces/{workspace_id}")
+def get_workspace_evidence(request, workspace_id: UUID, query: Query[EvidenceQuery]):
     return list_evidence(
         request.user,
         ListEvidence(
-            project_id=project_id,
+            workspace_id=workspace_id,
             kinds=query.kind,
             subject_id=query.subject_id,
             offset=query.offset,

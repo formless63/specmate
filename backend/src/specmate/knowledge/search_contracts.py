@@ -11,6 +11,9 @@ from specmate.knowledge.contracts import Kind, StrictModel
 
 class SearchKnowledge(StrictModel):
     query: str = Field(min_length=1, max_length=200)
+    # Unset searches every workspace the actor belongs to.
+    workspace_id: UUID | None = None
+    # Only the items held by this project (its workspace is implied).
     project_id: UUID | None = None
     kind: Kind | None = None
     target: Target | None = None

@@ -7,7 +7,7 @@ import type { Account, Command, Detail } from "./api";
 import { PermissionsProvider } from "../../lib/permissions";
 
 const account: Account = {
-  account_id: "account-1", project_id: "project-1", lot_id: "lot-1", lot_label: "Synthetic batch",
+  account_id: "account-1", workspace_id: "ws-1", lot_id: "lot-1", lot_label: "Synthetic batch",
   revision_id: "revision-1", definition_id: "definition-1", location_id: "location-1", location_name: "Shelf A",
   dimension: "count", unit: "ea", quantity_status: "known", physical_quantity: "10",
   reserved_quantity: "0", available_quantity: "10", state: "stock-v1", assertion_source: "Synthetic receipt", assertion_status: "declared",
@@ -18,7 +18,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function renderPanel(projectId = "project-1") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<MantineProvider><QueryClientProvider client={client}><InventoryPanel projectId={projectId} /></QueryClientProvider></MantineProvider>);
+  return render(<MantineProvider><QueryClientProvider client={client}><InventoryPanel workspaceId={projectId} /></QueryClientProvider></MantineProvider>);
 }
 
 function fakeServer(initial = account, fail = false) {
@@ -100,7 +100,7 @@ test("permission failures display honestly and retry preserves original request 
 
 function renderAs(permissions: string[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={permissions}><InventoryPanel projectId="project-1" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
+  return render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={permissions}><InventoryPanel workspaceId="ws-1" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
 }
 const control = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
 
@@ -146,4 +146,19 @@ test("inventory managers keep every control enabled, including reservation", asy
   fireEvent.change(screen.getByLabelText("New location name"), { target: { value: "Shelf B" } });
   expect(control("Create location").disabled).toBe(false);
   expect(screen.queryAllByRole("note")).toHaveLength(0);
+});
+
+test("files a reservation under the current project as context and filters work by it on request", async () => {
+  const calls = fakeServer();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={client}><InventoryPanel workspaceId="ws-1" projectId="project-1" /></QueryClientProvider></MantineProvider>);
+  fireEvent.click(await screen.findByText("Manage Synthetic batch"));
+  fireEvent.change(await screen.findByLabelText("Stock operation"), { target: { value: "reserve" } });
+  fireEvent.change(screen.getByLabelText("Operation quantity"), { target: { value: "2" } });
+  fireEvent.change(screen.getByLabelText("Reservation purpose"), { target: { value: "Project build" } });
+  fireEvent.click(screen.getByText("Apply stock operation"));
+  await waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0]).toMatchObject({ operation: "inventory.reserve", payload: { purpose: "Project build", project_id: "project-1" } });
+  fireEvent.click(screen.getByLabelText("Only work filed under this project"));
+  await waitFor(() => expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([url]) => String(url).includes("inventory/workspaces/ws-1?offset=0&limit=50&project_id=project-1"))).toBe(true));
 });

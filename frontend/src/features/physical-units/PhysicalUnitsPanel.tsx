@@ -9,7 +9,7 @@ import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Unit = {
-  unit_id: string; project_id: string; revision_id: string; serial: string;
+  unit_id: string; workspace_id: string; revision_id: string; serial: string;
   origin: "obtained" | "assembled"; lot_id: string | null; variant_id: string | null;
   assertion_source: string; assertion_status: string; work_batch_id: string | null;
   physical_qualification: false;
@@ -19,7 +19,8 @@ type WorkUnits = { work_batch: WorkBatch; linked_unit_count: number; units: Unit
 type UnitDetail = { unit: Unit; work_link: { assertion_source: string; assertion_status: string } | null;
   usage: { entry_id: string; kind: string; amount: string; unit: string; reason: string }[] };
 
-export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
+/** Physical units exist once, in the workspace; there is no per-project list. */
+export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; projectId?: string }) {
   const cache = useQueryClient();
   const manageGate = usePermission('inventory.manage');
   const [offset, setOffset] = useState(0);
@@ -38,15 +39,15 @@ export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
   const [linkSource, setLinkSource] = useState("");
   const [linkStatus, setLinkStatus] = useState("declared");
   const [pendingRequest, setPendingRequest] = useState<Command | null>(null);
-  const definitions = useQuery({ queryKey: ["identity-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ["identity", definitionId, revisionOffset], enabled: !!definitionId,
     queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${revisionOffset}&limit=50`) });
   const catalog = useQuery({ queryKey: ["physical-catalog", revisionId], enabled: !!revisionId,
     queryFn: () => read<Catalog>(`catalog/revisions/${revisionId}`) });
-  const units = useQuery({ queryKey: ["physical-units", projectId, offset],
-    queryFn: () => read<UnitPage>(`physical-units/projects/${projectId}?offset=${offset}&limit=50`) });
-  const inventory = useQuery({ queryKey: ["inventory", projectId, 0],
-    queryFn: () => read<Inventory>(`inventory/projects/${projectId}?offset=0&limit=50`) });
+  const units = useQuery({ queryKey: ["physical-units", workspaceId, offset],
+    queryFn: () => read<UnitPage>(`physical-units/workspaces/${workspaceId}?offset=${offset}&limit=50`) });
+  const inventory = useQuery({ queryKey: ["inventory", workspaceId, null, 0],
+    queryFn: () => read<Inventory>(`inventory/workspaces/${workspaceId}?offset=0&limit=50`) });
   const selected = units.data?.units.find((unit) => unit.unit_id === selectedUnit);
   const exactWork = (inventory.data?.work_batches ?? []).filter((work) => work.revision_id === selected?.revision_id);
   const work = exactWork.find((batch) => batch.work_batch_id === selectedWork);
@@ -56,13 +57,13 @@ export function PhysicalUnitsPanel({ projectId }: { projectId: string }) {
     queryFn: () => read<UnitDetail>(`physical-units/units/${selectedUnit}?offset=${usageOffset}&limit=50`) });
   const mutation = useMutation({ mutationFn: command, onSuccess: async () => {
     setPendingRequest(null);
-    await cache.invalidateQueries({ queryKey: ["physical-units", projectId] });
+    await cache.invalidateQueries({ queryKey: ["physical-units", workspaceId] });
     await cache.invalidateQueries({ queryKey: ["physical-unit"] });
     await cache.invalidateQueries({ queryKey: ["physical-work-units"] });
-    await cache.invalidateQueries({ queryKey: ["inventory", projectId] });
+    await cache.invalidateQueries({ queryKey: ["inventory", workspaceId] });
   }, onError: async () => {
-    await cache.invalidateQueries({ queryKey: ["physical-units", projectId] });
-    await cache.invalidateQueries({ queryKey: ["inventory", projectId] });
+    await cache.invalidateQueries({ queryKey: ["physical-units", workspaceId] });
+    await cache.invalidateQueries({ queryKey: ["inventory", workspaceId] });
   } });
   function submit(operation: string, payload: object, state?: string) {
     const envelope = request(operation, payload, state);

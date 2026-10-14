@@ -2,7 +2,7 @@
 
 import hashlib
 
-from specmate.access.permissions import Perm, authorize, transitional_project
+from specmate.access.permissions import Perm, authorize, authorize_item, authorize_project
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import canonical_bytes
 from specmate.facts.contracts import (
@@ -133,7 +133,7 @@ def get_item(user, item_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     item = query.filter(id=item_id).first()
     if item is None:
         raise NotFound("Knowledge item not found.")
-    authorize(user, item.workspace_id, permission)
+    authorize_item(user, item, permission)
     entries = list(item.entries.order_by("number")[: MAX_ENTRIES + 1])
     if len(entries) > MAX_ENTRIES:
         raise ValidationFailed("Knowledge history exceeds the supported limit.")
@@ -229,12 +229,15 @@ def items_for_target(user, target, offset=0, limit=50):
     }
 
 
-def project_items(user, project_id, offset=0, limit=50):
+def list_workspace_items(user, workspace_id, project_id=None, offset=0, limit=50):
     user = current_actor(user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
     items = KnowledgeItem.objects.filter(workspace=workspace)
-    # TRANSITIONAL: a payload project id lists the items held by that project.
-    if project := transitional_project(project_id, workspace):
+    if project_id is not None:
+        # The project is only a filter; a project of another workspace is simply not found.
+        project = authorize_project(user, project_id, Perm.WORKSPACE_READ)
+        if project.workspace_id != workspace.id:
+            raise NotFound("Project not found.")
         items = items.filter(project=project)
     items = items.order_by("created_at", "id")
     page = list(items[offset : offset + limit + 1])
@@ -243,4 +246,11 @@ def project_items(user, project_id, offset=0, limit=50):
         for item in page[:limit]
         if (readable := readable_item(user, item.id)) is not None
     ]
-    return {"items": rows, "offset": offset, "limit": limit, "has_more": len(page) > limit}
+    return {
+        "workspace_id": str(workspace.id),
+        "project_id": str(project_id) if project_id else None,
+        "items": rows,
+        "offset": offset,
+        "limit": limit,
+        "has_more": len(page) > limit,
+    }

@@ -44,12 +44,12 @@ function server({ authenticated = false, denyInventory = false, includePermissio
       const envelope = JSON.parse(String(options?.body));
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
     }
-    if (path.startsWith("/api/v0/diagnostics/projects/")) return reply({ project_id: "p", evaluated_at: "2026-01-01T00:00:00Z", work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" }, queue: { states: {}, pending: 0, active: 0, oldest_pending_seconds: null }, dispatch: { undelivered: 0, oldest_undelivered_seconds: null }, runner: { state: "not_enrolled", credentials_usable: 0, stages_holding_lease: 0, stages_lease_expired: 0 }, tools: [], storage: { state: "not_initialized", code: null, sampled: 0 }, workflow_engine: { state: "not_evaluated" }, builds: [], can_execute: false, findings: [] });
+    if (path.startsWith("/api/v0/diagnostics/workspaces/")) return reply({ workspace_id: "p", evaluated_at: "2026-01-01T00:00:00Z", work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" }, queue: { states: {}, pending: 0, active: 0, oldest_pending_seconds: null }, dispatch: { undelivered: 0, oldest_undelivered_seconds: null }, runner: { state: "not_enrolled", credentials_usable: 0, stages_holding_lease: 0, stages_lease_expired: 0 }, tools: [], storage: { state: "not_initialized", code: null, sampled: 0 }, workflow_engine: { state: "not_evaluated" }, builds: [], can_execute: false, findings: [] });
     if (path.startsWith("/api/v0/collaboration/projects/")) return reply({ results: [], next_after: null });
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
     if (path.startsWith("/api/v0/preparation-documents/projects/")) return reply({ document_sets: [] });
-    if (path.startsWith("/api/v0/knowledge/projects/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
-    if (path.startsWith("/api/v0/inventory/projects/")) return denyInventory
+    if (path.startsWith("/api/v0/knowledge/workspaces/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
+    if (path.startsWith("/api/v0/inventory/workspaces/")) return denyInventory
       ? reply({ error: { message: "Project not found." } }, 404)
       : reply({ accounts: [], locations: [], lots: [] });
     throw new Error(`Unexpected request ${path} ${options?.method ?? "GET"}`);
@@ -118,7 +118,7 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
   openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-a?offset=0&limit=50", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/workspaces/project-a?offset=0&limit=50", expect.anything()));
 });
 
 test("selected packages, firmware and mechanical tools mount with scoped read controls", async () => {
@@ -186,7 +186,7 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   expect(cache.getQueryData(["private", "project-a"])).toBeUndefined();
   openTool("Inventory");
   expect((await screen.findByLabelText("New location name") as HTMLInputElement).value).toBe("");
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-b?offset=0&limit=50", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/workspaces/project-b?offset=0&limit=50", expect.anything()));
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await screen.findByRole("heading", { name: "Sign in" });
   expect(screen.queryByRole("tablist")).toBeNull();

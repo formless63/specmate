@@ -5,15 +5,16 @@ import { useState } from "react";
 import { command, read, targetLabel, valueLabel, type Definition, type Evidence, type Fact, type Facts, type Identity, type Method, type Purpose, type Role, type Status, type Subject, type Target, type Value } from "./api";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 
-export function FactsPanel({ projectId }: { projectId: string }) {
-  return <FactWorkspace key={projectId} projectId={projectId} />;
+/** Fact ledgers belong to the workspace; a project is only offered as one possible subject. */
+export function FactsPanel({ workspaceId, projectId }: { workspaceId: string; projectId?: string }) {
+  return <FactWorkspace key={`${workspaceId}:${projectId ?? ""}`} workspaceId={workspaceId} projectId={projectId} />;
 }
 
-function FactWorkspace({ projectId }: { projectId: string }) {
+function FactWorkspace({ workspaceId, projectId }: { workspaceId: string; projectId?: string }) {
   const cache = useQueryClient();
-  const registerGate = usePermission("design.edit");
+  const registerGate = usePermission("item.create");
   const registerManageGate = usePermission("inventory.manage");
-  const [kind, setKind] = useState<Target["kind"]>("project");
+  const [kind, setKind] = useState<Target["kind"]>(projectId ? "project" : "definition");
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [snapshotId, setSnapshotId] = useState("");
@@ -24,21 +25,21 @@ function FactWorkspace({ projectId }: { projectId: string }) {
   const [subjectId, setSubjectId] = useState<string | null>(null);
   const [subjectOffset, setSubjectOffset] = useState(0);
   const [revisionOffset, setRevisionOffset] = useState(0);
-  const subjects = useQuery({ queryKey: ["fact-subjects", projectId, subjectOffset], queryFn: () => read<Subject[]>(`facts/projects/${projectId}/subjects?offset=${subjectOffset}`) });
-  const definitions = useQuery({ queryKey: ["fact-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`), enabled: kind === "definition" || kind === "revision" });
+  const subjects = useQuery({ queryKey: ["fact-subjects", workspaceId, subjectOffset], queryFn: () => read<Subject[]>(`facts/workspaces/${workspaceId}/subjects?offset=${subjectOffset}`) });
+  const definitions = useQuery({ queryKey: ["fact-definitions", workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`), enabled: kind === "definition" || kind === "revision" });
   const identity = useQuery({ queryKey: ["fact-definition", definitionId, revisionOffset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${revisionOffset}`), enabled: kind === "revision" && !!definitionId });
-  const units = useQuery({ queryKey: ["fact-physical-units", projectId, unitOffset], queryFn: () => read<{ units: { unit_id: string; serial: string; revision_id: string }[] }>(`physical-units/projects/${projectId}?offset=${unitOffset}&limit=50`), enabled: kind === "physical_unit" });
+  const units = useQuery({ queryKey: ["fact-physical-units", workspaceId, unitOffset], queryFn: () => read<{ units: { unit_id: string; serial: string; revision_id: string }[] }>(`physical-units/workspaces/${workspaceId}?offset=${unitOffset}&limit=50`), enabled: kind === "physical_unit" });
   const register = useMutation({ mutationFn: () => {
-    const target: Target = kind === "project" ? { kind, project_id: projectId } : kind === "definition" ? { kind, definition_id: definitionId!, feature_id: featureId || null } : kind === "revision" ? { kind, revision_id: revisionId!, feature_id: featureId || null } : kind === "physical_unit" ? { kind, unit_id: unitId! } : { kind, snapshot_id: snapshotId, path: path.split("/"), feature_id: featureId || null };
+    const target: Target = kind === "project" ? { kind, project_id: projectId! } : kind === "definition" ? { kind, definition_id: definitionId!, feature_id: featureId || null } : kind === "revision" ? { kind, revision_id: revisionId!, feature_id: featureId || null } : kind === "physical_unit" ? { kind, unit_id: unitId! } : { kind, snapshot_id: snapshotId, path: path.split("/"), feature_id: featureId || null };
     return command<Subject>("facts.register_subject", { target });
-  }, onSuccess: async (data) => { setSubjectId(data.subject_id); await cache.invalidateQueries({ queryKey: ["fact-subjects", projectId] }); } });
-  const missingTarget = kind === "definition" ? !definitionId : kind === "revision" ? !revisionId : kind === "occurrence" ? !snapshotId || !path : kind === "physical_unit" ? !unitId : false;
+  }, onSuccess: async (data) => { setSubjectId(data.subject_id); await cache.invalidateQueries({ queryKey: ["fact-subjects", workspaceId] }); } });
+  const missingTarget = kind === "project" ? !projectId : kind === "definition" ? !definitionId : kind === "revision" ? !revisionId : kind === "occurrence" ? !snapshotId || !path : kind === "physical_unit" ? !unitId : false;
   return <Stack>
     <Title order={2}>Facts and unknowns</Title>
     <Text>Record observations, associations, calculations and measurements separately. Unknown facts have no guessed value. Conflicting sources remain available for review.</Text>
     <Card withBorder><Stack>
       <Title order={3}>Choose an engineering subject</Title>
-      <Select label="Fact subject kind" value={kind} allowDeselect={false} data={["project", "definition", "revision", "occurrence", { value: "physical_unit", label: "Physical unit" }]} onChange={(value) => { setKind(value as Target["kind"]); setSubjectId(null); }} />
+      <Select label="Fact subject kind" value={kind} allowDeselect={false} data={[...(projectId ? ["project"] : []), "definition", "revision", "occurrence", { value: "physical_unit", label: "Physical unit" }]} onChange={(value) => { setKind(value as Target["kind"]); setSubjectId(null); }} />
       {(kind === "definition" || kind === "revision") && <Select label="Fact definition" searchable data={(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitionId} onChange={(id) => { setDefinitionId(id); setRevisionId(null); setRevisionOffset(0); }} />}
       {kind === "revision" && <><Select label="Fact exact revision" value={revisionId} data={(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))} onChange={setRevisionId} /><Group><Button disabled={revisionOffset === 0} onClick={() => { setRevisionOffset(Math.max(0, revisionOffset - 50)); setRevisionId(null); }}>Previous subject revisions</Button><Button disabled={(identity.data?.revisions.length ?? 0) < 50} onClick={() => { setRevisionOffset(revisionOffset + 50); setRevisionId(null); }}>Next subject revisions</Button></Group></>}
       {kind === "occurrence" && <><TextInput label="Fact root assembly snapshot ID" value={snapshotId} onChange={(e) => setSnapshotId(e.currentTarget.value)} /><TextInput label="Fact contextual occurrence path" description="Stable local occurrence IDs separated by /, such as right-module/control-board." value={path} onChange={(e) => setPath(e.currentTarget.value)} /></>}
@@ -80,7 +81,7 @@ export function FactLedger({ subjectId }: { subjectId: string }) {
 }
 
 function AssertionEditor({ property, state, physicalUnit, busy, onAppend }: { property: string; state: string; physicalUnit: boolean; busy: boolean; onAppend: (fact: Fact) => void }) {
-  const appendGate = usePermission(physicalUnit ? "inventory.manage" : "design.edit");
+  const appendGate = usePermission(physicalUnit ? "inventory.manage" : "item.create");
   const [status, setStatus] = useState<Status>("unknown");
   const [method, setMethod] = useState<Method>("source_observation");
   const [purpose, setPurpose] = useState<Purpose>("manufacturing");

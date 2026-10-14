@@ -8,21 +8,20 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections, connections
 
-from specmate.access.models import WorkspaceMember
 from specmate.facts.contracts import ProjectTarget
 from specmate.knowledge.models import KnowledgeEntry, KnowledgeItem, KnowledgeLink
-from specmate.knowledge.queries import items_for_target, project_items, read_item
+from specmate.knowledge.queries import items_for_target, list_workspace_items, read_item
 from specmate.operations import NotFound, Unauthenticated
 
-from .conftest import ensure_member, op
-from .test_knowledge import create
-from .test_physical_units import unit_payload
-from .test_shared_read_authority import adopted_assembly, restore, revoke  # noqa: F401
+from .conftest import member, op, remove_member
+from .test_knowledge import create, world  # noqa: F401
 from .test_transports import api, post_op
 
 
 @pytest.mark.parametrize("reader", ["item", "project", "target"])
-def test_captured_inactive_plain_note_actor_is_rejected_before_disclosure(users, project, reader):
+def test_captured_inactive_plain_note_actor_is_rejected_before_disclosure(
+    users, project, workspace, reader
+):
     note = create(
         users["owner"],
         project,
@@ -38,7 +37,7 @@ def test_captured_inactive_plain_note_actor_is_rejected_before_disclosure(users,
     target = ProjectTarget(kind="project", project_id=project)
     reads = {
         "item": lambda: read_item(actor, note["item_id"]),
-        "project": lambda: project_items(actor, project),
+        "project": lambda: list_workspace_items(actor, workspace, project),
         "target": lambda: items_for_target(actor, target),
     }
     with pytest.raises(Unauthenticated):
@@ -46,33 +45,29 @@ def test_captured_inactive_plain_note_actor_is_rejected_before_disclosure(users,
     with pytest.raises(Unauthenticated):
         op(actor, "knowledge.read", {"item_id": note["item_id"]})
     assert client.get("/api/v0/knowledge/items/" + note["item_id"]).status_code == 401
-    assert post_op(client, "knowledge.list", {"project_id": project}).status_code == 401
+    assert post_op(client, "knowledge.list", {"workspace_id": workspace}).status_code == 401
     get_user_model().objects.filter(pk=actor.pk).update(is_active=True)
     assert read_item(actor, note["item_id"])["current"]["body"] == "Synthetic own note."
 
 
-@pytest.mark.parametrize("kind", ["definition", "revision", "occurrence", "physical_unit"])
-def test_retained_target_origin_hides_links_but_preserves_owned_note_and_history(
+@pytest.mark.parametrize(
+    "kind,key",
+    [
+        ("definition", "definition"),
+        ("revision", "r1"),
+        ("occurrence", "left"),
+        ("physical_unit", "unit1"),
+    ],
+)
+def test_membership_removal_hides_the_note_and_restoration_returns_identical_history(
     users,
     project,
-    adopted_assembly,  # noqa: F811
+    world,  # noqa: F811
     kind,
+    key,
 ):
-    remote, adopted, frozen = adopted_assembly
-    if kind == "definition":
-        target = {"kind": kind, "definition_id": str(adopted.definition_id)}
-    elif kind == "revision":
-        target = {"kind": kind, "revision_id": frozen["revision_id"]}
-    elif kind == "occurrence":
-        target = {"kind": kind, "snapshot_id": frozen["snapshot_id"], "path": ["child"]}
-    else:
-        unit = op(
-            users["owner"],
-            "physical_units.register",
-            unit_payload(frozen["revision_id"], "SYNTH-KNW-ORIGIN"),
-            idempotency_key="own-unit",
-        )
-        target = {"kind": kind, "unit_id": unit["unit_id"]}
+    target = world["targets"][key]
+    assert target["kind"] == kind
     note = create(
         users["owner"],
         project,
@@ -83,22 +78,20 @@ def test_retained_target_origin_hides_links_but_preserves_owned_note_and_history
     )
     before = read_item(users["viewer"], note["item_id"])
     assert len(before["links"]) == 1
-    revoke(users, remote)
-    hidden = read_item(users["viewer"], note["item_id"])
-    assert hidden["current"] == before["current"] and hidden["history"] == before["history"]
-    assert hidden["links"] == hidden["removed_links"] == []
-    assert "link_count" not in hidden
-    text = json.dumps(hidden)
-    for secret in [
-        remote,
-        str(adopted.definition_id),
-        frozen["revision_id"],
-        frozen["snapshot_id"],
-    ]:
-        assert secret not in text
-    with pytest.raises(NotFound):
-        op(users["viewer"], "knowledge.for_target", {"target": target})
-    restore(users, remote)
+    remove_member(users["viewer"])
+    for read in (
+        lambda: read_item(users["viewer"], note["item_id"]),
+        lambda: op(users["viewer"], "knowledge.for_target", {"target": target}),
+        lambda: op(users["viewer"], "knowledge.read", {"item_id": note["item_id"]}),
+    ):
+        with pytest.raises(NotFound) as exc:
+            read()
+        assert exc.value.details == {}
+    response = api(users["viewer"]).get("/api/v0/knowledge/items/" + note["item_id"])
+    assert response.status_code == 404 and note["item_id"] not in json.dumps(response.json())
+    # The note and its history are untouched by the loss of one reader.
+    assert KnowledgeEntry.objects.filter(item_id=note["item_id"]).count() == 1
+    member(users["viewer"], "viewer")
     assert read_item(users["viewer"], note["item_id"]) == before
 
 
@@ -138,7 +131,7 @@ def test_competing_exact_target_links_keep_one_active_identity(users, project):
 
 
 def test_invalid_later_link_rolls_back_complete_item_and_entry(users, project):
-    remote = op(users["owner"], "project.create", {"name": "Unreadable valid note target"})[
+    remote = op(users["outsider"], "project.create", {"name": "Foreign workspace target"})[
         "project_id"
     ]
     before = (
@@ -166,16 +159,13 @@ def test_invalid_later_link_rolls_back_complete_item_and_entry(users, project):
 
 
 @pytest.mark.parametrize("receipt_kind", ["create", "revise", "removed"])
-def test_receipt_replay_cannot_restore_a_now_hidden_foreign_link(users, project, receipt_kind):
-    remote = op(users["owner"], "project.create", {"name": "Independent foreign target"})[
-        "project_id"
-    ]
-    ensure_member(users["editor"], "viewer", project=remote)
+def test_receipt_replay_requires_current_membership(users, project, workspace, receipt_kind):
     create_payload = {
+        "workspace_id": workspace,
         "project_id": project,
         "kind": "note",
         "content": {"title": "Own note", "body": "Synthetic own note."},
-        "links": [{"kind": "project", "project_id": remote}],
+        "links": [{"kind": "project", "project_id": project}],
     }
     note = op(users["editor"], "knowledge.create", create_payload, idempotency_key="initial-item")
     if receipt_kind == "create":
@@ -202,33 +192,18 @@ def test_receipt_replay_cannot_restore_a_now_hidden_foreign_link(users, project,
         )
         receipt = op(users["editor"], operation, payload, **context)
     rows = receipt["removed_links"] if receipt_kind == "removed" else receipt["links"]
-    assert rows[0]["project_id"] == remote
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["editor"]).delete()
-    current = read_item(users["editor"], note["item_id"])
-    assert (
-        current["current"] == receipt["current"]
-        and current["links"] == current["removed_links"] == []
-    )
-    assert api(users["editor"]).get("/api/v0/knowledge/items/" + note["item_id"]).json() == current
-    # Editing the owned note stays available; replay cannot return old target metadata.
-    fresh = op(
-        users["editor"],
-        "knowledge.revise",
-        {
-            "item_id": note["item_id"],
-            "content": {"title": "Own later entry", "body": "Still an owned synthetic note."},
-        },
-        expected_state=current["state"],
-    )
-    assert fresh["links"] == fresh["removed_links"] == []
-    assert fresh["history"][:-1] == current["history"]
+    assert rows[0]["target"]["project_id"] == project
     count = KnowledgeEntry.objects.filter(item_id=note["item_id"]).count()
+    remove_member(users["editor"])
+    with pytest.raises(NotFound):
+        read_item(users["editor"], note["item_id"])
+    assert api(users["editor"]).get("/api/v0/knowledge/items/" + note["item_id"]).status_code == 404
     with pytest.raises(NotFound):
         op(users["editor"], operation, payload, **context)
     denied = post_op(api(users["editor"]), operation, payload, **context)
-    assert denied.status_code == 404 and remote.encode() not in denied.content
+    assert denied.status_code == 404 and project.encode() not in denied.content
     assert KnowledgeEntry.objects.filter(item_id=note["item_id"]).count() == count
-    ensure_member(users["editor"], "viewer", project=remote)
+    member(users["editor"], "editor")
     assert op(users["editor"], operation, payload, **context) == receipt
     assert post_op(api(users["editor"]), operation, payload, **context).json()["result"] == receipt
     assert KnowledgeEntry.objects.filter(item_id=note["item_id"]).count() == count

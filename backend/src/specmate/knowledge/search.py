@@ -2,12 +2,7 @@
 
 from django.db.models import F, Q
 
-from specmate.access.permissions import (
-    Perm,
-    authorize,
-    member_workspaces,
-    transitional_project,
-)
+from specmate.access.permissions import Perm, authorize, authorize_project, member_workspaces
 from specmate.catalog.discovery import visible_page
 from specmate.catalog_matching.queries import current_actor
 from specmate.knowledge.models import KnowledgeEntry
@@ -33,20 +28,30 @@ def snippet(text, query):
     return ("…" if start else "") + value + ("…" if start + len(value) < len(text) else "")
 
 
+def _scope(user, payload):
+    """The optional workspace and project filters, authorized against current membership."""
+    workspace = project = None
+    if payload.project_id:
+        project = authorize_project(user, payload.project_id, Perm.WORKSPACE_READ)
+        workspace = project.workspace
+        if payload.workspace_id and payload.workspace_id != workspace.id:
+            raise NotFound("Project not found.")
+    elif payload.workspace_id:
+        workspace = authorize(user, payload.workspace_id, Perm.WORKSPACE_READ)
+    return workspace, project
+
+
 def _search_knowledge(user, payload):
     user = current_actor(user)
-    workspace = None
-    if payload.project_id:
-        workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
+    workspace, project = _scope(user, payload)
     target = describe_target(user, payload.target) if payload.target else None
     query = KnowledgeEntry.objects.select_related("item").filter(
         item__workspace__in=member_workspaces(user)
     )
     if workspace is not None:
-        # TRANSITIONAL: the scope id selects a workspace and, if a project, its held items.
         query = query.filter(item__workspace=workspace)
-        if project := transitional_project(payload.project_id, workspace):
-            query = query.filter(item__project=project)
+    if project is not None:
+        query = query.filter(item__project=project)
     if payload.kind:
         query = query.filter(item__kind=payload.kind)
     if not payload.include_history:
@@ -111,8 +116,7 @@ def _search_knowledge(user, payload):
     # authorized only by the earlier per-invocation cache. A lost item fails this
     # request closed; foreign target links still follow the owned-note filter policy.
     user = current_actor(user)
-    if payload.project_id:
-        authorize(user, payload.project_id, Perm.WORKSPACE_READ)
+    _scope(user, payload)
     if payload.target:
         target = describe_target(user, payload.target)
     # Cursor and lookahead items also determine the disclosed page/cursor. Their

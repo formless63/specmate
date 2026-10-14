@@ -13,15 +13,15 @@ export type AttachmentRef = { bundle_revision_id: string; path: string; label: s
 export type Content = { title: string; body: string; decision_status: DecisionStatus | null; attachments: AttachmentRef[] };
 export type Attachment = AttachmentRef & {
   bundle_id: string; bundle_name: string; revision_number: number; sha256: string; size: number;
-  media_type: string; rights: string; blob_project_id: string;
+  media_type: string; rights: string; blob_workspace_id: string;
 };
 export type Entry = { entry_id: string; number: number; title: string; body: string; decision_status: DecisionStatus | null; author: string; created_at: string; attachments: Attachment[] };
 export type Link = {
-  link_id: string; item_id: string; target: Target; project_id: string; label: string;
+  link_id: string; item_id: string; target: Target; workspace_id: string; label: string;
   feature_status?: "not_evaluated"; linked_at: string; status: "active" | "removed";
   removed_at?: string; removal_reason?: string;
 };
-export type ItemSummary = { item_id: string; project_id: string; kind: Kind; state: string; current: Entry };
+export type ItemSummary = { item_id: string; workspace_id: string; project_id: string | null; kind: Kind; state: string; current: Entry };
 export type Item = ItemSummary & { history: Entry[]; links: Link[]; removed_links: Link[]; relation_to_design_state: "attached_knowledge" };
 export type ItemPage = { items: (ItemSummary & { link_id?: string })[]; offset: number; limit: number; has_more: boolean };
 export type TargetItems = ItemPage & { target: { label: string; target: Target; feature_status?: string } };

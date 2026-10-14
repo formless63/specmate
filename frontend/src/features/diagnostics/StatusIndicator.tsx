@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { readProjectStatus, summarize, type ProjectStatus } from "./status";
+import { readWorkspaceStatus, summarize, type WorkspaceStatus } from "./status";
 
 const REFRESH_MS = 15000;
 
 type Props = {
-  projectId: string;
+  workspaceId: string;
   /** Opens the diagnostics tool. */
   onOpen: () => void;
   /** Bumped by tools that change work, so the bar refreshes without waiting for the timer. */
@@ -12,8 +12,8 @@ type Props = {
 };
 
 /** Top-bar job status: LED plus words from the scoped status read; never a bare colour. */
-export function StatusIndicator({ projectId, onOpen, refreshKey = 0 }: Props) {
-  const [status, setStatus] = useState<ProjectStatus | null>(null);
+export function StatusIndicator({ workspaceId, onOpen, refreshKey = 0 }: Props) {
+  const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export function StatusIndicator({ projectId, onOpen, refreshKey = 0 }: Props) {
     async function load() {
       if (document.visibilityState === "hidden") return;
       try {
-        const next = await readProjectStatus(projectId, controller.signal);
+        const next = await readWorkspaceStatus(workspaceId, controller.signal);
         if (current) { setStatus(next); setFailure(null); }
       } catch (reason) {
         // A failed read is unknown, never carried over as the last good state.
@@ -33,7 +33,7 @@ export function StatusIndicator({ projectId, onOpen, refreshKey = 0 }: Props) {
     void load();
     const timer = window.setInterval(() => void load(), REFRESH_MS);
     return () => { current = false; controller.abort(); window.clearInterval(timer); };
-  }, [projectId, refreshKey]);
+  }, [workspaceId, refreshKey]);
 
   const headline = summarize(status, failure);
   return <span className="sb-status" role="status" aria-label="Job status">

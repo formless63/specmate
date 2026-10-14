@@ -13,9 +13,9 @@ class Page(Schema):
     limit: int = Field(default=50, ge=1, le=100)
 
 
-@router.get("/projects/{project_id}")
-def list_project(request, project_id: UUID, page: Query[Page]):
-    return list_inventory(request.user, project_id, **page.dict())
+@router.get("/workspaces/{workspace_id}")
+def list_workspace(request, workspace_id: UUID, page: Query[Page], project_id: UUID | None = None):
+    return list_inventory(request.user, workspace_id, project_id=project_id, **page.dict())
 
 
 @router.get("/accounts/{account_id}")

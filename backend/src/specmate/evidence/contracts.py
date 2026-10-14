@@ -13,7 +13,7 @@ class StrictModel(BaseModel):
 
 
 class ListEvidence(StrictModel):
-    project_id: UUID
+    workspace_id: UUID
     kinds: list[Kind] | None = Field(default=None, max_length=8)
     subject_id: UUID | None = None
     offset: int = Field(default=0, ge=0, le=10000)
@@ -98,7 +98,6 @@ class EvidenceItem(StrictModel):
 
 
 class EvidenceList(StrictModel):
-    project_id: UUID
     workspace_id: UUID
     items: list[EvidenceItem]
     offset: int

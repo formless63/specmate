@@ -6,7 +6,7 @@ link to several engineering objects. Code: `backend/src/specmate/knowledge/`,
 
 ## Identity and history
 
-A knowledge item belongs to one project and has a kind: `note`, `decision` or
+A knowledge item is held by the workspace and has a kind: `note`, `decision` or
 `attachment`. Content lives in append-only entries. `knowledge.revise` appends the next
 entry under the item's state token (`knowledge-v<n>`); a stale token is a conflict and
 nothing is overwritten. Decisions always state `proposed`, `accepted`, `rejected` or
@@ -14,13 +14,22 @@ nothing is overwritten. Decisions always state `proposed`, `accepted`, `rejected
 is attached information. It does not edit frozen design content, approve a decision's
 engineering effect or qualify anything physically.
 
+## Project context
+
+A project does not own knowledge items. `knowledge.create` takes `workspace_id` and an
+optional `project_id`. With a project, the item is a note or decision held by that project
+(its context, never its owner); without one, it is a library note about the items it
+links. The project must belong to the same workspace, otherwise it is not found. Library
+notes and project notes are both visible to every workspace member, and
+`knowledge.list` / `knowledge.search` take an optional `project_id` filter.
+
 ## Attachments
 
 An attachment references an exact registered source file: bundle revision plus path.
 Bytes are uploaded and preserved through the existing source operations
 (`source.register_blob`, `source.create_original_bundle`), so the blob keeps its single
-project registration, hash, media type and declared rights. Attachments must be
-registered in the item's project; the database rejects any other reference. Several
+workspace registration, hash, media type and declared rights. Attachments must be
+registered in the item's workspace; the database rejects any other reference. Several
 items and entries can reference the same file without another blob registration.
 Downloads use the existing source file route and its current closure checks.
 
@@ -40,11 +49,13 @@ removal and any other link update.
 
 ## Authority and disclosure
 
-Creating, revising, linking and unlinking require `design.edit` in the item's project and
+Creating requires `item.create`. Revising, linking and unlinking require `design.edit`,
+or authorship of the item (contributors edit the notes they created), in the item's
+workspace and
 current read access to every attachment closure. Creating or adding links requires
 current read of the supplied targets; removing a link requires current read of that
 link's target. A hidden existing foreign link does not prevent reading or revising an
-otherwise authorized owned note. Reads require project
+otherwise authorized owned note. Reads require workspace
 read access and current source closure for every entry's attachments, including
 historical entries. Each link target is re-resolved under the reader's current access.
 Targets the reader cannot see are omitted from item reads: no name, identifier, kind or
@@ -63,17 +74,17 @@ rewriting history or appending another entry.
 - `knowledge.read`, `knowledge.for_target`, `knowledge.list`
 - `knowledge.search`, `knowledge.preview` (fresh reads without idempotency receipts)
 - `GET /api/v0/knowledge/search`, `GET /api/v0/knowledge/preview`
-- `GET /api/v0/knowledge/projects/{project_id}/items`, `GET /api/v0/knowledge/items/{item_id}`
+- `GET /api/v0/knowledge/workspaces/{workspace_id}/items[?project_id=]`, `GET /api/v0/knowledge/items/{item_id}`
 
 ## Limits
 
 Collaboration, notifications and review workflows are separate KNW-002 scope. The panel chooses
 targets with a picker; discipline views can embed `KnowledgePanel` with a fixed `target`
 for their current selection. The development workspace mounts it lazily in the
-Notes & files tab with the current principal and project permissions.
+Notes & files tab with the current principal and workspace permissions.
 
 The reusable panel accepts `principalKey` and `onAccessLost` from its workspace.
-Project, principal, permission and fixed-target changes discard retained results and
+Workspace, project, principal, permission and fixed-target changes discard retained results and
 prepared inputs. Current-authority refreshes hide cached target, item and attachment
 results while requests are pending or denied. An open editor keeps its own staged
 title, text, attachment references and declared rights inert during a transient
@@ -82,12 +93,12 @@ newly read entry cannot silently advance that token. Choosing a new edit basis i
 deliberate. An uncertain mutation retries the same payload and idempotency key.
 Uploads stop before a later source-registration step if their workspace changes.
 
-Local definition choices use the existing authorized project-metadata listing.
+Local definition choices use the existing authorized definition listing.
 Offering a local definition name is separate from resolving its complete target
 closure: deliberate inspection can report that a target is unavailable. Denied
 knowledge target and link results retain no cached target labels. A readable item
-owned by another project can be inspected from a linked target, but content and
-link editing are offered only in that item's owning project workspace. Server
+held by another workspace can be inspected from a linked target, but content and
+link editing are offered only in that item's own workspace. Server
 permissions remain authoritative for each mutation and download.
 
 ## Permitted search and safe previews (KNW-003)
@@ -95,7 +106,7 @@ permissions remain authoritative for each mutation and download.
 Search matches literal case-insensitive substrings in titles, note/decision bodies and
 attachment labels, paths, source bundle names, media types, rights and hashes. Registered
 file contents are not indexed. Current entries are the default; historical entries are
-an explicit option. Optional project, kind and exact target filters share the existing
+an explicit option. Optional workspace, project, kind and exact target filters share the existing
 target resolver. Results identify the exact item and entry, current/historical state,
 visible links and registered source provenance. Plain snippets are bounded to 320
 characters plus ellipses, with at most five matching fields. Pages contain at most 50
@@ -134,8 +145,8 @@ physical qualification. The browser independently checks returned text/PNG byte 
 and preview hashes and verifies their exact selected attachment identity before display.
 The original download remains protected by the existing current source closure.
 
-`KnowledgeSearchPanel` takes `projectId`, `principalKey` and `active`; retained hosts
-must pass their actual active-tab state. Project/principal changes clear the workspace.
+`KnowledgeSearchPanel` takes `workspaceId`, an optional `projectId`, `principalKey` and
+`active`; retained hosts must pass their actual active-tab state. Scope/principal changes clear the workspace.
 Inactive, window-blurred and hidden states abort requests and hide protected results;
 return/focus performs fresh authorization. Pending or denied reads hide old metadata and
 previews while preserving the typed query. PNG object URLs are revoked when hidden,

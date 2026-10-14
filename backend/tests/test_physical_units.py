@@ -77,7 +77,7 @@ def link_payload(unit_id, work_batch_id):
 
 
 def test_partial_actual_batch_is_separate_from_plan_report_and_stock(
-    users, project, revision, actual
+    users, project, revision, actual, workspace
 ):
     lot, work = actual
     units = [
@@ -107,7 +107,7 @@ def test_partial_actual_batch_is_separate_from_plan_report_and_stock(
     assert {u["serial"] for u in detail["units"]} == {"UNIT-1", "UNIT-2"}
     assert {u["lot_id"] for u in detail["units"]} == {lot["lot_id"]}
     assert {u["physical_qualification"] for u in detail["units"]} == {False}
-    assert {u["work_batch_id"] for u in list_units(users["viewer"], project)["units"]} == {
+    assert {u["work_batch_id"] for u in list_units(users["viewer"], workspace)["units"]} == {
         work["work_batch_id"]
     }
     assert (
@@ -174,7 +174,7 @@ def test_replay_conflict_and_current_authority(users, revision, actual, project)
         )
 
 
-def test_scope_revision_and_sql_immutability(users, project, revision, actual):
+def test_scope_revision_and_sql_immutability(users, project, revision, actual, workspace):
     _, work = actual
     second = op(
         users["owner"],
@@ -221,7 +221,7 @@ def test_scope_revision_and_sql_immutability(users, project, revision, actual):
         PhysicalUnit.objects.filter(id=unit["unit_id"]).delete()
     with pytest.raises(DatabaseError), transaction.atomic():
         PhysicalUnit.objects.create(
-            project_id=project,
+            workspace_id=workspace,
             revision_id=revision["revision_id"],
             lot_id=wrong_lot["lot_id"],
             serial="RAW-WRONG",
@@ -262,7 +262,7 @@ def test_scope_revision_and_sql_immutability(users, project, revision, actual):
     )
 
 
-def test_api_operations_and_scope_closure(users, revision, actual, project):
+def test_api_operations_and_scope_closure(users, revision, actual, project, workspace):
     payload = unit_payload(revision["revision_id"], "API-UNIT", origin="obtained")
     forbidden = post_op(
         api(users["viewer"]), "physical_units.register", payload, idempotency_key="api-viewer"
@@ -276,16 +276,18 @@ def test_api_operations_and_scope_closure(users, revision, actual, project):
     with pytest.raises(NotFound):
         unit_detail(hidden, created.json()["result"]["unit_id"])
     with pytest.raises(NotFound):
-        list_units(hidden, project)
+        list_units(hidden, workspace)
 
 
-def test_consumption_and_return_preserve_exact_unit_attribution(users, project, revision, actual):
+def test_consumption_and_return_preserve_exact_unit_attribution(
+    users, project, revision, actual, workspace
+):
     lot, work = actual
     location = op(
         users["owner"],
         "inventory.create_location",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Synthetic shelf",
         },
     )
@@ -370,13 +372,15 @@ def test_consumption_and_return_preserve_exact_unit_attribution(users, project, 
         )
 
 
-def test_unit_attribution_requires_work_link_and_replay_authority(users, revision, actual, project):
+def test_unit_attribution_requires_work_link_and_replay_authority(
+    users, revision, actual, project, workspace
+):
     lot, work = actual
     location = op(
         users["owner"],
         "inventory.create_location",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "name": "Synthetic shelf",
         },
     )
@@ -438,8 +442,38 @@ def test_unit_attribution_requires_work_link_and_replay_authority(users, revisio
         )
 
 
+def test_serials_are_unique_per_workspace_and_listing_is_workspace_scoped(
+    users, workspace, other_workspace, revision
+):
+    unit = op(
+        users["owner"],
+        "physical_units.register",
+        unit_payload(revision["revision_id"], "SERIAL-1"),
+        idempotency_key="serial-1",
+    )
+    with pytest.raises(Conflict):
+        op(
+            users["owner"],
+            "physical_units.register",
+            unit_payload(revision["revision_id"], "SERIAL-1"),
+            idempotency_key="serial-1-again",
+        )
+    listed = list_units(users["contributor"], workspace)
+    assert listed["workspace_id"] == workspace and "project_id" not in listed
+    assert [u["unit_id"] for u in listed["units"]] == [unit["unit_id"]]
+    assert list_units(users["outsider"], other_workspace)["units"] == []
+    assert (
+        api(users["viewer"]).get(f"/api/v0/physical-units/workspaces/{workspace}").status_code
+        == 200
+    )
+    assert (
+        api(users["outsider"]).get(f"/api/v0/physical-units/workspaces/{workspace}").status_code
+        == 404
+    )
+
+
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_same_project_serial_has_one_winner(users, project, revision):
+def test_concurrent_same_workspace_serial_has_one_winner(users, project, revision, workspace):
     gate = Barrier(2)
 
     def register(n):
@@ -461,4 +495,4 @@ def test_concurrent_same_project_serial_has_one_winner(users, project, revision)
     with ThreadPoolExecutor(max_workers=2) as pool:
         outcomes = list(pool.map(register, (1, 2)))
     assert sorted(outcomes) == ["conflict", "ok"]
-    assert PhysicalUnit.objects.filter(project_id=project, serial="SHARED-SERIAL").count() == 1
+    assert PhysicalUnit.objects.filter(workspace_id=workspace, serial="SHARED-SERIAL").count() == 1

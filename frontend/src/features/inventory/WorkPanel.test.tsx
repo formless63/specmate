@@ -6,13 +6,13 @@ import { InventoryPanel } from "./InventoryPanel";
 import type { Account, Command, Detail, WorkBatch, WorkDetail } from "./api";
 
 const account: Account = {
-  account_id: "stock-1", project_id: "project-1", lot_id: "lot-1", lot_label: "Material batch",
+  account_id: "stock-1", workspace_id: "ws-1", lot_id: "lot-1", lot_label: "Material batch",
   revision_id: "material-revision", definition_id: "material-definition", location_id: "shelf-1", location_name: "Shelf",
   dimension: "length", unit: "m", quantity_status: "known", physical_quantity: "10", reserved_quantity: "7", available_quantity: "3",
   state: "stock-before", assertion_source: "Intake", assertion_status: "declared",
 };
 const batch: WorkBatch = {
-  work_batch_id: "work-1", project_id: "project-1", definition_id: "target-definition", revision_id: "target-revision",
+  work_batch_id: "work-1", workspace_id: "ws-1", project_id: null, definition_id: "target-definition", revision_id: "target-revision",
   kind: "batch", label: "Assembly job", planned_units: null, reported_completed_units: 0, progress: "none_reported", state: "work-before",
   actual_unit_tracking: "separate_records", physical_qualification: false,
 };
@@ -21,7 +21,7 @@ beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserv
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<MantineProvider><QueryClientProvider client={client}><InventoryPanel projectId="project-1" /></QueryClientProvider></MantineProvider>);
+  return render(<MantineProvider><QueryClientProvider client={client}><InventoryPanel workspaceId="ws-1" /></QueryClientProvider></MantineProvider>);
 }
 function server(fail = false) {
   const calls: Command[] = [];
