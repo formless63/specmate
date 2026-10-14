@@ -146,7 +146,8 @@ test("inventory managers keep every control enabled, including reservation", asy
   expect(control("Apply stock operation").disabled).toBe(false);
   fireEvent.change(screen.getByLabelText("New location name"), { target: { value: "Shelf B" } });
   expect(control("Create location").disabled).toBe(false);
-  expect(screen.queryAllByRole("note")).toHaveLength(0);
+  // Only the sourcing offer form (item.create, not held here) stays withheld.
+  expect(screen.queryAllByRole("note").map((note) => note.getAttribute("data-readonly-note"))).toEqual(["item.create"]);
 });
 
 test("files a reservation under the current project as context and filters work by it on request", async () => {
