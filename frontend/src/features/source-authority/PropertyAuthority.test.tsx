@@ -163,6 +163,7 @@ test('detached read denial must not gate replacement Sources workspace', async (
 test('detached mutation completion does not launch reads or notify a recovered parent', async () => {
   const { fetchMock, onAuthorityFailure } = setup([authority()]);
   await openAuthority();
+  await waitFor(() => expect(screen.queryAllByText('Resolving name…')).toHaveLength(0));
   let finish!: (value: Response) => void;
   fetchMock.mockImplementation((url: string) => {
     if (url.endsWith('/operations')) return new Promise<Response>(resolve => { finish = resolve; });
@@ -180,6 +181,9 @@ test('detached mutation completion does not launch reads or notify a recovered p
 test('source replacement fences mutation success and preserves the new review basis', async () => {
   const { fetchMock, onAuthorityFailure, onOpenRevision, view } = setup([authority()]);
   await openAuthority();
+  // Revision-name lookups are a separate, batched background read that starts when the
+  // authority renders. Let it settle so only reads caused by the mutation are counted.
+  await waitFor(() => expect(screen.queryAllByText('Resolving name…')).toHaveLength(0));
   let finish!: (value: Response) => void;
   fetchMock.mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
   fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'Old context' } });
