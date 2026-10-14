@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "Native": {
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Exit Code"
+        },
+        "stderr_class": {
+          "enum": [
+            "terminated_by_signal",
+            "invalid_input",
+            "out_of_memory",
+            "board_load",
+            "filesystem",
+            "layer_argument",
+            "arguments",
+            "unknown"
+          ],
+          "title": "Stderr Class",
+          "type": "string"
+        },
+        "stderr_excerpt": {
+          "maxLength": 4000,
+          "title": "Stderr Excerpt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "exit_code",
+        "stderr_class",
+        "stderr_excerpt"
+      ],
+      "title": "Native",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "const": "kicad-fabrication-v2",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "check": {
+      "maxLength": 64,
+      "title": "Check",
+      "type": "string"
+    },
+    "code": {
+      "title": "Code",
+      "type": "integer"
+    },
+    "detail": {
+      "maxLength": 500,
+      "title": "Detail",
+      "type": "string"
+    },
+    "format_version": {
+      "const": 2,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "manufacturing_approval": {
+      "const": false,
+      "title": "Manufacturing Approval",
+      "type": "boolean"
+    },
+    "message": {
+      "maxLength": 500,
+      "title": "Message",
+      "type": "string"
+    },
+    "native": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Native"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "status": {
+      "const": "failed",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "status",
+    "code",
+    "check",
+    "message",
+    "detail",
+    "native",
+    "manufacturing_approval",
+    "physical_qualification"
+  ],
+  "title": "FailureReport",
+  "type": "object"
+}

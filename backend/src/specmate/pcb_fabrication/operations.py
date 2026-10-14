@@ -18,8 +18,16 @@ from specmate.operations.scope import workspace_scope
 from specmate.pcb.models import PcbInterpretation
 from specmate.pcb.operations import intake_for
 from specmate.pcb.report import Report as IntakeReport
-from specmate.pcb_fabrication.pack import MAX_OUTPUT_BYTES, OUTPUT_MEDIA, REPORT_PATH, recipe_for
-from specmate.pcb_fabrication.report import Report
+from specmate.pcb_fabrication.native_script import DIAGNOSTICS, UNKNOWN
+from specmate.pcb_fabrication.pack import (
+    COPPER_LAYER_COUNTS,
+    MAX_OUTPUT_BYTES,
+    REPORT_PATH,
+    declared_copper_layers,
+    output_media,
+    recipe_for,
+)
+from specmate.pcb_fabrication.report import FailureReport, Report
 from specmate.sources import blobstore
 from specmate.sources.authority import authorize_revision
 from specmate.sources.models import SourceBundleRevision
@@ -58,9 +66,19 @@ def source_for(ctx, intake_id, permission=Perm.WORKSPACE_READ):
 
 
 def check_recipe(file, recipe):
-    expected = Recipe.model_validate(recipe_for(file.path, file.rights))
-    if recipe.model_dump(mode="json") != expected.model_dump(mode="json"):
+    """The recipe must be the exact pinned program for this board, rights and layer count."""
+    dumped = recipe.model_dump(mode="json")
+    copper = declared_copper_layers(dumped)
+    if copper is None:
         raise Unsupported("Recipe differs from the exact pinned fabrication program.")
+    expected = Recipe.model_validate(recipe_for(file.path, file.rights, copper))
+    if dumped != expected.model_dump(mode="json"):
+        raise Unsupported("Recipe differs from the exact pinned fabrication program.")
+    return copper
+
+
+def recipe_ids(file):
+    return {recipe_for(file.path, file.rights, n)["id"]: n for n in COPPER_LAYER_COUNTS}
 
 
 def qualified_intake(ctx, intake, file):
@@ -77,14 +95,11 @@ def qualified_intake(ctx, intake, file):
         raise ValidationFailed("Accepted native intake is invalid.") from None
     if report.source_sha256 != file.blob.sha256:
         raise ValidationFailed("Accepted intake differs from the exact preserved source.")
-    if not report.outline or report.coverage.outline != "closed-line-polygons":
-        raise Unsupported("Fabrication requires a qualified closed line outline.")
+    # The outline shape (lines, arcs, curves, cutouts) is not gated here: KiCad exports
+    # it natively and the program reports a specific failure when no closed outline exists.
+    # A same-stem .kicad_pro/.kicad_dru companion is applied by the program, not refused.
     if any(c.dnp for c in report.components):
         raise Unsupported("Native DNP export behavior is unqualified; preserve the original.")
-    if intake.source_revision.files.filter(path__iregex=r"\.(kicad_pro|kicad_dru)$").exists():
-        raise Unsupported(
-            "Custom project rules/settings are unqualified; standalone board required."
-        )
     return item
 
 
@@ -169,10 +184,65 @@ def output_bytes(output):
     return raw
 
 
+def companion_file(file, suffix):
+    """The same-stem project companion the program applies, from the exact revision."""
+    stem = file.path.rsplit(".", 1)[0]
+    return file.revision.files.select_related("blob").filter(path=stem + suffix).first()
+
+
+def failure_diagnostic(file, build):
+    """Explain a failed stage from its exit code and, when present, its registered report.
+
+    The bounded native stderr excerpt stays only in the registered failure report.
+    """
+    stage = build.stage
+    receipt = stage.receipt or {}
+    code = receipt.get("exit_code")
+    if code is None:
+        return {
+            "code": None,
+            "check": "runner",
+            "message": receipt.get("message") or receipt.get("reason") or "No exit code.",
+            "detail": "",
+            "stderr_class": None,
+            "detail_retained": False,
+        }
+    check, message = DIAGNOSTICS.get(code, DIAGNOSTICS[UNKNOWN])
+    result = {
+        "code": code,
+        "check": check,
+        "message": message,
+        "detail": "",
+        "stderr_class": None,
+        "detail_retained": False,
+    }
+    output = stage.outputs.filter(path=REPORT_PATH).first()
+    if output is None or code not in DIAGNOSTICS:
+        return result
+    if (
+        output.source_revision_id != file.revision_id
+        or output.rights != file.rights
+        or output.media_type != "application/json"
+        or not 0 < output.size <= 1024**2
+    ):
+        raise ValidationFailed("Fabrication failure report provenance is invalid.")
+    try:
+        report = FailureReport.model_validate_json(output_bytes(output))
+    except ValidationError:
+        raise ValidationFailed("Registered fabrication failure report is invalid.") from None
+    if report.code != code:
+        raise ValidationFailed("Fabrication failure report differs from the receipt.")
+    result["detail"] = report.detail
+    result["stderr_class"] = report.native.stderr_class if report.native else None
+    result["detail_retained"] = report.native is not None
+    return result
+
+
 def validate_outputs(file, build):
     stage = build.stage
     outputs = {o.path: o for o in stage.outputs.all()}
-    if stage.state != "succeeded" or set(outputs) != set(OUTPUT_MEDIA):
+    media = output_media(declared_copper_layers(build.recipe) or 2)
+    if stage.state != "succeeded" or set(outputs) != set(media):
         raise ValidationFailed("Review requires a successful complete registered output set.")
     expected = [{"path": p, "sha256": o.sha256} for p, o in sorted(outputs.items())]
     receipt = stage.receipt or {}
@@ -189,7 +259,7 @@ def validate_outputs(file, build):
         if (
             output.source_revision_id != file.revision_id
             or output.rights != file.rights
-            or output.media_type != OUTPUT_MEDIA[path]
+            or output.media_type != media[path]
             or output.size <= 0
             or output.size > MAX_OUTPUT_BYTES
         ):
@@ -210,8 +280,19 @@ def validate_outputs(file, build):
             raise ValueError("Unsupported DRC format or parity claim")
     except (ValidationError, ValueError, TypeError, KeyError, RecursionError):
         raise ValidationFailed("Registered native fabrication/DRC report is invalid.") from None
-    if report.source_sha256 != file.blob.sha256 or report.drc_counts.model_dump() != counts:
+    if (
+        report.source_sha256 != file.blob.sha256
+        or report.drc_counts.model_dump() != counts
+        or report.copper_layer_count != declared_copper_layers(build.recipe)
+    ):
         raise ValidationFailed("Fabrication report differs from exact source or DRC evidence.")
+    for claimed, suffix in ((report.project, ".kicad_pro"), (report.custom_rules, ".kicad_dru")):
+        companion = companion_file(file, suffix)
+        if (claimed is None) != (companion is None) or (
+            claimed is not None
+            and (claimed.path != companion.path or claimed.sha256 != companion.blob.sha256)
+        ):
+            raise ValidationFailed("Fabrication report differs from the preserved project files.")
     for item in report.outputs:
         output = outputs[item.path]
         if item.sha256 != output.sha256 or item.size != output.size:
@@ -259,23 +340,37 @@ def read(ctx, p):
 
 def options(ctx, intake_id):
     intake, file = source_for(ctx, intake_id)
-    reason, recipe_id = None, None
+    reason, available = None, []
+    ids = recipe_ids(file)
     try:
         qualified_intake(ctx, intake, file)
-        expected = recipe_for(file.path, file.rights)
-        approved = approved_recipe(expected["id"])
-        check_recipe(file, approved)
-        recipe_id = approved.id
+        for recipe_id, copper in ids.items():
+            try:
+                approved = approved_recipe(recipe_id)
+            except Unsupported:
+                continue
+            check_recipe(file, approved)
+            available.append({"recipe_id": recipe_id, "copper_layers": copper})
+        if not available:
+            reason = "No fabrication recipe for this exact board is approved on this installation."
     except Unsupported as exc:
-        reason = str(exc)
+        reason, available = str(exc), []
     builds = []
     for build in BuildAttempt.objects.filter(
-        source_revision_id=file.revision_id, recipe_id=recipe_for(file.path, file.rights)["id"]
+        source_revision_id=file.revision_id, recipe_id__in=list(ids)
     ).order_by("-created_at")[:100]:
         scoped_build(ctx, intake_id, build.id)
-        builds.append({"build_id": str(build.id), "state": build.stage.state})
+        row = {
+            "build_id": str(build.id),
+            "state": build.stage.state,
+            "copper_layers": ids[build.recipe_id],
+        }
+        if build.stage.state == "failed":
+            row["diagnostic"] = failure_diagnostic(file, build)
+        builds.append(row)
     return {
-        "available_recipe_id": recipe_id,
+        "available_recipe_id": available[0]["recipe_id"] if available else None,
+        "available_recipes": available,
         "unavailable_reason": reason,
         "builds": builds,
         "limit": 100,

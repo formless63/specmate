@@ -60,19 +60,21 @@ format, arm64 or physical design qualification is implied.
 
 ## Bounded fabrication pack
 
-The separate `kicad-fabrication-v1` program produces fixed Gerber X2, separated
-through-hole Excellon, native JSON DRC and a hash manifest from an immutable selected
-board. See the explicit support/failure boundaries in [PCB scope](../../docs/modules/PCB.md).
-Production graphics/text, native DNP, custom project settings/rules, zones, vias,
-cutouts, curved geometry and slotted drills are outside this first qualified subset.
-It does not author, modify or route the source, interpret human population options,
-generate assembly outputs or authorize manufacturing.
+The separate `kicad-fabrication-v2` program produces Gerber X2 for every copper layer
+plus mask, silkscreen, paste and outline, separated through-hole Excellon (with G85
+slots), native JSON DRC and a hash manifest from an immutable selected board. It applies
+the board's same-named `.kicad_pro`/`.kicad_dru` companions when preserved, and exports
+zones with their stored fills. See the support/failure boundaries and diagnostic
+checks in [PCB scope](../../docs/modules/PCB.md). It does not author, modify, refill or
+route the source, interpret human population options, generate assembly outputs or
+authorize manufacturing.
 
 Print an operator-reviewable registry entry without installing it:
 
 ```bash
 cd backend
-uv run python ../toolpacks/kicad/fabrication_recipe.py board.kicad_pcb --rights AGPL-3.0-only
+uv run python ../toolpacks/kicad/fabrication_recipe.py board.kicad_pcb --rights AGPL-3.0-only \
+  --copper-layers 4
 ```
 
 Run the standalone native probe with the exact cached image and external evidence:
@@ -83,8 +85,13 @@ PYTHONPATH=runner:scripts backend/.venv/bin/python scripts/check_pcb_fabrication
 ```
 
 The checker uses the existing runner isolation and independent original fixture
-coordinates. It includes plated and unconnected synthetic variants and explicit
-malformed/slot/DNP rejection. It changes no recipe registry, credentials, database,
+coordinates. It includes plated and unconnected synthetic variants; a variant with an
+arc edge, circular cutout, through via, stored zone fill, production copper/silkscreen
+graphics and an oval slot, run with and without an original synthetic project file
+(whose stricter track rule and text variable must take effect); and named failures for
+an invalid project file, a copper-layer mismatch, native DNP and malformed input.
+`scripts/fabrication_outputs.py` independently parses the Gerber X2 file functions,
+Gerber job, outline arcs, copper regions and Excellon hits/slots. It changes no recipe registry, credentials, database,
 permanent service or original fixture. This is standalone real-tool evidence;
 registered runner transport and browser acceptance remain separate checkpoints.
 

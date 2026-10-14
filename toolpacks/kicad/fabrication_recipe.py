@@ -10,6 +10,9 @@ from specmate.pcb_fabrication.pack import recipe_for
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("board_path")
 parser.add_argument("--rights", required=True)
+parser.add_argument("--copper-layers", type=int, default=2)
 args = parser.parse_args()
-recipe = Recipe.model_validate(recipe_for(args.board_path, args.rights))
+recipe = Recipe.model_validate(
+    recipe_for(args.board_path, args.rights, args.copper_layers)
+)
 print(json.dumps(recipe.model_dump(mode="json"), indent=2))

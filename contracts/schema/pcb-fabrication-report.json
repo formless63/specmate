@@ -1,22 +1,44 @@
 {
   "$defs": {
+    "Companion": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "Companion",
+      "type": "object"
+    },
     "Counts": {
       "additionalProperties": false,
       "properties": {
         "schematic_parity": {
-          "maximum": 100000,
+          "maximum": 1000000,
           "minimum": 0,
           "title": "Schematic Parity",
           "type": "integer"
         },
         "unconnected_items": {
-          "maximum": 100000,
+          "maximum": 1000000,
           "minimum": 0,
           "title": "Unconnected Items",
           "type": "integer"
         },
         "violations": {
-          "maximum": 100000,
+          "maximum": 1000000,
           "minimum": 0,
           "title": "Violations",
           "type": "integer"
@@ -32,12 +54,19 @@
     },
     "Drills": {
       "additionalProperties": false,
+      "description": "[x, y, size_x, size_y, slot rotation degrees] in native board millimetres.",
       "properties": {
         "npth": {
           "items": {
-            "maxItems": 3,
-            "minItems": 3,
+            "maxItems": 5,
+            "minItems": 5,
             "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
               {
                 "type": "number"
               },
@@ -50,15 +79,21 @@
             ],
             "type": "array"
           },
-          "maxItems": 10000,
+          "maxItems": 200000,
           "title": "Npth",
           "type": "array"
         },
         "pth": {
           "items": {
-            "maxItems": 3,
-            "minItems": 3,
+            "maxItems": 5,
+            "minItems": 5,
             "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
               {
                 "type": "number"
               },
@@ -71,7 +106,7 @@
             ],
             "type": "array"
           },
-          "maxItems": 10000,
+          "maxItems": 200000,
           "title": "Pth",
           "type": "array"
         }
@@ -81,6 +116,75 @@
         "npth"
       ],
       "title": "Drills",
+      "type": "object"
+    },
+    "Features": {
+      "additionalProperties": false,
+      "properties": {
+        "copper_zones": {
+          "minimum": 0,
+          "title": "Copper Zones",
+          "type": "integer"
+        },
+        "copper_zones_without_stored_copper": {
+          "minimum": 0,
+          "title": "Copper Zones Without Stored Copper",
+          "type": "integer"
+        },
+        "cutouts": {
+          "minimum": 0,
+          "title": "Cutouts",
+          "type": "integer"
+        },
+        "outlines": {
+          "minimum": 1,
+          "title": "Outlines",
+          "type": "integer"
+        },
+        "production_graphics": {
+          "minimum": 0,
+          "title": "Production Graphics",
+          "type": "integer"
+        },
+        "rule_areas": {
+          "minimum": 0,
+          "title": "Rule Areas",
+          "type": "integer"
+        },
+        "slots": {
+          "minimum": 0,
+          "title": "Slots",
+          "type": "integer"
+        },
+        "through_vias": {
+          "minimum": 0,
+          "title": "Through Vias",
+          "type": "integer"
+        },
+        "unresolved_text_variables": {
+          "minimum": 0,
+          "title": "Unresolved Text Variables",
+          "type": "integer"
+        },
+        "zones_refilled": {
+          "const": false,
+          "title": "Zones Refilled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "through_vias",
+        "slots",
+        "copper_zones",
+        "copper_zones_without_stored_copper",
+        "rule_areas",
+        "zones_refilled",
+        "production_graphics",
+        "unresolved_text_variables",
+        "outlines",
+        "cutouts"
+      ],
+      "title": "Features",
       "type": "object"
     },
     "Output": {
@@ -97,7 +201,7 @@
         },
         "size": {
           "exclusiveMinimum": 0,
-          "maximum": 16777216,
+          "maximum": 67108864,
           "title": "Size",
           "type": "integer"
         }
@@ -114,23 +218,40 @@
   "additionalProperties": false,
   "properties": {
     "adapter": {
-      "const": "kicad-fabrication-v1",
+      "const": "kicad-fabrication-v2",
       "title": "Adapter",
       "type": "string"
+    },
+    "copper_layer_count": {
+      "title": "Copper Layer Count",
+      "type": "integer"
+    },
+    "custom_rules": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Companion"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "drc_counts": {
       "$ref": "#/$defs/Counts"
     },
     "drill_format": {
-      "const": "excellon-mm-decimal-absolute-separated-through",
+      "const": "excellon-mm-decimal-absolute-separated-through-g85-slots",
       "title": "Drill Format",
       "type": "string"
     },
     "drills": {
       "$ref": "#/$defs/Drills"
     },
+    "features": {
+      "$ref": "#/$defs/Features"
+    },
     "format_version": {
-      "const": 1,
+      "const": 2,
       "title": "Format Version",
       "type": "integer"
     },
@@ -138,7 +259,7 @@
       "items": {
         "type": "string"
       },
-      "maxItems": 9,
+      "maxItems": 39,
       "title": "Layers",
       "type": "array"
     },
@@ -156,7 +277,7 @@
       "items": {
         "$ref": "#/$defs/Output"
       },
-      "maxItems": 13,
+      "maxItems": 45,
       "minItems": 13,
       "title": "Outputs",
       "type": "array"
@@ -165,6 +286,16 @@
       "const": false,
       "title": "Physical Qualification",
       "type": "boolean"
+    },
+    "project": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Companion"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "source_sha256": {
       "pattern": "^[0-9a-f]{64}$",
@@ -175,6 +306,11 @@
       "const": true,
       "title": "Source Unchanged",
       "type": "boolean"
+    },
+    "status": {
+      "const": "succeeded",
+      "title": "Status",
+      "type": "string"
     },
     "tool_version": {
       "const": "10.0.6",
@@ -194,13 +330,18 @@
   "required": [
     "format_version",
     "adapter",
+    "status",
     "tool_version",
     "native_format_version",
     "source_sha256",
     "source_unchanged",
+    "project",
+    "custom_rules",
+    "copper_layer_count",
     "layers",
     "drill_format",
     "drills",
+    "features",
     "drc_counts",
     "outputs",
     "physical_qualification",

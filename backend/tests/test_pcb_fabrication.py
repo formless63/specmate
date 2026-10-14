@@ -24,7 +24,16 @@ from specmate.pcb_fabrication import (
     operations,  # noqa: F401 -- register for this isolated module test
 )
 from specmate.pcb_fabrication.api import download_output, read_build, read_options
-from specmate.pcb_fabrication.pack import LAYERS, OUTPUT_MEDIA, REPORT_PATH, recipe_for
+from specmate.pcb_fabrication.native_script import DIAGNOSTICS, STDERR_CLASSES, script
+from specmate.pcb_fabrication.pack import (
+    ARG_CHUNK,
+    MAX_OUTPUT_BYTES,
+    REPORT_PATH,
+    layers_for,
+    output_media,
+    recipe_for,
+)
+from specmate.pcb_fabrication.report import FailureReport
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBundle, SourceBundleFile, SourceBundleRevision
 
@@ -84,9 +93,12 @@ def requested(users, intake, accepted, fabrication_recipe):
     )
 
 
-def register_test_outputs(requested, mutate=None, invalid=None, source_revision_id=None):
+def register_test_outputs(
+    requested, mutate=None, invalid=None, source_revision_id=None, copper=2, project=None
+):
     stage = BuildStage.objects.get(build_id=requested["build_id"])
-    payloads = {p: ("contract-only " + p).encode() for p in OUTPUT_MEDIA if p != REPORT_PATH}
+    media = output_media(copper)
+    payloads = {p: ("contract-only " + p).encode() for p in media if p != REPORT_PATH}
     drc = {
         "$schema": "https://schemas.kicad.org/drc.v1.json",
         "kicad_version": "10.0.6",
@@ -97,15 +109,31 @@ def register_test_outputs(requested, mutate=None, invalid=None, source_revision_
     }
     payloads["drc.json"] = json.dumps(drc).encode()
     report = {
-        "format_version": 1,
-        "adapter": "kicad-fabrication-v1",
+        "format_version": 2,
+        "adapter": "kicad-fabrication-v2",
+        "status": "succeeded",
         "tool_version": "10.0.6",
         "native_format_version": 20260206,
         "source_sha256": hashlib.sha256(BOARD).hexdigest(),
         "source_unchanged": True,
-        "layers": LAYERS,
-        "drill_format": "excellon-mm-decimal-absolute-separated-through",
-        "drills": {"pth": [], "npth": []},
+        "project": project,
+        "custom_rules": None,
+        "copper_layer_count": copper,
+        "layers": layers_for(copper),
+        "drill_format": "excellon-mm-decimal-absolute-separated-through-g85-slots",
+        "drills": {"pth": [[30, 10, 0.4, 0.4, 0]], "npth": [[37, 22, 2, 1, 0]]},
+        "features": {
+            "through_vias": 1,
+            "slots": 1,
+            "copper_zones": 1,
+            "copper_zones_without_stored_copper": 0,
+            "rule_areas": 0,
+            "zones_refilled": False,
+            "production_graphics": 2,
+            "unresolved_text_variables": 0,
+            "outlines": 1,
+            "cutouts": 1,
+        },
         "drc_counts": {"violations": 1, "unconnected_items": 0, "schematic_parity": 0},
         "outputs": [
             {"path": p, "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)}
@@ -127,7 +155,7 @@ def register_test_outputs(requested, mutate=None, invalid=None, source_revision_
             path=path,
             sha256=hashlib.sha256(content).hexdigest(),
             size=len(content),
-            media_type="text/plain" if invalid == "media" else OUTPUT_MEDIA[path],
+            media_type="text/plain" if invalid == "media" else media[path],
             rights="wrong-rights" if invalid == "rights" else RIGHTS,
             source_revision_id=source_revision_id or stage.build.source_revision_id,
         )
@@ -358,3 +386,320 @@ def test_direct_api_refresh_rejects_stale_inactive_actor(users, intake, requeste
         read_options(read_request(users["owner"]), intake["intake_id"])
     with pytest.raises(Unauthenticated):
         read_build(read_request(users["owner"]), intake["intake_id"], requested["build_id"])
+
+
+# --- Real-board support and specific diagnostics (native boundary mocked) ---
+
+
+def failed_stage(requested, exit_code, report=None, path=REPORT_PATH, message=None):
+    stage = BuildStage.objects.get(build_id=requested["build_id"])
+    outputs = []
+    if report is not None:
+        content = json.dumps(report).encode()
+        blobstore.promote(blobstore.stage(io.BytesIO(content), 16 * 1024**2))
+        output = StageOutput.objects.create(
+            stage=stage,
+            path=path,
+            sha256=hashlib.sha256(content).hexdigest(),
+            size=len(content),
+            media_type="application/json",
+            rights=RIGHTS,
+            source_revision_id=stage.build.source_revision_id,
+        )
+        outputs.append({"path": output.path, "sha256": output.sha256})
+    stage.state = "failed"
+    stage.receipt = {"outcome": "failed", "exit_code": exit_code, "outputs": outputs}
+    if message:
+        stage.receipt["message"] = message
+    stage.save()
+    return stage
+
+
+def failure_report(code, native=None, detail=""):
+    check, message = DIAGNOSTICS[code]
+    return {
+        "format_version": 2,
+        "adapter": "kicad-fabrication-v2",
+        "status": "failed",
+        "code": code,
+        "check": check,
+        "message": message,
+        "detail": detail,
+        "native": native,
+        "manufacturing_approval": False,
+        "physical_qualification": False,
+    }
+
+
+def build_row(user, intake, requested):
+    rows = read_options(read_request(user), intake["intake_id"])["builds"]
+    return next(r for r in rows if r["build_id"] == requested["build_id"])
+
+
+@pytest.mark.parametrize(
+    "code,check",
+    [
+        (11, "board_format"),
+        (14, "copper_layer_count"),
+        (16, "board_outline"),
+        (17, "via_type"),
+        (19, "unfilled_zones"),
+        (20, "project_file"),
+    ],
+)
+def test_failed_build_names_the_failed_check_from_the_exit_code(
+    users, intake, requested, code, check
+):
+    failed_stage(requested, code)
+    diagnostic = build_row(users["viewer"], intake, requested)["diagnostic"]
+    assert diagnostic["code"] == code
+    assert diagnostic["check"] == check
+    assert diagnostic["message"] == DIAGNOSTICS[code][1]
+    assert "Unsupported input or native export failure" not in diagnostic["message"]
+    assert diagnostic["detail_retained"] is False
+
+
+def test_native_failure_report_adds_classification_but_keeps_stderr_private(
+    users, intake, requested
+):
+    excerpt = "synthetic native stderr: failed to load board"
+    native = {"exit_code": 3, "stderr_class": "invalid_input", "stderr_excerpt": excerpt}
+    failed_stage(requested, 32, failure_report(32, native, "export gerbers"))
+    row = build_row(users["viewer"], intake, requested)
+    assert row["diagnostic"] == {
+        "code": 32,
+        "check": "native_gerber_export",
+        "message": DIAGNOSTICS[32][1],
+        "detail": "export gerbers",
+        "stderr_class": "invalid_input",
+        "detail_retained": True,
+    }
+    assert excerpt not in json.dumps(row)
+    # The bounded excerpt remains only in the registered, access-checked failure report.
+    stage = BuildStage.objects.get(build_id=requested["build_id"])
+    with blobstore.open_blob(stage.outputs.get(path=REPORT_PATH).sha256) as stream:
+        assert FailureReport.model_validate_json(stream.read()).native.stderr_excerpt == excerpt
+
+
+@pytest.mark.parametrize(
+    "exit_code,message,expected",
+    [
+        (137, None, (137, "unknown", DIAGNOSTICS[70][1])),
+        (None, "Stage exceeded timeout", (None, "runner", "Stage exceeded timeout")),
+    ],
+)
+def test_unknown_exit_codes_and_runner_failures_are_labelled(
+    users, intake, requested, exit_code, message, expected
+):
+    failed_stage(requested, exit_code, message=message)
+    diagnostic = build_row(users["viewer"], intake, requested)["diagnostic"]
+    assert (diagnostic["code"], diagnostic["check"], diagnostic["message"]) == expected
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        failure_report(19),  # differs from the receipt's exit code
+        {**failure_report(31), "message": "Rewritten explanation"},
+        {**failure_report(31), "native": {"exit_code": 1, "stderr_class": "made-up"}},
+    ],
+)
+def test_contradictory_failure_reports_are_rejected(users, intake, requested, report):
+    failed_stage(requested, 31, report)
+    with pytest.raises(ValidationFailed):
+        read_options(read_request(users["viewer"]), intake["intake_id"])
+
+
+def test_failed_build_is_never_reviewable_as_fabrication_evidence(users, intake, requested):
+    failed_stage(requested, 31, failure_report(31))
+    with pytest.raises(ValidationFailed):
+        op(
+            users["owner"],
+            "pcb_fabrication.read",
+            {"intake_id": intake["intake_id"], "build_id": requested["build_id"]},
+        )
+
+
+def test_intake_outline_shape_does_not_gate_fabrication(users, intake, attempt, fabrication_recipe):
+    report = report_payload()
+    report["outline"] = []
+    report["coverage"]["outline"] = "unsupported"  # e.g. arcs before intake supports them
+    successful_output(attempt, report)
+    op(users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
+    result = op(
+        users["owner"],
+        "pcb_fabrication.request",
+        {"intake_id": intake["intake_id"], "recipe_id": fabrication_recipe["id"]},
+        idempotency_key="arc-outline",
+    )
+    assert result["build_id"]
+
+
+def test_four_layer_recipe_declares_inner_layers_and_reviews_complete_output_set(
+    users, intake, accepted, settings, recipe
+):
+    four = recipe_for("board.kicad_pcb", RIGHTS, 4)
+    two = recipe_for("board.kicad_pcb", RIGHTS)
+    settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: recipe, four["id"]: four, two["id"]: two}
+    listed = read_options(read_request(users["viewer"]), intake["intake_id"])
+    assert {(r["recipe_id"], r["copper_layers"]) for r in listed["available_recipes"]} == {
+        (two["id"], 2),
+        (four["id"], 4),
+    }
+    requested = op(
+        users["owner"],
+        "pcb_fabrication.request",
+        {"intake_id": intake["intake_id"], "recipe_id": four["id"]},
+        idempotency_key="four-layer",
+    )
+    register_test_outputs(requested, copper=4)
+    result = op(
+        users["viewer"],
+        "pcb_fabrication.read",
+        {"intake_id": intake["intake_id"], "build_id": requested["build_id"]},
+    )
+    assert result["report"]["layers"][:4] == ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+    assert {o["path"] for o in result["outputs"]} == set(output_media(4))
+    assert build_row(users["viewer"], intake, requested)["copper_layers"] == 4
+
+
+def test_two_layer_report_cannot_satisfy_a_four_layer_build(users, intake, accepted, settings):
+    four = recipe_for("board.kicad_pcb", RIGHTS, 4)
+    settings.SPECMATE_APPROVED_RECIPES = {four["id"]: four}
+    requested = op(
+        users["owner"],
+        "pcb_fabrication.request",
+        {"intake_id": intake["intake_id"], "recipe_id": four["id"]},
+        idempotency_key="four-layer-mismatch",
+    )
+    register_test_outputs(requested, copper=2)
+    with pytest.raises(ValidationFailed):
+        op(
+            users["viewer"],
+            "pcb_fabrication.read",
+            {"intake_id": intake["intake_id"], "build_id": requested["build_id"]},
+        )
+
+
+PROJECT = b'{"meta": {"version": 3}}\n'
+
+
+@pytest.fixture
+def project_requested(users, workspace, settings):
+    """A preserved board with its same-stem project file, accepted intake and request."""
+    files = []
+    for path, content in (("board.kicad_pcb", BOARD), ("board.kicad_pro", PROJECT)):
+        op(
+            users["editor"],
+            "source.register_blob",
+            {
+                "workspace_id": workspace,
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "size": len(content),
+                "media_type": "application/octet-stream",
+            },
+            attachments={"content": io.BytesIO(content)},
+        )
+        files.append(
+            {
+                "path": path,
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "media_type": "application/octet-stream",
+                "rights": RIGHTS,
+            }
+        )
+    source = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {"workspace_id": workspace, "name": "Synthetic board with project", "files": files},
+    )
+    intake = pcb_fixture.intake.__wrapped__(users, workspace, source)
+    recipe = pcb_fixture.recipe.__wrapped__(settings)
+    attempt = pcb_fixture.attempt.__wrapped__(users, intake, recipe)
+    accepted.__wrapped__(users, intake, attempt)
+    item = recipe_for("board.kicad_pcb", RIGHTS)
+    settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: recipe, item["id"]: item}
+    requested = op(
+        users["owner"],
+        "pcb_fabrication.request",
+        {"intake_id": intake["intake_id"], "recipe_id": item["id"]},
+        idempotency_key="with-project",
+    )
+    return intake, requested
+
+
+def test_project_file_companion_is_accepted_and_must_match_the_report(users, project_requested):
+    intake, requested = project_requested
+    digest = hashlib.sha256(PROJECT).hexdigest()
+    payload = {"intake_id": intake["intake_id"], "build_id": requested["build_id"]}
+    register_test_outputs(requested, project={"path": "board.kicad_pro", "sha256": digest})
+    result = op(users["viewer"], "pcb_fabrication.read", payload)
+    assert result["report"]["project"]["sha256"] == digest
+
+
+@pytest.mark.parametrize("claimed", [None, {"path": "board.kicad_pro", "sha256": "c" * 64}])
+def test_report_must_record_the_exact_preserved_project_file(users, project_requested, claimed):
+    intake, requested = project_requested
+    register_test_outputs(requested, project=claimed)
+    with pytest.raises(ValidationFailed):
+        op(
+            users["viewer"],
+            "pcb_fabrication.read",
+            {"intake_id": intake["intake_id"], "build_id": requested["build_id"]},
+        )
+
+
+def program_helpers(tmp_path):
+    """Execute only the program's helper definitions; no KiCad or container is used."""
+    namespace = {}
+    exec(script(MAX_OUTPUT_BYTES).split("\ndef main(")[0], namespace)  # noqa: S102 -- exact trusted constant
+    return namespace
+
+
+def test_program_classifies_native_stderr_and_writes_valid_failure_reports(tmp_path):
+    helpers = program_helpers(tmp_path)
+    classify = helpers["classify"]
+    assert classify(-9, "") == "terminated_by_signal"
+    assert classify(3, "") == "invalid_input"
+    assert classify(1, "terminate called after throwing std::bad_alloc") == "out_of_memory"
+    assert classify(1, "Failed to load board") == "board_load"
+    assert classify(1, "something new") == "unknown"
+    (tmp_path / "partial.gbr").write_text("left behind")
+    with pytest.raises(SystemExit) as exited:
+        helpers["fail"](
+            tmp_path,
+            32,
+            "export gerbers",
+            {"exit_code": 1, "stderr_class": "unknown", "stderr_excerpt": "x" * 5000},
+        )
+    assert exited.value.code == 32
+    assert [p.name for p in tmp_path.iterdir()] == [REPORT_PATH]
+    report = FailureReport.model_validate_json((tmp_path / REPORT_PATH).read_bytes())
+    assert report.check == "native_gerber_export"
+    long_excerpt = helpers["excerpt"]("y" * 5000)
+    assert len(long_excerpt) == 2000
+
+
+def test_diagnostic_table_and_recipe_envelope():
+    assert all(0 < code < 126 for code in DIAGNOSTICS)
+    assert len({check for check, _ in DIAGNOSTICS.values()}) == len(DIAGNOSTICS)
+    assert {name for name, _ in STDERR_CLASSES} < set(
+        FailureReport.model_fields["native"]
+        .annotation.__args__[0]
+        .model_fields["stderr_class"]
+        .annotation.__args__
+    )
+    for copper in (2, 4, 6):
+        item = recipe_for("dir/board.kicad_pcb", RIGHTS, copper)
+        argv = item["argv"]
+        count = int(argv[3])
+        assert all(len(a) <= ARG_CHUNK for a in argv)
+        assert "".join(argv[4 : 4 + count]) == script(MAX_OUTPUT_BYTES)
+        assert argv[4 + count :] == ["/inputs/dir/board.kicad_pcb", "/outputs", str(copper)]
+        assert {o["path"] for o in item["outputs"]} == set(output_media(copper))
+    assert (
+        recipe_for("board.kicad_pcb", RIGHTS, 2)["id"]
+        != recipe_for("board.kicad_pcb", RIGHTS, 4)["id"]
+    )
+    with pytest.raises(ValueError):
+        recipe_for("board.kicad_pcb", RIGHTS, 3)

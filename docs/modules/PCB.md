@@ -110,27 +110,49 @@ A black-box bought board can expose declared ports without invented internal det
 ### Bounded native fabrication evidence
 
 `pcb_fabrication.request` generates outputs from one exact preserved board using an
-operator-approved `kicad-fabrication-v1` recipe and the existing build/outbox/runner
-boundary. An accepted native intake with a closed line outline is required. Requests
-carry no scripts or mutable report payloads. The recipe retains exact source bytes,
-rights, image, program and resource bounds. Source bytes are never saved, upgraded,
-refilled, routed or changed for population decisions.
+operator-approved `kicad-fabrication-v2` recipe and the existing build/outbox/runner
+boundary. An accepted native intake of the same exact board bytes is required; its
+outline coverage does not gate fabrication, because KiCad exports line, arc and curved
+outlines and cutouts natively. Requests carry no scripts or mutable report payloads.
+Each recipe retains exact source bytes, rights, declared copper layer count, image,
+program and resource bounds. Source bytes are never saved, upgraded, refilled, routed
+or changed for population decisions.
 
-The initial subset is KiCad 10.0.6, board format 20260206, linux/amd64, two copper
-layers and one closed line outline without cutouts. Straight outer copper tracks,
-circle/rectangle pads and circular plated/nonplated through drills are supported.
-Zones, vias, curved tracks/outlines, slots, custom pads, production-layer graphics/text,
-native DNP, variables/embedded assets and companion project rules/settings fail
-explicitly. Custom project-rule coverage is not inferred from standalone DRC defaults.
-Companion bytes remain preserved; the pack cannot silently omit required custom rules.
+Supported input is KiCad 10.0.6 board format 20260206 on linux/amd64 with an even
+copper layer count from 2 to 32. A board in an older format must first be upgraded in
+KiCad and preserved as a new source revision. When the bundle preserves a same-named
+`.kicad_pro` (and `.kicad_dru`) beside the board, the program stages it with the board,
+so its design rules, severities and text variables apply to DRC and plotting; the
+report records each companion's path and hash, and review rejects a report that
+disagrees with the preserved files. Without a project, KiCad default rules apply and
+the report says so. Zones are exported with their stored fills and never refilled;
+the report counts copper zones, rule areas and copper zones with no stored copper.
+Production-layer graphics and text, arcs, through vias, custom/rounded pads and
+oval slots are exported; production text that still contains unresolved
+`${...}` variables is counted and shown as a warning.
 
-Every successful build declares JSON DRC, nine Gerber X2 layers (`F.Cu`, `B.Cu`,
-`F.Mask`, `B.Mask`, `F.SilkS`, `B.SilkS`, `F.Paste`, `B.Paste`, `Edge.Cuts`), the
-Gerber job, separate PTH/NPTH Excellon files and a bounded hash manifest. Gerber
-precision is 4.6 millimetres; drills use absolute coordinates, millimetres and decimal
-zeros. KiCad's output Y axis has the opposite sign from its native board coordinates.
-Empty layers and empty drill categories remain explicit files. Missing outputs fail;
-failed or partial stages cannot become successful review evidence.
+Each failure names its check through a distinct program exit code and a bounded
+`fabrication.json` failure report: tool version, board format, embedded files, board
+parse, copper layer count against the recipe, renamed production layers, missing
+closed outline, blind/buried/micro vias, native DNP, copper zones without stored fill,
+invalid project JSON, the native DRC/Gerber/drill command, a native timeout, missing or
+undeclared outputs, output size, and a source changed during export. A native command
+failure also classifies its stderr (invalid input, board load, memory, filesystem,
+arguments, signal or unknown). Anything else is reported as `unknown`. The bounded
+stderr excerpt stays only in the registered failure report, which the runner registers
+as a verified partial output of the failed stage; listings show the check, message,
+detail and classification. The runner registers declared outputs that a failed tool
+left behind; a refused upload never hides the failure itself.
+
+Every successful build declares JSON DRC, Gerber X2 for every copper layer (`F.Cu`,
+`In1.Cu` … `B.Cu`) and `F.Mask`, `B.Mask`, `F.SilkS`, `B.SilkS`, `F.Paste`, `B.Paste`,
+`Edge.Cuts`, the Gerber job, separate PTH/NPTH Excellon files and a bounded hash
+manifest. Gerber precision is 4.6 millimetres; drills use absolute coordinates,
+millimetres and decimal zeros, with oval holes as G85 slots. Fixed command-line plot
+options apply; board-saved plot settings are not used. KiCad's output Y axis has the
+opposite sign from its native board coordinates. Empty layers and empty drill
+categories remain explicit files. Missing outputs fail; failed or partial stages
+cannot become successful review evidence.
 
 `pcb_fabrication.read` reviews only successful registered StageOutputs, verifying
 the exact recipe, source, successful receipt, hashes, sizes, rights, media types,
@@ -152,11 +174,16 @@ autorouting and assembly BOM/placement remain separate PCB-005 work.
 
 The opt-in standalone checkpoint is `scripts/check_pcb_fabrication.py --evidence-dir
 <new-external-directory>`, using the existing isolated Docker runner boundary and
-unchanged original synthetic fixture. It independently checks Gerber coordinates,
-NPTH/PTH drilling, complete job layers, a disconnected-board DRC finding, malformed
-input and unsupported slots/DNP. This proves bounded native CLI/program behavior;
-approved runner transport, leases, cancellation/fencing/recovery and real browser
-journeys require their own checkpoint. No installed execution authority is implied.
+original synthetic fixture variants. `scripts/fabrication_outputs.py` independently
+parses Gerber X2 file functions, the Gerber job, outline arcs, stored-fill copper
+regions and Excellon round hits and G85 slots against declared holes. The checkpoint
+covers NPTH/PTH drilling, a disconnected-board DRC finding, an arc edge, circular
+cutout, through via, stored zone fill, production graphics and an oval slot with and
+without an original project file whose stricter rule and text variable must take
+effect, and named failures for invalid project JSON, copper-layer mismatch, native DNP
+and malformed input. This proves bounded native CLI/program behavior; approved runner
+transport, leases, cancellation/fencing/recovery and real browser journeys require
+their own checkpoint. No installed execution authority is implied.
 
 ## Firmware
 

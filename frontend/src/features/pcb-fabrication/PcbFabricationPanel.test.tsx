@@ -83,3 +83,35 @@ test('busy-state updates do not leave decorative animation work in the DOM test 
     frames.mockRestore();
   }
 });
+
+test('failed builds name the failed check instead of a generic failure', async () => {
+  vi.mocked(options).mockResolvedValue({ available_recipe_id: null, unavailable_reason: null, limit: 100, builds: [
+    { build_id: 'build-f', state: 'failed', copper_layers: 4, diagnostic: { code: 19, check: 'unfilled_zones', message: 'Copper zones have no stored fill.', detail: '3 of 9 copper zones', stderr_class: null, detail_retained: false } },
+    { build_id: 'build-u', state: 'failed', copper_layers: 2, diagnostic: { code: 70, check: 'unknown', message: 'Unknown failure; a bounded diagnostic excerpt is retained.', detail: 'RuntimeError', stderr_class: 'unknown', detail_retained: true } },
+  ] });
+  render(panel());
+  expect(await screen.findByText('Failed check: unfilled zones · exit code 19')).toBeTruthy();
+  expect(screen.getByText('Detail: 3 of 9 copper zones')).toBeTruthy();
+  expect(screen.getByText('Failed check: unknown · exit code 70')).toBeTruthy();
+  expect(screen.getByText(/excerpt is retained in the build's registered failure report/)).toBeTruthy();
+  expect(screen.queryByText(/Unsupported input or native export failure/)).toBeNull();
+  expect((screen.getByRole('button', { name: 'Inspect fabrication build build-f' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('each approved copper-layer recipe is requested deliberately', async () => {
+  vi.mocked(options).mockResolvedValue({ available_recipe_id: 'fab-2l', available_recipes: [{ recipe_id: 'fab-2l', copper_layers: 2 }, { recipe_id: 'fab-4l', copper_layers: 4 }], unavailable_reason: null, builds: [], limit: 100 });
+  render(panel('intake-a', true));
+  fireEvent.click(await screen.findByRole('button', { name: 'Request native fabrication outputs (4 copper layers)' }));
+  await waitFor(() => expect(command).toHaveBeenCalledWith('pcb_fabrication.request', { intake_id: 'intake-a', recipe_id: 'fab-4l' }, expect.any(AbortSignal)));
+});
+
+test('review shows the applied project, stored zone fills and unresolved variables', async () => {
+  vi.mocked(review).mockResolvedValue({ ...evidence, report: { ...evidence.report, copper_layer_count: 4, project: { path: 'board.kicad_pro', sha256: 'project-hash' }, custom_rules: null,
+    features: { through_vias: 12, slots: 2, copper_zones: 5, copper_zones_without_stored_copper: 1, rule_areas: 1, zones_refilled: false, production_graphics: 40, unresolved_text_variables: 2, outlines: 1, cutouts: 1 } } });
+  render(panel()); await inspect();
+  expect(screen.getByText(/Project: board.kicad_pro · project-hash/)).toBeTruthy();
+  expect(screen.getByText(/4 copper layers · 12 through vias · 2 slots/)).toBeTruthy();
+  expect(screen.getByText(/exported with stored fills and not refilled/)).toBeTruthy();
+  expect(screen.getByText(/1 copper zones have no stored copper/)).toBeTruthy();
+  expect(screen.getByText(/2 production text items still contain unresolved text variables/)).toBeTruthy();
+});
