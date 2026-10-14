@@ -121,6 +121,9 @@ _recipes_file = env("APPROVED_RECIPES_FILE")
 SPECMATE_APPROVED_RECIPES = json.loads(
     Path(_recipes_file).read_text() if _recipes_file else (env("APPROVED_RECIPES", "{}") or "{}")
 )
+# PostgreSQL client tools used by the backup command; they must match the server's major.
+SPECMATE_PG_DUMP = env("PG_DUMP", "pg_dump")
+SPECMATE_PG_RESTORE = env("PG_RESTORE", "pg_restore")
 SPECMATE_LEASE_SECONDS = int(env("LEASE_SECONDS", "60") or 60)
 SPECMATE_TEMPORAL_ADDRESS = env("TEMPORAL_ADDRESS", "temporal:7233")
 SPECMATE_TEMPORAL_NAMESPACE = env("TEMPORAL_NAMESPACE", "specmate")

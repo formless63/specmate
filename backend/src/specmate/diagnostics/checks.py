@@ -203,6 +203,18 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
         "Active runners must confirm termination; unconfirmed stages become interrupted "
         "when their lease expires. Do not stop the runner before that is visible.",
     ),
+    "installation_maintenance": (
+        "work_paused",
+        "attention",
+        "The installation was restored from a backup and is in maintenance: builds, runner "
+        "leases and workflow dispatch are disabled.",
+        "Stored designs and sources can be read. Builds that were unfinished when the backup "
+        "was taken were cancelled or marked interrupted and will not restart by themselves; "
+        "request them again after the operator resumes work.",
+        "Check the restore report and diagnostics. Restored runner credentials were revoked: "
+        "approve recipes and enroll new scoped credentials deliberately, then resume with "
+        "the work-control command.",
+    ),
     "schema_not_ready": (
         "service_unavailable",
         "blocking",
@@ -330,7 +342,8 @@ def queue(workspace_ids: list | None) -> dict[str, Any]:
     stages = BuildStage.objects.filter(_stage_scope(workspace_ids))
     counts = dict(stages.values_list("state").annotate(n=Count("id")).order_by())
     pending = stages.filter(state__in=PENDING_STATES).aggregate(oldest=Min("created_at"))["oldest"]
-    outbox = BuildOutbox.objects.filter(delivered_at__isnull=True)
+    # Rows withheld by a restore are never delivered, so they are not a dispatch backlog.
+    outbox = BuildOutbox.objects.filter(delivered_at__isnull=True, withheld_at__isnull=True)
     if workspace_ids is not None:
         outbox = outbox.filter(build__workspace_id__in=workspace_ids)
     oldest_outbox = outbox.aggregate(oldest=Min("created_at"))["oldest"]
@@ -347,6 +360,10 @@ def queue(workspace_ids: list | None) -> dict[str, Any]:
         "delivery_error_codes": sorted(
             set(outbox.exclude(last_error="").values_list("last_error", flat=True))
         )[:10],
+        "withheld": BuildOutbox.objects.filter(
+            withheld_at__isnull=False,
+            **({} if workspace_ids is None else {"build__workspace_id__in": workspace_ids}),
+        ).count(),
     }
 
 
@@ -451,6 +468,8 @@ def findings(
         out.append(finding("installation_draining", audience))
     elif mode["mode"] == WorkControl.Mode.INTERRUPTING:
         out.append(finding("installation_interrupting", audience))
+    elif mode["mode"] == WorkControl.Mode.MAINTENANCE:
+        out.append(finding("installation_maintenance", audience))
     for tool in tool_states:
         if tool["status"] == "not_approved":
             out.append(finding("recipe_not_approved", audience, recipe_id=tool["recipe_id"]))

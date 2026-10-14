@@ -118,6 +118,26 @@ reconciliation. Do not resume external side effects merely because a backup was 
 Default a restore to maintenance with execution/integration actions disabled until authorized.
 Private developer tracker backups are separate and not part of product data backups.
 
+The current procedure is `python manage.py backup create|verify|restore` (steps in the
+[deployment guide](../deploy/README.md#backup-and-same-version-restore)). A bundle is one
+tar stream with a hashed manifest: a `pg_dump` taken through an exported REPEATABLE READ
+snapshot, every content-addressed byte object (each referenced one verified by hash), the
+approved recipe registry and, unless explicitly omitted, the installation `.env`. Bytes are
+promoted before the commit that references them and never rewritten, so copying them after
+the snapshot yields a superset of what the dump references. The manifest records the
+schema migration set, installation identity, tool versions and the work open at backup.
+
+Workflows carry identifiers only, so the workflow recovery state is the application's
+stages, leases, receipts, runner credentials and dispatch outbox; Temporal histories are
+not restored. Restore requires an empty target and an identical migration set, loads the
+dump in one transaction, then fences the restored state before readiness: `maintenance`
+mode (no requests, leases or dispatch), every runner credential revoked, undelivered
+dispatch permanently withheld, unstarted stages cancelled with a not-started receipt and
+active stages `interrupted`. `work_control resume` is the deliberate authorization; even
+then nothing captured in the backup is dispatched or re-run. Online backup under active
+work and restore across versions are not qualified; a restic/offsite schedule, retention
+and encryption of bundles remain operator choices.
+
 ## Updates and pre-release development
 
 Before v1.0.0, disposable test installations can reset to current baseline. Do not build

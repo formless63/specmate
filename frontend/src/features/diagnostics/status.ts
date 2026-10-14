@@ -15,7 +15,7 @@ export type StatusBuild = {
 
 export type WorkspaceStatus = {
   workspace_id: string; evaluated_at: string;
-  work: { mode: "running" | "draining" | "interrupting"; accepting_new_work: boolean; reason: string; state_token: string };
+  work: { mode: "running" | "draining" | "interrupting" | "maintenance"; accepting_new_work: boolean; reason: string; state_token: string };
   queue: { states: Record<string, number>; pending: number; active: number; oldest_pending_seconds: number | null };
   dispatch: { undelivered: number; oldest_undelivered_seconds: number | null };
   runner: { state: string; credentials_usable: number; stages_holding_lease: number; stages_lease_expired: number };

@@ -119,7 +119,23 @@ class BuildOutbox(models.Model):
     delivered_at = models.DateTimeField(null=True)
     delivery_attempts = models.PositiveIntegerField(default=0)
     last_error = models.CharField(max_length=200, blank=True)
+    # A restored installation never delivers work captured before the backup: such rows
+    # are withheld permanently instead of being marked delivered or silently deleted.
+    withheld_at = models.DateTimeField(null=True)
+    withheld_reason = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(withheld_at__isnull=True, withheld_reason="")
+                | (
+                    models.Q(withheld_at__isnull=False, delivered_at__isnull=True)
+                    & ~models.Q(withheld_reason="")
+                ),
+                name="build_outbox_withheld_undelivered",
+            ),
+        ]
 
 
 class StageOutput(models.Model):

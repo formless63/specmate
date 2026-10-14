@@ -5,7 +5,7 @@ import { SbStatus, type SbLed } from "../../components/sb";
 import { runOperation } from "../workspace/api";
 import { CATEGORY_LABEL, RUNNER_LABEL, readWorkspaceStatus, type Finding, type WorkspaceStatus, type StatusBuild } from "./status";
 
-const WORK_LED: Record<WorkspaceStatus["work"]["mode"], SbLed> = { running: "active", draining: "review", interrupting: "failed" };
+const WORK_LED: Record<WorkspaceStatus["work"]["mode"], SbLed> = { running: "active", draining: "review", interrupting: "failed", maintenance: "review" };
 const RUNNER_LED: Record<string, SbLed> = { working: "active", not_enrolled: "not-evaluated", enrolled_liveness_unknown: "not-evaluated", credential_unusable: "failed", lease_expired: "failed" };
 const storageLed = (state: string): SbLed => state === "unavailable" ? "failed" : state === "degraded" ? "review" : "idle";
 const BUILD_LED: Record<string, SbLed> = { waiting_dispatch: "review", queued: "active", leased: "active", running: "active", interrupted: "failed" };
