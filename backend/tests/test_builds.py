@@ -222,11 +222,84 @@ def test_request_rolls_back_attempt_stage_and_outbox_together(users, build_paylo
     assert not BuildOutbox.objects.exists()
 
 
-def test_recipe_cannot_relicense_source(users, build_payload, settings):
+def test_recipe_rights_never_refuse_a_build(users, build_payload, settings):
     settings.SPECMATE_APPROVED_RECIPES[build_payload["recipe_id"]]["outputs"][0]["rights"] = "other"
-    with pytest.raises(ValidationFailed):
-        op(users["owner"], "build.request", build_payload, idempotency_key="wrong-rights")
-    assert not BuildAttempt.objects.exists()
+    result = op(users["owner"], "build.request", build_payload, idempotency_key="other-rights")
+    assert BuildAttempt.objects.filter(id=result["build_id"]).exists()
+
+
+def _mixed_source(users, workspace, rights_by_path):
+    files = []
+    for path, rights in rights_by_path.items():
+        data = f"content of {path}\n".encode()
+        op(
+            users["owner"],
+            "source.register_blob",
+            {
+                "workspace_id": workspace_of(workspace),
+                "sha256": digest(data),
+                "size": len(data),
+                "media_type": "text/plain",
+            },
+            attachments={"content": io.BytesIO(data)},
+        )
+        files.append(
+            {"path": path, "sha256": digest(data), "media_type": "text/plain", "rights": rights}
+        )
+    return op(
+        users["owner"],
+        "source.create_original_bundle",
+        {"workspace_id": workspace_of(workspace), "name": "Mixed", "files": files},
+    )["revision_id"]
+
+
+@pytest.mark.parametrize(
+    ("rights_by_path", "expected", "basis"),
+    [
+        ({"a.txt": "MIT", "b.txt": "MIT"}, "MIT", "uniform"),
+        ({"a.txt": "MIT", "b.txt": "Proprietary"}, "Proprietary", "most_restrictive"),
+        ({"a.txt": "MIT", "b.txt": "CC-BY-4.0"}, "unknown", "unknown"),
+        ({"a.txt": "MIT", "b.txt": "unknown"}, "unknown", "unknown"),
+    ],
+)
+def test_mixed_rights_are_staged_recorded_and_outputs_derive_conservatively(
+    users, workspace, build_payload, credential, rights_by_path, expected, basis
+):
+    revision = _mixed_source(users, workspace, rights_by_path)
+    started = op(
+        users["owner"],
+        "build.request",
+        {**build_payload, "source_revision_id": revision},
+        idempotency_key="mixed",
+    )
+    op(users["owner"], "build.dispatch", {"build_id": started["build_id"]})
+    lease = runner_op(credential, "runner.lease")["lease"]
+    # The runner restates the recipe's rights; they never gate registration.
+    upload(credential, lease)
+    runner_op(credential, "runner.complete", success_receipt(lease))
+
+    history = op(users["owner"], "build.history", {"build_id": started["build_id"]})
+    assert {e["path"]: e["rights"] for e in history["staged_inputs"]} == rights_by_path
+    assert all(
+        e["sha256"] and e["bytes"] and e["media_type"] == "text/plain"
+        for e in history["staged_inputs"]
+    )
+    assert history["output_rights"] == {"rights": expected, "basis": basis}
+    assert [o["rights"] for o in history["outputs"]] == [expected]
+    assert StageOutput.objects.get().rights == expected
+
+
+def test_staged_inputs_are_retained_verbatim_on_retry(users, workspace, build_payload):
+    revision = _mixed_source(users, workspace, {"a.txt": "MIT", "b.txt": "Proprietary"})
+    first = op(
+        users["owner"],
+        "build.request",
+        {**build_payload, "source_revision_id": revision},
+        idempotency_key="mixed-first",
+    )
+    assert BuildAttempt.objects.get(id=first["build_id"]).staged_inputs[1]["rights"] == (
+        "Proprietary"
+    )
 
 
 def test_outbox_ack_loss_redelivery_has_stable_identity(build):
@@ -301,11 +374,10 @@ def test_upload_and_completion_lost_receipts_are_idempotent(credential, lease):
         {"sha256": "f" * 64},
         {"size": 5000},
         {"media_type": "application/x-executable"},
-        {"rights": "unrelated-license"},
         {"source_revision_id": str(uuid.uuid4())},
     ],
 )
-def test_output_rejects_corruption_traversal_wrong_type_rights_source(credential, lease, changed):
+def test_output_rejects_corruption_traversal_wrong_type_source(credential, lease, changed):
     with pytest.raises(ValidationFailed):
         upload(credential, lease, {**output_payload(lease), **changed})
     assert not StageOutput.objects.exists()

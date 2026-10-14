@@ -31,6 +31,7 @@ from specmate.operations.models import IdempotencyRecord
 from .conftest import op
 from .test_builds import (  # noqa: F401 - shared fixtures
     OUTPUT,
+    RIGHTS,
     build,
     build_payload,
     credential,
@@ -455,7 +456,13 @@ def test_history_retains_events_partial_outputs_and_lineage_without_secrets(
     history = op(users["viewer"], "build.history", {"build_id": build["build_id"]})
     assert history["state"] == "cancelled" and history["receipt"]["outcome"] == "cancelled"
     assert history["outputs"] == [
-        {"path": "result.txt", "sha256": digest(OUTPUT), "size": len(OUTPUT), "accepted": False}
+        {
+            "path": "result.txt",
+            "sha256": digest(OUTPUT),
+            "size": len(OUTPUT),
+            "rights": RIGHTS,
+            "accepted": False,
+        }
     ]
     kinds = [e["kind"] for e in history["events"]]
     assert kinds[0] == "requested" and "cancellation_requested" in kinds

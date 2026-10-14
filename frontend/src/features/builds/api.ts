@@ -17,7 +17,11 @@ export type BuildHistory = {
   retry_of: string | null; retried_by: string | null; requested_by_viewer: boolean;
   lineage: { build_id: string; state: string; current: boolean }[];
   events: { kind: string; at: string; detail: Record<string, unknown> }[];
-  outputs: { path: string; sha256: string; size: number; accepted: boolean }[];
+  outputs: { path: string; sha256: string; size: number; rights: string; accepted: boolean }[];
+  /** Per-file rights as staged; null for attempts recorded before rights were retained. */
+  staged_inputs: { path: string; sha256: string; bytes: number; media_type: string; rights: string }[] | null;
+  /** Conservative rights of outputs: the most restrictive input rights, or unknown. */
+  output_rights: { rights: string; basis: 'uniform' | 'most_restrictive' | 'unknown' };
   cancel_available: boolean; retry_available: boolean; abandon_available: boolean;
   awaiting_runner_confirmation: boolean;
   /** Exact resolved configuration input pinned at request time; null when none was pinned. */

@@ -33,6 +33,9 @@ class BuildAttempt(models.Model):
         related_name="+",
     )
     configuration_input = models.JSONField(null=True)
+    # Exact per-file record (path, hash, size, type, per-file rights) of the staged inputs,
+    # retained at request time. Null only for attempts recorded before it existed.
+    staged_inputs = models.JSONField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -11,6 +11,7 @@ from specmate.assemblies.contracts import StrictModel
 from specmate.builds.models import BuildAttempt
 from specmate.builds.operations import RequestBuild, request_build
 from specmate.builds.recipes import Recipe, approved_recipe
+from specmate.builds.rights import derive_for_revision
 from specmate.catalog_matching.queries import current_actor
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
@@ -188,7 +189,7 @@ def validate_outputs(file, build):
     for path, output in outputs.items():
         if (
             output.source_revision_id != file.revision_id
-            or output.rights != file.rights
+            or output.rights != derive_for_revision(file.revision)
             or output.media_type != OUTPUT_MEDIA[path]
             or output.size <= 0
             or output.size > MAX_OUTPUT_BYTES

@@ -14,6 +14,7 @@ from specmate.builds.operations import RequestBuild, request_build, stage_result
 from specmate.builds.recipes import Recipe, approved_recipe
 from specmate.builds.recovery import _actions as stage_actions
 from specmate.builds.recovery import _lineage as lineage
+from specmate.builds.rights import derive_output_rights
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
 from specmate.firmware_builds.contracts import (
@@ -256,7 +257,7 @@ def validate_outputs(spec, build):
         )
     if sum(o.size for o in outputs.values()) > MAX_OUTPUT_BYTES:
         raise ValidationFailed("Compiler outputs exceed their registered size bound.")
-    rights = spec["sources"][0]["files"][0]["rights"]
+    rights = derive_output_rights(f["rights"] for f in spec["sources"][0]["files"])[0]
     raw = {}
     for path, output in outputs.items():
         if (

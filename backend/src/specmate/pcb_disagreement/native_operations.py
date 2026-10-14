@@ -12,6 +12,7 @@ from specmate.assemblies.contracts import StrictModel
 from specmate.builds.models import BuildStage
 from specmate.builds.operations import RequestBuild, request_build
 from specmate.builds.recipes import Recipe, approved_recipe
+from specmate.builds.rights import derive_for_revision
 from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
@@ -225,7 +226,7 @@ def validate_outputs(attempt):
         output = outputs[path]
         if (
             output.source_revision_id != file.revision_id
-            or output.rights != file.rights
+            or output.rights != derive_for_revision(file.revision)
             or output.media_type != media
             or output.size > MAX_XML_BYTES
         ):

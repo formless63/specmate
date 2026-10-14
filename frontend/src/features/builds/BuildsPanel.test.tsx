@@ -16,6 +16,7 @@ const history = (over: Partial<BuildHistory> = {}): BuildHistory => ({
   source_revision_id: 'rev-1', requested_at: '2026-01-01T00:00:00Z', retry_of: null, retried_by: null, requested_by_viewer: false,
   lineage: [{ build_id: 'build-a', state: 'running', current: true }],
   events: [{ kind: 'requested', at: 't1', detail: {} }], outputs: [],
+  staged_inputs: [{ path: 'a.txt', sha256: 'aa', bytes: 3, media_type: 'text/plain', rights: 'MIT' }], output_rights: { rights: 'MIT', basis: 'uniform' },
   cancel_available: true, retry_available: false, abandon_available: false, awaiting_runner_confirmation: false, configuration: null, ...over,
 });
 const panel = (permissions?: string[]) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}>
@@ -59,7 +60,7 @@ test('retry names the exact failed attempt and opens the new attempt', async () 
 
 test('unavailable runner offers a resolution that needs a basis and says termination is unconfirmed', async () => {
   vi.mocked(readHistory).mockResolvedValueOnce(history({ state: 'cancellation_requested', cancel_available: false, abandon_available: true, awaiting_runner_confirmation: true,
-    outputs: [{ path: 'result.txt', sha256: 'abc', size: 4, accepted: false }] }));
+    outputs: [{ path: 'result.txt', sha256: 'abc', size: 4, rights: 'MIT', accepted: false }] }));
   await open();
   expect(screen.getByText(/Retained evidence only; not an accepted artifact/)).toBeTruthy();
   const resolve = screen.getByRole('button', { name: 'Resolve as failed, termination unconfirmed' }) as HTMLButtonElement;
@@ -126,4 +127,25 @@ test('the pinned resolved configuration is shown with its exact pins; none pinne
   await open();
   expect(screen.getByText('Resolved configuration · 1 choices · 1 pinned revisions')).toBeTruthy();
   expect(screen.queryByText(/No configuration pinned/)).toBeNull();
+});
+
+test('mixed per-file rights and the derived output rights are shown, unknown never as a default', async () => {
+  vi.mocked(readHistory).mockResolvedValueOnce(history({
+    staged_inputs: [
+      { path: 'a.txt', sha256: 'aa', bytes: 3, media_type: 'text/plain', rights: 'MIT' },
+      { path: 'b.txt', sha256: 'bb', bytes: 3, media_type: 'text/plain', rights: 'Proprietary' },
+    ],
+    output_rights: { rights: 'Proprietary', basis: 'most_restrictive' },
+  }));
+  await open();
+  expect(screen.getByText('MIT')).toBeTruthy();
+  expect(screen.getAllByText('Proprietary').length).toBe(1);
+  expect(screen.getByText(/Output rights: Proprietary \(most restrictive input\)/)).toBeTruthy();
+});
+
+test('an older build without a staged record says its output rights are unknown', async () => {
+  vi.mocked(readHistory).mockResolvedValueOnce(history({ staged_inputs: null, output_rights: { rights: 'unknown', basis: 'unknown' } }));
+  await open();
+  expect(screen.getByText(/not recorded for this older build/)).toBeTruthy();
+  expect(screen.getByText(/Output rights: unknown/)).toBeTruthy();
 });
