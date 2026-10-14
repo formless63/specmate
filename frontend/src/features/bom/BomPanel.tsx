@@ -1,7 +1,8 @@
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
 import type { Projection } from "../assemblies/api";
 import { blankPlan, command, read, unknownCount, unknownDemand, type DemandQuantity, type Waste, type Count, type Definition, type Draft, type Identity, type Inspection, type Need, type Plan, type Purpose } from "./api";
 import { revisionOptionLabel } from "../../lib/revision-labels";
@@ -10,8 +11,8 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const purposes = [{ value: "assembly_contents", label: "Assembly contents" }, { value: "procurement", label: "Procurement" }, { value: "pcb_fabrication", label: "PCB fabrication" }, { value: "pcb_population", label: "PCB population" }, { value: "consumables", label: "Consumables" }];
 const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembly";
-export function BomPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+export function BomPanel({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) { return <Workspace key={projectId} projectId={projectId} workspaceId={workspaceId} />; }
+function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const [name, setName] = useState("");
@@ -32,7 +33,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
     <Card withBorder><Stack><Title order={3}>New BOM plan</Title>
       <InspectionScope permission="item.create"><TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} /></InspectionScope>
+      <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} workspaceId={workspaceId} /></InspectionScope>
       <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...createGate.props}>Create BOM draft</Button><ReadOnlyNote permission="item.create">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
@@ -90,12 +91,18 @@ function WasteInput({ title, value, unit, onChange }: { title: string; value?: W
     {value ? <><DemandInput title={`${title} additive waste per root assembly`} value={value.quantity} onChange={quantity => onChange({ ...value, quantity })} /><TextInput label={`${title} waste basis`} value={value.basis} onChange={e => onChange({ ...value, basis: e.currentTarget.value })} /></> : <Text size="sm">Waste not evaluated. Gross required demand remains unknown; declare zero explicitly when justified.</Text>}</Stack>;
 }
 
-function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions: Definition[]; onChange: (value: Plan) => void }) {
+function PlanEditor({ value, definitions, onChange, workspaceId }: { value: Plan; definitions: Definition[]; onChange: (value: Plan) => void; workspaceId?: string | null }) {
   const root = useQuery({ queryKey: ["bom-root", value.assembly_revision_id], queryFn: () => read<{ snapshot_id: string }>(`revisions/${value.assembly_revision_id}`), enabled: !!value.assembly_revision_id });
   const tree = useQuery({ queryKey: ["bom-tree", root.data?.snapshot_id], queryFn: () => read<Projection>(`assemblies/snapshots/${root.data?.snapshot_id}`), enabled: !!root.data });
   const contexts = [{ path: [] as string[], revision_id: value.assembly_revision_id }, ...(tree.data?.occurrences ?? []).map(n => ({ path: n.address.path, revision_id: n.revision_id }))];
   const [context, setContext] = useState("[]");
   const [need, setNeed] = useState<Need>({ local_id: "", context_path: [], revision_id: "", purpose: "consumables", quantity: unknownDemand(), basis: "" });
+  // The default length unit pre-fills only the unit of a new need; its amount stays unknown.
+  const preferredUnit = usePreferenceDefaults(workspaceId).text("default_length_unit");
+  const lengthUnit = (["m", "cm", "mm"] as const).find(unit => unit === preferredUnit) ?? null;
+  const [unitFromPreference, setUnitFromPreference] = useState(false);
+  const [unitTouched, setUnitTouched] = useState(false);
+  useEffect(() => { if (lengthUnit && !unitTouched) { setNeed(current => ({ ...current, quantity: { ...current.quantity, unit: lengthUnit } })); setUnitFromPreference(true); } }, [lengthUnit, unitTouched]);
   return <Stack>
     <RevisionPicker title="Root assembly" definitions={definitions.filter(d => d.kind === "assembly")} value={value.assembly_revision_id} onChange={id => onChange({ ...blankPlan(), assembly_revision_id: id, quantity: value.quantity })} />
     <CountInput title="Planned assembly quantity" value={value.quantity} onChange={quantity => onChange({ ...value, quantity })} />
@@ -117,7 +124,8 @@ function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions
       <TextInput label="Need stable ID" value={need.local_id} onChange={e => setNeed({ ...need, local_id: e.currentTarget.value })} />
       <RevisionPicker title="Need item" definitions={definitions} value={need.revision_id} onChange={id => setNeed({ ...need, revision_id: id })} />
       <Select label="Need purpose" data={purposes.slice(2)} value={need.purpose} onChange={p => setNeed({ ...need, purpose: p as Need["purpose"] })} />
-      <DemandInput title="Need net demand per root assembly" value={need.quantity} onChange={quantity => setNeed({ ...need, quantity })} />
+      <Group align="flex-end" gap="xs"><DemandInput title="Need net demand per root assembly" value={need.quantity} onChange={quantity => { if (quantity.unit !== need.quantity.unit) { setUnitTouched(true); setUnitFromPreference(false); } setNeed({ ...need, quantity }); }} />
+        {unitFromPreference && need.quantity.unit === lengthUnit && <FromPreference what="need quantity unit" onClear={() => { setUnitTouched(true); setUnitFromPreference(false); setNeed({ ...need, quantity: { ...need.quantity, unit: "ea" } }); }} />}</Group>
       <WasteInput title="Need" value={need.waste} unit={need.quantity.unit} onChange={waste => setNeed({ ...need, waste })} />
       <TextInput label="Need basis" value={need.basis} onChange={e => setNeed({ ...need, basis: e.currentTarget.value })} />
       <Button disabled={!need.local_id || !need.revision_id || !need.basis} onClick={() => onChange({ ...value, needs: [...value.needs, { ...need, context_path: JSON.parse(context) as string[] }] })}>Add process need</Button>
