@@ -203,6 +203,7 @@ def replay(ctx, p, stored):
     idempotency_scope=scope,
     authorize_replay=replay,
     summary="Compile an exact frozen firmware using an approved isolated toolchain; no flashing.",
+    access=Perm.BUILD_EXECUTE,
 )
 def request(ctx, p):
     revision, _, spec, source = executable_inputs(ctx.user, p, Perm.BUILD_EXECUTE)
@@ -318,6 +319,7 @@ def validate_outputs(spec, build):
     CompileRef,
     supports_idempotency=False,
     summary="Inspect exact registered compiler evidence and separate firmware handoff.",
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx, p):
     _, spec, build = scoped_build(ctx, p)
@@ -349,6 +351,7 @@ def read(ctx, p):
     FirmwareRef,
     supports_idempotency=False,
     summary="List authorized compiler builds and explicit installed support limitations.",
+    access=Perm.WORKSPACE_READ,
 )
 def options(ctx, p):
     _, _, spec = inputs(ctx.user, p)

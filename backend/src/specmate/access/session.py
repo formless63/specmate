@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from specmate.access.account_names import LocalUsername
 from specmate.access.models import Installation
 from specmate.operations import Context, PermissionDenied, Unauthenticated, operation
+from specmate.operations.core import ACCESS_AUTHENTICATED, ACCESS_PUBLIC
 
 
 def require_browser_request(ctx: Context) -> HttpRequest:
@@ -59,6 +60,7 @@ class Logout(BaseModel):
     summary="Sign in to a local browser session.",
     public=True,
     supports_idempotency=False,
+    access=ACCESS_PUBLIC,
 )
 def login_session(ctx: Context, payload: Login) -> dict:
     request = require_browser_request(ctx)
@@ -74,6 +76,7 @@ def login_session(ctx: Context, payload: Login) -> dict:
     Logout,
     summary="Sign out of the current browser session.",
     supports_idempotency=False,
+    access=ACCESS_AUTHENTICATED,
 )
 def logout_session(ctx: Context, payload: Logout) -> dict:
     request = require_browser_request(ctx)

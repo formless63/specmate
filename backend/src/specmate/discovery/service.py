@@ -127,9 +127,7 @@ def describe(
         digest_material.append(
             [name, schema, spec.requires_expected_state, spec.supports_idempotency]
         )
-        found = req.requirement_for(
-            name, supports_idempotency=spec.supports_idempotency, public=spec.public
-        )
+        found = req.requirement_for(spec)
         requirement, basis = found if found else (None, "undeclared")
         row: dict[str, Any] = {
             "operation": name,

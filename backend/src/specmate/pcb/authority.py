@@ -473,6 +473,7 @@ def _interpretation(ctx, interpretation_id, authority) -> PcbInterpretation:
     summary="Designate one native source file as the only owner of a board property.",
     idempotency_scope=_scope("source_property.declare"),
     authorize_replay=_replay,
+    access=Perm.SOURCE_REGISTER,
 )
 def declare(ctx: Context, p: Declare) -> dict:
     revision = _owner_revision(ctx, p.owner_revision_id)
@@ -556,6 +557,7 @@ def _locked(ctx, p, permission=Perm.SOURCE_REGISTER):
     requires_expected_state=True,
     idempotency_scope=_scope("source_property.reconcile"),
     authorize_replay=_replay,
+    access=Perm.SOURCE_REGISTER,
 )
 def reconcile(ctx: Context, p: Reconcile) -> dict:
     authority = _locked(ctx, p)
@@ -632,6 +634,7 @@ def reconcile(ctx: Context, p: Reconcile) -> dict:
     requires_expected_state=True,
     idempotency_scope=_scope("source_property.transfer"),
     authorize_replay=_replay,
+    access=Perm.SOURCE_REGISTER,
 )
 def transfer(ctx: Context, p: Transfer) -> dict:
     authority = _locked(ctx, p)
@@ -688,6 +691,7 @@ def transfer(ctx: Context, p: Transfer) -> dict:
     summary="Read an owned property's designated source, reconciled projection, candidates, "
     "preserved non-owner evidence and history.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: AuthorityRef) -> dict:
     return read_authority(ctx.user, authority_for(ctx, p.authority_id))

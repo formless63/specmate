@@ -102,6 +102,7 @@ def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     summary="Compose exact harness stock and endpoint revisions.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, p: CreateHarness):
     workspace = item_workspace(ctx.user, p.workspace_id)
@@ -121,6 +122,7 @@ def create(ctx: Context, p: CreateHarness):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdateHarness):
     harness_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -145,6 +147,7 @@ def capture_payload(ctx, p, permission):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def snapshot(ctx: Context, p: CaptureHarness):
     return snapshot_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_EDIT))
@@ -157,6 +160,7 @@ def snapshot(ctx: Context, p: CaptureHarness):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: replay(ctx, p, stored, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda ctx, p: scope(ctx, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, p: CaptureHarness):
     return freeze_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_FREEZE))
@@ -167,6 +171,7 @@ def freeze(ctx: Context, p: CaptureHarness):
     ReadHarness,
     summary="Read frozen harness assignments and conductor identities.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadHarness):
     return inspect_revision(ctx.user, p.revision_id, p.quantity)
@@ -177,6 +182,7 @@ def read(ctx: Context, p: ReadHarness):
     InspectRelationships,
     summary="Inspect only explicit joint, bond and breakout relationship declarations.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def declared_relationships(ctx: Context, p: InspectRelationships):
     return inspect_relationships(ctx.user, p.revision_id, p.terminal)

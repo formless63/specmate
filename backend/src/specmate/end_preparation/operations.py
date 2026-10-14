@@ -93,6 +93,7 @@ def replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     summary="Create an exact-stock per-end instruction profile.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, payload: CreateProfile):
     workspace = item_workspace(ctx.user, payload.workspace_id)
@@ -117,6 +118,7 @@ def create(ctx: Context, payload: CreateProfile):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, payload: UpdateProfile):
     draft = profile_draft(ctx, payload.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -133,6 +135,7 @@ def update(ctx: Context, payload: UpdateProfile):
     requires_expected_state=True,
     authorize_replay=lambda c, p, r: replay(c, p, r, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda c, p: scope(c, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, payload: CaptureProfile):
     draft = profile_draft(ctx, payload.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -150,6 +153,7 @@ def freeze(ctx: Context, payload: CaptureProfile):
     ReadProfile,
     summary="Inspect an exact end preparation revision.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, payload: ReadProfile):
     return inspect_profile(ctx.user, payload.revision_id)
@@ -160,6 +164,7 @@ def read(ctx: Context, payload: ReadProfile):
     ApplyProfile,
     summary="Apply reviewed per-end instructions to explicitly mapped exact cable endpoints.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def calculate(ctx: Context, payload: ApplyProfile):
     return apply_profile(ctx.user, payload)
@@ -170,6 +175,7 @@ def calculate(ctx: Context, payload: ApplyProfile):
     EndPreparationProfile,
     summary="Recheck current profile source authority without applying formulas.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def check_authority(ctx: Context, payload: EndPreparationProfile):
     closure(
@@ -183,6 +189,7 @@ def check_authority(ctx: Context, payload: EndPreparationProfile):
     ApplyHarnessProfile,
     summary="Project instructions onto explicitly mapped physical ends of a harness section.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def calculate_harness(ctx: Context, payload: ApplyHarnessProfile):
     return apply_harness_profile(ctx.user, payload)

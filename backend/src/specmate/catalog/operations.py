@@ -54,6 +54,7 @@ def editable_revision(ctx, revision_id):
     authorize_replay=authorize_catalog_replay,
     idempotency_scope=catalog_scope,
     summary="Associate an orderable manufacturer identity with an exact design revision.",
+    access=Perm.ITEM_CREATE,
 )
 def register_variant(ctx: Context, p: RegisterVariant) -> dict:
     revision = editable_revision(ctx, p.revision_id)
@@ -77,6 +78,7 @@ def register_variant(ctx: Context, p: RegisterVariant) -> dict:
     authorize_replay=authorize_catalog_replay,
     idempotency_scope=catalog_scope,
     summary="Associate an immutable source file representation with an exact design revision.",
+    access=Perm.ITEM_CREATE,
 )
 def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
     revision = editable_revision(ctx, p.revision_id)
@@ -110,6 +112,7 @@ def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
     authorize_replay=authorize_catalog_replay,
     idempotency_scope=catalog_scope,
     summary="Register a physical lot identity pinned to a revision; no stock transaction occurs.",
+    access=Perm.ITEM_CREATE,
 )
 def register_lot(ctx: Context, p: RegisterLot) -> dict:
     revision = editable_revision(ctx, p.revision_id)

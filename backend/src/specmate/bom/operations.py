@@ -65,6 +65,7 @@ def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     summary="Create a purpose-specific BOM planning draft.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, p: CreateBom):
     workspace = item_workspace(ctx.user, p.workspace_id)
@@ -84,6 +85,7 @@ def create(ctx: Context, p: CreateBom):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdateBom):
     bom_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -106,6 +108,7 @@ def capture_payload(ctx, p, permission):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def snapshot(ctx: Context, p: CaptureBom):
     return snapshot_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_EDIT))
@@ -118,6 +121,7 @@ def snapshot(ctx: Context, p: CaptureBom):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: replay(ctx, p, stored, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda ctx, p: scope(ctx, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, p: CaptureBom):
     return freeze_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_FREEZE))
@@ -128,6 +132,7 @@ def freeze(ctx: Context, p: CaptureBom):
     ReadBom,
     summary="Read a frozen purpose-specific BOM projection.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadBom):
     return inspect_revision(ctx.user, p.revision_id, p.purpose)

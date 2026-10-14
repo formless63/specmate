@@ -49,6 +49,7 @@ from specmate.operations import (
     ValidationFailed,
     operation,
 )
+from specmate.operations.core import ACCESS_OPERATOR, ACCESS_RUNNER, ACCESS_TRUSTED_JOB, Requirement
 from specmate.operations.scope import WorkspacePayload, WorkspaceProjectPayload
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBundleRevision
@@ -171,6 +172,7 @@ class RequestBuild(WorkspaceProjectPayload):
     RequestBuild,
     summary="Request an approved isolated build from an exact immutable source revision.",
     status="accepted_async",
+    access=Perm.BUILD_EXECUTE,
 )
 def request_build(ctx: Context, p: RequestBuild) -> dict:
     workspace = authorize(ctx.user, p.workspace_id, Perm.BUILD_EXECUTE)
@@ -264,6 +266,7 @@ def _job_stage(ctx: Context, p: BuildRef) -> BuildStage:
     BuildRef,
     summary="Make an outbox-dispatched build available to runners.",
     supports_idempotency=False,
+    access=ACCESS_TRUSTED_JOB,
 )
 def dispatch_build(ctx: Context, p: BuildRef) -> dict:
     stage = _job_stage(ctx, p)
@@ -281,6 +284,7 @@ def dispatch_build(ctx: Context, p: BuildRef) -> dict:
     BuildRef,
     summary="Reconcile build liveness for its trusted workflow.",
     supports_idempotency=False,
+    access=ACCESS_TRUSTED_JOB,
 )
 def poll_build(ctx: Context, p: BuildRef) -> dict:
     stage = _job_stage(ctx, p)
@@ -295,6 +299,7 @@ def poll_build(ctx: Context, p: BuildRef) -> dict:
     BuildRef,
     summary="Read the state of a build within its workspace.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def get_build(ctx: Context, p: BuildRef) -> dict:
     stage = _stage_for_build(p.build_id)
@@ -312,6 +317,7 @@ class ArtifactRef(BuildRef):
     ArtifactRef,
     summary="Authorize accepted artifact bytes in workspace scope.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def get_output(ctx: Context, p: ArtifactRef) -> dict:
     stage = _stage_for_build(p.build_id)
@@ -346,6 +352,7 @@ def _authorize_compiler_read(ctx, stage):
     BuildRef,
     summary="Request cancellation; a runner confirms actual termination.",
     requires_expected_state=True,
+    access=Perm.WORKSPACE_READ,
 )
 def cancel_build(ctx: Context, p: BuildRef) -> dict:
     stage = _stage_for_build(p.build_id)
@@ -375,6 +382,7 @@ def _operator(ctx: Context):
     EnrollRunner,
     summary="Issue a workspace and recipe scoped runner token.",
     supports_idempotency=False,
+    access=Requirement("operator", Perm.WORKSPACE_ADMIN),
 )
 def enroll_runner(ctx: Context, p: EnrollRunner) -> dict:
     _operator(ctx)
@@ -404,7 +412,12 @@ class RevokeRunner(Payload):
     credential_id: UUID
 
 
-@operation("runner.revoke", RevokeRunner, summary="Revoke a runner credential locally.")
+@operation(
+    "runner.revoke",
+    RevokeRunner,
+    summary="Revoke a runner credential locally.",
+    access=ACCESS_OPERATOR,
+)
 def revoke_runner(ctx: Context, p: RevokeRunner) -> dict:
     _operator(ctx)
     credential = RunnerCredential.objects.select_for_update().filter(id=p.credential_id).first()
@@ -442,6 +455,7 @@ def _manifest(stage: BuildStage) -> dict:
     summary="Claim one authorized stage lease.",
     public=True,
     supports_idempotency=False,
+    access=ACCESS_RUNNER,
 )
 def claim_lease(ctx: Context, p: ClaimLease) -> dict:
     runner = _runner(ctx)
@@ -524,6 +538,7 @@ def _runner_stage(ctx: Context, p: StageLease, *, allow_expired=False, allow_ter
     summary="Renew a stage lease and read cancellation.",
     public=True,
     supports_idempotency=False,
+    access=ACCESS_RUNNER,
 )
 def heartbeat(ctx: Context, p: StageLease) -> dict:
     stage = _runner_stage(ctx, p)
@@ -554,6 +569,7 @@ def _reconciliation_result(stage: BuildStage) -> dict:
     summary="Reconcile the original execution before resuming receipts.",
     public=True,
     supports_idempotency=False,
+    access=ACCESS_RUNNER,
 )
 def reconcile(ctx: Context, p: ReconcileLease) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)
@@ -586,6 +602,7 @@ class InputRef(StageLease):
     summary="Authorize one exact input in the leased manifest.",
     public=True,
     supports_idempotency=False,
+    access=ACCESS_RUNNER,
 )
 def get_input(ctx: Context, p: InputRef) -> dict:
     stage = _runner_stage(ctx, p)
@@ -631,6 +648,7 @@ def _output_result(output: StageOutput) -> dict:
     public=True,
     supports_idempotency=False,
     attachments=("content",),
+    access=ACCESS_RUNNER,
 )
 def register_output(ctx: Context, p: RegisterOutput) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)
@@ -694,6 +712,7 @@ class CompleteStage(StageLease):
     summary="Accept one fenced terminal execution receipt.",
     public=True,
     supports_idempotency=False,
+    access=ACCESS_RUNNER,
 )
 def complete(ctx: Context, p: CompleteStage) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)

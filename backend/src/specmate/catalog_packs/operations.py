@@ -179,6 +179,7 @@ def replay(ctx, payload, stored):
     summary="Register inert catalog manifest content with exact pins and no execution authority.",
     idempotency_scope=register_scope,
     authorize_replay=replay,
+    access=Perm.ITEM_CREATE,
 )
 def register(ctx: Context, payload: RegisterPackVersion):
     pins, dependencies, source = registration_refs(ctx, payload)
@@ -284,6 +285,7 @@ def append_decision(ctx, pack, version, decisions, action, basis):
     requires_expected_state=True,
     idempotency_scope=change_scope("catalog_pack.install"),
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def install(ctx: Context, payload: InstallPack):
     get_version(ctx.user, payload.version_id)
@@ -300,6 +302,7 @@ def install(ctx: Context, payload: InstallPack):
     requires_expected_state=True,
     idempotency_scope=change_scope("catalog_pack.disable"),
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def disable(ctx: Context, payload: DisablePack):
     pack, versions, decisions = editable_state(ctx, payload.pack_id)
@@ -318,6 +321,7 @@ def disable(ctx: Context, payload: DisablePack):
     requires_expected_state=True,
     idempotency_scope=change_scope("catalog_pack.adopt"),
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def adopt(ctx: Context, payload: AdoptPack):
     get_version(ctx.user, payload.version_id)

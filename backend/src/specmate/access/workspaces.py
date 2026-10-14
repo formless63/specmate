@@ -28,6 +28,7 @@ from specmate.operations import (
     ValidationFailed,
     operation,
 )
+from specmate.operations.core import ACCESS_INSTALLATION_OWNER
 
 Grant = Literal["build.execute", "inventory.manage", "design.freeze"]
 if set(Grant.__args__) != set(GRANTABLE_PERMISSIONS):
@@ -166,6 +167,7 @@ def is_installation_owner(user) -> bool:
     CreateAccount,
     summary="Create a local account as installation owner (grants no membership).",
     supports_idempotency=False,
+    access=ACCESS_INSTALLATION_OWNER,
 )
 def create_account(ctx: Context, p: CreateAccount):
     if not is_installation_owner(ctx.user):
@@ -189,6 +191,7 @@ def create_account(ctx: Context, p: CreateAccount):
     WorkspaceRef,
     summary="Read the actor's current workspace role and, for admins, the member roster.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_access(ctx: Context, p: WorkspaceRef):
     return read_access(ctx, p.workspace_id)
@@ -201,6 +204,7 @@ def inspect_access(ctx: Context, p: WorkspaceRef):
     requires_expected_state=True,
     idempotency_scope=scope,
     authorize_replay=replay,
+    access=Perm.WORKSPACE_ADMIN,
 )
 def set_member(ctx: Context, p: SetMember):
     workspace = resolve(ctx, p.workspace_id, lock=True)
@@ -231,6 +235,7 @@ def set_member(ctx: Context, p: SetMember):
     requires_expected_state=True,
     idempotency_scope=scope,
     authorize_replay=replay,
+    access=Perm.WORKSPACE_ADMIN,
 )
 def remove_member(ctx: Context, p: RemoveMember):
     workspace = resolve(ctx, p.workspace_id, lock=True)

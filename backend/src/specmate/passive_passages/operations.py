@@ -93,6 +93,7 @@ def replay(ctx, p, stored):
     summary="Create an explicit idealized passive model pinned to an exact copper graph.",
     idempotency_scope=create_scope,
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def create(ctx: Context, p: CreateModel):
     workspace = item_workspace(ctx.user, p.workspace_id)
@@ -114,6 +115,7 @@ def create(ctx: Context, p: CreateModel):
     requires_expected_state=True,
     idempotency_scope=change_scope("passage.update", Perm.DESIGN_EDIT),
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdateModel):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -130,6 +132,7 @@ def update(ctx: Context, p: UpdateModel):
     requires_expected_state=True,
     idempotency_scope=change_scope("passage.freeze", Perm.DESIGN_FREEZE),
     authorize_replay=replay,
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, p: CaptureModel):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -144,6 +147,7 @@ def freeze(ctx: Context, p: CaptureModel):
     ReadModel,
     summary="Read an exact passive model, source graph and currently authorized review history.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadModel):
     return queries.result(ctx.user, p.revision_id)
@@ -156,6 +160,7 @@ def read(ctx: Context, p: ReadModel):
     requires_expected_state=True,
     idempotency_scope=review_scope,
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def review(ctx: Context, p: ReviewModel):
     revision, _, _, reviews = queries.rows(ctx.user, p.revision_id, edit=True, lock=True)
@@ -181,6 +186,7 @@ def review(ctx: Context, p: ReviewModel):
     InterpretModel,
     summary="Evaluate bounded idealized declared-model paths with distinct query semantics.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def query(ctx: Context, p: InterpretModel):
     return queries.interpret_model(ctx.user, p)

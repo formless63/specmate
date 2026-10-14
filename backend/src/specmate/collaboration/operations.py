@@ -19,6 +19,7 @@ from specmate.collaboration.contracts import (
 )
 from specmate.collaboration.models import ChangeReview, ReviewEntry, ReviewRecipient
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
+from specmate.operations.core import ACCESS_AUTHENTICATED
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import workspace_scope
 from specmate.revision_upgrades.contracts import ProposeUpgrade
@@ -100,6 +101,7 @@ def create_replay(ctx, p, stored):
     summary="Open exact declared change review with internal member-recipient notifications.",
     idempotency_scope=create_scope,
     authorize_replay=create_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def create(ctx: Context, p: CreateReview):
     knowledge, recipients = create_authority(ctx, p)
@@ -203,6 +205,7 @@ def append(ctx, review, action, basis, **fields):
     requires_expected_state=True,
     idempotency_scope=mutation_scope,
     authorize_replay=mutation_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def respond(ctx: Context, p: RespondReview):
     review, entries = editable(ctx, p)
@@ -222,6 +225,7 @@ def respond(ctx: Context, p: RespondReview):
     requires_expected_state=True,
     idempotency_scope=mutation_scope,
     authorize_replay=mutation_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def propose(ctx: Context, p: ProposeReviewUpgrade):
     review, entries = editable(ctx, p)
@@ -261,6 +265,7 @@ def notification_replay(ctx, p, stored):
     requires_expected_state=True,
     idempotency_scope=notification_scope,
     authorize_replay=notification_replay,
+    access=ACCESS_AUTHENTICATED,
 )
 def mark_read(ctx: Context, p: ReadNotification):
     notification = queries.notification_row(ctx.user, p.notification_id, lock=True)
@@ -279,6 +284,7 @@ def mark_read(ctx: Context, p: ReadNotification):
     CompareRevisions,
     summary="Compare exact declared revision facts and authorized captured parents.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def compare(ctx: Context, p: CompareRevisions):
     return queries.compare(ctx.user, p)
@@ -289,6 +295,7 @@ def compare(ctx: Context, p: CompareRevisions):
     ReadReview,
     summary="Read freshly authorized team review, declared comparison and exact history.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadReview):
     return queries.inspect(ctx.user, p.review_id)
@@ -299,6 +306,7 @@ def read(ctx: Context, p: ReadReview):
     ReviewPage,
     summary="List workspace change reviews; a project context lists its reviews first.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def listing(ctx: Context, p: ReviewPage):
     return queries.project_reviews(ctx.user, p)
@@ -309,6 +317,7 @@ def listing(ctx: Context, p: ReviewPage):
     InboxPage,
     summary="Read the current actor's authorized internal notifications without hidden counts.",
     supports_idempotency=False,
+    access=ACCESS_AUTHENTICATED,
 )
 def inbox(ctx: Context, p: InboxPage):
     return queries.inbox(ctx.user, p)
@@ -319,6 +328,7 @@ def inbox(ctx: Context, p: InboxPage):
     ReadNotification,
     summary="Inspect only a current recipient-owned authorized notification.",
     supports_idempotency=False,
+    access=ACCESS_AUTHENTICATED,
 )
 def notification(ctx: Context, p: ReadNotification):
     return queries.notification_result(ctx.user, p.notification_id)

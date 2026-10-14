@@ -19,6 +19,7 @@ from specmate.builds.operations import _cancel, _expire, _operator
 from specmate.diagnostics import checks
 from specmate.diagnostics.models import WorkControl, WorkControlEvent
 from specmate.operations import Conflict, Context, operation
+from specmate.operations.core import ACCESS_OPERATOR
 from specmate.operations.scope import GLOBAL_SCOPE
 
 PENDING = checks.PENDING_STATES
@@ -47,6 +48,7 @@ class WorkspaceRef(Payload):
     WorkspaceRef,
     summary="Read job queue, runner, tool and storage state for one readable workspace.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def workspace_status(ctx: Context, p: WorkspaceRef) -> dict[str, Any]:
     workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ)
@@ -118,6 +120,7 @@ class NoPayload(Payload):
     NoPayload,
     summary="Operator diagnostics across the installation, with distinct recovery paths.",
     supports_idempotency=False,
+    access=ACCESS_OPERATOR,
 )
 def installation_report(ctx: Context, p: NoPayload) -> dict[str, Any]:
     _operator(ctx)
@@ -226,6 +229,7 @@ def _transition(control: WorkControl, mode: str, reason: str, actor, detail: dic
     requires_expected_state=True,
     authorize_replay=_replay_operator,
     idempotency_scope=_global_scope,
+    access=ACCESS_OPERATOR,
 )
 def safe_stop(ctx: Context, p: SafeStop) -> dict[str, Any]:
     _operator(ctx)
@@ -286,6 +290,7 @@ class Resume(Payload):
     requires_expected_state=True,
     authorize_replay=_replay_operator,
     idempotency_scope=_global_scope,
+    access=ACCESS_OPERATOR,
 )
 def resume(ctx: Context, p: Resume) -> dict[str, Any]:
     _operator(ctx)
@@ -302,6 +307,7 @@ def resume(ctx: Context, p: Resume) -> dict[str, Any]:
     NoPayload,
     summary="Mark lease-expired stages interrupted and report work needing its own runner.",
     supports_idempotency=False,
+    access=ACCESS_OPERATOR,
 )
 def reconcile(ctx: Context, p: NoPayload) -> dict[str, Any]:
     _operator(ctx)

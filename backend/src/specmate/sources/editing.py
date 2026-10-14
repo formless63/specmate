@@ -471,6 +471,7 @@ def _head_state(ctx: Context, baseline) -> dict:
     EditInput,
     summary="Review edited native files against an exact baseline without changing state.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def preview_edit(ctx: Context, p: EditInput) -> dict:
     baseline, archive = _closure(ctx, p)
@@ -488,6 +489,7 @@ def preview_edit(ctx: Context, p: EditInput) -> dict:
     requires_expected_state=True,
     idempotency_scope=_submit_scope,
     authorize_replay=_replay_authority,
+    access=Perm.SOURCE_REGISTER,
 )
 def submit_edit(ctx: Context, p: SubmitEdit) -> dict:
     baseline, archive = _closure(ctx, p)

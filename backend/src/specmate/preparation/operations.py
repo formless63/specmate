@@ -92,6 +92,7 @@ def replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     summary="Create an exact-stock arithmetic preparation profile.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, payload: CreateProfile):
     workspace = item_workspace(ctx.user, payload.workspace_id)
@@ -116,6 +117,7 @@ def create(ctx: Context, payload: CreateProfile):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, payload: UpdateProfile):
     draft = profile_draft(ctx, payload.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -132,6 +134,7 @@ def update(ctx: Context, payload: UpdateProfile):
     requires_expected_state=True,
     authorize_replay=lambda c, p, r: replay(c, p, r, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda c, p: scope(c, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, payload: CaptureProfile):
     draft = profile_draft(ctx, payload.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -149,6 +152,7 @@ def freeze(ctx: Context, payload: CaptureProfile):
     ReadProfile,
     summary="Inspect an exact preparation formula revision.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, payload: ReadProfile):
     return inspect_profile(ctx.user, payload.revision_id)
@@ -159,6 +163,7 @@ def read(ctx: Context, payload: ReadProfile):
     ComputeCuts,
     summary="Compute reviewed cut suggestions for exact physical sections.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def calculate(ctx: Context, payload: ComputeCuts):
     return compute(ctx.user, payload)
@@ -169,6 +174,7 @@ def calculate(ctx: Context, payload: ComputeCuts):
     PreparationProfile,
     summary="Recheck current profile source authority without applying formulas.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def check_authority(ctx: Context, payload: PreparationProfile):
     closure(ctx.user, {"preparation_profile": payload.model_dump(mode="json")}, authority_only=True)

@@ -80,6 +80,7 @@ def capture_payload(ctx, p, permission):
     summary="Create a reusable assembly with exact child revision pins.",
     authorize_replay=authorize_create_replay,
     idempotency_scope=create_scope,
+    access=Perm.ITEM_CREATE,
 )
 def create_assembly(ctx: Context, p: CreateAssembly):
     workspace = authorize(ctx.user, actor_workspace_id(ctx.user, p.workspace_id), Perm.ITEM_CREATE)
@@ -98,6 +99,7 @@ def create_assembly(ctx: Context, p: CreateAssembly):
     requires_expected_state=True,
     authorize_replay=authorize_update_replay,
     idempotency_scope=edit_scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update_assembly(ctx: Context, p: UpdateAssembly):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -117,6 +119,7 @@ def update_assembly(ctx: Context, p: UpdateAssembly):
     requires_expected_state=True,
     authorize_replay=authorize_capture_replay,
     idempotency_scope=edit_scope,
+    access=Perm.DESIGN_EDIT,
 )
 def capture_assembly(ctx: Context, p: CaptureAssembly):
     return snapshot_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_EDIT))
@@ -129,6 +132,7 @@ def capture_assembly(ctx: Context, p: CaptureAssembly):
     requires_expected_state=True,
     authorize_replay=authorize_freeze_replay,
     idempotency_scope=freeze_scope,
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze_assembly(ctx: Context, p: CaptureAssembly):
     return freeze_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_FREEZE))
@@ -139,6 +143,7 @@ def freeze_assembly(ctx: Context, p: CaptureAssembly):
     ReadAssembly,
     summary="Read a permission-complete assembly snapshot.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_assembly(ctx: Context, p: ReadAssembly):
     return read_assembly(ctx.user, p.snapshot_id)
@@ -149,6 +154,7 @@ def inspect_assembly(ctx: Context, p: ReadAssembly):
     ResolveOccurrence,
     summary="Resolve an exact contextual occurrence and optional feature address.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_occurrence(ctx: Context, p: ResolveOccurrence):
     return resolve_occurrence(ctx.user, p.snapshot_id, p.path, p.feature_id)

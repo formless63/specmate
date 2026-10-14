@@ -91,6 +91,7 @@ def replay(ctx, p, stored):
     summary="Create authored test expectations and labels for exact cable scope.",
     idempotency_scope=scope("cable_test_plan.create", Perm.ITEM_CREATE),
     authorize_replay=replay,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, p: CreatePlan):
     scope("cable_test_plan.create", Perm.ITEM_CREATE)(ctx, p)
@@ -113,6 +114,7 @@ def create(ctx: Context, p: CreatePlan):
     requires_expected_state=True,
     idempotency_scope=scope("cable_test_plan.update", Perm.DESIGN_EDIT),
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdatePlan):
     scope("cable_test_plan.update", Perm.DESIGN_EDIT)(ctx, p)
@@ -137,6 +139,7 @@ def capture(ctx, p, permission):
     requires_expected_state=True,
     idempotency_scope=scope("cable_test_plan.freeze", Perm.DESIGN_FREEZE),
     authorize_replay=replay,
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, p: CapturePlan):
     scope("cable_test_plan.freeze", Perm.DESIGN_FREEZE)(ctx, p)
@@ -150,6 +153,7 @@ def freeze(ctx: Context, p: CapturePlan):
     requires_expected_state=True,
     idempotency_scope=scope("cable_test_plan.snapshot", Perm.DESIGN_EDIT),
     authorize_replay=replay,
+    access=Perm.DESIGN_EDIT,
 )
 def snapshot(ctx: Context, p: CapturePlan):
     scope("cable_test_plan.snapshot", Perm.DESIGN_EDIT)(ctx, p)
@@ -161,6 +165,7 @@ def snapshot(ctx: Context, p: CapturePlan):
     ReadPlan,
     summary="Read exact test intent and retained evidence under current authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadPlan):
     return queries.result(ctx.user, p.revision_id)
@@ -171,6 +176,7 @@ def read(ctx: Context, p: ReadPlan):
     InspectTarget,
     summary="Inspect exact cable terminals within a frozen contextual occurrence.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_target(ctx: Context, p: InspectTarget):
     return queries.inspect_target(ctx.user, p)
@@ -181,6 +187,7 @@ def inspect_target(ctx: Context, p: InspectTarget):
     ReadPlan,
     summary="Read an inert portable cable expectation package; no source execution.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def package(ctx: Context, p: ReadPlan):
     import json

@@ -71,6 +71,7 @@ def replay(ctx, p, stored):
     Configuration,
     supports_idempotency=False,
     summary="Review six documents against one exact immutable root and explicit bindings.",
+    access=Perm.WORKSPACE_READ,
 )
 def review(ctx: Context, p: Configuration):
     projection = project(ctx.user, p)
@@ -85,6 +86,7 @@ def review(ctx: Context, p: Configuration):
     idempotency_scope=configuration_scope,
     authorize_replay=replay,
     summary="Retain a reviewed coherent immutable document set with identical input provenance.",
+    access=Perm.DESIGN_EDIT,
 )
 def generate(ctx: Context, p: Configuration):
     configuration_scope(ctx, p)
@@ -146,6 +148,7 @@ def generate(ctx: Context, p: Configuration):
     SetRef,
     supports_idempotency=False,
     summary="Read an immutable document receipt after fresh complete input closure authorization.",
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: SetRef):
     return result(authorized_set(ctx.user, p.document_set_id))
@@ -156,6 +159,7 @@ def read(ctx: Context, p: SetRef):
     Download,
     supports_idempotency=False,
     summary="Download retained exact document bytes under fresh current input authority.",
+    access=Perm.WORKSPACE_READ,
 )
 def download(ctx: Context, p: Download):
     record = authorized_set(ctx.user, p.document_set_id)
@@ -185,6 +189,7 @@ def download(ctx: Context, p: Download):
     InputAuthority,
     supports_idempotency=False,
     summary="Authorize exact references without assessing document declarations.",
+    access=Perm.WORKSPACE_READ,
 )
 def authority(ctx: Context, p: InputAuthority):
     authorize_inputs(

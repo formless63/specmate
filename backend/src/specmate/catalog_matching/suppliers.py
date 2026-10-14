@@ -18,6 +18,7 @@ MAX_INSPECTED_VARIANTS = 2000
         "Suggest distinct exact workspace revisions sharing an asserted manufacturer and part"
         " number."
     ),
+    access=Perm.WORKSPACE_READ,
 )
 def suggest_supplier_matches(ctx: Context, p: SuggestSupplierMatches):
     actor = current_actor(ctx.user)

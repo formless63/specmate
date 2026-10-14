@@ -144,6 +144,7 @@ def replay(ctx, p, stored):
     idempotency_scope=scope,
     authorize_replay=replay,
     summary="Generate bounded native DRC, Gerber and drill evidence from an exact original board.",
+    access=Perm.BUILD_EXECUTE,
 )
 def request(ctx, p):
     intake, file = source_for(ctx, p.intake_id, Perm.BUILD_EXECUTE)
@@ -223,6 +224,7 @@ def validate_outputs(file, build):
     BuildRef,
     supports_idempotency=False,
     summary="Review exact registered native output evidence without manufacturing approval.",
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx, p):
     intake, file, build = scoped_build(ctx, p.intake_id, p.build_id)

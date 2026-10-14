@@ -144,6 +144,7 @@ def adoption_scope(ctx, p):
     InspectOccurrences,
     summary="Inspect exact board occurrences and their independent firmware pins.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect(ctx: Context, p: InspectOccurrences):
     history = []
@@ -191,6 +192,7 @@ def inspect(ctx: Context, p: InspectOccurrences):
     ReviewOccurrence,
     summary="Review an exact contextual firmware selection without changing the assembly.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def review(ctx: Context, p: ReviewOccurrence):
     draft, closure, candidate = inputs(ctx, p)
@@ -204,6 +206,7 @@ def review(ctx: Context, p: ReviewOccurrence):
     requires_expected_state=True,
     idempotency_scope=adoption_scope,
     authorize_replay=adoption_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def adopt(ctx: Context, p: AdoptOccurrence):
     draft, closure, candidate = inputs(ctx, p, edit=True, lock=True)
@@ -255,6 +258,7 @@ def adopt(ctx: Context, p: AdoptOccurrence):
     ReadAdoption,
     summary="Read immutable contextual firmware adoption evidence under current authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_adoption(ctx: Context, p: ReadAdoption):
     return adoption_result(ctx, p.adoption_id)

@@ -62,6 +62,7 @@ class CreateDefinition(BaseModel):
     "definition.create",
     CreateDefinition,
     summary="Create a reusable definition with an initial editable draft.",
+    access=Perm.ITEM_CREATE,
 )
 def create_definition(ctx: Context, p: CreateDefinition) -> dict:
     workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
@@ -90,6 +91,7 @@ class UpdateDraft(BaseModel):
     UpdateDraft,
     summary="Set or remove top-level draft fields, rejecting stale expected state.",
     requires_expected_state=True,
+    access=Perm.DESIGN_EDIT,
 )
 def update_draft(ctx: Context, p: UpdateDraft) -> dict:
     overlap = set(p.changes) & set(p.remove)
@@ -263,6 +265,7 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
     CaptureDraft,
     summary="Capture the exact current draft as an immutable snapshot (e.g. for a build).",
     requires_expected_state=True,
+    access=Perm.DESIGN_EDIT,
 )
 def snapshot_draft(ctx: Context, p: CaptureDraft) -> dict:
     _, snapshot = _capture(ctx, p, Perm.DESIGN_EDIT)
@@ -274,6 +277,7 @@ def snapshot_draft(ctx: Context, p: CaptureDraft) -> dict:
     CaptureDraft,
     summary="Freeze the exact current draft and its dependency pins as a new revision.",
     requires_expected_state=True,
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
     draft, snapshot = _capture(ctx, p, Perm.DESIGN_FREEZE)

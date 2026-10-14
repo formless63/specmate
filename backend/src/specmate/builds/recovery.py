@@ -87,6 +87,7 @@ class AbandonBuild(BuildRef):
     requires_expected_state=True,
     idempotency_scope=_build_scope,
     authorize_replay=lambda ctx, p, stored: _controls(ctx, _stage_for_build(p.build_id)),
+    access=Perm.WORKSPACE_READ,
 )
 def abandon_build(ctx, p: AbandonBuild) -> dict:
     stage = _stage_for_build(p.build_id)
@@ -126,6 +127,7 @@ def abandon_build(ctx, p: AbandonBuild) -> dict:
     status="accepted_async",
     idempotency_scope=_build_scope,
     authorize_replay=lambda ctx, p, stored: _retry_replay(ctx, p, stored),
+    access=Perm.BUILD_EXECUTE,
 )
 def retry_build(ctx, p: BuildRef) -> dict:
     if not ctx.idempotency_key:
@@ -211,6 +213,7 @@ class HistoryRead(BuildRef):
     HistoryRead,
     summary="Read a build's retained events, partial outputs, receipt and retry lineage.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def history(ctx, p: HistoryRead) -> dict:
     stage = _stage_for_build(p.build_id)
@@ -261,6 +264,7 @@ class ListBuilds(WorkspaceProjectPayload):
     ListBuilds,
     summary="List the latest generic builds of a workspace (compiler builds have their own view).",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def list_builds(ctx, p: ListBuilds) -> dict:
     from specmate.firmware_builds.pack import ADAPTER

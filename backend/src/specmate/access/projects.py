@@ -169,6 +169,7 @@ def create_replay(ctx, p, stored) -> None:
     summary="Create a project in the actor's workspace; it references items, owns none.",
     idempotency_scope=create_scope,
     authorize_replay=create_replay,
+    access=Perm.PROJECT_EDIT,
 )
 def create_project(ctx: Context, p: CreateProject) -> dict:
     workspace = authorize(ctx.user, actor_workspace_id(ctx.user, p.workspace_id), Perm.PROJECT_EDIT)
@@ -183,6 +184,7 @@ def create_project(ctx: Context, p: CreateProject) -> dict:
     ReadProject,
     summary="Read a project and its current (or full) reference history.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_project(ctx: Context, p: ReadProject) -> dict:
     project = authorize_project(ctx.user, p.project_id, Perm.WORKSPACE_READ)
@@ -199,6 +201,7 @@ def read_project(ctx: Context, p: ReadProject) -> dict:
     requires_expected_state=True,
     idempotency_scope=edit_scope,
     authorize_replay=edit_replay,
+    access=Perm.PROJECT_EDIT,
 )
 def rename_project(ctx: Context, p: RenameProject) -> dict:
     project = editable(ctx, p.project_id)
@@ -217,6 +220,7 @@ def rename_project(ctx: Context, p: RenameProject) -> dict:
     requires_expected_state=True,
     idempotency_scope=edit_scope,
     authorize_replay=edit_replay,
+    access=Perm.PROJECT_EDIT,
 )
 def archive_project(ctx: Context, p: ArchiveProject) -> dict:
     project = editable(ctx, p.project_id)
@@ -278,6 +282,7 @@ def may_delete(user, project: Project, held: frozenset[Perm]) -> bool:
     authorize_replay=lambda ctx, p, stored: authorize(
         ctx.user, stored["workspace_id"], Perm.PROJECT_EDIT
     ),
+    access=Perm.PROJECT_EDIT,
 )
 def delete_project(ctx: Context, p: ProjectRef) -> dict:
     project = editable(ctx, p.project_id)
@@ -335,6 +340,7 @@ def _target(kind: str, target_id: UUID):
     requires_expected_state=True,
     idempotency_scope=edit_scope,
     authorize_replay=edit_replay,
+    access=Perm.PROJECT_EDIT,
 )
 def add_reference(ctx: Context, p: AddReference) -> dict:
     project = editable(ctx, p.project_id)
@@ -366,6 +372,7 @@ def add_reference(ctx: Context, p: AddReference) -> dict:
     requires_expected_state=True,
     idempotency_scope=edit_scope,
     authorize_replay=edit_replay,
+    access=Perm.PROJECT_EDIT,
 )
 def remove_reference(ctx: Context, p: RemoveReference) -> dict:
     project = editable(ctx, p.project_id)
