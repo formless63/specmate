@@ -102,11 +102,11 @@ function ExportWorkspace() {
         <Group gap="md"><SbStatus led={LED[manifest.coherence]} dimension="coherence" value={manifest.coherence} /><SbStatus led={LED[manifest.completeness]} dimension="completeness" value={manifest.completeness} /></Group>
         {retained?.sha256
           ? <Group gap="xs" wrap="nowrap" aria-label="Package manifest SHA-256">
-              <Text size="sm" fw={600}>Package manifest SHA-256 (verify with <code>verification.py</code>)</Text>
+              <Text size="sm" fw={600}>Package manifest SHA-256 (verify with <code>verify/verification.py</code>)</Text>
               <Text size="sm" component="span"><MiddleTruncate text={retained.sha256} /></Text>
             </Group>
           : <Text size="sm">Package manifest SHA-256 unavailable until the export package is reviewed again.</Text>}
-        {retained?.sha256 && <Text size="xs" className="sb-mono" data-testid="verifier-command">{`python3 -I -S verification.py package.zip --manifest-sha256 ${retained.sha256}`}</Text>}
+        {retained?.sha256 && <Text size="xs" className="sb-mono" data-testid="verifier-command">{`python3 -I -S verify/verification.py package.zip --manifest-sha256 ${retained.sha256}`}</Text>}
         <Text size="sm"><RevisionLabel id={manifest.scope.root.revision_id} role="Root" /> · Root snapshot SHA-256 (design content, not the package manifest) <MiddleTruncate text={manifest.scope.root.sha256} /></Text>
         <Group gap="xs"><Text size="sm">Root quantity:</Text>{manifest.scope.quantity === null ? <SbUnknown what="Root quantity" /> : <SbQuantity value={manifest.scope.quantity} unit="ea" />}</Group>
         <Table striped withTableBorder><Table.Thead><Table.Tr><Table.Th>Section</Table.Th><Table.Th>Output</Table.Th><Table.Th>Coherence</Table.Th><Table.Th>Scope quantity</Table.Th><Table.Th>Findings</Table.Th></Table.Tr></Table.Thead><Table.Tbody>

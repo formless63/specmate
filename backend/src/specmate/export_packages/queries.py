@@ -255,6 +255,7 @@ class Package:
         self.unresolved = []
         self.rights_items = []
         self.as_of = None
+        self.format = LATEST_FORMAT
 
     def add(self, path, data, media_type, section, origin):
         if path in self.files:
@@ -292,6 +293,13 @@ def reproducibility(build, as_of):
         "level": derived["level"],
         "outputs": {path: row["level"] for path, row in derived["outputs"].items()},
     }
+
+
+def reproducibility_fields(build, as_of, package_format):
+    """Output-record extras: format 1 predates the block, so it must not carry one."""
+    if package_format < 2:
+        return {}
+    return {"reproducibility": reproducibility(build, as_of)}
 
 
 def conflicts(cited):
@@ -763,7 +771,7 @@ def firmware_section(ctx, scope, package, p):
                 cited,
                 findings,
                 quantity,
-                reproducibility=reproducibility(build, package.as_of),
+                **reproducibility_fields(build, package.as_of, package.format),
                 hardware_compatibility="not_evaluated",
                 flashing="not_performed",
                 device_operation="not_observed",
@@ -915,7 +923,7 @@ def pcb_section(ctx, scope, package, p):
                 cited,
                 findings,
                 quantity,
-                reproducibility=reproducibility(build, package.as_of),
+                **reproducibility_fields(build, package.as_of, package.format),
                 drc_counts=report.drc_counts.model_dump(),
                 manufacturing_approval=False,
                 assembly_outputs="not_provided",
@@ -1136,6 +1144,7 @@ def build_package(ctx, p, as_of=None, package_format=None):
     scope = Scope(user, p)
     package = Package()
     package.as_of = as_of
+    package.format = package_format
     system_section(scope, package)
     spreadsheet_section(scope, package, p)
     cable_section(scope, package, p)

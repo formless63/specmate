@@ -39,6 +39,7 @@ class CompleteRequest(LeaseRequest):
     exit_code: int | None = None
     outputs: list[dict] = []
     message: str = ""
+    image_id: str | None = None
 
 
 def _execute(request, name, request_id, payload, attachments=None):

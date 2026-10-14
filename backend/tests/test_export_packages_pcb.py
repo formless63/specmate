@@ -5,6 +5,8 @@ coherent package is neither manufacturing approval nor physical qualification.
 """
 
 import hashlib
+import json
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +15,7 @@ from specmate.operations import ValidationFailed
 from specmate.pcb_fabrication.pack import output_media
 
 from .conftest import op
+from .golden_package import sequential_ids, summarise  # noqa: F401 -- fixture
 from .test_assemblies import create, freeze, occ, part
 from .test_export_packages import download, review
 from .test_pcb_fabrication import (  # noqa: F401 -- pytest fixtures
@@ -122,3 +125,38 @@ def test_build_for_an_unpinned_board_or_foreign_scene_blocks_the_package(
     }
     with pytest.raises(ValidationFailed):
         download(users["viewer"], payload, reviewed)
+
+
+GOLDEN_FORMAT_1 = Path(__file__).with_name("data") / "export_package_format1_pcb.json"
+
+
+def format_1_package(users, project, intake, requested, population):  # noqa: F811
+    owner = users["owner"]
+    register_test_outputs(requested)
+    root = freeze(owner, create(owner, project, [occ("a", population), occ("b", population)]))
+    payload = {
+        "root_revision_id": root["revision_id"],
+        "quantity": 5,
+        "pcb_fabrication_builds": [
+            {"intake_id": intake["intake_id"], "build_id": requested["build_id"]}
+        ],
+    }
+    reviewed = review(users["viewer"], payload)
+    return download(users["viewer"], payload, reviewed)[1]
+
+
+def test_format_1_package_rebuilds_byte_identically_to_the_pre_reproducibility_golden(
+    sequential_ids,  # noqa: F811
+    users,
+    project,
+    intake,  # noqa: F811
+    requested,  # noqa: F811
+    population,
+    monkeypatch,
+):
+    """Golden copy taken from the code before reproducibility blocks and the bundled verifier."""
+    monkeypatch.setattr("specmate.export_packages.queries.LATEST_FORMAT", 1)
+    files = format_1_package(users, project, intake, requested, population)
+    assert "verify/verification.py" not in files
+    assert b"reproducibility" not in files["manifest.json"] + files["review.html"]
+    assert summarise(files) == json.loads(GOLDEN_FORMAT_1.read_text())
