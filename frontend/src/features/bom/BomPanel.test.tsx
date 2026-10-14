@@ -129,3 +129,28 @@ test.each([
   expect(freeze.title).toBe(freezeOff ? "Read-only access: requires Freeze" : "");
   expect(screen.getByRole("button", { name: "Create BOM draft" }).hasAttribute("data-readonly-reason")).toBe(saveOff);
 });
+
+test("an existing draft's new process need pre-fills the preferred length unit", async () => {
+  const plan = { ...blankPlan(), assembly_revision_id: "root-rev" };
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    const body = url.includes("/api/v0/preferences") ? { workspace_id: "ws", kind: "preference", engineering_fact: false, note: "", workspace: { values: {}, state_token: "w" }, user: { values: {}, state_token: "u" }, effective: { default_length_unit: { value: "cm", source: "user" } } }
+      : url.includes("bom/drafts/") ? { definition_id: "plan", draft_id: "d1", state: "s1", content: { bom: plan } }
+      : url.includes("catalog/definitions/plan") ? { name: "Plan", revisions: [], drafts: [{ draft_id: "d1", state: "open" }] }
+      : url.includes("catalog/definitions/") ? { revisions: [{ revision_id: "root-rev", number: 1 }], drafts: [] }
+      : url.includes("assemblies/snapshots/") ? { occurrences: [] }
+      : url.includes("revisions/root-rev") ? { snapshot_id: "root-snapshot" }
+      : [{ definition_id: "plan", name: "Existing plan", kind: "bom_plan" }, { definition_id: "assembly", name: "Synthetic assembly", kind: "assembly" }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(wrap(<BomPanel projectId="project" workspaceId="ws" />));
+  await choose("Existing BOM plan", "Existing plan");
+  await screen.findByRole("combobox", { name: "BOM draft" });
+  await choose("BOM draft", "d1 · open");
+  const unit = await waitFor(() => {
+    const all = screen.getAllByRole("combobox", { name: "Need net demand per root assembly unit" });
+    expect(all.length).toBe(1);
+    return all[0] as HTMLInputElement;
+  });
+  await waitFor(() => expect(unit.value).toBe("cm"));
+  expect(screen.getByText("from preference")).toBeTruthy();
+});
