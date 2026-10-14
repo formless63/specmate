@@ -29,7 +29,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const fail = (error: Error, version: number) => { if (authorityDenied(error)) denied(version); };
   const definitions = useQuery({ queryKey: ['material-definitions', projectId], queryFn: async () => {
     const version = generation.current;
-    try { return await read<Definition[]>(`projects/${projectId}/definitions`); }
+    try { return await read<Definition[]>('workspace/definitions'); }
     catch (error) { fail(error as Error, version); throw error; }
   } });
   const identity = useQuery({ queryKey: ['material-identity', definition, offset], queryFn: async () => {
@@ -59,7 +59,7 @@ function Workspace({ projectId }: { projectId: string }) {
     if (revisionId) await read(`material-accounting/revisions/${revisionId}`);
     const freshReferences = await Promise.all(Object.values(references).filter(reference => reference.definition).map(async reference => ({ reference, identity: await read<Identity>(`catalog/definitions/${reference.definition}?offset=${reference.offset}`) })));
     const freshIdentity = definition ? await read<Identity>(`catalog/definitions/${definition}?offset=${offset}`) : null;
-    const freshDefinitions = await read<Definition[]>(`projects/${projectId}/definitions`);
+    const freshDefinitions = await read<Definition[]>('workspace/definitions');
     return { version, epoch, freshIdentity, freshDefinitions, freshReferences };
   }, onSuccess: ({ version, epoch, freshIdentity, freshDefinitions, freshReferences }) => {
     if (version !== generation.current || epoch !== authorityEpoch.current) return;

@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
-function panel(workspaceId = "project-a", permissions = ["project.read"]) {
+function panel(workspaceId = "project-a", permissions = ["workspace.read"]) {
   return <MantineProvider env="test"><PcbPanel workspaceId={workspaceId} permissions={permissions} /></MantineProvider>;
 }
 async function selectIntake() {
@@ -82,7 +82,7 @@ test("revoked access removes report counts and filenames on failed refresh", asy
 });
 
 test("native execution requires an explicit request with an approved recipe", async () => {
-  render(panel("project-a", ["project.read", "build.execute"]));
+  render(panel("project-a", ["workspace.read", "build.execute"]));
   await selectIntake();
   expect(command).not.toHaveBeenCalled();
   const button = screen.getByRole("button", { name: "Request native extraction" });
@@ -93,7 +93,7 @@ test("native execution requires an explicit request with an approved recipe", as
 
 test("unavailable native execution preserves sources and cannot be requested", async () => {
   vi.mocked(getIntake).mockResolvedValue({ ...intake, available_recipe_id: null });
-  render(panel("project-a", ["project.read", "build.execute"]));
+  render(panel("project-a", ["workspace.read", "build.execute"]));
   await selectIntake();
   expect(screen.getByText(/Native extraction is unavailable/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Request native extraction" }).hasAttribute("disabled")).toBe(true);

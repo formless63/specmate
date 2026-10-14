@@ -173,10 +173,10 @@ test('native mutation denial revalidates a frozen comparison that retains the sa
 });
 
 test.each([
-  ['read-only', ['project.read'], true, true],
-  ['editor without execution', ['project.read', 'item.create', 'design.edit', 'source.register'], true, false],
-  ['executor without source registration', ['project.read', 'build.execute'], false, true],
-  ['executor with source registration', ['project.read', 'source.register', 'build.execute'], false, false],
+  ['read-only', ['workspace.read'], true, true],
+  ['editor without execution', ['workspace.read', 'item.create', 'design.edit', 'source.register'], true, false],
+  ['executor without source registration', ['workspace.read', 'build.execute'], false, true],
+  ['executor with source registration', ['workspace.read', 'source.register', 'build.execute'], false, false],
 ] as const)('%s permissions gate native extraction request and acceptance', async (_name, permissions, requestOff, acceptOff) => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     let value: unknown;

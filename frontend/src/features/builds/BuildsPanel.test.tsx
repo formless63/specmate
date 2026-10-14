@@ -20,7 +20,7 @@ const history = (over: Partial<BuildHistory> = {}): BuildHistory => ({
 });
 const panel = (permissions?: string[]) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}>
   <PermissionsProvider permissions={permissions}><BuildsPanel workspaceId="p1" /></PermissionsProvider></MantineProvider>;
-const open = async () => { render(panel(['project.read', 'build.execute'])); fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' })); await screen.findByLabelText('Build history'); };
+const open = async () => { render(panel(['workspace.read', 'build.execute'])); fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' })); await screen.findByLabelText('Build history'); };
 
 beforeEach(() => {
   vi.mocked(listBuilds).mockResolvedValue({ builds: [summary('build-a', 'running')], truncated: false });
@@ -79,7 +79,7 @@ test('a stale-state conflict rereads instead of retrying with the old token', as
 });
 
 test('read-only members see history but cannot change builds', async () => {
-  render(panel(['project.read']));
+  render(panel(['workspace.read']));
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' }));
   const cancel = await screen.findByRole('button', { name: 'Request cancellation' }) as HTMLButtonElement;
   expect(cancel.disabled).toBe(true);

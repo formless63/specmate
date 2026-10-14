@@ -39,7 +39,7 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
   const [linkSource, setLinkSource] = useState("");
   const [linkStatus, setLinkStatus] = useState("declared");
   const [pendingRequest, setPendingRequest] = useState<Command | null>(null);
-  const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`workspaces/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ["identity", definitionId, revisionOffset], enabled: !!definitionId,
     queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${revisionOffset}&limit=50`) });
   const catalog = useQuery({ queryKey: ["physical-catalog", revisionId], enabled: !!revisionId,

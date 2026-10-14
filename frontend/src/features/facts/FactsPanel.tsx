@@ -26,7 +26,7 @@ function FactWorkspace({ workspaceId, projectId }: { workspaceId: string; projec
   const [subjectOffset, setSubjectOffset] = useState(0);
   const [revisionOffset, setRevisionOffset] = useState(0);
   const subjects = useQuery({ queryKey: ["fact-subjects", workspaceId, subjectOffset], queryFn: () => read<Subject[]>(`facts/workspaces/${workspaceId}/subjects?offset=${subjectOffset}`) });
-  const definitions = useQuery({ queryKey: ["fact-definitions", workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`), enabled: kind === "definition" || kind === "revision" });
+  const definitions = useQuery({ queryKey: ["fact-definitions", workspaceId], queryFn: () => read<Definition[]>(`workspaces/${workspaceId}/definitions`), enabled: kind === "definition" || kind === "revision" });
   const identity = useQuery({ queryKey: ["fact-definition", definitionId, revisionOffset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${revisionOffset}`), enabled: kind === "revision" && !!definitionId });
   const units = useQuery({ queryKey: ["fact-physical-units", workspaceId, unitOffset], queryFn: () => read<{ units: { unit_id: string; serial: string; revision_id: string }[] }>(`physical-units/workspaces/${workspaceId}?offset=${unitOffset}&limit=50`), enabled: kind === "physical_unit" });
   const register = useMutation({ mutationFn: () => {

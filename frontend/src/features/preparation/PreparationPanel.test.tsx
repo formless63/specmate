@@ -177,10 +177,10 @@ test('quantity edits cannot discard a pending computed denial affecting the reta
 });
 
 test.each([
-  ['read-only', ['project.read'], true, true],
-  ['contributor', ['project.read', 'item.create'], false, true],
-  ['editor', ['project.read', 'item.create', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
+  ['read-only', ['workspace.read'], true, true],
+  ['contributor', ['workspace.read', 'item.create'], false, true],
+  ['editor', ['workspace.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate Save preparation profile and Freeze preparation profile', async (_name, permissions, saveOff, freezeOff) => {
   let saved: unknown = profile;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {

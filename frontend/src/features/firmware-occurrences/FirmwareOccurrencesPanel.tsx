@@ -7,21 +7,21 @@ import { read, type Definition, type Identity } from '../identity/api';
 import { operation, type Adoption, type OccurrenceInspection, type Owner, type SelectionReview, type Submission } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function FirmwareOccurrencesPanel({ projectId, permissions }: { projectId: string; permissions?: string[] }) {
-  return <Workspace key={projectId} projectId={projectId} canEdit={permissions?.includes('design.edit') ?? true} canExecute={permissions?.includes('build.execute') ?? false} />;
+export function FirmwareOccurrencesPanel({ workspaceId, permissions }: { workspaceId: string; permissions?: string[] }) {
+  return <Workspace key={workspaceId} workspaceId={workspaceId} canEdit={permissions?.includes('design.edit') ?? true} canExecute={permissions?.includes('build.execute') ?? false} />;
 }
 
-function Workspace({ projectId, canEdit, canExecute }: { projectId: string; canEdit: boolean; canExecute: boolean }) {
+function Workspace({ workspaceId, canEdit, canExecute }: { workspaceId: string; canEdit: boolean; canExecute: boolean }) {
   const [opened, setOpened] = useState(false);
   return <Card withBorder><Stack>
     <Title order={3}>Firmware on repeated boards</Title>
     <Text>Choose firmware independently for each exact contextual board occurrence. Review its frozen sources, configuration and population before adopting the selection.</Text>
     <Button onClick={() => setOpened(!opened)}>{opened ? 'Hide occurrence firmware' : 'Show occurrence firmware'}</Button>
-    {opened && <Selector projectId={projectId} canEdit={canEdit} canExecute={canExecute} />}
+    {opened && <Selector workspaceId={workspaceId} canEdit={canEdit} canExecute={canExecute} />}
   </Stack></Card>;
 }
 
-function Selector({ projectId, canEdit, canExecute }: { projectId: string; canEdit: boolean; canExecute: boolean }) {
+function Selector({ workspaceId, canEdit, canExecute }: { workspaceId: string; canEdit: boolean; canExecute: boolean }) {
   const selectionGeneration = useRef(0);
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
@@ -34,11 +34,11 @@ function Selector({ projectId, canEdit, canExecute }: { projectId: string; canEd
     let active = true;
     selectionGeneration.current++;
     setDefinitions([]); setFirmware([]); setError('');
-    Promise.all([read<Definition[]>(`projects/${projectId}/definitions`), read<{ firmware: FirmwareSummary[] }>(`pcb/projects/${projectId}/firmware`)])
+    Promise.all([read<Definition[]>(`workspaces/${workspaceId}/definitions`), read<{ firmware: FirmwareSummary[] }>(`pcb/workspaces/${workspaceId}/firmware`)])
       .then(([items, records]) => { if (active) { setDefinitions(items.filter((item) => item.kind === 'assembly')); setFirmware(records.firmware); } })
       .catch((failure: Error) => { if (active) { setDefinitions([]); setFirmware([]); setError(failure.message); } });
     return () => { active = false; };
-  }, [projectId]);
+  }, [workspaceId]);
   useEffect(() => {
     let active = true;
     selectionGeneration.current++;

@@ -17,10 +17,7 @@ export type PermissionName =
   | "source.register"
   | "build.execute"
   | "inventory.manage"
-  | "inventory.reserve"
-  /** @deprecated Former per-project names; read as workspace.read and workspace.admin. */
-  | "project.read"
-  | "project.admin";
+  | "inventory.reserve";
 
 const REQUIRES: Record<PermissionName, string> = {
   "workspace.read": "Read",
@@ -33,16 +30,6 @@ const REQUIRES: Record<PermissionName, string> = {
   "build.execute": "Native execution",
   "inventory.manage": "Inventory management",
   "inventory.reserve": "Inventory reservation",
-  "project.read": "Read",
-  "project.admin": "Administration",
-};
-
-/** Former per-project names still accepted from callers and older reports. */
-const ALIASES: Partial<Record<string, string>> = {
-  "project.read": "workspace.read",
-  "project.admin": "workspace.admin",
-  "workspace.read": "project.read",
-  "workspace.admin": "project.admin",
 };
 
 const PermissionContext = createContext<readonly string[] | undefined>(undefined);
@@ -61,8 +48,6 @@ export function PermissionsProvider({ permissions, children }: { permissions: re
 export function holds(permissions: readonly string[] | undefined, name: PermissionName): boolean {
   if (!permissions) return true;
   if (permissions.includes(name)) return true;
-  const alias = ALIASES[name];
-  if (alias && permissions.includes(alias)) return true;
   return name === "inventory.reserve" && permissions.includes("inventory.manage");
 }
 

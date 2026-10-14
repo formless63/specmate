@@ -25,7 +25,7 @@ export function WorkPanel({ workspaceId, projectId, batches, pending, submit }: 
   const [label, setLabel] = useState("");
   const [planned, setPlanned] = useState("");
   const [selected, setSelected] = useState("");
-  const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`workspaces/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ["identity", definition, revisionOffset], enabled: !!definition, queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${revisionOffset}`) });
   return <Card withBorder><Stack>
     <Title order={3}>Planned jobs and batches</Title>

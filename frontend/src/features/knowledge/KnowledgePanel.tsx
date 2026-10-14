@@ -57,7 +57,7 @@ function TargetPicker({ workspaceId, projectId, onChoose }: { workspaceId: strin
   const [path, setPath] = useState("");
   const [unitId, setUnitId] = useState<string | null>(null);
   const [featureId, setFeatureId] = useState("");
-  const definitions = useKnowledgeQuery(["knowledge-definitions", workspaceId], () => read<Definition[]>(`projects/${workspaceId}/definitions`), kind === "definition" || kind === "revision");
+  const definitions = useKnowledgeQuery(["knowledge-definitions", workspaceId], () => read<Definition[]>(`workspaces/${workspaceId}/definitions`), kind === "definition" || kind === "revision");
   const identity = useKnowledgeQuery(["knowledge-definition", definitionId], () => read<Identity>(`catalog/definitions/${definitionId}`), kind === "revision" && !!definitionId);
   const units = useKnowledgeQuery(["knowledge-units", workspaceId], () => read<{ units: { unit_id: string; serial: string; revision_id: string }[] }>(`physical-units/workspaces/${workspaceId}?offset=0&limit=100`), kind === "physical_unit");
   const feature = featureId || null;

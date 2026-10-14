@@ -39,7 +39,7 @@ function setup(mode: 'success' | 'reject' | 'deny' = 'success', write = true) {
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
-  const view = render(<MantineProvider><SourcesPanel workspaceId="project-a" permissions={write ? ['project.read', 'source.register'] : ['project.read']} /></MantineProvider>);
+  const view = render(<MantineProvider><SourcesPanel workspaceId="project-a" permissions={write ? ['workspace.read', 'source.register'] : ['workspace.read']} /></MantineProvider>);
   return { fetchMock, view, hasExpanded: () => expandedOnce };
 }
 
@@ -93,7 +93,7 @@ test('project change discards the prior detail and late response', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' }));
   await screen.findByRole('heading', { name: 'Exact source revision' });
   vi.stubGlobal('fetch', vi.fn(async () => reply({ revisions: [], next_after: null })));
-  view.rerender(<MantineProvider><SourcesPanel workspaceId="project-b" permissions={['project.read']} /></MantineProvider>);
+  view.rerender(<MantineProvider><SourcesPanel workspaceId="project-b" permissions={['workspace.read']} /></MantineProvider>);
   await waitFor(() => expect(screen.queryByRole('heading', { name: 'Exact source revision' })).toBeNull());
   expect(screen.queryByText('archive-hash')).toBeNull();
 });
@@ -120,7 +120,7 @@ test.each(['refresh', 'inspect'])('late same-project %s denial clears newer insp
     }
     return reply(isList ? { revisions: [original], next_after: null } : detail);
   }));
-  render(<MantineProvider><SourcesPanel workspaceId="project-a" permissions={['project.read']} /></MantineProvider>);
+  render(<MantineProvider><SourcesPanel workspaceId="project-a" permissions={['workspace.read']} /></MantineProvider>);
   const inspect = await screen.findByRole('button', { name: 'Inspect Synthetic archive revision 1' });
   defer = true;
   fireEvent.click(action === 'refresh' ? screen.getByRole('button', { name: 'Refresh sources' }) : inspect);

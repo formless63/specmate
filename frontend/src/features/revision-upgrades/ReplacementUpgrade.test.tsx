@@ -96,7 +96,7 @@ test("accepting requires explicit relationship decisions and sends them with cor
 
 test("read-only grants disable proposal, review and adoption with a visible reason", async () => {
   vi.stubGlobal("fetch", vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "root-def" }]) : reply({ ...nested, decision: "accepted" })));
-  render(view(["project.read"]));
+  render(view(["workspace.read"]));
   expect(screen.getByText(/Read-only access: requires Edit/)).toBeTruthy();
   expect((screen.getByRole("button", { name: "Save upgrade proposal" }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.change(screen.getByLabelText("Saved proposal ID"), { target: { value: "proposal-nested" } });

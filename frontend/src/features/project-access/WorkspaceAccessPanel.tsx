@@ -23,7 +23,7 @@ const GRANTS = [
  * the role decides what they may change. Only admins see and change the roster, under the
  * workspace access-state token; the server keeps at least one active admin.
  */
-export function WorkspaceAccessPanel({ onAccessChanged }: { /** @deprecated Access is workspace-wide; ignored. */ projectId?: string; onAccessChanged?: () => Promise<void> }) {
+export function WorkspaceAccessPanel({ onAccessChanged }: { onAccessChanged?: () => Promise<void> }) {
   const [access, setAccess] = useState<Access | null>(null);
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<string | null>("viewer");

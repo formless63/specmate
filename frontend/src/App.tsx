@@ -181,8 +181,8 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="preparation" library={library("preparation")}>{visited.has("preparation") && <PreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="end-preparation" library={library("end-preparation")}>{visited.has("end-preparation") && <EndPreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="selected-packages" library={library("selected-packages")}>{visited.has("selected-packages") && <SelectedPackagesPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="occurrence-firmware" library={library("occurrence-firmware")}>{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
-    <ToolPanel value="firmware-impact" library={library("firmware-impact")}>{visited.has("firmware-impact") && <FirmwareImpactPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="occurrence-firmware" library={library("occurrence-firmware")}>{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="firmware-impact" library={library("firmware-impact")}>{visited.has("firmware-impact") && <FirmwareImpactPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="configurations" library={library("configurations")}>{visited.has("configurations") && <ConfigurationsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="mechanical-sources" library={library("mechanical-sources")}>{visited.has("mechanical-sources") && <MechanicalSourcesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="shared-scene" library={library("shared-scene")}>{visited.has("shared-scene") && <SharedScenePanel projectId={projectId} />}</ToolPanel>

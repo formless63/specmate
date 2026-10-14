@@ -25,7 +25,7 @@ function ScopeProvider({ scope, children, onUnavailable, authorityPending }: { s
     const ticket = controller.beginRead();
     if (pending.current) return;
     try {
-      const scene = await readScene(scope.project_id, scope.snapshot_id);
+      const scene = await readScene(scope.snapshot_id);
       controller.accept(ticket, scene);
     } catch (error) {
       controller.unavailable(ticket, error instanceof Error ? error.message : 'Scene unavailable.');

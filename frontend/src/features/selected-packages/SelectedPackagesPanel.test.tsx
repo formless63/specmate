@@ -124,9 +124,9 @@ test('agent and browser review transport requires fresh evaluation without idemp
 });
 
 test.each([
-  ['read-only', ['project.read'], true],
-  ['editor', ['project.read', 'item.create', 'design.edit'], true],
-  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false],
+  ['read-only', ['workspace.read'], true],
+  ['editor', ['workspace.read', 'item.create', 'design.edit'], true],
+  ['editor with freeze', ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], false],
 ] as const)('%s permissions gate the distribution purpose while private review stays available', async (_name, permissions, off) => {
   fixture();
   render(<PermissionsProvider permissions={[...permissions]}>{wrap()}</PermissionsProvider>);

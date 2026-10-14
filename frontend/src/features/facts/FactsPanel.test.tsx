@@ -143,10 +143,10 @@ test("display keeps explicit false, unknown, bounds and tolerance distinct", () 
 });
 
 test.each([
-  ["read-only", ["project.read"], "project", true],
-  ["editor", ["project.read", "item.create"], "project", false],
-  ["editor on a physical unit", ["project.read", "item.create"], "physical_unit", true],
-  ["inventory manager on a physical unit", ["project.read", "inventory.manage"], "physical_unit", false],
+  ["read-only", ["workspace.read"], "project", true],
+  ["editor", ["workspace.read", "item.create"], "project", false],
+  ["editor on a physical unit", ["workspace.read", "item.create"], "physical_unit", true],
+  ["inventory manager on a physical unit", ["workspace.read", "inventory.manage"], "physical_unit", false],
 ] as const)("%s permissions gate recording assertions (%s subject)", async (_name, permissions, kind, off) => {
   const body = ledger();
   body.target = kind === "project" ? body.target : { kind: "physical_unit", unit_id: "unit-1" } as Facts["target"];
@@ -162,12 +162,12 @@ test.each([
 
 test("read-only permissions disable opening a new fact ledger but not reading existing subjects", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
-  render(wrap(<PermissionsProvider permissions={["project.read"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={["workspace.read"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   const open = await screen.findByRole("button", { name: "Open fact ledger" }) as HTMLButtonElement;
   expect(open.disabled).toBe(true);
   expect(open.title).toBe("Read-only access: requires Contributor access");
   cleanup();
-  render(wrap(<PermissionsProvider permissions={["project.read", "item.create"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   expect(((await screen.findByRole("button", { name: "Open fact ledger" })) as HTMLButtonElement).disabled).toBe(false);
 });
 

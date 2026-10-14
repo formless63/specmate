@@ -29,7 +29,7 @@ const result: ImpactResult = {
   findings: [{ key: 'pins.LED', status: 'changed', baseline: { pad_id: 'pad-one' }, candidate: { pad_id: 'pad-two' }, reason: 'Review the exact changed native pad.' },
     { key: 'mcu_pin_capability', status: 'unknown', baseline: null, candidate: null, reason: 'MCU capability is not evaluated.' }],
   observations_total: 1, observation_offset: 0, observations_truncated: false, observations_has_more: false,
-  observations: [{ subject: { subject_id: 'original-subject', workspace_id: 'project-one', state: 'facts-v2', target: { kind: 'physical_unit', unit_id: 'unit-one' }, physical_unit_serial: 'SYNTH-UNIT' },
+  observations: [{ subject: { subject_id: 'original-subject', workspace_id: 'workspace-one', state: 'facts-v2', target: { kind: 'physical_unit', unit_id: 'unit-one' }, physical_unit_serial: 'SYNTH-UNIT' },
     assertion: { assertion_id: 'assertion-one', subject_id: 'original-subject', sequence: 1, recorded_at: '2026-01-01T00:00:00Z', canonical_value: { kind: 'boolean', value: true }, relation_to_design_state: 'attached_evidence', evidence_status: 'declared',
       fact: { property: 'device_test', status: 'known', purpose: 'general', role: 'actual', value: { kind: 'boolean', value: true }, conditions: [], basis: 'Synthetic result', provenance: { method: 'measurement', evidence: [{ kind: 'citation', citation: 'Synthetic result' }] } } },
     applicability: 'review_required', reason: 'This result belongs to the actual physical unit; never transfer it.', review_keys: ['pins.LED'], historical_result_preserved: true, candidate_result: null }],
@@ -48,7 +48,7 @@ beforeEach(() => {
   vi.mocked(operation).mockResolvedValue({ snapshot_id: 'assembly-snapshot', occurrences: [{ path: ['left', 'board'], kind: 'pcb_population', firmware_revision_id: 'firmware-one', display_ref: 'A1' }], adoptions: [] });
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
-function panel(projectId = 'project-one') { return <MantineProvider env="test"><FirmwareImpactPanel projectId={projectId} /></MantineProvider>; }
+function panel(workspaceId = 'workspace-one') { return <MantineProvider env="test"><FirmwareImpactPanel workspaceId={workspaceId} /></MantineProvider>; }
 async function select() {
   fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' }));
   await screen.findAllByRole('option', { name: 'Synthetic firmware · revision 1' });
@@ -59,7 +59,7 @@ async function select() {
 test('authorized named frozen choices produce exact review and preserve actual unit result', async () => {
   render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
   await screen.findByText('Exact change assessment');
-  expect(compareImpact).toHaveBeenCalledWith({ workspace_id: 'project-one', baseline: { firmware_revision_id: 'firmware-one' }, candidate: { firmware_revision_id: 'firmware-two' }, assertion_ids: [], observation_offset: 0 });
+  expect(compareImpact).toHaveBeenCalledWith({ workspace_id: 'workspace-one', baseline: { firmware_revision_id: 'firmware-one' }, candidate: { firmware_revision_id: 'firmware-two' }, assertion_ids: [], observation_offset: 0 });
   expect(screen.getByText(/Physical unit SYNTH-UNIT/)).toBeTruthy();
   expect(screen.getByText(/original subject original-subject/)).toBeTruthy();
   expect(screen.getByText(/Hardware compatibility: not evaluated/)).toBeTruthy();
@@ -104,7 +104,7 @@ test('project change discards comparison and outstanding result', async () => {
   let finish!: (value: ImpactResult) => void;
   vi.mocked(compareImpact).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const view = render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
-  view.rerender(panel('project-two')); await act(async () => finish(result));
+  view.rerender(panel('workspace-two')); await act(async () => finish(result));
   expect(screen.queryByText('Exact change assessment')).toBeNull();
   expect(screen.getByRole('button', { name: 'Show firmware impact' })).toBeTruthy();
 });
@@ -165,8 +165,8 @@ test('denied contextual read hides its retained input labels and comparison', as
 
 function reusedInputs() {
   vi.mocked(read).mockImplementation(async path => {
-    if (path === 'pcb/projects/project-one/firmware') return { firmware: [] };
-    if (path === 'projects/project-one/definitions') return [{ definition_id: 'consumer-assembly', name: 'Consumer assembly', kind: 'assembly' }];
+    if (path === 'pcb/workspaces/workspace-one/firmware') return { firmware: [] };
+    if (path === 'workspaces/workspace-one/definitions') return [{ definition_id: 'consumer-assembly', name: 'Consumer assembly', kind: 'assembly' }];
     if (path.startsWith('catalog/definitions/consumer-assembly')) return { revisions: [{ revision_id: 'consumer-revision', number: 2 }], drafts: [] };
     if (path === 'revisions/consumer-revision') return { snapshot_id: 'consumer-snapshot' };
     if (path.startsWith('pcb/firmware-revisions/library-')) return { name: path.endsWith('one') ? 'Library controller 7' : 'Library controller 9', revision_number: 1, revision_id: path.split('/').at(-1), snapshot_sha256: 'exact-library-hash' };
@@ -196,7 +196,7 @@ test('assembly occurrence-first choices inspect exact assigned readable library 
   expect(screen.queryByLabelText('Baseline firmware revision')).toBeNull();
   expect(screen.queryAllByRole('option', { name: 'unassigned · A1' })).toHaveLength(0);
   fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
-  await waitFor(() => expect(compareImpact).toHaveBeenCalledWith({ workspace_id: 'project-one', baseline: { firmware_revision_id: 'library-one', assembly_snapshot_id: 'consumer-snapshot', path: ['left'] }, candidate: { firmware_revision_id: 'library-two', assembly_snapshot_id: 'consumer-snapshot', path: ['right'] }, assertion_ids: [], observation_offset: 0 }));
+  await waitFor(() => expect(compareImpact).toHaveBeenCalledWith({ workspace_id: 'workspace-one', baseline: { firmware_revision_id: 'library-one', assembly_snapshot_id: 'consumer-snapshot', path: ['left'] }, candidate: { firmware_revision_id: 'library-two', assembly_snapshot_id: 'consumer-snapshot', path: ['right'] }, assertion_ids: [], observation_offset: 0 }));
   expect(vi.mocked(read).mock.calls.some(([path]) => path.includes('projects/library'))).toBe(false);
   expect(screen.getByText(/additional observations are included only when you select them/)).toBeTruthy();
 });

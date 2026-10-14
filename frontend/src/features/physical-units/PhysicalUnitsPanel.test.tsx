@@ -91,9 +91,9 @@ test("links an actual unit to exact planned work without changing reported compl
 });
 
 test.each([
-  ["read-only", ["project.read"], true],
-  ["reservation only", ["project.read", "inventory.reserve"], true],
-  ["inventory manager", ["project.read", "inventory.manage"], false],
+  ["read-only", ["workspace.read"], true],
+  ["reservation only", ["workspace.read", "inventory.reserve"], true],
+  ["inventory manager", ["workspace.read", "inventory.manage"], false],
 ] as const)("%s permissions gate unit registration", async (_name, permissions, off) => {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     let body: unknown;

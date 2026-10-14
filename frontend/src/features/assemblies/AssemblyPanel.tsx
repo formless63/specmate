@@ -33,7 +33,7 @@ function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [frozenRevision, setFrozenRevision] = useState<string | null>(null);
   const [identityOffset, setIdentityOffset] = useState(0);
-  const definitions = useQuery({ queryKey: ["assembly-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["assembly-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["assembly-identity", definitionId, identityOffset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${identityOffset}`), enabled: !!definitionId });
   const revision = useQuery({ queryKey: ["assembly-revision", frozenRevision], queryFn: () => read<{ snapshot_id: string }>(`revisions/${frozenRevision}`), enabled: !!frozenRevision });
   const inspectedSnapshot = snapshotId ?? revision.data?.snapshot_id;
@@ -82,7 +82,7 @@ function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId
     const original = retainedDraft.current;
     try {
       const [nextDefinitions, nextIdentity, nextDraft, nextRevision, nextProjection] = await Promise.all([
-        read<Definition[]>(`projects/${projectId}/definitions`),
+        read<Definition[]>('workspace/definitions'),
         definitionId ? read<Identity>(`catalog/definitions/${definitionId}?offset=${identityOffset}`) : Promise.resolve(null),
         draftId ? read<Draft>(`assemblies/drafts/${draftId}`) : Promise.resolve(null),
         frozenRevision ? read<{ snapshot_id: string }>(`revisions/${frozenRevision}`) : Promise.resolve(null),

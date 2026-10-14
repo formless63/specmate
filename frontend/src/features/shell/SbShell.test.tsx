@@ -22,7 +22,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const chrome = { username: "local-user", projectControl: <span>project control</span>, signOutControl: <button type="button">Sign out</button>, alert: null };
 
-function Harness({ permissions = ["project.read"] }: { permissions?: string[] }) {
+function Harness({ permissions = ["workspace.read"] }: { permissions?: string[] }) {
   const [active, setActive] = useState("identity");
   const [visited, setVisited] = useState(() => new Set(["identity"]));
   return <MantineProvider><SbShell projectName="Demo workshop" permissions={permissions} activeTool={active} chrome={chrome}
@@ -52,10 +52,10 @@ test("a project opens on Overview, the first lens of the Project area", () => {
 
 test("read-only is claimed only when permissions are reported and allow no change", () => {
   expect(isReadOnly(["workspace.read"])).toBe(true);
-  expect(isReadOnly(["project.read"])).toBe(true);
+  expect(isReadOnly(["workspace.read"])).toBe(true);
   expect(isReadOnly(["workspace.read", "item.create", "project.edit"])).toBe(false);
-  expect(isReadOnly(["project.read", "item.create", "design.edit"])).toBe(false);
-  expect(isReadOnly(["project.read", "project.admin"])).toBe(false);
+  expect(isReadOnly(["workspace.read", "item.create", "design.edit"])).toBe(false);
+  expect(isReadOnly(["workspace.read", "workspace.admin"])).toBe(false);
   expect(isReadOnly([])).toBe(false);
   expect(isReadOnly(undefined)).toBe(false);
 });
@@ -87,7 +87,7 @@ test("rail selects areas, lenses switch tools, and landmarks and current state a
 });
 
 test("context header shows one fact per cell and the status line holds no navigation", () => {
-  render(<Harness permissions={["project.read", "item.create", "design.edit"]} />);
+  render(<Harness permissions={["workspace.read", "item.create", "design.edit"]} />);
   const context = screen.getByRole("region", { name: "Context" }) as HTMLElement;
   expect(within(context).getByText("Demo workshop")).toBeTruthy();
   expect(within(context).getByText("Identities")).toBeTruthy();
@@ -149,7 +149,7 @@ test("Ctrl K opens the jump palette and choosing a tool navigates across areas",
 });
 
 test("the top bar shows a supplied status indicator and otherwise says status is not evaluated", () => {
-  const view = (indicator?: ReactNode) => <MantineProvider><SbShell projectName="Demo workshop" permissions={["project.read"]} activeTool="identity" chrome={chrome}
+  const view = (indicator?: ReactNode) => <MantineProvider><SbShell projectName="Demo workshop" permissions={["workspace.read"]} activeTool="identity" chrome={chrome}
     statusIndicator={indicator} onToolChange={() => {}}><Tabs.Panel value="identity">x</Tabs.Panel></SbShell></MantineProvider>;
   const { rerender } = render(view());
   expect(screen.getByText("Status not evaluated")).toBeTruthy();

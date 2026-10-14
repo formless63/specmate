@@ -83,22 +83,21 @@ const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", contributor: "Co
 
 /**
  * Plain-words summary of the signed-in principal's workspace role. The server reports the role
- * with the permissions; without it the role is inferred from the reported atoms (the former
- * per-project names are still understood).
+ * with the permissions; without it the role is inferred from the reported atoms.
  */
 export function describeAccess(permissions: string[], role?: string | null): { label: string; known: boolean; grants: number } {
   const has = (...names: string[]) => names.some((name) => permissions.includes(name));
   const grants = permissions.length;
   if (role && ROLE_LABELS[role]) return { label: ROLE_LABELS[role], known: true, grants };
-  if (has("workspace.admin", "project.admin")) return { label: "Admin", known: true, grants };
+  if (has("workspace.admin")) return { label: "Admin", known: true, grants };
   if (has("design.edit")) return { label: "Editor", known: true, grants };
   if (has("item.create", "project.edit")) return { label: "Contributor", known: true, grants };
-  if (has("workspace.read", "project.read")) return { label: "Viewer", known: true, grants };
+  if (has("workspace.read")) return { label: "Viewer", known: true, grants };
   return { label: "Not reported", known: false, grants };
 }
 
 /** True only when permissions are reported and allow no change at all; unreported is not read-only. */
 export function isReadOnly(permissions: string[] | undefined): boolean {
   if (!permissions || permissions.length === 0) return false;
-  return !["design.edit", "item.create", "project.edit", "workspace.admin", "project.admin"].some((name) => permissions.includes(name));
+  return !["design.edit", "item.create", "project.edit", "workspace.admin"].some((name) => permissions.includes(name));
 }

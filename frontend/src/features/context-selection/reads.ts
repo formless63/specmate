@@ -7,8 +7,8 @@ import { sameOccurrence } from './selection';
 export type RootPin = { revision_id: string; snapshot_id: string; sha256: string };
 export type LoadedBom = { inspection: BomInspection; root: RootPin };
 
-export async function readScene(projectId: string, snapshotId: string): Promise<SharedScene> {
-  const definitions = await request<{ definition_id: string }[]>(`projects/${encodeURIComponent(projectId)}/definitions`, { cache: 'no-store' });
+export async function readScene(snapshotId: string): Promise<SharedScene> {
+  const definitions = await request<{ definition_id: string }[]>('workspace/definitions', { cache: 'no-store' });
   const scene = await request<SharedScene>(`shared-scenes/snapshots/${encodeURIComponent(snapshotId)}`, { cache: 'no-store' });
   if (!definitions.some(definition => definition.definition_id === scene.root.definition_id)) throw new SourceError(404, 'Scene is unavailable in this project context.');
   return scene;

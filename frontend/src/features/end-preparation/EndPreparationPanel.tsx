@@ -26,7 +26,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const active = (generation: number) => mounted.current && generation === scope.current;
   const onDenied = useCallback((dependency: Denial, generation: number) => { if (!mounted.current || generation !== scope.current) return; denied.current.push(dependency); denialEpoch.current += 1; setBlocked(true); }, []);
   const guardedRead = async <T,>(path: string, dependency: Denial): Promise<T> => { const generation = scope.current; try { return await read<T>(path); } catch (reason) { if (authorityDenied(reason)) onDenied(dependency, generation); throw reason; } };
-  const definitions = useQuery({ queryKey: ['end-preparation-definitions', projectId], queryFn: () => guardedRead<Definition[]>(`projects/${projectId}/definitions`, {}), retry: false });
+  const definitions = useQuery({ queryKey: ['end-preparation-definitions', projectId], queryFn: () => guardedRead<Definition[]>('workspace/definitions', {}), retry: false });
   const history = useQuery({ queryKey: ['end-preparation-history', definition, offset], queryFn: () => guardedRead<Identity>(`catalog/definitions/${definition}?offset=${offset}`, { definition: definition! }), enabled: !!definition && !blocked, retry: false });
   const stock = useQuery({ queryKey: ['end-preparation-stock', profile.stock_revision_id], queryFn: async () => { const generation = scope.current; const submitted = profile; try { return await loadStock(submitted.stock_revision_id); } catch (reason) { if (authorityDenied(reason)) onDenied({ profile: submitted }, generation); throw reason; } }, enabled: !!profile.stock_revision_id && !blocked, retry: false });
   const change = (value: Profile) => { edits.current += 1; setProfile(value); };
@@ -63,7 +63,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const refresh = async () => {
     if (busy) return; const generation = scope.current; const epoch = denialEpoch.current; setBusy('refresh'); setError(null);
     try {
-      await read(`projects/${projectId}/definitions`);
+      await read('workspace/definitions');
       if (current) await read(`end-preparation/drafts/${current.draft_id}`);
       if (profile.stock_revision_id) await postRead('authority', profile);
       if (revision) await read(`end-preparation/revisions/${revision}`);

@@ -54,7 +54,7 @@ function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: 
     throw new Error(`Unexpected request ${url}`);
   });
   vi.stubGlobal('fetch', mock);
-  const panel = <MantineProvider><FirmwareOccurrencesPanel projectId="project-a" permissions={options.canEdit === false ? ['project.read'] : ['design.edit']} /></MantineProvider>;
+  const panel = <MantineProvider><FirmwareOccurrencesPanel workspaceId="workspace-a" permissions={options.canEdit === false ? ['workspace.read'] : ['design.edit']} /></MantineProvider>;
   const rendered = render(options.strict ? <StrictMode>{panel}</StrictMode> : panel);
   return { bodies, mock, deny: () => { denied = true; }, restore: () => { denied = false; }, rendered };
 }
@@ -151,7 +151,7 @@ test('frozen assembly inspection resolves exact snapshot with no mutation contro
 
 test('project changes unmount retained selections and evidence', async () => {
   const { rendered } = setup(); await open(); await review();
-  rendered.rerender(<MantineProvider><FirmwareOccurrencesPanel projectId="project-b" permissions={['design.edit']} /></MantineProvider>);
+  rendered.rerender(<MantineProvider><FirmwareOccurrencesPanel workspaceId="workspace-b" permissions={['design.edit']} /></MantineProvider>);
   expect(screen.queryByText('BLINK_MS=900')).toBeNull();
   expect(screen.getByRole('button', { name: 'Show occurrence firmware' })).toBeTruthy();
 });

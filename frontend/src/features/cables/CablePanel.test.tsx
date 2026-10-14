@@ -130,7 +130,7 @@ async function openRetainedDraft(permissions?: string[]) {
 test.each([
   ['draft', 'cables/drafts', ['cable-draft', 'draft']],
   ['identity', 'catalog/definitions', ['cable-identity', 'cable', 0]],
-  ['definitions', 'projects/project/definitions', ['cable-definitions', 'project']],
+  ['definitions', 'workspace/definitions', ['cable-definitions', 'project']],
 ])('%s denial on the same query key hides retained draft and mutation controls', async (_name, path, key) => {
   const { cache, deny } = await openRetainedDraft();
   expect(screen.getByRole('button', { name: 'Freeze cable revision' })).toBeTruthy();
@@ -276,9 +276,9 @@ test.each([
 });
 
 test.each([
-  ['read-only', ['project.read'], true, true],
-  ['editor without freeze', ['project.read', 'item.create', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
+  ['read-only', ['workspace.read'], true, true],
+  ['editor without freeze', ['workspace.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate cable create, save and freeze controls', async (_name, permissions, saveOff, freezeOff) => {
   await openRetainedDraft([...permissions]);
   const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled;

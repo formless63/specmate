@@ -57,7 +57,7 @@ function Workspace({ projectId }: { projectId: string }) {
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
   }, [authorityBlocked, refreshAuthority]);
-  const definitions = useQuery({ queryKey: ["cable-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["cable-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["cable-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["cable-draft", draftId], queryFn: () => read<Draft>(`cables/drafts/${draftId}`), enabled: !!draftId });
   const create = useMutation({ mutationFn: () => command<Draft>("cable.create", { name, cable: value }), onSuccess: async (data) => {

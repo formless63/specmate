@@ -29,7 +29,7 @@ function PackageWorkspace({ projectId }: { projectId: string }) {
   const generation = useRef(0);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current += 1; }; }, []);
-  const definitions = useQuery({ queryKey: ['package-definitions', projectId], queryFn: () => requestJson<Definition[]>(`/api/v0/projects/${projectId}/definitions`), staleTime: 0 });
+  const definitions = useQuery({ queryKey: ['package-definitions', projectId], queryFn: () => requestJson<Definition[]>('/api/v0/workspace/definitions'), staleTime: 0 });
   const identity = useQuery({ queryKey: ['package-identity', definitionId, offset], enabled: !!definitionId, queryFn: () => requestJson<Identity>(`/api/v0/catalog/definitions/${definitionId}?offset=${offset}`), staleTime: 0 });
   const selectedRoot = identity.data?.revisions.find(row => row.revision_id === rootId);
   // Catalog identity retains snapshots for exact roots; the snapshot is obtained through

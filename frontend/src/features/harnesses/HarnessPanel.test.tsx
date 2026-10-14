@@ -126,9 +126,9 @@ test.each(['definitions', 'identity', 'draft'])('denied %s refresh removes cache
 });
 
 test.each([
-  ['read-only', ['project.read'], true, true],
-  ['editor', ['project.read', 'item.create', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
+  ['read-only', ['workspace.read'], true, true],
+  ['editor', ['workspace.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate harness create, save and freeze', async (_name, permissions, saveOff, freezeOff) => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const data = url.includes('/snapshot') ? { content: { stock } } : url.includes('harnesses/drafts') ? { definition_id: 'harness', draft_id: 'draft', state: 'v1', content: { harness: branched() } } : url.includes('catalog/definitions') ? { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] } : [{ definition_id: 'harness', kind: 'harness', name: 'Synthetic branch' }];

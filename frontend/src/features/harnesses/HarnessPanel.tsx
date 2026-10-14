@@ -41,7 +41,7 @@ function Workspace({ projectId }: { projectId: string }) {
   }, []);
   const replaceEditor = () => { editorGeneration.current += 1; deniedRevisions.current.clear(); inspectionEpoch.current += 1; setInspectorDenied(false); setRestoreError(null); setRestoring(false); setFreezeDenied(false); setDraftSourceDenied(false); };
   const newReferenceDenied = useCallback((path: string) => { if (renderedCreation !== creationGeneration.current) return; newDeniedRefs.current.add(path); newDenialEpoch.current += 1; setNewBlocked(true); }, [renderedCreation]);
-  const definitions = useQuery({ queryKey: ["harness-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["harness-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["harness-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["harness-draft", draftId], queryFn: () => read<Draft>(`harnesses/drafts/${draftId}`), enabled: !!draftId });
   const create = useMutation({ mutationFn: async ({ generation }: { generation: number }) => { const data = await command<Draft>("harness.create", { name, harness: value }); return { data, generation }; }, onSuccess: async ({ data, generation }) => {
@@ -60,7 +60,7 @@ function Workspace({ projectId }: { projectId: string }) {
     const generation = editorGeneration.current; const epoch = inspectionEpoch.current;
     const target = selected.current; setRestoring(true); setRestoreError(null);
     try {
-      await read(`projects/${projectId}/definitions`);
+      await read('workspace/definitions');
       if (target.definitionId) await read(`catalog/definitions/${target.definitionId}`);
       if (target.draftId) await read(`harnesses/drafts/${target.draftId}`);
       for (const revision of new Set([...deniedRevisions.current, ...(target.revisionId ? [target.revisionId] : [])])) await read(`harnesses/revisions/${revision}`);

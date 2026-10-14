@@ -42,7 +42,7 @@ function setup(options: { permissions?: string[]; strict?: boolean; draft?: Mech
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', mock);
-  const props = { workspaceId: 'project', permissions: options.permissions ?? ['project.read', 'item.create', 'design.edit', 'design.freeze'], onAccessLost: options.lost };
+  const props = { workspaceId: 'project', permissions: options.permissions ?? ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], onAccessLost: options.lost };
   const view = render(<MantineProvider>{options.strict ? <StrictMode><MechanicalSourcesPanel {...props} /></StrictMode> : <MechanicalSourcesPanel {...props} />}</MantineProvider>);
   return { ...view, bodies, mock, deny: (value: boolean) => { denied = value; } };
 }
@@ -102,7 +102,7 @@ test('response loss retries the identical reviewed request with the same idempot
 });
 
 test('frozen history and read-only membership offer no authoring controls', async () => {
-  setup({ permissions: ['project.read'] }); await refresh(); fireEvent.click(screen.getByRole('button', { name: 'Revision 1' }));
+  setup({ permissions: ['workspace.read'] }); await refresh(); fireEvent.click(screen.getByRole('button', { name: 'Revision 1' }));
   await screen.findByRole('heading', { name: 'Synthetic enclosure revision 1' });
   expect(screen.queryByRole('button', { name: 'New mechanical source' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Edit mechanical draft' })).toBeNull();
@@ -250,7 +250,7 @@ test('read-only assessment shows exact declared scopes and missing prerequisites
     geometry: [], prerequisites: [{ code: 'connector_scope', status: 'unknown', scope: { target_local_id: 'hardware', model_local_id: null }, assumption_local_id: null, message: 'Connector relevance and mating scope are unassessed; no coverage is inferred.' }],
     missing_prerequisites: [], fit: 'not_evaluated', clearance: 'not_evaluated', manufacturability: 'not_evaluated', physical_qualification: false,
   };
-  setup({ permissions: ['project.read'], draft: detail }); await refresh();
+  setup({ permissions: ['workspace.read'], draft: detail }); await refresh();
   fireEvent.click(screen.getByRole('button', { name: 'Open draft' }));
   await screen.findByRole('heading', { name: 'Geometry and process prerequisites' });
   expect(screen.getByText(/Material polymer · mechanical item · declared · Original hypothetical polymer · behavior unknown/)).toBeTruthy();

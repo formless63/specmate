@@ -105,7 +105,7 @@ function renderAs(permissions: string[]) {
 const control = (name: string) => screen.getByRole("button", { name }) as HTMLButtonElement;
 
 test("read-only permissions disable every ledger-writing inventory control with a reason", async () => {
-  fakeServer(); renderAs(["project.read"]);
+  fakeServer(); renderAs(["workspace.read"]);
   fireEvent.click(await screen.findByText("Manage Synthetic batch"));
   fireEvent.change(await screen.findByLabelText("Stock operation"), { target: { value: "receive" } });
   fireEvent.change(screen.getByLabelText("Operation quantity"), { target: { value: "2" } });
@@ -123,7 +123,7 @@ test("read-only permissions disable every ledger-writing inventory control with 
 });
 
 test("reservation-only access can reserve but not receive or open accounts", async () => {
-  fakeServer(); renderAs(["project.read", "inventory.reserve"]);
+  fakeServer(); renderAs(["workspace.read", "inventory.reserve"]);
   fireEvent.click(await screen.findByText("Manage Synthetic batch"));
   fireEvent.change(await screen.findByLabelText("Stock operation"), { target: { value: "reserve" } });
   fireEvent.change(screen.getByLabelText("Operation quantity"), { target: { value: "2" } });
@@ -137,7 +137,7 @@ test("reservation-only access can reserve but not receive or open accounts", asy
 });
 
 test("inventory managers keep every control enabled, including reservation", async () => {
-  fakeServer(); renderAs(["project.read", "inventory.manage"]);
+  fakeServer(); renderAs(["workspace.read", "inventory.manage"]);
   fireEvent.click(await screen.findByText("Manage Synthetic batch"));
   fireEvent.change(await screen.findByLabelText("Stock operation"), { target: { value: "reserve" } });
   fireEvent.change(screen.getByLabelText("Operation quantity"), { target: { value: "2" } });

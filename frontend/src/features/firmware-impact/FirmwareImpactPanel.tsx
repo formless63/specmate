@@ -7,13 +7,12 @@ import { read, type Definition, type Identity } from '../identity/api';
 import { compareImpact, type FirmwareReference, type ImpactResult } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-// Impact reviews are workspace-scoped. `workspaceId` is the scope; until the shell supplies it, the
-// project id is passed as the transitional scope and the server resolves it to its workspace.
-export function FirmwareImpactPanel({ projectId, workspaceId }: { projectId: string; workspaceId?: string }) {
-  return <Workspace key={workspaceId ?? projectId} projectId={projectId} workspaceId={workspaceId ?? projectId} />;
+/** Impact reviews are workspace-scoped; the project is navigation context only. */
+export function FirmwareImpactPanel({ workspaceId }: { workspaceId: string }) {
+  return <Workspace key={workspaceId} workspaceId={workspaceId} />;
 }
 
-function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId: string }) {
+function Workspace({ workspaceId }: { workspaceId: string }) {
   const generation = useRef(0);
   const [opened, setOpened] = useState(false);
   const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
@@ -43,8 +42,8 @@ function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId:
     setPickerKey(key => key + 1);
     try {
       const [records, definitions] = await Promise.all([
-        read<{ firmware: FirmwareSummary[] }>(`pcb/projects/${projectId}/firmware`),
-        read<Definition[]>(`projects/${projectId}/definitions`),
+        read<{ firmware: FirmwareSummary[] }>(`pcb/workspaces/${workspaceId}/firmware`),
+        read<Definition[]>(`workspaces/${workspaceId}/definitions`),
       ]);
       if (token === generation.current) { setFirmware(records.firmware); setAssemblies(definitions.filter(item => item.kind === 'assembly')); }
     } catch (failure) { if (token === generation.current) setError((failure as Error).message); }
@@ -83,7 +82,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId:
       {candidateMode === 'standalone' && <NativeSelect label="Candidate firmware revision" value={candidate} data={options} onChange={event => { clear(); setCandidate(event.currentTarget.value); setCandidateContext({}); setCandidateContextPending(false); }} />}
       {(baseline || baselineMode === 'occurrence') && <ContextSelector key={`baseline:${pickerKey}:${baselineMode}:${baselineMode === 'standalone' ? baseline : ''}`} label="Baseline" firmwareId={baselineMode === 'standalone' ? baseline : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setBaselineContextPending(pending); if (baselineMode === 'occurrence') setBaseline(context.firmware_revision_id || ''); setBaselineContext(context); }} />}
       {(candidate || candidateMode === 'occurrence') && <ContextSelector key={`candidate:${pickerKey}:${candidateMode}:${candidateMode === 'standalone' ? candidate : ''}`} label="Candidate" firmwareId={candidateMode === 'standalone' ? candidate : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setCandidateContextPending(pending); if (candidateMode === 'occurrence') setCandidate(context.firmware_revision_id || ''); setCandidateContext(context); }} />}
-      <EvidenceSelector key={pickerKey} projectId={projectId} onChange={ids => { clear(); setAssertions(ids); }} onDenied={deny} />
+      <EvidenceSelector key={pickerKey} workspaceId={workspaceId} onChange={ids => { clear(); setAssertions(ids); }} onDenied={deny} />
       {baselineContextPending && <Text>Reading baseline assigned firmware…</Text>}
       {candidateContextPending && <Text>Reading candidate assigned firmware…</Text>}
       <Button disabled={busy || baselineContextPending || candidateContextPending || !baseline || !candidate} onClick={() => { void inspect(); }}>Compare firmware impact</Button>
@@ -149,7 +148,7 @@ function ContextSelector({ label, firmwareId, assemblies, onChange, onDenied }: 
   </Stack>;
 }
 
-function EvidenceSelector({ projectId, onChange, onDenied }: { projectId: string; onChange: (ids: string[]) => void; onDenied: (message: string) => void }) {
+function EvidenceSelector({ workspaceId, onChange, onDenied }: { workspaceId: string; onChange: (ids: string[]) => void; onDenied: (message: string) => void }) {
   const subjectGeneration = useRef(0);
   const factGeneration = useRef(0);
   const [opened, setOpened] = useState(false);
@@ -162,7 +161,7 @@ function EvidenceSelector({ projectId, onChange, onDenied }: { projectId: string
   useEffect(() => {
     const token = ++subjectGeneration.current;
     setSubjects([]); setFacts(null);
-    if (opened) read<Subject[]>(`facts/projects/${projectId}/subjects?offset=${subjectOffset}`)
+    if (opened) read<Subject[]>(`facts/workspaces/${workspaceId}/subjects?offset=${subjectOffset}`)
       .then(value => { if (token === subjectGeneration.current) setSubjects(value); })
       .catch((failure: Error) => { if (token === subjectGeneration.current) { setSubjects([]); setFacts(null); onDenied(failure.message); } });
     return () => { subjectGeneration.current++; };

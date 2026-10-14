@@ -9,7 +9,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = { projectId: string; principalKey: string; canGenerate: boolean; active?: boolean; onAccessLost?: () => void };
 export function PreparationDocumentsPanel(props: Props) { return <Workspace key={`${props.projectId}:${props.principalKey}`} {...props} />; }
-function Workspace({ projectId, canGenerate, active = true, onAccessLost }: Props) {
+function Workspace({ canGenerate, active = true, onAccessLost }: Props) {
   const [config, setConfig] = useState<Configuration>(emptyConfiguration), [quantity, setQuantity] = useState('1');
   const [definitions, setDefinitions] = useState<Definition[]>([]), [history, setHistory] = useState<Receipt[]>([]);
   const [reviewed, setReviewed] = useState<Review | null>(null), [retained, setRetained] = useState<Receipt | null>(null), [selectedId, setSelectedId] = useState<string | null>(null);
@@ -23,7 +23,7 @@ function Workspace({ projectId, canGenerate, active = true, onAccessLost }: Prop
   const derivedBasis = useRef<Review | null>(null);
   const pending = useRef<{ config: Configuration; state: string; key: string } | null>(null);
   useEffect(() => { alive.current = true; needsRefresh.current = true; setBusy(false); return () => { alive.current = false; epoch.current += 1; accessEpoch.current += 1; }; }, []);
-  const list = () => Promise.all([requestJson<Definition[]>(`/api/v0/projects/${projectId}/definitions`), requestJson<{ document_sets: Receipt[] }>('/api/v0/preparation-documents/workspace')]);
+  const list = () => Promise.all([requestJson<Definition[]>('/api/v0/workspace/definitions'), requestJson<{ document_sets: Receipt[] }>('/api/v0/preparation-documents/workspace')]);
   const sameReferences = (a: Configuration, b: Configuration) => a.root_revision_id === b.root_revision_id && JSON.stringify(references(a)) === JSON.stringify(references(b));
   const sameConfig = (a: Configuration, b: Configuration) => JSON.stringify(a) === JSON.stringify(b);
   const denied = (e: unknown) => e instanceof ApiError && [401, 403, 404].includes(e.status);

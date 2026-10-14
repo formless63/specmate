@@ -35,7 +35,7 @@ function show(permissions: string[], fetchMock: ReturnType<typeof vi.fn>) {
 }
 
 test("distinct categories each show their own summary and recovery path", async () => {
-  show(["project.read"], vi.fn(async () => reply(status)));
+  show(["workspace.read"], vi.fn(async () => reply(status)));
   const list = await screen.findByRole("list", { name: "Findings" });
   const items = within(list).getAllByRole("listitem");
   expect(items).toHaveLength(2);
@@ -47,7 +47,7 @@ test("distinct categories each show their own summary and recovery path", async 
 });
 
 test("a read-only member cannot cancel and is told why", async () => {
-  show(["project.read"], vi.fn(async () => reply(status)));
+  show(["workspace.read"], vi.fn(async () => reply(status)));
   const buttons = await screen.findAllByRole("button", { name: "Cancel build" });
   for (const button of buttons) expect((button as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText(/Read-only access: requires Native execution/)).toBeTruthy();
@@ -59,7 +59,7 @@ test("cancelling sends the stage state token and reports a requested, unconfirme
     void options;
     return reply(status);
   });
-  show(["project.read", "build.execute"], fetchMock);
+  show(["workspace.read", "build.execute"], fetchMock);
   const buttons = await screen.findAllByRole("button", { name: "Cancel build" });
   fireEvent.click(buttons[1] as HTMLElement);
   await waitFor(() => expect(screen.getByText(/stays listed until its runner confirms it stopped/)).toBeTruthy());
@@ -69,7 +69,7 @@ test("cancelling sends the stage state token and reports a requested, unconfirme
 });
 
 test("an unreadable status is shown as not evaluated rather than healthy", async () => {
-  show(["project.read"], vi.fn(async () => reply({ error: { message: "Project not found." } }, 404)));
+  show(["workspace.read"], vi.fn(async () => reply({ error: { message: "Project not found." } }, 404)));
   expect(await screen.findByText("Status unavailable")).toBeTruthy();
   expect(screen.getByText(/not evaluated until this read succeeds/)).toBeTruthy();
 });

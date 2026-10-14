@@ -12,7 +12,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const [revision, setRevision] = useState<string | null>(null);
   const [exact, setExact] = useState('');
   const [offset, setOffset] = useState(0);
-  const definitions = useQuery({ queryKey: ['copper-definitions', projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ['copper-definitions', projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ['copper-identity', definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
   const denied = definitions.isError || identity.isError;
   const rows = definitions.isError ? [] : definitions.data ?? [];

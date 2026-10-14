@@ -64,7 +64,7 @@ async function openDraft() {
 }
 
 test('shows explicit decisions, saves selections under CAS and captures a reviewed snapshot', async () => {
-  const bodies = setup(['project.read', 'item.create', 'design.edit']);
+  const bodies = setup(['workspace.read', 'item.create', 'design.edit']);
   await openDraft();
   expect(screen.getByText('incomplete')).toBeTruthy();
   expect(screen.getByText('unresolved')).toBeTruthy();
@@ -87,7 +87,7 @@ test('shows explicit decisions, saves selections under CAS and captures a review
 });
 
 test('read-only principals review resolutions without mutating controls', async () => {
-  const bodies = setup(['project.read']);
+  const bodies = setup(['workspace.read']);
   await openDraft();
   expect((screen.getByLabelText('Selection for Enclosure finish') as HTMLSelectElement).disabled).toBe(true);
   expect((screen.getByRole('button', { name: 'Capture resolved snapshot' }) as HTMLButtonElement).disabled).toBe(true);

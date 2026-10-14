@@ -33,12 +33,12 @@ function Workspace({ projectId }: { projectId: string }) {
   const deniedApplication = useRef<Request | null>(null);
   const changeProfile = (value: Profile) => { edits.current += 1; setProfile(value); };
   const computationDenied = useCallback((request: Request, scope: number) => { if (scope !== authorityGeneration.current) return; deniedApplication.current = request; setBlocked(true); }, []);
-  const definitions = useQuery({ queryKey: ['preparation-definitions', projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ['preparation-definitions', projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ['preparation-identity', definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
   const stock = useQuery({ queryKey: ['preparation-stock', profile.stock_revision_id], queryFn: () => loadFrozenStock(profile.stock_revision_id), enabled: !!profile.stock_revision_id });
   const onError = (error: Error) => { if (authorityDenied(error)) setBlocked(true); };
   const refresh = useMutation({ mutationFn: async () => {
-    await read(`projects/${projectId}/definitions`);
+    await read('workspace/definitions');
     if (current) await read(`preparation/drafts/${current.draft_id}`);
     if (profile.stock_revision_id) await postRead('authority', profile);
     if (revisionId) await read(`preparation/revisions/${revisionId}`);

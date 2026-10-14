@@ -23,9 +23,9 @@ const canonical = (value: Assessment): string => JSON.stringify(value, (_key, it
 
 /** Mount in the interfaces workspace with the current principal and permissions. */
 export function InterfaceAssessmentPanel({ projectId, principalKey, canEdit, canFreeze, active = true }: { projectId: string; principalKey: string; canEdit: boolean; canFreeze: boolean; active?: boolean }) {
-  return <Workspace key={`${projectId}:${principalKey}:${canEdit}:${canFreeze}`} projectId={projectId} canEdit={canEdit} canFreeze={canFreeze} isActive={active} />;
+  return <Workspace key={`${projectId}:${principalKey}:${canEdit}:${canFreeze}`} canEdit={canEdit} canFreeze={canFreeze} isActive={active} />;
 }
-function Workspace({ projectId, canEdit, canFreeze, isActive }: { projectId: string; canEdit: boolean; canFreeze: boolean; isActive: boolean }) {
+function Workspace({ canEdit, canFreeze, isActive }: { canEdit: boolean; canFreeze: boolean; isActive: boolean }) {
   const [scope] = useState(randomUUID);
   const cache = useQueryClient();
   const active = useRef(true);
@@ -66,7 +66,7 @@ function Workspace({ projectId, canEdit, canFreeze, isActive }: { projectId: str
     return () => { active.current = false; authorityGeneration.current += 1; void cache.cancelQueries({ queryKey: [scope] }); cache.removeQueries({ queryKey: [scope] }); };
   }, [cache, scope]);
   const options = { retry: false as const, staleTime: 0, enabled: isActive };
-  const definitions = useQuery({ ...options, queryKey: [scope, "definitions"], queryFn: ({ signal }) => read<Definition[]>(`projects/${projectId}/definitions`, { signal }) });
+  const definitions = useQuery({ ...options, queryKey: [scope, "definitions"], queryFn: ({ signal }) => read<Definition[]>('workspace/definitions', { signal }) });
   const identity = useQuery({ ...options, queryKey: [scope, "identity", definition, offset], queryFn: ({ signal }) => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`, { signal }), enabled: isActive && !!definition });
   const draft = useQuery({ ...options, queryKey: [scope, "draft", draftId], queryFn: ({ signal }) => read<AssessmentDraft>(`interfaces/drafts/${draftId}`, { signal }), enabled: isActive && !!draftId });
   const inspection = useQuery({ ...options, queryKey: [scope, "revision", revisionId], queryFn: ({ signal }) => read<Inspection>(`interfaces/revisions/${revisionId}`, { signal }), enabled: isActive && !!revisionId });

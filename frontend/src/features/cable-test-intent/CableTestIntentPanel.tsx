@@ -39,7 +39,7 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
     try { return await read<T>(path); }
     catch (e) { if (e instanceof Error) workspaceDenied(e); throw e; }
   }
-  const definitions = useQuery({ queryKey: ['test-plan-definitions', projectId, refresh], queryFn: () => guardedRead<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ['test-plan-definitions', projectId, refresh], queryFn: () => guardedRead<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ['test-plan-identity', definitionId, offset, refresh], queryFn: () => guardedRead<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ['test-plan-draft', draftId, refresh], queryFn: () => guardedRead<Draft>(`cable-test-intent/drafts/${draftId}`), enabled: !!draftId });
   useEffect(() => { if (draft.data?.draft_id === draftId && !draft.isError) setRetainedDraft(draft.data); }, [draft.data, draftId, draft.isError]);
@@ -55,7 +55,7 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
     const selectedDraft = draftId && activePlan.current?.draftId === draftId ? activePlan.current.value : null;
     setRestoring(true);
     try {
-      const checks: Promise<unknown>[] = [read<Definition[]>(`projects/${projectId}/definitions`)];
+      const checks: Promise<unknown>[] = [read<Definition[]>('workspace/definitions')];
       if (definitionId) checks.push(read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`));
       if (draftId) checks.push(read<Draft>(`cable-test-intent/drafts/${draftId}`));
       if (revisionId) checks.push(read<Inspection>(`cable-test-intent/revisions/${revisionId}`));

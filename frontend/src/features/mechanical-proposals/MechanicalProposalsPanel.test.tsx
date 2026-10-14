@@ -48,7 +48,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
 async function open() { fireEvent.click(await screen.findByRole('button', { name: 'Open proposal Case' })); await screen.findByText('Unresolved inputs (2)'); }
 
 test('opening a draft shows unknowns as unresolved, never defaulted, and candidate holes undecided', async () => {
-  view(['project.read', 'item.create', 'design.edit']); await open();
+  view(['workspace.read', 'item.create', 'design.edit']); await open();
   expect(screen.getByText('Wall thickness is unknown.')).toBeTruthy();
   expect(screen.getByText(/Incomplete: unresolved inputs remain/)).toBeTruthy();
   expect(screen.getByText(/not evaluated\. Board interpretation/)).toBeTruthy();
@@ -60,7 +60,7 @@ test('opening a draft shows unknowns as unresolved, never defaulted, and candida
 test('saving sends only parsed declarations under the draft CAS state with a stable key, then clears dirty state', async () => {
   const saved = draft({ version: 2, state: 'proposal-v2', parameters: { ...empty, shell: { ...empty.shell, wall_mm: 2, board_clearance_mm: 0 } } });
   vi.mocked(api.updateDraft).mockResolvedValue(saved);
-  view(['project.read', 'item.create', 'design.edit']); await open();
+  view(['workspace.read', 'item.create', 'design.edit']); await open();
   fireEvent.change(screen.getByLabelText(/Wall thickness/), { target: { value: '2' } });
   fireEvent.change(screen.getByLabelText(/Board clearance/), { target: { value: '0' } });
   expect(screen.getByText('Unsaved edits')).toBeTruthy();
@@ -76,7 +76,7 @@ test('saving sends only parsed declarations under the draft CAS state with a sta
 
 test('a stale save keeps unsaved edits and offers an explicit reload', async () => {
   vi.mocked(api.updateDraft).mockRejectedValue(new SourceError(409, 'Proposal draft changed since it was read; nothing was saved.'));
-  view(['project.read', 'item.create', 'design.edit']); await open();
+  view(['workspace.read', 'item.create', 'design.edit']); await open();
   fireEvent.change(screen.getByLabelText(/Wall thickness/), { target: { value: '3' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save declarations' }));
   await screen.findByText(/Your unsaved edits are kept/);
@@ -88,14 +88,14 @@ test('a stale save keeps unsaved edits and offers an explicit reload', async () 
 });
 
 test('read-only members cannot create, edit, save or retain, with a visible reason', async () => {
-  view(['project.read']); await open();
+  view(['workspace.read']); await open();
   expect(screen.getByRole('note').textContent).toMatch(/Read-only access/);
   for (const name of ['Create proposal draft', 'Save declarations', 'Retain proposal record']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByLabelText(/Wall thickness/) as HTMLInputElement).disabled).toBe(true);
 });
 
 test('losing access clears the draft, board identities and proposal', async () => {
-  view(['project.read', 'item.create', 'design.edit']); await open();
+  view(['workspace.read', 'item.create', 'design.edit']); await open();
   vi.mocked(api.updateDraft).mockRejectedValue(new SourceError(404, 'Proposal draft not found.'));
   fireEvent.change(screen.getByLabelText(/Wall thickness/), { target: { value: '3' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save declarations' }));
@@ -108,7 +108,7 @@ test('retaining reads the exact retained record and labels it as a record, not a
   const doc = proposal();
   vi.mocked(api.retainDraft).mockResolvedValue({ revision_id: 'rev-1', draft_id: 'draft-1', workspace_id: 'project-1', number: 1, interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), generator: 'g', draft_version: 1, status: 'incomplete', sha256: 'c'.repeat(64), created_at: 'now' });
   vi.mocked(api.readRetained).mockResolvedValue({ revision_id: 'rev-1', draft_id: 'draft-1', workspace_id: 'project-1', number: 1, interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), generator: 'g', draft_version: 1, status: 'incomplete', sha256: 'c'.repeat(64), created_at: 'now', document: { draft_id: 'draft-1', draft_name: 'Case', draft_version: 1, parameters: empty, proposal: doc } });
-  view(['project.read', 'item.create', 'design.edit']); await open();
+  view(['workspace.read', 'item.create', 'design.edit']); await open();
   fireEvent.click(screen.getByRole('button', { name: 'Retain proposal record' }));
   await screen.findByText('Retained record 1');
   expect(api.retainDraft).toHaveBeenCalledWith('draft-1', 'proposal-v1', expect.any(String));

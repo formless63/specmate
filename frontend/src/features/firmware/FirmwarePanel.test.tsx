@@ -138,7 +138,7 @@ test('stale draft update keeps the unsaved form for deliberate recovery', async 
 });
 
 test('assignment review shows a wrong target and viewers get no authoring controls', async () => {
-  setup({ permissions: ['project.read'] });
+  setup({ permissions: ['workspace.read'] });
   await show();
   expect(screen.queryByRole('button', { name: 'New firmware declaration' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));

@@ -23,7 +23,7 @@ function Workspace({ projectId }: { projectId: string }) {
   useEffect(() => {
     let active = true;
     setError('');
-    read<Definition[]>(`projects/${projectId}/definitions`)
+    read<Definition[]>('workspace/definitions')
       .then((items) => { if (active) setDefinitions(items); })
       .catch((failure: Error) => { if (active) { setDefinitions([]); setError(failure.message); } });
     return () => { active = false; };

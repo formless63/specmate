@@ -381,8 +381,8 @@ test("strict lifecycle replay still refreshes current authority and hides denied
 });
 
 test.each([
-  ["editor without source registration", ["project.read", "item.create", "design.edit"], true],
-  ["editor with source registration", ["project.read", "item.create", "design.edit", "source.register"], false],
+  ["editor without source registration", ["workspace.read", "item.create", "design.edit"], true],
+  ["editor with source registration", ["workspace.read", "item.create", "design.edit", "source.register"], false],
 ] as const)("%s: attachment upload follows the source registration permission", async (_name, permissions, off) => {
   server();
   render(wrap(<PermissionsProvider permissions={[...permissions]}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit /></PermissionsProvider>));

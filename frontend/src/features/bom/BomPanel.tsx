@@ -19,7 +19,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const definitions = useQuery({ queryKey: ["bom-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const definitions = useQuery({ queryKey: ["bom-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["bom-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["bom-draft", draftId], queryFn: () => read<Draft>(`bom/drafts/${draftId}`), enabled: !!draftId });
   const create = useMutation({ mutationFn: () => command<Draft>("bom.create", { name, bom: plan }), onSuccess: async (data) => {

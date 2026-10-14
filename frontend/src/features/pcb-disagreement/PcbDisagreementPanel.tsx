@@ -16,7 +16,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
   const [name, setName] = useState(''); const [value, setValue] = useState<Value>(blankAssertion());
   const [definition, setDefinition] = useState<string | null>(null), [draftId, setDraftId] = useState<string | null>(null), [revision, setRevision] = useState<string | null>(null);
   const [offset, setOffset] = useState(0), [createDenied, setCreateDenied] = useState(false), [draftDenied, setDraftDenied] = useState(false);
-  const definitions = useQuery({ queryKey: ['pcb-review-definitions', workspaceId], queryFn: () => read<Definition[]>(`projects/${workspaceId}/definitions`) });
+  const definitions = useQuery({ queryKey: ['pcb-review-definitions', workspaceId], queryFn: () => read<Definition[]>(`workspaces/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ['pcb-review-identity', definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
   const draft = useQuery({ queryKey: ['pcb-review-draft', draftId], queryFn: () => read<Draft>(`pcb-disagreement/drafts/${draftId}`), enabled: !!draftId });
   const create = useMutation({ mutationFn: () => command<Draft>('pcb_disagreement.create', { workspace_id: workspaceId, name, value }), onSuccess: async result => { setDefinition(result.definition_id); setDraftId(result.draft_id); setRevision(null); setOffset(0); await cache.invalidateQueries({ queryKey: ['pcb-review-definitions', workspaceId] }); } });

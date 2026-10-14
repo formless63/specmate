@@ -236,7 +236,7 @@ test('shared-plan frozen denial hides draft and target; deferred failed and succ
       commands.push(cmd);
       return response({ result: { ...fixture.draft, state: 'draft-v9', content: { test_plan: cmd.payload.test_plan } } });
     }
-    if (url.includes('/projects/')) return response(fixture.definitions);
+    if (url.endsWith('/workspace/definitions')) return response(fixture.definitions);
     if (url.includes('/catalog/')) return response(fixture.identity);
     if (url.includes('/drafts/')) {
       if (mode === 'failed-restore') return new Promise<Response>(resolve => { finishDraft = resolve; });
@@ -295,7 +295,7 @@ test.each([false, true])('delayed inspector denial ignores only actual editor re
   const otherDraft = { ...fixture.draft, definition_id: 'other', draft_id: 'other-draft', content: { test_plan: { ...fixture.shared, pairs: [], labels: [{ ...fixture.shared.labels[0], text: 'Allowed other label' }] } } };
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (options?.method === 'POST') return response({ result: target });
-    if (url.includes('/projects/')) return response([...fixture.definitions, { definition_id: 'other', kind: 'cable_test_plan', name: 'Other exact plan' }]);
+    if (url.endsWith('/workspace/definitions')) return response([...fixture.definitions, { definition_id: 'other', kind: 'cable_test_plan', name: 'Other exact plan' }]);
     if (url.includes('/catalog/definitions/other')) return response({ drafts: [{ draft_id: 'other-draft', state: 'draft-v1' }], revisions: [] });
     if (url.includes('/catalog/')) return response(fixture.identity);
     if (url.includes('/drafts/other-draft')) return response(otherDraft);
@@ -335,9 +335,9 @@ test.each([false, true])('delayed inspector denial ignores only actual editor re
 });
 
 test.each([
-  ['read-only', ['project.read'], true, true],
-  ['editor', ['project.read', 'item.create', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
+  ['read-only', ['workspace.read'], true, true],
+  ['editor', ['workspace.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate test-plan create, save and freeze', async (_name, permissions, saveOff, freezeOff) => {
   const d: Draft = { definition_id: 'def', draft_id: 'draft', state: 'draft-v1', content: { test_plan: plan() } };
   vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => options?.method === 'POST' ? response({ result: target }) : response([])));
