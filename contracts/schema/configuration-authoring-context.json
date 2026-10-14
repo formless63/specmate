@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "description": "Read exact pins an option-set author is choosing between; never reads drafts.",
+  "properties": {
+    "revision_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Revision Ids",
+      "type": "array"
+    },
+    "target_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Revision Id"
+    }
+  },
+  "title": "AuthoringContext",
+  "type": "object"
+}

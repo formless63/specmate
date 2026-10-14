@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "description": "Review adopting resolved occurrence choices into one owning assembly draft.\n\nOmitting `draft_id` reviews a new draft of the resolution's frozen target assembly;\nomitting `option_keys` selects every decision that would change the assembly.",
+  "properties": {
+    "draft_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Draft Id"
+    },
+    "option_keys": {
+      "anyOf": [
+        {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Option Keys"
+    },
+    "resolved_configuration_id": {
+      "format": "uuid",
+      "title": "Resolved Configuration Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "resolved_configuration_id"
+  ],
+  "title": "ReviewAdoption",
+  "type": "object"
+}

@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Basis",
+      "type": "string"
+    },
+    "draft_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Draft Id"
+    },
+    "option_keys": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+        "type": "string"
+      },
+      "maxItems": 200,
+      "minItems": 1,
+      "title": "Option Keys",
+      "type": "array"
+    },
+    "resolved_configuration_id": {
+      "format": "uuid",
+      "title": "Resolved Configuration Id",
+      "type": "string"
+    },
+    "review_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Review Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "resolved_configuration_id",
+    "option_keys",
+    "review_sha256",
+    "basis"
+  ],
+  "title": "AdoptResolution",
+  "type": "object"
+}
