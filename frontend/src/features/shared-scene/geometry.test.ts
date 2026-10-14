@@ -70,3 +70,17 @@ test('feature geometry keeps its unknown placement despite a known containing oc
   expect(scene).toEqual(before);
   inspection.dispose();
 });
+
+test('bridged outline gaps get one marker point each at the chord midpoint', () => {
+  const scene = syntheticScene();
+  const board = scene.geometry.find(g => g.type === 'pcb_planar')!;
+  if (board.type === 'pcb_planar') board.outline_bridged_gaps = [{ at: [40, -10, 0], to: [40, -12, 0], size_mm: 2 }, { at: [0, -5, 0], to: [0, -5.5, 0], size_mm: 0.5 }];
+  const object = buildSceneObject(scene, 'canonical');
+  const points: THREE.Points[] = [];
+  object.group.traverse(child => { if (child instanceof THREE.Points) points.push(child); });
+  expect(points).toHaveLength(2); // one shared resource, two repeated boards
+  const position = points[0]!.geometry.getAttribute('position');
+  expect(position.count).toBe(2);
+  expect([position.getX(0), position.getY(0)]).toEqual([40, -11]);
+  object.dispose();
+});

@@ -17,7 +17,7 @@ type GeometryBase = {
   source: Record<string, unknown>; limitations: string[];
 };
 export type Geometry = GeometryBase & (
-  { type: 'pcb_planar'; outline: Vec3[][]; cutouts: Vec3[][]; coverage: Record<string, string> } |
+  { type: 'pcb_planar'; outline: Vec3[][]; cutouts: Vec3[][]; coverage: Record<string, string>; outline_bridged_gaps?: { at: Vec3; to: Vec3; size_mm: number }[] } |
   { type: 'wire_construction'; stock: StockSpecification; length_mm: string | null } |
   { type: 'unavailable_model'; millimetre_factor: number | null }
 );

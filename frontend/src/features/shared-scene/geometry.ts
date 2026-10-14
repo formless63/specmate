@@ -28,6 +28,14 @@ function geometryObject(resource: Geometry): { group: THREE.Group; unknown: stri
   let unknown: string[] = [];
   if (resource.type === 'pcb_planar') {
     for (const polygon of [...resource.outline, ...resource.cutouts]) line(polygon);
+    // One small marker at the midpoint of each chord that bridged a native outline gap.
+    const gaps = resource.outline_bridged_gaps ?? [];
+    if (gaps.length) {
+      const geometry = new THREE.BufferGeometry().setFromPoints(gaps.map(g => new THREE.Vector3(...g.at).lerp(new THREE.Vector3(...g.to), 0.5)));
+      const material = new THREE.PointsMaterial({ color: '#d4881f', size: 7, sizeAttenuation: false });
+      geometries.push(geometry); materials.push(material);
+      const points = new THREE.Points(geometry, material); points.name = 'bridged-outline-gaps'; group.add(points);
+    }
     if (!resource.outline.length) unknown.push('No accepted board outline.');
   } else if (resource.type === 'wire_construction') {
     const section = sectionLayout(resource.stock);

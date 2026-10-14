@@ -113,3 +113,10 @@ test("board preview uses theme tokens, never hard-coded light colors", () => {
   expect(svg.getAttribute("style")).toContain("var(--sb-surface-sunken)");
   expect(svg.outerHTML).not.toMatch(/#[0-9a-f]{3,6}\b|"white"/i);
 });
+
+test("bridged outline gaps get a count and one marker each in the 2D preview", () => {
+  const gaps = [{ at: [40, 10], to: [40, 11.5], size_mm: 1.5 }, { at: [0, 5], to: [0, 5.25], size_mm: 0.25 }] as NativeReport["outline_bridged_gaps"];
+  render(<MantineProvider><ReportView report={{ ...report, outline_exact: [], outline_tolerance_mm: 0.01, outline_bridged_gaps: gaps } as NativeReport} /></MantineProvider>);
+  expect(screen.getAllByTestId("bridged-gap-marker")).toHaveLength(2);
+  expect(screen.getByText(/2 outline gaps bridged \(max 1.5 mm\)/)).toBeTruthy();
+});

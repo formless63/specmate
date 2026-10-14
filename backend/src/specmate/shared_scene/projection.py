@@ -255,6 +255,15 @@ class Resources:
                 target = row["target"]
                 resolved = self.revision(UUID(target["revision_id"]))
                 provenance.append({"role": "association", **row, "target_pin": identity(resolved)})
+            gaps = report.outline_bridged_gaps or []
+            bridged_note = (
+                [
+                    f"{len(gaps)} outline gap(s) bridged with straight chords "
+                    f"(max {max(g.size_mm for g in gaps)} mm); marked on the board."
+                ]
+                if gaps
+                else []
+            )
             gid = self.add(
                 revision,
                 "board-plane",
@@ -267,11 +276,20 @@ class Resources:
                     "outline": [[[x, -y, 0] for x, y in polygon] for polygon in report.outline],
                     "cutouts": [[[x, -y, 0] for x, y in polygon] for polygon in report.cutouts],
                     "outline_tolerance_mm": report.outline_tolerance_mm,
+                    "outline_bridged_gaps": [
+                        {
+                            "at": [g.at[0], -g.at[1], 0],
+                            "to": [g.to[0], -g.to[1], 0],
+                            "size_mm": g.size_mm,
+                        }
+                        for g in report.outline_bridged_gaps or []
+                    ],
                     "coverage": report.coverage.model_dump(mode="json"),
                     "source": provenance[0],
                     "limitations": [
                         "Planar drawing only; thickness, component envelopes "
                         "and local datum correspondence unknown.",
+                        *bridged_note,
                         *report.unsupported,
                     ],
                 },

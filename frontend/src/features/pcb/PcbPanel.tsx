@@ -206,5 +206,6 @@ function BoardPreview({ report }: { report: NativeReport }) {
     {report.mounting_holes.map((hole) => <ellipse key={hole.pad_id} cx={hole.position[0]} cy={hole.position[1]} rx={hole.drill[0] / 2} ry={hole.drill[1] / 2} fill="var(--sb-surface-sunken)" stroke="var(--sb-text-tertiary)" strokeWidth={0.1} />)}
     {report.pads.filter((pad) => pad.type !== "npth").map((pad) => <circle key={pad.id} cx={pad.position[0]} cy={pad.position[1]} r={0.35} fill="var(--sb-review)" />)}
     {report.components.map((component) => <text key={component.id} x={component.position[0] + 0.7} y={component.position[1] - 0.7} fontSize={1.2} fill="var(--sb-text-primary)">{component.reference}</text>)}
+    {report.outline_bridged_gaps?.map((gap, i) => <circle key={`gap-${i}`} data-testid="bridged-gap-marker" cx={(gap.at[0] + gap.to[0]) / 2} cy={(gap.at[1] + gap.to[1]) / 2} r={0.6} fill="none" stroke="var(--sb-review)" strokeWidth={0.2}><title>{`Bridged outline gap ${gap.size_mm} mm`}</title></circle>)}
   </svg>;
 }
