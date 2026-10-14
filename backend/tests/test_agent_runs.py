@@ -11,7 +11,7 @@ from django.db import DatabaseError, transaction
 from django.utils import timezone
 
 from specmate.agent_runs.models import AgentRun, AgentRunStep
-from specmate.design.models import Draft, Revision
+from specmate.design.models import Definition, Draft, Revision
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -570,3 +570,111 @@ def test_messaging_other_people_is_a_boundary_needing_explicit_grant(users, work
     assert stop["step"]["kind"] == "boundary" and stop["run"]["status"] == "paused"
     granted = start(users, workspace, boundary_actions=["collaboration.create"])
     assert granted["grant"]["boundary_actions"] == ["collaboration.create"]
+
+
+# ---- revert of records the run created --------------------------------------------
+
+
+def _created_change(users, run, model="design.definition"):
+    return next(
+        c
+        for c in package(users, run)["changes"]
+        if c["model"] == model and c["action"] == "created"
+    )
+
+
+def _revert(users, run, change, who="editor"):
+    return op(
+        users[who],
+        "agent_run.revert_change",
+        {"run_id": run["run_id"], "step_id": change["step_id"], "record": change["record"]},
+    )
+
+
+def test_unreferenced_unfrozen_created_definition_is_discarded_and_logged(users, workspace):
+    run = start(users, workspace)
+    created = new_stock(users, run, workspace)
+    op(users["viewer"], "agent_run.complete", {"run_id": run["run_id"]})
+    change = _created_change(users, run)
+    assert change["revertible"] and change["revert"] == {
+        "kind": "discard",
+        "revertible": True,
+        "blockers": [],
+    }
+    with pytest.raises(PermissionDenied):
+        _revert(users, run, change, who="viewer")
+    out = _revert(users, run, change)
+    assert out["step"]["kind"] == "revert"
+    assert out["step"]["result"]["discarded"][0] == change["record"]
+    assert not Definition.objects.filter(id=created["definition_id"]).exists()
+    assert not Draft.objects.filter(id=created["draft_id"]).exists()
+    models = {c["model"]: c["action"] for c in out["step"]["changes"]}
+    assert models == {"design.definition": "deleted", "design.draft": "deleted"}
+    pkg = package(users, run)
+    assert pkg["counts"]["reverts"] == 1
+    # Both the definition and its draft show as reverted; neither can be reverted again.
+    created_rows = [c for c in pkg["changes"] if c["action"] == "created"]
+    assert created_rows and all(c["reverted"] and not c["revertible"] for c in created_rows)
+    with pytest.raises(Conflict):
+        _revert(users, run, change)
+    draft_change = _created_change(users, run, "design.draft")
+    with pytest.raises(Conflict):
+        _revert(users, run, draft_change)
+
+
+def test_discard_can_start_from_the_draft_record_and_after_draft_edits(users, workspace):
+    run = start(users, workspace)
+    created = new_stock(users, run, workspace)
+    act(
+        users,
+        run,
+        "r2",
+        "draft.update",
+        {"draft_id": created["draft_id"], "changes": {"gauge": "22"}},
+        expected_state=created["state"],
+    )
+    change = _created_change(users, run, "design.draft")
+    assert change["revertible"]
+    _revert(users, run, change)
+    assert not Definition.objects.filter(id=created["definition_id"]).exists()
+
+
+def test_frozen_created_definition_is_not_discarded_and_blockers_are_explained(users, workspace):
+    run = start(users, workspace)
+    created = new_stock(users, run, workspace)
+    op(
+        users["editor"],
+        "draft.freeze",
+        {"draft_id": created["draft_id"]},
+        expected_state=created["state"],
+    )
+    change = _created_change(users, run)
+    assert not change["revertible"]
+    kinds = {b["model"]: b["kind"] for b in change["revert"]["blockers"]}
+    assert kinds["design.revision"] == "frozen"
+    with pytest.raises(Conflict, match="frozen revision"):
+        _revert(users, run, change)
+    assert Definition.objects.filter(id=created["definition_id"]).exists()
+    assert package(users, run)["counts"]["reverts"] == 0
+
+
+def test_referenced_created_definition_is_not_discarded(users, workspace, project):
+    run = start(users, workspace)
+    created = new_stock(users, run, workspace)
+    op(
+        users["editor"],
+        "project.add_reference",
+        {
+            "project_id": project,
+            "kind": "definition",
+            "target_id": created["definition_id"],
+            "role": "component",
+        },
+        expected_state=op(users["editor"], "project.references", {"project_id": project})["state"],
+    )
+    change = _created_change(users, run)
+    assert not change["revertible"]
+    assert any(b["model"] == "access.projectreference" for b in change["revert"]["blockers"])
+    with pytest.raises(Conflict, match="reference it"):
+        _revert(users, run, change)
+    assert Definition.objects.filter(id=created["definition_id"]).exists()

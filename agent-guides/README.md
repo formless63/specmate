@@ -36,6 +36,9 @@ running it again or consuming budget, also after `agent_run.resume`. Record prop
 may not execute with `agent_run.propose`, and finish with `agent_run.complete`. Humans
 read `agent_run.review_package` (every change with diffs, provenance and drift), may revert
 draft changes with `agent_run.revert_change`, and record a decision with `agent_run.review`.
+`revert_change` restores a draft's earlier content, or discards a definition (and its
+drafts) the run created, but only if nothing references it and it has no frozen revision;
+otherwise it refuses and lists each blocker. Every revert is a step in the run log.
 
 Read SAFETY first, then the relevant workflow. Do not run repository shell commands,
 create Beads state, reset databases or use contributor instructions while performing an

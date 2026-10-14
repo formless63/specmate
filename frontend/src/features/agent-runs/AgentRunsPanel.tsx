@@ -244,8 +244,11 @@ function ReviewPackageView({ pkg, canRevert, busy, onRevert }: { pkg: ReviewPack
       <SbProvenance summary={`${change.provenance.agent} for ${change.provenance.on_behalf_of ?? "unknown sponsor"} · ${when(change.provenance.at)}`}
         pins={[{ label: "Record", value: change.record }, { label: "Step key", value: change.provenance.step_key }, { label: "Request ID", value: change.provenance.request_id }, { label: "Expected state", value: change.provenance.expected_state }]} />
       {change.revertible && (canRevert
-        ? <Group><Button size="xs" variant="light" disabled={busy} onClick={() => onRevert(change)}>Revert this draft change</Button></Group>
+        ? <Group><Button size="xs" variant="light" disabled={busy} onClick={() => onRevert(change)}>{change.revert?.kind === "discard" ? "Discard this created draft" : "Revert this draft change"}</Button></Group>
         : <ReadOnlyNote permission="design.edit">Reverting needs editing access by someone other than the agent</ReadOnlyNote>)}
+      {!change.reverted && change.revert?.kind === "discard" && change.revert.blockers.length > 0 && <Alert color="yellow" title="Cannot be discarded">
+        {change.revert.blockers.map((b) => <Text key={b.model} size="sm">{b.reason}</Text>)}
+      </Alert>}
     </Stack>)}
     {pkg.boundary_stops.length > 0 && <><Text fw={600} size="sm">Stopped before</Text>{pkg.boundary_stops.map((s) => <Text key={s.step_id} size="sm"><span className="sb-mono">#{s.number} {s.operation}</span> · {s.note}</Text>)}</>}
     {pkg.proposals.length > 0 && <><Text fw={600} size="sm">Proposals (not executed)</Text>{pkg.proposals.map((s) => <Text key={s.step_id} size="sm" style={{ whiteSpace: "pre-wrap" }}>#{s.number} {s.operation ? `${s.operation}: ` : ""}{s.note}</Text>)}</>}

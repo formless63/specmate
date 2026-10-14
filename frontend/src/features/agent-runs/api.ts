@@ -22,6 +22,7 @@ export type PackageChange = {
   step_id: string; step_number: number; operation: string; record: string; model: string; pk: string;
   action: "created" | "updated" | "deleted"; changed_fields: string[]; diffs: Record<string, FieldDiff>;
   current: "unchanged_since_step" | "changed_since_step" | "missing" | "unknown"; reverted: boolean; revertible: boolean;
+  revert?: { kind: "restore" | "discard" | null; revertible: boolean; blockers: { kind: "frozen" | "reference"; model: string; count: number; reason: string }[] };
   provenance: { agent: string; on_behalf_of: string | null; step_key: string | null; request_id: string; payload: unknown; expected_state: string | null; at: string };
 };
 export type ReviewPackage = {
