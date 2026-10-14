@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "reason": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "warning_id": {
+      "format": "uuid",
+      "title": "Warning Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "warning_id",
+    "reason"
+  ],
+  "title": "WithdrawWarning",
+  "type": "object"
+}

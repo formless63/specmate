@@ -1,0 +1,103 @@
+{
+  "additionalProperties": false,
+  "description": "A later warning about one release; the release record is never edited.",
+  "properties": {
+    "body": {
+      "maxLength": 8000,
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "contradiction",
+        "security",
+        "engineering"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
+      "type": "string"
+    },
+    "revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Revision Id"
+    },
+    "severity": {
+      "enum": [
+        "info",
+        "caution",
+        "critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "source_path": {
+      "anyOf": [
+        {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Path"
+    },
+    "source_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Revision Id"
+    },
+    "supersedes_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Supersedes Id"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "release_id",
+    "kind",
+    "severity",
+    "title",
+    "body"
+  ],
+  "title": "WarnRelease",
+  "type": "object"
+}

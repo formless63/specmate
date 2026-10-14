@@ -55,7 +55,7 @@ function fixture() {
         case 'release.review': return response({ result: { review: body(request.payload.quantity), sha256: 'review-hash' } });
         case 'release.create': return response({ result: { release_id: 'release-1' } });
         case 'release.read': return response({ result: {
-          release_id: 'release-1', workspace_id: 'ws', name: 'Synthetic release', root: body(2).root, status: 'unresolved', unresolved_count: 2, acknowledged: true,
+          release_id: 'release-1', workspace_id: 'ws', name: 'Synthetic release', active_warnings: 1, warnings: [{ warning_id: 'w1', release_id: 'release-1', kind: 'security', severity: 'critical', title: 'Synthetic advisory', body: 'A later advisory concerns this closure.', revision_id: null, source: null, assertion_id: null, origin: 'manual', state: 'active', supersedes_id: null, superseded_by_id: null, withdrawal: null, author: 'contributor', created_at: '2026-10-15T12:00:00Z' }], root: body(2).root, status: 'unresolved', unresolved_count: 2, acknowledged: true,
           record_sha256: 'd'.repeat(64), released_by: 'editor', released_at: '2026-10-14T12:00:00Z', archive_sha256: 'e'.repeat(64), archive_bytes: 10,
           record: { name: 'Synthetic release', notes: '', review: body(2), review_sha256: 'review-hash', acknowledgement: { reason: 'Synthetic evaluation', unresolved_ids: [STALE.id, RIGHTS.id] }, archive: { sha256: 'e'.repeat(64), bytes: 10, manifest_sha256: 'c'.repeat(64) } },
         } });
@@ -132,4 +132,41 @@ test('read-only members review the closure but cannot decide rights or release',
   expect(screen.getByText('library-id: Synthetic:Restricted')).toBeTruthy();
   expect(screen.getByText('Vendor terms')).toBeTruthy();
   expect(screen.getByText(/0 cleared, 1 restricted, 0 unknown; 1 revisions declare none/)).toBeTruthy();
+});
+
+test('later warnings appear beside the record and can be attached or withdrawn', async () => {
+  const calls = fixture();
+  await reviewRoot(['workspace.read', 'design.freeze', 'item.create'], '2');
+  fireEvent.change(screen.getByLabelText('Release name'), { target: { value: 'Synthetic release' } });
+  fireEvent.change(screen.getByLabelText(/Acknowledgement reason/), { target: { value: 'Synthetic evaluation' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Acknowledge and release' }));
+  await screen.findByText('Later warnings');
+  expect(screen.getByText('Synthetic advisory')).toBeTruthy();
+  expect(screen.getByText(/Warnings never change the approval record/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Warning title'), { target: { value: 'New concern' } });
+  fireEvent.change(screen.getByLabelText('Warning details'), { target: { value: 'Details of the concern.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Attach warning' }));
+  await waitFor(() => expect(calls.find(c => c.operation === 'release.warn')?.payload).toMatchObject({ release_id: 'release-1', title: 'New concern', kind: 'engineering' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Withdraw Synthetic advisory' }));
+  fireEvent.change(screen.getByLabelText('Withdrawal reason'), { target: { value: 'Resolved upstream.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Withdraw warning' }));
+  await waitFor(() => expect(calls.find(c => c.operation === 'release.withdraw_warning')?.payload).toEqual({ warning_id: 'w1', reason: 'Resolved upstream.' }));
+});
+
+test('read-only members see warnings but cannot attach or withdraw them', async () => {
+  fixture();
+  render(wrap(['workspace.read', 'design.freeze']));
+  // Releases list is empty in the fixture; open the detail through a release.
+  await choose('Release root definition', 'Synthetic root (assembly)');
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Release root revision' }) as HTMLInputElement).disabled).toBe(false));
+  await choose('Release root revision', 'Synthetic root · r1');
+  fireEvent.click(screen.getByRole('button', { name: 'Review release closure' }));
+  await screen.findByText('Release review');
+  fireEvent.change(screen.getByLabelText('Release name'), { target: { value: 'Synthetic release' } });
+  fireEvent.change(screen.getByLabelText(/Acknowledgement reason/), { target: { value: 'Synthetic evaluation' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Acknowledge and release' }));
+  await screen.findByText('Synthetic advisory');
+  expect(screen.queryByRole('button', { name: 'Attach warning' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Withdraw Synthetic advisory' })).toBeNull();
+  expect(screen.getByText(/Read-only access: requires Contributor access/)).toBeTruthy();
 });

@@ -195,10 +195,16 @@ def summary(release):
         "record_sha256": release.record_sha256,
         "released_by": release.record["released_by"],
         "released_at": release.released_at.isoformat(),
+        "active_warnings": release.warnings.filter(
+            withdrawal__isnull=True, superseded_by__isnull=True
+        ).count(),
     }
 
 
 def release_view(release):
+    from specmate.releases.warnings import release_warnings
+
+    warnings = release_warnings(release)
     # The stored approval record is returned as recorded. Later observations about the
     # release (EVD-005) are separate records and never edited into ``record``.
     return {
@@ -207,6 +213,8 @@ def release_view(release):
         "review_sha256": release.review_sha256,
         "archive_sha256": release.archive_sha256,
         "archive_bytes": release.archive_bytes,
+        # Later warnings (EVD-005), shown beside the unchanged record.
+        "warnings": warnings,
     }
 
 

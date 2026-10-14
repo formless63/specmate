@@ -31,9 +31,19 @@ export type ReleaseReviewBody = {
 export type ReleaseReview = { review: ReleaseReviewBody; sha256: string };
 export type ReleaseSummary = {
   release_id: string; workspace_id: string; name: string; root: ReleaseReviewBody['root']; status: ReleaseReviewBody['status'];
-  unresolved_count: number; acknowledged: boolean; record_sha256: string; released_by: string; released_at: string;
+  unresolved_count: number; acknowledged: boolean; active_warnings: number; record_sha256: string; released_by: string; released_at: string;
+};
+export type WarningKind = 'contradiction' | 'security' | 'engineering';
+export type WarningSeverity = 'info' | 'caution' | 'critical';
+export type ReleaseWarning = {
+  warning_id: string; release_id: string; kind: WarningKind; severity: WarningSeverity; title: string; body: string;
+  revision_id: string | null; source: { source_revision_id: string; path: string; sha256: string } | null; assertion_id: string | null;
+  origin: 'manual' | 'automatic'; state: 'active' | 'superseded' | 'withdrawn'; supersedes_id: string | null; superseded_by_id: string | null;
+  withdrawal: { reason: string; withdrawn_by: string; withdrawn_at: string } | null; author: string; created_at: string;
 };
 export type ReleaseRecord = ReleaseSummary & {
+  /** Later warnings, shown beside (never inside) the approval record. */
+  warnings: ReleaseWarning[];
   record: { name: string; notes: string; review: ReleaseReviewBody; review_sha256: string; acknowledgement: { reason: string; unresolved_ids: string[] } | null; archive: { sha256: string; bytes: number; manifest_sha256: string } };
   archive_sha256: string; archive_bytes: number;
 };
@@ -60,12 +70,36 @@ export async function verifyRelease(releaseId: string) {
   return (await runOperation<Verification>('release.verify', { release_id: releaseId })).result;
 }
 
+export async function warnRelease(body: { release_id: string; kind: WarningKind; severity: WarningSeverity; title: string; body: string; revision_id?: string | null; supersedes_id?: string | null }, idempotencyKey: string) {
+  return (await runOperation<ReleaseWarning>('release.warn', body, { idempotencyKey })).result;
+}
+
+export async function withdrawWarning(warningId: string, reason: string, idempotencyKey: string) {
+  return (await runOperation<ReleaseWarning>('release.withdraw_warning', { warning_id: warningId, reason }, { idempotencyKey })).result;
+}
+
 export async function listConfigurations(workspaceId: string) {
   return (await runOperation<{ resolved: ResolvedSummary[]; truncated: boolean }>('configuration.list_resolved', { workspace_id: workspaceId })).result;
 }
 
 function csrfToken() {
   return decodeURIComponent(document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('csrftoken='))?.slice(10) ?? '');
+}
+
+/** The warnings file of a release, separate from the exact archive. */
+export async function downloadWarnings(releaseId: string) {
+  const response = await fetch('/api/v0/releases/warnings-download', {
+    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+    body: JSON.stringify({ release_id: releaseId }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new ApiError(response.status, body?.error?.message ?? `Download failed (${response.status}).`);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url; link.download = 'release-warnings.json'; link.click();
+  URL.revokeObjectURL(url);
 }
 
 /** The exact retained archive under current access. */

@@ -93,6 +93,25 @@ reconstructable.
 
 ## Later warnings
 
-The approved record is never edited. Later contradictions and security or engineering
-warnings (EVD-005) attach as separate records that reference a release, and are shown
-alongside the record rather than written into it.
+The approval record is never edited. Later contradictions and security or engineering
+warnings (EVD-005) are separate append-only rows that reference a release, optionally a
+revision the release pins and an exact source file it names. `release.read` returns them
+in `warnings`, beside the unchanged `record`; `release.list` carries `active_warnings`.
+
+| Operation | Floor | Purpose |
+|---|---|---|
+| `release.warn` | `item.create` | Attach a warning (`contradiction`, `security` or `engineering`; severity `info`, `caution` or `critical`). With `supersedes_id`, replaces an active warning of the same release. |
+| `release.withdraw_warning` | `item.create` | Withdraw with a stated reason; only the author or a workspace admin. |
+| `release.warnings` | `workspace.read` | Every warning, including superseded and withdrawn ones, with its state. |
+| `release.export_warnings` | `workspace.read` | The warnings as a separate canonical JSON file (also `POST /api/v0/releases/warnings-download`). |
+
+Nothing is deleted or edited: database triggers reject updates and deletes, a withdrawal
+is its own row, and a superseded warning stays readable. The retained package archive and
+its manifest are unchanged; the warnings file is exported beside it and names the release
+record hash.
+
+Automatic warnings: when `facts.append` makes a property/context group of a `revision`
+subject conflicting for the first time, every release that pins that revision receives an
+automatic `contradiction` warning referencing the assertion (once per release and
+assertion). Contradictions on occurrence or definition subjects are not yet raised
+automatically.
