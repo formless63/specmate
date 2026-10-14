@@ -180,6 +180,11 @@ def request_build(ctx: Context, p: RequestBuild) -> dict:
     if source is None:
         raise NotFound("Source revision not found.")
     recipe = approved_recipe(p.recipe_id)
+    return _create_attempt(ctx, project, source, recipe, p)
+
+
+def _create_attempt(ctx, project, source, recipe, p, retry_of: BuildAttempt | None = None) -> dict:
+    """Shared by first requests and deliberate retries; every attempt gets a new identity."""
     from specmate.firmware_builds.operations import authorize_request
 
     authorize_request(ctx, p, recipe)
@@ -206,10 +211,16 @@ def request_build(ctx: Context, p: RequestBuild) -> dict:
         recipe_id=recipe.id,
         recipe=recipe.model_dump(mode="json"),
         workflow_id=f"specmate-build-{build_id}",
+        retry_of=retry_of,
     )
     stage = BuildStage.objects.create(build=build)
     BuildOutbox.objects.create(build=build)
-    _event(stage, "requested", request_id=ctx.request_id)
+    _event(
+        stage,
+        "requested",
+        request_id=ctx.request_id,
+        **({"retry_of": str(retry_of.id)} if retry_of else {}),
+    )
     return {**stage_result(stage), "workflow_id": build.workflow_id}
 
 
@@ -677,6 +688,9 @@ def complete(ctx: Context, p: CompleteStage) -> dict:
         return stage_result(stage)
     if stage.lease_expires_at <= timezone.now():
         raise Conflict("Stage lease expired; reconcile before completing.")
+    if p.outcome == "cancelled" and stage.cancellation_requested_at is None:
+        # Work that nobody asked to cancel is never labelled cancelled by a receipt.
+        raise ValidationFailed("A cancelled receipt requires an earlier cancellation request.")
     if p.outcome == "succeeded":
         if stage.cancellation_requested_at or not _execution_allowed(stage.build):
             raise PermissionDenied("Successful completion is no longer authorized.")

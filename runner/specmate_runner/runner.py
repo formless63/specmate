@@ -156,13 +156,20 @@ class Runner:
                 and control["cancellation_requested"]
                 and control.get("state") not in {"succeeded", "failed", "cancelled"}
             ):
-                self.result(
-                    receipt,
-                    "cancelled",
-                    None,
-                    "Container termination confirmed",
-                    outputs=control.get("verified_outputs", []),
-                )
+                prior = receipt["result"]
+                if prior["outcome"] == "succeeded":
+                    # Success cannot be accepted after a cancellation request. Keep the
+                    # observed exit code; the container had already exited.
+                    self.result(
+                        receipt,
+                        "cancelled",
+                        prior["exit_code"],
+                        "Cancellation was requested before completion was accepted; "
+                        "container termination confirmed",
+                        outputs=control.get("verified_outputs", []),
+                    )
+                # A persisted failure is real history and is replayed unchanged, never
+                # rewritten as a cancellation.
             if receipt["result"]:
                 # Renew the unchanged token before accepting a result persisted before
                 # a crash. An already terminal stage permits identical receipt replay.
@@ -262,8 +269,15 @@ class Runner:
             control = self.client.heartbeat(lease)
             if self.stopping or control["cancellation_requested"]:
                 self.stop(receipt)
-                outcome = "cancelled" if control["cancellation_requested"] else "failed"
-                self.result(receipt, outcome, None, "Container termination confirmed")
+                if control["cancellation_requested"]:
+                    self.result(receipt, "cancelled", None, "Container termination confirmed")
+                else:
+                    self.result(
+                        receipt,
+                        "failed",
+                        None,
+                        "Runner shutdown stopped the container before the tool completed",
+                    )
                 return
             if (
                 time.time() - receipt["started_at"]
