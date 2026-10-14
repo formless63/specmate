@@ -8,12 +8,20 @@ from specmate.design.operations import draft_state, scoped_draft
 from specmate.operations import Context, NotFound
 
 
+def stock_geometry(content: dict) -> dict | None:
+    """Fit findings for the draft's stock; none for an unfinished generic draft."""
+    from specmate.wire_stock.geometry import evaluate
+
+    return evaluate(content["stock"]) if "stock" in content else None
+
+
 def stock_record(draft, in_project=None) -> dict:
     record = {
         "definition_id": str(draft.definition_id),
         "workspace_id": str(draft.definition.workspace_id),
         "name": draft.definition.name,
         **draft_state(draft),
+        "geometry": stock_geometry(draft.content),
     }
     if in_project is not None:
         record["in_project"] = bool(in_project)

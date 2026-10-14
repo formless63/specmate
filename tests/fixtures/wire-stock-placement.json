@@ -1,0 +1,1747 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "purpose": "Original synthetic cross-check: Python placement/fit findings and the TypeScript section layout must agree. Not physical qualification.",
+  "tolerance_mm": 0.001,
+  "cases": [
+    {
+      "name": "double-placed shielded two-core",
+      "why": "Linear pitch plus manual offsets place both cores twice as far out; the drain cuts into the screen.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "pair",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "material": null,
+          "color": null,
+          "source": "Original synthetic placement fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "pair",
+              "label": "Pair",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "group",
+              "role": "pair",
+              "arrangement": "linear",
+              "pitch_mm": 1.4,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "c1",
+                  "label": "C1",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": -0.7,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c2",
+                  "label": "C2",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0.7,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "screen",
+              "label": "Screen",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "shield",
+              "outer_diameter_mm": 2.9,
+              "inner_diameter_mm": 2.7,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "drain",
+              "label": "Drain",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 1.5,
+              "kind": "drain",
+              "outer_diameter_mm": 0.4,
+              "inner_diameter_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "jacket",
+              "outer_diameter_mm": 4.2,
+              "inner_diameter_mm": 3.4,
+              "construction": null,
+              "area_mm2": null
+            }
+          ]
+        },
+        "facts": {}
+      },
+      "expected": {
+        "positions": {
+          "stock.pair.c1.conductor": [
+            -1.4,
+            0.0
+          ],
+          "stock.pair.c1.insulation": [
+            -1.4,
+            0.0
+          ],
+          "stock.pair.c2.conductor": [
+            1.4,
+            0.0
+          ],
+          "stock.pair.c2.insulation": [
+            1.4,
+            0.0
+          ],
+          "stock.screen": [
+            0.0,
+            0.0
+          ],
+          "stock.drain": [
+            0.0,
+            1.5
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "problems",
+        "checks": 13,
+        "findings": [
+          {
+            "code": "containment",
+            "status": "fail",
+            "paths": [
+              "stock.pair.c1",
+              "stock.screen"
+            ],
+            "excess_mm": 0.7,
+            "message": "stock.pair.c1 extends 0.700 mm beyond the bore of stock.screen."
+          },
+          {
+            "code": "containment",
+            "status": "fail",
+            "paths": [
+              "stock.pair.c2",
+              "stock.screen"
+            ],
+            "excess_mm": 0.7,
+            "message": "stock.pair.c2 extends 0.700 mm beyond the bore of stock.screen."
+          },
+          {
+            "code": "containment",
+            "status": "fail",
+            "paths": [
+              "stock.drain",
+              "stock.screen"
+            ],
+            "excess_mm": 0.35,
+            "message": "stock.drain extends 0.350 mm beyond the bore of stock.screen."
+          },
+          {
+            "code": "containment",
+            "status": "fail",
+            "paths": [
+              "stock.pair.c1",
+              "stock.jacket"
+            ],
+            "excess_mm": 0.35,
+            "message": "stock.pair.c1 extends 0.350 mm beyond the bore of stock.jacket."
+          },
+          {
+            "code": "containment",
+            "status": "fail",
+            "paths": [
+              "stock.pair.c2",
+              "stock.jacket"
+            ],
+            "excess_mm": 0.35,
+            "message": "stock.pair.c2 extends 0.350 mm beyond the bore of stock.jacket."
+          },
+          {
+            "code": "offset_on_arranged",
+            "status": "note",
+            "paths": [
+              "stock.pair.c1",
+              "stock.pair"
+            ],
+            "excess_mm": null,
+            "message": "stock.pair.c1 has a manual offset added to its arranged position in stock.pair; arranged members are placed by pitch, so offsets move them twice."
+          },
+          {
+            "code": "offset_on_arranged",
+            "status": "note",
+            "paths": [
+              "stock.pair.c2",
+              "stock.pair"
+            ],
+            "excess_mm": null,
+            "message": "stock.pair.c2 has a manual offset added to its arranged position in stock.pair; arranged members are placed by pitch, so offsets move them twice."
+          }
+        ]
+      }
+    },
+    {
+      "name": "laid-up shielded two-core",
+      "why": "The same construction laid up by pitch only, with the drain in the upper interstice.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "pair",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "material": null,
+          "color": null,
+          "source": "Original synthetic placement fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "pair",
+              "label": "Pair",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "group",
+              "role": "pair",
+              "arrangement": "linear",
+              "pitch_mm": 1.3,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "c1",
+                  "label": "C1",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c2",
+                  "label": "C2",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "screen",
+              "label": "Screen",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "shield",
+              "outer_diameter_mm": 2.8,
+              "inner_diameter_mm": 2.6,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "drain",
+              "label": "Drain",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": -0.95,
+              "kind": "drain",
+              "outer_diameter_mm": 0.4,
+              "inner_diameter_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "jacket",
+              "outer_diameter_mm": 3.6,
+              "inner_diameter_mm": 2.8,
+              "construction": null,
+              "area_mm2": null
+            }
+          ]
+        },
+        "facts": {}
+      },
+      "expected": {
+        "positions": {
+          "stock.pair.c1.conductor": [
+            -0.65,
+            0.0
+          ],
+          "stock.pair.c1.insulation": [
+            -0.65,
+            0.0
+          ],
+          "stock.pair.c2.conductor": [
+            0.65,
+            0.0
+          ],
+          "stock.pair.c2.insulation": [
+            0.65,
+            0.0
+          ],
+          "stock.screen": [
+            0.0,
+            0.0
+          ],
+          "stock.drain": [
+            0.0,
+            -0.95
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "ok",
+        "checks": 13,
+        "findings": []
+      }
+    },
+    {
+      "name": "three-core ring counterclockwise",
+      "why": "Ring members start at 12 o'clock; a central filler fills the space between them.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "bundle",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "material": null,
+          "color": null,
+          "source": "Original synthetic placement fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "cores",
+              "label": "Cores",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "group",
+              "role": "bundle",
+              "arrangement": "ring",
+              "pitch_mm": 1.501,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "c1",
+                  "label": "C1",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c2",
+                  "label": "C2",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c3",
+                  "label": "C3",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "filler",
+              "label": "Filler",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "filler",
+              "outer_diameter_mm": 0.2,
+              "inner_diameter_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "jacket",
+              "outer_diameter_mm": 3.4,
+              "inner_diameter_mm": 2.8,
+              "construction": null,
+              "area_mm2": null
+            }
+          ]
+        },
+        "facts": {}
+      },
+      "expected": {
+        "positions": {
+          "stock.cores.c1.conductor": [
+            4.595487113800442e-17,
+            -0.7505
+          ],
+          "stock.cores.c1.insulation": [
+            4.595487113800442e-17,
+            -0.7505
+          ],
+          "stock.cores.c2.conductor": [
+            -0.6499520655402213,
+            0.37524999999999975
+          ],
+          "stock.cores.c2.insulation": [
+            -0.6499520655402213,
+            0.37524999999999975
+          ],
+          "stock.cores.c3.conductor": [
+            0.649952065540221,
+            0.3752500000000003
+          ],
+          "stock.cores.c3.insulation": [
+            0.649952065540221,
+            0.3752500000000003
+          ],
+          "stock.filler": [
+            0.0,
+            0.0
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "ok",
+        "checks": 13,
+        "findings": []
+      }
+    },
+    {
+      "name": "three-core ring clockwise and too small",
+      "why": "Clockwise order; ring pitch smaller than touching so neighbouring cores overlap.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "bundle",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "material": null,
+          "color": null,
+          "source": "Original synthetic placement fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "cores",
+              "label": "Cores",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "group",
+              "role": "bundle",
+              "arrangement": "ring",
+              "pitch_mm": 1.2,
+              "direction": "cw",
+              "children": [
+                {
+                  "id": "c1",
+                  "label": "C1",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c2",
+                  "label": "C2",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c3",
+                  "label": "C3",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "jacket",
+              "outer_diameter_mm": 3.4,
+              "inner_diameter_mm": 2.8,
+              "construction": null,
+              "area_mm2": null
+            }
+          ]
+        },
+        "facts": {}
+      },
+      "expected": {
+        "positions": {
+          "stock.cores.c1.conductor": [
+            3.6739403974420595e-17,
+            -0.6
+          ],
+          "stock.cores.c1.insulation": [
+            3.6739403974420595e-17,
+            -0.6
+          ],
+          "stock.cores.c2.conductor": [
+            0.5196152422706632,
+            0.2999999999999999
+          ],
+          "stock.cores.c2.insulation": [
+            0.5196152422706632,
+            0.2999999999999999
+          ],
+          "stock.cores.c3.conductor": [
+            -0.519615242270663,
+            0.3000000000000002
+          ],
+          "stock.cores.c3.insulation": [
+            -0.519615242270663,
+            0.3000000000000002
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "problems",
+        "checks": 9,
+        "findings": [
+          {
+            "code": "overlap",
+            "status": "fail",
+            "paths": [
+              "stock.cores.c1",
+              "stock.cores.c2"
+            ],
+            "excess_mm": 0.26077,
+            "message": "stock.cores.c1 and stock.cores.c2 overlap by 0.261 mm."
+          },
+          {
+            "code": "overlap",
+            "status": "fail",
+            "paths": [
+              "stock.cores.c1",
+              "stock.cores.c3"
+            ],
+            "excess_mm": 0.26077,
+            "message": "stock.cores.c1 and stock.cores.c3 overlap by 0.261 mm."
+          },
+          {
+            "code": "overlap",
+            "status": "fail",
+            "paths": [
+              "stock.cores.c2",
+              "stock.cores.c3"
+            ],
+            "excess_mm": 0.26077,
+            "message": "stock.cores.c2 and stock.cores.c3 overlap by 0.261 mm."
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown pitch and unknown bore",
+      "why": "Unknown ring pitch leaves member positions unknown; an unknown jacket bore is not evaluated.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "bundle",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "material": null,
+          "color": null,
+          "source": "Original synthetic placement fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "cores",
+              "label": "Cores",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "group",
+              "role": "bundle",
+              "arrangement": "ring",
+              "pitch_mm": null,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "c1",
+                  "label": "C1",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c2",
+                  "label": "C2",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "filler",
+              "label": "Filler",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 1.0,
+              "kind": "filler",
+              "outer_diameter_mm": 0.3,
+              "inner_diameter_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "jacket",
+              "outer_diameter_mm": 3.4,
+              "inner_diameter_mm": null,
+              "construction": null,
+              "area_mm2": null
+            }
+          ]
+        },
+        "facts": {}
+      },
+      "expected": {
+        "positions": {
+          "stock.cores.c1.conductor": null,
+          "stock.cores.c1.insulation": null,
+          "stock.cores.c2.conductor": null,
+          "stock.cores.c2.insulation": null,
+          "stock.filler": [
+            0.0,
+            1.0
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "incomplete",
+        "checks": 8,
+        "findings": [
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.cores.c1",
+              "stock.jacket"
+            ],
+            "excess_mm": null,
+            "message": "stock.cores.c1 within stock.jacket: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.cores.c2",
+              "stock.jacket"
+            ],
+            "excess_mm": null,
+            "message": "stock.cores.c2 within stock.jacket: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.filler",
+              "stock.jacket"
+            ],
+            "excess_mm": null,
+            "message": "stock.filler within stock.jacket: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "overlap",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.cores.c1",
+              "stock.filler"
+            ],
+            "excess_mm": null,
+            "message": "stock.cores.c1 and stock.filler: overlap not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "overlap",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.cores.c2",
+              "stock.filler"
+            ],
+            "excess_mm": null,
+            "message": "stock.cores.c2 and stock.filler: overlap not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "overlap",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.cores.c1",
+              "stock.cores.c2"
+            ],
+            "excess_mm": null,
+            "message": "stock.cores.c1 and stock.cores.c2: overlap not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.cores.c1.conductor",
+              "stock.cores.c1.insulation"
+            ],
+            "excess_mm": null,
+            "message": "stock.cores.c1.conductor within stock.cores.c1.insulation: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.cores.c2.conductor",
+              "stock.cores.c2.insulation"
+            ],
+            "excess_mm": null,
+            "message": "stock.cores.c2.conductor within stock.cores.c2.insulation: not evaluated; a dimension or position is unknown."
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown drain offset",
+      "why": "A drain whose interstice position is not yet known keeps a null offset: position unknown, never the centre.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "pair",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "material": null,
+          "color": null,
+          "source": "Original synthetic placement fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "pair",
+              "label": "Pair",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "group",
+              "role": "pair",
+              "arrangement": "linear",
+              "pitch_mm": 1.3,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "c1",
+                  "label": "C1",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                },
+                {
+                  "id": "c2",
+                  "label": "C2",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "group",
+                  "role": "bundle",
+                  "arrangement": "concentric",
+                  "pitch_mm": null,
+                  "direction": "ccw",
+                  "children": [
+                    {
+                      "id": "conductor",
+                      "label": "Conductor",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "conductor",
+                      "outer_diameter_mm": 0.5,
+                      "inner_diameter_mm": 0,
+                      "construction": null,
+                      "area_mm2": null
+                    },
+                    {
+                      "id": "insulation",
+                      "label": "Insulation",
+                      "material": null,
+                      "color": null,
+                      "source": "Original synthetic placement fixture",
+                      "x_mm": 0,
+                      "y_mm": 0,
+                      "kind": "insulation",
+                      "outer_diameter_mm": 1.3,
+                      "inner_diameter_mm": 0.5,
+                      "construction": null,
+                      "area_mm2": null
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "drain",
+              "label": "Drain",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": null,
+              "y_mm": null,
+              "kind": "drain",
+              "outer_diameter_mm": 0.4,
+              "inner_diameter_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "jacket",
+              "outer_diameter_mm": 3.6,
+              "inner_diameter_mm": 2.8,
+              "construction": null,
+              "area_mm2": null
+            }
+          ]
+        },
+        "facts": {}
+      },
+      "expected": {
+        "positions": {
+          "stock.pair.c1.conductor": [
+            -0.65,
+            0.0
+          ],
+          "stock.pair.c1.insulation": [
+            -0.65,
+            0.0
+          ],
+          "stock.pair.c2.conductor": [
+            0.65,
+            0.0
+          ],
+          "stock.pair.c2.insulation": [
+            0.65,
+            0.0
+          ],
+          "stock.drain": null,
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "incomplete",
+        "checks": 8,
+        "findings": [
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.drain",
+              "stock.jacket"
+            ],
+            "excess_mm": null,
+            "message": "stock.drain within stock.jacket: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "overlap",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.pair.c1",
+              "stock.drain"
+            ],
+            "excess_mm": null,
+            "message": "stock.pair.c1 and stock.drain: overlap not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "overlap",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.pair.c2",
+              "stock.drain"
+            ],
+            "excess_mm": null,
+            "message": "stock.pair.c2 and stock.drain: overlap not evaluated; a dimension or position is unknown."
+          }
+        ]
+      }
+    },
+    {
+      "name": "element outside the jacket",
+      "why": "A filler declared beyond the jacket's outer surface.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "bundle",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "material": null,
+          "color": null,
+          "source": "Original synthetic placement fixture",
+          "x_mm": 0,
+          "y_mm": 0,
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "c1",
+              "label": "C1",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "group",
+              "role": "bundle",
+              "arrangement": "concentric",
+              "pitch_mm": null,
+              "direction": "ccw",
+              "children": [
+                {
+                  "id": "conductor",
+                  "label": "Conductor",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "conductor",
+                  "outer_diameter_mm": 0.5,
+                  "inner_diameter_mm": 0,
+                  "construction": null,
+                  "area_mm2": null
+                },
+                {
+                  "id": "insulation",
+                  "label": "Insulation",
+                  "material": null,
+                  "color": null,
+                  "source": "Original synthetic placement fixture",
+                  "x_mm": 0,
+                  "y_mm": 0,
+                  "kind": "insulation",
+                  "outer_diameter_mm": 1.3,
+                  "inner_diameter_mm": 0.5,
+                  "construction": null,
+                  "area_mm2": null
+                }
+              ]
+            },
+            {
+              "id": "filler",
+              "label": "Filler",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 3.0,
+              "y_mm": 0,
+              "kind": "filler",
+              "outer_diameter_mm": 0.4,
+              "inner_diameter_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "material": null,
+              "color": null,
+              "source": "Original synthetic placement fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "kind": "jacket",
+              "outer_diameter_mm": 3.0,
+              "inner_diameter_mm": 2.0,
+              "construction": null,
+              "area_mm2": null
+            }
+          ]
+        },
+        "facts": {}
+      },
+      "expected": {
+        "positions": {
+          "stock.c1.conductor": [
+            0.0,
+            0.0
+          ],
+          "stock.c1.insulation": [
+            0.0,
+            0.0
+          ],
+          "stock.filler": [
+            3.0,
+            0.0
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "problems",
+        "checks": 4,
+        "findings": [
+          {
+            "code": "outside",
+            "status": "fail",
+            "paths": [
+              "stock.filler",
+              "stock.jacket"
+            ],
+            "excess_mm": 2.2,
+            "message": "stock.filler lies outside stock.jacket, the outer layer of stock."
+          }
+        ]
+      }
+    },
+    {
+      "name": "fixture coax",
+      "why": "Existing synthetic fixture placed without findings.",
+      "fixture": "wire-stock-coax.json",
+      "expected": {
+        "positions": {
+          "stock.center": [
+            0.0,
+            0.0
+          ],
+          "stock.dielectric": [
+            0.0,
+            0.0
+          ],
+          "stock.screen": [
+            0.0,
+            0.0
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "ok",
+        "checks": 9,
+        "findings": []
+      }
+    },
+    {
+      "name": "fixture pair",
+      "why": "Existing synthetic fixture placed without findings.",
+      "fixture": "wire-stock-pair.json",
+      "expected": {
+        "positions": {
+          "stock.pair.red.center": [
+            -0.75,
+            0.0
+          ],
+          "stock.pair.red.insulation": [
+            -0.75,
+            0.0
+          ],
+          "stock.pair.blue.center": [
+            0.75,
+            0.0
+          ],
+          "stock.pair.blue.insulation": [
+            0.75,
+            0.0
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ],
+          "stock.screen": [
+            0.0,
+            0.0
+          ],
+          "stock.drain": [
+            0.0,
+            1.5
+          ],
+          "stock.filler": [
+            0.0,
+            -1.5
+          ]
+        },
+        "status": "ok",
+        "checks": 18,
+        "findings": []
+      }
+    },
+    {
+      "name": "fixture ribbon",
+      "why": "Existing synthetic fixture placed without findings.",
+      "fixture": "wire-stock-ribbon.json",
+      "expected": {
+        "positions": {
+          "stock.one.center": [
+            -1.4,
+            0.0
+          ],
+          "stock.one.insulation": [
+            -1.4,
+            0.0
+          ],
+          "stock.two.center": [
+            0.0,
+            0.0
+          ],
+          "stock.two.insulation": [
+            0.0,
+            0.0
+          ],
+          "stock.three.center": [
+            1.4,
+            0.0
+          ],
+          "stock.three.insulation": [
+            1.4,
+            0.0
+          ],
+          "stock.web": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "ok",
+        "checks": 6,
+        "findings": []
+      }
+    },
+    {
+      "name": "fixture figure-eight",
+      "why": "Existing synthetic fixture placed without findings.",
+      "fixture": "wire-stock-figure-eight.json",
+      "expected": {
+        "positions": {
+          "stock.left.center": [
+            -1.2,
+            0.0
+          ],
+          "stock.left.insulation": [
+            -1.2,
+            0.0
+          ],
+          "stock.left.jacket": [
+            -1.2,
+            0.0
+          ],
+          "stock.right.center": [
+            1.2,
+            0.0
+          ],
+          "stock.right.insulation": [
+            1.2,
+            0.0
+          ],
+          "stock.right.jacket": [
+            1.2,
+            0.0
+          ],
+          "stock.web": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "ok",
+        "checks": 9,
+        "findings": []
+      }
+    }
+  ]
+}

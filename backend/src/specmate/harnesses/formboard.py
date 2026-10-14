@@ -223,39 +223,20 @@ def section_layout(stock):
     features = []
     unknown = []
 
-    def visit(node, path, x, y):
-        px = None if x is None else x + node["x_mm"]
-        py = None if y is None else y + node["y_mm"]
-        if node["kind"] == "group":
-            members = [c for c in node["children"] if c["kind"] in ("group", "conductor")]
-            arranged = node["arrangement"] != "concentric"
-            if arranged and node["pitch_mm"] is None:
+    from specmate.wire_stock.geometry import PlacedGroup, place
+
+    # Positions come from the one shared stock placement rule.
+    for placed in place(stock["structure"]).nodes:
+        path, px, py = placed.path, placed.x, placed.y
+        if isinstance(placed, PlacedGroup):
+            node = placed.node
+            if node["arrangement"] != "concentric" and node["pitch_mm"] is None:
                 unknown.append(f"{path}: arrangement pitch unknown")
-            for child in node["children"]:
-                index = members.index(child) if child in members else -1
-                dx = dy = 0.0
-                placed = arranged and index >= 0
-                located = not (placed and node["pitch_mm"] is None)
-                if placed and node["pitch_mm"] is not None:
-                    if node["arrangement"] == "ring":
-                        step = (
-                            (-1 if node["direction"] == "ccw" else 1) * 2 * math.pi / len(members)
-                        )
-                        angle = -math.pi / 2 + step * index
-                        dx = node["pitch_mm"] / 2 * math.cos(angle)
-                        dy = node["pitch_mm"] / 2 * math.sin(angle)
-                    else:
-                        dx = (index - (len(members) - 1) / 2) * node["pitch_mm"]
-                visit(
-                    child,
-                    f"{path}.{child['id']}",
-                    px + dx if located and px is not None else None,
-                    py + dy if located and py is not None else None,
-                )
-            return
+            continue
+        node = placed.node
         if px is None or py is None:
             unknown.append(f"{path}: position unknown")
-            return
+            continue
         if node["kind"] == "web":
             if node["width_mm"] is None or node["height_mm"] is None:
                 unknown.append(f"{path}: web dimensions unknown")
@@ -294,8 +275,6 @@ def section_layout(stock):
                     "ry": r,
                 }
             )
-
-    visit(stock["structure"], stock["structure"]["id"], 0, 0)
     complete = not unknown and bool(features)
     width = height = None
     if complete:
