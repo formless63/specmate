@@ -57,6 +57,7 @@ def workspace_status(ctx: Context, p: WorkspaceRef) -> dict[str, Any]:
     queue = checks.queue(ids)
     runner = checks.runner(ids, queue)
     tool_states = checks.tools(ids)
+    engine = checks.temporal_probe()
     now = timezone.now()
     stages = (
         BuildStage.objects.filter(
@@ -93,7 +94,7 @@ def workspace_status(ctx: Context, p: WorkspaceRef) -> dict[str, Any]:
         },
         "tools": tool_states,
         "storage": {k: storage[k] for k in ("state", "code", "sampled", "missing") if k in storage},
-        "workflow_engine": {"state": "not_evaluated"},
+        "workflow_engine": engine,
         "builds": builds,
         "can_execute": can_execute,
         "findings": checks.findings(
@@ -105,6 +106,7 @@ def workspace_status(ctx: Context, p: WorkspaceRef) -> dict[str, Any]:
             tool_states=tool_states,
             mode=mode,
             can_execute=can_execute,
+            engine_state=engine,
         ),
     }
 
@@ -131,6 +133,7 @@ def installation_report(ctx: Context, p: NoPayload) -> dict[str, Any]:
     runner = checks.runner(None, queue)
     tool_states = checks.tools(None)
     ready = schema_ready()
+    engine = checks.temporal_probe()
     found = checks.findings(
         None,
         "operator",
@@ -139,6 +142,7 @@ def installation_report(ctx: Context, p: NoPayload) -> dict[str, Any]:
         runner_state=runner,
         tool_states=tool_states,
         mode=mode,
+        engine_state=engine,
     )
     if not ready:
         found.append(checks.finding("schema_not_ready", "operator"))
@@ -167,10 +171,8 @@ def installation_report(ctx: Context, p: NoPayload) -> dict[str, Any]:
             for c in RunnerCredential.objects.order_by("created_at")[:100]
         ],
         "storage": storage,
-        "workflow_engine": {
-            "state": "not_evaluated",
-            "note": "Temporal is not queried here; use its operator UI for workflow histories.",
-        },
+        # Connection probe only; workflow histories are in Temporal's operator UI.
+        "workflow_engine": engine,
         "findings": found,
     }
 

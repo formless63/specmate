@@ -88,6 +88,12 @@ is requested. `work_control reconcile` marks lease-expired stages interrupted an
 them; `resume` accepts work again. Stopping containers remains a separate operator step,
 taken once the report shows no unfinished or unreconciled stage.
 
+Diagnostics report the workflow engine as `reachable`, `unreachable` or `unknown` with a
+reason. The probe opens one TCP connection to `SPECMATE_TEMPORAL_ADDRESS`, bounded by
+`SPECMATE_TEMPORAL_PROBE_TIMEOUT` seconds (default 2); it runs no workflow and does not prove
+the namespace exists. `SPECMATE_MIN_FREE_BYTES` (default 536870912, 512 MiB) is the free
+space below which artifact storage is reported as `storage_low_space`.
+
 ## Resources
 
 Compact defaults use small bounded connection pools and one heavy native stage at a time.

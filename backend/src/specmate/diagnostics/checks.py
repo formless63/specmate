@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 from datetime import timedelta
 from typing import Any, Literal
 
@@ -175,6 +176,15 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
         "Check that the jobs service and Temporal are running. Delivery is at-least-once "
         "and resumes by itself; the engine itself is not queried here.",
     ),
+    "workflow_engine_unreachable": (
+        "service_unavailable",
+        "attention",
+        "The workflow engine did not accept a connection.",
+        "Accepted builds are saved and will start when background processing resumes; "
+        "nothing has been lost. Tell the operator if this persists.",
+        "Check that Temporal is running and that TEMPORAL_ADDRESS is correct. This probe "
+        "only opens a connection; it does not read workflows or prove the namespace exists.",
+    ),
     "installation_draining": (
         "work_paused",
         "info",
@@ -201,6 +211,43 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
         "Inspect app logs. Never wipe data to recover; fix the migration failure.",
     ),
 }
+
+
+def _split_address(address: str) -> tuple[str, int] | None:
+    host, sep, port = address.strip().rpartition(":")
+    if not sep:
+        host, port = address.strip(), "7233"
+    host = host.strip("[]")
+    if not host or not port.isdigit() or not 0 < int(port) < 65536:
+        return None
+    return host, int(port)
+
+
+def temporal_probe() -> dict[str, Any]:
+    """Bounded, read-only reachability probe of the configured Temporal frontend.
+
+    Opens one TCP connection and closes it; no workflow, namespace or history is touched,
+    so `reachable` means only that something accepts connections at the address. A name that
+    cannot be resolved or an unusable address is `unreachable` or `unknown` with a reason,
+    never silently healthy.
+    """
+    address = str(getattr(settings, "SPECMATE_TEMPORAL_ADDRESS", "") or "")
+    timeout = float(getattr(settings, "SPECMATE_TEMPORAL_PROBE_TIMEOUT", 2) or 2)
+    target = _split_address(address) if address else None
+    if target is None:
+        return {"state": "unknown", "reason": "address_not_configured_or_invalid"}
+    try:
+        with socket.create_connection(target, timeout=timeout):
+            pass
+    except TimeoutError:
+        return {"state": "unreachable", "reason": "connect_timeout"}
+    except socket.gaierror:
+        return {"state": "unreachable", "reason": "name_not_resolved"}
+    except ConnectionRefusedError:
+        return {"state": "unreachable", "reason": "connection_refused"}
+    except OSError:
+        return {"state": "unreachable", "reason": "network_error"}
+    return {"state": "reachable", "reason": "connection_accepted"}
 
 
 def finding(code: str, audience: Audience, **evidence: Any) -> dict[str, Any]:
@@ -395,8 +442,11 @@ def findings(
     tool_states: list[dict[str, Any]],
     mode: dict[str, Any],
     can_execute: bool | None = None,
+    engine_state: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
+    if engine_state and engine_state["state"] == "unreachable":
+        out.append(finding("workflow_engine_unreachable", audience, reason=engine_state["reason"]))
     if mode["mode"] == WorkControl.Mode.DRAINING:
         out.append(finding("installation_draining", audience))
     elif mode["mode"] == WorkControl.Mode.INTERRUPTING:
