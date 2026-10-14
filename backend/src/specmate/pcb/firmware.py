@@ -29,6 +29,7 @@ from specmate.design.operations import (
     update_draft,
 )
 from specmate.operations import Context, NotFound, ValidationFailed, operation
+from specmate.operations.scope import WorkspacePayload
 from specmate.pcb import population as pcb_population
 from specmate.pcb.report import Report
 from specmate.sources.authority import authorize_revision
@@ -560,8 +561,7 @@ class Payload(Strict):
     pass
 
 
-class CreateFirmware(Payload):
-    project_id: UUID
+class CreateFirmware(Payload, WorkspacePayload):
     name: str = Field(min_length=1, max_length=200)
     firmware: Firmware
 
@@ -604,7 +604,8 @@ def _content(firmware: Firmware) -> dict:
 
 def _scope_closure(ctx, p, permission) -> str:
     if isinstance(p, CreateFirmware):
-        workspace = authorize(ctx.user, p.project_id, permission)
+        # Creating a firmware item is additive: contributors may create.
+        workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
         probe = Definition(workspace=workspace, kind=KIND)
         closure(ctx.user, probe, _content(p.firmware))
         return f"workspace:{workspace.id}"
@@ -658,12 +659,12 @@ def _scope(name, permission=Perm.DESIGN_EDIT):
     authorize_replay=_replay,
 )
 def create_firmware(ctx: Context, p: CreateFirmware) -> dict:
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
     closure(ctx.user, Definition(workspace=workspace, kind=KIND), _content(p.firmware))
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=p.project_id, kind=KIND, name=p.name, content=_content(p.firmware)
+            workspace_id=workspace.id, kind=KIND, name=p.name, content=_content(p.firmware)
         ),
     )
 
@@ -814,8 +815,8 @@ def review_assignments(ctx: Context, p: AssignmentReview) -> dict:
     return assignment_review(ctx.user, p.assembly_snapshot_id)
 
 
-def list_firmware(user, project_id) -> list[dict]:
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+def list_firmware(user, workspace_id) -> list[dict]:
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
     rows = []
     for definition in Definition.objects.filter(workspace=workspace, kind=KIND).order_by(
         "created_at"
@@ -833,9 +834,9 @@ def list_firmware(user, project_id) -> list[dict]:
     return rows
 
 
-def list_targets(user, project_id) -> list[dict]:
-    """Frozen population revisions that can be firmware targets, closure-authorized."""
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+def list_targets(user, workspace_id) -> list[dict]:
+    """Frozen population revisions that can be firmware targets."""
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
     rows = []
     revisions = Revision.objects.select_related("definition", "snapshot").filter(
         definition__workspace=workspace, definition__kind="pcb_population"

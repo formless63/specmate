@@ -20,12 +20,11 @@ from specmate.sources import blobstore, editing
 from specmate.sources import operations as source_operations
 from specmate.sources.models import (
     SourceBlob,
-    SourceBundleFile,
     SourceBundleRevision,
     SourceEditSubmission,
 )
 
-from .conftest import op
+from .conftest import op, remove_member
 from .test_source_editing import (
     ORIGINAL,
     edited_zip,
@@ -120,8 +119,8 @@ def call(user, operation, payload, **ctx):
     )
 
 
-def derivative(users, project):
-    source = original(users, project)
+def derivative(users, workspace):
+    source = original(users, workspace)
     return op(
         users["editor"],
         "source.derive_bundle",
@@ -154,12 +153,12 @@ def stored(data):
 
 
 def test_competing_revisions_keep_winner_stale_writer_bytes_and_recovery(
-    users, project, monkeypatch
+    users, workspace, monkeypatch
 ):
-    base = derivative(users, project)
+    base = derivative(users, workspace)
     before = frozen(base["revision_id"])
-    register(users["editor"], project, b"(editor revision)")
-    register(users["owner"], project, b"(owner revision)")
+    register(users["editor"], workspace, b"(editor revision)")
+    register(users["owner"], workspace, b"(owner revision)")
     payloads = {
         name: {"bundle_id": base["bundle_id"], "files": files_with(f"({name} revision)".encode())}
         for name in ("editor", "owner")
@@ -192,7 +191,9 @@ def test_competing_revisions_keep_winner_stale_writer_bytes_and_recovery(
     assert main_hash(winner.result["revision_id"]) == sha(b"(editor revision)")
     assert frozen(base["revision_id"]) == before
     # The stale writer's registered bytes are untouched by the conflict.
-    assert SourceBlob.objects.filter(project_id=project, sha256=sha(b"(owner revision)")).exists()
+    assert SourceBlob.objects.filter(
+        workspace_id=workspace, sha256=sha(b"(owner revision)")
+    ).exists()
     assert stored(b"(owner revision)")
 
     replay = call(
@@ -221,13 +222,13 @@ def test_competing_revisions_keep_winner_stale_writer_bytes_and_recovery(
 
 
 def test_browser_edit_losing_to_agent_revision_retains_upload_and_recovers_separately(
-    users, project, monkeypatch, artifact_root
+    users, workspace, monkeypatch, artifact_root
 ):
-    base = derivative(users, project)
-    register(users["owner"], project, b"(agent revision)")
+    base = derivative(users, workspace)
+    register(users["owner"], workspace, b"(agent revision)")
     archive = edited_zip(
         users,
-        project,
+        workspace,
         base["revision_id"],
         lambda entries: entries.__setitem__("board/main.native", b"(browser edit)"),
     )
@@ -267,14 +268,14 @@ def test_browser_edit_losing_to_agent_revision_retains_upload_and_recovers_separ
     assert main_hash(agent.result["revision_id"]) == sha(b"(agent revision)")
 
 
-def test_competing_reviewed_edits_force_rereview_against_winner(users, project, monkeypatch):
-    base = derivative(users, project)
+def test_competing_reviewed_edits_force_rereview_against_winner(users, workspace, monkeypatch):
+    base = derivative(users, workspace)
     entries = unpack(export(users["editor"], base["revision_id"]).content)
     edits = {}
     for writer in ("editor", "owner"):
         changed = {**entries, "board/main.native": f"({writer} edit)".encode()}
         for data in changed.values():
-            register(users[writer], project, data)
+            register(users[writer], workspace, data)
         edits[writer] = {
             "baseline_revision_id": base["revision_id"],
             "files": [{"path": p, "sha256": sha(d)} for p, d in changed.items()],
@@ -337,9 +338,9 @@ def test_competing_reviewed_edits_force_rereview_against_winner(users, project, 
     assert replay == winner
 
 
-def test_duplicate_keyed_submission_creates_once_and_replays_winner(users, project, monkeypatch):
-    base = derivative(users, project)
-    register(users["editor"], project, b"(double submit)")
+def test_duplicate_keyed_submission_creates_once_and_replays_winner(users, workspace, monkeypatch):
+    base = derivative(users, workspace)
+    register(users["editor"], workspace, b"(double submit)")
     payload = {"bundle_id": base["bundle_id"], "files": files_with(b"(double submit)")}
     request = call(
         users["editor"],
@@ -355,9 +356,9 @@ def test_duplicate_keyed_submission_creates_once_and_replays_winner(users, proje
     assert SourceBundleRevision.objects.filter(bundle_id=base["bundle_id"]).count() == 2
 
 
-def test_revision_closure_and_retained_authority_precede_conflicts(users, project):
-    base = derivative(users, project)
-    register(users["editor"], project, b"(keyed)")
+def test_revision_closure_and_retained_authority_precede_conflicts(users, workspace):
+    base = derivative(users, workspace)
+    register(users["editor"], workspace, b"(keyed)")
     payload = {"bundle_id": base["bundle_id"], "files": files_with(b"(keyed)")}
     revise = call(
         users["editor"],
@@ -367,7 +368,7 @@ def test_revision_closure_and_retained_authority_precede_conflicts(users, projec
         idempotency_key="retained",
     )
     revise()
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="viewer"
     )
     for body in (payload, {**payload, "files": files_with(b"(other)")}):
@@ -379,7 +380,7 @@ def test_revision_closure_and_retained_authority_precede_conflicts(users, projec
                 expected_state=base["state"],
                 idempotency_key="retained",
             )()
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="editor"
     )
     with pytest.raises(IdempotencyMismatch):
@@ -390,17 +391,8 @@ def test_revision_closure_and_retained_authority_precede_conflicts(users, projec
             expected_state=base["state"],
             idempotency_key="retained",
         )()
-    # A foreign blob in the head's closure hides state before stale diagnostics or replay.
-    other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
-    register(users["outsider"], other, b"foreign")
-    head = SourceBundleRevision.objects.filter(bundle_id=base["bundle_id"]).order_by("-number")[0]
-    SourceBundleFile.objects.create(
-        revision=head,
-        path="foreign.native",
-        media_type="text/plain",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
+    # Losing membership hides state before stale diagnostics or replay.
+    remove_member(users["editor"])
     for key in (None, "retained"):
         with pytest.raises(NotFound):
             call(
@@ -412,8 +404,8 @@ def test_revision_closure_and_retained_authority_precede_conflicts(users, projec
             )()
 
 
-def test_derivation_authorizes_source_closure_before_diagnostics_and_replay(users, project):
-    source = original(users, project)
+def test_derivation_authorizes_source_closure_before_diagnostics_and_replay(users, workspace):
+    source = original(users, workspace)
     derive = call(
         users["editor"],
         "source.derive_bundle",
@@ -421,7 +413,7 @@ def test_derivation_authorizes_source_closure_before_diagnostics_and_replay(user
         idempotency_key="derive",
     )
     created = derive()
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="viewer"
     )
     for name in ("Keyed derivative", "Other name"):
@@ -432,20 +424,12 @@ def test_derivation_authorizes_source_closure_before_diagnostics_and_replay(user
                 {"source_revision_id": source["revision_id"], "name": name},
                 idempotency_key="derive",
             )()
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="editor"
     )
     assert derive().result == created.result
-    other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
-    register(users["outsider"], other, b"foreign")
-    SourceBundleFile.objects.create(
-        revision_id=source["revision_id"],
-        path="foreign.native",
-        media_type="text/plain",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
-    # A foreign blob hides the source rather than producing a registration diagnostic.
+    # Losing membership hides the source rather than producing a registration diagnostic.
+    remove_member(users["editor"])
     for key in (None, "derive"):
         with pytest.raises(NotFound):
             call(

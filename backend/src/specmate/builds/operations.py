@@ -49,6 +49,7 @@ from specmate.operations import (
     ValidationFailed,
     operation,
 )
+from specmate.operations.scope import WorkspacePayload, WorkspaceProjectPayload
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBundleRevision
 
@@ -158,8 +159,9 @@ def _expire(stage: BuildStage) -> None:
         _event(stage, "lease_expired")
 
 
-class RequestBuild(Payload):
-    project_id: UUID
+class RequestBuild(WorkspaceProjectPayload):
+    """A workspace build; ``project_id`` is optional navigation context only."""
+
     source_revision_id: UUID
     recipe_id: str = Field(min_length=1, max_length=128)
 
@@ -171,7 +173,8 @@ class RequestBuild(Payload):
     status="accepted_async",
 )
 def request_build(ctx: Context, p: RequestBuild) -> dict:
-    workspace = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
+    workspace = authorize(ctx.user, p.scope_id, Perm.BUILD_EXECUTE)
+    context = project_context(p, workspace)
     if not ctx.idempotency_key:
         raise ValidationFailed("build.request requires an idempotency key.")
     from specmate.diagnostics.guards import require_accepting_work
@@ -183,11 +186,25 @@ def request_build(ctx: Context, p: RequestBuild) -> dict:
     if source is None:
         raise NotFound("Source revision not found.")
     recipe = approved_recipe(p.recipe_id)
-    return _create_attempt(ctx, workspace, source, recipe, p)
+    return _create_attempt(ctx, workspace, source, recipe, p, project=context)
+
+
+def project_context(p, workspace):
+    """The optional navigation project of a request, which must be in the workspace.
+
+    A project never grants or limits build authority. An id that names no project of the
+    workspace is a navigation-free request when it is the (transitional) scope alias itself.
+    """
+    if p.project_id is None:
+        return None
+    project = transitional_project(p.project_id, workspace)
+    if project is None and p.workspace_id is not None:
+        raise NotFound("Project not found.")
+    return project
 
 
 def _create_attempt(
-    ctx, workspace, source, recipe, p, retry_of: BuildAttempt | None = None
+    ctx, workspace, source, recipe, p, retry_of: BuildAttempt | None = None, project=None
 ) -> dict:
     """Shared by first requests and deliberate retries; every attempt gets a new identity."""
     from specmate.firmware_builds.operations import authorize_request
@@ -212,7 +229,7 @@ def _create_attempt(
         id=build_id,
         workspace=workspace,
         # Optional navigation context; a retry keeps the original attempt's context.
-        project=retry_of.project if retry_of else transitional_project(p.project_id, workspace),
+        project=retry_of.project if retry_of else project,
         requested_by=ctx.user,
         source_revision=source,
         recipe_id=recipe.id,
@@ -290,7 +307,7 @@ def poll_build(ctx: Context, p: BuildRef) -> dict:
 @operation(
     "build.get",
     BuildRef,
-    summary="Read the state of a build within project scope.",
+    summary="Read the state of a build within its workspace.",
     supports_idempotency=False,
 )
 def get_build(ctx: Context, p: BuildRef) -> dict:
@@ -307,7 +324,7 @@ class ArtifactRef(BuildRef):
 @operation(
     "build.output",
     ArtifactRef,
-    summary="Authorize accepted artifact bytes in project scope.",
+    summary="Authorize accepted artifact bytes in workspace scope.",
     supports_idempotency=False,
 )
 def get_output(ctx: Context, p: ArtifactRef) -> dict:
@@ -355,8 +372,7 @@ def cancel_build(ctx: Context, p: BuildRef) -> dict:
     return stage_result(stage)
 
 
-class EnrollRunner(Payload):
-    project_id: UUID
+class EnrollRunner(WorkspacePayload):
     name: str = Field(min_length=1, max_length=200)
     recipe_ids: list[str] = Field(min_length=1, max_length=100)
     lifetime_hours: int = Field(default=24, ge=1, le=720)
@@ -371,14 +387,14 @@ def _operator(ctx: Context):
 @operation(
     "runner.enroll",
     EnrollRunner,
-    summary="Issue a project and recipe scoped runner token.",
+    summary="Issue a workspace and recipe scoped runner token.",
     supports_idempotency=False,
 )
 def enroll_runner(ctx: Context, p: EnrollRunner) -> dict:
     _operator(ctx)
     if ctx.idempotency_key:
         raise ValidationFailed("Credential issuance cannot retain an idempotent token response.")
-    workspace = authorize(ctx.user, p.project_id, Perm.WORKSPACE_ADMIN)
+    workspace = authorize(ctx.user, p.scope_id, Perm.WORKSPACE_ADMIN)
     for recipe_id in p.recipe_ids:
         approved_recipe(recipe_id)
     token = secrets.token_urlsafe(48)
@@ -392,6 +408,7 @@ def enroll_runner(ctx: Context, p: EnrollRunner) -> dict:
     )
     return {
         "credential_id": str(credential.id),
+        "workspace_id": str(workspace.id),
         "token": token,
         "expires_at": credential.expires_at.isoformat(),
     }

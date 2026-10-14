@@ -41,7 +41,7 @@ function setup(options: { draft?: FirmwareRead; revision?: FirmwareRead; command
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('/firmware')) return reply({ firmware: [{ definition_id: 'fw', name: 'Controller firmware', draft_id: 'draft-1', revisions: options.revision ? [{ revision_id: 'fw-rev', number: 1 }] : [] }] });
     if (url.endsWith('/firmware-targets')) return reply({ targets: [{ revision_id: 'pop-rev', name: 'Controller fit', number: 1, snapshot_sha256: 's'.repeat(64) }] });
-    if (url.includes('sources/projects/')) return reply({ revisions: [{ revision_id: 'src-rev', bundle_id: 'b', name: 'Firmware sources', role: 'original', number: 1, manifest_sha256: 'm'.repeat(64), derived_from: null }], next_after: null });
+    if (url.includes('sources/workspaces/')) return reply({ revisions: [{ revision_id: 'src-rev', bundle_id: 'b', name: 'Firmware sources', role: 'original', number: 1, manifest_sha256: 'm'.repeat(64), derived_from: null }], next_after: null });
     if (url.endsWith('sources/revisions/src-rev')) return reply({ revision_id: 'src-rev', name: 'Firmware sources', role: 'original', number: 1, manifest_sha256: 'm'.repeat(64), derived_from: null, expansion: null,
       manifest: { ancestry: [], files: [{ path: 'src/main.cpp', sha256: 'a'.repeat(64), bytes: 10, media_type: 'text/plain', rights: 'MIT' }] } });
     if (url.endsWith('/population-revisions/pop-rev/review')) return reply(population);
@@ -52,7 +52,7 @@ function setup(options: { draft?: FirmwareRead; revision?: FirmwareRead; command
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
-  const panel = <MantineProvider><FirmwarePanel projectId="project-a" permissions={options.permissions} onAccessLost={options.onAccessLost} /></MantineProvider>;
+  const panel = <MantineProvider><FirmwarePanel workspaceId="project-a" permissions={options.permissions} onAccessLost={options.onAccessLost} /></MantineProvider>;
   const view = render(options.strict ? <StrictMode>{panel}</StrictMode> : panel);
   return { bodies, fetchMock, ...view };
 }
@@ -309,7 +309,7 @@ test('changing projects clears the workspace and fences prior project responses'
   const allowed = fetchMock.getMockImplementation()!;
   fetchMock.mockImplementation((url, init) => url.endsWith('/firmware-drafts/draft-1') ? pending.promise : allowed(url, init));
   fireEvent.click(screen.getByRole('button', { name: 'Open Controller firmware draft' }));
-  rerender(<MantineProvider><FirmwarePanel projectId="project-b" onAccessLost={onAccessLost} /></MantineProvider>);
+  rerender(<MantineProvider><FirmwarePanel workspaceId="project-b" onAccessLost={onAccessLost} /></MantineProvider>);
   expect(screen.getByRole('button', { name: 'Show firmware' })).toBeTruthy();
   expect(screen.queryByText('Controller firmware')).toBeNull();
   await finish(pending, reply({ error: { message: 'Previous project denied.' } }, 404));

@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from specmate.contracts import FiniteNumber
+from specmate.operations.scope import WorkspacePayload
 
 Side = Literal["west", "east", "north", "south"]
 Face = Literal["lid", "floor"]
@@ -103,8 +104,7 @@ class Parameters(Strict):
         return self
 
 
-class CreateProposal(Strict):
-    project_id: UUID
+class CreateProposal(Strict, WorkspacePayload):
     interpretation_id: UUID
     name: str = Field(min_length=1, max_length=200)
     parameters: Parameters = Field(default_factory=Parameters)
@@ -126,13 +126,13 @@ class DraftRef(Strict):
 
 class RetainedRef(Strict):
     revision_id: UUID
-    project_id: UUID | None = None
+    workspace_id: UUID | None = None
 
 
 class ListProposals(Strict):
-    project_id: UUID
+    workspace_id: UUID
 
 
 class BoardInputs(Strict):
-    project_id: UUID
+    workspace_id: UUID
     interpretation_id: UUID

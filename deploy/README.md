@@ -109,7 +109,7 @@ enabling its profile. Only this controller receives the Docker socket; app, jobs
 tool containers receive no socket. The runner has no database credentials. This is
 explicit execution authority, not a requirement for storing engineering sources.
 
-First approve a recipe and a project for execution. `recipes.json` is an object
+First approve a recipe and a workspace for execution. `recipes.json` is an object
 mapping each approved recipe ID to a matching [Recipe manifest](../backend/src/specmate/builds/recipes.py):
 an exact image digest, absolute executable/argument vector, fixed input/output mounts,
 network policy `none`, resource/time limits, and output declarations with media types
@@ -131,8 +131,8 @@ directory. If you relocate it, update `.env` and create the new private director
 It must match the actual host directory mounted at `/runner-state`, because sibling
 tool containers resolve bind sources on the Docker host. Preserve it across restarts.
 
-After claiming ownership and creating the authorized project, issue a credential
-scoped to that project's approved recipe IDs. The command returns JSON whose token
+After claiming ownership, issue a credential scoped to the workspace and its approved
+recipe IDs. The command returns JSON whose token
 is shown once; capture and extract it without printing the raw result. Run this from
 the stack directory after replacing the two placeholders:
 
@@ -147,7 +147,7 @@ if Path("runner-token").exists():
     raise SystemExit("runner-token already exists; use an explicit credential rotation.")
 result = subprocess.run(
     ["docker", "compose", "exec", "-T", "app", "python", "manage.py",
-     "runner_credential", "--project", "<project-uuid>",
+     "runner_credential", "--workspace", "<workspace-uuid>",
      "--recipe", "<approved-recipe-id>", "--hours", "24"],
     check=True, capture_output=True, text=True,
 )

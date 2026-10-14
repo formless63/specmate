@@ -28,7 +28,7 @@ export type Proposal = {
 };
 export type RevisionSummary = { revision_id: string; number: number; sha256: string; status: Proposal['status'] };
 export type Draft = {
-  draft_id: string; project_id: string; interpretation_id: string; name: string; parameters: Parameters;
+  draft_id: string; workspace_id: string; interpretation_id: string; name: string; parameters: Parameters;
   version: number; state: string; proposal: Proposal; revisions: RevisionSummary[]; updated_at: string;
 };
 export type DraftRow = { draft_id: string; name: string; interpretation_id: string; version: number; state: string; updated_at: string; revision_count: number };
@@ -39,18 +39,18 @@ export type BoardInputs = {
   components: { component_id: string; reference: string; value: string; footprint: string; position: [number, number]; side: 'front' | 'back' }[];
 };
 export type Retained = {
-  revision_id: string; draft_id: string; project_id: string; number: number; interpretation_id: string; interpretation_sha256: string;
+  revision_id: string; draft_id: string; workspace_id: string; number: number; interpretation_id: string; interpretation_sha256: string;
   generator: string; draft_version: number; status: Proposal['status']; sha256: string; created_at: string;
   document?: { draft_id: string; draft_name: string; draft_version: number; parameters: Parameters; proposal: Proposal };
 };
-const base = (projectId: string) => `mechanical-proposals/projects/${encodeURIComponent(projectId)}`;
-export const listBoards = (projectId: string, signal?: AbortSignal) => request<{ boards: BoardChoice[] }>(`${base(projectId)}/boards`, { signal, cache: 'no-store' });
-export const boardInputs = (projectId: string, id: string, signal?: AbortSignal) => request<BoardInputs>(`${base(projectId)}/boards/${encodeURIComponent(id)}`, { signal, cache: 'no-store' });
-export const listDrafts = (projectId: string, signal?: AbortSignal) => request<{ drafts: DraftRow[]; truncated: boolean }>(`${base(projectId)}/drafts`, { signal, cache: 'no-store' });
+const base = (workspaceId: string) => `mechanical-proposals/workspaces/${encodeURIComponent(workspaceId)}`;
+export const listBoards = (workspaceId: string, signal?: AbortSignal) => request<{ boards: BoardChoice[] }>(`${base(workspaceId)}/boards`, { signal, cache: 'no-store' });
+export const boardInputs = (workspaceId: string, id: string, signal?: AbortSignal) => request<BoardInputs>(`${base(workspaceId)}/boards/${encodeURIComponent(id)}`, { signal, cache: 'no-store' });
+export const listDrafts = (workspaceId: string, signal?: AbortSignal) => request<{ drafts: DraftRow[]; truncated: boolean }>(`${base(workspaceId)}/drafts`, { signal, cache: 'no-store' });
 export const readDraft = (id: string, signal?: AbortSignal) => request<Draft>(`mechanical-proposals/drafts/${encodeURIComponent(id)}`, { signal, cache: 'no-store' });
-export const readRetained = (id: string, projectId: string, signal?: AbortSignal) => request<Retained>(`mechanical-proposals/revisions/${encodeURIComponent(id)}?project_id=${encodeURIComponent(projectId)}`, { signal, cache: 'no-store' });
-export const createDraft = (projectId: string, interpretationId: string, name: string, parameters: Parameters, key: string) =>
-  command<Draft>('mechanical_proposal.create', { project_id: projectId, interpretation_id: interpretationId, name, parameters }, { idempotencyKey: key });
+export const readRetained = (id: string, workspaceId: string, signal?: AbortSignal) => request<Retained>(`mechanical-proposals/revisions/${encodeURIComponent(id)}?workspace_id=${encodeURIComponent(workspaceId)}`, { signal, cache: 'no-store' });
+export const createDraft = (workspaceId: string, interpretationId: string, name: string, parameters: Parameters, key: string) =>
+  command<Draft>('mechanical_proposal.create', { workspace_id: workspaceId, interpretation_id: interpretationId, name, parameters }, { idempotencyKey: key });
 export const updateDraft = (draftId: string, parameters: Parameters, state: string, key: string) =>
   command<Draft>('mechanical_proposal.update', { draft_id: draftId, parameters }, { expectedState: state, idempotencyKey: key });
 export const retainDraft = (draftId: string, state: string, key: string) =>

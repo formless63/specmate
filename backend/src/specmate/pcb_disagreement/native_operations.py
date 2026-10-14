@@ -15,7 +15,7 @@ from specmate.builds.recipes import Recipe, approved_recipe
 from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import workspace_scope
+from specmate.operations.scope import WorkspaceProjectPayload, workspace_scope
 from specmate.pcb_disagreement.contracts import FilePin
 from specmate.pcb_disagreement.models import SourceNetAttempt, SourceNetInterpretation
 from specmate.pcb_disagreement.native_report import NativeReport
@@ -25,8 +25,7 @@ from specmate.queries import get_bundle_revision
 from specmate.sources import blobstore
 
 
-class RequestNative(StrictModel):
-    project_id: UUID
+class RequestNative(StrictModel, WorkspaceProjectPayload):
     source: FilePin
     source_role: Literal["schematic", "netlist"]
     recipe_id: str = Field(min_length=1, max_length=128)
@@ -41,14 +40,12 @@ class ReadNative(StrictModel):
 
 
 def authorize_bundle(user, revision_id):
-    revision = get_bundle_revision(user, revision_id)
-    for file in revision.files.select_related("blob"):
-        authorize(user, file.blob.workspace_id, Perm.WORKSPACE_READ)
-    return revision
+    """The revision after a fresh workspace check; its blobs share that workspace."""
+    return get_bundle_revision(user, revision_id)
 
 
 def request_source(ctx, p):
-    workspace = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
+    workspace = authorize(ctx.user, p.scope_id, Perm.BUILD_EXECUTE)
     revision = authorize_bundle(ctx.user, p.source.source_revision_id)
     if revision.bundle.workspace_id != workspace.id:
         raise ValidationFailed("Native extraction workspace must hold the source revision.")
@@ -68,10 +65,8 @@ def scoped_attempt(user, attempt_id, permission=Perm.WORKSPACE_READ):
     if attempt is None:
         raise NotFound("Source net extraction attempt unavailable.")
     authorize(user, attempt.build.workspace_id, permission)
-    authorize_bundle(user, attempt.source_file.revision_id)
-    authorize_bundle(user, attempt.build.source_revision_id)
-    for output in attempt.build.stage.outputs.select_related("source_revision__bundle"):
-        authorize_bundle(user, output.source_revision_id)
+    if attempt.source_file.revision.bundle.workspace_id != attempt.build.workspace_id:
+        raise NotFound("Source net extraction attempt unavailable.")
     return attempt
 
 
@@ -88,7 +83,6 @@ def scoped_interpretation(user, interpretation_id):
     scoped_attempt(user, item.attempt_id)
     for output in (item.output, item.xml_output):
         authorize(user, output.stage.build.workspace_id, Perm.WORKSPACE_READ)
-        authorize_bundle(user, output.source_revision_id)
     return item
 
 
@@ -123,7 +117,7 @@ def check_recipe(file, role, recipe):
 def scope(ctx, p):
     if isinstance(p, RequestNative):
         request_source(ctx, p)
-        namespace = workspace_scope(ctx, p.project_id, Perm.BUILD_EXECUTE)
+        namespace = workspace_scope(ctx, p.scope_id, Perm.BUILD_EXECUTE)
         name = "pcb_disagreement.request_native"
     else:
         attempt = scoped_attempt(ctx.user, p.attempt_id, Perm.SOURCE_REGISTER)
@@ -182,6 +176,7 @@ def request_native(ctx, p):
     result = request_build(
         ctx,
         RequestBuild(
+            workspace_id=p.workspace_id,
             project_id=p.project_id,
             source_revision_id=p.source.source_revision_id,
             recipe_id=p.recipe_id,
@@ -289,16 +284,13 @@ def read_native(ctx, p):
     return interpretation_result(scoped_interpretation(ctx.user, p.interpretation_id))
 
 
-def list_native(user, project_id):
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+def list_native(user, workspace_id):
+    workspace = authorize(user, workspace_id, Perm.WORKSPACE_READ)
     results = []
     for attempt in SourceNetAttempt.objects.filter(build__workspace=workspace).order_by(
         "-created_at"
     )[:100]:
-        try:
-            attempt = scoped_attempt(user, attempt.id)
-        except NotFound:
-            continue
+        attempt = scoped_attempt(user, attempt.id)
         item = SourceNetInterpretation.objects.filter(attempt=attempt).first()
         results.append(
             {

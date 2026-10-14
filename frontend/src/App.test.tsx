@@ -114,7 +114,7 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
   openTool("PCB intake");
   await screen.findByRole("heading", { name: "PCB intake" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/projects/project-a/intakes", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/project-a/intakes", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
   openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });

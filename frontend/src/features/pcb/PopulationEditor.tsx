@@ -11,7 +11,7 @@ import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = {
-  projectId: string; intake: Intake; drafts: PopulationDraft[];
+  workspaceId: string; intake: Intake; drafts: PopulationDraft[];
   permissions?: string[]; onChanged: () => void; onAccessLost: (reason: unknown) => void;
 };
 
@@ -29,7 +29,7 @@ function errorText(reason: unknown) {
   return reason instanceof Error ? reason.message : "PCB population request failed.";
 }
 
-export function PopulationEditor({ projectId, intake, drafts, permissions, onChanged, onAccessLost }: Props) {
+export function PopulationEditor({ workspaceId, intake, drafts, permissions, onChanged, onAccessLost }: Props) {
   const accessLost = useRef(onAccessLost);
   accessLost.current = onAccessLost;
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
     let sequence = 0;
     const refresh = () => {
       const current = ++sequence;
-      associationTargets(projectId, controller.signal).then((result) => {
+      associationTargets(workspaceId, controller.signal).then((result) => {
         if (!controller.signal.aborted && current === sequence) setTargets(result);
       }).catch((reason) => {
         if (!controller.signal.aborted && current === sequence) {
@@ -67,7 +67,7 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
     refresh();
     window.addEventListener("focus", refresh);
     return () => { controller.abort(); window.removeEventListener("focus", refresh); };
-  }, [projectId]);
+  }, [workspaceId]);
 
   async function work(action: () => Promise<void>): Promise<boolean> {
     setBusy(true); setError("");

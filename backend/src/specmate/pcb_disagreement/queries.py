@@ -437,8 +437,6 @@ def source_files(user, revision_id):
 
     revision = get_bundle_revision(user, revision_id)
     files = list(revision.files.select_related("blob"))
-    for file in files:
-        authorize(user, file.blob.workspace_id, Perm.WORKSPACE_READ)
     return {
         "source_revision_id": str(revision.id),
         "manifest_sha256": revision.manifest_sha256,

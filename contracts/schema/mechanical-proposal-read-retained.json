@@ -1,7 +1,12 @@
 {
   "additionalProperties": false,
   "properties": {
-    "project_id": {
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "workspace_id": {
       "anyOf": [
         {
           "format": "uuid",
@@ -12,12 +17,7 @@
         }
       ],
       "default": null,
-      "title": "Project Id"
-    },
-    "revision_id": {
-      "format": "uuid",
-      "title": "Revision Id",
-      "type": "string"
+      "title": "Workspace Id"
     }
   },
   "required": [

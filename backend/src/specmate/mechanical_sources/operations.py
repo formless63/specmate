@@ -416,7 +416,7 @@ def _scope_inputs(ctx, payload, permission):
 
     user = current_actor(ctx.user)
     if isinstance(payload, CreateMechanicalSource):
-        workspace = authorize(user, payload.project_id, permission)
+        workspace = authorize(user, payload.scope_id, permission)
         definition = Definition(workspace=workspace, kind=KIND)
         contents = []
     else:
@@ -496,14 +496,15 @@ def _scope(name, permission=Perm.DESIGN_EDIT):
     "mechanical_source.create",
     CreateMechanicalSource,
     summary="Create reusable mechanical source declarations with exact source/target/model pins.",
-    idempotency_scope=_scope("mechanical_source.create"),
-    authorize_replay=_replay,
+    idempotency_scope=_scope("mechanical_source.create", Perm.ITEM_CREATE),
+    authorize_replay=lambda ctx, payload, stored: _replay(ctx, payload, stored, Perm.ITEM_CREATE),
 )
 def create(ctx: Context, payload: CreateMechanicalSource):
-    _scope_closure(ctx, payload, Perm.DESIGN_EDIT)
+    _scope_closure(ctx, payload, Perm.ITEM_CREATE)
     return create_definition(
         ctx,
         CreateDefinition(
+            workspace_id=payload.workspace_id,
             project_id=payload.project_id,
             kind=KIND,
             name=payload.name,

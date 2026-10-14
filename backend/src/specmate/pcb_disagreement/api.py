@@ -31,10 +31,10 @@ def sources(request, revision_id: UUID):
 
 
 @router.get("/native")
-def native_list(request, project_id: UUID):
+def native_list(request, workspace_id: UUID):
     from specmate.pcb_disagreement.native_operations import list_native
 
-    return list_native(request.user, project_id)
+    return list_native(request.user, workspace_id)
 
 
 @router.get("/native/{interpretation_id}")

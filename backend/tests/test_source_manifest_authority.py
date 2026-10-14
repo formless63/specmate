@@ -12,21 +12,21 @@ from specmate.operations import NotFound, Unauthenticated
 from specmate.queries import get_bundle_revision
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleFile, SourceBundleRevision
 
-from .conftest import ensure_member, op
+from .conftest import op
 from .test_sources import ORIGINAL, files, register
 
 
-def original(users, project):
-    register(users["owner"], project, ORIGINAL)
+def original(users, workspace):
+    register(users["owner"], workspace, ORIGINAL)
     return op(
         users["owner"],
         "source.create_original_bundle",
-        {"project_id": project, "name": "Manifest authority", "files": files(ORIGINAL)},
+        {"workspace_id": workspace, "name": "Manifest authority", "files": files(ORIGINAL)},
     )
 
 
-def test_manifest_exact_bytes_and_read_only_access(users, project):
-    source = original(users, project)
+def test_manifest_exact_bytes_and_read_only_access(users, workspace):
+    source = original(users, workspace)
     revision = get_bundle_revision(users["viewer"], UUID(source["revision_id"]))
     client = Client()
     client.force_login(users["viewer"])
@@ -38,8 +38,8 @@ def test_manifest_exact_bytes_and_read_only_access(users, project):
         get_bundle_revision(users["outsider"], revision.id)
 
 
-def test_retained_actor_cannot_read_manifest_after_deactivation(users, project):
-    source = original(users, project)
+def test_retained_actor_cannot_read_manifest_after_deactivation(users, workspace):
+    source = original(users, workspace)
     actor = users["viewer"]
     get_user_model().objects.filter(pk=actor.pk).update(is_active=False)
     assert actor.is_active
@@ -47,21 +47,18 @@ def test_retained_actor_cannot_read_manifest_after_deactivation(users, project):
         get_bundle_revision(actor, UUID(source["revision_id"]))
 
 
-def test_manifest_checks_valid_cross_project_ancestor_before_disclosure(users, project):
-    parent = original(users, project)
-    destination = op(users["owner"], "project.create", {"name": "Derivative project"})["project_id"]
-    ensure_member(users["viewer"], "viewer", project=destination)
+def test_manifest_of_derivative_with_ancestor_is_disclosed_only_to_members(users, workspace):
+    parent = original(users, workspace)
     bundle = SourceBundle.objects.create(
-        project_id=destination,
-        name="Cross-project derivative",
+        workspace_id=workspace,
+        name="Same-workspace derivative",
         role="derivative",
         derived_from_id=parent["revision_id"],
         created_by=users["owner"],
     )
     revision = SourceBundleRevision(bundle=bundle, number=1, created_by=users["owner"])
-    register(users["owner"], destination, ORIGINAL)
     blob = SourceBlob.objects.get(
-        project_id=destination, sha256=hashlib.sha256(ORIGINAL).hexdigest()
+        workspace_id=workspace, sha256=hashlib.sha256(ORIGINAL).hexdigest()
     )
     manifest = SourceBundleManifest(
         bundle_id=str(bundle.id),
@@ -84,7 +81,7 @@ def test_manifest_checks_valid_cross_project_ancestor_before_disclosure(users, p
     client.force_login(users["viewer"])
     url = f"/api/v0/bundle-revisions/{revision.id}/manifest"
     assert client.get(url).content == data
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         get_bundle_revision(users["viewer"], revision.id)
     response = client.get(url)
@@ -92,3 +89,14 @@ def test_manifest_checks_valid_cross_project_ancestor_before_disclosure(users, p
     assert data not in response.content
     revision.refresh_from_db()
     assert bytes(revision.manifest) == data
+
+
+def test_derivative_of_a_foreign_workspace_source_is_not_found(users, workspace, other_workspace):
+    parent = original(users, workspace)
+    with pytest.raises(NotFound):
+        op(
+            users["outsider"],
+            "source.derive_bundle",
+            {"source_revision_id": parent["revision_id"], "name": "Foreign derivative"},
+        )
+    assert not SourceBundle.objects.filter(workspace_id=other_workspace).exists()

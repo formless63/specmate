@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from specmate.contracts import SHA256, check_package_path
+from specmate.operations.scope import WorkspacePayload
 
 KIND = "mechanical_source"
 KEY = "mechanical_source"
@@ -235,8 +236,7 @@ class MechanicalSource(Strict):
         return self
 
 
-class CreateMechanicalSource(Strict):
-    project_id: UUID
+class CreateMechanicalSource(Strict, WorkspacePayload):
     name: str = Field(min_length=1, max_length=200)
     mechanical_source: MechanicalSource
 

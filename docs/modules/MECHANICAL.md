@@ -21,10 +21,11 @@ or collision-free approximate mesh does not prove fit/printability.
 produce reviewable drafts for an enclosure outline, mounting bosses with lid fastener
 holes, wall connector openings, lid/floor vent slot grids and cable-guide post pairs.
 A draft pins one accepted native board interpretation (`pcb.accept_extraction`) in its
-own project and holds declared parameters under compare-and-set (`proposal-v<N>`).
+own workspace and holds declared parameters under compare-and-set (`proposal-v<N>`).
 The proposal is regenerated deterministically from the pinned report on every read,
-after fresh project and board-source authority; nothing is stored that could drift from
-its inputs. Edit authority is `design.edit`; reads need project read.
+after fresh workspace membership; nothing is stored that could drift from
+its inputs. Creating a draft needs `item.create`; editing needs `design.edit` (contributors may edit drafts they
+created). Reads need workspace read and use `/api/v0/mechanical-proposals/workspaces/{id}/...`.
 
 Every numeric declaration is nullable and nothing is defaulted. An unknown wall,
 clearance, boss or pilot diameter, standoff, lid hole, connector envelope, centreline

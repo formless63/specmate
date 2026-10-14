@@ -47,7 +47,7 @@ function setup(responses: Response[], canWrite = true) {
   const onSubmitted = vi.fn(async () => {});
   const onAuthorityFailure = vi.fn();
   function Harness() {
-    return <MantineProvider><EditHandoff projectId="project-a" detail={detail} canWrite={canWrite} busy={false} setBusy={() => {}} onAuthorityFailure={onAuthorityFailure} onSubmitted={onSubmitted} /></MantineProvider>;
+    return <MantineProvider><EditHandoff workspaceId="project-a" detail={detail} canWrite={canWrite} busy={false} setBusy={() => {}} onAuthorityFailure={onAuthorityFailure} onSubmitted={onSubmitted} /></MantineProvider>;
   }
   render(<Harness />);
   return { bodies, preserved, onSubmitted, onAuthorityFailure };

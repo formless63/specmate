@@ -13,7 +13,7 @@ from specmate.mechanical_sources.api import list_targets
 from specmate.operations import NotFound, Unauthenticated
 from specmate.queries import get_revision
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
 from .test_bom import assembly, part
 from .test_mechanical_sources import create, mec_target
 from .test_shared_read_authority import adopt_with_remote_origin, restore, revoke
@@ -35,11 +35,11 @@ def expected_row(revision):
     }
 
 
-def test_repeated_choice_closures_keep_exact_rows_with_less_query_work(users, project):
-    leaf = part(users["owner"], project, "Original shared choice leaf")
-    branch = assembly(users["owner"], project, [("leaf", leaf)])
+def test_repeated_choice_closures_keep_exact_rows_with_less_query_work(users, workspace):
+    leaf = part(users["owner"], workspace, "Original shared choice leaf")
+    branch = assembly(users["owner"], workspace, [("leaf", leaf)])
     for index in range(12):
-        assembly(users["owner"], project, [(f"use-{index}", branch)])
+        assembly(users["owner"], workspace, [(f"use-{index}", branch)])
     revisions = list(Revision.objects.select_related("definition", "snapshot").order_by("id"))
     expected = {"targets": [expected_row(r) for r in revisions], "next_after": None}
     actor = users["viewer"]
@@ -47,70 +47,71 @@ def test_repeated_choice_closures_keep_exact_rows_with_less_query_work(users, pr
     with CaptureQueriesContext(connection) as prior:
         assert [expected_row(get_revision(actor, r.id)) for r in revisions] == expected["targets"]
     with CaptureQueriesContext(connection) as current:
-        actual = list_targets(SimpleNamespace(user=actor), UUID(project), after=None)
+        actual = list_targets(SimpleNamespace(user=actor), UUID(workspace), after=None)
     assert actual == expected
     assert len(current) < len(prior)
     assert (
-        api(actor).get(f"/api/v0/mechanical-sources/projects/{project}/targets").json() == expected
+        api(actor).get(f"/api/v0/mechanical-sources/workspaces/{workspace}/targets").json()
+        == expected
     )
 
 
-def test_choice_pagination_keeps_exact_fifty_row_boundary(users, project):
+def test_choice_pagination_keeps_exact_fifty_row_boundary(users, workspace):
     for index in range(53):
-        part(users["owner"], project, f"Original choice {index}")
+        part(users["owner"], workspace, f"Original choice {index}")
     revisions = list(Revision.objects.select_related("definition", "snapshot").order_by("id"))
     request = SimpleNamespace(user=users["viewer"])
-    first = list_targets(request, UUID(project), after=None)
+    first = list_targets(request, UUID(workspace), after=None)
     assert first == {
         "targets": [expected_row(r) for r in revisions[:50]],
         "next_after": str(revisions[49].id),
     }
-    assert list_targets(request, UUID(project), after=UUID(first["next_after"])) == {
+    assert list_targets(request, UUID(workspace), after=UUID(first["next_after"])) == {
         "targets": [expected_row(r) for r in revisions[50:]],
         "next_after": None,
     }
 
 
-def test_completed_choice_call_never_retains_catalog_authority(users, project):
-    original = assembly(users["owner"], project, [])
-    remote, _, _ = adopt_with_remote_origin(users, project, original)
+def test_completed_choice_call_never_retains_catalog_authority(users, workspace):
+    original = assembly(users["owner"], workspace, [])
+    remote, _, _ = adopt_with_remote_origin(users, workspace, original)
     request = SimpleNamespace(user=users["viewer"])
-    before = list_targets(request, UUID(project), after=None)
+    before = list_targets(request, UUID(workspace), after=None)
     client = api(users["viewer"])
     revoke(users, remote)
     with pytest.raises(NotFound):
-        list_targets(request, UUID(project), after=None)
-    assert client.get(f"/api/v0/mechanical-sources/projects/{project}/targets").status_code == 404
+        list_targets(request, UUID(workspace), after=None)
+    assert (
+        client.get(f"/api/v0/mechanical-sources/workspaces/{workspace}/targets").status_code == 404
+    )
     restore(users, remote)
-    assert list_targets(request, UUID(project), after=None) == before
+    assert list_targets(request, UUID(workspace), after=None) == before
 
 
-def test_choice_call_refreshes_captured_actor(users, project):
-    part(users["owner"], project, "Original captured-actor choice")
+def test_choice_call_refreshes_captured_actor(users, workspace):
+    part(users["owner"], workspace, "Original captured-actor choice")
     actor = users["viewer"]
     request = SimpleNamespace(user=actor)
-    before = list_targets(request, UUID(project), after=None)
+    before = list_targets(request, UUID(workspace), after=None)
     get_user_model().objects.filter(pk=actor.pk).update(is_active=False)
     assert actor.is_active
     with pytest.raises(Unauthenticated):
-        list_targets(request, UUID(project), after=None)
+        list_targets(request, UUID(workspace), after=None)
     get_user_model().objects.filter(pk=actor.pk).update(is_active=True)
-    assert list_targets(request, UUID(project), after=None) == before
+    assert list_targets(request, UUID(workspace), after=None) == before
 
 
-def test_registered_source_revocation_is_fresh_for_every_choice_call(users, project):
-    remote = op(users["owner"], "project.create", {"name": "Original choice source"})["project_id"]
-    ensure_member(users["viewer"], "viewer", project=remote)
-    register(users["owner"], remote, ORIGINAL)
+def test_membership_loss_is_fresh_for_every_choice_call(users, workspace):
+    register(users["owner"], workspace, ORIGINAL)
     source = op(
         users["owner"],
         "source.create_original_bundle",
-        {"project_id": remote, "name": "Preserved choice input", "files": files(ORIGINAL)},
+        {"workspace_id": workspace, "name": "Preserved choice input", "files": files(ORIGINAL)},
     )
-    target = mec_target.__wrapped__(users, project)
+    target = mec_target.__wrapped__(users, workspace)
     draft = create(
         users["owner"],
-        project,
+        workspace,
         {
             "item_role": "hardware",
             "sources": [
@@ -149,10 +150,10 @@ def test_registered_source_revocation_is_fresh_for_every_choice_call(users, proj
         expected_state=draft["state"],
     )
     request = SimpleNamespace(user=users["viewer"])
-    before = list_targets(request, UUID(project), after=None)
+    before = list_targets(request, UUID(workspace), after=None)
     assert frozen["revision_id"] in {r["revision_id"] for r in before["targets"]}
-    revoke(users, remote)
+    remove_member(users["viewer"])
     with pytest.raises(NotFound):
-        list_targets(request, UUID(project), after=None)
-    restore(users, remote)
-    assert list_targets(request, UUID(project), after=None) == before
+        list_targets(request, UUID(workspace), after=None)
+    member(users["viewer"], "viewer")
+    assert list_targets(request, UUID(workspace), after=None) == before

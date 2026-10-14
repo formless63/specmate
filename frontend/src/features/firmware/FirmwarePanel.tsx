@@ -29,13 +29,13 @@ export function FirmwareEvaluation({ read }: { read: FirmwareRead }) {
   </Stack>;
 }
 
-type FirmwarePanelProps = { projectId: string; permissions?: string[]; onAccessLost?: () => void };
+type FirmwarePanelProps = { workspaceId: string; permissions?: string[]; onAccessLost?: () => void };
 
 export function FirmwarePanel(props: FirmwarePanelProps) {
-  return <FirmwareWorkspace key={props.projectId} {...props} />;
+  return <FirmwareWorkspace key={props.workspaceId} {...props} />;
 }
 
-function FirmwareWorkspace({ projectId, permissions, onAccessLost }: FirmwarePanelProps) {
+function FirmwareWorkspace({ workspaceId, permissions, onAccessLost }: FirmwarePanelProps) {
   const canEdit = !permissions || permissions.includes('design.edit');
   const canFreeze = !permissions || permissions.includes('design.freeze');
   const [shown, setShown] = useState(false);
@@ -89,9 +89,9 @@ function FirmwareWorkspace({ projectId, permissions, onAccessLost }: FirmwarePan
     const stillCurrent = () => active(token) && requestId === refreshRequest.current;
     try {
       const [firmware, available, sources, retained] = await Promise.all([
-        request<{ firmware: FirmwareSummary[] }>(`pcb/projects/${projectId}/firmware`),
-        request<{ targets: TargetSummary[] }>(`pcb/projects/${projectId}/firmware-targets`),
-        request<SourcePage>(`sources/projects/${projectId}/revisions`),
+        request<{ firmware: FirmwareSummary[] }>(`pcb/workspaces/${workspaceId}/firmware`),
+        request<{ targets: TargetSummary[] }>(`pcb/workspaces/${workspaceId}/firmware-targets`),
+        request<SourcePage>(`sources/workspaces/${workspaceId}/revisions`),
         checkRetainedAccess(),
       ]);
       if (!stillCurrent()) return false;
@@ -158,7 +158,7 @@ function FirmwareWorkspace({ projectId, permissions, onAccessLost }: FirmwarePan
         await command('firmware.update', { draft_id: current.draft_id, firmware: form }, { expectedState: current.state });
         if (active(token)) await open(`pcb/firmware-drafts/${current.draft_id}`);
       } else {
-        const created = await command<{ draft_id: string }>('firmware.create', { project_id: projectId, name: name.trim(), firmware: form });
+        const created = await command<{ draft_id: string }>('firmware.create', { workspace_id: workspaceId, name: name.trim(), firmware: form });
         if (!active(token) || !await refresh() || !active(token)) return;
         await open(`pcb/firmware-drafts/${created.draft_id}`);
       }

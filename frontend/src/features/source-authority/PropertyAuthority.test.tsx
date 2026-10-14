@@ -22,7 +22,7 @@ const wider: Candidate = {
 };
 function authority(overrides: Partial<Authority> = {}): Authority {
   return {
-    authority_id: 'authority-1', project_id: 'project-a', property: 'pcb.board_outline', extractor: 'kicad-intake-v1', state: 'authority-v2', version: 2,
+    authority_id: 'authority-1', workspace_id: 'project-a', property: 'pcb.board_outline', extractor: 'kicad-intake-v1', state: 'authority-v2', version: 2,
     basis: 'Edge.Cuts in native board', lineage_root_bundle_id: 'root',
     owner: { bundle_id: 'bundle-1', name: 'Working board', role: 'derivative', path: 'board.kicad_pcb', head_revision_id: 'rev-2', head_number: 2,
       head_manifest_sha256: 'manifest-2', head_file_sha256: 'board-hash-2', head_file_rights: 'synthetic', head_file_present: true, editable: true,
@@ -52,7 +52,7 @@ function setup(reads: Authority[], commands: Response[] = [], canWrite = true, c
   vi.stubGlobal('fetch', fetchMock);
   const onOpenRevision = vi.fn();
   const onAuthorityFailure = vi.fn();
-  const view = render(<MantineProvider><PropertyAuthorityPanel projectId="project-a" canWrite={canWrite} detail={currentDetail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
+  const view = render(<MantineProvider><PropertyAuthorityPanel workspaceId="project-a" canWrite={canWrite} detail={currentDetail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
   return { bodies, fetchMock, onOpenRevision, onAuthorityFailure, view };
 }
 async function openAuthority() {
@@ -182,7 +182,7 @@ test('source replacement fences mutation success and preserves the new review ba
   fetchMock.mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
   fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'Old context' } });
   fireEvent.click(screen.getByRole('button', { name: 'Reconcile projection to interpretation interp-2' }));
-  view.rerender(<MantineProvider><PropertyAuthorityPanel projectId="project-a" canWrite detail={{ ...detail, revision_id: 'replacement' }} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
+  view.rerender(<MantineProvider><PropertyAuthorityPanel workspaceId="project-a" canWrite detail={{ ...detail, revision_id: 'replacement' }} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
   fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'New context review' } });
   const before = fetchMock.mock.calls.length;
   await act(async () => finish(reply({ result: { authority_id: 'authority-1' } })));
@@ -206,7 +206,7 @@ test('same-source later history selection does not suppress an earlier relevant 
 test('StrictMode setup remains active for successful reads', async () => {
   const { view, onOpenRevision, onAuthorityFailure } = setup([authority()]);
   view.unmount();
-  render(<StrictMode><MantineProvider><PropertyAuthorityPanel projectId="project-a" canWrite detail={detail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider></StrictMode>);
+  render(<StrictMode><MantineProvider><PropertyAuthorityPanel workspaceId="project-a" canWrite detail={detail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider></StrictMode>);
   await openAuthority();
   expect(screen.getByText('Board outline authority')).toBeTruthy();
 });

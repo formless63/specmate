@@ -28,12 +28,12 @@ const proposal = (status: api.Proposal['status'] = 'incomplete'): api.Proposal =
   qualification: { physical: false, fit: 'not_evaluated', clearance: 'not_evaluated', printability: 'not_evaluated', manufacturing: 'not_evaluated' },
   board: { interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), source_revision_id: 'rev', source_sha256: 'b'.repeat(64), adapter: 'kicad-intake-v1', tool_version: '10.0.6' },
 });
-const draft = (over: Partial<api.Draft> = {}): api.Draft => ({ draft_id: 'draft-1', project_id: 'project-1', interpretation_id: 'board-1', name: 'Case', parameters: empty, version: 1, state: 'proposal-v1', proposal: proposal(), revisions: [], updated_at: '2026-01-01T00:00:00Z', ...over });
+const draft = (over: Partial<api.Draft> = {}): api.Draft => ({ draft_id: 'draft-1', workspace_id: 'project-1', interpretation_id: 'board-1', name: 'Case', parameters: empty, version: 1, state: 'proposal-v1', proposal: proposal(), revisions: [], updated_at: '2026-01-01T00:00:00Z', ...over });
 const inputs: api.BoardInputs = { interpretation_id: 'board-1', sha256: 'a'.repeat(64), units: 'mm', frame: 'KiCad absolute: x right, y down', outline_polygons: 1, cutouts: 0,
   holes: [{ pad_id: pad, position: [13, 13], drill: [3.2, 3.2], mounting_status: 'candidate-not-reviewed' }],
   components: [{ component_id: 'comp-1', reference: 'J1', value: 'Header', footprint: 'Header', position: [59, 25], side: 'front' }] };
 
-const view = (permissions?: string[], projectId = 'project-1') => render(<MantineProvider env="test"><PermissionsProvider permissions={permissions}><MechanicalProposalsPanel projectId={projectId} principalKey="actor-1" /></PermissionsProvider></MantineProvider>);
+const view = (permissions?: string[], workspaceId = 'project-1') => render(<MantineProvider env="test"><PermissionsProvider permissions={permissions}><MechanicalProposalsPanel workspaceId={workspaceId} principalKey="actor-1" /></PermissionsProvider></MantineProvider>);
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -106,8 +106,8 @@ test('losing access clears the draft, board identities and proposal', async () =
 
 test('retaining reads the exact retained record and labels it as a record, not a fit', async () => {
   const doc = proposal();
-  vi.mocked(api.retainDraft).mockResolvedValue({ revision_id: 'rev-1', draft_id: 'draft-1', project_id: 'project-1', number: 1, interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), generator: 'g', draft_version: 1, status: 'incomplete', sha256: 'c'.repeat(64), created_at: 'now' });
-  vi.mocked(api.readRetained).mockResolvedValue({ revision_id: 'rev-1', draft_id: 'draft-1', project_id: 'project-1', number: 1, interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), generator: 'g', draft_version: 1, status: 'incomplete', sha256: 'c'.repeat(64), created_at: 'now', document: { draft_id: 'draft-1', draft_name: 'Case', draft_version: 1, parameters: empty, proposal: doc } });
+  vi.mocked(api.retainDraft).mockResolvedValue({ revision_id: 'rev-1', draft_id: 'draft-1', workspace_id: 'project-1', number: 1, interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), generator: 'g', draft_version: 1, status: 'incomplete', sha256: 'c'.repeat(64), created_at: 'now' });
+  vi.mocked(api.readRetained).mockResolvedValue({ revision_id: 'rev-1', draft_id: 'draft-1', workspace_id: 'project-1', number: 1, interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), generator: 'g', draft_version: 1, status: 'incomplete', sha256: 'c'.repeat(64), created_at: 'now', document: { draft_id: 'draft-1', draft_name: 'Case', draft_version: 1, parameters: empty, proposal: doc } });
   view(['project.read', 'design.edit']); await open();
   fireEvent.click(screen.getByRole('button', { name: 'Retain proposal record' }));
   await screen.findByText('Retained record 1');

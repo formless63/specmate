@@ -179,7 +179,7 @@ def test_abandon_interrupted_without_cancellation_by_expired_credential(
     assert result["state"] == "failed"
 
 
-def test_abandon_authority_cas_validation_and_scope(users, project, build, credential, lease):
+def test_abandon_authority_cas_validation_and_scope(users, workspace, build, credential, lease):
     revoke(users, credential)
     with pytest.raises(PermissionDenied):
         abandon(users["viewer"], build)
@@ -191,7 +191,7 @@ def test_abandon_authority_cas_validation_and_scope(users, project, build, crede
         abandon(users["owner"], build, basis="   ")
     assert BuildStage.objects.get(id=lease["stage_id"]).receipt is None
     # An executing member who is not the requester may resolve it.
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="admin"
     )
     assert abandon(users["editor"], build)["state"] == "failed"
@@ -222,13 +222,13 @@ def test_abandon_idempotent_replay_mismatch_and_terminal_conflict(users, build, 
     assert StageEvent.objects.filter(stage=stage, kind="abandoned").count() == 1
 
 
-def test_abandon_replay_rechecks_current_authority(users, project, build, credential, lease):
+def test_abandon_replay_rechecks_current_authority(users, workspace, build, credential, lease):
     revoke(users, credential)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="admin"
     )
     first = abandon(users["editor"], build)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).delete()
     stage = BuildStage.objects.get(id=lease["stage_id"])
     with pytest.raises(NotFound):
         op(
@@ -339,7 +339,7 @@ def test_retry_cas_authority_key_and_scope(users, build, credential, lease):
 
 
 def test_retry_replay_returns_same_attempt_and_checks_current_authority(
-    users, project, build, credential, lease
+    users, workspace, build, credential, lease
 ):
     failed_build(users, build, credential, lease)
     first = retry(users["owner"], build)
@@ -353,7 +353,7 @@ def test_retry_replay_returns_same_attempt_and_checks_current_authority(
             expected_state="stage-v1",
             idempotency_key="retry-1",
         )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["owner"]).update(
         role="viewer"
     )
     with pytest.raises(PermissionDenied):
@@ -408,7 +408,7 @@ def test_database_refuses_self_and_duplicate_retry_links(users, build, credentia
     with pytest.raises(IntegrityError), transaction.atomic():
         BuildAttempt.objects.create(
             id=own,
-            project=original.project,
+            workspace_id=original.workspace_id,
             requested_by=original.requested_by,
             source_revision=original.source_revision,
             recipe_id=original.recipe_id,
@@ -418,7 +418,7 @@ def test_database_refuses_self_and_duplicate_retry_links(users, build, credentia
         )
     with pytest.raises(IntegrityError), transaction.atomic():
         BuildAttempt.objects.create(
-            project=original.project,
+            workspace_id=original.workspace_id,
             requested_by=original.requested_by,
             source_revision=original.source_revision,
             recipe_id=original.recipe_id,
@@ -482,12 +482,12 @@ def test_history_flags_resolution_actions_for_unavailable_runner(users, build, c
     assert pending["cancel_available"] is False and pending["retry_available"] is False
 
 
-def test_history_and_list_are_project_scoped(users, build, project):
+def test_history_and_list_are_project_scoped(users, build, workspace):
     with pytest.raises(NotFound):
         op(users["outsider"], "build.history", {"build_id": build["build_id"]})
     with pytest.raises(NotFound):
-        op(users["outsider"], "build.list", {"project_id": project})
-    listing = op(users["viewer"], "build.list", {"project_id": project})
+        op(users["outsider"], "build.list", {"workspace_id": workspace})
+    listing = op(users["viewer"], "build.list", {"workspace_id": workspace})
     assert [b["build_id"] for b in listing["builds"]] == [build["build_id"]]
     assert listing["builds"][0]["retry_of"] is None and listing["truncated"] is False
     with pytest.raises(NotFound):
@@ -495,11 +495,11 @@ def test_history_and_list_are_project_scoped(users, build, project):
 
 
 def test_list_orders_newest_first_and_excludes_compiler_recipes(
-    users, build, credential, lease, project
+    users, build, credential, lease, workspace
 ):
     failed_build(users, build, credential, lease)
     second = retry(users["owner"], build)
-    listing = op(users["viewer"], "build.list", {"project_id": project})["builds"]
+    listing = op(users["viewer"], "build.list", {"workspace_id": workspace})["builds"]
     assert [b["build_id"] for b in listing] == [second["build_id"], build["build_id"]]
     assert listing[0]["retry_of"] == build["build_id"]
 

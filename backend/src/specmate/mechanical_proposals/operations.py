@@ -12,7 +12,7 @@ import json
 from django.db import IntegrityError, transaction
 from pydantic import ValidationError as PydanticValidationError
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, authorize_item
 from specmate.catalog_matching.queries import current_actor
 from specmate.mechanical_proposals.contracts import (
     GENERATOR,
@@ -48,10 +48,9 @@ def state_token(draft) -> str:
 # ---------------------------------------------------------------- authority
 
 
-def board_report(user, scope_id, interpretation_id):
+def board_report(user, workspace_id, interpretation_id):
     """Fresh authority over the exact accepted board interpretation, then its report."""
-    # scope_id is a workspace id or (transitionally) a payload project id.
-    workspace_id = authorize(user, scope_id, Perm.WORKSPACE_READ).id
+    workspace_id = authorize(user, workspace_id, Perm.WORKSPACE_READ).id
     interpretation = scoped_interpretation(user, workspace_id, interpretation_id)
     authorize_revision(user, interpretation.attempt.intake.source_revision, Perm.WORKSPACE_READ)
     try:
@@ -69,13 +68,14 @@ def authorized_draft(user, draft_id, permission=Perm.WORKSPACE_READ, lock=False)
     draft = (query.select_for_update(of=("self",)) if lock else query).filter(id=draft_id).first()
     if draft is None:
         raise NotFound("Proposal draft not found.")
-    authorize(user, draft.workspace_id, permission)
+    # Contributors may edit drafts they created; every other permission is role-held.
+    authorize_item(user, draft, permission)
     board_report(user, draft.workspace_id, draft.interpretation_id)
     return draft
 
 
-def compute(user, project_id, interpretation_id, parameters: Parameters):
-    interpretation, report = board_report(user, project_id, interpretation_id)
+def compute(user, workspace_id, interpretation_id, parameters: Parameters):
+    interpretation, report = board_report(user, workspace_id, interpretation_id)
     try:
         proposal = generate(report, parameters)
     except UnknownReference as exc:
@@ -116,13 +116,13 @@ def draft_view(user, draft):
     }
 
 
-def revision_record(user, revision_id, scope_id=None):
+def revision_record(user, revision_id, workspace_id=None):
     user = current_actor(user)
     query = ProposalRevision.objects.select_related("interpretation")
     revision = query.filter(id=revision_id).first()
     if revision is None or (
-        scope_id is not None
-        and str(revision.workspace_id) != str(authorize(user, scope_id, Perm.WORKSPACE_READ).id)
+        workspace_id is not None
+        and str(revision.workspace_id) != str(authorize(user, workspace_id, Perm.WORKSPACE_READ).id)
     ):
         raise NotFound("Retained proposal not found.")
     authorize(user, revision.workspace_id, Perm.WORKSPACE_READ)
@@ -157,8 +157,8 @@ def revision_view(revision, with_proposal=True):
 
 def create_scope(ctx, p: CreateProposal):
     user = current_actor(ctx.user)
-    scope = workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
-    board_report(user, p.project_id, p.interpretation_id)
+    scope = workspace_scope(ctx, p.scope_id, Perm.ITEM_CREATE)
+    board_report(user, scope.removeprefix("workspace:"), p.interpretation_id)
     return scope
 
 
@@ -169,7 +169,7 @@ def draft_scope(ctx, p):
 
 def create_replay(ctx, p, stored):
     create_scope(ctx, p)
-    authorized_draft(ctx.user, stored["draft_id"], Perm.DESIGN_EDIT)
+    authorized_draft(ctx.user, stored["draft_id"], Perm.WORKSPACE_READ)
 
 
 def draft_replay(ctx, p, stored):
@@ -188,7 +188,7 @@ def draft_replay(ctx, p, stored):
 )
 def create(ctx: Context, p: CreateProposal):
     user = current_actor(ctx.user)
-    workspace = authorize(user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(user, p.scope_id, Perm.ITEM_CREATE)
     compute(user, workspace.id, p.interpretation_id, p.parameters)  # validates references
     draft = ProposalDraft.objects.create(
         workspace=workspace,
@@ -299,25 +299,23 @@ def read(ctx: Context, p: DraftRef):
     supports_idempotency=False,
 )
 def read_retained(ctx: Context, p: RetainedRef):
-    return revision_view(revision_record(ctx.user, p.revision_id, p.project_id))
+    return revision_view(revision_record(ctx.user, p.revision_id, p.workspace_id))
 
 
 @operation(
     "mechanical_proposal.list",
     ListProposals,
-    summary="List proposal drafts in a project, fully reauthorized before names escape.",
+    summary="List proposal drafts in a workspace, reauthorized before names escape.",
     supports_idempotency=False,
 )
 def list_proposals(ctx: Context, p: ListProposals):
     user = current_actor(ctx.user)
-    workspace = authorize(user, p.project_id, Perm.WORKSPACE_READ)
+    workspace = authorize(user, p.workspace_id, Perm.WORKSPACE_READ)
     drafts = list(
         ProposalDraft.objects.filter(workspace=workspace).order_by("-created_at", "id")[
             : LIST_LIMIT + 1
         ]
     )
-    for draft in drafts[:LIST_LIMIT]:
-        board_report(user, draft.workspace_id, draft.interpretation_id)
     return {
         "truncated": len(drafts) > LIST_LIMIT,
         "drafts": [
@@ -338,18 +336,18 @@ def list_proposals(ctx: Context, p: ListProposals):
 @operation(
     "mechanical_proposal.board_choices",
     ListProposals,
-    summary="List accepted board interpretations that can drive a proposal in a project.",
+    summary="List accepted board interpretations that can drive a proposal in a workspace.",
     supports_idempotency=False,
 )
 def board_choices(ctx: Context, p: ListProposals):
     user = current_actor(ctx.user)
-    workspace = authorize(user, p.project_id, Perm.WORKSPACE_READ)
+    workspace = authorize(user, p.workspace_id, Perm.WORKSPACE_READ)
     rows = []
     query = PcbInterpretation.objects.select_related("attempt__intake__source_revision").filter(
         attempt__intake__source_revision__bundle__workspace=workspace
     )
     for interpretation in query.order_by("-created_at", "id")[:LIST_LIMIT]:
-        _, report = board_report(user, p.project_id, interpretation.id)
+        _, report = board_report(user, workspace.id, interpretation.id)
         rows.append(
             {
                 "interpretation_id": str(interpretation.id),
@@ -373,7 +371,7 @@ def board_choices(ctx: Context, p: ListProposals):
 )
 def board_inputs(ctx: Context, p: BoardInputs):
     user = current_actor(ctx.user)
-    interpretation, report = board_report(user, p.project_id, p.interpretation_id)
+    interpretation, report = board_report(user, p.workspace_id, p.interpretation_id)
     return {
         "interpretation_id": str(interpretation.id),
         "sha256": interpretation.sha256,

@@ -28,12 +28,12 @@ from .test_pcb import BOARD, digest, recipe, source, successful_output  # noqa: 
 
 
 @pytest.fixture
-def board(users, project, source, recipe):  # noqa: F811
+def board(users, workspace, source, recipe):  # noqa: F811
     intake = op(
         users["editor"],
         "pcb.register_intake",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "source_revision_id": source["revision_id"],
             "board_path": "board.kicad_pcb",
         },
@@ -50,12 +50,12 @@ def board(users, project, source, recipe):  # noqa: F811
     return op(users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
 
 
-def create(user, project, board, parameters=None, name="Enclosure proposal", **ctx):
+def create(user, workspace, board, parameters=None, name="Enclosure proposal", **ctx):
     return op(
         user,
         "mechanical_proposal.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "interpretation_id": board["interpretation_id"],
             "name": name,
             "parameters": parameters or {},
@@ -74,7 +74,7 @@ def update(user, draft, parameters, **ctx):
     )
 
 
-def test_create_read_update_retain_flow_never_touches_design_state(users, project, board):
+def test_create_read_update_retain_flow_never_touches_design_state(users, workspace, board):
     from specmate.design.models import Definition, Draft, Revision, Snapshot
 
     before = (
@@ -84,7 +84,7 @@ def test_create_read_update_retain_flow_never_touches_design_state(users, projec
         Snapshot.objects.count(),
     )
     editor = users["editor"]
-    draft = create(editor, project, board)
+    draft = create(editor, workspace, board)
     assert draft["state"] == "proposal-v1"
     assert draft["proposal"]["status"] == "incomplete"
     assert draft["proposal"]["board"]["interpretation_sha256"] == board["sha256"]
@@ -104,7 +104,7 @@ def test_create_read_update_retain_flow_never_touches_design_state(users, projec
     exact = op(
         users["viewer"],
         "mechanical_proposal.read_retained",
-        {"revision_id": retained["revision_id"], "project_id": project},
+        {"revision_id": retained["revision_id"], "workspace_id": workspace},
     )
     assert exact["document"]["proposal"] == updated["proposal"]
     assert exact["document"]["draft_version"] == 2
@@ -116,8 +116,8 @@ def test_create_read_update_retain_flow_never_touches_design_state(users, projec
     ) == before
 
 
-def test_incomplete_proposal_can_be_retained_without_becoming_complete(users, project, board):
-    draft = create(users["editor"], project, board)
+def test_incomplete_proposal_can_be_retained_without_becoming_complete(users, workspace, board):
+    draft = create(users["editor"], workspace, board)
     retained = op(
         users["editor"],
         "mechanical_proposal.retain",
@@ -133,9 +133,9 @@ def test_incomplete_proposal_can_be_retained_without_becoming_complete(users, pr
     assert document["unresolved"] and document["qualification"]["physical"] is False
 
 
-def test_retained_revisions_are_content_addressed_and_numbered(users, project, board):
+def test_retained_revisions_are_content_addressed_and_numbered(users, workspace, board):
     editor = users["editor"]
-    draft = create(editor, project, board)
+    draft = create(editor, workspace, board)
     first = op(
         editor,
         "mechanical_proposal.retain",
@@ -163,10 +163,10 @@ def test_retained_revisions_are_content_addressed_and_numbered(users, project, b
     assert old["document"]["draft_version"] == 1
 
 
-def test_permissions_and_cross_project_scope(users, project, board):
-    draft = create(users["editor"], project, board)
+def test_permissions_and_cross_workspace_scope(users, workspace, other_workspace, board):
+    draft = create(users["editor"], workspace, board)
     with pytest.raises(PermissionDenied):
-        create(users["viewer"], project, board)
+        create(users["viewer"], workspace, board)
     with pytest.raises(PermissionDenied):
         update(users["viewer"], draft, FULL)
     with pytest.raises(PermissionDenied):
@@ -178,16 +178,16 @@ def test_permissions_and_cross_project_scope(users, project, board):
         )
     for user_op, payload in (
         ("mechanical_proposal.read", {"draft_id": draft["draft_id"]}),
-        ("mechanical_proposal.list", {"project_id": project}),
-        ("mechanical_proposal.board_choices", {"project_id": project}),
+        ("mechanical_proposal.list", {"workspace_id": workspace}),
+        ("mechanical_proposal.board_choices", {"workspace_id": workspace}),
     ):
         with pytest.raises(NotFound):
             op(users["outsider"], user_op, payload)
     with pytest.raises(NotFound):
-        create(users["outsider"], project, board)
-    other = op(users["outsider"], "project.create", {"name": "Other synthetic bench"})["project_id"]
+        create(users["outsider"], workspace, board)
     with pytest.raises(NotFound):
-        create(users["outsider"], other, board)  # board belongs to another project
+        # The outsider's own workspace does not contain the board.
+        create(users["outsider"], other_workspace, board)
     with pytest.raises(NotFound):
         op(
             users["outsider"],
@@ -196,9 +196,9 @@ def test_permissions_and_cross_project_scope(users, project, board):
         )
 
 
-def test_stale_expected_state_conflicts_and_changes_nothing(users, project, board):
+def test_stale_expected_state_conflicts_and_changes_nothing(users, workspace, board):
     editor = users["editor"]
-    draft = create(editor, project, board)
+    draft = create(editor, workspace, board)
     update(editor, draft, FULL)
     with pytest.raises(Conflict) as stale:
         update(editor, draft, {})
@@ -216,14 +216,14 @@ def test_stale_expected_state_conflicts_and_changes_nothing(users, project, boar
         op(editor, "mechanical_proposal.update", {"draft_id": draft["draft_id"], "parameters": {}})
 
 
-def test_idempotent_replay_mismatch_and_replay_authority(users, project, board):
+def test_idempotent_replay_mismatch_and_replay_authority(users, workspace, board):
     editor = users["editor"]
-    first = create(editor, project, board, idempotency_key="create-key")
+    first = create(editor, workspace, board, idempotency_key="create-key")
     replay_run = op(
         editor,
         "mechanical_proposal.create",
         {
-            "project_id": project,
+            "workspace_id": workspace,
             "interpretation_id": board["interpretation_id"],
             "name": "Enclosure proposal",
             "parameters": {},
@@ -233,19 +233,19 @@ def test_idempotent_replay_mismatch_and_replay_authority(users, project, board):
     assert replay_run["draft_id"] == first["draft_id"]
     assert ProposalDraft.objects.count() == 1
     with pytest.raises(IdempotencyMismatch):
-        create(editor, project, board, name="Different", idempotency_key="create-key")
+        create(editor, workspace, board, name="Different", idempotency_key="create-key")
     saved = update(editor, first, FULL, idempotency_key="update-key")
     assert update(editor, first, FULL, idempotency_key="update-key")["version"] == saved["version"]
     assert ProposalDraft.objects.get(id=first["draft_id"]).version == 2
     with pytest.raises(IdempotencyMismatch):
         update(editor, first, {}, idempotency_key="update-key")
     # A member whose edit grant is removed cannot replay a retained outcome.
-    WorkspaceMember.objects.filter(workspace__projects=project, user=editor).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=editor).update(role="viewer")
     with pytest.raises(PermissionDenied):
         update(editor, first, FULL, idempotency_key="update-key")
 
 
-def test_invalid_payloads_and_unknown_identities_are_rejected_atomically(users, project, board):
+def test_invalid_payloads_and_unknown_identities_are_rejected_atomically(users, workspace, board):
     editor = users["editor"]
     for parameters in (
         {"shell": {"wall_mm": -1}},
@@ -256,22 +256,25 @@ def test_invalid_payloads_and_unknown_identities_are_rejected_atomically(users, 
         {"vents": [{"local_id": "v", "face": "lid"}, {"local_id": "v", "face": "floor"}]},
     ):
         with pytest.raises(ValidationFailed):
-            create(editor, project, board, parameters)
+            create(editor, workspace, board, parameters)
     with pytest.raises(ValidationFailed, match="native hole"):
-        create(editor, project, board, {"mounts": [{"pad_id": str(UUID(int=7)), "use": True}]})
+        create(editor, workspace, board, {"mounts": [{"pad_id": str(UUID(int=7)), "use": True}]})
     with pytest.raises(ValidationFailed, match="native component"):
         create(
-            editor, project, board, {"connectors": [{"component_id": str(uuid4()), "side": "east"}]}
+            editor,
+            workspace,
+            board,
+            {"connectors": [{"component_id": str(uuid4()), "side": "east"}]},
         )
     assert not ProposalDraft.objects.exists()
-    draft = create(editor, project, board)
+    draft = create(editor, workspace, board)
     with pytest.raises(ValidationFailed):
         update(editor, draft, {"mounts": [{"pad_id": str(uuid4()), "use": True}]})
     assert ProposalDraft.objects.get(id=draft["draft_id"]).version == 1
 
 
-def test_retain_failure_rolls_back_all_rows(users, project, board, monkeypatch):
-    draft = create(users["editor"], project, board)
+def test_retain_failure_rolls_back_all_rows(users, workspace, board, monkeypatch):
+    draft = create(users["editor"], workspace, board)
     from specmate.mechanical_proposals import operations
 
     original = operations.revision_record
@@ -295,9 +298,9 @@ def test_retain_failure_rolls_back_all_rows(users, project, board, monkeypatch):
     assert not ProposalRevision.objects.exists()
 
 
-def test_database_guards_protect_retained_and_draft_rows(users, project, board):
+def test_database_guards_protect_retained_and_draft_rows(users, workspace, board):
     editor = users["editor"]
-    draft = create(editor, project, board)
+    draft = create(editor, workspace, board)
     retained = op(
         editor,
         "mechanical_proposal.retain",
@@ -321,7 +324,7 @@ def test_database_guards_protect_retained_and_draft_rows(users, project, board):
     with pytest.raises(DatabaseError), transaction.atomic():
         ProposalRevision.objects.create(
             draft_id=revision.draft_id,
-            project_id=revision.project_id,
+            workspace_id=revision.workspace_id,
             number=9,
             interpretation_id=revision.interpretation_id,
             interpretation_sha256=revision.interpretation_sha256,
@@ -336,7 +339,7 @@ def test_database_guards_protect_retained_and_draft_rows(users, project, board):
     with pytest.raises(DatabaseError), transaction.atomic():
         ProposalRevision.objects.create(
             draft_id=revision.draft_id,
-            project_id=revision.project_id,
+            workspace_id=revision.workspace_id,
             number=10,
             interpretation_id=revision.interpretation_id,
             interpretation_sha256=revision.interpretation_sha256,
@@ -350,29 +353,31 @@ def test_database_guards_protect_retained_and_draft_rows(users, project, board):
         )
 
 
-def test_board_inputs_expose_native_identities_for_choices(users, project, board):
+def test_board_inputs_expose_native_identities_for_choices(users, workspace, board):
     inputs = op(
         users["viewer"],
         "mechanical_proposal.board_inputs",
-        {"project_id": project, "interpretation_id": board["interpretation_id"]},
+        {"workspace_id": workspace, "interpretation_id": board["interpretation_id"]},
     )
     assert {h["pad_id"] for h in inputs["holes"]} == {str(p) for p, _ in HOLES.values()}
     assert all(h["mounting_status"] == "candidate-not-reviewed" for h in inputs["holes"])
     assert str(J1) in {c["component_id"] for c in inputs["components"]}
-    choices = op(users["viewer"], "mechanical_proposal.board_choices", {"project_id": project})
+    choices = op(users["viewer"], "mechanical_proposal.board_choices", {"workspace_id": workspace})
     assert choices["boards"][0]["hole_candidates"] == 4
     assert choices["boards"][0]["outline"] == "closed-line-polygons"
 
 
-def test_http_reads_and_generic_envelope_call_the_same_operations(users, project, board):
-    draft = create(users["editor"], project, board, FULL)
+def test_http_reads_and_generic_envelope_call_the_same_operations(users, workspace, board):
+    draft = create(users["editor"], workspace, board, FULL)
     client = Client()
     client.force_login(users["viewer"])
     response = client.get(f"/api/v0/mechanical-proposals/drafts/{draft['draft_id']}")
     assert response.status_code == 200 and response.json()["proposal"] == draft["proposal"]
-    listing = client.get(f"/api/v0/mechanical-proposals/projects/{project}/drafts").json()
+    listing = client.get(f"/api/v0/mechanical-proposals/workspaces/{workspace}/drafts").json()
     assert [d["draft_id"] for d in listing["drafts"]] == [draft["draft_id"]]
-    assert client.get(f"/api/v0/mechanical-proposals/projects/{project}/boards").status_code == 200
+    assert (
+        client.get(f"/api/v0/mechanical-proposals/workspaces/{workspace}/boards").status_code == 200
+    )
     denied = client.post(
         "/api/v0/operations",
         data=json.dumps(
@@ -380,7 +385,7 @@ def test_http_reads_and_generic_envelope_call_the_same_operations(users, project
                 "operation": "mechanical_proposal.create",
                 "request_id": "viewer-create",
                 "payload": {
-                    "project_id": project,
+                    "workspace_id": workspace,
                     "interpretation_id": board["interpretation_id"],
                     "name": "x",
                 },
@@ -397,7 +402,7 @@ def test_http_reads_and_generic_envelope_call_the_same_operations(users, project
                 "operation": "mechanical_proposal.create",
                 "request_id": "editor-create",
                 "payload": {
-                    "project_id": project,
+                    "workspace_id": workspace,
                     "interpretation_id": board["interpretation_id"],
                     "name": "HTTP proposal",
                 },
@@ -412,16 +417,16 @@ def test_http_reads_and_generic_envelope_call_the_same_operations(users, project
     )
 
 
-def test_losing_project_access_hides_drafts_and_retained_records(users, project, board):
+def test_losing_project_access_hides_drafts_and_retained_records(users, workspace, board):
     editor = users["editor"]
-    draft = create(editor, project, board, FULL)
+    draft = create(editor, workspace, board, FULL)
     retained = op(
         editor,
         "mechanical_proposal.retain",
         {"draft_id": draft["draft_id"]},
         expected_state=draft["state"],
     )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=editor).delete()
     with pytest.raises(NotFound):
         op(editor, "mechanical_proposal.read", {"draft_id": draft["draft_id"]})
     with pytest.raises(NotFound):

@@ -46,8 +46,8 @@ function ProjectionCard({ projection, title }: { projection: Projection; title: 
   </Stack></Card>;
 }
 
-export function PropertyAuthorityPanel({ projectId, canWrite, detail, onOpenRevision, onAuthorityFailure }: {
-  projectId: string; canWrite: boolean; detail: RevisionDetail | null;
+export function PropertyAuthorityPanel({ workspaceId, canWrite, detail, onOpenRevision, onAuthorityFailure }: {
+  workspaceId: string; canWrite: boolean; detail: RevisionDetail | null;
   onOpenRevision: (revisionId: string) => void; onAuthorityFailure: (reason: unknown) => void;
 }) {
   const [list, setList] = useState<AuthoritySummary[]>([]);
@@ -58,7 +58,7 @@ export function PropertyAuthorityPanel({ projectId, canWrite, detail, onOpenRevi
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false);
   const generation = useRef(0);
-  const context = `${projectId}:${detail?.revision_id ?? ''}`;
+  const context = `${workspaceId}:${detail?.revision_id ?? ''}`;
   const lifetime = useRef({ active: false, epoch: 0, context });
   if (lifetime.current.context !== context) {
     lifetime.current.context = context;
@@ -79,7 +79,7 @@ export function PropertyAuthorityPanel({ projectId, canWrite, detail, onOpenRevi
     const token = ++generation.current;
     const epoch = lifetime.current.epoch;
     try {
-      const result = await request<{ authorities: AuthoritySummary[] }>(`pcb/projects/${projectId}/property-authorities`);
+      const result = await request<{ authorities: AuthoritySummary[] }>(`pcb/workspaces/${workspaceId}/property-authorities`);
       if (!current(epoch) || token !== generation.current) return false;
       setList(Array.isArray(result.authorities) ? result.authorities : []);
       return true;

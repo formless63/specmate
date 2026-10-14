@@ -22,7 +22,7 @@ const report: NativeReport = {
 };
 const intake: Intake = {
   intake_id: "intake", board_path: "board.kicad_pcb", source_revision_id: "revision",
-  project_id: "project-a", source_manifest_sha256: "b".repeat(64),
+  workspace_id: "project-a", source_manifest_sha256: "b".repeat(64),
   available_recipe_id: "approved-intake",
   files: [{ path: "board.kicad_pcb", sha256: "a".repeat(64), size: 1024, rights: "synthetic-original", coverage: "parsed-native-subset", unsupported: [] }],
   attempts: [], interpretations: [{ interpretation_id: "interpretation", attempt_id: "attempt", output_id: "output", sha256: "c".repeat(64), report }],
@@ -39,8 +39,8 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
-function panel(projectId = "project-a", permissions = ["project.read"]) {
-  return <MantineProvider env="test"><PcbPanel projectId={projectId} permissions={permissions} /></MantineProvider>;
+function panel(workspaceId = "project-a", permissions = ["project.read"]) {
+  return <MantineProvider env="test"><PcbPanel workspaceId={workspaceId} permissions={permissions} /></MantineProvider>;
 }
 async function selectIntake() {
   await waitFor(() => expect(listIntakes).toHaveBeenCalled());

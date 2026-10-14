@@ -22,9 +22,8 @@ from specmate.operations import (
     ValidationFailed,
 )
 from specmate.pcb.models import PropertyAuthority, PropertyOwnerChange, PropertyProjection
-from specmate.sources.models import SourceBlob, SourceBundleFile
 
-from .conftest import op
+from .conftest import op, remove_member
 from .test_pcb import BOARD, digest, recipe, report_payload, source, successful_output  # noqa: F401
 from .test_sources import register
 
@@ -40,11 +39,15 @@ def derive(users, revision_id, name="Editable synthetic board"):
     )
 
 
-def accepted(users, project, revision_id, board, outline=(SQUARE,), key="x", cutouts=()):
+def accepted(users, workspace, revision_id, board, outline=(SQUARE,), key="x", cutouts=()):
     intake = op(
         users["editor"],
         "pcb.register_intake",
-        {"project_id": project, "source_revision_id": revision_id, "board_path": "board.kicad_pcb"},
+        {
+            "workspace_id": workspace,
+            "source_revision_id": revision_id,
+            "board_path": "board.kicad_pcb",
+        },
     )
     from specmate.pcb.pack import recipe_for
 
@@ -68,7 +71,7 @@ def accepted(users, project, revision_id, board, outline=(SQUARE,), key="x", cut
     return op(users["editor"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
 
 
-def edit_owner(users, project, baseline, board):
+def edit_owner(users, workspace, baseline, board):
     """Outline edit through the owning source: export handoff, change, reviewed submit."""
     client = Client()
     client.force_login(users["editor"])
@@ -81,7 +84,7 @@ def edit_owner(users, project, baseline, board):
         entries = {name: archive.read(name) for name in archive.namelist()}
     entries["board.kicad_pcb"] = board
     for data in entries.values():
-        register(users["editor"], project, data)
+        register(users["editor"], workspace, data)
     payload = {
         "baseline_revision_id": baseline["revision_id"],
         "files": [{"path": p, "sha256": digest(d)} for p, d in entries.items()],
@@ -133,14 +136,14 @@ def read(users, authority, user="editor"):
 
 
 @pytest.fixture
-def owner(users, project, source, recipe):  # noqa: F811
+def owner(users, workspace, source, recipe):  # noqa: F811
     return derive(users, source["revision_id"])
 
 
 EDITED = BOARD + b"\n# synthetic Edge.Cuts edit\n"
 
 
-def test_outline_edit_goes_through_owner_and_reconciles_projection(users, project, owner):
+def test_outline_edit_goes_through_owner_and_reconciles_projection(users, workspace, owner):
     authority = declare(users, owner["revision_id"])
     assert authority["state"] == "authority-v1"
     first = read(users, authority["authority_id"])
@@ -148,7 +151,7 @@ def test_outline_edit_goes_through_owner_and_reconciles_projection(users, projec
     assert first["owner"]["editable"] and first["owner"]["path"] == "board.kicad_pcb"
     assert "no editable copy" in first["editable_copy"]
 
-    original = accepted(users, project, owner["revision_id"], BOARD)
+    original = accepted(users, workspace, owner["revision_id"], BOARD)
     projected = reconcile(users, authority["authority_id"], original, "authority-v1")
     assert projected["status"] == "known" and projected["changes"]["kind"] == "initial"
     current = read(users, authority["authority_id"])
@@ -162,7 +165,7 @@ def test_outline_edit_goes_through_owner_and_reconciles_projection(users, projec
     assert pinned["adapter"] == "kicad-intake-v1" and pinned["tool_version"] == "10.0.6"
 
     # The edit is made in the owning native file and re-enters as the owner's next revision.
-    edited = edit_owner(users, project, owner, EDITED)
+    edited = edit_owner(users, workspace, owner, EDITED)
     stale = read(users, authority["authority_id"])
     assert stale["status"] == "stale"
     assert stale["owner"]["head_revision_id"] == edited["revision_id"]
@@ -170,7 +173,7 @@ def test_outline_edit_goes_through_owner_and_reconciles_projection(users, projec
     with pytest.raises(Conflict, match="newer revision"):
         reconcile(users, authority["authority_id"], original, "authority-v2")
 
-    extracted = accepted(users, project, edited["revision_id"], EDITED, outline=[WIDER], key="y")
+    extracted = accepted(users, workspace, edited["revision_id"], EDITED, outline=[WIDER], key="y")
     with pytest.raises(Conflict, match="changed since"):
         reconcile(users, authority["authority_id"], extracted, "authority-v1")
     result = reconcile(users, authority["authority_id"], extracted, "authority-v2")
@@ -187,12 +190,12 @@ def test_outline_edit_goes_through_owner_and_reconciles_projection(users, projec
         reconcile(users, authority["authority_id"], extracted, "authority-v3")
 
 
-def test_competing_sources_and_owners_are_refused_and_preserved(users, project, owner):
+def test_competing_sources_and_owners_are_refused_and_preserved(users, workspace, owner):
     authority = declare(users, owner["revision_id"])
     owned = reconcile(
         users,
         authority["authority_id"],
-        accepted(users, project, owner["revision_id"], BOARD),
+        accepted(users, workspace, owner["revision_id"], BOARD),
         "authority-v1",
     )
     # A fork of the same lineage cannot become a second owner of the same property.
@@ -201,9 +204,9 @@ def test_competing_sources_and_owners_are_refused_and_preserved(users, project, 
         declare(users, fork["revision_id"])
     assert conflict.value.details["authority_id"] == authority["authority_id"]
     forked_board = BOARD + b"\n# fork edit\n"
-    forked = edit_owner(users, project, fork, forked_board)
+    forked = edit_owner(users, workspace, fork, forked_board)
     evidence = accepted(
-        users, project, forked["revision_id"], forked_board, outline=[WIDER], key="f"
+        users, workspace, forked["revision_id"], forked_board, outline=[WIDER], key="f"
     )
     with pytest.raises(ValidationFailed, match="designated owning source"):
         reconcile(users, authority["authority_id"], evidence, "authority-v2")
@@ -216,7 +219,7 @@ def test_competing_sources_and_owners_are_refused_and_preserved(users, project, 
     ]
     assert preserved[0]["bundle_name"] == "Competing fork"
     # Transfer is refused while the fork lacks the owner's latest revision ...
-    edited = edit_owner(users, project, owner, EDITED)
+    edited = edit_owner(users, workspace, owner, EDITED)
     with pytest.raises(Conflict, match="would compete"):
         op(
             users["editor"],
@@ -251,10 +254,10 @@ def test_competing_sources_and_owners_are_refused_and_preserved(users, project, 
     ]
 
 
-def test_disagreeing_extractions_and_unknown_coverage_are_explicit(users, project, owner):
+def test_disagreeing_extractions_and_unknown_coverage_are_explicit(users, workspace, owner):
     authority = declare(users, owner["revision_id"])
-    first = accepted(users, project, owner["revision_id"], BOARD, key="a")
-    second = accepted(users, project, owner["revision_id"], BOARD, outline=[WIDER], key="b")
+    first = accepted(users, workspace, owner["revision_id"], BOARD, key="a")
+    second = accepted(users, workspace, owner["revision_id"], BOARD, outline=[WIDER], key="b")
     view = read(users, authority["authority_id"])
     assert view["status"] == "conflicting" and view["head_candidates_agree"] is False
     assert {c["interpretation_id"] for c in view["head_candidates"]} == {
@@ -267,8 +270,8 @@ def test_disagreeing_extractions_and_unknown_coverage_are_explicit(users, projec
     assert not PropertyProjection.objects.exists()
 
     # Unsupported coverage becomes an explicit unknown, never the previous outline.
-    edited = edit_owner(users, project, owner, EDITED)
-    unknown = accepted(users, project, edited["revision_id"], EDITED, outline=None, key="u")
+    edited = edit_owner(users, workspace, owner, EDITED)
+    unknown = accepted(users, workspace, edited["revision_id"], EDITED, outline=None, key="u")
     result = reconcile(users, authority["authority_id"], unknown, "authority-v1")
     assert result["status"] == "unknown"
     view = read(users, authority["authority_id"])
@@ -280,7 +283,7 @@ def test_disagreeing_extractions_and_unknown_coverage_are_explicit(users, projec
     }
 
 
-def test_declaration_requires_supported_current_owner_file(users, project, owner, source):  # noqa: F811
+def test_declaration_requires_supported_current_owner_file(users, workspace, owner, source):  # noqa: F811
     with pytest.raises(Unsupported):
         op(
             users["editor"],
@@ -292,7 +295,7 @@ def test_declaration_requires_supported_current_owner_file(users, project, owner
                 "basis": "x",
             },
         )
-    edited = edit_owner(users, project, owner, EDITED)
+    edited = edit_owner(users, workspace, owner, EDITED)
     with pytest.raises(Conflict, match="current revision"):
         declare(users, owner["revision_id"])
     # Declaring on the preserved original makes it the read-only owner of its lineage.
@@ -303,9 +306,9 @@ def test_declaration_requires_supported_current_owner_file(users, project, owner
         declare(users, edited["revision_id"])
 
 
-def test_current_authority_precedes_diagnostics_and_retained_conflicts(users, project, owner):
+def test_current_authority_precedes_diagnostics_and_retained_conflicts(users, workspace, owner):
     authority = declare(users, owner["revision_id"], key="declare")
-    interpretation = accepted(users, project, owner["revision_id"], BOARD)
+    interpretation = accepted(users, workspace, owner["revision_id"], BOARD)
     with pytest.raises(PermissionDenied):
         reconcile(users, authority["authority_id"], interpretation, "authority-v9", user="viewer")
     with pytest.raises(NotFound):
@@ -332,7 +335,7 @@ def test_current_authority_precedes_diagnostics_and_retained_conflicts(users, pr
             expected_state="authority-v1",
             idempotency_key="r",
         )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="viewer"
     )
     for key, basis in (("r", "Reviewed accepted extraction of the owner."), ("r", "different")):
@@ -350,31 +353,23 @@ def test_current_authority_precedes_diagnostics_and_retained_conflicts(users, pr
             )
     with pytest.raises(PermissionDenied):
         declare(users, owner["revision_id"], key="declare")
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).update(
         role="editor"
     )
-    # A foreign blob in the owner's closure hides the authority before any detail.
-    other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
-    register(users["outsider"], other, b"foreign")
-    SourceBundleFile.objects.create(
-        revision_id=owner["revision_id"],
-        path="foreign.bin",
-        media_type="x",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
+    # Losing membership hides the authority before any detail.
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         read(users, authority["authority_id"])
     with pytest.raises(NotFound):
         reconcile(users, authority["authority_id"], interpretation, "authority-v2")
 
 
-def test_database_guards_keep_owner_identity_and_projections_immutable(users, project, owner):
+def test_database_guards_keep_owner_identity_and_projections_immutable(users, workspace, owner):
     authority = declare(users, owner["revision_id"])
     reconcile(
         users,
         authority["authority_id"],
-        accepted(users, project, owner["revision_id"], BOARD),
+        accepted(users, workspace, owner["revision_id"], BOARD),
         "authority-v1",
     )
     row = PropertyAuthority.objects.get(id=authority["authority_id"])
@@ -391,11 +386,11 @@ def test_database_guards_keep_owner_identity_and_projections_immutable(users, pr
         PropertyProjection.objects.update(basis="rewritten")
 
 
-def test_http_reads_refresh_actor_and_expose_provenance(users, project, owner):
+def test_http_reads_refresh_actor_and_expose_provenance(users, workspace, owner):
     authority = declare(users, owner["revision_id"])
     client = Client()
     client.force_login(users["viewer"])
-    listed = client.get(f"/api/v0/pcb/projects/{project}/property-authorities")
+    listed = client.get(f"/api/v0/pcb/workspaces/{workspace}/property-authorities")
     assert listed.status_code == 200
     assert listed.json()["authorities"][0]["owner_path"] == "board.kicad_pcb"
     detail = client.get(f"/api/v0/pcb/property-authorities/{authority['authority_id']}")
@@ -410,83 +405,60 @@ def test_http_reads_refresh_actor_and_expose_provenance(users, project, owner):
     )
 
 
-def test_declare_existing_authority_checks_hidden_owner_closure(
+def test_declare_existing_authority_requires_current_membership(
     users,
-    project,
+    workspace,
     owner,
     source,  # noqa: F811
 ):
     authority = declare(users, owner["revision_id"])
-    other = op(users["outsider"], "project.create", {"name": "Hidden ownership evidence"})[
-        "project_id"
-    ]
-    register(users["outsider"], other, b"independent foreign ownership basis")
-    SourceBundleFile.objects.create(
-        revision_id=owner["revision_id"],
-        path="foreign.bin",
-        media_type="x",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
+    assert read(users, authority["authority_id"])["status"] == "unreconciled"
+    # A second declaration over the same owner lineage is a conflict for members; a
+    # non-member sees nothing at all.
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         read(users, authority["authority_id"])
-    # Original source remains visible, but its existing authority now has a hidden closure.
     with pytest.raises(NotFound):
         declare(users, source["revision_id"])
 
 
-def test_declare_checks_new_head_closure_before_diagnostic(users, project, owner):
-    edited = edit_owner(users, project, owner, EDITED)
-    other = op(users["outsider"], "project.create", {"name": "Hidden head evidence"})["project_id"]
-    register(users["outsider"], other, b"independent hidden new head")
-    SourceBundleFile.objects.create(
-        revision_id=edited["revision_id"],
-        path="foreign.bin",
-        media_type="x",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
+def test_declare_checks_membership_before_head_diagnostic(users, workspace, owner):
+    edited = edit_owner(users, workspace, owner, EDITED)
+    assert edited["revision_id"] != owner["revision_id"]
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         declare(users, owner["revision_id"])
 
 
-def test_direct_list_refreshes_current_actor(users, project, owner):
+def test_direct_list_refreshes_current_actor(users, workspace, owner):
     from specmate.pcb.authority import list_authorities
 
     declare(users, owner["revision_id"])
     type(users["viewer"]).objects.filter(pk=users["viewer"].pk).update(is_active=False)
     with pytest.raises(Unauthenticated):
-        list_authorities(users["viewer"], project)
+        list_authorities(users["viewer"], workspace)
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-def test_retained_projection_checks_its_own_pins_before_changed_request_diagnostics(
-    users, project, owner, legacy
+def test_retained_projection_checks_authority_before_changed_request_diagnostics(
+    users, workspace, owner
 ):
-    from specmate.operations.models import IdempotencyRecord
-    from specmate.operations.scope import LEGACY_SCOPE
-
     authority = declare(users, owner["revision_id"])
-    first = accepted(users, project, owner["revision_id"], BOARD, key="retained-first")
-    other = accepted(users, project, owner["revision_id"], BOARD, key="retained-other")
+    first = accepted(users, workspace, owner["revision_id"], BOARD, key="retained-first")
+    other = accepted(users, workspace, owner["revision_id"], BOARD, key="retained-other")
     reconcile(users, authority["authority_id"], first, "authority-v1", idempotency_key="retained")
-    if legacy:
-        IdempotencyRecord.objects.filter(
-            operation="source_property.reconcile", key="retained"
-        ).update(scope=LEGACY_SCOPE)
-    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+    with pytest.raises(IdempotencyMismatch):
         reconcile(
             users, authority["authority_id"], other, "authority-v1", idempotency_key="retained"
         )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         reconcile(
             users, authority["authority_id"], other, "authority-v1", idempotency_key="retained"
         )
 
 
-def test_non_owner_evidence_authorizes_overflow_before_truncated_flag(
-    users, project, owner, monkeypatch
+def test_non_owner_evidence_requires_membership_before_truncated_flag(
+    users, workspace, owner, monkeypatch
 ):
     import specmate.pcb.authority as authority_module
 
@@ -494,32 +466,23 @@ def test_non_owner_evidence_authorizes_overflow_before_truncated_flag(
     authority = declare(users, owner["revision_id"])
     first = derive(users, owner["revision_id"], "First non-owner")
     second = derive(users, owner["revision_id"], "Second non-owner")
-    accepted(users, project, first["revision_id"], BOARD, key="first-nonowner")
-    accepted(users, project, second["revision_id"], BOARD, key="second-nonowner")
-    other = op(users["outsider"], "project.create", {"name": "Hidden overflow evidence"})[
-        "project_id"
-    ]
-    register(users["outsider"], other, b"hidden non-owner evidence")
-    SourceBundleFile.objects.create(
-        revision_id=second["revision_id"],
-        path="foreign.bin",
-        media_type="x",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
+    accepted(users, workspace, first["revision_id"], BOARD, key="first-nonowner")
+    accepted(users, workspace, second["revision_id"], BOARD, key="second-nonowner")
+    assert read(users, authority["authority_id"])["non_owner_evidence"]
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
         read(users, authority["authority_id"])
 
 
 @pytest.mark.parametrize("invalid", ["self", "missing_previous", "source_hash", "value_hash"])
-def test_projection_insert_rejects_invalid_history_or_hash(users, project, owner, invalid):
+def test_projection_insert_rejects_invalid_history_or_hash(users, workspace, owner, invalid):
     import uuid
 
     authority = declare(users, owner["revision_id"])
     result = reconcile(
         users,
         authority["authority_id"],
-        accepted(users, project, owner["revision_id"], BOARD),
+        accepted(users, workspace, owner["revision_id"], BOARD),
         "authority-v1",
     )
     row = PropertyProjection.objects.get(id=result["projection_id"])
@@ -543,12 +506,12 @@ def test_projection_insert_rejects_invalid_history_or_hash(users, project, owner
         PropertyProjection.objects.create(**clone)
 
 
-def test_projection_history_allows_transfer_version_gap(users, project, owner):
+def test_projection_history_allows_transfer_version_gap(users, workspace, owner):
     authority = declare(users, owner["revision_id"])
     first = reconcile(
         users,
         authority["authority_id"],
-        accepted(users, project, owner["revision_id"], BOARD, key="before-transfer"),
+        accepted(users, workspace, owner["revision_id"], BOARD, key="before-transfer"),
         "authority-v1",
     )
     successor = derive(users, owner["revision_id"], "Successor owner")
@@ -565,7 +528,7 @@ def test_projection_history_allows_transfer_version_gap(users, project, owner):
     final = reconcile(
         users,
         authority["authority_id"],
-        accepted(users, project, successor["revision_id"], BOARD, key="after-transfer"),
+        accepted(users, workspace, successor["revision_id"], BOARD, key="after-transfer"),
         moved["state"],
     )
     projection = PropertyProjection.objects.get(id=final["projection_id"])

@@ -22,7 +22,7 @@ export type BuildHistory = {
 };
 
 const read = { idempotent: false } as const;
-export const listBuilds = (projectId: string) => command<BuildList>('build.list', { project_id: projectId }, read);
+export const listBuilds = (workspaceId: string) => command<BuildList>('build.list', { workspace_id: workspaceId }, read);
 export const readHistory = (buildId: string) => command<BuildHistory>('build.history', { build_id: buildId }, read);
 export const cancelBuild = (buildId: string, expectedState: string, idempotencyKey: string) =>
   command<unknown>('build.cancel', { build_id: buildId }, { expectedState, idempotencyKey });

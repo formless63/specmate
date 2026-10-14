@@ -6,13 +6,13 @@ import { PcbFabricationPanel } from "../pcb-fabrication/PcbFabricationPanel";
 import { FirmwarePanel } from "../firmware/FirmwarePanel";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export type PcbPanelProps = { projectId: string; permissions?: string[] };
+export type PcbPanelProps = { workspaceId: string; permissions?: string[] };
 
 export function PcbPanel(props: PcbPanelProps) {
-  return <ProjectPanel key={`${props.projectId}:${props.permissions?.join(",") ?? ""}`} {...props} />;
+  return <ProjectPanel key={`${props.workspaceId}:${props.permissions?.join(",") ?? ""}`} {...props} />;
 }
 
-function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
+function ProjectPanel({ workspaceId, permissions }: PcbPanelProps) {
   const [items, setItems] = useState<IntakeSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [intake, setIntake] = useState<Intake | null>(null);
@@ -40,7 +40,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
   }
   async function refreshList() {
     try {
-      const result = await listIntakes(projectId, lifetime.current.signal);
+      const result = await listIntakes(workspaceId, lifetime.current.signal);
       if (!denied.current) setItems(result);
     }
     catch (reason) { failure(reason); }
@@ -86,7 +86,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
   }
   async function importSources() {
     await work(async () => {
-      const result = await preserveFiles(projectId, files, name, rights, boardPath ?? "", lifetime.current.signal);
+      const result = await preserveFiles(workspaceId, files, name, rights, boardPath ?? "", lifetime.current.signal);
       setFiles([]); setBoardPath(null);
       await refreshList(); setSelected(result.intake_id);
     });
@@ -142,11 +142,11 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
       {report && <ReportView report={report} />}
       {report && <PcbFabricationPanel key={intake.intake_id} intakeId={intake.intake_id} canExecute={canExecute && !accessLost} />}
       {!!intake.interpretations.length && <PopulationEditor
-        projectId={projectId} intake={intake} drafts={populations}
+        workspaceId={workspaceId} intake={intake} drafts={populations}
         permissions={permissions} onChanged={() => selected && load(selected)} onAccessLost={failure}
       />}
     </Stack>}
-    {!accessLost && <FirmwarePanel projectId={projectId} permissions={permissions} />}
+    {!accessLost && <FirmwarePanel workspaceId={workspaceId} permissions={permissions} />}
   </Stack>;
 }
 

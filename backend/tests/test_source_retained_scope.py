@@ -3,8 +3,7 @@
 import pytest
 
 from specmate.access.models import WorkspaceMember
-from specmate.operations import Conflict, Context, IdempotencyMismatch, NotFound
-from specmate.operations.models import IdempotencyRecord
+from specmate.operations import Context, IdempotencyMismatch, NotFound
 from specmate.sources.models import SourceBundle, SourceBundleRevision
 from specmate.sources.operations import FileRef, _write_revision, revision_result
 
@@ -14,15 +13,14 @@ from .test_source_concurrency import files_with
 from .test_source_editing import ORIGINAL, original
 
 
-def cross_project_derivative(users, project):
+def derivative_of_evidence(users, workspace):
     owner = users["owner"]
-    parent_project = op(owner, "project.create", {"name": "Synthetic source origin"})["project_id"]
-    parent = source_evidence(users, parent_project)
-    local = original(users, project)
+    parent = source_evidence(users, workspace)
+    local = original(users, workspace)
     local_revision = SourceBundleRevision.objects.get(id=local["revision_id"])
     bundle = SourceBundle.objects.create(
-        project_id=project,
-        name="Synthetic cross-project derivative",
+        workspace_id=workspace,
+        name="Synthetic evidence derivative",
         role="derivative",
         derived_from_id=parent["source_bundle_revision_id"],
         created_by=owner,
@@ -37,17 +35,16 @@ def cross_project_derivative(users, project):
         files,
         ancestry=[parent["source_bundle_revision_id"]],
     )
-    return revision_result(revision), parent_project
+    return revision_result(revision)
 
 
 @pytest.mark.parametrize("operation", ["source.revise_bundle", "source.derive_bundle"])
-@pytest.mark.parametrize("legacy", [False, True])
 def test_changed_source_pin_authorizes_retained_outcome_before_mismatch(
-    users, project, operation, legacy
+    users, workspace, operation
 ):
     actor = users["owner"]
-    source, parent_project = cross_project_derivative(users, project)
-    other = original(users, project)
+    source = derivative_of_evidence(users, workspace)
+    other = original(users, workspace)
     if operation == "source.revise_bundle":
         payload = {
             "bundle_id": source["bundle_id"],
@@ -61,19 +58,15 @@ def test_changed_source_pin_authorizes_retained_outcome_before_mismatch(
         context = {}
     result = op(actor, operation, payload, idempotency_key="source-pin", **context)
     assert op(actor, operation, payload, idempotency_key="source-pin", **context) == result
-    if legacy:
-        IdempotencyRecord.objects.filter(actor=actor, operation=operation, key="source-pin").update(
-            scope="legacy"
-        )
-    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
+    with pytest.raises(IdempotencyMismatch):
         op(actor, operation, changed, idempotency_key="source-pin", **context)
 
     retained = SourceBundleRevision.objects.get(id=result["revision_id"])
     manifest = bytes(retained.manifest)
     # Only membership changes: the valid retained manifest and its ancestry remain intact.
-    WorkspaceMember.objects.filter(workspace__projects=parent_project, user=actor).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=actor).delete()
     for supplied in (changed, payload):
-        with pytest.raises(NotFound, match="Project"):
+        with pytest.raises(NotFound):
             op(actor, operation, supplied, idempotency_key="source-pin", **context)
     retained.refresh_from_db()
     assert bytes(retained.manifest) == manifest

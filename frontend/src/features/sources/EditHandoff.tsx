@@ -19,8 +19,8 @@ export function folderPaths(files: File[]) {
   });
 }
 
-export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuthorityFailure, onSubmitted }: {
-  projectId: string; detail: RevisionDetail; canWrite: boolean; busy: boolean; setBusy: (value: boolean) => void;
+export function EditHandoff({ workspaceId, detail, canWrite, busy, setBusy, onAuthorityFailure, onSubmitted }: {
+  workspaceId: string; detail: RevisionDetail; canWrite: boolean; busy: boolean; setBusy: (value: boolean) => void;
   onAuthorityFailure: (reason: unknown) => void; onSubmitted: (revisionId: string) => Promise<void>;
 }) {
   const [mode, setMode] = useState<'zip' | 'folder'>('zip');
@@ -64,11 +64,11 @@ export function EditHandoff({ projectId, detail, canWrite, busy, setBusy, onAuth
     if (mode === 'zip') {
       if (!archive) throw new Error('Choose an edited ZIP.');
       // The uploaded archive is itself preserved as an original before any review.
-      const upload = await preserve(projectId, archive, `${detail.name} edited upload`, archiveRights.trim());
+      const upload = await preserve(workspaceId, archive, `${detail.name} edited upload`, archiveRights.trim());
       next = { archive: { revision_id: upload.revision_id, path: archive.name } };
     } else {
       const files = [];
-      for (const { file, path } of folderPaths(folder)) files.push({ path, sha256: await registerBlob(projectId, file) });
+      for (const { file, path } of folderPaths(folder)) files.push({ path, sha256: await registerBlob(workspaceId, file) });
       next = { files };
     }
     setPrepared(next);

@@ -19,9 +19,12 @@ from specmate.sources import blobstore
 router = Router(tags=["pcb"])
 
 
-@router.get("/projects/{project_id}/intakes")
-def list_intakes(request, project_id: UUID):
-    workspace = authorize(request.user, project_id, Perm.WORKSPACE_READ)
+@router.get(
+    "/projects/{workspace_id}/intakes", operation_id="pcb_intakes_via_project"
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/intakes")
+def list_intakes(request, workspace_id: UUID):
+    workspace = authorize(request.user, workspace_id, Perm.WORKSPACE_READ)
     return [
         {
             "intake_id": str(i.id),
@@ -131,10 +134,14 @@ def read_population_revision(request, revision_id: UUID):
     }
 
 
-@router.get("/projects/{project_id}/association-targets")
-def association_targets(request, project_id: UUID):
-    """Offer exact selectable revisions/representations from the authorized project."""
-    workspace = authorize(request.user, project_id, Perm.WORKSPACE_READ)
+@router.get(
+    "/projects/{workspace_id}/association-targets",
+    operation_id="pcb_association_targets_via_project",
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/association-targets")
+def association_targets(request, workspace_id: UUID):
+    """Offer exact selectable revisions/representations from the authorized workspace."""
+    workspace = authorize(request.user, workspace_id, Perm.WORKSPACE_READ)
     revision_rows = list(
         Revision.objects.select_related("definition", "snapshot")
         .filter(definition__workspace=workspace)
@@ -199,12 +206,16 @@ def association_targets(request, project_id: UUID):
     }
 
 
-@router.get("/projects/{project_id}/property-authorities")
-def list_property_authorities(request, project_id: UUID):
+@router.get(
+    "/projects/{workspace_id}/property-authorities",
+    operation_id="pcb_property_authorities_via_project",
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/property-authorities")
+def list_property_authorities(request, workspace_id: UUID):
     from specmate.catalog_matching.queries import current_actor
     from specmate.pcb.authority import list_authorities
 
-    return {"authorities": list_authorities(current_actor(request.user), project_id)}
+    return {"authorities": list_authorities(current_actor(request.user), workspace_id)}
 
 
 @router.get("/property-authorities/{authority_id}")
@@ -217,12 +228,15 @@ def read_property_authority(request, authority_id: UUID):
     return read_authority(user, authority_for(context, authority_id))
 
 
-@router.get("/projects/{project_id}/firmware")
-def list_project_firmware(request, project_id: UUID):
+@router.get(
+    "/projects/{workspace_id}/firmware", operation_id="pcb_firmware_via_project"
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/firmware")
+def list_project_firmware(request, workspace_id: UUID):
     from specmate.catalog_matching.queries import current_actor
     from specmate.pcb.firmware import list_firmware
 
-    return {"firmware": list_firmware(current_actor(request.user), project_id)}
+    return {"firmware": list_firmware(current_actor(request.user), workspace_id)}
 
 
 @router.get("/firmware-drafts/{draft_id}")
@@ -251,9 +265,12 @@ def read_firmware_assignment_review(request, snapshot_id: UUID):
     return assignment_review(current_actor(request.user), snapshot_id)
 
 
-@router.get("/projects/{project_id}/firmware-targets")
-def list_firmware_targets(request, project_id: UUID):
+@router.get(
+    "/projects/{workspace_id}/firmware-targets", operation_id="pcb_firmware_targets_via_project"
+)  # TRANSITIONAL alias (P3 removes)
+@router.get("/workspaces/{workspace_id}/firmware-targets")
+def list_firmware_targets(request, workspace_id: UUID):
     from specmate.catalog_matching.queries import current_actor
     from specmate.pcb.firmware import list_targets
 
-    return {"targets": list_targets(current_actor(request.user), project_id)}
+    return {"targets": list_targets(current_actor(request.user), workspace_id)}

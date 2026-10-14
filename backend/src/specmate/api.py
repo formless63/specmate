@@ -183,8 +183,31 @@ def claim_owner(request, body: ClaimOwnerRequest):
     return execute("installation.claim_owner", ctx, payload)
 
 
-@api.post("/v0/projects/{project_id}/blobs", response=OperationResult, tags=["sources"])
+@api.post("/v0/workspaces/{workspace_id}/blobs", response=OperationResult, tags=["sources"])
 def register_blob(
+    request,
+    workspace_id: UUID,
+    request_id: Form[str],
+    sha256: Form[str],
+    size: Form[int],
+    media_type: Form[str],
+    content: File[UploadedFile],
+    idempotency_key: Form[str | None] = None,
+):
+    return _register_blob(
+        request,
+        {"workspace_id": workspace_id},
+        request_id,
+        sha256,
+        size,
+        media_type,
+        content,
+        idempotency_key,
+    )
+
+
+@api.post("/v0/projects/{project_id}/blobs", response=OperationResult, tags=["sources"])
+def register_blob_in_project_workspace(
     request,
     project_id: UUID,
     request_id: Form[str],
@@ -194,11 +217,25 @@ def register_blob(
     content: File[UploadedFile],
     idempotency_key: Form[str | None] = None,
 ):
+    """TRANSITIONAL (workspace collections): the project id selects its workspace; P3 removes."""
+    return _register_blob(
+        request,
+        {"project_id": project_id},
+        request_id,
+        sha256,
+        size,
+        media_type,
+        content,
+        idempotency_key,
+    )
+
+
+def _register_blob(request, scope, request_id, sha256, size, media_type, content, idempotency_key):
     envelope = OperationEnvelope(
         operation="source.register_blob", request_id=request_id, idempotency_key=idempotency_key
     )
     ctx = _context(request, envelope, attachments={"content": content})
-    payload = {"project_id": project_id, "sha256": sha256, "size": size, "media_type": media_type}
+    payload = {**scope, "sha256": sha256, "size": size, "media_type": media_type}
     return execute("source.register_blob", ctx, payload)
 
 

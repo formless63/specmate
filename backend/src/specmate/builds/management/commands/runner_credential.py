@@ -13,7 +13,8 @@ class Command(BaseCommand):
     help = "Issue a scoped runner token (shown once), or revoke an existing credential."
 
     def add_arguments(self, parser):
-        parser.add_argument("--project")
+        parser.add_argument("--workspace")
+        parser.add_argument("--project", help="Deprecated: a project id selects its workspace.")
         parser.add_argument("--name", default="local-runner")
         parser.add_argument("--recipe", action="append", default=[])
         parser.add_argument("--hours", type=int, default=24)
@@ -26,18 +27,23 @@ class Command(BaseCommand):
         ctx = Context(user=installation.owner, via="internal", request_id=str(uuid.uuid4()))
         if options["revoke"]:
             name, payload = "runner.revoke", {"credential_id": options["revoke"]}
-        elif options["project"] and options["recipe"]:
+        elif (options["workspace"] or options["project"]) and options["recipe"]:
+            scope = (
+                {"workspace_id": options["workspace"]}
+                if options["workspace"]
+                else {"project_id": options["project"]}
+            )
             name, payload = (
                 "runner.enroll",
                 {
-                    "project_id": options["project"],
+                    **scope,
                     "name": options["name"],
                     "recipe_ids": options["recipe"],
                     "lifetime_hours": options["hours"],
                 },
             )
         else:
-            raise CommandError("Supply --project and at least one --recipe, or --revoke.")
+            raise CommandError("Supply --workspace and at least one --recipe, or --revoke.")
         try:
             result = execute(name, ctx, payload)
         except OperationError as exc:

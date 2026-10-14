@@ -8,18 +8,16 @@ revision and approved recipe; the earlier attempt and its evidence stay untouche
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from django.utils import timezone
 from pydantic import Field, field_validator
 
+from specmate.access.models import Project
 from specmate.access.permissions import Perm, authorize
 from specmate.builds.models import BuildAttempt, BuildStage
 from specmate.builds.operations import (
     ACTIVE,
     TERMINAL,
     BuildRef,
-    Payload,
     RequestBuild,
     _authorize_compiler_read,
     _create_attempt,
@@ -30,10 +28,10 @@ from specmate.builds.operations import (
 )
 from specmate.builds.recipes import approved_recipe
 from specmate.operations import Conflict, NotFound, ValidationFailed, operation
-from specmate.operations.scope import workspace_scope
+from specmate.operations.scope import WorkspaceProjectPayload, workspace_scope
 from specmate.sources.models import SourceBundleRevision
 
-# Event details safe for project readers; runner identities and fencing tokens are not.
+# Event details safe for workspace readers; runner identities and fencing tokens are not.
 PUBLIC_EVENT_DETAIL = ("reason", "observed", "outcome", "exit_code", "retry_of", "sha256")
 MAX_LINEAGE = 100
 LIST_LIMIT = 100
@@ -156,7 +154,7 @@ def retry_build(ctx, p: BuildRef) -> dict:
     if source is None:
         raise NotFound("Source revision not found.")
     request = RequestBuild(
-        project_id=build.workspace_id, source_revision_id=source.id, recipe_id=recipe.id
+        workspace_id=build.workspace_id, source_revision_id=source.id, recipe_id=recipe.id
     )
     result = _create_attempt(ctx, build.workspace, source, recipe, request, retry_of=build)
     return {**result, "retry_of": str(build.id)}
@@ -223,6 +221,8 @@ def history(ctx, p: HistoryRead) -> dict:
     retried = _retry_of(build)
     return {
         **stage_result(stage),
+        "workspace_id": str(build.workspace_id),
+        "project_id": str(build.project_id) if build.project_id else None,
         "receipt": stage.receipt,
         "recipe_id": build.recipe_id,
         "source_revision_id": str(build.source_revision_id),
@@ -253,33 +253,39 @@ def history(ctx, p: HistoryRead) -> dict:
     }
 
 
-class ListBuilds(Payload):
-    project_id: UUID
+class ListBuilds(WorkspaceProjectPayload):
+    """Workspace builds; an optional ``project_id`` only filters to that navigation context."""
 
 
 @operation(
     "build.list",
     ListBuilds,
-    summary="List the latest generic builds of a project (compiler builds have their own view).",
+    summary="List the latest generic builds of a workspace (compiler builds have their own view).",
     supports_idempotency=False,
 )
 def list_builds(ctx, p: ListBuilds) -> dict:
     from specmate.firmware_builds.pack import ADAPTER
 
-    workspace = authorize(ctx.user, p.project_id, Perm.WORKSPACE_READ)
+    workspace = authorize(ctx.user, p.scope_id, Perm.WORKSPACE_READ)
+    builds = BuildAttempt.objects.filter(workspace=workspace)
+    if p.workspace_id is not None and p.project_id is not None:
+        if not Project.objects.filter(id=p.project_id, workspace=workspace).exists():
+            raise NotFound("Project not found.")
+        builds = builds.filter(project_id=p.project_id)
     rows = list(
-        BuildAttempt.objects.filter(workspace=workspace)
-        .exclude(recipe_id__startswith=ADAPTER + "-")
+        builds.exclude(recipe_id__startswith=ADAPTER + "-")
         .select_related("stage")
         .order_by("-created_at", "-id")[: LIST_LIMIT + 1]
     )
     return {
+        "workspace_id": str(workspace.id),
         "builds": [
             {
                 **stage_result(b.stage),
                 "recipe_id": b.recipe_id,
                 "requested_at": b.created_at.isoformat(),
                 "retry_of": str(b.retry_of_id) if b.retry_of_id else None,
+                "project_id": str(b.project_id) if b.project_id else None,
             }
             for b in rows[:LIST_LIMIT]
         ],
