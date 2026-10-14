@@ -14,6 +14,56 @@ parameters and geometry. Preserve unknown tolerances, process/material behavior 
 connector envelopes. Show the facts used and the remaining physical checks. A valid solid
 or collision-free approximate mesh does not prove fit/printability.
 
+### Parametric proposal drafts
+
+`mechanical_proposal.create`, `.update`, `.retain`, `.read`, `.read_retained`, `.list`,
+`.board_choices` and `.board_inputs` (HTTP reads under `/api/v0/mechanical-proposals`)
+produce reviewable drafts for an enclosure outline, mounting bosses with lid fastener
+holes, wall connector openings, lid/floor vent slot grids and cable-guide post pairs.
+A draft pins one accepted native board interpretation (`pcb.accept_extraction`) in its
+own project and holds declared parameters under compare-and-set (`proposal-v<N>`).
+The proposal is regenerated deterministically from the pinned report on every read,
+after fresh project and board-source authority; nothing is stored that could drift from
+its inputs. Edit authority is `design.edit`; reads need project read.
+
+Every numeric declaration is nullable and nothing is defaulted. An unknown wall,
+clearance, boss or pilot diameter, standoff, lid hole, connector envelope, centreline
+offset, vertical reference (back-side components have none), vent pitch or margin, or
+cable diameter leaves exactly the dependent geometry null and lists the missing input in
+`unresolved`; the proposal status is `incomplete`. A zero is only a deliberate
+declaration. Native non-plated drills are `candidate-not-reviewed`: a hole becomes a boss
+only through an explicit per-hole choice, and an undecided candidate stays unresolved.
+Components and holes are referenced by native UUID, never by reference label; an unknown
+identity is rejected rather than ignored. The component origin is not a connector
+centreline, so the lateral offset is a required declaration.
+
+Output is planar, in the native board frame (millimetres, x right, y down; west is minimum
+x, north is minimum y), with the enclosure derived from the bounding rectangle of the
+native outline and an explicit note when the outline is not a single axis-aligned
+rectangle. Geometric checks (hole centre inside outline, boss clear of cutouts, boss within
+cavity, pilot smaller than boss, boss overlap, opening within wall span, opening
+separation, guide span, guide clear of openings, vent slot survivors after boss keep-out)
+report `pass`, `fail` or `not_evaluated`. They are arithmetic on declared inputs. Status
+`declared_inputs_complete` is never a fit, clearance, printability, manufacturing or
+thermal conclusion: the document carries `qualification` flags set to not evaluated and
+the list of remaining physical checks. Vent open area is a plan-view geometric area, not
+an airflow claim.
+
+`mechanical_proposal.retain` records the exact current proposal, incomplete or not, as an
+immutable content-addressed derived record (database triggers reject update/delete and
+check the pinned draft, board hash, status and `physical:false`). Retaining identical
+content again returns the existing record. Drafts and records create no design draft,
+snapshot, placement or source and cannot change a frozen revision. Solid CAD, STEP/STL
+output and native build123d or FreeCAD generation remain separate approved tool stages;
+this planar generator is original code.
+
+The Parametric proposals tool (Design area) lists drafts, creates one from an accepted
+board, edits blank-is-unknown declarations with per-hole mount decisions, saves under the
+draft token (a stale save keeps the unsaved text and offers an explicit reload), shows the
+saved proposal with a plan view, unresolved inputs, checks, facts and remaining physical
+checks, and retains or inspects immutable records. Mutating controls follow the project's
+edit permission, and an access change clears every retained board identity and proposal.
+
 ## Scene
 
 One scene projection carries contextual occurrence and feature IDs, units/frames and

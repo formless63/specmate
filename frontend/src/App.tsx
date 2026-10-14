@@ -52,6 +52,7 @@ const CollaborationPanel = lazy(() => import("./features/collaboration/Collabora
 const KnowledgeSearchPanel = lazy(() => import("./features/knowledge/KnowledgeSearchPanel").then((module) => ({ default: module.KnowledgeSearchPanel })));
 const KnowledgePanel = lazy(() => import("./features/knowledge/KnowledgePanel").then((module) => ({ default: module.KnowledgePanel })));
 const PreparationDocumentsPanel = lazy(() => import("./features/preparation-documents/PreparationDocumentsPanel").then((module) => ({ default: module.PreparationDocumentsPanel })));
+const MechanicalProposalsPanel = lazy(() => import("./features/mechanical-proposals/MechanicalProposalsPanel").then((module) => ({ default: module.MechanicalProposalsPanel })));
 const SceneDrawingsPanel = lazy(() => import("./features/scene-drawings/SceneDrawingsPanel").then((module) => ({ default: module.SceneDrawingsPanel })));
 
 export function App() {
@@ -94,6 +95,7 @@ function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permis
     <ToolPanel value="assemblies">{visited.has("assemblies") && <AssemblyPanel projectId={projectId} permissions={permissions} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="facts">{visited.has("facts") && <FactsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="evidence-kinds">{visited.has("evidence-kinds") && <EvidencePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="mechanical-proposals">{visited.has("mechanical-proposals") && <MechanicalProposalsPanel projectId={projectId} principalKey={principalKey} />}</ToolPanel>
     <ToolPanel value="scene-drawings">{visited.has("scene-drawings") && <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />}</ToolPanel>
     <ToolPanel value="preparation-documents">{visited.has("preparation-documents") && <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} canGenerate={permissions.includes("design.edit")} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="interfaces">{visited.has("interfaces") && <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} /></Stack>}</ToolPanel>

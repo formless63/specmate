@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id"
+  ],
+  "title": "RetainedRef",
+  "type": "object"
+}

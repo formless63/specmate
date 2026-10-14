@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "interpretation_id": {
+      "format": "uuid",
+      "title": "Interpretation Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "interpretation_id"
+  ],
+  "title": "BoardInputs",
+  "type": "object"
+}

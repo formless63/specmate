@@ -35,6 +35,7 @@ export const AREAS: AreaDef[] = [
     { id: "shared-scene", label: "Shared scene" },
     { id: "context-selection", label: "Connected views" },
     { id: "scene-drawings", label: "Scene drawings" },
+    { id: "mechanical-proposals", label: "Parametric proposals" },
   ] },
   { id: "sources", label: "Sources", key: "4", tools: [
     { id: "sources", label: "Sources" },
