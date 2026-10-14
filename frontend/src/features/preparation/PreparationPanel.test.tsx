@@ -178,8 +178,9 @@ test('quantity edits cannot discard a pending computed denial affecting the reta
 
 test.each([
   ['read-only', ['project.read'], true, true],
-  ['editor', ['project.read', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+  ['contributor', ['project.read', 'item.create'], false, true],
+  ['editor', ['project.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate Save preparation profile and Freeze preparation profile', async (_name, permissions, saveOff, freezeOff) => {
   let saved: unknown = profile;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -189,8 +190,9 @@ test.each([
   render(wrap(<PermissionsProvider permissions={[...permissions]}><PreparationPanel projectId="project" /></PermissionsProvider>)); startProfile();
   const save = screen.getByRole('button', { name: 'Save preparation profile' }) as HTMLButtonElement;
   expect(save.disabled).toBe(saveOff);
-  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
-  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  // A first save creates a workspace item, so it needs item.create.
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Contributor access' : '');
+  expect(screen.queryAllByText(/Read-only access: requires Contributor access/).length > 0).toBe(saveOff);
   if (saveOff) { expect(screen.queryByRole('button', { name: 'Freeze preparation profile' })).toBeNull(); return; }
   fireEvent.click(save); await screen.findByText('draft · v1', { selector: 'p' });
   const freeze = screen.getByRole('button', { name: 'Freeze preparation profile' }) as HTMLButtonElement;

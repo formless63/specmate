@@ -66,6 +66,16 @@ EXPLICIT: dict[str, Requirement] = {
     "mechanical_source.create": _p(Perm.ITEM_CREATE),
     "mechanical_proposal.create": _p(Perm.ITEM_CREATE),
     "pcb_disagreement.create": _p(Perm.ITEM_CREATE),
+    # Typed design items are workspace collection items: creating one is additive.
+    "assembly.create": _p(Perm.ITEM_CREATE),
+    "bom.create": _p(Perm.ITEM_CREATE),
+    "cable.create": _p(Perm.ITEM_CREATE),
+    "cable_test_plan.create": _p(Perm.ITEM_CREATE),
+    "end_preparation.create": _p(Perm.ITEM_CREATE),
+    "harness.create": _p(Perm.ITEM_CREATE),
+    "interface.create": _p(Perm.ITEM_CREATE),
+    "material_plan.create": _p(Perm.ITEM_CREATE),
+    "preparation.create": _p(Perm.ITEM_CREATE),
     # Additive library registrations and imports: contributors are never blocked.
     "catalog.register_variant": _p(Perm.ITEM_CREATE),
     "catalog.register_representation": _p(Perm.ITEM_CREATE),

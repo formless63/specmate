@@ -37,6 +37,8 @@ export function FirmwarePanel(props: FirmwarePanelProps) {
 
 function FirmwareWorkspace({ workspaceId, permissions, onAccessLost }: FirmwarePanelProps) {
   const canEdit = !permissions || permissions.includes('design.edit');
+  // A new declaration creates a workspace item (item.create); revising a draft needs design.edit.
+  const canCreate = !permissions || permissions.includes('item.create');
   const canFreeze = !permissions || permissions.includes('design.freeze');
   const [shown, setShown] = useState(false);
   const [list, setList] = useState<FirmwareSummary[]>([]);
@@ -214,7 +216,7 @@ function FirmwareWorkspace({ workspaceId, permissions, onAccessLost }: FirmwareP
         {item.draft_id && <Button size="xs" variant="light" onClick={() => void open(`pcb/firmware-drafts/${item.draft_id}`)}>Open {item.name} draft</Button>}
         {item.revisions.map(r => <Button key={r.revision_id} size="xs" variant="subtle" onClick={() => void open(`pcb/firmware-revisions/${r.revision_id}`)}>{item.name} revision {r.number}</Button>)}
       </Group>)}
-      {canEdit && !form && <Button variant="light" onClick={startNew}>New firmware declaration</Button>}
+      {canCreate && !form && <Button variant="light" onClick={startNew}>New firmware declaration</Button>}
       {current && !form && <Stack>
         <Title order={4}>{current.name} · {current.revision_id ? `frozen revision ${current.revision_number}` : `draft ${current.state}`}</Title>
         {current.snapshot_sha256 && <Text size="xs">Snapshot SHA-256 {current.snapshot_sha256}</Text>}

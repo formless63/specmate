@@ -12,7 +12,7 @@ const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembl
 export function BomPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
-  const editGate = usePermission('design.edit');
+  const createGate = usePermission('item.create');
   const [name, setName] = useState("");
   const [plan, setPlan] = useState<Plan>(blankPlan);
   const [definitionId, setDefinitionId] = useState<string | null>(null);
@@ -32,7 +32,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Card withBorder><Stack><Title order={3}>New BOM plan</Title>
       <TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} />
-      <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...editGate.props}>Create BOM draft</Button><ReadOnlyNote permission="design.edit">Creating BOM drafts is unavailable.</ReadOnlyNote>
+      <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...createGate.props}>Create BOM draft</Button><ReadOnlyNote permission="item.create">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}

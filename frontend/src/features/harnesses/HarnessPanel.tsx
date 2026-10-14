@@ -12,7 +12,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 export function HarnessPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
-  const editGate = usePermission('design.edit');
+  const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
   const editorGeneration = useRef(0); const creationGeneration = useRef(0); const newDenialEpoch = useRef(0);
   const renderedCreation = creationGeneration.current;
@@ -81,7 +81,7 @@ function Workspace({ projectId }: { projectId: string }) {
       {newBlocked && <Alert>New Harness access is denied. Retained unsaved declarations are hidden. Starting New discards them.</Alert>}
       {!newBlocked && <><TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <HarnessEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} onReferenceDenied={newReferenceDenied} />
-      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...editGate.props} onClick={() => create.mutate({ generation: creationGeneration.current })}>Create harness draft</Button><ReadOnlyNote permission="design.edit">Creating drafts is unavailable.</ReadOnlyNote></>}
+      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => create.mutate({ generation: creationGeneration.current })}>Create harness draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote></>}
       <Button variant="subtle" onClick={() => { creationGeneration.current += 1; setValue(initialHarness()); setName(""); setNewBlocked(false); setCreateSourceDenied(false); newDeniedRefs.current.clear(); }}>New Harness: discard unsaved creation</Button>
       {newBlocked && <Button onClick={() => { void (async () => { try { const generation = creationGeneration.current; const epoch = newDenialEpoch.current; await read("harnesses/authority", value); for (const path of newDeniedRefs.current) await read(path); if (generation !== creationGeneration.current || epoch !== newDenialEpoch.current) return; newDeniedRefs.current.clear(); setNewBlocked(false); } catch { /* Retain denial and unsaved state. */ } })(); }}>Restore new Harness access</Button>}
       {create.isError && <Alert color="red">{create.error.message}</Alert>}

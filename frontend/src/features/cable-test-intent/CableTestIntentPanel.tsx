@@ -9,7 +9,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function CableTestIntentPanel({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
-  const editGate = usePermission('design.edit');
+  const createGate = usePermission('item.create');
   const [name, setName] = useState('');
   const [value, setValue] = useState(initialPlan);
   const [definitionId, setDefinitionId] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
     <div hidden={hidden}><fieldset disabled={create.isPending} style={{ border: 0, padding: 0 }}><Card withBorder><Stack>
       <Title order={3}>New test plan</Title><TextInput label="Test-plan name" value={name} onChange={e => setName(e.currentTarget.value)} />
       <PlanEditor disabled={create.isPending} key={projectId} value={value} onChange={setValue} refresh={refresh} hidden={hidden} onAuthorityChange={setTargetDenied} />
-      <Button disabled={targetDenied || !name.trim() || hidden} loading={create.isPending} {...editGate.props} onClick={() => create.mutate({ projectId, name, value, generation: editorGeneration })}>Create test-plan draft</Button><ReadOnlyNote permission="design.edit">Creating drafts is unavailable.</ReadOnlyNote>
+      <Button disabled={targetDenied || !name.trim() || hidden} loading={create.isPending} {...createGate.props} onClick={() => create.mutate({ projectId, name, value, generation: editorGeneration })}>Create test-plan draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
     </Stack></Card></fieldset></div>
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
     {[definitions, identity, draft].filter(q => q.isError).map((q, i) => <Alert key={i} color="red">{q.error?.message}</Alert>)}

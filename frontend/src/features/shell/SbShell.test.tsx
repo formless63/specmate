@@ -54,7 +54,7 @@ test("read-only is claimed only when permissions are reported and allow no chang
   expect(isReadOnly(["workspace.read"])).toBe(true);
   expect(isReadOnly(["project.read"])).toBe(true);
   expect(isReadOnly(["workspace.read", "item.create", "project.edit"])).toBe(false);
-  expect(isReadOnly(["project.read", "design.edit"])).toBe(false);
+  expect(isReadOnly(["project.read", "item.create", "design.edit"])).toBe(false);
   expect(isReadOnly(["project.read", "project.admin"])).toBe(false);
   expect(isReadOnly([])).toBe(false);
   expect(isReadOnly(undefined)).toBe(false);
@@ -87,7 +87,7 @@ test("rail selects areas, lenses switch tools, and landmarks and current state a
 });
 
 test("context header shows one fact per cell and the status line holds no navigation", () => {
-  render(<Harness permissions={["project.read", "design.edit"]} />);
+  render(<Harness permissions={["project.read", "item.create", "design.edit"]} />);
   const context = screen.getByRole("region", { name: "Context" }) as HTMLElement;
   expect(within(context).getByText("Demo workshop")).toBeTruthy();
   expect(within(context).getByText("Identities")).toBeTruthy();

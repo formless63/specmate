@@ -118,8 +118,8 @@ test('denied preserved-source refresh hides private assertion rows and declarati
 
 test.each([
   ['read-only', ['project.read'], true, true],
-  ['editor', ['project.read', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+  ['editor', ['project.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate source review create, save and freeze', async (_name, permissions, saveOff, freezeOff) => {
   const value = comparison();
   const draft = (): Draft => ({ definition_id: 'comparison-def', draft_id: 'draft', state: 'v1', content: { pcb_comparison: value }, projection: projection() });

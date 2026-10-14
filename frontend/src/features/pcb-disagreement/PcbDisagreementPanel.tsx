@@ -11,7 +11,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 export function PcbDisagreementPanel({ workspaceId }: { workspaceId: string }) { return <Workspace key={workspaceId} workspaceId={workspaceId} />; }
 function Workspace({ workspaceId }: { workspaceId: string }) {
   const cache = useQueryClient();
-  const editGate = usePermission('design.edit');
+  const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
   const [name, setName] = useState(''); const [value, setValue] = useState<Value>(blankAssertion());
   const [definition, setDefinition] = useState<string | null>(null), [draftId, setDraftId] = useState<string | null>(null), [revision, setRevision] = useState<string | null>(null);
@@ -27,7 +27,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
     <NativeExtraction workspaceId={workspaceId} />
     <Card withBorder><Stack><Title order={3}>New assertion or comparison</Title><TextInput label="Source review definition name" value={name} onChange={e => setName(e.currentTarget.value)} /><Select label="New source review kind" value={value.kind} data={[{ value: 'pcb_assertion', label: 'Human source assertion' }, { value: 'pcb_comparison', label: 'Independent source comparison' }]} onChange={kind => { setValue(kind === 'pcb_assertion' ? blankAssertion() : blankComparison()); setCreateDenied(false); }} />
       {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setCreateDenied} /> : <ComparisonEditor workspaceId={workspaceId} value={value} onChange={setValue} definitions={rows} sourcePinsCurrent={false} onDenied={setCreateDenied} />}
-      <Button disabled={!name || definitions.isError || createDenied} loading={create.isPending} onClick={() => create.mutate()} {...editGate.props}>Create source review draft</Button><ReadOnlyNote permission="design.edit">Creating source review drafts is unavailable.</ReadOnlyNote>{create.isError && <Alert color="red">{create.error.message}</Alert>}
+      <Button disabled={!name || definitions.isError || createDenied} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create source review draft</Button><ReadOnlyNote permission="item.create">Creating source review drafts is unavailable.</ReadOnlyNote>{create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}{identity.isError && <Alert color="red">{identity.error.message}</Alert>}{draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     <Select label="Existing source review definition" searchable value={denied ? null : definition} disabled={definitions.isError} data={rows.filter(d => ['pcb_assertion', 'pcb_comparison'].includes(d.kind)).map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={id => { setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); }} />

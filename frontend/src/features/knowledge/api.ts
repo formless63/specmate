@@ -36,7 +36,7 @@ export function downloadUrl(attachment: Pick<Attachment, "bundle_revision_id" | 
   return `/api/v0/sources/revisions/${encodeURIComponent(attachment.bundle_revision_id)}/file?path=${encodeURIComponent(attachment.path)}`;
 }
 /** Preserve bytes through the shared source operations and return an attachment reference. */
-export async function preserveAttachment(projectId: string, file: File, rights: string, label: string, idempotencyKey?: string, current: () => boolean = () => true): Promise<AttachmentRef> {
+export async function preserveAttachment(workspaceId: string, file: File, rights: string, label: string, idempotencyKey?: string, current: () => boolean = () => true): Promise<AttachmentRef> {
   const ensureCurrent = () => { if (!current()) throw new Error("Knowledge scope changed; prepared upload was stopped."); };
   const bytes = await file.arrayBuffer(); ensureCurrent();
   const sha256 = await sha256Hex(bytes); ensureCurrent();
@@ -44,9 +44,9 @@ export async function preserveAttachment(projectId: string, file: File, rights: 
   for (const [key, value] of Object.entries({ request_id: randomUUID(), sha256, size: `${file.size}`, media_type: file.type || "application/octet-stream" })) form.set(key, value);
   form.set("content", file);
   const csrf = document.cookie.split("; ").find(cookie => cookie.startsWith("csrftoken="))?.slice(10) ?? "";
-  await request(`projects/${encodeURIComponent(projectId)}/blobs`, { method: "POST", headers: { "X-CSRFToken": csrf }, body: form }); ensureCurrent();
+  await request(`workspaces/${encodeURIComponent(workspaceId)}/blobs`, { method: "POST", headers: { "X-CSRFToken": csrf }, body: form }); ensureCurrent();
   const bundle = await command<{ revision_id: string }>("source.create_original_bundle", {
-    project_id: projectId, name: file.name, files: [{ path: file.name, sha256, media_type: file.type || "application/octet-stream", rights }],
+    workspace_id: workspaceId, name: file.name, files: [{ path: file.name, sha256, media_type: file.type || "application/octet-stream", rights }],
   }, { idempotencyKey });
   ensureCurrent();
   return { bundle_revision_id: bundle.revision_id, path: file.name, label };

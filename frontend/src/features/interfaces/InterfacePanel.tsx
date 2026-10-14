@@ -13,7 +13,7 @@ const kinds = [{ value: "connector_body", label: "Connector body" }, { value: "p
 export function InterfacePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
-  const editGate = usePermission('design.edit');
+  const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
   const [name, setName] = useState("");
   const [value, setValue] = useState<Interface>(initialInterface("connector_body"));
@@ -41,7 +41,7 @@ function Workspace({ projectId }: { projectId: string }) {
       <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <Select label="Interface definition kind" data={kinds} value={value.kind} onChange={(v) => setValue(initialInterface(v as Interface["kind"]))} />
       <Editor value={value} onChange={setValue} definitions={definitions.data ?? []} />
-      <Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()} {...editGate.props}>Create interface draft</Button><ReadOnlyNote permission="design.edit">Creating interface drafts is unavailable.</ReadOnlyNote>
+      <Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create interface draft</Button><ReadOnlyNote permission="item.create">Creating interface drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}

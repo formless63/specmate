@@ -30,11 +30,11 @@ export async function readOpenWork(projectId: string): Promise<Pick<ProjectWork,
   const id = idOf(projectId);
   const [unread, reviews] = await Promise.all([
     attempt(async () => {
-      const page = await requestJson<Page<NotificationRow>>(`/api/v0/collaboration/projects/${id}/inbox?limit=25&unread_only=true`);
+      const page = await requestJson<Page<NotificationRow>>(`/api/v0/collaboration/inbox?project_id=${id}&limit=25&unread_only=true`);
       return { rows: page.results, more: page.next_after !== null };
     }),
     attempt(async () => {
-      const page = await requestJson<Page<ReviewRow>>(`/api/v0/collaboration/projects/${id}/reviews?limit=25`);
+      const page = await requestJson<Page<ReviewRow>>(`/api/v0/collaboration/reviews?project_id=${id}&limit=25`);
       return { open: page.results.filter((row) => row.status === "open"), more: page.next_after !== null };
     }),
   ]);

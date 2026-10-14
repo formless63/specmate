@@ -15,7 +15,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 export function CablePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
-  const editGate = usePermission('design.edit');
+  const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
   const [name, setName] = useState("");
   const [value, setValue] = useState<Cable>(initialCable());
@@ -80,7 +80,7 @@ function Workspace({ projectId }: { projectId: string }) {
       <Title order={3}>New reusable definition</Title>
       <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <CableEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} />
-      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...editGate.props} onClick={() => create.mutate()}>Create cable draft</Button><ReadOnlyNote permission="design.edit">Creating drafts is unavailable.</ReadOnlyNote>
+      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => create.mutate()}>Create cable draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
     </Stack></Card>}
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}

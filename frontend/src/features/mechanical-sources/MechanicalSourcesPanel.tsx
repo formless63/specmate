@@ -213,13 +213,15 @@ export function MechanicalSourcesPanel({ workspaceId, permissions, onAccessLost 
     finally { if (active(token)) setBusy(false); }
   }
   const edit = permissions.includes('design.edit');
+  // A new mechanical source is a workspace item (item.create); revising a draft needs design.edit.
+  const canCreate = permissions.includes('item.create');
   function changeTarget(id: string, changes: Partial<TargetPin>) { setForm(prior => prior ? { ...prior, targets: prior.targets.map(t => t.local_id === id ? { ...t, ...changes } : t) } : prior); }
   function changeModel(id: string, changes: Partial<ModelPin>) { setForm(prior => prior ? { ...prior, models: prior.models.map(m => m.local_id === id ? { ...m, ...changes } : m) } : prior); }
   return <Stack>
     <Title order={3}>Mechanical sources</Title>
     <Text size="sm">Preserve native enclosure, part and hardware files in Sources, then pin exact originals or derivatives and board/component revisions here. File formats and model quality are declarations.</Text>
     <Group><Button variant="default" onClick={() => void refresh()}>Refresh mechanical sources</Button>
-      {shown && edit && <Button onClick={() => { generation.current += 1; setRead(null); setForm(blank()); setName(''); setBusy(false); setMessage(''); setModelRevision(null); pendingSave.current = null; }}>New mechanical source</Button>}</Group>
+      {shown && canCreate && <Button onClick={() => { generation.current += 1; setRead(null); setForm(blank()); setName(''); setBusy(false); setMessage(''); setModelRevision(null); pendingSave.current = null; }}>New mechanical source</Button>}</Group>
     {message && <Alert color="red">{message}</Alert>}
     {!shown && <Alert color="yellow">Source or target access is unavailable. Declarations are hidden until an explicit refresh verifies current authority.</Alert>}
     {shown && <>
@@ -232,7 +234,7 @@ export function MechanicalSourcesPanel({ workspaceId, permissions, onAccessLost 
         {edit && read.draft_id && !form && <Button onClick={() => { generation.current += 1; setBusy(false); setForm(structuredClone(read.content.mechanical_source)); pendingSave.current = null; }}>Edit mechanical draft</Button>}
         {permissions.includes('design.freeze') && read.draft_id && !form && <Button disabled={busy || read.evaluation.readiness === 'blocked'} onClick={() => void freeze()}>Freeze mechanical declarations</Button>}
       </Stack></Card>}
-      {edit && form && <Stack>
+      {(read?.draft_id ? edit : canCreate) && form && <Stack>
         {!read?.draft_id && <TextInput label="Mechanical source name" value={name} onChange={e => setName(e.currentTarget.value)} />}
         <Select label="Mechanical item role" value={form.item_role} data={['enclosure', 'part', 'hardware']} onChange={value => value && setForm({ ...form, item_role: value as MechanicalSource['item_role'] })} />
         <TextInput label="Exact source file path (optional)" description="Leave empty to pin all files in a bundle of up to 200 files. Set one package-relative path to add only that file." value={sourcePath} onChange={e => setSourcePath(e.currentTarget.value)} />

@@ -336,8 +336,8 @@ test.each([false, true])('delayed inspector denial ignores only actual editor re
 
 test.each([
   ['read-only', ['project.read'], true, true],
-  ['editor', ['project.read', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+  ['editor', ['project.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate test-plan create, save and freeze', async (_name, permissions, saveOff, freezeOff) => {
   const d: Draft = { definition_id: 'def', draft_id: 'draft', state: 'draft-v1', content: { test_plan: plan() } };
   vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => options?.method === 'POST' ? response({ result: target }) : response([])));

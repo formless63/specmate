@@ -152,8 +152,8 @@ async function pick(name: string, option: string) {
 
 test.each([
   ["read-only", ["project.read"], true, true],
-  ["editor", ["project.read", "design.edit"], false, true],
-  ["editor with freeze", ["project.read", "design.edit", "design.freeze"], false, false],
+  ["editor", ["project.read", "item.create", "design.edit"], false, true],
+  ["editor with freeze", ["project.read", "item.create", "design.edit", "design.freeze"], false, false],
 ] as const)("%s permissions gate interface create, save and freeze", async (_name, permissions, saveOff, freezeOff) => {
   const value = initialInterface("connector_body");
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {

@@ -9,10 +9,11 @@ import { downloadUrl, lookup, operate, preserveAttachment, read, type Attachment
 const DECISIONS: DecisionStatus[] = ["proposed", "accepted", "rejected", "superseded"];
 
 /** Notes, decisions and attachment references linked to exact objects. Pass `target` to embed it for a selection. */
-export function KnowledgePanel({ workspaceId, projectId, canEdit, target, principalKey = "session", onAccessLost }: { workspaceId: string; projectId?: string; canEdit: boolean; target?: Target; principalKey?: string; onAccessLost?: () => void }) {
-  return <ScopedWorkspace key={`${workspaceId}:${projectId ?? ""}:${principalKey}:${canEdit}:${JSON.stringify(target ?? null)}`} workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} target={target} onAccessLost={onAccessLost} />;
+/** `canCreate` (item.create) adds knowledge items; `canEdit` (design.edit) revises and links them. */
+export function KnowledgePanel({ workspaceId, projectId, canEdit, canCreate = canEdit, target, principalKey = "session", onAccessLost }: { workspaceId: string; projectId?: string; canEdit: boolean; canCreate?: boolean; target?: Target; principalKey?: string; onAccessLost?: () => void }) {
+  return <ScopedWorkspace key={`${workspaceId}:${projectId ?? ""}:${principalKey}:${canEdit}:${canCreate}:${JSON.stringify(target ?? null)}`} workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} canCreate={canCreate} target={target} onAccessLost={onAccessLost} />;
 }
-function ScopedWorkspace({ workspaceId, projectId, canEdit, target, onAccessLost }: { workspaceId: string; projectId?: string; canEdit: boolean; target?: Target; onAccessLost?: () => void }) {
+function ScopedWorkspace({ workspaceId, projectId, canEdit, canCreate, target, onAccessLost }: { workspaceId: string; projectId?: string; canEdit: boolean; canCreate: boolean; target?: Target; onAccessLost?: () => void }) {
   const cache = useQueryClient();
   const [id] = useState(randomUUID);
   const active = useRef(true);
@@ -26,10 +27,10 @@ function ScopedWorkspace({ workspaceId, projectId, canEdit, target, onAccessLost
     window.addEventListener("focus", refresh);
     return () => { active.current = false; window.removeEventListener("focus", refresh); void cache.cancelQueries({ predicate: query => query.queryKey[1] === id }); cache.removeQueries({ predicate: query => query.queryKey[1] === id }); };
   }, [cache, id]);
-  return <KnowledgeScope.Provider value={scope}><KnowledgeWorkspace workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} fixedTarget={target} /></KnowledgeScope.Provider>;
+  return <KnowledgeScope.Provider value={scope}><KnowledgeWorkspace workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} canCreate={canCreate} fixedTarget={target} /></KnowledgeScope.Provider>;
 }
 
-function KnowledgeWorkspace({ workspaceId, projectId, canEdit, fixedTarget }: { workspaceId: string; projectId?: string; canEdit: boolean; fixedTarget?: Target }) {
+function KnowledgeWorkspace({ workspaceId, projectId, canEdit, canCreate, fixedTarget }: { workspaceId: string; projectId?: string; canEdit: boolean; canCreate: boolean; fixedTarget?: Target }) {
   const cache = useQueryClient();
   const scope = useKnowledgeScope();
   const [chosen, setChosen] = useState<Target | null>(fixedTarget ?? null);
@@ -43,8 +44,8 @@ function KnowledgeWorkspace({ workspaceId, projectId, canEdit, fixedTarget }: { 
     {!fixedTarget && <TargetPicker workspaceId={workspaceId} projectId={projectId} onChoose={target => { setTargetReady(false); setChosen(target); }} />}
     {chosen && <TargetItemsCard key={JSON.stringify(chosen)} target={chosen} onOpen={setItemId} onReady={setTargetReady} />}
     <WorkspaceItems workspaceId={workspaceId} projectId={projectId} onOpen={setItemId} onReady={setProjectReady} />
-    {canEdit && <CreateItem workspaceId={workspaceId} projectId={projectId} target={chosen} onCreated={setItemId} projectReady={projectReady} targetReady={targetReady} />}
-    {itemId && <ItemDetail key={`${itemId}:${JSON.stringify(chosen)}`} itemId={itemId} workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} target={chosen} targetReady={targetReady} />}
+    {canCreate && <CreateItem workspaceId={workspaceId} projectId={projectId} target={chosen} onCreated={setItemId} projectReady={projectReady} targetReady={targetReady} />}
+    {itemId && <ItemDetail key={`${itemId}:${JSON.stringify(chosen)}`} itemId={itemId} workspaceId={workspaceId} canEdit={canEdit} target={chosen} targetReady={targetReady} />}
   </Stack>;
 }
 
@@ -122,7 +123,7 @@ function AttachmentEditor({ sourceScope, value, onChange, blocked, onBusy }: { s
   const [label, setLabel] = useState("");
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [path, setPath] = useState<string | null>(null);
-  const sources = useKnowledgeQuery(["knowledge-sources", sourceScope], () => read<SourcePage>(`sources/projects/${sourceScope}/revisions`));
+  const sources = useKnowledgeQuery(["knowledge-sources", sourceScope], () => read<SourcePage>(`sources/workspaces/${sourceScope}/revisions`));
   const detail = useKnowledgeQuery(["knowledge-source", revisionId], () => read<RevisionDetail>(`sources/revisions/${revisionId}`), !!revisionId);
   const currentScope = useCurrent();
   const uploadIntent = useRef<{ file: File; rights: string; key: string } | null>(null);
@@ -175,12 +176,12 @@ function CreateItem({ workspaceId, projectId, target, onCreated, projectReady, t
     <Select label="Knowledge kind" value={kind} allowDeselect={false} data={[{ value: "note", label: "Note" }, { value: "decision", label: "Decision" }, { value: "attachment", label: "Attachment reference" }]} onChange={(value) => setKind(value as Kind)} />
     <Checkbox label={target ? "Link to the chosen object" : "No object chosen; the item is created without links"} disabled={!target} checked={!!target && linkChosen} onChange={(e) => setLinkChosen(e.currentTarget.checked)} />
     {projectId && <Checkbox label="Hold this item in the current project (otherwise it is a library note)" checked={holdInProject} onChange={(e) => setHoldInProject(e.currentTarget.checked)} />}
-    <ContentForm key={kind} sourceScope={projectId ?? workspaceId} kind={kind} submitLabel="Create knowledge item" busy={create.isPending} blocked={!projectReady || (!!target && linkChosen && !targetReady)} onSubmit={(content) => create.mutate({ payload: { workspace_id: workspaceId, ...(projectId && holdInProject ? { project_id: projectId } : {}), kind, content, links: target && linkChosen ? [target] : [] }, targetKey: JSON.stringify(target) })} />
+    <ContentForm key={kind} sourceScope={workspaceId} kind={kind} submitLabel="Create knowledge item" busy={create.isPending} blocked={!projectReady || (!!target && linkChosen && !targetReady)} onSubmit={(content) => create.mutate({ payload: { workspace_id: workspaceId, ...(projectId && holdInProject ? { project_id: projectId } : {}), kind, content, links: target && linkChosen ? [target] : [] }, targetKey: JSON.stringify(target) })} />
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
   </Stack></Card>;
 }
 
-function ItemDetail({ itemId, workspaceId, projectId, canEdit, target, targetReady }: { itemId: string; workspaceId: string; projectId?: string; canEdit: boolean; target: Target | null; targetReady: boolean }) {
+function ItemDetail({ itemId, workspaceId, canEdit, target, targetReady }: { itemId: string; workspaceId: string; canEdit: boolean; target: Target | null; targetReady: boolean }) {
   const cache = useQueryClient();
   const item = useKnowledgeQuery(["knowledge-item", itemId], () => read<Item>(`knowledge/items/${itemId}`));
   const [reason, setReason] = useState("");
@@ -218,7 +219,7 @@ function ItemDetail({ itemId, workspaceId, projectId, canEdit, target, targetRea
     </>}
     {canEdit && editing && editing.workspaceId === workspaceId && <Card withBorder><Stack><Title order={4}>Revise from entry {editing.number}</Title><Text>Original edit basis: {editing.state}. Unsaved inputs stay attached to this basis during refresh.</Text>
       {data && data.state !== editing.state && <Alert color="yellow">The current entry changed. Review it above before deliberately choosing a new edit basis.<Button disabled={revise.isPending} onClick={() => setEditing({ ...editing, state: data.state, number: data.current.number })}>Use current entry as revision basis</Button></Alert>}
-      <ContentForm sourceScope={projectId ?? workspaceId} kind={editing.kind} initial={editing.content} submitLabel="Save new entry" busy={revise.isPending} blocked={!data} onSubmit={content => revise.mutate({content, state: editing.state})} />
+      <ContentForm sourceScope={workspaceId} kind={editing.kind} initial={editing.content} submitLabel="Save new entry" busy={revise.isPending} blocked={!data} onSubmit={content => revise.mutate({content, state: editing.state})} />
       {revise.isError && !data && <Alert color="red">{revise.error.message}</Alert>}
       <Button variant="subtle" onClick={() => setEditing(null)}>Cancel revision</Button></Stack></Card>}
   </Stack></Card>;

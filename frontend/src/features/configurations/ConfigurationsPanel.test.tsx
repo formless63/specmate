@@ -64,7 +64,7 @@ async function openDraft() {
 }
 
 test('shows explicit decisions, saves selections under CAS and captures a reviewed snapshot', async () => {
-  const bodies = setup(['project.read', 'design.edit']);
+  const bodies = setup(['project.read', 'item.create', 'design.edit']);
   await openDraft();
   expect(screen.getByText('incomplete')).toBeTruthy();
   expect(screen.getByText('unresolved')).toBeTruthy();

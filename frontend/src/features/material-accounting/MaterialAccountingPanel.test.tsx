@@ -216,8 +216,9 @@ test.each([false, true])('detached reference denial is fenced only by genuine ed
 
 test.each([
   ['read-only', ['project.read'], true, true],
-  ['editor', ['project.read', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+  ['contributor', ['project.read', 'item.create'], false, true],
+  ['editor', ['project.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate Save material plan and Freeze saved material plan', async (_name, permissions, saveOff, freezeOff) => {
   let saved = emptyPlan();
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -231,8 +232,9 @@ test.each([
   const save = screen.getByRole('button', { name: 'Save material plan' }) as HTMLButtonElement;
   const freeze = screen.getByRole('button', { name: 'Freeze saved material plan' }) as HTMLButtonElement;
   expect(save.disabled).toBe(saveOff);
-  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
-  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  // A first save creates a workspace item, so it needs item.create.
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Contributor access' : '');
+  expect(screen.queryAllByText(/Read-only access: requires Contributor access/).length > 0).toBe(saveOff);
   if (saveOff) { expect(freeze.disabled).toBe(true); return; }
   fireEvent.click(save); await screen.findByText('draft · v1');
   expect((screen.getByRole('button', { name: 'Freeze saved material plan' }) as HTMLButtonElement).disabled).toBe(freezeOff);

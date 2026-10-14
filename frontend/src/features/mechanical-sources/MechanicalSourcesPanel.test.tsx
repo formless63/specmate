@@ -42,7 +42,7 @@ function setup(options: { permissions?: string[]; strict?: boolean; draft?: Mech
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', mock);
-  const props = { workspaceId: 'project', permissions: options.permissions ?? ['project.read', 'design.edit', 'design.freeze'], onAccessLost: options.lost };
+  const props = { workspaceId: 'project', permissions: options.permissions ?? ['project.read', 'item.create', 'design.edit', 'design.freeze'], onAccessLost: options.lost };
   const view = render(<MantineProvider>{options.strict ? <StrictMode><MechanicalSourcesPanel {...props} /></StrictMode> : <MechanicalSourcesPanel {...props} />}</MantineProvider>);
   return { ...view, bodies, mock, deny: (value: boolean) => { denied = value; } };
 }

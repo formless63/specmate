@@ -277,8 +277,8 @@ test.each([
 
 test.each([
   ['read-only', ['project.read'], true, true],
-  ['editor without freeze', ['project.read', 'design.edit'], false, true],
-  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, false],
+  ['editor without freeze', ['project.read', 'item.create', 'design.edit'], false, true],
+  ['editor with freeze', ['project.read', 'item.create', 'design.edit', 'design.freeze'], false, false],
 ] as const)('%s permissions gate cable create, save and freeze controls', async (_name, permissions, saveOff, freezeOff) => {
   await openRetainedDraft([...permissions]);
   const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled;

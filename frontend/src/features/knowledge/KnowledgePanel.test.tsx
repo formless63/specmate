@@ -46,7 +46,7 @@ function server(handlers: { item?: () => Item; post?: (call: Call["body"]) => { 
     if (url.includes("knowledge/items/")) return new Response(JSON.stringify((handlers.item ?? item)()), { status: 200 });
     if (url.includes("/definitions/")) return new Response(JSON.stringify({ definition_id: "def-1", name: "Synthetic bracket", kind: "part", revisions: [{ revision_id: "rev-1", number: 1 }, { revision_id: "rev-2", number: 2 }], drafts: [] }), { status: 200 });
     if (url.includes("/definitions")) return new Response(JSON.stringify([{ definition_id: "def-1", name: "Synthetic bracket", kind: "part" }]), { status: 200 });
-    if (url.includes("sources/projects/")) return new Response(JSON.stringify({ revisions: [], next_after: null }), { status: 200 });
+    if (url.includes("sources/workspaces/")) return new Response(JSON.stringify({ revisions: [], next_after: null }), { status: 200 });
     return new Response(JSON.stringify({}), { status: 200 });
   }));
   return calls;
@@ -145,9 +145,9 @@ test("a new attachment is preserved through source operations before it is refer
   await waitFor(() => expect(screen.getByRole("button", { name: "Preserve and attach" }).hasAttribute("disabled")).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: "Preserve and attach" }));
   expect(await screen.findByText("sheet.pdf · sheet.pdf")).toBeTruthy();
-  expect(uploads).toEqual(["/api/v0/projects/project-1/blobs"]);
+  expect(uploads).toEqual(["/api/v0/workspaces/ws-1/blobs"]);
   const bundle = calls.find((c) => c.body.operation === "source.create_original_bundle")!;
-  expect(bundle.body.payload).toMatchObject({ project_id: "project-1", files: [{ path: "sheet.pdf", media_type: "application/pdf", rights: "synthetic-original" }] });
+  expect(bundle.body.payload).toMatchObject({ workspace_id: "ws-1", files: [{ path: "sheet.pdf", media_type: "application/pdf", rights: "synthetic-original" }] });
   fireEvent.click(screen.getByRole("button", { name: "Create knowledge item" }));
   await waitFor(() => expect(calls.some((c) => c.body.operation === "knowledge.create")).toBe(true));
   expect(calls.find((c) => c.body.operation === "knowledge.create")!.body.payload).toMatchObject({ kind: "attachment", content: { attachments: [{ bundle_revision_id: "src-9", path: "sheet.pdf", label: "" }] }, links: [] });
@@ -381,8 +381,8 @@ test("strict lifecycle replay still refreshes current authority and hides denied
 });
 
 test.each([
-  ["editor without source registration", ["project.read", "design.edit"], true],
-  ["editor with source registration", ["project.read", "design.edit", "source.register"], false],
+  ["editor without source registration", ["project.read", "item.create", "design.edit"], true],
+  ["editor with source registration", ["project.read", "item.create", "design.edit", "source.register"], false],
 ] as const)("%s: attachment upload follows the source registration permission", async (_name, permissions, off) => {
   server();
   render(wrap(<PermissionsProvider permissions={[...permissions]}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit /></PermissionsProvider>));

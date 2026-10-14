@@ -70,11 +70,11 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
     }
     if (path.startsWith("/api/v0/diagnostics/workspaces/")) return reply({ workspace_id: "p", evaluated_at: "2026-01-01T00:00:00Z", work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" }, queue: { states: {}, pending: 0, active: 0, oldest_pending_seconds: null }, dispatch: { undelivered: 0, oldest_undelivered_seconds: null }, runner: { state: "not_enrolled", credentials_usable: 0, stages_holding_lease: 0, stages_lease_expired: 0 }, tools: [], storage: { state: "not_initialized", code: null, sampled: 0 }, workflow_engine: { state: "not_evaluated" }, builds: [], can_execute: false, findings: [] });
-    if (path.startsWith("/api/v0/collaboration/projects/")) return reply({ results: [], next_after: null });
+    if (path.startsWith("/api/v0/collaboration/inbox?") || path.startsWith("/api/v0/collaboration/reviews?")) return reply({ results: [], next_after: null });
     if (path.startsWith("/api/v0/catalog/definitions?")) return reply({ workspace_id: "workspace", project_id: null, results: [], next_after: null });
     if (path.startsWith("/api/v0/stocks")) return reply([]);
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
-    if (path.startsWith("/api/v0/preparation-documents/projects/")) return reply({ document_sets: [] });
+    if (path.startsWith("/api/v0/preparation-documents/projects/") || path === "/api/v0/preparation-documents/workspace") return reply({ document_sets: [] });
     if (path.startsWith("/api/v0/knowledge/workspaces/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
     if (path.startsWith("/api/v0/inventory/workspaces/")) return denyInventory
       ? reply({ error: { message: "Project not found." } }, 404)
@@ -143,11 +143,11 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
   openTool("PCB intake");
   await screen.findByRole("heading", { name: "PCB intake" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/project-a/intakes", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/w1/intakes", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
   openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/workspaces/project-a?offset=0&limit=50", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/workspaces/w1?offset=0&limit=50", expect.anything()));
 });
 
 test("selected packages, firmware and mechanical tools mount with scoped read controls", async () => {
@@ -173,7 +173,8 @@ test("shared, assembly, connected and drawing views mount with scoped read contr
   expect(screen.getByRole("button", { name: "Refresh scene access" })).toBeTruthy();
   openTool("Assemblies");
   await screen.findByRole("heading", { name: "Reusable assemblies" });
-  expect(screen.queryByRole("button", { name: "Create assembly draft" })).toBeNull();
+  // Contributors create workspace items (item.create); editing drafts still needs design.edit.
+  expect(screen.getByRole("button", { name: "Create assembly draft" })).toBeTruthy();
   openTool("Connected views");
   await screen.findByRole("heading", { name: "Contextual inspection" });
   expect(screen.getByRole("button", { name: "Refresh contextual scene choices" })).toBeTruthy();
@@ -192,7 +193,8 @@ test("documents, interfaces and knowledge mount with scoped read controls", asyn
   expect(screen.queryByRole("button", { name: "New assessment" })).toBeNull();
   openTool("Notes & files");
   await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
-  expect(screen.queryByRole("button", { name: "Create knowledge item" })).toBeNull();
+  // knowledge.create needs item.create, which contributors hold.
+  expect(await screen.findByRole("button", { name: "Create knowledge item" })).toBeTruthy();
   await screen.findByRole("heading", { name: "Search notes and attachments" });
   await screen.findByRole("heading", { name: "Team changes" });
   expect((screen.getByRole("button", { name: "Open team review" }) as HTMLButtonElement).disabled).toBe(true);
@@ -209,17 +211,20 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   openTool("Inventory");
   expect((screen.getByLabelText("New location name") as HTMLInputElement).value).toBe("Private shelf draft");
   cache.setQueryData(["private", "project-a"], "synthetic-private-data");
+  const inventoryReads = () => fetchMock.mock.calls.filter(([path]) => path === "/api/v0/inventory/workspaces/w1?offset=0&limit=50").length;
+  const readsBefore = inventoryReads();
   await selectProject("Project B");
   // The area and lens survive the scope change; the lens remounts empty for the new project.
   expect(screen.getByRole("tab", { name: "Inventory" }).getAttribute("aria-selected")).toBe("true");
   expect(cache.getQueryData(["private", "project-a"])).toBeUndefined();
   expect((await screen.findByLabelText("New location name") as HTMLInputElement).value).toBe("");
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/workspaces/project-b?offset=0&limit=50", expect.anything()));
+  // The inventory is the workspace's; the remounted lens reads it afresh for the new scope.
+  await waitFor(() => expect(inventoryReads()).toBeGreaterThan(readsBefore));
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await screen.findByRole("heading", { name: "Sign in" });
   expect(screen.queryByRole("tablist")).toBeNull();
   expect(screen.queryByLabelText("New location name")).toBeNull();
-  expect(cache.getQueryData(["inventory", "project-b", 0])).toBeUndefined();
+  expect(cache.getQueryData(["inventory", "w1", null, 0])).toBeUndefined();
 });
 
 test("PCB controls require explicit grants, and a denied read is visible", async () => {

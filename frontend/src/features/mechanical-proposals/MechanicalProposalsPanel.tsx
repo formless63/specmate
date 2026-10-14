@@ -23,6 +23,8 @@ function Field({ label, value, onChange, unit = 'mm', disabled }: { label: strin
 
 function Workspace({ workspaceId }: { workspaceId: string }) {
   const edit = usePermission('design.edit');
+  // Creating a proposal draft adds a workspace item (item.create); editing it needs design.edit.
+  const createGate = usePermission('item.create');
   const [boards, setBoards] = useState<BoardChoice[]>([]);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -128,7 +130,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <Group align="end">
         <Select label="Accepted board" placeholder={boards.length ? 'Choose a board' : 'No accepted board interpretation'} value={board} onChange={setBoard} data={boards.map(b => ({ value: b.interpretation_id, label: `${b.board_path || 'board'} · ${b.sha256.slice(0, 12)} · outline ${b.outline}` }))} />
         <TextInput label="New proposal name" value={name} onChange={event => setName(event.currentTarget.value)} />
-        <Button {...edit.props} disabled={!edit.allowed || busy || !board || !name.trim()} onClick={() => void create()}>Create proposal draft</Button>
+        <Button {...createGate.props} disabled={!createGate.allowed || busy || !board || !name.trim()} onClick={() => void create()}>Create proposal draft</Button>
       </Group>
     </Stack></Card>
 

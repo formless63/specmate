@@ -15,6 +15,8 @@ export function AssemblyPanel({ projectId, permissions, onAccessLost }: { projec
 
 function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId: string; permissions?: string[]; onAccessLost?: () => void }) {
   const canEdit = !permissions || permissions.includes("design.edit");
+  // Creating an assembly adds a workspace item (item.create); editing drafts needs design.edit.
+  const canCreate = !permissions || permissions.includes("item.create");
   const canFreeze = !permissions || permissions.includes("design.freeze");
   const [accessError, setAccessError] = useState("");
   const generation = useRef(0);
@@ -126,7 +128,7 @@ function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId
   return <Stack>
     <Title order={2}>Reusable assemblies</Title>
     <Text>Every occurrence uses an exact revision. Local IDs preserve identity; display references such as J1 may repeat. Snapshots pin the complete assembly.</Text>
-    {canEdit && !accessError && <Group align="end"><TextInput label="Assembly name" value={name} onChange={(e) => setName(e.currentTarget.value)} /><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create assembly draft</Button></Group>}
+    {canCreate && !accessError && <Group align="end"><TextInput label="Assembly name" value={name} onChange={(e) => setName(e.currentTarget.value)} /><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()}>Create assembly draft</Button></Group>}
     {accessError && <Alert color="red">{accessError}</Alert>}
     <Button onClick={() => { void refreshAuthorized(); }}>Refresh authorized assemblies</Button>
     {!accessError && create.isError && <Alert color="red">{create.error.message}</Alert>}
