@@ -24,7 +24,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const definitions = useQuery({ queryKey: ["interface-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
   const identity = useQuery({ queryKey: ["interface-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["interface-draft", draftId], queryFn: () => read<Draft>(`interfaces/drafts/${draftId}`), enabled: !!draftId });
-  const create = useMutation({ mutationFn: () => command<Draft>("interface.create", { project_id: projectId, name, interface: value }), onSuccess: async (data) => {
+  const create = useMutation({ mutationFn: () => command<Draft>("interface.create", { name, interface: value }), onSuccess: async (data) => {
     setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["interface-definitions", projectId] });
   } });

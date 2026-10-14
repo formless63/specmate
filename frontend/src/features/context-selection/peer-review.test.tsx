@@ -39,7 +39,7 @@ const tab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }))
   tab('Context board'); fireEvent.click(screen.getByRole('button', { name: 'Board marker component:one' }));
   let complete: (value: Response) => void = () => {};
   const held = new Promise<Response>(resolve => { complete = resolve; });
-  fetcher.mockImplementation(async (url: string) => url.endsWith('/projects/project-a') ? held : response(url.endsWith('/definitions') ? definitions : scene));
+  fetcher.mockImplementation(async (url: string) => url.endsWith('/shared-scenes/workspace') ? held : response(url.endsWith('/definitions') ? definitions : scene));
   fireEvent.click(screen.getByRole('button', { name: 'Refresh contextual scene choices' }));
   expect(screen.queryByRole('region', { name: 'Shared contextual selection' })).toBeNull();
   await act(async () => { complete(response(choices)); await held; });

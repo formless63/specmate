@@ -43,7 +43,7 @@ export async function inspectDraft(draftId: string) {
   if (!draft.content.passages) throw new Error("Selected draft is not a typed passive model.");
   return draft;
 }
-export const createModel = (projectId: string, name: string, model: Model) => command<Draft>("passage.create", { project_id: projectId, name, model });
+export const createModel = (name: string, model: Model) => command<Draft>("passage.create", { name, model });
 export const updateModel = (draft: Draft, model: Model) => command<Draft>("passage.update", { draft_id: draft.draft_id, model }, draft.state);
 export const freezeModel = (draft: Draft) => command<Frozen>("passage.freeze", { draft_id: draft.draft_id }, draft.state);
 export const reviewModel = (inspection: Inspection, decision: string, basis: string, evidence: Evidence) => command<Inspection>("passage.review", { revision_id: inspection.revision_id, decision, basis, evidence }, inspection.state);

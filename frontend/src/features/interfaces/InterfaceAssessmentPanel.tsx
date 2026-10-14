@@ -88,13 +88,13 @@ function Workspace({ projectId, canEdit, canFreeze, isActive }: { projectId: str
       <Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next assessment history</Button>
     </Group>}
     {canEdit && <Button disabled={!ready} onClick={() => { setCreating(true); setDraftId(null); setRevisionId(null); }}>New assessment</Button>}
-    {creating && <div hidden={!ready}><Author key="new" projectId={projectId} ready={ready} canFreeze={false} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); await refresh(); }} /></div>}
-    {canEdit && draft.data && <div hidden={!ready}><Author key={draft.data.draft_id} projectId={projectId} initial={draft.data} ready={ready} canFreeze={canFreeze} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async () => { if (active.current) await refresh(); }} onFrozen={id => { if (active.current) { setRevisionId(id); void refresh(); } }} /></div>}
+    {creating && <div hidden={!ready}><Author key="new" ready={ready} canFreeze={false} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); await refresh(); }} /></div>}
+    {canEdit && draft.data && <div hidden={!ready}><Author key={draft.data.draft_id} initial={draft.data} ready={ready} canFreeze={canFreeze} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async () => { if (active.current) await refresh(); }} onFrozen={id => { if (active.current) { setRevisionId(id); void refresh(); } }} /></div>}
     {ready && inspection.data && <><Text><RevisionLabel id={inspection.data.revision_id} snapshotId={inspection.data.snapshot_id} sha256={inspection.data.sha256} /></Text><AssessmentResults result={inspection.data.assessment} /></>}
   </Stack>;
 }
 
-function Author({ projectId, initial, ready, canFreeze, current, onChecking, onChecked, onSaved, onFrozen }: { projectId: string; initial?: AssessmentDraft; ready: boolean; canFreeze: boolean; current: () => boolean; onChecking: () => void; onChecked: () => Promise<void>; onSaved: (saved: AssessmentDraft) => Promise<void>; onFrozen?: (revision: string) => void }) {
+function Author({ initial, ready, canFreeze, current, onChecking, onChecked, onSaved, onFrozen }: { initial?: AssessmentDraft; ready: boolean; canFreeze: boolean; current: () => boolean; onChecking: () => void; onChecked: () => Promise<void>; onSaved: (saved: AssessmentDraft) => Promise<void>; onFrozen?: (revision: string) => void }) {
   const [value, setValue] = useState(initial?.content.interface ?? initialAssessment);
   const [state, setState] = useState(initial?.state);
   const [name, setName] = useState("");
@@ -104,7 +104,7 @@ function Author({ projectId, initial, ready, canFreeze, current, onChecking, onC
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const save = useMutation({ onMutate: onChecking, onSettled: onChecked, mutationFn: () => {
     const operation = initial ? "interface.update" : "interface.create";
-    const payload = initial ? { draft_id: initial.draft_id, interface: value } : { project_id: projectId, name, interface: value };
+    const payload = initial ? { draft_id: initial.draft_id, interface: value } : { name, interface: value };
     const fingerprint = JSON.stringify([operation, payload, state]);
     if (intent.current?.fingerprint !== fingerprint) intent.current = { fingerprint, key: randomUUID() };
     const options = { expectedState: state, idempotencyKey: intent.current.key };

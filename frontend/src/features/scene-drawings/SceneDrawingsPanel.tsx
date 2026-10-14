@@ -39,7 +39,7 @@ function Workspace({ projectId }: { projectId: string }) {
   async function inspectScene() {
     const controller = begin(); setScene(null); setSelected(null); intent.current = null;
     try {
-      const next = await request<SharedScene>(`shared-scenes/drawing-scenes/${encodeURIComponent(snapshot.trim())}?project_id=${encodeURIComponent(projectId)}`, { signal: controller.signal, cache: 'no-store' });
+      const next = await request<SharedScene>(`shared-scenes/drawing-scenes/${encodeURIComponent(snapshot.trim())}`, { signal: controller.signal, cache: 'no-store' });
       if (!current(controller)) return;
       if (next.snapshot_id !== snapshot.trim()) throw new Error('Scene response does not match the requested snapshot.');
       setScene(next); setDisplay(closedDisplay()); setInput(openingInput()); setView('top');
@@ -57,11 +57,11 @@ function Workspace({ projectId }: { projectId: string }) {
     const captured = attempted.current!;
     setRetryAvailable(false);
     try {
-      const generated = await createDrawing(projectId, captured.snapshotId, captured.options, captured.key);
+      const generated = await createDrawing(captured.snapshotId, captured.options, captured.key);
       if (!current(controller)) return;
-      const next = await readDrawing(generated.drawing_id, projectId, controller.signal);
+      const next = await readDrawing(generated.drawing_id, controller.signal);
       if (!current(controller)) return;
-      assertDetail(next, projectId, generated.drawing_id, captured.snapshotId, captured.sceneHash, captured.options);
+      assertDetail(next, generated.drawing_id, captured.snapshotId, captured.sceneHash, captured.options);
       setDetail(next); setRetained(next.drawing_id);
     } catch (reason) { if (current(controller)) setRetryAvailable(true); fail(controller, reason); }
     finally { if (current(controller)) setBusy(false); }
@@ -69,16 +69,16 @@ function Workspace({ projectId }: { projectId: string }) {
   async function inspectRetained() {
     const controller = begin(); setScene(null); setSelected(null);
     try {
-      const next = await readDrawing(retained.trim(), projectId, controller.signal);
-      if (!current(controller)) return; assertDetail(next, projectId, retained.trim()); setDetail(next);
+      const next = await readDrawing(retained.trim(), controller.signal);
+      if (!current(controller)) return; assertDetail(next, retained.trim()); setDetail(next);
     } catch (reason) { fail(controller, reason); } finally { if (current(controller)) setBusy(false); }
   }
   async function output(part: 'preview' | 'svg' | 'manifest' | 'package') {
     if (!detail) return;
     const captured = detail, controller = begin();
     try {
-      const next = await readDrawing(captured.drawing_id, projectId, controller.signal);
-      if (!current(controller)) return; assertDetail(next, projectId, captured.drawing_id, captured.snapshot_id);
+      const next = await readDrawing(captured.drawing_id, controller.signal);
+      if (!current(controller)) return; assertDetail(next, captured.drawing_id, captured.snapshot_id);
       if (next.svg_sha256 !== captured.svg_sha256 || next.manifest_sha256 !== captured.manifest_sha256) throw new Error('Retained drawing identity changed.');
       const blob = await drawingBytes(next, part === 'preview' ? 'svg' : part, controller.signal);
       if (!current(controller)) return;

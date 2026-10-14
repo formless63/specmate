@@ -56,7 +56,7 @@ function Workspace({ projectId }: { projectId: string }) {
     onError: (_error, submitted) => { if (submitted.authorityGeneration === authorityGeneration.current) setBlocked(true); },
   });
   const save = useMutation({
-    mutationFn: (submitted: { current: Draft | null; profile: Profile; name: string; generation: number; authorityGeneration: number; edits: number }) => command<Draft>(submitted.current ? 'preparation.update' : 'preparation.create', submitted.current ? { draft_id: submitted.current.draft_id, profile: submitted.profile } : { project_id: projectId, name: submitted.name, profile: submitted.profile }, submitted.current?.state),
+    mutationFn: (submitted: { current: Draft | null; profile: Profile; name: string; generation: number; authorityGeneration: number; edits: number }) => command<Draft>(submitted.current ? 'preparation.update' : 'preparation.create', submitted.current ? { draft_id: submitted.current.draft_id, profile: submitted.profile } : { name: submitted.name, profile: submitted.profile }, submitted.current?.state),
     onSuccess: async (data, submitted) => {
       if (submitted.generation !== generation.current) return;
       setCurrent(data);

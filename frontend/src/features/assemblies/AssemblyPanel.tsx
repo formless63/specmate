@@ -105,7 +105,7 @@ function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId
     setAcceptedCapture(null); retainedDraft.current = null; setCaptureState(null);
     setLoadedDraftId(null); pendingCapture.current = null;
   }
-  const create = useMutation({ mutationFn: () => guarded(() => command<Draft>("assembly.create", { project_id: projectId, name })), onSuccess: async ({ data, token }) => {
+  const create = useMutation({ mutationFn: () => guarded(() => command<Draft>("assembly.create", { name })), onSuccess: async ({ data, token }) => {
     if (token !== generation.current || !data) return;
     clearDraftSession(); setDefinitionId(data.definition_id); setDraftId(data.draft_id); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); setName("");
     await cache.invalidateQueries({ queryKey: ["assembly-definitions", projectId] });
