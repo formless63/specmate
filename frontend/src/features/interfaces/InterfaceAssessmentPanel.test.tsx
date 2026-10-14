@@ -37,6 +37,7 @@ function fixture() {
   let held: Promise<Response> | undefined;
   let lost = false;
   let commandResponse: Promise<Response> | undefined;
+  let reorderRead = false;
   const calls: { operation: string; payload: { interface?: ReturnType<typeof initialAssessment> }; expected_state?: string; idempotency_key: string }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
     if (options?.method === "POST") {
@@ -50,12 +51,13 @@ function fixture() {
     if (url.includes("interfaces/")) {
       if (held) return (await held).clone();
       if (denied) return new Response(JSON.stringify({ error: { message: "Reference unavailable" } }), { status: 404 });
-      return new Response(JSON.stringify(url.includes("drafts/") ? draft : { revision_id: "frozen", snapshot_id: "snapshot", sha256: "b".repeat(64), interface: draft.content.interface, assessment: result }));
+      const readDraft = reorderRead ? JSON.parse(JSON.stringify(draft, (_key, value) => value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).reverse()) : value)) : draft;
+      return new Response(JSON.stringify(url.includes("drafts/") ? readDraft : { revision_id: "frozen", snapshot_id: "snapshot", sha256: "b".repeat(64), interface: draft.content.interface, assessment: result }));
     }
     if (url.includes("catalog/definitions/")) return new Response(JSON.stringify({ drafts: [{ draft_id: "draft", state: draft.state }], revisions: [{ revision_id: "frozen", number: 1 }] }));
     return new Response(JSON.stringify([{ definition_id: "assessment", name: "Original separated review", kind: "interface_assessment" }]));
   }));
-  return { calls, commandResponse: (value?: Promise<Response>) => { commandResponse = value; }, setDenied: (value: boolean) => { denied = value; }, setConflict: (value: boolean) => { conflict = value; }, setState: (value: string) => { draft = { ...draft, state: value }; }, hold: (value?: Promise<Response>) => { held = value; }, lose: () => { lost = true; } };
+  return { calls, reorderReads: () => { reorderRead = true; }, commandResponse: (value?: Promise<Response>) => { commandResponse = value; }, setDenied: (value: boolean) => { denied = value; }, setConflict: (value: boolean) => { conflict = value; }, setState: (value: string) => { draft = { ...draft, state: value }; }, hold: (value?: Promise<Response>) => { held = value; }, lose: () => { lost = true; } };
 }
 async function editExisting() {
   await choose("Saved assessment", "Original separated review");
@@ -233,4 +235,24 @@ test.each(["Save assessment draft", "Freeze assessment revision"])("%s fences pr
   await waitFor(() => expect(f.calls).toHaveLength(2));
   expect(f.calls[1]).toMatchObject({ operation: f.calls[0]!.operation, payload: f.calls[0]!.payload,
     expected_state: f.calls[0]!.expected_state, idempotency_key: f.calls[0]!.idempotency_key });
+});
+
+
+test("fresh nested JSON key order after saving does not prevent freeze, while changed operating values do", async () => {
+  const f = fixture(); render(wrap(panel())); await editExisting();
+  fireEvent.change(screen.getByLabelText("mating basis"), { target: { value: "Saved declared mating basis" } });
+  f.reorderReads();
+  fireEvent.click(screen.getByRole("button", { name: "Save assessment draft" }));
+  await screen.findByText("Editing basis draft-v3");
+  const freeze = () => screen.getByRole("button", { name: "Freeze assessment revision" }) as HTMLButtonElement;
+  await waitFor(() => expect(freeze().disabled).toBe(false));
+  const minimum = screen.getByLabelText("signal operating minimum V (blank = unknown)");
+  fireEvent.change(minimum, { target: { value: "2.25" } });
+  expect(freeze().disabled).toBe(true);
+  expect(screen.getByText("Save prepared changes before freezing.")).toBeTruthy();
+  fireEvent.change(minimum, { target: { value: "" } });
+  expect(freeze().disabled).toBe(false);
+  fireEvent.click(freeze());
+  await screen.findByRole("heading", { name: "Separated assessment results" });
+  expect(f.calls.at(-1)).toMatchObject({ operation: "interface.freeze", expected_state: "draft-v3" });
 });

@@ -12,6 +12,12 @@ const dimensions: { id: Dimension; label: string }[] = [
 ];
 const choices = [{ value: "unknown", label: "Unknown" }, { value: "satisfied", label: "Declared satisfied" }, { value: "invalid", label: "Declared conflict" }];
 
+// As with retained drawing identity, object key order is not engineering state.
+// Preserve array order and every JSON value when comparing command and JSONB reads.
+const canonical = (value: Assessment): string => JSON.stringify(value, (_key, item) =>
+  item && typeof item === "object" && !Array.isArray(item)
+    ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+
 /** Mount in the interfaces workspace with the current principal and permissions. */
 export function InterfaceAssessmentPanel({ projectId, principalKey, canEdit, canFreeze, active = true }: { projectId: string; principalKey: string; canEdit: boolean; canFreeze: boolean; active?: boolean }) {
   return <Workspace key={`${projectId}:${principalKey}:${canEdit}:${canFreeze}`} projectId={projectId} canEdit={canEdit} canFreeze={canFreeze} isActive={active} />;
@@ -106,7 +112,7 @@ function Author({ projectId, initial, ready, canFreeze, current, onChecking, onC
     if (!freezeIntent.current || freezeIntent.current.state !== state) freezeIntent.current = { state: state!, key: randomUUID() };
     return command<{ revision_id: string; draft: Omit<AssessmentDraft, "definition_id"> }>("interface.freeze", { draft_id: initial!.draft_id }, { expectedState: state, idempotencyKey: freezeIntent.current.key });
   }, onSuccess: saved => { if (!active.current || !current()) return; freezeIntent.current = null; setState(saved.draft.state); onFrozen?.(saved.revision_id); } });
-  const unsaved = !!initial && JSON.stringify(value) !== JSON.stringify(initial.content.interface);
+  const unsaved = !!initial && canonical(value) !== canonical(initial.content.interface);
   return <Card withBorder><Stack>
     <Title order={3}>{initial ? "Edit assessment" : "New assessment declaration"}</Title>
     {!initial && <TextInput label="Assessment name" value={name} onChange={e => setName(e.currentTarget.value)} />}
