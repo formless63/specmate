@@ -37,7 +37,9 @@ applicable licenses, including AGPL network-use obligations. The implemented rel
 must offer access to the exact applicable source, not an unrelated latest branch.
 
 Adapted predecessor implementation and bundled library notices are recorded in `NOTICE`.
-No predecessor catalogs, font files, or third-party engineering models are included.
+No predecessor catalogs, predecessor fonts, or third-party engineering models are included.
+The web interface bundles the Geist and Geist Mono typefaces (SIL OFL 1.1) from the
+Fontsource packages; their notice is recorded in `NOTICE` and served with the build.
 The full AGPL text is reproduced verbatim; its own license-document notice is retained.
 
 References: [GNU AGPL](https://www.gnu.org/licenses/agpl-3.0.html),

@@ -1,0 +1,377 @@
+{
+  "name": "Schematic Bench",
+  "version": "sb-1",
+  "description": "Specmate design tokens. Primitive values, semantic roles per theme, layout, density, motion and component overrides. Theme follows the operating system (prefers-color-scheme) with a user override.",
+  "primitive": {
+    "colors": {
+      "black": "#050505",
+      "ink-950": "#0A0A0B",
+      "ink-900": "#0E0E10",
+      "ink-850": "#171719",
+      "ink-800": "#222225",
+      "ink-700": "#34343A",
+      "ink-600": "#4A4A52",
+      "ink-500": "#6E6E76",
+      "ink-400": "#9A9AA2",
+      "ink-100": "#EDEDED",
+      "white": "#FFFFFF",
+      "paper-50": "#F5F5F3",
+      "paper-100": "#EFEFEB",
+      "paper-200": "#D9D9D4",
+      "paper-300": "#B9B9B2",
+      "paper-400": "#A6A6A0",
+      "paper-600": "#6A6A70",
+      "paper-700": "#4A4A50",
+      "paper-950": "#0C0C0D",
+      "kapton-400": "#E2B714",
+      "kapton-700": "#8C6B00",
+      "cyan-400": "#3FD4F0",
+      "cyan-700": "#00758A",
+      "violet-300": "#C9B6FF",
+      "violet-700": "#5B3FB8",
+      "orange-400": "#FF9F1C",
+      "orange-700": "#A35800",
+      "red-400": "#FF4D6D",
+      "red-700": "#C2183A"
+    },
+    "font_families": {
+      "ui": "Geist, system-ui, sans-serif",
+      "data": "Geist Mono, ui-monospace, monospace",
+      "provenance": "Geist Mono, ui-monospace, monospace",
+      "license": "SIL Open Font License 1.1 (Vercel Geist); self-host woff2 under frontend/public/fonts with OFL notice"
+    },
+    "font_sizes": {
+      "micro": 10,
+      "dense": 12,
+      "body": 13,
+      "readout": 17,
+      "section": 15,
+      "task": 20,
+      "display": 28
+    },
+    "spacing": {
+      "0": 0,
+      "1": 2,
+      "2": 4,
+      "3": 6,
+      "4": 8,
+      "5": 12,
+      "6": 16,
+      "7": 20,
+      "8": 24,
+      "9": 32
+    },
+    "radii": {
+      "none": 0,
+      "led": "50%"
+    },
+    "shadows": {
+      "overlay_dark": "0 16px 40px rgba(0,0,0,.6)",
+      "overlay_light": "0 16px 40px rgba(0,0,0,.14)",
+      "selection_glow": "0 0 0 3px {interaction.selected_glow}"
+    }
+  },
+  "semantic": {
+    "dark": {
+      "surface": {
+        "canvas": "#050505",
+        "sunken": "#0A0A0B",
+        "panel": "#0E0E10",
+        "raised": "#171719"
+      },
+      "border": {
+        "subtle": "#222225",
+        "strong": "#34343A"
+      },
+      "text": {
+        "primary": "#EDEDED",
+        "secondary": "#9A9AA2",
+        "tertiary": "#6E6E76",
+        "disabled": "#4A4A52"
+      },
+      "interaction": {
+        "primary": "#E2B714",
+        "selected_glow": "rgba(226,183,20,.16)",
+        "compare": "#C9B6FF",
+        "keyboard_focus": "#FFFFFF"
+      },
+      "status": {
+        "informational": "#3FD4F0",
+        "review_required": "#FF9F1C",
+        "invalid": "#FF4D6D",
+        "execution_failed": "#FF4D6D",
+        "unknown": "ink-400 + hatch",
+        "not_evaluated": "ink-500 ring",
+        "change": "#EDEDED"
+      }
+    },
+    "light": {
+      "surface": {
+        "canvas": "#F5F5F3",
+        "sunken": "#EFEFEB",
+        "panel": "#FFFFFF",
+        "raised": "#FFFFFF"
+      },
+      "border": {
+        "subtle": "#D9D9D4",
+        "strong": "#B9B9B2"
+      },
+      "text": {
+        "primary": "#0C0C0D",
+        "secondary": "#4A4A50",
+        "tertiary": "#6A6A70",
+        "disabled": "#A6A6A0"
+      },
+      "interaction": {
+        "primary": "#8C6B00",
+        "selected_glow": "rgba(140,107,0,.12)",
+        "compare": "#5B3FB8",
+        "keyboard_focus": "#0C0C0D"
+      },
+      "status": {
+        "informational": "#00758A",
+        "review_required": "#A35800",
+        "invalid": "#C2183A",
+        "execution_failed": "#C2183A",
+        "unknown": "paper-700 + hatch",
+        "not_evaluated": "paper-600 ring",
+        "change": "#0C0C0D"
+      }
+    },
+    "usage": {
+      "surface.canvas": "App background, diagram and scene ground",
+      "surface.sunken": "Group rows, wells, read-only inputs",
+      "surface.panel": "Panes: tree, inspector, tables",
+      "surface.raised": "Menus, dialogs, palette (with overlay shadow)",
+      "border.subtle": "Hairlines between rows and panes",
+      "border.strong": "Control outlines, wires at rest, crosshairs",
+      "text.primary": "Names, values, headings",
+      "text.secondary": "Help, secondary values, units",
+      "text.tertiary": "Silkscreen labels, metadata",
+      "text.disabled": "Unavailable actions only, never unknown values",
+      "interaction.primary": "Primary action, probe, selection, active nav",
+      "interaction.selected_glow": "Selected row and node fill",
+      "interaction.compare": "CH2 compare channel only",
+      "interaction.keyboard_focus": "2 px focus ring, 2 px offset; never amber",
+      "status.informational": "Named recorded results: compiled, extracted, info",
+      "status.review_required": "Review required, stale applicability",
+      "status.invalid": "Invalid input (dashed underline + message)",
+      "status.execution_failed": "Failed job (square LED + label)",
+      "status.unknown": "Unknown: hatched cell and dashes, never blank or 0",
+      "status.not_evaluated": "Not evaluated: hollow ring + words",
+      "status.change": "Revision cloud and delta marks: monochrome"
+    }
+  },
+  "typography": {
+    "task_heading": {
+      "family": "ui",
+      "size": 20,
+      "weight": 600,
+      "line": 1.25,
+      "tracking": "-0.01em"
+    },
+    "section_heading": {
+      "family": "ui",
+      "size": 15,
+      "weight": 600,
+      "line": 1.3
+    },
+    "body": {
+      "family": "ui",
+      "size": 13,
+      "weight": 400,
+      "line": 1.45
+    },
+    "name": {
+      "family": "ui",
+      "size": 13,
+      "weight": 500,
+      "line": 1.35,
+      "note": "Object names and actions are always sans, never mono"
+    },
+    "dense": {
+      "family": "ui",
+      "size": 12,
+      "weight": 400,
+      "line": 1.35
+    },
+    "label": {
+      "family": "data",
+      "size": 10,
+      "weight": 400,
+      "case": "upper",
+      "tracking": "0.14em",
+      "note": "Silkscreen labels; never the only carrier of a value"
+    },
+    "quantity": {
+      "family": "data",
+      "size": 13,
+      "weight": 400,
+      "numeric": "tabular-nums",
+      "align": "right in tables, unit attached"
+    },
+    "readout": {
+      "family": "data",
+      "size": 17,
+      "weight": 500,
+      "numeric": "tabular-nums"
+    },
+    "provenance": {
+      "family": "provenance",
+      "size": 11,
+      "weight": 400,
+      "note": "Hashes truncated to 12, full on expand with copy"
+    }
+  },
+  "density": {
+    "compact": {
+      "row": 26,
+      "control": 26,
+      "pad_x": 8,
+      "gap": 6,
+      "min_target": 24
+    },
+    "comfortable": {
+      "row": 32,
+      "control": 32,
+      "pad_x": 12,
+      "gap": 8,
+      "min_target": 32
+    },
+    "default": "compact on pointer devices, comfortable on touch (pointer: coarse)"
+  },
+  "shape": {
+    "radius": 0,
+    "led_radius": "50%",
+    "border": "1px",
+    "draft_border": "1px dashed",
+    "frozen_border": "1px solid",
+    "unit_border": "3px double",
+    "crosshair": "+ marks at pane corners, border.strong",
+    "elevation": "hairlines only; overlay shadow for menus/dialogs/palette"
+  },
+  "focus": {
+    "ring": "2px solid interaction.keyboard_focus",
+    "offset": "2px",
+    "inset_rows": "-2px inside dense rows and cells"
+  },
+  "layout": {
+    "rail": {
+      "expanded": 132,
+      "collapsed": 44
+    },
+    "tree": {
+      "default": 210,
+      "min": 180,
+      "max": 360,
+      "persist": "per user, per area"
+    },
+    "inspector": {
+      "default": 300,
+      "min": 260,
+      "max": 480,
+      "persist": "per user"
+    },
+    "minimum_content_width": 480,
+    "title_block_cell_min": 140,
+    "breakpoints": {
+      "xs": 0,
+      "sm": 600,
+      "md": 1024,
+      "lg": 1280,
+      "xl": 1600
+    },
+    "behaviour": {
+      "xl": "rail expanded, tree + view + inspector, optional second inspector column",
+      "lg": "rail expanded, tree + view + inspector",
+      "md": "rail collapsed 44, tree as push drawer (T), inspector docked 280",
+      "sm": "rail collapsed, tree and inspector as overlay drawers, title block wraps to two rows",
+      "xs": "area menu from top-left, lenses as top scroll strip, title block 2x2, inspector stacks below view; no bottom navigation"
+    }
+  },
+  "motion": {
+    "durations": {
+      "snap": 80,
+      "quick": 140,
+      "settle": 220,
+      "afterglow": 420,
+      "draw": 520,
+      "ambient_min": 1000,
+      "ambient_max": 2400
+    },
+    "easing": {
+      "out": "cubic-bezier(.2,0,0,1)",
+      "linear": "linear"
+    },
+    "hop_delay": 140,
+    "rules": [
+      "Input responds within snap",
+      "Only travel, drawing and live work exceed settle",
+      "Probe current flows two cycles then stops; static scenes never animate permanently",
+      "Finished states (failed, review, unknown) never blink"
+    ],
+    "reduced_motion": {
+      "durations": 0,
+      "keep": "end states, focus, selection",
+      "remove": "trace, glow, loops, draw-in"
+    }
+  },
+  "components": {
+    "context_header": {
+      "cell_padding": "5px 10px",
+      "cell_border": "border.subtle",
+      "value": "readout",
+      "label": "label",
+      "selected_cell": "interaction.primary border"
+    },
+    "quantity_field": {
+      "states": [
+        "known",
+        "unknown",
+        "not_applicable",
+        "invalid",
+        "read_only"
+      ],
+      "unit": "suffix, secondary text, never inside value",
+      "unknown": "hatch + '\u2013 \u2013 \u2013' + 'Unknown' chip",
+      "provenance": "one line under field"
+    },
+    "reference_picker": {
+      "row": "name (name) \u00b7 kind (label) \u00b7 revision (data) \u00b7 scope",
+      "unavailable": "hatch + 'Pinned revision not readable by you'"
+    },
+    "engineering_table": {
+      "row": "density.row",
+      "header": "label",
+      "numeric": "quantity right-aligned",
+      "selected": "selected_glow + 2px primary inset edge",
+      "truncation": "'showing n of m' footer with load more"
+    },
+    "evidence_status": {
+      "form": "LED + named dimension + value",
+      "never": "generic OK/safe/compatible"
+    },
+    "review_flow": {
+      "columns": "before | after | decision",
+      "commit": "solid primary, disabled until every decision is explicit"
+    },
+    "job_card": {
+      "states": [
+        "unavailable",
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "progress": "known steps only, no estimated percent"
+    },
+    "button": {
+      "height": "density.control",
+      "font": "name 12/600 sentence case",
+      "primary": "outline amber, inverts on hover in snap",
+      "commit": "solid amber for consequential transitions",
+      "risk": "outline red"
+    }
+  }
+}
