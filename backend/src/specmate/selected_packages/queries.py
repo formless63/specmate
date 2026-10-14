@@ -12,7 +12,7 @@ from specmate.assemblies.contracts import OccurrenceRef
 from specmate.assemblies.queries import get_snapshot, refs
 from specmate.cable_test_intent.queries import terminals
 from specmate.cables.queries import inspect_revision as inspect_cable
-from specmate.catalog.models import Representation
+from specmate.catalog.models import Representation, SourceIdentifier
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import canonical_bytes
 from specmate.operations import Conflict, NotFound, Unsupported, ValidationFailed
@@ -350,6 +350,33 @@ def source_ancestry(user, revision):
     return sorted(rows, key=lambda row: row["source_revision_id"])
 
 
+def catalog_rights(captured):
+    """Declared catalog rights of every representation and source identifier in the closure."""
+    ids = list(captured)
+    rows = [
+        {
+            "subject": f"representation:{r.id}",
+            "design": r.revision.definition.name,
+            "label": r.label,
+            "rights_status": r.rights_status,
+        }
+        for r in Representation.objects.select_related("revision__definition").filter(
+            revision_id__in=ids
+        )
+    ] + [
+        {
+            "subject": f"source_identifier:{i.id}",
+            "design": i.revision.definition.name,
+            "label": i.label or i.identifier,
+            "rights_status": i.rights_status,
+        }
+        for i in SourceIdentifier.objects.select_related("revision__definition").filter(
+            revision_id__in=ids
+        )
+    ]
+    return sorted(rows, key=lambda row: row["subject"])
+
+
 def review_value(reviews, subject):
     review = reviews.get(subject)
     return (
@@ -399,7 +426,18 @@ def build_package(user, p):
     }
     if set(reviews) - subjects:
         raise ValidationFailed("Rights review must identify an exact selected package subject.")
+    rights = catalog_rights(captured)
     if p.purpose == "distribution":
+        # Unknown or restricted model rights block distribution; a private preview is
+        # unaffected and simply lists them in the manifest.
+        blocked = [row for row in rights if row["rights_status"] != "cleared"]
+        if blocked:
+            listing = "; ".join(
+                f"{row['design']} / {row['label']} ({row['rights_status']})" for row in blocked
+            )
+            raise ValidationFailed(
+                f"Distribution blocked by catalog rights that are not cleared: {listing}."
+            )
         for revision in captured.values():
             authorize(user, revision.definition.workspace_id, Perm.DESIGN_FREEZE)
         for file in source_files.values():
@@ -516,6 +554,7 @@ def build_package(user, p):
         "completeness": "limited" if unresolved else "complete_declared_data",
         "design_revisions": designs,
         "source_files": sources,
+        "catalog_rights": rights,
         "occurrences": occurrences,
         "relationships": relationships,
         "boundary_interfaces": interfaces,
