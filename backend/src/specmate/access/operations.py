@@ -93,3 +93,49 @@ def claim_owner(ctx: Context, p: ClaimOwner) -> dict:
         "owner": user.username,
         "workspace_id": str(workspace.id),
     }
+
+
+def provision_account(username: str, password: str, role: str) -> dict:
+    """Operator/CLI path: create a local account holding a workspace role.
+
+    Without an installation owner the first account becomes the owner and must be an
+    admin, like the browser claim. Otherwise the installation owner's own operations
+    create the account and set its membership, so validation and state checks are shared.
+    """
+    from specmate.access.models import WorkspaceMember as Member
+    from specmate.access.workspaces import state
+    from specmate.operations import execute
+
+    with transaction.atomic():
+        installation, _ = Installation.objects.select_for_update().get_or_create(singleton=True)
+        owner = installation.owner
+        if owner is None:
+            if role != "admin":
+                raise ValidationFailed("The first account becomes the installation owner: admin.")
+            User = get_user_model()
+            if User.objects.filter(username=username).exists():
+                raise ValidationFailed("Username is not available.")
+            try:
+                validate_password(password, User(username=username))
+            except DjangoValidationError as exc:
+                raise ValidationFailed(
+                    "Password rejected.", details={"reasons": exc.messages}
+                ) from None
+            user = User.objects.create_user(username=username, password=password)
+            installation.owner = user
+            installation.save(update_fields=["owner"])
+            Member.objects.update_or_create(
+                workspace=installation_workspace(), user=user, defaults={"role": "admin"}
+            )
+            return {"username": username, "role": "admin"}
+        ctx = Context(user=owner, via="internal", request_id="cli-create-account")
+        execute("account.create", ctx, {"username": username, "password": password})
+        workspace = installation_workspace()
+        member_ctx = Context(
+            user=owner,
+            via="internal",
+            request_id="cli-set-member",
+            expected_state=state(workspace),
+        )
+        execute("workspace.set_member", member_ctx, {"username": username, "role": role})
+    return {"username": username, "role": role}
