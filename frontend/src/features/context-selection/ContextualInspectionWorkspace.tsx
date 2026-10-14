@@ -7,11 +7,11 @@ import { ConnectedViews } from './views';
 
 /** A bounded group of connected views. Ordinary reusable-revision tools remain independent. */
 export function ContextualInspectionWorkspace({ projectId, principalKey }: {
-  projectId: string; principalKey: string;
+  projectId?: string | null; principalKey: string;
 }) {
-  return <Workspace key={JSON.stringify([projectId, principalKey])} projectId={projectId} principalKey={principalKey} />;
+  return <Workspace key={JSON.stringify([projectId ?? 'library', principalKey])} projectId={projectId} principalKey={principalKey} />;
 }
-function Workspace({ projectId, principalKey }: { projectId: string; principalKey: string }) {
+function Workspace({ projectId = null, principalKey }: { projectId?: string | null; principalKey: string }) {
   const [choices, setChoices] = useState<SceneChoices['assemblies']>([]);
   const [root, setRoot] = useState<string | null>(null), [exact, setExact] = useState('');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
@@ -34,7 +34,7 @@ function Workspace({ projectId, principalKey }: { projectId: string; principalKe
     {error && <Alert color="red" role="alert">{error}</Alert>}
     <Select label="Contextual frozen root" searchable clearable value={root} data={choices.map(c => ({ value: c.snapshot_id, label: `${c.name} · revision ${c.number}` }))} onChange={setRoot} />
     <Group align="end"><TextInput label="Exact contextual root snapshot ID" value={exact} onChange={e => setExact(e.currentTarget.value)} /><Button disabled={!exact.trim()} onClick={() => setRoot(exact.trim())}>Open contextual root</Button></Group>
-    {root && <ContextSelectionProvider scope={{ project_id: projectId, principal_key: principalKey, snapshot_id: root }} onUnavailable={unavailable} authorityPending={busy}><RootViews /></ContextSelectionProvider>}
+    {root && <ContextSelectionProvider scope={{ project_id: projectId ?? 'library', principal_key: principalKey, snapshot_id: root }} onUnavailable={unavailable} authorityPending={busy}><RootViews /></ContextSelectionProvider>}
   </Stack>;
 }
 function RootViews() {

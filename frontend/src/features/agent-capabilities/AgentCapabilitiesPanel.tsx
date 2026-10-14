@@ -12,7 +12,7 @@ type OperationRow = {
 type Capabilities = {
   instance: { version: string; registry_sha256: string };
   transports: Record<string, { status: string; reason?: string; invoke?: string }>;
-  scope: { project_id: string; role: string; permissions: string[] } | null;
+  scope: { workspace_id?: string; project_id: string | null; role: string; permissions: string[] } | null;
   capabilities: { native_execution: { status: string; reasons: string[]; approved_recipes: number } };
   notes: string[];
   operations: OperationRow[];
@@ -25,7 +25,7 @@ const statusColor: Record<string, string> = {
 const label = (value: string) => value.replace(/_/g, " ");
 
 /** Read-only view of what this instance exposes and what the signed-in actor may call here. */
-export function AgentCapabilitiesPanel({ projectId }: { projectId: string }) {
+export function AgentCapabilitiesPanel({ workspaceId, projectId = null }: { workspaceId: string; projectId?: string | null }) {
   const [data, setData] = useState<Capabilities | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -34,11 +34,11 @@ export function AgentCapabilitiesPanel({ projectId }: { projectId: string }) {
   useEffect(() => {
     let active = true;
     setData(null); setError(null);
-    void requestJson<Capabilities>(`/api/v0/discovery/capabilities?project_id=${encodeURIComponent(projectId)}`)
+    void requestJson<Capabilities>(`/api/v0/discovery/capabilities?workspace_id=${encodeURIComponent(workspaceId)}${projectId ? `&project_id=${encodeURIComponent(projectId)}` : ""}`)
       .then((result) => { if (active) setData(result); })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to read capabilities."); });
     return () => { active = false; };
-  }, [projectId]);
+  }, [workspaceId, projectId]);
 
   const rows = useMemo(() => (data?.operations ?? []).filter((row) =>
     (status === "all" || row.availability.status === status) &&

@@ -16,11 +16,11 @@ class ViewerBoundary extends Component<{ children: ReactNode }, { failed: boolea
   }
 }
 
-export function SharedScenePanel({ projectId }: { projectId: string }) {
-  return <Workspace key={projectId} projectId={projectId} />;
+export function SharedScenePanel({ projectId = null }: { projectId?: string | null }) {
+  return <Workspace key={projectId ?? 'library'} projectId={projectId} />;
 }
 
-function Workspace({ projectId }: { projectId: string }) {
+function Workspace({ projectId }: { projectId: string | null }) {
   const [choices, setChoices] = useState<SceneChoices>(none);
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [exact, setExact] = useState('');

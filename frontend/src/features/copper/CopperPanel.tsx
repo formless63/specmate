@@ -6,8 +6,8 @@ import { evidenceLabel, read, scopeLabel, type Definition, type Graph, type Iden
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function CopperPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+export function CopperPanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? 'library'} projectId={projectId} />; }
+function Workspace({ projectId }: { projectId: string | null }) {
   const [definition, setDefinition] = useState<string | null>(null);
   const [revision, setRevision] = useState<string | null>(null);
   const [exact, setExact] = useState('');

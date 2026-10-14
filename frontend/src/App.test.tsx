@@ -69,6 +69,7 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
       const envelope = JSON.parse(String(options?.body));
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
     }
+    if (path.startsWith("/api/v0/discovery/capabilities?")) return reply({ instance: { version: "0", registry_sha256: "0".repeat(64) }, transports: {}, scope: { project_id: null, role, permissions: ROLES[role] }, capabilities: { native_execution: { status: "unavailable", reasons: [], approved_recipes: 0 } }, notes: [], operations: [] });
     if (path.startsWith("/api/v0/diagnostics/workspaces/")) return reply({ workspace_id: "p", evaluated_at: "2026-01-01T00:00:00Z", work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" }, queue: { states: {}, pending: 0, active: 0, oldest_pending_seconds: null }, dispatch: { undelivered: 0, oldest_undelivered_seconds: null }, runner: { state: "not_enrolled", credentials_usable: 0, stages_holding_lease: 0, stages_lease_expired: 0 }, tools: [], storage: { state: "not_initialized", code: null, sampled: 0 }, workflow_engine: { state: "not_evaluated" }, builds: [], can_execute: false, findings: [] });
     if (path.startsWith("/api/v0/collaboration/inbox?") || path.startsWith("/api/v0/collaboration/reviews?")) return reply({ results: [], next_after: null });
     if (path.startsWith("/api/v0/catalog/definitions?")) return reply({ workspace_id: "workspace", project_id: null, results: [], next_after: null });
@@ -286,16 +287,20 @@ test("Library scope lists the lens's collection with Used in, and opening a use 
   expect(screen.getByText("Opened from the library")).toBeTruthy();
 });
 
-test("project-held lenses offer an inline chooser at Library scope, and workspace access works at both scopes", async () => {
-  server({ authenticated: true }); renderApp();
+test("workspace-level lenses open at Library scope without choosing a project, and workspace access works at both scopes", async () => {
+  const fetchMock = server({ authenticated: true }); renderApp();
   await screen.findByText("Signed in as local-user");
   openTool("Notes & files");
-  expect(await screen.findByRole("heading", { name: "Choose a project" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Notes, decisions and attachments" })).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
+  expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith("/api/v0/knowledge/workspaces/w1"))).toBe(true);
+  openTool("Status & recovery");
+  await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith("/api/v0/diagnostics/workspaces/w1"))).toBe(true));
+  expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
+  openTool("Agent access");
+  expect(await screen.findByRole("heading", { name: "Agent access" })).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path]) => path === "/api/v0/discovery/capabilities?workspace_id=w1")).toBe(true);
   openTool("Workspace access");
   expect(await screen.findByRole("heading", { name: "Workspace access" })).toBeTruthy();
   expect(await screen.findByText("Workspace admins manage members, roles and grants.")).toBeTruthy();
-  openTool("Notes & files");
-  fireEvent.click(screen.getByRole("button", { name: "Open Notes & files in Project A" }));
-  await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
-  expect((screen.getByRole("combobox", { name: "Scope" }) as HTMLInputElement).value).toBe("Project A");
 });

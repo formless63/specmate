@@ -9,12 +9,12 @@ import { ApiError } from '../workspace/api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function SelectedPackagesPanel({ projectId }: { projectId: string }) {
+export function SelectedPackagesPanel({ projectId = null }: { projectId?: string | null }) {
   // Keying the workspace resets all selection/review state on project change.
-  return <PackageWorkspace key={projectId} projectId={projectId} />;
+  return <PackageWorkspace key={projectId ?? 'library'} projectId={projectId} />;
 }
 
-function PackageWorkspace({ projectId }: { projectId: string }) {
+function PackageWorkspace({ projectId }: { projectId: string | null }) {
   const freezeGate = usePermission('design.freeze');
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);

@@ -25,18 +25,26 @@ const body = {
 test("shows the reported transports, native state and per-operation availability", async () => {
   const fetchMock = vi.fn(async (_path: string) => new Response(JSON.stringify(body)));
   vi.stubGlobal("fetch", fetchMock);
-  render(<MantineProvider><AgentCapabilitiesPanel projectId="project-a" /></MantineProvider>);
+  render(<MantineProvider><AgentCapabilitiesPanel workspaceId="w1" projectId="project-a" /></MantineProvider>);
   expect(await screen.findByText("inventory.list")).toBeTruthy();
-  expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v0/discovery/capabilities?project_id=project-a");
+  expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v0/discovery/capabilities?workspace_id=w1&project_id=project-a");
   expect(screen.getByText(/mcp: unavailable \(no mcp adapter in this instance\)/)).toBeTruthy();
   expect(screen.getByText(/Native execution: unavailable \(no approved recipe\)/)).toBeTruthy();
   expect(screen.getAllByText("no approved recipe").length).toBeGreaterThan(0);
   expect(screen.getByText("missing permission")).toBeTruthy();
 });
 
+test("without a project the library scope reads capabilities for the workspace alone", async () => {
+  const fetchMock = vi.fn(async (_path: string) => new Response(JSON.stringify(body)));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<MantineProvider><AgentCapabilitiesPanel workspaceId="w1" /></MantineProvider>);
+  expect(await screen.findByText("inventory.list")).toBeTruthy();
+  expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v0/discovery/capabilities?workspace_id=w1");
+});
+
 test("filters by name and reports an empty match", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body))));
-  render(<MantineProvider><AgentCapabilitiesPanel projectId="project-a" /></MantineProvider>);
+  render(<MantineProvider><AgentCapabilitiesPanel workspaceId="w1" projectId="project-a" /></MantineProvider>);
   await screen.findByText("inventory.list");
   fireEvent.change(screen.getByLabelText("Find operation"), { target: { value: "draft" } });
   expect(screen.queryByText("inventory.list")).toBeNull();
@@ -47,7 +55,7 @@ test("filters by name and reports an empty match", async () => {
 
 test("a scoped denial shows the server error and no stale rows", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { message: "Project not found." } }), { status: 404 })));
-  render(<MantineProvider><AgentCapabilitiesPanel projectId="project-b" /></MantineProvider>);
+  render(<MantineProvider><AgentCapabilitiesPanel workspaceId="w1" projectId="project-b" /></MantineProvider>);
   expect(await screen.findByText("Project not found.")).toBeTruthy();
   expect(screen.queryByText("inventory.list")).toBeNull();
 });

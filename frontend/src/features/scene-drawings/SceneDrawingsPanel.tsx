@@ -8,11 +8,11 @@ import { assertDetail, createDrawing, drawingBytes, readDrawing, type Detail, ty
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 /** Root keys by current principal/project; this optional key also fences retained host mounts. */
-export function SceneDrawingsPanel({ projectId, principalKey = '', active = true }: { projectId: string; principalKey?: string; active?: boolean }) {
+export function SceneDrawingsPanel({ projectId = null, principalKey = '', active = true }: { projectId?: string | null; principalKey?: string; active?: boolean }) {
   if (!active) return <Text>Open drawings to begin a fresh inspection.</Text>;
-  return <Workspace key={JSON.stringify([principalKey, projectId])} projectId={projectId} />;
+  return <Workspace key={JSON.stringify([principalKey, projectId ?? 'library'])} projectId={projectId} />;
 }
-function Workspace({ projectId }: { projectId: string }) {
+function Workspace({ projectId }: { projectId: string | null }) {
   const [snapshot, setSnapshot] = useState(''), [retained, setRetained] = useState('');
   const [scene, setScene] = useState<SharedScene | null>(null), [selected, setSelected] = useState<Address | null>(null);
   const [display, setDisplay] = useState(closedDisplay), [input, setInput] = useState(openingInput);

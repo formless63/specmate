@@ -7,8 +7,8 @@ import { RevisionChoice } from './RevisionChoice';
 import { svgSize } from './svg-size';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-type Props = { projectId: string; principalKey: string; canGenerate: boolean; active?: boolean; onAccessLost?: () => void };
-export function PreparationDocumentsPanel(props: Props) { return <Workspace key={`${props.projectId}:${props.principalKey}`} {...props} />; }
+type Props = { projectId?: string | null; principalKey: string; canGenerate: boolean; active?: boolean; onAccessLost?: () => void };
+export function PreparationDocumentsPanel(props: Props) { return <Workspace key={`${props.projectId ?? 'library'}:${props.principalKey}`} {...props} />; }
 function Workspace({ canGenerate, active = true, onAccessLost }: Props) {
   const [config, setConfig] = useState<Configuration>(emptyConfiguration), [quantity, setQuantity] = useState('1');
   const [definitions, setDefinitions] = useState<Definition[]>([]), [history, setHistory] = useState<Receipt[]>([]);
