@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "specmate.revision_upgrades",
     "specmate.facts",
     "specmate.knowledge.apps.KnowledgeConfig",
+    "specmate.collaboration.apps.CollaborationConfig",
     "specmate.wire_stock",
     "specmate.workshop_profiles",
     "specmate.material_accounting",

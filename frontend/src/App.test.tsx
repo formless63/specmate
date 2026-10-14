@@ -39,6 +39,10 @@ function server({ authenticated = false, denyInventory = false, includePermissio
     if (path === "/api/v0/session/login") { authenticated = true; return reply({ result: {} }); }
     if (path === "/api/v0/session/logout") { authenticated = false; return reply({ result: {} }); }
     if (path === "/api/v0/projects") return reply([{ project_id: "project-a", name: "Project A", ...(includePermissions ? { permissions } : {}) }, { project_id: "project-b", name: "Project B", ...(includePermissions ? { permissions } : {}) }]);
+    if (path === "/api/v0/operations") {
+      const envelope = JSON.parse(String(options?.body));
+      if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
+    }
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
     if (path.startsWith("/api/v0/preparation-documents/projects/")) return reply({ document_sets: [] });
     if (path.startsWith("/api/v0/knowledge/projects/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
@@ -134,6 +138,8 @@ test("documents, interfaces and knowledge mount with scoped read controls", asyn
   fireEvent.click(screen.getByRole("tab", { name: "Notes & files" }));
   await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
   expect(screen.queryByRole("button", { name: "Create knowledge item" })).toBeNull();
+  await screen.findByRole("heading", { name: "Team changes" });
+  expect((screen.getByRole("button", { name: "Open team review" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {

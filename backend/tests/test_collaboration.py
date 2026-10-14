@@ -754,3 +754,37 @@ def test_changed_review_id_cannot_bypass_denied_stored_receipt_closure(users, pr
         == receipt
     )
     assert ReviewEntry.objects.filter(review_id=independent["review_id"]).count() == 1
+
+
+def test_mounted_review_and_inbox_queries_keep_private_bytes_uncached(users, project, pair):
+    review = open_review(users, project, pair)
+    viewer = api(users["viewer"])
+    paths = [
+        f"/api/v0/collaboration/reviews/{review['review_id']}",
+        f"/api/v0/collaboration/projects/{project}/reviews",
+        f"/api/v0/collaboration/projects/{project}/inbox",
+    ]
+    for path in paths:
+        response = viewer.get(path)
+        assert response.status_code == 200
+        assert response["Cache-Control"] == "private, no-store"
+    assert viewer.get(paths[0]).json()["review_id"] == review["review_id"]
+    assert viewer.get(paths[1]).json()["results"][0]["review_id"] == review["review_id"]
+    notices = viewer.get(paths[2]).json()["results"]
+    assert len(notices) == 1 and notices[0]["review_id"] == review["review_id"]
+    notice_path = f"/api/v0/collaboration/notifications/{notices[0]['notification_id']}"
+    response = viewer.get(notice_path)
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "private, no-store"
+    # Even the project's owner cannot inspect another recipient's notification.
+    owner = api(users["owner"])
+    missing = "/api/v0/collaboration/notifications/00000000-0000-0000-0000-000000000000"
+    denied = owner.get(notice_path)
+    absent = owner.get(missing)
+    assert denied.status_code == absent.status_code == 404
+    assert denied.json() == absent.json()
+    outsider = api(users["outsider"])
+    denied = outsider.get(paths[0])
+    absent = outsider.get("/api/v0/collaboration/reviews/00000000-0000-0000-0000-000000000000")
+    assert denied.status_code == absent.status_code == 404
+    assert denied.json() == absent.json()

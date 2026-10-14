@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "enum": [
+        "comment",
+        "recommend",
+        "request_changes",
+        "decline",
+        "close",
+        "reopen"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "evidence": {
+      "$ref": "#/$defs/EvidenceInput"
+    },
+    "review_id": {
+      "format": "uuid",
+      "title": "Review Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "review_id",
+    "action",
+    "basis"
+  ],
+  "title": "RespondReview",
+  "type": "object"
+}

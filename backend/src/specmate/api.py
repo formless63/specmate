@@ -21,6 +21,7 @@ from specmate.cables.api import router as cables_router
 from specmate.catalog.api import router as catalog_router
 from specmate.catalog_matching.api import router as matching_router
 from specmate.catalog_packs.api import router as packs_router
+from specmate.collaboration.api import router as collaboration_router
 from specmate.contracts import OperationEnvelope
 from specmate.copper.api import router as copper_router
 from specmate.end_preparation.api import router as end_preparation_router
@@ -56,6 +57,7 @@ api.add_router("/v0/catalog-matching", matching_router)
 api.add_router("/v0/catalog-packs", packs_router)
 api.add_router("/v0/facts", facts_router)
 api.add_router("/v0/knowledge", knowledge_router)
+api.add_router("/v0/collaboration", collaboration_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)
 api.add_router("/v0/physical-units", physical_units_router)

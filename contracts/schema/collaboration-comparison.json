@@ -1,0 +1,63 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "candidate_revision_id": {
+      "format": "uuid",
+      "title": "Candidate Revision Id",
+      "type": "string"
+    },
+    "changes_limit": {
+      "default": 100,
+      "maximum": 200,
+      "minimum": 1,
+      "title": "Changes Limit",
+      "type": "integer"
+    },
+    "changes_offset": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Changes Offset",
+      "type": "integer"
+    },
+    "old_revision_id": {
+      "format": "uuid",
+      "title": "Old Revision Id",
+      "type": "string"
+    },
+    "parents_after": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parents After"
+    },
+    "parents_limit": {
+      "default": 25,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Parents Limit",
+      "type": "integer"
+    },
+    "parents_side": {
+      "default": "old",
+      "enum": [
+        "old",
+        "candidate"
+      ],
+      "title": "Parents Side",
+      "type": "string"
+    }
+  },
+  "required": [
+    "old_revision_id",
+    "candidate_revision_id"
+  ],
+  "title": "CompareRevisions",
+  "type": "object"
+}

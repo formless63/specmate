@@ -1,0 +1,83 @@
+{
+  "$defs": {
+    "KnowledgePin": {
+      "additionalProperties": false,
+      "properties": {
+        "entry_number": {
+          "minimum": 1,
+          "title": "Entry Number",
+          "type": "integer"
+        },
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "entry_number"
+      ],
+      "title": "KnowledgePin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "candidate_revision_id": {
+      "format": "uuid",
+      "title": "Candidate Revision Id",
+      "type": "string"
+    },
+    "knowledge": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/KnowledgePin"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "old_revision_id": {
+      "format": "uuid",
+      "title": "Old Revision Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "recipients": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Recipients",
+      "type": "array"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "old_revision_id",
+    "candidate_revision_id",
+    "title",
+    "basis"
+  ],
+  "title": "CreateReview",
+  "type": "object"
+}
