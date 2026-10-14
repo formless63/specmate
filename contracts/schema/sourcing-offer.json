@@ -1,0 +1,149 @@
+{
+  "properties": {
+    "availability": {
+      "enum": [
+        "in_stock",
+        "limited",
+        "unavailable",
+        "unknown"
+      ],
+      "title": "Availability",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "lead_time_days": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Lead Time Days"
+    },
+    "offer_id": {
+      "format": "uuid",
+      "title": "Offer Id",
+      "type": "string"
+    },
+    "offered_on": {
+      "title": "Offered On",
+      "type": "string"
+    },
+    "price": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Price"
+    },
+    "review_basis": {
+      "title": "Review Basis",
+      "type": "string"
+    },
+    "reviewed_by": {
+      "additionalProperties": true,
+      "title": "Reviewed By",
+      "type": "object"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "substitution": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Substitution"
+    },
+    "superseded_by_offer_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Superseded By Offer Id"
+    },
+    "supersedes_offer_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Supersedes Offer Id"
+    },
+    "supplier": {
+      "title": "Supplier",
+      "type": "string"
+    },
+    "supplier_ref": {
+      "title": "Supplier Ref",
+      "type": "string"
+    },
+    "valid_until": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Valid Until"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "offer_id",
+    "workspace_id",
+    "revision_id",
+    "supplier",
+    "supplier_ref",
+    "source",
+    "review_basis",
+    "reviewed_by",
+    "offered_on",
+    "valid_until",
+    "price",
+    "availability",
+    "lead_time_days",
+    "substitution",
+    "supersedes_offer_id",
+    "superseded_by_offer_id",
+    "created_at"
+  ],
+  "title": "OfferResult",
+  "type": "object"
+}

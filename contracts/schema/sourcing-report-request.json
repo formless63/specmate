@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "As Of"
+    },
+    "max_age_days": {
+      "anyOf": [
+        {
+          "maximum": 3650,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Age Days"
+    },
+    "purpose": {
+      "default": "procurement",
+      "enum": [
+        "procurement",
+        "pcb_fabrication",
+        "pcb_population",
+        "consumables"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id"
+  ],
+  "title": "SourcingReadRequest",
+  "type": "object"
+}

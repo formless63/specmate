@@ -1,0 +1,184 @@
+{
+  "$defs": {
+    "Price": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
+        },
+        "per_unit": {
+          "default": "ea",
+          "enum": [
+            "ea",
+            "m",
+            "cm",
+            "mm",
+            "kg",
+            "g"
+          ],
+          "title": "Per Unit",
+          "type": "string"
+        }
+      },
+      "title": "Price",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "availability": {
+      "default": "unknown",
+      "enum": [
+        "in_stock",
+        "limited",
+        "unavailable",
+        "unknown"
+      ],
+      "title": "Availability",
+      "type": "string"
+    },
+    "lead_time_days": {
+      "anyOf": [
+        {
+          "maximum": 3650,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lead Time Days"
+    },
+    "offered_on": {
+      "format": "date",
+      "title": "Offered On",
+      "type": "string"
+    },
+    "price": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Price"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "review_basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Review Basis",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "substitute_for_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Substitute For Revision Id"
+    },
+    "substitution_basis": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Substitution Basis",
+      "type": "string"
+    },
+    "supersedes_offer_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Supersedes Offer Id"
+    },
+    "supplier": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Supplier",
+      "type": "string"
+    },
+    "supplier_ref": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Supplier Ref",
+      "type": "string"
+    },
+    "valid_until": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Valid Until"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "revision_id",
+    "supplier",
+    "source",
+    "review_basis",
+    "offered_on"
+  ],
+  "title": "RecordOffer",
+  "type": "object"
+}

@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "specmate.preparation_documents.apps.PreparationDocumentsConfig",
     "specmate.end_preparation",
     "specmate.inventory",
+    "specmate.sourcing",
     "specmate.physical_units",
     "specmate.bom",
     "specmate.assemblies",

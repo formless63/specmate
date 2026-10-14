@@ -111,6 +111,35 @@ or consumables. Bought populated assemblies stop procurement recursion unless an
 make decision changes it. Show dated stock/supplier comparisons and unknown availability.
 Prices, currency and supplier offers are optional. No ERP/accounting installation is required.
 
+### Sourcing and optional costs
+
+`sourcing.record_offer` (needs `inventory.manage`) appends an immutable workspace
+`SupplierOffer`: the exact offered revision, supplier and optional reference, the offer
+source, a review basis, an `offered_on` date (never in the future), an optional
+`valid_until`, optional stated availability and lead time, and an optional price. Price
+amount, currency and the unit it is quoted per are independently optional; an absent value
+stays unknown and is never zero. The acting user is recorded as the reviewer. Offers are
+never edited or deleted; a newer offer for the same revision and need may name the one it
+`supersedes` (once). A substitute offer names the revision it would replace and an explicit
+basis; it is displayed beside the need but never satisfies it and never enters totals.
+Nothing fetches live prices or stock from outside the workspace.
+
+`sourcing.report` (`GET /api/v0/sourcing/revisions/{id}`) takes an exact frozen `bom_plan`
+or `material_plan` revision, an optional `as_of` date and an optional `max_age_days`
+freshness policy. It is read-only. Procurement demand is grouped by exact revision and
+combined with the current stock ledger for lots pinned to that same revision: available is
+physical minus active reservations, with the latest assertion date shown. No recorded
+account, an unknown balance or a dimension mismatch leaves availability unknown (a lower
+bound when only some balances are unknown) and the shortfall unknown with an `at_most`
+bound; a BOM row whose waste allowance is undeclared keeps gross demand unknown and offers
+only a net `at_least` bound. Offer freshness is `expired` after `valid_until`, `stale`
+beyond `max_age_days`, `current` when a policy or expiry holds, and `unknown` when neither
+exists. Estimated cost is the current shortfall times a priced offer, reported only for
+known shortfall, price, currency and a unit of the same dimension, with a reason otherwise.
+Totals are per currency from the cheapest current-or-unknown-freshness, not-unavailable
+exact offer of each purchase row, with counts of unpriced rows; currencies are never
+mixed. Missing prices, currencies or offers never block the underlying build sheet.
+
 ## Actual units
 
 Plans and batches record intended work. Actual units/batch membership, consumption, firmware
