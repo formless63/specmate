@@ -81,6 +81,10 @@ test('bridged outline gaps get one marker point each at the chord midpoint', () 
   expect(points).toHaveLength(2); // one shared resource, two repeated boards
   const position = points[0]!.geometry.getAttribute('position');
   expect(position.count).toBe(2);
+  document.documentElement.style.setProperty('--sb-review', '#112233');
+  const themed = buildSceneObject(scene, 'canonical'); let color = '';
+  themed.group.traverse(child => { if (child instanceof THREE.Points) color = (child.material as THREE.PointsMaterial).color.getHexString(); });
+  expect(color).toBe('112233'); themed.dispose(); document.documentElement.style.removeProperty('--sb-review');
   expect([position.getX(0), position.getY(0)]).toEqual([40, -11]);
   object.dispose();
 });

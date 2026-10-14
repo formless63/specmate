@@ -17,6 +17,12 @@ export interface SceneObject {
   dispose: () => void;
 }
 
+/** Theme token read at build time (three.js materials cannot use CSS variables); the fallback covers a missing token. */
+function tokenColor(name: string, fallback: string): string {
+  const value = typeof document === 'undefined' ? '' : getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 function geometryObject(resource: Geometry): { group: THREE.Group; unknown: string[]; dispose: () => void } {
   const group = new THREE.Group();
   const geometries: THREE.BufferGeometry[] = [], materials: THREE.Material[] = [];
@@ -32,7 +38,7 @@ function geometryObject(resource: Geometry): { group: THREE.Group; unknown: stri
     const gaps = resource.outline_bridged_gaps ?? [];
     if (gaps.length) {
       const geometry = new THREE.BufferGeometry().setFromPoints(gaps.map(g => new THREE.Vector3(...g.at).lerp(new THREE.Vector3(...g.to), 0.5)));
-      const material = new THREE.PointsMaterial({ color: '#d4881f', size: 7, sizeAttenuation: false });
+      const material = new THREE.PointsMaterial({ color: tokenColor('--sb-review', '#d4881f'), size: 7, sizeAttenuation: false });
       geometries.push(geometry); materials.push(material);
       const points = new THREE.Points(geometry, material); points.name = 'bridged-outline-gaps'; group.add(points);
     }
