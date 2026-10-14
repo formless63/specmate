@@ -115,3 +115,21 @@ test('review shows the applied project, stored zone fills and unresolved variabl
   expect(screen.getByText(/1 copper zones have no stored copper/)).toBeTruthy();
   expect(screen.getByText(/2 production text items still contain unresolved text variables/)).toBeTruthy();
 });
+
+test('active builds are polled quietly and polling stops once terminal', async () => {
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  try {
+    vi.mocked(options).mockResolvedValue({ available_recipe_id: null, unavailable_reason: null, limit: 100, builds: [{ build_id: 'build-r', state: 'running' }] });
+    render(panel());
+    expect(await screen.findByText('running')).toBeTruthy();
+    expect(options).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(options).toHaveBeenCalledTimes(2);
+    vi.mocked(options).mockResolvedValue({ available_recipe_id: null, unavailable_reason: null, limit: 100, builds: [{ build_id: 'build-r', state: 'succeeded' }] });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(await screen.findByText('succeeded')).toBeTruthy();
+    const calls = vi.mocked(options).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(options).toHaveBeenCalledTimes(calls);
+  } finally { vi.useRealTimers(); }
+});

@@ -71,6 +71,8 @@ def test_nested_rotation_repeated_selection_geometry_pins_and_frozen_history(
     assert len(result["geometry"]) == 1
     geometry = result["geometry"][0]
     assert geometry["outline"] == [[[0, 0, 0], [40, 0, 0], [40, -25, 0], [0, -25, 0]]]
+    assert geometry["outline_bridged_gaps"] == []  # no gaps: no markers, no limitation text
+    assert not any("bridged" in text for text in geometry["limitations"])
     assert geometry["source"]["source_revision_id"] == left["provenance"][0]["source_revision_id"]
     assert geometry["quality"] == "native_extracted_planar"
     assert left["features"][0]["world_transform"] is None  # component depth unknown

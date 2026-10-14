@@ -7,6 +7,9 @@ import { SbJobCard } from '../../components/sb';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
+const TERMINAL = ['succeeded', 'failed', 'cancelled'];
+const POLL_MS = 3000, MAX_POLLS = 200;
+
 /** `blocked` withdraws execution while the caller's access to the intake is lost. */
 export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: string; blocked?: boolean }) {
   const canExecute = useCan('build.execute') && !blocked;
@@ -46,6 +49,24 @@ export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: s
     window.addEventListener('focus', focus);
     return () => { active.current?.abort(); window.removeEventListener('focus', focus); };
   }, [refresh]);
+
+  // Active builds are polled quietly (the shown evidence is not cleared) every few seconds and
+  // polling stops as soon as every listed build is terminal, on denial, or after a bounded count.
+  const states = visible?.options?.builds.map(build => build.state).join(',') ?? '';
+  const pending = states.split(',').some(value => value && !TERMINAL.includes(value));
+  useEffect(() => {
+    if (!pending || blocked) return;
+    let ticks = 0, inflight: AbortController | null = null;
+    const timer = window.setInterval(() => {
+      if (++ticks > MAX_POLLS) { window.clearInterval(timer); return; }
+      inflight?.abort();
+      const controller = new AbortController(); inflight = controller;
+      options(intakeId, controller.signal).then(available => {
+        if (!controller.signal.aborted && scope.current === intakeId) setState(current => current.intakeId === intakeId ? { ...current, options: available } : current);
+      }).catch(() => { if (!controller.signal.aborted) window.clearInterval(timer); });
+    }, POLL_MS);
+    return () => { window.clearInterval(timer); inflight?.abort(); };
+  }, [pending, intakeId, blocked]);
 
   async function request(recipeId: string) {
     active.current?.abort();

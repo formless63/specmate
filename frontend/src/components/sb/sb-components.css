@@ -43,5 +43,13 @@
 .sb-job-title { font-weight: 500; overflow-wrap: anywhere; }
 .sb-job-detail { grid-column: 1; font-family: var(--sb-font-data); font-size: 10.5px; color: var(--sb-text-tertiary); overflow-wrap: anywhere; }
 .sb-job-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; align-items: center; }
+/* Phone width: stack title, status, detail and actions in one full-width column so no cell is squeezed. */
+@media (max-width: 600px) {
+  .sb-job { grid-template-columns: minmax(0, 1fr); }
+  .sb-job-detail, .sb-job-actions { grid-column: 1; grid-row: auto; }
+  .sb-job-actions { flex-wrap: wrap; }
+  .sb-job-actions .mantine-Button-root { height: auto; min-height: var(--button-height, 30px); white-space: normal; max-width: 100%; }
+  .sb-job-actions .mantine-Button-label { white-space: normal; overflow-wrap: anywhere; }
+}
 
 .mantine-Badge-root[data-variant="definition"] { --badge-color: var(--sb-text-secondary); --badge-bd: 1px solid var(--sb-border-control); }
