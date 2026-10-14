@@ -40,6 +40,20 @@ from specmate.operations.models import IdempotencyRecord
 HISTORY = 100
 
 
+def constraint_summary(resolution):
+    constraints = resolution.get("constraints")
+    if not isinstance(constraints, dict):
+        # Captured before constraint evaluation existed: nothing was evaluated.
+        return {"outcome": "not_evaluated", "counts": None, "unknown": [], "invalid": []}
+    results = constraints["results"]
+    return {
+        "outcome": constraints["outcome"],
+        "counts": constraints["counts"],
+        "unknown": [r["key"] for r in results if r["outcome"] == "unknown"],
+        "invalid": [r["key"] for r in results if r["outcome"] == "invalid"],
+    }
+
+
 def configuration_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "configuration":
@@ -54,6 +68,7 @@ def summary(row):
         "snapshot_id": str(row.snapshot_id),
         "resolution_sha256": row.resolution_sha256,
         "draft_version": row.draft_version,
+        "constraint_outcome": constraint_summary(row.resolution)["outcome"],
         "basis": row.basis,
         "created_at": row.created_at.isoformat(),
     }
@@ -233,6 +248,13 @@ def build_input(ctx: Context, p: ResolvedRef):
             "This resolved configuration has unresolved required choices.",
             details={"unresolved": unresolved},
         )
+    constraints = constraint_summary(resolution)
+    if constraints["outcome"] == "invalid":
+        # Recording an invalid outcome is allowed; building from it is not.
+        raise ValidationFailed(
+            "This resolved configuration violates declared constraints.",
+            details={"invalid": constraints["invalid"]},
+        )
     pins = sorted(
         (
             {"revision_id": str(dep.revision_id), "sha256": dep.revision.snapshot.sha256}
@@ -262,6 +284,8 @@ def build_input(ctx: Context, p: ResolvedRef):
             }
             for d in resolution["decisions"]
         ],
+        # Invalid is refused above; unknown and not-evaluated travel with the snapshot.
+        "constraints": constraints,
         **NOT_EVALUATED,
     }
 

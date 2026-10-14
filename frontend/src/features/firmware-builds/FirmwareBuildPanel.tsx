@@ -7,6 +7,14 @@ import { Lineage } from '../builds/BuildsPanel';
 import { cancelBuild, readHistory, retryBuild } from '../builds/api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
+import type { ResolvedSummary } from '../configurations/api';
+
+/** Invalid constraints are refused by the server; unknown and not-evaluated stay selectable. */
+const buildable = (row: ResolvedSummary) => row.status === 'complete' && row.constraint_outcome !== 'invalid';
+function constraintLabel(row: ResolvedSummary) {
+  const outcome = row.constraint_outcome ?? 'not_evaluated';
+  return outcome === 'invalid' ? 'constraints invalid, cannot be built' : `constraints ${outcome.replace('_', ' ')}`;
+}
 
 type Props = FirmwareBuildRef;
 export function FirmwareBuildPanel({ firmware_revision_id, assembly_snapshot_id = null, path = [] }: Props) {
@@ -23,6 +31,7 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
   const [busy, setBusy] = useState(false);
   const [choices, setChoices] = useState<ResolvedChoices>();
   const [configurationId, setConfigurationId] = useState<string | null>(null);
+  const chosen = choices?.resolved.find(row => row.resolved_configuration_id === configurationId);
   const alive = useRef(true);
   const generation = useRef(0);
   const active = useRef<AbortController | null>(null);
@@ -90,8 +99,9 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
     {canExecute && available?.available_recipe_id && <Stack>
       <Checkbox label="Authorize isolated compiler processing of these exact source files" checked={consent} onChange={event => setConsent(event.currentTarget.checked)} />
       {choices && <Select label="Resolved configuration (optional)" placeholder="None: build without a pinned configuration" clearable value={configurationId} onChange={setConfigurationId} nothingFoundMessage="No resolved configurations in this workspace"
-        data={choices.resolved.map(row => ({ value: row.resolved_configuration_id, disabled: row.status !== 'complete', label: `${row.resolved_configuration_id.slice(0, 8)} · ${row.status === 'complete' ? 'complete' : 'incomplete, cannot be built'} · ${row.basis}` }))}
+        data={choices.resolved.map(row => ({ value: row.resolved_configuration_id, disabled: !buildable(row), label: `${row.resolved_configuration_id.slice(0, 8)} · ${row.status === 'complete' ? 'complete' : 'incomplete, cannot be built'} · ${constraintLabel(row)} · ${row.basis}` }))}
         description={choices.truncated ? 'Showing the latest 100 captures.' : 'The exact capture is pinned to the build; later option changes never alter it.'} />}
+      {chosen?.constraint_outcome === 'unknown' && <Alert color="yellow" title="Constraint outcome unknown">At least one declared constraint of this configuration could not be decided, for example a missing rating. Building does not establish compatibility; review the configuration's constraint reasons.</Alert>}
       <TextInput label="Source execution review basis" value={basis} onChange={event => setBasis(event.currentTarget.value)} />
       <Button disabled={busy || !consent || !basis.trim()} onClick={() => void compile()}>Request firmware compile</Button>
     </Stack>}

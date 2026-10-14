@@ -65,6 +65,326 @@
       "title": "Choice",
       "type": "object"
     },
+    "ChoiceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "choice_key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Choice Key",
+          "type": "string"
+        },
+        "option_key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Option Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "option_key",
+        "choice_key"
+      ],
+      "title": "ChoiceRef",
+      "type": "object"
+    },
+    "ChoiceRule": {
+      "additionalProperties": false,
+      "description": "When `when` resolves, `option_key` must (requires) or must not (excludes) resolve\nto one of `choice_keys`. An unresolved input leaves the outcome unknown.",
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Basis",
+          "type": "string"
+        },
+        "choice_keys": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Choice Keys",
+          "type": "array"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "requires",
+            "excludes"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Label",
+          "type": "string"
+        },
+        "option_key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Option Key",
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/$defs/ChoiceRef"
+        }
+      },
+      "required": [
+        "kind",
+        "key",
+        "label",
+        "basis",
+        "when",
+        "option_key",
+        "choice_keys"
+      ],
+      "title": "ChoiceRule",
+      "type": "object"
+    },
+    "FactLimitRule": {
+      "additionalProperties": false,
+      "description": "The exact revision chosen for `option_key` must record `property` at least/at most\n`limit`. A missing, unknown or conflicting fact is unknown, never assumed compatible.",
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Basis",
+          "type": "string"
+        },
+        "comparison": {
+          "enum": [
+            "at_least",
+            "at_most"
+          ],
+          "title": "Comparison",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "kind": {
+          "const": "fact_limit",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Label",
+          "type": "string"
+        },
+        "limit": {
+          "$ref": "#/$defs/NumericValue"
+        },
+        "option_key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Option Key",
+          "type": "string"
+        },
+        "property": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Property",
+          "type": "string"
+        },
+        "purpose": {
+          "default": "rating",
+          "enum": [
+            "general",
+            "manufacturing",
+            "clearance",
+            "illustration",
+            "rating",
+            "preference"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "role": {
+          "default": "actual",
+          "enum": [
+            "actual",
+            "nominal",
+            "lower_bound",
+            "upper_bound",
+            "tolerance"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChoiceRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "key",
+        "label",
+        "basis",
+        "option_key",
+        "property",
+        "comparison",
+        "limit"
+      ],
+      "title": "FactLimitRule",
+      "type": "object"
+    },
+    "NumericValue": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Dimension",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "quantity",
+            "range",
+            "tolerance"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lower": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lower"
+        },
+        "magnitude": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Magnitude"
+        },
+        "minus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minus"
+        },
+        "plus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plus"
+        },
+        "unit": {
+          "enum": [
+            "mm",
+            "cm",
+            "m",
+            "in",
+            "mg",
+            "g",
+            "kg",
+            "ms",
+            "s",
+            "min",
+            "V",
+            "mV",
+            "A",
+            "mA",
+            "ohm",
+            "kohm",
+            "F",
+            "uF",
+            "nF",
+            "pF",
+            "H",
+            "mH",
+            "Hz",
+            "kHz",
+            "MHz",
+            "K",
+            "degC",
+            "deg",
+            "ea",
+            "1",
+            "%"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "upper": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upper"
+        }
+      },
+      "required": [
+        "kind",
+        "dimension",
+        "unit"
+      ],
+      "title": "NumericValue",
+      "type": "object"
+    },
     "Option": {
       "additionalProperties": false,
       "properties": {
@@ -149,6 +469,29 @@
   },
   "additionalProperties": false,
   "properties": {
+    "constraints": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "excludes": "#/$defs/ChoiceRule",
+            "fact_limit": "#/$defs/FactLimitRule",
+            "requires": "#/$defs/ChoiceRule"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ChoiceRule"
+          },
+          {
+            "$ref": "#/$defs/FactLimitRule"
+          }
+        ]
+      },
+      "maxItems": 200,
+      "title": "Constraints",
+      "type": "array"
+    },
     "options": {
       "items": {
         "$ref": "#/$defs/Option"

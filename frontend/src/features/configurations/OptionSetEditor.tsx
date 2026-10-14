@@ -4,8 +4,9 @@ import { randomUUID } from '../../lib/random-id';
 import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { addProjectReference, command, libraryDefinitions, read, type Definition, type Identity } from '../identity/api';
 import { operation, type AuthoringContext, type Described } from './api';
+import { ConstraintEditor } from './ConstraintEditor';
 import {
-  blankChoice, blankOption, DOMAIN_KINDS, DOMAINS, EXCLUDED_KINDS, OCCURRENCE_DOMAINS, parseOptionSet, REVISION_DOMAINS, serializeOptionSet, validateOptionSet,
+  blankChoice, blankConstraint, blankOption, DOMAIN_KINDS, DOMAINS, EXCLUDED_KINDS, OCCURRENCE_DOMAINS, parseOptionSet, REVISION_DOMAINS, serializeOptionSet, validateOptionSet,
   type ChoiceBody, type Domain, type OptionBody, type OptionSetBody,
 } from './optionSet';
 
@@ -180,6 +181,19 @@ function OptionSetDraftEditor({ draftId, definitions, onFrozen }: { draftId: str
     {body.options.length === 0 && <Text size="sm">No options declared.</Text>}
     </InspectionScope>
     {edit.allowed && <Group><Button variant="quiet" disabled={busy} onClick={() => change({ ...body, options: [...body.options, blankOption(body)] })}>Add option</Button></Group>}
+    <Title order={5}>Constraints</Title>
+    <Text size="sm">Explicit rules evaluated at resolution as valid, invalid, unknown or not evaluated. A fact limit reads the chosen exact revision's recorded facts; a missing fact stays unknown, never compatible.</Text>
+    <InspectionScope permission="design.edit">
+    {body.constraints.map((rule, index) => <ConstraintEditor key={index} rule={rule} options={body.options} disabled={busy} editable={edit.allowed}
+      onChange={(next) => change({ ...body, constraints: body.constraints.map((item, position) => position === index ? next : item) })}
+      onRemove={() => change({ ...body, constraints: body.constraints.filter((_, position) => position !== index) })} />)}
+    {body.constraints.length === 0 && <Text size="sm">No constraints declared.</Text>}
+    </InspectionScope>
+    {edit.allowed && <Group>
+      <Button variant="quiet" disabled={busy || body.options.length < 2} onClick={() => change({ ...body, constraints: [...body.constraints, blankConstraint(body, 'requires')] })}>Add requires rule</Button>
+      <Button variant="quiet" disabled={busy || body.options.length < 2} onClick={() => change({ ...body, constraints: [...body.constraints, blankConstraint(body, 'excludes')] })}>Add excludes rule</Button>
+      <Button variant="quiet" disabled={busy || body.options.length === 0} onClick={() => change({ ...body, constraints: [...body.constraints, blankConstraint(body, 'fact_limit')] })}>Add fact limit</Button>
+    </Group>}
     {checked && problems.length > 0 && <Alert color="yellow" title="Not yet valid"><Stack gap={2}>{problems.map((item) => <Text key={item} size="sm">{item}</Text>)}</Stack></Alert>}
     <ReadOnlyNote permission="design.edit" />
     <Group>

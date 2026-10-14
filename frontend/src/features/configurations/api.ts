@@ -9,14 +9,31 @@ export type Decision = {
     declared_target?: { population_revision_id: string | null; option_id: string | null } } | null;
   base: { display_ref: string; population_revision_id: string; firmware_revision_id: string | null } | null;
 };
+export type ConstraintOutcome = 'valid' | 'invalid' | 'unknown' | 'not_evaluated';
+export type ConstraintReason = { level: 'rule' | 'fact'; code: string; message: string; option_key?: string; choice_key?: string | null; assertion_ids?: string[] };
+export type ConstraintFact = {
+  subject_id: string | null; subject_state: string | null; revision_id: string; property: string; purpose: string; role: string;
+  conditions: unknown[]; status: string; value: Record<string, string> | null; assertion_ids: string[];
+};
+export type ConstraintResult = {
+  key: string; label: string; kind: 'requires' | 'excludes' | 'fact_limit'; basis: string; rule: Record<string, unknown>;
+  outcome: ConstraintOutcome; reasons: ConstraintReason[]; facts: ConstraintFact[];
+};
+export type ConstraintEvaluation = {
+  outcome: ConstraintOutcome; counts: Record<ConstraintOutcome, number>; results: ConstraintResult[]; scope: string; limitations: string[];
+};
 export type Resolution = {
   option_set: Pin; target: Pin | null; decisions: Decision[];
   invalid_selections: { option_key: string; choice_key: string | null; reason: string }[];
   counts: Record<DecisionStatus, number>; status: 'complete' | 'incomplete' | 'invalid'; compatibility: 'not_evaluated';
+  /** Absent or the legacy string on resolutions captured before constraint evaluation. */
+  constraints?: ConstraintEvaluation | 'not_evaluated';
 };
 export type Selection = { option_key: string; choice_key: string | null };
 export type ConfigurationBody = { schema_version: string; option_set_revision_id: string; selections: Selection[] };
-export type ResolvedSummary = { resolved_configuration_id: string; status: 'complete' | 'incomplete'; snapshot_id: string; resolution_sha256: string; draft_version: number; basis: string; created_at: string };
+export type ResolvedSummary = { resolved_configuration_id: string; status: 'complete' | 'incomplete'; snapshot_id: string; resolution_sha256: string; draft_version: number; basis: string; created_at: string;
+  /** Captured constraint outcome; absent from servers that predate constraint evaluation. */
+  constraint_outcome?: ConstraintOutcome };
 export type Available = { option_key: string; label: string; domain: string; required: boolean; default_choice: string | null; choices: { key: string; label: string }[] };
 export type DraftResolution = {
   draft_id: string; state: string; content_sha256: string; review_sha256: string; resolution: Resolution;
@@ -26,6 +43,7 @@ export type BuildInput = {
   resolved_configuration_id: string; snapshot_id: string; snapshot_sha256: string; resolution_sha256: string; option_set_revision_id: string;
   pins: { revision_id: string; sha256: string }[];
   choices: { option_key: string; domain: string; path: string[] | null; status: DecisionStatus; source: string; revision_id: string | null; population_option_id: string | null; value: string | null }[];
+  constraints?: { outcome: ConstraintOutcome; counts: Record<ConstraintOutcome, number> | null; unknown: string[]; invalid: string[] };
 };
 export type Submission = { payload: { draft_id: string; review_sha256: string; basis: string }; state: string; key: string };
 

@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { addProjectReference, command, libraryDefinitions, read, type Definition, type Identity } from '../identity/api';
+import { SbStatus } from '../../components/sb';
 import { AdoptionReviewPanel } from './AdoptionReview';
+import { ConstraintResults, evaluation, OUTCOME_LABEL, OUTCOME_LED } from './ConstraintResults';
 import { OptionSetAuthoring } from './OptionSetEditor';
 import { operation, type BuildInput, type Decision, type DraftResolution, type Selection, type Submission } from './api';
 
@@ -47,7 +49,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const configurations = definitions.filter((item) => item.kind === 'configuration');
   return <Card withBorder><Stack>
     <Title order={3}>Options and resolved choices</Title>
-    <Text size="sm">A configuration pins one frozen option set. Resolution turns explicit selections and declared defaults into exact pinned choices; a build consumes only a captured resolved snapshot. Compatibility between choices is not evaluated here.</Text>
+    <Text size="sm">A configuration pins one frozen option set. Resolution turns explicit selections and declared defaults into exact pinned choices; a build consumes only a captured resolved snapshot. Only constraints the option set declares are evaluated, each as valid, invalid, unknown or not evaluated with its reasons; missing facts stay unknown and other compatibility is not assumed.</Text>
     {error && <Alert color="red">{error}</Alert>}
     <NativeSelect label="Configuration" value={definition} data={[{ value: '', label: configurations.length ? 'Select a configuration' : 'No configurations in the library' }, ...configurations.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setDefinition(event.currentTarget.value)} />
     {identity && <NativeSelect label="Configuration draft" value={draftId} data={[{ value: '', label: 'Select a draft' }, ...identity.drafts.map((item) => ({ value: item.draft_id, label: `Draft ${item.draft_id.slice(0, 8)} · ${item.state}` }))]} onChange={(event) => setDraftId(event.currentTarget.value)} />}
@@ -155,6 +157,7 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
     catch (failure) { setError((failure as Error).message); }
   }
   const resolution = preview?.resolution;
+  const constraints = resolution ? evaluation(resolution) : null;
   return <Stack>
     {error && <Alert color="red">{error}</Alert>}
     <Group><Button variant="quiet" disabled={busy} onClick={() => { void refresh(); }}>Refresh resolution</Button></Group>
@@ -165,7 +168,12 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
         <div><dt className="sb-silk">Option set</dt><dd style={{ margin: 0 }}><Badge variant="frozen">{resolution.option_set.name} · rev {resolution.option_set.number}</Badge></dd></div>
         <div><dt className="sb-silk">Target</dt><dd style={{ margin: 0 }}>{resolution.target ? <Badge variant="frozen">{resolution.target.name} · rev {resolution.target.number}</Badge> : <Text size="sm">None</Text>}</dd></div>
         <div><dt className="sb-silk">Unresolved</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{resolution.counts.unresolved}</dd></div>
-        <div><dt className="sb-silk">Compatibility</dt><dd style={{ margin: 0 }}><Text size="sm">Not evaluated</Text></dd></div>
+        <div><dt className="sb-silk">Constraints</dt><dd style={{ margin: 0 }}>{constraints
+          ? <SbStatus led={OUTCOME_LED[constraints.outcome]} dimension="overall" value={OUTCOME_LABEL[constraints.outcome]} />
+          : <SbStatus led="not-evaluated" dimension="overall" value="not evaluated" />}</dd></div>
+        {constraints && <div><dt className="sb-silk">Rules unknown</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{constraints.counts.unknown}</dd></div>}
+        {constraints && <div><dt className="sb-silk">Rules invalid</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{constraints.counts.invalid}</dd></div>}
+        <div><dt className="sb-silk">Other compatibility</dt><dd style={{ margin: 0 }}><Text size="sm">Not evaluated</Text></dd></div>
       </dl>
       <Table>
         <Table.Thead><Table.Tr><Table.Th>Option</Table.Th><Table.Th>Occurrence</Table.Th><Table.Th>Selection</Table.Th><Table.Th>Decision</Table.Th><Table.Th>Exact pin or value</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead>
@@ -187,6 +195,7 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
         })}</Table.Tbody>
       </Table>
       {resolution.invalid_selections.map((item) => <Alert key={item.option_key} color="red">{item.option_key}: {item.reason}</Alert>)}
+      <ConstraintResults resolution={resolution} />
       <ReadOnlyNote permission="design.edit" />
       {edit.allowed && <>
       <Group><Button disabled={!dirty || busy} onClick={() => { void save(); }}>Save selections</Button>
@@ -195,6 +204,7 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
       <Group><Button variant="commit" disabled={dirty || busy || resolution.status === 'invalid' || !basis.trim()} onClick={() => { void capture(); }}>Capture resolved snapshot</Button>
         {submission && <Button variant="quiet" disabled={busy} onClick={() => { void capture(true); }}>Retry capture</Button>}</Group>
       </>}
+      {constraints && constraints.outcome !== 'valid' && constraints.outcome !== 'not_evaluated' && <Text size="sm">Capturing records the {OUTCOME_LABEL[constraints.outcome]} constraint outcome with its reasons as review evidence; it does not make the configuration valid.{constraints.outcome === 'invalid' ? ' Builds refuse an invalid snapshot.' : ''}</Text>}
       {resolution.status === 'incomplete' && <Text size="sm">An incomplete snapshot may be captured as review evidence; builds refuse it until every required option resolves.</Text>}
       <Title order={4}>Resolved snapshots</Title>
       {preview.resolved.length === 0 && <Text size="sm">No resolved snapshot captured for this draft.</Text>}
@@ -210,6 +220,9 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
         <Text className="sb-silk">Build input · snapshot {buildInput.snapshot_sha256.slice(0, 16)}</Text>
         {buildInput.choices.map((choice) => <Text key={choice.option_key} size="sm" style={{ fontFamily: 'var(--sb-font-data)' }}>{choice.option_key} = {choice.revision_id ?? choice.value ?? 'none'} ({choice.source})</Text>)}
         <Text className="sb-silk">{buildInput.pins.length} exact revision pins</Text>
+        {buildInput.constraints && <Group gap="xs"><SbStatus led={OUTCOME_LED[buildInput.constraints.outcome]} dimension="captured constraints" value={OUTCOME_LABEL[buildInput.constraints.outcome]} />
+          {buildInput.constraints.unknown.length > 0 && <Text size="sm">Unknown: {buildInput.constraints.unknown.join(', ')}</Text>}
+          {buildInput.constraints.invalid.length > 0 && <Text size="sm">Invalid: {buildInput.constraints.invalid.join(', ')}</Text>}</Group>}
       </Stack></Card>}
     </>}
   </Stack>;

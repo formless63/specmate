@@ -90,7 +90,7 @@ test('authors options with exact pins, keeps edits across a stale save and freez
       choices: [{ key: 'fitted', label: 'Fitted', revision_id: 'pop-rev', population_option_id: 'default', value: null }] },
     { key: 'finish', label: 'Enclosure finish', domain: 'process', path: null, required: true, default_choice: 'paint',
       choices: [{ key: 'paint', label: 'Painted', revision_id: null, population_option_id: null, value: 'powder-coat' }] },
-  ] });
+  ], constraints: [] });
 
   fireEvent.click(screen.getByRole('button', { name: 'Freeze option set' }));
   await screen.findByText('Frozen as option-set revision 1. Configurations pin that exact revision.');
@@ -111,4 +111,27 @@ test('read-only principals inspect option sets without authoring controls', asyn
   expect((screen.getByRole('button', { name: 'Create option set' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText('Read-only access: requires Freeze')).toBeTruthy();
   expect(bodies.every((body) => body.operation === 'configuration.authoring_context')).toBe(true);
+});
+
+test('authors a fact-limit constraint and saves it with the option set', async () => {
+  const bodies = setup(['workspace.read', 'item.create', 'design.edit', 'design.freeze']);
+  await openSet();
+  expect(screen.getByText('No constraints declared.')).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'Add requires rule' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Add fact limit' }));
+  await screen.findByText('Constraint rule-1: label is required.');
+  fireEvent.change(screen.getByLabelText('Fact property of rule-1'), { target: { value: 'current_rating' } });
+  fireEvent.change(screen.getByLabelText('Fact role of rule-1'), { target: { value: 'upper_bound' } });
+  fireEvent.change(screen.getByLabelText('Limit of rule-1'), { target: { value: '1500' } });
+  fireEvent.change(screen.getByLabelText('Limit unit of rule-1'), { target: { value: 'mA' } });
+  fireEvent.change(screen.getByLabelText('Basis of rule rule-1'), { target: { value: 'Synthetic supply demand.' } });
+  fireEvent.change(screen.getByLabelText('Label of rule rule-1'), { target: { value: 'Board current' } });
+  await waitFor(() => expect(screen.queryByText('Not yet valid')).toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: 'Save option set' }));
+  await screen.findByText('Draft changed since expected state. Your unsaved edits are kept.');
+  fireEvent.click(screen.getByRole('button', { name: 'Save option set' }));
+  await screen.findByText('Saved option-set draft.');
+  const saved = bodies.filter((body) => body.operation === 'draft.update')[1]!;
+  expect(saved.payload.changes.option_set.constraints).toEqual([{ kind: 'fact_limit', key: 'rule-1', label: 'Board current', basis: 'Synthetic supply demand.', when: null, option_key: 'pop',
+    property: 'current_rating', purpose: 'rating', role: 'upper_bound', comparison: 'at_least', limit: { kind: 'quantity', dimension: 'current', unit: 'mA', magnitude: '1500' } }]);
 });
