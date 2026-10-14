@@ -3,9 +3,12 @@
 import json
 from functools import wraps
 
+from django.db.models import BooleanField, Case, Q, Value, When
+
 from specmate.access.models import WorkspaceMember
-from specmate.access.permissions import Perm, authorize, transitional_project
-from specmate.catalog.discovery import WhereUsed, visible_page, where_used
+from specmate.access.permissions import Perm, authorize
+from specmate.catalog.discovery import WhereUsed, where_used
+from specmate.catalog.scope import context_first, library_scope
 from specmate.catalog_matching.queries import (
     authorize_file,
     current_actor,
@@ -256,19 +259,43 @@ def inspect(user, review_id):
     return result
 
 
+def context_page(query, payload, project, project_path, render):
+    """Workspace page; a project context's own records come first and are marked."""
+    referenced = None
+    if project is not None:
+        # Never NULL: records without a project context sort after the project's own.
+        referenced = Case(
+            When(Q(**{project_path: project.id}), then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        )
+    ordered = context_first(
+        query, referenced, payload.after, cursor_error="Search cursor not found."
+    )
+    rows = list(ordered[: payload.limit + 1])
+    results = []
+    for row in rows[: payload.limit]:
+        result = render(row)
+        if project is not None:
+            result["in_project"] = bool(row.in_project)
+        results.append(result)
+    return {
+        "results": results,
+        "next_after": results[-1]["record_id"] if len(rows) > payload.limit else None,
+    }
+
+
 def project_reviews(user, payload):
     user = current_actor(user)
-    workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
+    workspace, project = library_scope(user, payload.workspace_id, payload.project_id)
     query = ChangeReview.objects.filter(workspace=workspace)
-    # TRANSITIONAL: a payload project id filters by the reviews' project context.
-    if project := transitional_project(payload.project_id, workspace):
-        query = query.filter(project=project)
 
     def render(row):
         result = summary(user, row.id)
         return {"record_id": str(row.id), **result}
 
-    return visible_page(query, payload, render)
+    page = context_page(query, payload, project, "project_id", render)
+    return {**page, "workspace_id": str(workspace.id)}
 
 
 @private_inputs
@@ -305,13 +332,18 @@ def notification_result(user, notification_id):
 
 def inbox(user, payload):
     user = current_actor(user)
-    workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
+    workspace, project = library_scope(user, payload.workspace_id, payload.project_id)
     query = InternalNotification.objects.filter(recipient=user, entry__review__workspace=workspace)
-    if project := transitional_project(payload.project_id, workspace):
-        query = query.filter(entry__review__project=project)
     if payload.unread_only:
         query = query.filter(read_at__isnull=True)
-    return visible_page(query, payload, lambda row: notification_result(user, row.id))
+    page = context_page(
+        query,
+        payload,
+        project,
+        "entry__review__project_id",
+        lambda row: notification_result(user, row.id),
+    )
+    return {**page, "workspace_id": str(workspace.id)}
 
 
 def notify(entry, actor):

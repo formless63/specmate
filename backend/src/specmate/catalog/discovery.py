@@ -1,20 +1,28 @@
-"""Membership-filtered discovery and current-authority exact revision use queries."""
+"""Workspace-scoped discovery and current-authority exact revision use queries.
+
+Every read is limited to the actor's workspace. A project id is navigation context: at
+project scope the items the project references come first and are marked, and where-used
+lists the referencing projects next to captured pins. Neither widens nor narrows access.
+"""
 
 import json
 from typing import Literal
 from uuid import UUID
 
-from django.db.models import Q
+from django.db.models import BooleanField, ExpressionWrapper, Q
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from specmate.access.permissions import (
-    Perm,
-    authorize,
-    member_workspaces,
-    transitional_project,
-    visible_projects,
-)
+from specmate.access.models import Project, ProjectReference
+from specmate.access.permissions import Perm, authorize
 from specmate.catalog.models import ManufacturerVariant, PhysicalLot
+from specmate.catalog.scope import (
+    context_first,
+    library_scope,
+    references_bundle,
+    references_definition,
+    references_revision,
+    searchable_workspaces,
+)
 from specmate.design.models import Definition, Revision, Snapshot
 from specmate.design.operations import authorize_snapshot
 from specmate.inventory.models import StockAccount
@@ -30,12 +38,15 @@ from specmate.queries import get_revision
 from specmate.sources.models import SourceBundle, SourceBundleRevision
 
 SearchKind = Literal["project", "definition", "source_bundle", "variant", "lot", "stock"]
+MAX_PROJECT_REFERENCES = 100
 
 
 class SearchCatalog(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     query: str = Field(min_length=1, max_length=200)
     kind: SearchKind = "definition"
+    # Optional scope: a workspace, or a project context (its referenced items first).
+    workspace_id: UUID | None = None
     project_id: UUID | None = None
     after: UUID | None = None
     limit: int = Field(default=25, ge=1, le=100)
@@ -55,6 +66,8 @@ class SearchCatalog(BaseModel):
 class WhereUsed(BaseModel):
     model_config = ConfigDict(extra="forbid")
     revision_id: UUID
+    # Optional project context: its own uses are listed first and marked.
+    project_id: UUID | None = None
     after: UUID | None = None
     limit: int = Field(default=25, ge=1, le=100)
 
@@ -85,65 +98,54 @@ class RevisionLabels(BaseModel):
 
 
 def visible_page(queryset, payload, render):
-    """Advance only from a disclosed record; hidden rows never become a cursor or count.
+    """One bounded page in stable id order from a cursor inside the same scoped query.
 
-    Filtering happens before the page is selected. A denied reference closure omits the
-    candidate instead of poisoning an otherwise authorized search or revealing a count.
+    The query is already limited to the actor's workspace; a cursor outside it is
+    indistinguishable from a missing one.
     """
-    if payload.after:
-        cursor = queryset.filter(id=payload.after).first()
-        if cursor is None:
-            raise NotFound("Search cursor not found.")
-        try:
-            render(cursor)
-        except NotFound:
-            raise NotFound("Search cursor not found.") from None
-        queryset = queryset.filter(id__gt=payload.after)
-    rows = []
-    for candidate in queryset.order_by("id").iterator(chunk_size=100):
-        try:
-            row = render(candidate)
-        except NotFound:
-            continue
-        rows.append(row)
-        if len(rows) > payload.limit:
-            break
-    selected = rows[: payload.limit]
+    page = context_first(queryset, None, payload.after, cursor_error="Search cursor not found.")
+    return _page(page, payload.limit, render, mark=False)
+
+
+def _page(ordered, limit, render, *, mark):
+    rows = list(ordered[: limit + 1])
+    results = []
+    for row in rows[:limit]:
+        result = render(row)
+        if mark:
+            result["in_project"] = bool(row.in_project)
+        results.append(result)
     return {
-        "results": selected,
-        "next_after": selected[-1]["record_id"] if len(rows) > payload.limit else None,
+        "results": results,
+        "next_after": results[-1]["record_id"] if len(rows) > limit else None,
     }
 
 
 def search_catalog(user, payload):
-    workspaces = member_workspaces(user)
-    projects = visible_projects(user)
-    if payload.project_id:
-        workspace = authorize(user, payload.project_id, Perm.WORKSPACE_READ)
-        workspaces = workspaces.filter(id=workspace.id)
-        projects = projects.filter(workspace=workspace)
-        # TRANSITIONAL: a payload project id narrows the project lens to that project.
-        if project := transitional_project(payload.project_id, workspace):
-            projects = projects.filter(id=project.id)
+    workspaces, project = searchable_workspaces(user, payload.workspace_id, payload.project_id)
     text = payload.query
     kind = payload.kind
+    referenced = None
     if kind == "project":
-        query = projects.filter(name__icontains=text)
+        query = Project.objects.filter(workspace__in=workspaces, name__icontains=text)
+        if project is not None:
+            referenced = ExpressionWrapper(Q(id=project.id), output_field=BooleanField())
 
         def render(row):
-            authorize(user, row.workspace_id, Perm.WORKSPACE_READ)
             return {
                 "record_id": str(row.id),
                 "project_id": str(row.id),
                 "workspace_id": str(row.workspace_id),
                 "label": row.name,
+                "archived": row.archived_at is not None,
             }
 
     elif kind == "definition":
         query = Definition.objects.filter(workspace__in=workspaces, name__icontains=text)
+        if project is not None:
+            referenced = references_definition(project)
 
         def render(row):
-            authorize(user, row.workspace_id, Perm.WORKSPACE_READ)
             return {
                 "record_id": str(row.id),
                 "workspace_id": str(row.workspace_id),
@@ -152,13 +154,15 @@ def search_catalog(user, payload):
             }
 
     elif kind == "source_bundle":
-        query = SourceBundle.objects.filter(
+        matching = SourceBundle.objects.filter(
             Q(name__icontains=text) | Q(revisions__files__path__icontains=text),
             workspace__in=workspaces,
-        ).distinct()
+        ).values("id")
+        query = SourceBundle.objects.filter(id__in=matching)
+        if project is not None:
+            referenced = references_bundle(project)
 
         def render(row):
-            authorize(user, row.workspace_id, Perm.WORKSPACE_READ)
             return {
                 "record_id": str(row.id),
                 "workspace_id": str(row.workspace_id),
@@ -172,11 +176,13 @@ def search_catalog(user, payload):
                 Q(manufacturer__icontains=text) | Q(part_number__icontains=text),
                 revision__definition__workspace__in=workspaces,
             )
+            prefix = ""
         elif kind == "lot":
             query = PhysicalLot.objects.select_related("revision__definition").filter(
                 revision__definition__workspace__in=workspaces,
                 label__icontains=text,
             )
+            prefix = ""
         else:
             query = StockAccount.objects.select_related(
                 "lot__revision__definition", "location"
@@ -184,15 +190,14 @@ def search_catalog(user, payload):
                 Q(lot__label__icontains=text) | Q(location__name__icontains=text),
                 location__workspace__in=workspaces,
             )
+            prefix = "lot__"
+        if project is not None:
+            referenced = references_revision(
+                project, f"{prefix}revision_id", f"{prefix}revision__definition_id"
+            )
 
         def render(row):
-            from specmate.inventory.queries import get_account
-
             revision = row.lot.revision if kind == "stock" else row.revision
-            if kind == "stock":
-                get_account(user, row.id)
-            else:
-                get_revision(user, revision.id)
             result = {
                 "record_id": str(row.id),
                 "workspace_id": str(
@@ -212,29 +217,94 @@ def search_catalog(user, payload):
                 result["association_basis"] = row.association_basis
             return result
 
-    return {"kind": kind, "query": text, **visible_page(query, payload, render)}
+    ordered = context_first(
+        query, referenced, payload.after, cursor_error="Search cursor not found."
+    )
+    page = _page(ordered, payload.limit, render, mark=project is not None)
+    return {
+        "kind": kind,
+        "query": text,
+        "project_id": str(project.id) if project is not None else None,
+        **page,
+    }
+
+
+def project_uses(revision, project=None):
+    """Projects that declare a use of this revision: exact pins or floating references.
+
+    A project reference is a declared use, not a captured pin. The project context, if
+    any, comes first; the list is bounded and says so when truncated.
+    """
+    query = ProjectReference.objects.filter(
+        removed_at__isnull=True, project__workspace_id=revision.definition.workspace_id
+    ).filter(
+        Q(kind="revision", revision_id=revision.id)
+        | Q(kind="definition", definition_id=revision.definition_id)
+    )
+    order = ["project__name", "project_id", "added_at", "id"]
+    if project is not None:
+        query = query.annotate(
+            in_context=ExpressionWrapper(Q(project_id=project.id), output_field=BooleanField())
+        )
+        order.insert(0, "-in_context")
+    rows = list(query.select_related("project").order_by(*order)[: MAX_PROJECT_REFERENCES + 1])
+    return {
+        "project_references": [
+            {
+                "reference_id": str(row.id),
+                "project_id": str(row.project_id),
+                "project_name": row.project.name,
+                "archived": row.project.archived_at is not None,
+                "kind": row.kind,
+                "relation": "project_reference_exact"
+                if row.kind == ProjectReference.Kind.REVISION
+                else "project_reference_floating",
+                "role": row.role,
+                "in_project": project is not None and row.project_id == project.id,
+            }
+            for row in rows[:MAX_PROJECT_REFERENCES]
+        ],
+        "project_references_truncated": len(rows) > MAX_PROJECT_REFERENCES,
+    }
 
 
 def where_used(user, payload):
-    get_revision(user, payload.revision_id)
-    # A pin is evidence of a captured dependency, not an occurrence count or compatibility.
+    """Captured exact pins (parent definitions' snapshots) and referencing projects.
+
+    Pins describe retained dependency closure, not occurrence counts or compatibility.
+    Reading the revision authorizes the workspace; every pin and reference stays inside it.
+    """
+    revision = get_revision(user, payload.revision_id)
+    project = None
+    if payload.project_id is not None:
+        _, project = library_scope(user, revision.definition.workspace_id, payload.project_id)
     query = Snapshot.objects.select_related("definition").filter(
         dependencies__revision_id=payload.revision_id,
-        definition__workspace__in=member_workspaces(user),
+        definition__workspace_id=revision.definition.workspace_id,
+    )
+    referenced = references_definition(project, "definition_id") if project else None
+    ordered = context_first(
+        query, referenced, payload.after, cursor_error="Search cursor not found."
     )
 
     def render(snapshot):
-        authorize_snapshot(user, snapshot)
         return {
             "record_id": str(snapshot.id),
             "snapshot_id": str(snapshot.id),
             "workspace_id": str(snapshot.definition.workspace_id),
             "definition_id": str(snapshot.definition_id),
+            "definition_kind": snapshot.definition.kind,
             "label": snapshot.definition.name,
             "relation": "exact_revision_pin",
         }
 
-    return {"revision_id": str(payload.revision_id), **visible_page(query, payload, render)}
+    return {
+        "revision_id": str(payload.revision_id),
+        "workspace_id": str(revision.definition.workspace_id),
+        "project_id": str(project.id) if project is not None else None,
+        **_page(ordered, payload.limit, render, mark=project is not None),
+        **project_uses(revision, project),
+    }
 
 
 def revision_impact(user, payload):
@@ -270,9 +340,10 @@ def revision_impact(user, payload):
 def revision_labels(user, payload):
     """Name, kind and number for each exact revision the actor may read.
 
-    Authorization matches reading the revision itself (project read plus the complete
-    pinned closure). A revision that is missing, outside the actor's projects or not
-    fully readable yields the same unreadable entry, with no name, kind or number.
+    Authorization matches reading the revision itself (workspace read plus typed
+    validation of the pinned closure). A revision that is missing, outside the actor's
+    workspace or not readable yields the same unreadable entry, with no name, kind or
+    number.
     """
     authorized: set = set()
     labels = []
@@ -333,7 +404,7 @@ def source_revision_labels(user, payload):
     "catalog.search",
     SearchCatalog,
     supports_idempotency=False,
-    summary="Search currently authorized engineering identities and source records.",
+    summary="Search the workspace library; a project context lists its referenced items first.",
 )
 def search(ctx: Context, payload: SearchCatalog):
     return search_catalog(ctx.user, payload)
@@ -343,7 +414,7 @@ def search(ctx: Context, payload: SearchCatalog):
     "catalog.where_used",
     WhereUsed,
     supports_idempotency=False,
-    summary="List authorized exact snapshot pins without disclosing inaccessible parents.",
+    summary="List exact snapshot pins and referencing projects of a revision in its workspace.",
 )
 def uses(ctx: Context, payload: WhereUsed):
     return where_used(ctx.user, payload)
@@ -353,7 +424,7 @@ def uses(ctx: Context, payload: WhereUsed):
     "catalog.revision_impact",
     RevisionImpact,
     supports_idempotency=False,
-    summary="Compare exact revisions and list current authorized retained parent pins.",
+    summary="Compare exact revisions and list retained parent pins and project references.",
 )
 def impact(ctx: Context, payload: RevisionImpact):
     return revision_impact(ctx.user, payload)

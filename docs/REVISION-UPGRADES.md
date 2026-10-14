@@ -25,9 +25,10 @@ or contextual assignments that address the selected nested uses. Outer contexts 
 their frozen pins until a separate later-revision proposal adopts the new consumer
 revision with its own review. Non-assembly content is rejected rather than converted.
 
-`upgrade.consumers` lists frozen assembly snapshots in one project that pin an exact
-revision at any depth, with each contextual use path. A consumer whose complete closure,
-origin or sources are not currently readable is omitted without a count.
+`upgrade.consumers` lists frozen assembly snapshots in the revision's workspace that pin
+it at any depth, with each contextual use path. An optional `project_id` is context only:
+consumers whose definition that project references come first and carry `in_project`.
+Non-members receive NotFound.
 
 The preview identifies exact old and candidate revision hashes, changed descendant paths,
 placements and firmware assignments, retained root relationships and contextual assignments.
@@ -64,7 +65,7 @@ owning snapshot, both complete revision closures, source origins, every retained
 file and application draft is checked before disclosure, state conflicts or keyed replay
 mismatch diagnostics. GUI, HTTP, MCP and trusted jobs discover the same typed operations.
 Read operations evaluate live authority and do not accept idempotency keys. Mutations scope
-keys to actor, project and operation; replay rechecks retained references.
+keys to actor, workspace and operation; replay rechecks retained references.
 
 Database guards prevent mutation of proposals, reviews and application links, require
 either the same-definition later-revision relation or a declared same-kind replacement of

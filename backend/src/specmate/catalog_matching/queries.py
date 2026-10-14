@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog_matching.contracts import CandidateResult, EvidenceResult, RevisionIdentity
 from specmate.catalog_matching.models import MatchCandidate
-from specmate.operations import NotFound, PermissionDenied, Unauthenticated, ValidationFailed
+from specmate.operations import NotFound, Unauthenticated, ValidationFailed
 from specmate.queries import get_bundle_revision, get_revision
 
 
@@ -24,7 +24,11 @@ def authorize_file(user, source_file):
         authorize(user, source_file.blob.workspace_id, Perm.WORKSPACE_READ)
 
 
-def candidate_rows(user, candidate_id, *, edit=False, lock=False):
+def candidate_rows(user, candidate_id, *, edit=False, lock=False, permission=Perm.DESIGN_EDIT):
+    """Current authority over a candidate and all retained evidence; ``edit`` adds ``permission``.
+
+    Proposing candidates is additive (item.create); reviewing them needs design.edit.
+    """
     user = current_actor(user)
     queryset = MatchCandidate.objects.select_related(
         "source_file__revision__bundle", "source_file__blob"
@@ -46,7 +50,7 @@ def candidate_rows(user, candidate_id, *, edit=False, lock=False):
     for review in reviews:
         authorize_file(user, review.source_file)
     if edit:
-        authorize(user, source.definition.workspace_id, Perm.DESIGN_EDIT)
+        authorize(user, source.definition.workspace_id, permission)
     return candidate, source, target, reviews
 
 
@@ -119,33 +123,25 @@ def list_candidates(user, revision_id, *, after=None, limit=25):
         raise ValidationFailed("Limit must be between 1 and 100.")
     query = MatchCandidate.objects.filter(source_revision_id=revision_id).order_by("id")
     if after is not None:
-        cursor = query.filter(id=after).first()
-        if cursor is None:
+        if not query.filter(id=after).exists():
             raise NotFound("Match cursor not found.")
-        candidate_rows(user, cursor.id)
         query = query.filter(id__gt=after)
-    visible = []
-    for candidate in query.iterator(chunk_size=100):
-        try:
-            result = get_candidate(user, candidate.id)
-        except (NotFound, PermissionDenied):
-            continue
-        visible.append(result)
-        if len(visible) > limit:
-            break
+    # Candidates and their evidence stay inside the source revision's workspace.
+    rows = [get_candidate(user, candidate.id) for candidate in query[: limit + 1]]
     return {
         "source_revision_id": str(revision_id),
-        "results": visible[:limit],
-        "next_after": visible[limit - 1]["candidate_id"] if len(visible) > limit else None,
+        "results": rows[:limit],
+        "next_after": rows[limit - 1]["candidate_id"] if len(rows) > limit else None,
     }
 
 
-def list_evidence_files(user, project_id, *, after=None, limit=50):
-    """Exact registered files for human selectors; no name implies verified contents."""
+def list_evidence_files(user, workspace_id=None, *, after=None, limit=50):
+    """Exact registered workspace files for human selectors; no name implies verified contents."""
+    from specmate.catalog.scope import library_scope
     from specmate.sources.models import SourceBundleFile
 
     user = current_actor(user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    workspace, _ = library_scope(user, workspace_id)
     if not 1 <= limit <= 100:
         raise ValidationFailed("Limit must be between 1 and 100.")
     query = (
@@ -154,13 +150,12 @@ def list_evidence_files(user, project_id, *, after=None, limit=50):
         .order_by("id")
     )
     if after is not None:
-        cursor = query.filter(id=after).first()
-        if cursor is None:
+        if not query.filter(id=after).exists():
             raise NotFound("Evidence cursor not found.")
-        authorize_file(user, cursor)
         query = query.filter(id__gt=after)
     rows = list(query[: limit + 1])
     return {
+        "workspace_id": str(workspace.id),
         "results": [
             {
                 "file_id": row.id,

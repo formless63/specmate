@@ -240,8 +240,8 @@ def inspect_owner(ctx: Context, p: ReadAssembly):
 @operation(
     "upgrade.consumers",
     ReadConsumers,
-    summary="List authorized frozen consumers in one project that pin an exact revision.",
+    summary="List frozen workspace consumers that pin an exact revision at any depth.",
     supports_idempotency=False,
 )
 def consumers(ctx: Context, p: ReadConsumers):
-    return queries.consumers(ctx.user, p.project_id, p.revision_id)
+    return queries.consumers(ctx.user, p.revision_id, project_id=p.project_id)

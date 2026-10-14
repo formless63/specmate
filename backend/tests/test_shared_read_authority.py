@@ -1,7 +1,6 @@
 """Shared read closures preserve retained origins before diagnostics and disclosure."""
 
 import copy
-from uuid import UUID
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -16,7 +15,7 @@ from specmate.facts.queries import read_facts, resolve_target
 from specmate.operations import NotFound, Unauthenticated, ValidationFailed
 from specmate.queries import get_bundle_revision, get_draft
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
 from .test_assemblies import create, freeze, occ, part
 from .test_catalog_packs import adopt, install, manifest, registered
 from .test_design import freeze as freeze_design
@@ -35,10 +34,11 @@ from .test_transports import api, post_op
 
 
 def adopt_with_remote_origin(users, project, original):
-    """An unselected retained pack entry is current provenance, not an assembly child."""
+    """An unselected retained pack entry is current provenance, not an assembly child.
+
+    The retained entry was created from another project of the same workspace.
+    """
     remote = op(users["owner"], "project.create", {"name": "Retained catalog item"})["project_id"]
-    for name in ("editor", "viewer"):
-        ensure_member(users[name], "viewer", project=remote)
     _, extra = part(users["owner"], remote)
     entries = manifest(original)["entries"] + [
         {
@@ -67,7 +67,8 @@ def adopted_assembly(users, project):
 
 
 def revoke(users, project):
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    """Membership is per workspace: losing it hides the root and its retained origins."""
+    remove_member(users["viewer"], project=project)
 
 
 def restore(users, project):
@@ -86,11 +87,11 @@ def test_assembly_origin_denial_precedes_path_across_jobs_and_generic_http(users
         op(users["viewer"], "assembly.resolve", wrong)
     revoke(users, remote)
     for operation, data in (("assembly.read", payload), ("assembly.resolve", wrong)):
-        with pytest.raises(NotFound, match=r"^Project not found\.$"):
+        with pytest.raises(NotFound, match=r"^Not found\.$"):
             op(users["viewer"], operation, data)
         response = post_op(client, operation, data)
         assert response.status_code == 404
-        assert response.json()["error"]["message"] == "Project not found."
+        assert response.json()["error"]["message"] == "Not found."
     restore(users, remote)
     assert op(users["viewer"], "assembly.read", payload) == before
     assert bytes(Snapshot.objects.get(id=frozen["snapshot_id"]).canonical) == raw
@@ -102,7 +103,7 @@ def test_retained_origin_precedes_wrong_snapshot_kind(users, project):
     with pytest.raises(ValidationFailed, match="Snapshot is not an assembly"):
         get_snapshot(users["viewer"], frozen["snapshot_id"])
     revoke(users, remote)
-    with pytest.raises(NotFound, match=r"^Project not found\.$"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         get_snapshot(users["viewer"], frozen["snapshot_id"])
     restore(users, remote)
     with pytest.raises(ValidationFailed, match="Snapshot is not an assembly"):
@@ -127,7 +128,7 @@ def test_fact_origin_denial_and_identical_restoration_across_readers(users, adop
     assert post_op(client, "facts.read", payload).json()["result"] == before
     history = copy.deepcopy(list(FactAssertion.objects.values()))
     revoke(users, remote)
-    with pytest.raises(NotFound, match=r"^Project not found\.$"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         read_facts(users["viewer"], ledger["subject_id"])
     with pytest.raises(NotFound):
         op(users["viewer"], "facts.read", payload)
@@ -153,7 +154,7 @@ def test_direct_shared_readers_reject_deactivated_captured_actor(users, adopted_
         resolve_target(actor, target)
 
 
-def test_valid_derived_source_facts_deny_current_source_project_and_restore(users, project):
+def test_valid_derived_source_facts_deny_on_membership_loss_and_restore(users, project):
     source_project = op(users["owner"], "project.create", {"name": "Observation sources"})[
         "project_id"
     ]
@@ -170,8 +171,9 @@ def test_valid_derived_source_facts_deny_current_source_project_and_restore(user
         {"source_revision_id": original["revision_id"], "name": "Derived observation"},
     )
     retained = get_bundle_revision(users["viewer"], derived["revision_id"])
-    assert retained.bundle.project_id == UUID(source_project)
-    assert retained.bundle.derived_from.bundle.project_id == UUID(source_project)
+    workspace = WorkspaceMember.objects.get(user=users["viewer"]).workspace_id
+    assert retained.bundle.workspace_id == workspace
+    assert retained.bundle.derived_from.bundle.workspace_id == workspace
     source_ledger = subject(users["owner"], {"kind": "project", "project_id": project})
     source_fact = append(
         users["owner"],
@@ -247,11 +249,11 @@ def test_compiler_options_inherit_retained_context_origin_before_path_diagnostic
     before = op(users["viewer"], "firmware_build.options", data)
     assert client.get(url, query).json() == before
     revoke(users, remote)
-    with pytest.raises(NotFound, match=r"^Project not found\.$"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         op(users["viewer"], "firmware_build.options", {**data, "path": ["unresolved"]})
     response = client.get(url, {**query, "path": "unresolved"})
     assert response.status_code == 404
-    assert response.json()["error"]["message"] == "Project not found."
+    assert response.json()["error"]["message"] == "Not found."
     assert client.get(url, query).status_code == 404
     restore(users, remote)
     assert op(users["viewer"], "firmware_build.options", data) == before

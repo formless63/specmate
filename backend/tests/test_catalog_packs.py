@@ -7,7 +7,6 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import WorkspaceMember
 from specmate.catalog_packs.authoring import origin_revisions
 from specmate.catalog_packs.contracts import PackManifest
 from specmate.catalog_packs.models import (
@@ -30,10 +29,11 @@ from specmate.operations import (
 )
 from specmate.queries import get_draft, get_revision
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
+from .test_wire_stock import workspace_of
 from .test_workshop_profiles import create as create_profile
 from .test_workshop_profiles import profile, stock_revision
 
@@ -65,10 +65,11 @@ def manifest(revision, *, version="1.0", **changes):
 
 
 def registered(users, project, revision, **changes):
+    """A pack installs into the workspace library; the payload never names a project."""
     return op(
         users["editor"],
         "catalog_pack.register",
-        {"project_id": project, "manifest": manifest(revision, **changes)},
+        {"workspace_id": workspace_of(project), "manifest": manifest(revision, **changes)},
         idempotency_key="register",
     )
 
@@ -174,7 +175,7 @@ def test_update_downgrade_disable_retains_owned_copies_originals_and_consumer_pi
 
 
 def test_roles_cas_replay_and_keyed_mismatch(users, project, revision):
-    payload = {"project_id": project, "manifest": manifest(revision)}
+    payload = {"workspace_id": workspace_of(project), "manifest": manifest(revision)}
     for name, error in [("viewer", PermissionDenied), ("outsider", NotFound)]:
         with pytest.raises(error):
             op(users[name], "catalog_pack.register", payload)
@@ -298,26 +299,25 @@ def test_inert_rule_model_and_recipe_references_do_not_execute(users, project, r
 def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
     users, project, revision
 ):
-    other = op(users["owner"], "project.create", {"name": "Private source library"})["project_id"]
-    ensure_member(users["editor"], "viewer", project=other)
+    # A source revision created from another project is ordinary same-workspace content.
+    other = op(users["owner"], "project.create", {"name": "Shared source library"})["project_id"]
     source = op(
         users["owner"],
         "definition.create",
-        {"project_id": other, "kind": "part", "name": "External source"},
+        {"project_id": other, "kind": "part", "name": "Library source"},
     )
-    private = freeze(users["owner"], source["draft_id"], source["state"])
-    v1 = registered(users, project, private)
+    shared = freeze(users["owner"], source["draft_id"], source["state"])
+    v1 = registered(users, project, shared)
     install(users, v1, idempotency_key="install")
     v2 = op(
         users["editor"],
         "catalog_pack.register",
-        {
-            "project_id": project,
-            "pack_id": v1["pack_id"],
-            "manifest": manifest(revision, version="2.0"),
-        },
+        {"pack_id": v1["pack_id"], "manifest": manifest(revision, version="2.0")},
     )
-    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
+    assert get_version(users["viewer"], v2["version_id"])["version_id"] == v2["version_id"]
+    assert [row["pack_id"] for row in list_packs(users["viewer"])["results"]] == [v1["pack_id"]]
+    # Losing workspace membership hides every read, conflict and keyed replay alike.
+    remove_member(users["editor"])
     for invoke in (
         lambda: get_version(users["editor"], v2["version_id"]),
         lambda: history(users["editor"], v1["pack_id"]),
@@ -326,16 +326,55 @@ def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
         lambda: op(
             users["editor"],
             "catalog_pack.register",
-            {"project_id": project, "manifest": manifest(revision)},
+            {"workspace_id": workspace_of(project), "manifest": manifest(revision)},
             idempotency_key="register",
         ),
+        lambda: list_packs(users["editor"], workspace_of(project)),
+        lambda: list_packs(users["editor"], workspace_of(project), after=v1["pack_id"]),
     ):
         with pytest.raises(NotFound) as error:
             invoke()
         assert error.value.details == {}
-    assert list_packs(users["editor"], project)["results"] == []
+
+
+def test_contributor_imports_packs_but_installation_needs_edit(users, project, revision):
+    version = op(
+        users["contributor"],
+        "catalog_pack.register",
+        {"manifest": manifest(revision)},
+    )
+    with pytest.raises(PermissionDenied):
+        op(
+            users["contributor"],
+            "catalog_pack.install",
+            {"pack_id": version["pack_id"], "version_id": version["version_id"], "basis": "No"},
+            expected_state="pack-v0",
+        )
+    assert install(users, version)["enabled"] is True
+
+
+def test_pack_registration_rejects_foreign_workspace_pins_as_not_found(
+    users, project, revision, other_workspace
+):
+    member(users["editor"], "editor", workspace=other_workspace)
+    foreign = op(
+        users["editor"],
+        "definition.create",
+        {"workspace_id": other_workspace, "kind": "part", "name": "Foreign source"},
+    )
+    pinned = freeze(users["outsider"], foreign["draft_id"], foreign["state"])
+    # Even an actor who can read both workspaces gets the uniform NotFound.
+    with pytest.raises(NotFound) as error:
+        registered(users, project, pinned)
+    assert error.value.message == "Not found."
+    foreign_pack = op(
+        users["editor"],
+        "catalog_pack.register",
+        {"workspace_id": other_workspace, "manifest": manifest(pinned)},
+    )
     with pytest.raises(NotFound):
-        list_packs(users["editor"], project, after=v1["pack_id"])
+        registered(users, project, revision, dependencies=[foreign_pack["version_id"]])
+    assert CatalogPack.objects.count() == 1 and VersionEntry.objects.count() == 1
 
 
 def test_optional_registered_manifest_checks_actual_bytes_and_preserves_rights(
@@ -384,7 +423,7 @@ def test_api_adapter_read_and_install_and_scoped_cursor(users, project, revision
     response = post_op(
         api(users["editor"]),
         "catalog_pack.register",
-        {"project_id": project, "manifest": manifest(revision)},
+        {"manifest": manifest(revision)},
     )
     assert response.status_code == 200
     version = response.json()["result"]
@@ -414,14 +453,18 @@ def test_source_selector_adapter_preserves_exact_files_and_current_scope(users, 
             "files": files(ORIGINAL, path="models/source.step "),
         },
     )
-    url = f"/api/v0/catalog-packs/projects/{project}/source-files"
+    url = "/api/v0/catalog-packs/source-files"
     page = api(users["viewer"]).get(url).json()
+    assert page["workspace_id"] == workspace_of(project)
     assert page["results"][0]["source_path"] == "models/source.step "
     assert page["results"][0]["source_bundle_revision_id"] == source["revision_id"]
     cursor = page["results"][0]["file_id"]
     assert api(users["viewer"]).get(url + f"?after={cursor}").json()["results"] == []
     assert api(users["viewer"]).get(url + "?after=0").status_code == 404
-    assert api(users["outsider"]).get(url).status_code == 404
+    # The outsider sees only their own (empty) workspace and cannot name this one.
+    assert api(users["outsider"]).get(url).json()["results"] == []
+    scoped = f"{url}?workspace_id={workspace_of(project)}"
+    assert api(users["outsider"]).get(scoped).status_code == 404
     assert api().get(url).status_code == 401
 
 
@@ -520,11 +563,8 @@ def test_same_project_profile_copy_freezes_normal_typed_closure_plus_origin(
     )
 
 
-def test_cross_project_typed_copy_rejects_whole_batch_before_any_new_identity(
-    users, project, revision
-):
+def test_typed_copy_from_another_project_is_same_workspace_reuse(users, project, revision):
     other = op(users["owner"], "project.create", {"name": "Typed source library"})["project_id"]
-    ensure_member(users["editor"], "viewer", project=other)
     stock_id, _ = stock_revision(users, other)
     source_draft = create_profile(users, other, profile(stock_id))
     source = op(
@@ -536,7 +576,7 @@ def test_cross_project_typed_copy_rejects_whole_batch_before_any_new_identity(
     exact = get_revision(users["owner"], source["revision_id"])
     items = manifest(revision)["entries"] + [
         {
-            "key": "foreign-profile",
+            "key": "library-profile",
             "label": "Source profile",
             "category": "profile",
             "revision_id": str(exact.id),
@@ -547,23 +587,25 @@ def test_cross_project_typed_copy_rejects_whole_batch_before_any_new_identity(
     version = registered(users, project, revision, entries=items)
     installed = install(users, version)
     before = Definition.objects.count()
-    with pytest.raises(Unsupported):
-        op(
-            users["editor"],
-            "catalog_pack.adopt",
-            {
-                "pack_id": version["pack_id"],
-                "version_id": version["version_id"],
-                "entry_keys": ["part", "foreign-profile"],
-                "basis": "Atomic batch",
-            },
-            expected_state=installed["state"],
-        )
-    assert Definition.objects.count() == before and not AdoptionEntry.objects.exists()
-    assert PackDecision.objects.count() == 1
+    op(
+        users["editor"],
+        "catalog_pack.adopt",
+        {
+            "pack_id": version["pack_id"],
+            "version_id": version["version_id"],
+            "entry_keys": ["part", "library-profile"],
+            "basis": "Atomic batch",
+        },
+        expected_state=installed["state"],
+    )
+    assert Definition.objects.count() == before + 2
+    assert AdoptionEntry.objects.filter(status="draft_created").count() == 2
+    copied = AdoptionEntry.objects.get(entry__key="library-profile")
+    assert copied.definition.workspace_id == exact.definition.workspace_id
+    assert copied.definition_id != exact.definition_id
 
 
-def test_hidden_current_consumer_does_not_poison_source_version_read(users, project, revision):
+def test_later_edit_of_adopted_copy_keeps_version_and_initial_history(users, project, revision):
     source_draft = op(
         users["owner"],
         "assembly.create",
@@ -578,16 +620,13 @@ def test_hidden_current_consumer_does_not_poison_source_version_read(users, proj
     install(users, version)
     adopt(users, version)
     copied = AdoptionEntry.objects.get()
-    other = op(users["owner"], "project.create", {"name": "Later private consumer content"})[
-        "project_id"
-    ]
+    other = op(users["owner"], "project.create", {"name": "Later consumer content"})["project_id"]
     dependency = op(
         users["owner"],
         "definition.create",
-        {"project_id": other, "kind": "part", "name": "Private child"},
+        {"project_id": other, "kind": "part", "name": "Library child"},
     )
-    hidden = freeze(users["owner"], dependency["draft_id"], dependency["state"])
-    # An independent current assembly field can make the edited adopted draft unreadable.
+    child = freeze(users["owner"], dependency["draft_id"], dependency["state"])
     draft = get_draft(users["owner"], copied.draft_id)
     op(
         users["owner"],
@@ -597,7 +636,7 @@ def test_hidden_current_consumer_does_not_poison_source_version_read(users, proj
             "changes": {
                 "assembly": {
                     "occurrences": [
-                        {"local_id": "private-child", "revision_id": hidden["revision_id"]}
+                        {"local_id": "library-child", "revision_id": child["revision_id"]}
                     ]
                 }
             },
@@ -607,7 +646,9 @@ def test_hidden_current_consumer_does_not_poison_source_version_read(users, proj
     assert (
         get_version(users["editor"], version["version_id"])["version_id"] == version["version_id"]
     )
-    assert history(users["editor"], version["pack_id"])["results"][1]["adoptions"] == []
+    adoptions = history(users["viewer"], version["pack_id"])["results"][1]["adoptions"]
+    assert [a["draft_id"] for a in adoptions] == [str(copied.draft_id)]
+    assert adoptions[0]["initial_content"]["assembly"]["occurrences"] == []
 
 
 def test_nested_origin_bounds_and_cleanup_after_failure(users, project, revision, monkeypatch):

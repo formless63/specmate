@@ -19,7 +19,7 @@ from specmate.operations import (
 )
 from specmate.operations.models import IdempotencyRecord
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, member, membership, op, remove_member, set_role
 from .test_assemblies import create, freeze, occ
 from .test_catalog_matching import source_evidence
 from .test_transports import api, post_op
@@ -74,28 +74,18 @@ def open_review(users, project, pair, **extra):
     )
 
 
-def test_exact_fact_null_absence_type_distinction_and_filtered_parent_pagination(
+def test_exact_fact_null_absence_type_distinction_and_workspace_parent_pagination(
     users, project, pair
 ):
     owner, viewer = users["owner"], users["viewer"]
     visible = freeze(owner, create(owner, project, [occ("left", pair[1]), occ("right", pair[1])]))
-    secret = op(owner, "project.create", {"name": "Forbidden parent project"})["project_id"]
-    hidden = freeze(owner, create(owner, secret, [occ("private", pair[1])]))
-    private_draft = op(
-        owner,
-        "definition.create",
-        {"project_id": secret, "kind": "wire_stock", "name": "Forbidden child", "content": {}},
-    )
-    private_pin = op(
-        owner,
-        "draft.freeze",
-        {"draft_id": private_draft["draft_id"]},
-        expected_state=private_draft["state"],
-    )
-    denied_closure = freeze(
-        owner,
-        create(owner, project, [occ("public-pin", pair[1]), occ("private-child", private_pin)]),
-    )
+    # A parent created from another project is an ordinary workspace use, not a hidden one.
+    second = op(owner, "project.create", {"name": "Second parent project"})["project_id"]
+    other_parent = freeze(owner, create(owner, second, [occ("library", pair[1])]))
+    foreign_project = op(users["outsider"], "project.create", {"name": "Foreign bench"})[
+        "project_id"
+    ]
+    foreign = freeze(users["outsider"], create(users["outsider"], foreign_project, []))
     value = op(viewer, "collaboration.compare", pair[0])
     assert [(r["path"], r["change"]) for r in value["changes"]] == [
         (["added"], "added"),
@@ -110,14 +100,17 @@ def test_exact_fact_null_absence_type_distinction_and_filtered_parent_pagination
         and added["candidate"] is None
     )
     assert value["changes"][-1]["old"] is True and type(value["changes"][-1]["candidate"]) is int
-    assert [p["snapshot_id"] for p in value["parents"]["results"]] == [visible["snapshot_id"]]
+    parents = sorted([visible["snapshot_id"], other_parent["snapshot_id"]])
+    assert [p["snapshot_id"] for p in value["parents"]["results"]] == parents
     assert value["parents"]["next_after"] is None
-    assert "Forbidden parent project" not in json.dumps(value) and hidden[
-        "snapshot_id"
-    ] not in json.dumps(value)
-    assert denied_closure["snapshot_id"] not in json.dumps(value)
+    first = op(viewer, "collaboration.compare", {**pair[0], "parents_limit": 1})["parents"]
+    assert [p["snapshot_id"] for p in first["results"]] == parents[:1]
+    rest = op(viewer, "collaboration.compare", {**pair[0], "parents_after": first["next_after"]})
+    assert [p["snapshot_id"] for p in rest["parents"]["results"]] == parents[1:]
+    assert "Foreign bench" not in json.dumps(value)
+    assert foreign["snapshot_id"] not in json.dumps(value)
     with pytest.raises(NotFound):
-        op(viewer, "collaboration.compare", {**pair[0], "parents_after": hidden["snapshot_id"]})
+        op(viewer, "collaboration.compare", {**pair[0], "parents_after": foreign["snapshot_id"]})
     page = op(viewer, "collaboration.compare", {**pair[0], "changes_limit": 2})
     assert page["next_changes_offset"] == 2
     assert (
@@ -274,7 +267,7 @@ def test_cas_conflict_and_close_reopen_without_overwriting_history(users, projec
     ]
 
 
-def test_source_revocation_hides_inbox_before_key_or_cas_diagnostics(users, project, pair):
+def test_membership_loss_hides_reviews_before_key_or_cas_diagnostics(users, project, pair):
     owner = users["owner"]
     review = open_review(users, project, pair)
     source_project = op(owner, "project.create", {"name": "Independent original evidence source"})[
@@ -294,8 +287,11 @@ def test_source_revocation_hides_inbox_before_key_or_cas_diagnostics(users, proj
         expected_state=review["state"],
         idempotency_key="retained-source",
     )
-    assert op(users["viewer"], "collaboration.inbox", {"project_id": project})["results"] == []
-    WorkspaceMember.objects.filter(workspace__projects=source_project, user=owner).delete()
+    # Same-workspace evidence from another project is readable to every recipient.
+    inbox = op(users["viewer"], "collaboration.inbox", {"project_id": project})["results"]
+    assert {row["action"] for row in inbox} == {"opened", "comment"}
+    assert all(row["in_project"] for row in inbox)
+    remove_member(owner)
     with pytest.raises(NotFound):
         op(
             owner,
@@ -306,8 +302,10 @@ def test_source_revocation_hides_inbox_before_key_or_cas_diagnostics(users, proj
         )
     with pytest.raises(NotFound):
         op(owner, "collaboration.respond", {**payload, "evidence": {}}, expected_state="stale")
-    assert op(owner, "collaboration.list", {"project_id": project})["results"] == []
-    ensure_member(owner, "owner", project=source_project)
+    for operation in ("collaboration.list", "collaboration.inbox"):
+        with pytest.raises(NotFound):
+            op(owner, operation, {"project_id": project})
+    member(owner, "admin")
     assert (
         op(
             owner,
@@ -647,7 +645,7 @@ def test_final_history_serialization_revocation_rolls_back_response_and_exact_re
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("operation", ["collaboration.list", "collaboration.inbox"])
-def test_serialization_revocation_omits_protected_review_and_notification_pages(
+def test_serialization_revocation_discloses_no_review_or_notification_page(
     users, project, pair, monkeypatch, operation
 ):
     from concurrent.futures import ThreadPoolExecutor
@@ -662,7 +660,6 @@ def test_serialization_revocation_omits_protected_review_and_notification_pages(
         "project_id"
     ]
     evidence = source_evidence(users, source_project)
-    ensure_member(recipient, "viewer", project=source_project)
     op(
         owner,
         "collaboration.respond",
@@ -680,9 +677,7 @@ def test_serialization_revocation_omits_protected_review_and_notification_pages(
     def revoke():
         close_old_connections()
         try:
-            WorkspaceMember.objects.filter(
-                workspace__projects=source_project, user=recipient
-            ).delete()
+            remove_member(recipient)
         finally:
             connections.close_all()
 
@@ -696,12 +691,11 @@ def test_serialization_revocation_omits_protected_review_and_notification_pages(
         return result
 
     monkeypatch.setattr(queries, "evidence_result", serialize_then_revoke)
-    page = op(recipient, operation, {"project_id": project})
-    assert revoked and page == {"results": [], "next_after": None}
-    assert not WorkspaceMember.objects.filter(
-        workspace__projects=source_project, user=recipient
-    ).exists()
-    ensure_member(recipient, "viewer", project=source_project)
+    # Membership lost while a page is rendered: the final recheck discloses nothing.
+    with pytest.raises(NotFound):
+        op(recipient, operation, {"project_id": project})
+    assert revoked and membership(recipient) is None
+    member(recipient, "viewer")
     recovered = op(recipient, operation, {"project_id": project})
     assert recovered["results"] and all(
         row["review_id"] == review["review_id"] for row in recovered["results"]
@@ -729,10 +723,11 @@ def test_changed_review_id_cannot_bypass_denied_stored_receipt_closure(users, pr
         expected_state=historical["state"],
         idempotency_key="different-review-input",
     )
-    WorkspaceMember.objects.filter(workspace__projects=source_project, user=owner).delete()
+    # A role downgrade keeps reads but denies the stored receipt before any key diagnostic.
+    set_role(owner, "viewer")
     changed = {"review_id": independent["review_id"], "action": "comment", "basis": "New inputs"}
     assert op(owner, "collaboration.read", {"review_id": independent["review_id"]})
-    with pytest.raises(NotFound):
+    with pytest.raises(PermissionDenied):
         op(
             owner,
             "collaboration.respond",
@@ -740,7 +735,7 @@ def test_changed_review_id_cannot_bypass_denied_stored_receipt_closure(users, pr
             expected_state=independent["state"],
             idempotency_key="different-review-input",
         )
-    ensure_member(owner, "owner", project=source_project)
+    set_role(owner, "admin")
     with pytest.raises(IdempotencyMismatch):
         op(
             owner,
@@ -767,8 +762,8 @@ def test_mounted_review_and_inbox_queries_keep_private_bytes_uncached(users, pro
     viewer = api(users["viewer"])
     paths = [
         f"/api/v0/collaboration/reviews/{review['review_id']}",
-        f"/api/v0/collaboration/projects/{project}/reviews",
-        f"/api/v0/collaboration/projects/{project}/inbox",
+        f"/api/v0/collaboration/reviews?project_id={project}",
+        "/api/v0/collaboration/inbox",
     ]
     for path in paths:
         response = viewer.get(path)
@@ -790,7 +785,57 @@ def test_mounted_review_and_inbox_queries_keep_private_bytes_uncached(users, pro
     assert denied.status_code == absent.status_code == 404
     assert denied.json() == absent.json()
     outsider = api(users["outsider"])
+    assert outsider.get(paths[1]).status_code == 404
+    assert outsider.get("/api/v0/collaboration/reviews").json()["results"] == []
     denied = outsider.get(paths[0])
     absent = outsider.get("/api/v0/collaboration/reviews/00000000-0000-0000-0000-000000000000")
     assert denied.status_code == absent.status_code == 404
     assert denied.json() == absent.json()
+
+
+def test_reviews_are_workspace_records_and_project_context_only_orders(users, project, pair):
+    other = op(users["owner"], "project.create", {"name": "Other review context"})["project_id"]
+    in_project = open_review(users, project, pair)
+    elsewhere = open_review(users, other, pair, title="Raised elsewhere")
+    library = op(
+        users["owner"],
+        "collaboration.create",
+        {
+            **pair[0],
+            "title": "Library review",
+            "basis": "No project context",
+            "recipients": ["viewer"],
+        },
+    )
+    assert in_project["project_id"] == project and library["project_id"] is None
+    assert in_project["workspace_id"] == library["workspace_id"]
+    everything = op(users["viewer"], "collaboration.list", {})
+    assert {r["review_id"] for r in everything["results"]} == {
+        in_project["review_id"],
+        elsewhere["review_id"],
+        library["review_id"],
+    }
+    assert all("in_project" not in r for r in everything["results"])
+    scoped = op(users["viewer"], "collaboration.list", {"project_id": project, "limit": 1})
+    assert [(r["review_id"], r["in_project"]) for r in scoped["results"]] == [
+        (in_project["review_id"], True)
+    ]
+    rest = op(
+        users["viewer"],
+        "collaboration.list",
+        {"project_id": project, "after": scoped["next_after"]},
+    )
+    assert {r["review_id"] for r in rest["results"]} == {
+        elsewhere["review_id"],
+        library["review_id"],
+    }
+    assert not any(r["in_project"] for r in rest["results"])
+    # A foreign workspace's admin cannot use this project as context or address members.
+    with pytest.raises(NotFound):
+        op(users["outsider"], "collaboration.list", {"project_id": project})
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            "collaboration.create",
+            {**pair[0], "title": "Bad recipient", "basis": "x", "recipients": ["outsider"]},
+        )

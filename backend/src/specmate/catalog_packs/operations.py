@@ -3,7 +3,8 @@ import json
 
 from pydantic import ValidationError as PydanticValidationError
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
+from specmate.catalog.scope import creation_workspace
 from specmate.catalog_packs.contracts import (
     AdoptPack,
     DisablePack,
@@ -68,18 +69,30 @@ def file_pin(user, pin):
     return file
 
 
+def registration_workspace(ctx, payload):
+    """Registering an inert pack version imports new immutable records (item.create)."""
+    return creation_workspace(ctx.user, payload.workspace_id, payload.project_id)
+
+
 def registration_refs(ctx, payload):
-    workspace = authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+    workspace = registration_workspace(ctx, payload)
     if payload.pack_id:
-        pack, _, _ = pack_rows(ctx.user, payload.pack_id, edit=True)
+        pack, _, _ = pack_rows(ctx.user, payload.pack_id, edit=True, permission=Perm.ITEM_CREATE)
         if pack.workspace_id != workspace.id:
-            raise ValidationFailed("Pack belongs to another owning project.")
+            raise ValidationFailed("Pack belongs to another workspace.")
         if pack.package_key != payload.manifest.package_key:
             raise ValidationFailed("A version must retain its pack's exact package identity.")
     pins = []
     for item in payload.manifest.entries:
         revision = get_revision(ctx.user, item.revision_id) if item.revision_id else None
         source = file_pin(ctx.user, item.source) if item.source else None
+        if (revision and revision.definition.workspace_id != workspace.id) or (
+            source and source.blob.workspace_id != workspace.id
+        ):
+            # A pack installs into one workspace; bringing material from elsewhere is an
+            # explicit import, never a live cross-workspace pin. Foreign records are
+            # indistinguishable from missing ones.
+            raise NotFound("Not found.")
         if revision and revision.snapshot.sha256 != item.revision_sha256:
             raise ValidationFailed("Pack revision snapshot hash does not match its exact pin.")
         if item.category == "profile" and revision.definition.kind != "workshop_profile":
@@ -95,12 +108,16 @@ def registration_refs(ctx, payload):
         if dependency is None:
             raise NotFound("Pack dependency version not found.")
         pack_rows(ctx.user, dependency.pack_id)
+        if dependency.pack.workspace_id != workspace.id:
+            raise NotFound("Not found.")
         dependencies.append(dependency)
     source = file_pin(ctx.user, payload.manifest_source) if payload.manifest_source else None
+    if source and source.blob.workspace_id != workspace.id:
+        raise NotFound("Not found.")
     return pins, dependencies, source
 
 
-def authorize_retained(ctx, operation_name, scope):
+def authorize_retained(ctx, operation_name, scope, permission=Perm.DESIGN_EDIT):
     if ctx.idempotency_key:
         for record in IdempotencyRecord.objects.filter(
             actor=ctx.user,
@@ -108,13 +125,15 @@ def authorize_retained(ctx, operation_name, scope):
             key=ctx.idempotency_key,
             scope=scope,
         ):
-            pack_rows(ctx.user, record.result["pack_id"], edit=True, lock=True)
+            pack_rows(
+                ctx.user, record.result["pack_id"], edit=True, lock=True, permission=permission
+            )
 
 
 def register_scope(ctx, payload):
     registration_refs(ctx, payload)
-    scope = f"workspace:{authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT).id}"
-    authorize_retained(ctx, "catalog_pack.register", scope)
+    scope = f"workspace:{registration_workspace(ctx, payload).id}"
+    authorize_retained(ctx, "catalog_pack.register", scope, Perm.ITEM_CREATE)
     return scope
 
 
@@ -138,8 +157,10 @@ def change_scope(name):
 
 
 def replay(ctx, payload, stored):
-    pack_rows(ctx.user, stored["pack_id"], edit=True)
-    if isinstance(payload, RegisterPackVersion):
+    registering = isinstance(payload, RegisterPackVersion)
+    permission = Perm.ITEM_CREATE if registering else Perm.DESIGN_EDIT
+    pack_rows(ctx.user, stored["pack_id"], edit=True, permission=permission)
+    if registering:
         registration_refs(ctx, payload)
     elif isinstance(payload, (InstallPack, AdoptPack)):
         version = (
@@ -186,10 +207,12 @@ def register(ctx: Context, payload: RegisterPackVersion):
                 "Manifest source is unavailable or is not supported inert JSON."
             ) from None
     # Serialize identity/version duplicate diagnostics after authorizing all refs.
-    workspace = authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+    workspace = registration_workspace(ctx, payload)
     workspace.__class__.objects.select_for_update().get(id=workspace.id)
     if payload.pack_id:
-        pack, _, _ = pack_rows(ctx.user, payload.pack_id, edit=True, lock=True)
+        pack, _, _ = pack_rows(
+            ctx.user, payload.pack_id, edit=True, lock=True, permission=Perm.ITEM_CREATE
+        )
     else:
         if CatalogPack.objects.filter(
             workspace=workspace, package_key=payload.manifest.package_key
@@ -291,7 +314,7 @@ def disable(ctx: Context, payload: DisablePack):
 @operation(
     "catalog_pack.adopt",
     AdoptPack,
-    summary="Adopt selected exact pack entries as fresh owning drafts or inert references.",
+    summary="Adopt selected exact pack entries as fresh workspace drafts or inert references.",
     requires_expected_state=True,
     idempotency_scope=change_scope("catalog_pack.adopt"),
     authorize_replay=replay,
@@ -309,13 +332,19 @@ def adopt(ctx: Context, payload: AdoptPack):
     }
     if any(key not in rows for key in payload.entry_keys):
         raise ValidationFailed("Selected pack entry not found.")
+    if any(
+        rows[key].revision_id and rows[key].revision.definition.workspace_id != pack.workspace_id
+        for key in payload.entry_keys
+    ):
+        # Unreachable while registration and the entry guard hold; never disclose.
+        raise NotFound("Not found.")
     for pin in version.dependencies.select_related("dependency__pack"):
         dependency_pack, _, dependency_decisions = pack_rows(ctx.user, pin.dependency.pack_id)
         if (
             dependency_pack.workspace_id != pack.workspace_id
             or active_version(dependency_decisions) != pin.dependency_id
         ):
-            raise Conflict("Each exact dependency version must be enabled in the owning project.")
+            raise Conflict("Each exact dependency version must be enabled in this workspace.")
     plans = []
     for key in payload.entry_keys:
         entry = rows[key]
@@ -335,7 +364,7 @@ def adopt(ctx: Context, payload: AdoptPack):
                 authorize_design_content(ctx.user, prototype, content)
             except (ValidationFailed, Unsupported, PydanticValidationError):
                 raise Unsupported(
-                    "A selected typed entry cannot be copied into this owning project.",
+                    "A selected typed entry cannot be copied into this workspace.",
                     details={"entry_key": key},
                 ) from None
         plans.append((entry, item, content))

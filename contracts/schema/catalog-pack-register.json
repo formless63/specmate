@@ -316,13 +316,33 @@
       "title": "Pack Id"
     },
     "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
     }
   },
   "required": [
-    "project_id",
     "manifest"
   ],
   "title": "RegisterPackVersion",

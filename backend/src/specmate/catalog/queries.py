@@ -108,3 +108,45 @@ def draft_summary(user, draft):
         for pin in draft.base_revision.snapshot.dependencies.all():
             dependencies.append(str(pin.revision_id))
     return {"draft_id": str(draft.id), "state": draft.state_token, "dependencies": dependencies}
+
+
+def list_definitions(user, *, workspace_id=None, project_id=None, kind=None, after=None, limit=50):
+    """Library definitions of one workspace; a project context lists its references first.
+
+    The project id never limits the list to "owned" definitions: definitions live in the
+    workspace collection, and every member reads all of them.
+    """
+    from django.db.models import Max
+
+    from specmate.catalog.scope import context_first, library_scope, references_definition
+
+    workspace, project = library_scope(user, workspace_id, project_id)
+    query = Definition.objects.filter(workspace=workspace).annotate(
+        latest_number=Max("revisions__number")
+    )
+    if kind is not None:
+        query = query.filter(kind=kind)
+    referenced = references_definition(project) if project is not None else None
+    rows = list(
+        context_first(query, referenced, after, cursor_error="Definition cursor not found.")[
+            : limit + 1
+        ]
+    )
+    results = []
+    for row in rows[:limit]:
+        result = {
+            "definition_id": str(row.id),
+            "workspace_id": str(row.workspace_id),
+            "kind": row.kind,
+            "name": row.name,
+            "latest_revision_number": row.latest_number,
+        }
+        if project is not None:
+            result["in_project"] = bool(row.in_project)
+        results.append(result)
+    return {
+        "workspace_id": str(workspace.id),
+        "project_id": str(project.id) if project is not None else None,
+        "results": results,
+        "next_after": results[-1]["definition_id"] if len(rows) > limit else None,
+    }

@@ -3,7 +3,8 @@
 from django.utils import timezone
 
 from specmate.access.models import WorkspaceMember
-from specmate.access.permissions import Perm, authorize, transitional_project
+from specmate.access.permissions import Perm, authorize
+from specmate.catalog.scope import library_scope
 from specmate.catalog_matching.operations import evidence_fields
 from specmate.collaboration import queries
 from specmate.collaboration.contracts import (
@@ -50,9 +51,20 @@ def stored_authority(ctx, stored):
                 raise NotFound("Change review receipt unavailable.")
 
 
+def review_scope(ctx, p):
+    """The review's workspace (edit authority) and its optional project context."""
+    workspace, project = library_scope(ctx.user, p.workspace_id, p.project_id)
+    authorize(ctx.user, workspace.id, Perm.DESIGN_EDIT)
+    return workspace, project
+
+
 @queries.private_inputs
 def create_authority(ctx, p):
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace, _ = review_scope(ctx, p)
+    old, candidate = queries.revision_pair(ctx.user, p.old_revision_id, p.candidate_revision_id)
+    # Reviews compare revisions of the review's own workspace; nothing crosses workspaces.
+    if {old.definition.workspace_id, candidate.definition.workspace_id} != {workspace.id}:
+        raise NotFound("Change review inputs unavailable.")
     queries.revision_pair(ctx.user, p.old_revision_id, p.candidate_revision_id)
     knowledge = queries.knowledge_pin(ctx.user, p.knowledge)
     recipients = []
@@ -72,7 +84,7 @@ def create_authority(ctx, p):
 
 def create_scope(ctx, p):
     create_authority(ctx, p)
-    scope = workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+    scope = workspace_scope(ctx, review_scope(ctx, p)[0].id, Perm.DESIGN_EDIT)
     retained(ctx, "collaboration.create", scope)
     return scope
 
@@ -91,10 +103,10 @@ def create_replay(ctx, p, stored):
 )
 def create(ctx: Context, p: CreateReview):
     knowledge, recipients = create_authority(ctx, p)
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace, project = review_scope(ctx, p)
     review = ChangeReview.objects.create(
         workspace=workspace,
-        project=transitional_project(p.project_id, workspace),
+        project=project,
         old_revision_id=p.old_revision_id,
         candidate_revision_id=p.candidate_revision_id,
         knowledge_entry=knowledge[0] if knowledge else None,
@@ -285,7 +297,7 @@ def read(ctx: Context, p: ReadReview):
 @operation(
     "collaboration.list",
     ReviewPage,
-    summary="List only currently authorized project change reviews, without hidden counts.",
+    summary="List workspace change reviews; a project context lists its reviews first.",
     supports_idempotency=False,
 )
 def listing(ctx: Context, p: ReviewPage):

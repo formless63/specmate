@@ -8,7 +8,7 @@ import uuid
 import pytest
 from django.test import Client
 
-from specmate.access.models import Installation, WorkspaceMember
+from specmate.access.models import Installation
 from specmate.builds.models import RunnerCredential
 from specmate.builds.operations import RunnerIdentity
 from specmate.discovery import requirements
@@ -23,7 +23,7 @@ from specmate.operations import (
     registry,
 )
 
-from .conftest import op
+from .conftest import op, remove_member, set_grants, set_role
 
 RECIPE = {
     "id": "synthetic-discovery-r1",
@@ -110,11 +110,24 @@ def test_unclassifiable_operation_is_unknown_not_available(users, project, monke
         ("viewer", "inventory.list", "available"),
         ("viewer", "draft.update", "not_permitted"),
         ("editor", "draft.update", "available"),
-        ("editor", "draft.freeze", "not_permitted"),
+        ("editor", "draft.freeze", "available"),
+        ("contributor", "draft.freeze", "not_permitted"),
         ("editor", "source.register_blob", "available"),
         ("viewer", "source.register_blob", "not_permitted"),
-        ("editor", "inventory.reserve", "not_permitted"),
-        ("editor", "project.rename", "not_permitted"),
+        ("editor", "inventory.reserve", "available"),
+        ("contributor", "inventory.reserve", "not_permitted"),
+        ("editor", "inventory.adjust", "not_permitted"),
+        ("contributor", "project.rename", "available"),
+        ("viewer", "project.rename", "not_permitted"),
+        ("contributor", "definition.create", "available"),
+        ("contributor", "catalog.register_variant", "available"),
+        ("contributor", "catalog.propose_match", "available"),
+        ("contributor", "catalog.review_match", "not_permitted"),
+        ("contributor", "catalog_pack.register", "available"),
+        ("contributor", "catalog_pack.install", "not_permitted"),
+        ("contributor", "wire_stock.create", "available"),
+        ("contributor", "workshop_profile.create", "available"),
+        ("viewer", "wire_stock.create", "not_permitted"),
         ("owner", "project.rename", "available"),
         ("owner", "draft.freeze", "available"),
         ("owner", "inventory.reserve", "available"),
@@ -129,13 +142,11 @@ def test_role_matrix_comes_from_the_permission_layer(users, project, who, operat
 
 def test_explicit_grant_changes_the_answer(users, project):
     assert (
-        by_name(discover(users["editor"], project))["draft.freeze"]["availability"]["status"]
+        by_name(discover(users["contributor"], project))["draft.freeze"]["availability"]["status"]
         == "not_permitted"
     )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        grants=["design.freeze"]
-    )
-    result = discover(users["editor"], project)
+    set_grants(users["contributor"], ["design.freeze"])
+    result = discover(users["contributor"], project)
     assert by_name(result)["draft.freeze"]["availability"]["status"] == "available"
     assert "design.freeze" in result["scope"]["permissions"]
 
@@ -151,21 +162,29 @@ def test_answer_agrees_with_actual_execution(users, project, definition):
         else:
             with pytest.raises(PermissionDenied):
                 op(users[who], "draft.update", payload, expected_state="draft-v1")
+    freeze = by_name(discover(users["contributor"], project))["draft.freeze"]["availability"]
+    assert freeze["status"] == "not_permitted"
     with pytest.raises(PermissionDenied):
         op(
-            users["editor"],
+            users["contributor"],
             "draft.freeze",
             {"draft_id": definition["draft_id"]},
             expected_state="draft-v2",
         )
 
 
-def test_no_project_means_scope_required_and_global_operations_stay_available(users, project):
+def test_no_scope_means_scope_required_and_global_operations_stay_available(users, project):
     result = discover(users["owner"])
     assert result["scope"] is None
     rows = by_name(result)
-    assert rows["draft.update"]["availability"]["status"] == "scope_required"
-    assert rows["project.create"]["availability"]["status"] == "available"
+    assert rows["draft.update"]["availability"] == {
+        "status": "scope_required",
+        "reasons": ["workspace_id_required"],
+        "requires": "design.edit",
+    }
+    # Creating a project is a workspace role (project.edit); workspace-free reads remain.
+    assert rows["project.create"]["availability"]["status"] == "scope_required"
+    assert rows["catalog.revision_labels"]["availability"]["status"] == "available"
     assert rows["account.create"]["availability"] == {
         "status": "not_permitted",
         "reasons": ["installation_owner_required"],
@@ -198,28 +217,44 @@ def test_outsider_and_unknown_project_are_indistinguishable(users, project):
     assert project not in str(outsider.value.as_dict())
 
 
-def test_other_projects_do_not_leak_into_scope_or_native_state(users, project, settings):
+def test_workspace_and_project_scope_agree_and_foreign_state_never_leaks(
+    users, project, workspace, other_workspace, settings
+):
     settings.SPECMATE_APPROVED_RECIPES = {RECIPE["id"]: RECIPE}
-    other = op(users["editor"], "project.create", {"name": "Other synthetic bench"})["project_id"]
     Installation.objects.update_or_create(singleton=True, defaults={"owner": users["owner"]})
     RunnerCredential.objects.create(
         name="runner",
-        project_id=project,
+        workspace_id=other_workspace,
         recipe_ids=[RECIPE["id"]],
         token_sha256="a" * 64,
         expires_at="2999-01-01T00:00:00Z",
-        created_by=users["owner"],
+        created_by=users["outsider"],
     )
-    own = discover(users["editor"], other)
-    assert own["scope"]["project_id"] == other and own["scope"]["role"] == "owner"
-    assert own["capabilities"]["native_execution"]["status"] == "degraded"
-    shared = discover(users["owner"], project)
-    assert shared["capabilities"]["native_execution"]["status"] == "available"
-    dumped = str(own)
-    assert project not in dumped
+    by_workspace = discover_in(users["editor"], workspace_id=workspace)
+    by_project = discover(users["editor"], project)
+    assert by_workspace["scope"] == {**by_project["scope"], "project_id": None}
+    assert by_project["scope"]["project_id"] == project
+    assert by_project["scope"]["workspace_id"] == workspace
+    assert by_project["scope"]["role"] == "editor"
+    # The foreign workspace's runner never makes this workspace available.
+    assert by_project["capabilities"]["native_execution"]["status"] == "degraded"
+    foreign = discover_in(users["outsider"], workspace_id=other_workspace)
+    assert foreign["capabilities"]["native_execution"]["status"] == "available"
+    assert workspace not in str(foreign) and project not in str(foreign)
+    with pytest.raises(NotFound):
+        discover_in(users["editor"], workspace_id=other_workspace)
+    with pytest.raises(NotFound):
+        discover_in(users["outsider"], workspace_id=other_workspace, project_id=project)
 
 
-def test_native_execution_reports_unavailable_degraded_and_available(users, project, settings):
+def discover_in(user, **scope):
+    ctx = Context(user=user, via="api", request_id=f"disc-{uuid.uuid4().hex[:8]}")
+    return execute("discovery.capabilities", ctx, scope).result
+
+
+def test_native_execution_reports_unavailable_degraded_and_available(
+    users, project, workspace, settings
+):
     settings.SPECMATE_APPROVED_RECIPES = {}
     result = discover(users["owner"], project)
     assert result["capabilities"]["native_execution"] == {
@@ -246,13 +281,13 @@ def test_native_execution_reports_unavailable_degraded_and_available(users, proj
     degraded = discover(users["owner"], project)
     assert by_name(degraded)["build.request"]["availability"] == {
         "status": "degraded",
-        "reasons": ["no_active_runner_for_project"],
+        "reasons": ["no_active_runner_for_workspace"],
     }
     assert degraded["capabilities"]["native_execution"]["approved_recipe_ids"] == [RECIPE["id"]]
 
     RunnerCredential.objects.create(
         name="runner",
-        project_id=project,
+        workspace_id=workspace,
         recipe_ids=[RECIPE["id"]],
         token_sha256="b" * 64,
         expires_at="2999-01-01T00:00:00Z",
@@ -323,7 +358,9 @@ def test_invalid_payload_and_idempotency_key_are_rejected(users, project):
 
 def test_membership_change_is_visible_immediately(users, project):
     assert discover(users["viewer"], project)["scope"]["role"] == "viewer"
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
+    set_role(users["viewer"], "contributor")
+    assert discover(users["viewer"], project)["scope"]["role"] == "contributor"
+    remove_member(users["viewer"])
     with pytest.raises(NotFound):
         discover(users["viewer"], project)
 

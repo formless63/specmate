@@ -4,15 +4,20 @@ from uuid import UUID
 
 from pydantic import Field
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
+from specmate.catalog.scope import creation_workspace
 from specmate.design.models import Definition, Draft
 from specmate.design.operations import check_state, draft_state, scoped_draft
 from specmate.operations import Context, NotFound, operation
+from specmate.wire_stock.queries import stock_record
 from specmate.wire_stock.schemas import StockSpecification, StrictModel
 
 
 class CreateStock(StrictModel):
-    project_id: UUID
+    # Omitted: the actor's workspace. Stock is a library definition, never project-owned.
+    workspace_id: UUID | None = None
+    # TRANSITIONAL (P3 removes): a project id only selects its workspace; no reference.
+    project_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
     stock: StockSpecification
 
@@ -25,7 +30,7 @@ class CreateStock(StrictModel):
     authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
 )
 def create_stock(ctx: Context, p: CreateStock) -> dict:
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = creation_workspace(ctx.user, p.workspace_id, p.project_id)
     definition = Definition.objects.create(
         workspace=workspace, kind="wire_stock", name=p.name, created_by=ctx.user
     )
@@ -34,7 +39,12 @@ def create_stock(ctx: Context, p: CreateStock) -> dict:
         content={"stock": p.stock.model_dump(mode="json")},
         updated_by=ctx.user,
     )
-    return {"definition_id": str(definition.id), "name": definition.name, **draft_state(draft)}
+    return {
+        "definition_id": str(definition.id),
+        "workspace_id": str(workspace.id),
+        "name": definition.name,
+        **draft_state(draft),
+    }
 
 
 class UpdateStock(StrictModel):
@@ -59,11 +69,7 @@ def update_stock(ctx: Context, p: UpdateStock) -> dict:
     draft.version += 1
     draft.updated_by = ctx.user
     draft.save(update_fields=["content", "version", "updated_by", "updated_at"])
-    return {
-        "definition_id": str(draft.definition_id),
-        "name": draft.definition.name,
-        **draft_state(draft),
-    }
+    return stock_record(draft)
 
 
 class FreezeStock(StrictModel):
@@ -103,7 +109,8 @@ def stock_scope(ctx, payload):
 
     permission = Perm.DESIGN_FREEZE if isinstance(payload, FreezeStock) else Perm.DESIGN_EDIT
     if isinstance(payload, CreateStock):
-        return workspace_scope(ctx, payload.project_id, permission)
+        workspace = creation_workspace(ctx.user, payload.workspace_id, payload.project_id)
+        return workspace_scope(ctx, workspace.id, Perm.ITEM_CREATE)
     draft = scoped_draft(ctx, payload.draft_id, permission)
     if draft.definition.kind != "wire_stock":
         raise NotFound("Stock draft not found.")

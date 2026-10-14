@@ -4,7 +4,7 @@ from specmate.access.permissions import Perm, authorize
 from specmate.catalog.models import ManufacturerVariant
 from specmate.catalog_matching.contracts import SuggestSupplierMatches, SupplierSuggestions
 from specmate.catalog_matching.queries import current_actor, revision_identity
-from specmate.operations import Context, NotFound, PermissionDenied, ValidationFailed, operation
+from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.queries import get_revision
 
 MAX_INSPECTED_VARIANTS = 2000
@@ -14,12 +14,16 @@ MAX_INSPECTED_VARIANTS = 2000
     "catalog.suggest_supplier_matches",
     SuggestSupplierMatches,
     supports_idempotency=False,
-    summary="Suggest distinct exact revisions sharing an asserted manufacturer and part number.",
+    summary=(
+        "Suggest distinct exact workspace revisions sharing an asserted manufacturer and part"
+        " number."
+    ),
 )
 def suggest_supplier_matches(ctx: Context, p: SuggestSupplierMatches):
     actor = current_actor(ctx.user)
     source = get_revision(actor, p.source_revision_id)
-    target_workspace = authorize(actor, p.target_project_id, Perm.WORKSPACE_READ)
+    # Suggestions come from the source's workspace library; pins never cross workspaces.
+    target_workspace = authorize(actor, source.definition.workspace_id, Perm.WORKSPACE_READ)
     variant = ManufacturerVariant.objects.filter(id=p.source_variant_id).first()
     if variant is None:
         raise NotFound("Source catalog association not found.")
@@ -32,7 +36,6 @@ def suggest_supplier_matches(ctx: Context, p: SuggestSupplierMatches):
         cursor = candidates.filter(id=p.after).first()
         if cursor is None:
             raise NotFound("Supplier suggestion cursor not found.")
-        get_revision(actor, cursor.revision_id)
     # Resolve supplied references before disclosing whether their identifiers agree.
     if variant.revision_id != source.id:
         raise NotFound("Source catalog association not found.")
@@ -51,10 +54,7 @@ def suggest_supplier_matches(ctx: Context, p: SuggestSupplierMatches):
         if index >= MAX_INSPECTED_VARIANTS:
             truncated = True
             break
-        try:
-            target = get_revision(actor, target_variant.revision_id)
-        except (NotFound, PermissionDenied):
-            continue
+        target = target_variant.revision
         visible.append(
             {
                 "source_variant_id": str(variant.id),
@@ -77,7 +77,7 @@ def suggest_supplier_matches(ctx: Context, p: SuggestSupplierMatches):
     return SupplierSuggestions.model_validate(
         {
             "source": revision_identity(source),
-            "target_project_id": str(p.target_project_id),
+            "workspace_id": str(target_workspace.id),
             "results": visible[: p.limit],
             "next_after": next_after,
             "inspection_truncated": truncated,

@@ -28,7 +28,7 @@ def authorize_profile_content(user, definition, content: dict) -> None:
         or stock.definition.workspace_id != definition.workspace_id
     ):
         raise ValidationFailed(
-            "Profile construction must be an exact stock revision in this project."
+            "Profile construction must be an exact stock revision in this workspace."
         )
     content = json.loads(bytes(stock.snapshot.canonical))["content"]
     if "stock" not in content:
@@ -44,7 +44,7 @@ def authorize_profile_content(user, definition, content: dict) -> None:
             continue
         revision = get_bundle_revision(user, source.bundle_revision_id)
         if revision.bundle.workspace_id != definition.workspace_id:
-            raise ValidationFailed("Profile source must belong to its project.")
+            raise ValidationFailed("Profile source must belong to its workspace.")
         file = (
             SourceBundleFile.objects.select_related("blob")
             .filter(revision=revision, path=source.path)
@@ -80,22 +80,34 @@ def dependency_revisions(user, definition, content: dict) -> list[UUID]:
     return [WorkshopProfile.model_validate(content["profile"]).stock_revision_id]
 
 
-def list_profiles(user, project_id: UUID) -> list[dict]:
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+def profile_record(draft, in_project=None) -> dict:
+    record = {
+        "definition_id": str(draft.definition_id),
+        "workspace_id": str(draft.definition.workspace_id),
+        "name": draft.definition.name,
+        **draft_state(draft),
+    }
+    if in_project is not None:
+        record["in_project"] = bool(in_project)
+    return record
+
+
+def list_profiles(user, workspace_id: UUID | None = None, project_id: UUID | None = None):
+    """Library workshop profiles; a project context lists its referenced profiles first."""
+    from specmate.catalog.scope import library_scope, references_definition
+
+    workspace, project = library_scope(user, workspace_id, project_id)
+    drafts = Draft.objects.select_related("definition").filter(
+        definition__workspace=workspace, definition__kind="workshop_profile"
+    )
+    order = ["definition__created_at", "id"]
+    if project is not None:
+        drafts = drafts.annotate(in_project=references_definition(project, "definition_id"))
+        order.insert(0, "-in_project")
     result = []
-    for draft in (
-        Draft.objects.select_related("definition")
-        .filter(definition__workspace=workspace, definition__kind="workshop_profile")
-        .order_by("definition__created_at", "id")
-    ):
+    for draft in drafts.order_by(*order):
         authorize_profile_content(user, draft.definition, draft.content)
-        result.append(
-            {
-                "definition_id": str(draft.definition_id),
-                "name": draft.definition.name,
-                **draft_state(draft),
-            }
-        )
+        result.append(profile_record(draft, draft.in_project if project is not None else None))
     return result
 
 
@@ -108,11 +120,7 @@ def get_profile(user, draft_id: UUID) -> dict:
     if draft.definition.kind != "workshop_profile":
         raise NotFound("Workshop profile draft not found.")
     authorize_profile_content(user, draft.definition, draft.content)
-    return {
-        "definition_id": str(draft.definition_id),
-        "name": draft.definition.name,
-        **draft_state(draft),
-    }
+    return profile_record(draft)
 
 
 def list_profile_revisions(user, definition_id: UUID) -> list[dict]:

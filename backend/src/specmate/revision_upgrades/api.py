@@ -18,5 +18,5 @@ def owning_snapshot(request, snapshot_id: UUID):
 
 
 @router.get("/consumers")
-def revision_consumers(request, project_id: UUID, revision_id: UUID):
-    return consumers(request.user, project_id, revision_id)
+def revision_consumers(request, revision_id: UUID, project_id: UUID | None = None):
+    return consumers(request.user, revision_id, project_id=project_id)

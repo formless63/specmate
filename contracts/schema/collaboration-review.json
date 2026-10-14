@@ -52,9 +52,17 @@
       "type": "string"
     },
     "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
     },
     "recipients": {
       "items": {
@@ -69,10 +77,22 @@
       "minLength": 1,
       "title": "Title",
       "type": "string"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
     }
   },
   "required": [
-    "project_id",
     "old_revision_id",
     "candidate_revision_id",
     "title",

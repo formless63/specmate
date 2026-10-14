@@ -54,7 +54,7 @@ def version_closure(user, versions):
         )
 
 
-def pack_rows(user, pack_id, *, edit=False, lock=False):
+def pack_rows(user, pack_id, *, edit=False, lock=False, permission=Perm.DESIGN_EDIT):
     user = current_actor(user)
     query = CatalogPack.objects.all()
     if lock:
@@ -69,7 +69,7 @@ def pack_rows(user, pack_id, *, edit=False, lock=False):
     version_closure(user, versions)
     decisions = list(pack.decisions.select_related("version").order_by("sequence"))
     if edit:
-        authorize(user, pack.workspace_id, Perm.DESIGN_EDIT)
+        authorize(user, pack.workspace_id, permission)
     return pack, versions, decisions
 
 
@@ -179,29 +179,24 @@ def get_version(user, version_id):
     return version_result(version)
 
 
-def list_packs(user, project_id, *, after=None, limit=25):
+def list_packs(user, workspace_id=None, *, after=None, limit=25):
+    """Installed and registered packs of the workspace library."""
+    from specmate.catalog.scope import library_scope
+
     user = current_actor(user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    workspace, _ = library_scope(user, workspace_id)
     if not 1 <= limit <= 100:
         raise ValidationFailed("Limit must be between 1 and 100.")
     query = CatalogPack.objects.filter(workspace=workspace).order_by("id")
     if after is not None:
-        cursor = query.filter(id=after).first()
-        if cursor is None:
+        if not query.filter(id=after).exists():
             raise NotFound("Pack cursor not found.")
-        pack_rows(user, cursor.id)
         query = query.filter(id__gt=after)
-    visible = []
-    for pack in query.iterator(chunk_size=100):
-        try:
-            visible.append(get_pack(user, pack.id))
-        except (NotFound, PermissionDenied):
-            continue
-        if len(visible) > limit:
-            break
+    rows = [get_pack(user, pack.id) for pack in query[: limit + 1]]
     return {
-        "results": visible[:limit],
-        "next_after": visible[limit - 1]["pack_id"] if len(visible) > limit else None,
+        "workspace_id": str(workspace.id),
+        "results": rows[:limit],
+        "next_after": rows[limit - 1]["pack_id"] if len(rows) > limit else None,
     }
 
 

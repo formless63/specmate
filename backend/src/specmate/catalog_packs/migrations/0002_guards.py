@@ -48,6 +48,16 @@ BEGIN
     WHERE f.id=NEW.source_file_id AND f.revision_id=(item->'source'->>'source_bundle_revision_id')::uuid
       AND f.path=item->'source'->>'source_path' AND b.sha256=item->'source'->>'sha256' AND f.rights=item->'source'->>'rights'
   ) THEN RAISE EXCEPTION 'pack entry file pin mismatch' USING ERRCODE = 'check_violation'; END IF;
+  -- Every pin stays inside the pack's workspace.
+  IF (NEW.revision_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM catalog_packs_packversion v JOIN catalog_packs_catalogpack p ON p.id=v.pack_id,
+          design_revision r JOIN design_definition d ON d.id=r.definition_id
+        WHERE v.id=NEW.version_id AND r.id=NEW.revision_id AND d.workspace_id=p.workspace_id))
+     OR (NEW.source_file_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM catalog_packs_packversion v JOIN catalog_packs_catalogpack p ON p.id=v.pack_id,
+          sources_sourcebundlefile f JOIN sources_sourceblob b ON b.id=f.blob_id
+        WHERE v.id=NEW.version_id AND f.id=NEW.source_file_id AND b.workspace_id=p.workspace_id))
+  THEN RAISE EXCEPTION 'pack entry pins must stay in the pack workspace' USING ERRCODE = 'check_violation'; END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -58,6 +68,11 @@ CREATE FUNCTION specmate_pack_dependency_pin() RETURNS trigger AS $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM catalog_packs_packversion v, jsonb_array_elements_text(convert_from(v.canonical,'UTF8')::jsonb->'dependencies') d WHERE v.id=NEW.version_id AND d::uuid=NEW.dependency_id)
   THEN RAISE EXCEPTION 'pack dependency pin mismatch' USING ERRCODE = 'check_violation'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM catalog_packs_packversion v JOIN catalog_packs_catalogpack p ON p.id=v.pack_id,
+      catalog_packs_packversion dv JOIN catalog_packs_catalogpack dp ON dp.id=dv.pack_id
+    WHERE v.id=NEW.version_id AND dv.id=NEW.dependency_id AND dp.workspace_id=p.workspace_id
+  ) THEN RAISE EXCEPTION 'pack dependency must stay in the pack workspace' USING ERRCODE = 'check_violation'; END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
