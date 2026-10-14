@@ -14,6 +14,7 @@ import json
 import zipfile
 from collections import Counter, defaultdict
 from datetime import datetime
+from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.writer.excel import ExcelWriter
@@ -50,6 +51,8 @@ MAX_BYTES = 16 * 1024 * 1024
 MAX_FILES = 4000
 MAX_REVISIONS = 2000
 EPOCH = (1980, 1, 1, 0, 0, 0)
+VERIFIER_PATH = "verify/verification.py"
+VERIFIER_BYTES = (Path(__file__).with_name("verification.py")).read_bytes()
 WORKBOOK_TIME = datetime(1980, 1, 1)
 
 # Output semantics this package does not generate. They are stated, never faked.
@@ -1179,13 +1182,25 @@ def build_package(ctx, p, as_of=None):
         "physical_qualification": "not_evaluated",
     }
     package.add("review.html", review_document(manifest), "text/html", "package", "generated")
+    # The standard-library verifier travels with the package. It is hashed in the manifest like
+    # every other file, so no file is exempt; a bundled copy only vouches for its own package.
+    package.add(VERIFIER_PATH, VERIFIER_BYTES, "text/x-python", "package", "generated")
     package.add(
         "README.txt",
         b"Specmate coherent export package (format specmate.coherent-export-package 0.1).\n"
         b"manifest.json pins every included output to exact revisions and lists each file's\n"
         b"SHA-256 and byte count. Verify files against it, and verify manifest.json against\n"
         b"the SHA-256 retained from the authorized review. Files are inert data; nothing is\n"
-        b"a release, manufacturing approval, physical test or qualification.\n",
+        b"a release, manufacturing approval, physical test or qualification.\n"
+        b"\n"
+        b"To verify offline (Python 3 standard library only, no Specmate needed), from the\n"
+        b"folder holding this README or against the .zip file:\n"
+        b"  python3 -I -S verify/verification.py . --manifest-sha256 <sha256>\n"
+        b"  python3 -I -S verify/verification.py package.zip --manifest-sha256 <sha256>\n"
+        b"where <sha256> is the manifest hash retained from the review. It prints each\n"
+        b"problem and exits 0 only when every byte and pin matched. The verifier is itself\n"
+        b"listed in manifest.json, but a copy inside a package cannot vouch for a\n"
+        b"tampered package: use a verifier obtained separately for independent assurance.\n",
         "text/plain",
         "package",
         "generated",
