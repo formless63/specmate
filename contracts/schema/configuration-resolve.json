@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "draft_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Draft Id"
+    },
+    "snapshot_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Snapshot Id"
+    }
+  },
+  "title": "ResolveConfiguration",
+  "type": "object"
+}

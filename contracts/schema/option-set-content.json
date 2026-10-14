@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "Choice": {
+      "additionalProperties": false,
+      "description": "One permitted choice: an exact frozen revision or a declared value, never both.",
+      "properties": {
+        "key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Label",
+          "type": "string"
+        },
+        "population_option_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Population Option Id"
+        },
+        "revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision Id"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "key",
+        "label"
+      ],
+      "title": "Choice",
+      "type": "object"
+    },
+    "Option": {
+      "additionalProperties": false,
+      "properties": {
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/Choice"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Choices",
+          "type": "array"
+        },
+        "default_choice": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Choice"
+        },
+        "domain": {
+          "enum": [
+            "part",
+            "population",
+            "firmware",
+            "material",
+            "process",
+            "requirement"
+          ],
+          "title": "Domain",
+          "type": "string"
+        },
+        "key": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Label",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+                "type": "string"
+              },
+              "maxItems": 32,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "domain",
+        "choices"
+      ],
+      "title": "Option",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "options": {
+      "items": {
+        "$ref": "#/$defs/Option"
+      },
+      "maxItems": 200,
+      "title": "Options",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Revision Id"
+    }
+  },
+  "title": "OptionSetContent",
+  "type": "object"
+}

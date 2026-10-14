@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "specmate.pcb_fabrication",
     "specmate.passive_passages",
     "specmate.discovery.apps.DiscoveryConfig",
+    "specmate.configurations.apps.ConfigurationsConfig",
 ]
 
 MIDDLEWARE = [

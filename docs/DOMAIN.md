@@ -69,6 +69,16 @@ firmware assignments and permitted process/material choices resolve deterministi
 An occurrence cannot override a pin assignment, copper net or manufacturing geometry
 that belongs to its pinned revision without a new owning revision/configuration.
 
+An `option_set` revision declares options for parts, population options, firmware,
+material/process choices and requirements; each choice pins an exact frozen revision or
+declares a value, and population/firmware options address one occurrence path of an exact
+target assembly revision. A `configuration` draft pins one option-set revision and records
+selections. `configuration.capture` stores an immutable resolved snapshot recording each
+decision's source (selected, default or none) and every unresolved option;
+`configuration.build_input` refuses an incomplete resolution. Later defaults, option-set
+revisions or chosen-definition revisions never change a captured resolution, and no frozen
+consumer is rewritten. Compatibility between choices remains `not_evaluated` there.
+
 Missing choices remain explicit. Engineering result is valid/invalid/unknown/not-evaluated
 with reasons and applicability. Development proposals are separate linked objects; a
 solver may return invalid-with-proposal or unknown-with-information-request.

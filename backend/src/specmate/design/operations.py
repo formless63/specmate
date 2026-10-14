@@ -188,6 +188,14 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         from specmate.passive_passages.queries import dependency_revisions as passage_dependencies
 
         derived = passage_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind in {"option_set", "configuration"}:
+        from specmate.configurations.queries import (
+            dependency_revisions as configuration_dependencies,
+        )
+        from specmate.configurations.queries import require_capturable
+
+        require_capturable(ctx.user, draft.definition, draft.content)
+        derived = configuration_dependencies(ctx.user, draft.definition, draft.content)
     if derived is not None:
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
@@ -318,6 +326,12 @@ def validate_content(kind, content):
         from specmate.harnesses.queries import validate_content as validate_harness
 
         content = validate_harness(kind, content)
+    if kind in {"option_set", "configuration"} or {"option_set", "configuration"}.intersection(
+        content
+    ):
+        from specmate.configurations.queries import validate_content as validate_configuration
+
+        content = validate_configuration(kind, content)
     if kind == "pcb_population" or "pcb_population" in content:
         from specmate.pcb.population import validate_content as validate_population
 
@@ -395,6 +409,13 @@ def authorize_design_content(user, definition, content):
         from specmate.harnesses.queries import dependency_revisions as harness_dependencies
 
         harness_dependencies(user, definition, content)
+    if definition.kind in {"option_set", "configuration"} or {
+        "option_set",
+        "configuration",
+    }.intersection(content):
+        from specmate.configurations.queries import authorize_content as authorize_configuration
+
+        authorize_configuration(user, definition, content)
     if definition.kind == "pcb_population" or "pcb_population" in content:
         from specmate.pcb.population import authorize_content as authorize_population
 

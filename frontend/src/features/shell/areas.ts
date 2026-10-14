@@ -33,6 +33,7 @@ export const AREAS: AreaDef[] = [
     { id: "pcb-disagreement", label: "PCB source review" },
     { id: "occurrence-firmware", label: "Board firmware" },
     { id: "firmware-impact", label: "Firmware impact" },
+    { id: "configurations", label: "Options & choices" },
     { id: "shared-scene", label: "Shared scene" },
     { id: "context-selection", label: "Connected views" },
     { id: "scene-drawings", label: "Scene drawings" },

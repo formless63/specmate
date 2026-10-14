@@ -47,6 +47,7 @@ const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((
 const SelectedPackagesPanel = lazy(() => import("./features/selected-packages/SelectedPackagesPanel").then((module) => ({ default: module.SelectedPackagesPanel })));
 const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
 const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/FirmwareImpactPanel").then((module) => ({ default: module.FirmwareImpactPanel })));
+const ConfigurationsPanel = lazy(() => import("./features/configurations/ConfigurationsPanel").then((module) => ({ default: module.ConfigurationsPanel })));
 const MechanicalSourcesPanel = lazy(() => import("./features/mechanical-sources/MechanicalSourcesPanel").then((module) => ({ default: module.MechanicalSourcesPanel })));
 const SharedScenePanel = lazy(() => import("./features/shared-scene/SharedScenePanel").then((module) => ({ default: module.SharedScenePanel })));
 const ContextualInspectionWorkspace = lazy(() => import("./features/context-selection/ContextualInspectionWorkspace").then((module) => ({ default: module.ContextualInspectionWorkspace })));
@@ -93,6 +94,7 @@ function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permis
     <ToolPanel value="selected-packages">{visited.has("selected-packages") && <SelectedPackagesPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="occurrence-firmware">{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="firmware-impact">{visited.has("firmware-impact") && <FirmwareImpactPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="configurations">{visited.has("configurations") && <ConfigurationsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="mechanical-sources">{visited.has("mechanical-sources") && <MechanicalSourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="shared-scene">{visited.has("shared-scene") && <SharedScenePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="context-selection">{visited.has("context-selection") && <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />}</ToolPanel>

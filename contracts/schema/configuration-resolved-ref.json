@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "resolved_configuration_id": {
+      "format": "uuid",
+      "title": "Resolved Configuration Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "resolved_configuration_id"
+  ],
+  "title": "ResolvedRef",
+  "type": "object"
+}

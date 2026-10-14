@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Basis",
+      "type": "string"
+    },
+    "draft_id": {
+      "format": "uuid",
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "review_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Review Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "draft_id",
+    "review_sha256",
+    "basis"
+  ],
+  "title": "CaptureResolution",
+  "type": "object"
+}
