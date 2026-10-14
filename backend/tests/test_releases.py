@@ -157,17 +157,23 @@ def test_release_freezes_exact_closure_and_is_reconstructable(users, closure):
     assert config["target_revision_id"] == root_id and config["status"] == "complete"
     assert body["artifacts"]["coherence"] == "coherent"
     assert body["rights"]["uncleared"] == 0 and body["rights"]["cleared"] == 2
-    # The stale claim about r1 is listed even though everything else is resolved.
-    assert categories(reviewed) == {"evidence"}
-    [stale] = body["unresolved"]
+    # The stale claim about r1 is listed; revisions with no catalog rights declaration
+    # are unresolved unknown rights, never silently cleared.
+    assert categories(reviewed) == {"evidence", "rights"}
+    [stale] = [r for r in body["unresolved"] if r["category"] == "evidence"]
+    undeclared = [r for r in body["unresolved"] if r["category"] == "rights"]
+    assert undeclared and {r["rights_status"] for r in undeclared} == {"unknown"}
     assert stale["status"] == "stale_earlier_revision"
     assert stale["evidence_id"] == f"fact:{closure['claim']['assertion']['assertion_id']}"
     assert body["semantics"]["physical_qualification"] == "not_evaluated"
 
     created = release(users["editor"], payload, reviewed, **ACK)
-    assert created["status"] == "unresolved" and created["unresolved_count"] == 1
+    assert created["status"] == "unresolved" and created["unresolved_count"] == 1 + len(undeclared)
     assert created["record"]["review"] == body
-    assert created["record"]["acknowledgement"]["unresolved_ids"] == [stale["id"]]
+    assert set(created["record"]["acknowledgement"]["unresolved_ids"]) == {
+        stale["id"],
+        *(r["id"] for r in undeclared),
+    }
     row = Release.objects.get(id=created["release_id"])
     assert hashlib.sha256(bytes(row.record_canonical)).hexdigest() == row.record_sha256
     assert set(ReleasePin.objects.filter(release=row).values_list("revision_id", "role")) == {
@@ -241,7 +247,8 @@ def test_unresolved_items_need_explicit_acknowledgement_with_reason(users, closu
     assert reviewed["review"]["status"] == "unresolved"
     assert categories(reviewed) == {"quantity", "evidence", "rights"}
     rights = [r for r in reviewed["review"]["unresolved"] if r["category"] == "rights"]
-    assert {r["decision"] for r in rights} == {"unknown"} and len(rights) == 2
+    design = [r for r in rights if r["id"].startswith("rights:design:")]
+    assert {r["decision"] for r in design} == {"unknown"} and len(design) == 2
     with pytest.raises(ValidationFailed, match="acknowledgement"):
         release(users["editor"], payload, reviewed)
     with pytest.raises(ValidationFailed):
@@ -267,11 +274,15 @@ def test_declared_catalog_rights_from_the_export_package_are_unresolved_unless_c
     payload = request(closure)
     reviewed = review(users["viewer"], payload)
     catalog = reviewed["review"]["rights"]["catalog"]
-    assert {row["subject"]: row["rights_status"] for row in catalog["items"]} == {
-        f"source_identifier:{ident}": status for status, ident in ids.items()
+    declared = {
+        row["subject"]: row["rights_status"]
+        for row in catalog["items"]
+        if not row["subject"].startswith("revision:")
     }
-    assert catalog["counts"] == {"cleared": 1, "restricted": 1, "unknown": 1}
-    assert catalog["unresolved"] == 2
+    assert declared == {f"source_identifier:{ident}": status for status, ident in ids.items()}
+    undeclared = catalog["undeclared_revision_ids"]
+    assert catalog["counts"] == {"cleared": 1, "restricted": 1, "unknown": 1 + len(undeclared)}
+    assert catalog["unresolved"] == 2 + len(undeclared)
     assert closure["root"]["revision_id"] in catalog["undeclared_revision_ids"]
     open_items = {
         row["id"]: row["rights_status"]
@@ -283,6 +294,7 @@ def test_declared_catalog_rights_from_the_export_package_are_unresolved_unless_c
     assert open_items == {
         f"rights:source_identifier:{ids['restricted']}": "restricted",
         f"rights:source_identifier:{ids['unknown']}": "unknown",
+        **{f"rights:revision:{rid}": "unknown" for rid in undeclared},
     }
     assert reviewed["review"]["status"] == "unresolved"
     with pytest.raises(ValidationFailed, match="acknowledgement"):

@@ -43,7 +43,10 @@ def review(user, payload):
 
 
 def download(user, payload, reviewed):
-    result = op(user, "export_package.download", {**payload, "reviewed_sha256": reviewed["sha256"]})
+    # Revisions without a rights declaration count as unknown, so the review-only
+    # acknowledgement is given unless the caller states otherwise.
+    body = {"rights_acknowledged": True, **payload, "reviewed_sha256": reviewed["sha256"]}
+    result = op(user, "export_package.download", body)
     raw = base64.b64decode(result["archive_base64"])
     assert hashlib.sha256(raw).hexdigest() == result["sha256"]
     with zipfile.ZipFile(io.BytesIO(raw)) as zipped:
@@ -353,7 +356,7 @@ def test_stale_review_access_and_http_download(users, workspace, system):
         review(users["outsider"], payload)
     response = api(users["viewer"]).post(
         "/api/v0/export-packages/download",
-        {**payload, "reviewed_sha256": reviewed["sha256"]},
+        {**payload, "reviewed_sha256": reviewed["sha256"], "rights_acknowledged": True},
         content_type="application/json",
     )
     assert response.status_code == 200

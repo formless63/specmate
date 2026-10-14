@@ -1087,6 +1087,31 @@ def rights_section(scope, package):
     counts = Counter(row["rights_status"] for row in items)
     declared = {row["revision_id"] for row in items}
     undeclared = sorted(str(rid) for rid in ids if str(rid) not in declared)
+    # A revision with no rights declaration is treated exactly like unknown rights: it is
+    # listed with the reason, needs the internal-review acknowledgement, and never reads as
+    # cleared. The package carries no source bytes for it, only this record.
+    names = {
+        str(rid): name
+        for rid, name in Revision.objects.filter(id__in=undeclared).values_list(
+            "id", "definition__name"
+        )
+    }
+    for rid in undeclared:
+        items.append(
+            {
+                "subject": f"revision:{rid}",
+                "revision_id": rid,
+                "definition_name": names.get(rid, ""),
+                "record": "revision",
+                "label": "no rights declared",
+                "rights_status": "unknown",
+                "declared_rights": "",
+                "source_path": None,
+                "sha256": None,
+            }
+        )
+    items.sort(key=lambda row: row["subject"])
+    counts = Counter(row["rights_status"] for row in items)
     review = {
         "items": items,
         "counts": {name: counts.get(name, 0) for name in ("cleared", "restricted", "unknown")},

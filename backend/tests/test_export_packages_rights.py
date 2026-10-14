@@ -105,12 +105,21 @@ def test_rights_review_lists_declared_status_and_gates_download(users, project, 
     reviewed = review(users["viewer"], payload)
     rights = reviewed["manifest"]["rights"]
     by_subject = {r["subject"]: r for r in rights["items"]}
-    assert {s: r["rights_status"] for s, r in by_subject.items()} == {
+    declared = {
+        s: r["rights_status"] for s, r in by_subject.items() if not s.startswith("revision:")
+    }
+    assert declared == {
         f"representation:{cleared['representation_id']}": "cleared",
         f"source_identifier:{restricted['source_identifier_id']}": "restricted",
         f"source_identifier:{unknown['source_identifier_id']}": "unknown",
     }
-    assert rights["counts"] == {"cleared": 1, "restricted": 1, "unknown": 1}
+    # Every revision without a declaration is an explicit unknown row with the reason.
+    undeclared = rights["undeclared_revision_ids"]
+    assert undeclared
+    for rid in undeclared:
+        row = by_subject[f"revision:{rid}"]
+        assert row["rights_status"] == "unknown" and row["label"] == "no rights declared"
+    assert rights["counts"] == {"cleared": 1, "restricted": 1, "unknown": 1 + len(undeclared)}
     assert rights["acknowledgement_required"] is True
     assert rights["distribution"] == "not_authorized"
     # Revisions with no declaration are listed, never treated as cleared.
@@ -124,7 +133,9 @@ def test_rights_review_lists_declared_status_and_gates_download(users, project, 
     raw, package = download(users["viewer"], {**payload, "rights_acknowledged": True}, reviewed)
     assert "rights/review.json" in package and "rights/review.csv" in package
     csv_rows = rows(package["rights/review.csv"])
-    assert sorted(r["rights_status"] for r in csv_rows) == ["cleared", "restricted", "unknown"]
+    assert sorted(r["rights_status"] for r in csv_rows) == (
+        ["cleared", "restricted"] + ["unknown"] * (1 + len(undeclared))
+    )
     assert not verify_archive(raw, reviewed["sha256"])
     # The acknowledgement does not change the reviewed manifest hash.
     again = op(users["viewer"], "export_package.download", {**body, "rights_acknowledged": True})
@@ -139,6 +150,17 @@ def test_all_cleared_rights_need_no_acknowledgement(users, project, system):  # 
         identifier_payload(system["board"], "Synthetic:Cleared", "Open", "cleared"),
     )
     payload = request(system)
+    # Undeclared revisions count as unknown and require the acknowledgement.
+    first = review(users["viewer"], payload)["manifest"]["rights"]
+    assert first["acknowledgement_required"] is True and first["undeclared_revision_ids"]
+    for rid in first["undeclared_revision_ids"]:
+        op(
+            editor,
+            "catalog.register_source_identifier",
+            identifier_payload({"revision_id": rid}, f"Synthetic:{rid}", "Open", "cleared"),
+        )
     reviewed = review(users["viewer"], payload)
     assert reviewed["manifest"]["rights"]["acknowledgement_required"] is False
-    download(users["viewer"], payload, reviewed)
+    body = {**payload, "reviewed_sha256": reviewed["sha256"]}
+    result = op(users["viewer"], "export_package.download", body)
+    assert result["archive_base64"]
