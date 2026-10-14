@@ -96,6 +96,23 @@ stage (kit and cut with exact decimal totals, one page per endpoint listing decl
 terminations in contact order, assembly, test). Stages with no recorded data say so;
 no workshop procedure or soldering order is assumed.
 
+The same inspector offers full-scale and scaled print output of the formboard and fixed-size
+labels (PRE-005), derived from the frozen record and stored nowhere. Only the length axis is to
+scale, and only for sections with a recorded planned cut length; thickness, row spacing and
+text are fixed-size drawing aids, and unknown-length sections stay dashed placeholders. A plan
+states "1:1" only when the effective scale is exactly 1 and at least one length is recorded;
+fit-to-page and ratio plans state their true reduced ratio and say they are not full size.
+Pages have explicit paper, orientation, margin (warning below 5 mm) and tile overlap, name
+their row/column and overlapping neighbours, carry registration marks, and are limited to 64
+pages. Every page prints a 100 mm ruler. The user may enter the length measured on a first
+print; the plan then pre-compensates and every page states the factor (an implausible
+measurement is an error and is never silently ignored; without one the plan says it is
+uncalibrated, and the entered value is kept only in the viewer's browser). Labels (one per
+section and per recorded physical end) are drawn at the declared width and height with
+text fitted by shrinking and wrapping; a label whose text cannot fit is reported and not
+drawn, never truncated. Output is a deterministic, self-contained HTML document with exact
+`@page` size. Physical printer accuracy is not qualified by this software.
+
 ## Layered preparation preview
 
 The stock panel can open a lazy interactive 3D view using `packages/wire-geometry`.

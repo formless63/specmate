@@ -34,14 +34,16 @@ export interface Formboard {
 
 const other = (end: End): End => end === 'a' ? 'b' : 'a';
 
-export function formboardLayout(harness: HarnessView, stocks: StockMap): Formboard {
+/** Fixed drawing sizes in the board's length unit (mm); print output sets these so text is a physical size. */
+export interface FormboardLayoutOptions { rowHeight?: number; fontSize?: number }
+export function formboardLayout(harness: HarnessView, stocks: StockMap, options: FormboardLayoutOptions = {}): Formboard {
   const notes: string[] = [];
   const segments = new Map(harness.segments.map(s => [s.local_id, s]));
   const known = harness.sections.map(s => parseDecimal(s.planned_cut_length_mm)).map(p => p === null ? null : Number(p.units) / 10 ** p.scale);
   const maxKnown = Math.max(0, ...known.filter((v): v is number => v !== null && v > 0));
   const placeholder = maxKnown > 0 ? maxKnown * 0.12 : 100;
-  const rowH = Math.max((maxKnown || 100) * 0.09, 12);
-  const fontSize = rowH * 0.26;
+  const rowH = options.rowHeight ?? Math.max((maxKnown || 100) * 0.09, 12);
+  const fontSize = options.fontSize ?? rowH * 0.26;
   const outerOf = (id: string): number | null => {
     const s = stocks[id]?.section;
     return s?.widthMm != null && s.heightMm != null ? Math.max(s.widthMm, s.heightMm) : null;
@@ -145,8 +147,10 @@ const niceLength = (target: number): number => { const p = 10 ** Math.floor(Math
 /** On-screen size of a primary formboard label, in CSS pixels. */
 const LABEL_PX = 13;
 
-export interface FormboardSvgOptions { selected?: string | null; idPrefix?: string }
-export function renderFormboardSvg(board: Formboard, title: string, options: FormboardSvgOptions = {}): string {
+export interface FormboardSvgOptions { selected?: string | null; idPrefix?: string; scaleBar?: boolean }
+export interface FormboardBody { defs: string; parts: string[]; view: { x: number; y: number; w: number; h: number }; desc: string }
+/** Drawing content in board units (mm along the length axis), without an enclosing svg. */
+export function renderFormboardBody(board: Formboard, title: string, options: FormboardSvgOptions = {}): FormboardBody {
   const fs = board.fontSize;
   const pad = fs * 14;
   const { minX, maxX, minY, maxY } = board.bounds;
@@ -182,12 +186,20 @@ export function renderFormboardSvg(board: Formboard, title: string, options: For
   }
   for (const j of board.junctions) parts.push(`<g data-junction="${esc(j.breakoutId)}"><circle cx="${n(j.x)}" cy="${n(j.y)}" r="${n(fs * 0.55)}" style="fill:var(--sb-surface-canvas,#fff);stroke:currentColor" stroke-width="${n(fs * 0.12)}"/><text x="${n(j.x)}" y="${n(j.y - fs * 0.9)}" font-size="${n(fs * 0.85)}" text-anchor="middle" fill="currentColor">${esc(j.breakoutId)}</text></g>`);
   const known = board.bars.filter(b => b.lengthKnown);
-  if (known.length > 0) {
+  if (known.length > 0 && options.scaleBar !== false) {
     const len = niceLength((maxX - minX) * 0.2);
     const sx = minX, sy = maxY + fs * 2.4;
     parts.push(`<g data-scale="${len}"><path d="M${n(sx)} ${n(sy)}H${n(sx + len)}M${n(sx)} ${n(sy - fs * 0.4)}V${n(sy + fs * 0.4)}M${n(sx + len)} ${n(sy - fs * 0.4)}V${n(sy + fs * 0.4)}" stroke="currentColor" stroke-width="${n(fs * 0.12)}" fill="none"/><text x="${n(sx + len / 2)}" y="${n(sy - fs * 0.7)}" font-size="${n(fs * 0.9)}" text-anchor="middle" fill="currentColor">${len} mm</text></g>`);
   }
   const desc = `Formboard of ${board.bars.length} stock section${board.bars.length === 1 ? '' : 's'}; ${known.length} at recorded cut length, ${board.bars.length - known.length} with unknown length drawn at a placeholder length. Thickness is exaggerated and proportional to outer diameter.`;
+  return { defs, parts, view: { x: vx, y: vy, w: vw, h: vh + fs * 3 }, desc };
+}
+
+export function renderFormboardSvg(board: Formboard, title: string, options: FormboardSvgOptions = {}): string {
+  const fs = board.fontSize;
+  const { defs, parts, view, desc } = renderFormboardBody(board, title, options);
+  const { x: vx, y: vy, w: vw, h: vhFull } = view;
+  const vh = vhFull - fs * 3;
   // Labels have a fixed on-screen size (LABEL_PX), so the drawing's pixel width follows its content;
   // the host shrinks it only when it would overflow.
   const k = LABEL_PX / fs, pxW = Math.min(vw * k, 2400), pxH = pxW * (vh + fs * 3) / vw;
