@@ -62,14 +62,14 @@
       "title": "Observation Offset",
       "type": "integer"
     },
-    "project_id": {
+    "workspace_id": {
       "format": "uuid",
-      "title": "Project Id",
+      "title": "Workspace Id",
       "type": "string"
     }
   },
   "required": [
-    "project_id",
+    "workspace_id",
     "baseline",
     "candidate"
   ],

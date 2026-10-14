@@ -7,11 +7,13 @@ import { read, type Definition, type Identity } from '../identity/api';
 import { compareImpact, type FirmwareReference, type ImpactResult } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function FirmwareImpactPanel({ projectId }: { projectId: string }) {
-  return <Workspace key={projectId} projectId={projectId} />;
+// Impact reviews are workspace-scoped. `workspaceId` is the scope; until the shell supplies it, the
+// project id is passed as the transitional scope and the server resolves it to its workspace.
+export function FirmwareImpactPanel({ projectId, workspaceId }: { projectId: string; workspaceId?: string }) {
+  return <Workspace key={workspaceId ?? projectId} projectId={projectId} workspaceId={workspaceId ?? projectId} />;
 }
 
-function Workspace({ projectId }: { projectId: string }) {
+function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId: string }) {
   const generation = useRef(0);
   const [opened, setOpened] = useState(false);
   const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
@@ -60,7 +62,7 @@ function Workspace({ projectId }: { projectId: string }) {
     const token = ++generation.current;
     setResult(null); setError(''); setBusy(true);
     try {
-      const value = await compareImpact({ project_id: projectId,
+      const value = await compareImpact({ workspace_id: workspaceId,
         baseline: { firmware_revision_id: baseline, ...baselineContext },
         candidate: { firmware_revision_id: candidate, ...candidateContext }, assertion_ids: assertions, observation_offset: observationOffset });
       if (token === generation.current) setResult(value);
@@ -74,9 +76,9 @@ function Workspace({ projectId }: { projectId: string }) {
     {opened && <>
       <Button disabled={busy} onClick={() => { void refresh(); }}>Refresh authorized impact inputs</Button>
       {error && <Alert color="red">{error}</Alert>}
-      <Text>Standalone firmware belongs to this project. To inspect reused library firmware, choose a frozen assembly and its assigned board occurrence first. Exact library revision assertions are included; contextual, physical-unit and additional observations remain scoped to this project.</Text>
-      <NativeSelect label="Baseline input mode" value={baselineMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setBaselineMode(event.currentTarget.value); setBaseline(''); setBaselineContext({}); setBaselineContextPending(false); }} />
-      <NativeSelect label="Candidate input mode" value={candidateMode} data={[{ value: 'standalone', label: 'Standalone project firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setCandidateMode(event.currentTarget.value); setCandidate(''); setCandidateContext({}); setCandidateContextPending(false); }} />
+      <Text>Standalone firmware is read from the workspace library. To review firmware as used in a design, choose a frozen assembly and its assigned board occurrence first. Exact revision assertions, contextual occurrences and units with those pins are included; additional observations are included only when you select them.</Text>
+      <NativeSelect label="Baseline input mode" value={baselineMode} data={[{ value: 'standalone', label: 'Standalone workspace firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setBaselineMode(event.currentTarget.value); setBaseline(''); setBaselineContext({}); setBaselineContextPending(false); }} />
+      <NativeSelect label="Candidate input mode" value={candidateMode} data={[{ value: 'standalone', label: 'Standalone workspace firmware' }, { value: 'occurrence', label: 'Assigned firmware in a frozen assembly' }]} onChange={event => { clear(); setCandidateMode(event.currentTarget.value); setCandidate(''); setCandidateContext({}); setCandidateContextPending(false); }} />
       {baselineMode === 'standalone' && <NativeSelect label="Baseline firmware revision" value={baseline} data={options} onChange={event => { clear(); setBaseline(event.currentTarget.value); setBaselineContext({}); setBaselineContextPending(false); }} />}
       {candidateMode === 'standalone' && <NativeSelect label="Candidate firmware revision" value={candidate} data={options} onChange={event => { clear(); setCandidate(event.currentTarget.value); setCandidateContext({}); setCandidateContextPending(false); }} />}
       {(baseline || baselineMode === 'occurrence') && <ContextSelector key={`baseline:${pickerKey}:${baselineMode}:${baselineMode === 'standalone' ? baseline : ''}`} label="Baseline" firmwareId={baselineMode === 'standalone' ? baseline : undefined} assemblies={assemblies} onDenied={deny} onChange={(context, pending = false) => { clear(); setBaselineContextPending(pending); if (baselineMode === 'occurrence') setBaseline(context.firmware_revision_id || ''); setBaselineContext(context); }} />}
@@ -173,7 +175,7 @@ function EvidenceSelector({ projectId, onChange, onDenied }: { projectId: string
     return () => { factGeneration.current++; };
   }, [subject, factOffset]);
   return <Stack>
-    <Text>Existing assertions on the exact readable baseline firmware/population revisions are included automatically from their owning library projects. Contextual observations and physical units with those design pins remain in the selected project. Optionally inspect another subject and deliberately include its assertions.</Text>
+    <Text>Existing assertions on the exact baseline firmware/population revisions are included automatically. Contextual occurrences and physical units with those design pins are included from the same workspace. Optionally inspect another subject and deliberately include its assertions.</Text>
     <Button onClick={() => { setOpened(!opened); setSelected([]); setSubject(''); onChange([]); }}>Choose additional historical observations</Button>
     {opened && <>
       <NativeSelect label="Historical observation subject" value={subject} data={[{ value: '', label: 'Select actual observation subject' }, ...subjects.map(item => ({ value: item.subject_id, label: targetLabel(item.target, item.physical_unit_serial) }))]} onChange={event => { setSubject(event.currentTarget.value); setFactOffset(0); setSelected([]); onChange([]); }} />
@@ -208,7 +210,7 @@ function ImpactReview({ result }: { result: ImpactResult }) {
       {result.findings.map(finding => <Table.Tr key={finding.key}><Table.Td>{finding.key}</Table.Td><Table.Td>{finding.status}</Table.Td><Table.Td>{JSON.stringify(finding.baseline)}</Table.Td><Table.Td>{JSON.stringify(finding.candidate)}</Table.Td><Table.Td>{finding.reason}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
     <Title order={4}>Historical observation applicability</Title>
-    <Text>Scope: exact readable baseline firmware/population revision subjects, plus selected-project contextual occurrences, actual units and deliberately selected additional assertions.</Text>
+    <Text>Scope: exact readable baseline firmware/population revision subjects, plus contextual occurrences, actual units with those pins and deliberately selected additional assertions in this workspace.</Text>
     <Text>{result.observations_total} historical assertions in the declared scope. Observations remain immutable; no candidate result is created.</Text>
     {result.observations_truncated && <Alert color="yellow">This page shows up to 100 assertions from position {result.observation_offset + 1}. Review additional pages; all historical results remain preserved.</Alert>}
     {result.observations.map(row => <Card key={row.assertion.assertion_id} withBorder><Stack>

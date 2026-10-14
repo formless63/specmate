@@ -3,11 +3,10 @@
 
 import pytest
 
-from specmate.access.models import WorkspaceMember
 from specmate.firmware_builds import operations
 from specmate.operations import NotFound
 
-from .conftest import ensure_member, op
+from .conftest import op, remove_member
 from .test_firmware_builds import (  # noqa: F401
     attempt,
     board,
@@ -26,10 +25,9 @@ from .test_firmware_builds import (  # noqa: F401
 def test_retained_build_denial_precedes_changed_occurrence_diagnostic(
     users, project, sources, firmware, compiler_recipe, requested, board
 ):
-    from .test_pcb_fabrication import derived_record, other_source
+    from .test_firmware_builds import retained_derivative
 
-    parent_project, parent = other_source(users)
-    derivative = derived_record(users["owner"], sources["revision_id"], parent)
+    derivative = retained_derivative(users["owner"], sources["revision_id"])
     fake_outputs(requested, output_source=derivative.id)
     assembly = op(
         users["owner"],
@@ -48,7 +46,7 @@ def test_retained_build_denial_precedes_changed_occurrence_diagnostic(
         {"draft_id": assembly["draft_id"]},
         expected_state=assembly["state"],
     )
-    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
+    remove_member(users["owner"], project=project)
     with pytest.raises(NotFound):
         op(
             users["owner"],
@@ -157,10 +155,7 @@ def test_shared_and_compiler_downloads_recheck_reader_context_independently_of_r
     from .test_firmware_builds import IMAGE
     from .test_transports import api
 
-    context_project = op(
-        users["owner"], "project.create", {"name": "Reader-specific compiler context"}
-    )["project_id"]
-    ensure_member(users["viewer"], "viewer", project=context_project)
+    context_project = project
     assembly = op(
         users["owner"],
         "assembly.create",
@@ -209,12 +204,9 @@ def test_shared_and_compiler_downloads_recheck_reader_context_independently_of_r
     retained_bytes = b"".join(response.streaming_content)
     response.close()
     assert viewer.get(specific + query).status_code == 200
-    WorkspaceMember.objects.filter(
-        workspace__projects=context_project, user=users["viewer"]
-    ).delete()
-    assert WorkspaceMember.objects.filter(
-        workspace__projects=project, user=users["viewer"]
-    ).exists()
+    # The reader loses the workspace; the requester still holds it, so execution of the
+    # retained request stays allowed while the reader's context is checked independently.
+    remove_member(users["viewer"], project=project)
     assert _execution_allowed(BuildAttempt.objects.get(id=stage.build_id))
     with pytest.raises(NotFound):
         op(users["viewer"], "build.get", {"build_id": stage.build_id})

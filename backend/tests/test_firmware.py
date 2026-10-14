@@ -8,9 +8,9 @@ import copy
 from uuid import uuid4
 
 import pytest
+from django.db import IntegrityError, transaction
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Revision
 from specmate.operations import (
     Conflict,
@@ -19,9 +19,8 @@ from specmate.operations import (
     PermissionDenied,
     ValidationFailed,
 )
-from specmate.sources.models import SourceBlob, SourceBundleFile
 
-from .conftest import op
+from .conftest import op, remove_member, set_role
 from .test_pcb import (  # noqa: F401
     attempt,
     digest,
@@ -441,9 +440,7 @@ def test_draft_concurrency_and_authority_precede_retained_outcomes(users, projec
         op(users["viewer"], "firmware.update", update, expected_state=first["state"])
     with pytest.raises(NotFound):
         op(users["outsider"], "firmware.read", {"draft_id": draft["draft_id"]})
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        role="viewer"
-    )
+    set_role(users["editor"], "viewer", project=project)
     for firmware in (declaration(sources, board, pins=[]), declaration(sources, board)):
         with pytest.raises(PermissionDenied):
             op(
@@ -453,19 +450,10 @@ def test_draft_concurrency_and_authority_precede_retained_outcomes(users, projec
                 expected_state=draft["state"],
                 idempotency_key="update",
             )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
-        role="editor"
-    )
-    # A foreign blob in a pinned source's closure hides the firmware before diagnostics.
-    other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
-    register(users["outsider"], other, b"foreign")
-    SourceBundleFile.objects.create(
-        revision_id=sources["revision_id"],
-        path="foreign.bin",
-        media_type="x",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
+    set_role(users["editor"], "editor", project=project)
+    assert op(users["editor"], "firmware.read", {"draft_id": draft["draft_id"]})
+    # Losing workspace membership hides the draft and the retained key before any diagnostic.
+    remove_member(users["editor"], project=project)
     with pytest.raises(NotFound):
         op(users["editor"], "firmware.read", {"draft_id": draft["draft_id"]})
     with pytest.raises(NotFound):
@@ -598,7 +586,7 @@ def test_all_source_authority_precedes_pin_diagnostics(users, project, sources, 
 
 
 def test_frozen_firmware_read_rechecks_retained_snapshot_dependencies(
-    users, project, sources, board
+    users, project, workspace, other_workspace, sources, board
 ):
     from specmate.design.models import SnapshotDependency
 
@@ -609,27 +597,38 @@ def test_frozen_firmware_read_rechecks_retained_snapshot_dependencies(
         {"draft_id": draft["draft_id"]},
         expected_state=draft["state"],
     )
-    other = op(users["outsider"], "project.create", {"name": "Private origin"})["project_id"]
+    # Retained provenance pins stay inside the workspace: a same-workspace origin is
+    # readable by every member, a foreign-workspace origin cannot be pinned at all.
     origin = op(
-        users["outsider"],
+        users["owner"],
         "definition.create",
-        {
-            "project_id": other,
-            "kind": "board",
-            "name": "Retained origin",
-        },
+        {"workspace_id": workspace, "kind": "board", "name": "Retained origin"},
     )
     revision = op(
-        users["outsider"],
+        users["owner"],
         "draft.freeze",
         {"draft_id": origin["draft_id"]},
         expected_state=origin["state"],
     )
-    # Retained provenance pins must be authorized even when not part of the target.
-    SnapshotDependency.objects.create(
-        snapshot=Revision.objects.get(id=frozen["revision_id"]).snapshot,
-        revision_id=revision["revision_id"],
+    snapshot = Revision.objects.get(id=frozen["revision_id"]).snapshot
+    SnapshotDependency.objects.create(snapshot=snapshot, revision_id=revision["revision_id"])
+    assert op(users["viewer"], "firmware.read", {"revision_id": frozen["revision_id"]})
+    foreign = op(
+        users["outsider"],
+        "definition.create",
+        {"workspace_id": other_workspace, "kind": "board", "name": "Foreign origin"},
     )
+    foreign_revision = op(
+        users["outsider"],
+        "draft.freeze",
+        {"draft_id": foreign["draft_id"]},
+        expected_state=foreign["state"],
+    )
+    with pytest.raises(IntegrityError), transaction.atomic():
+        SnapshotDependency.objects.create(
+            snapshot=snapshot, revision_id=foreign_revision["revision_id"]
+        )
+    remove_member(users["viewer"], project=project)
     with pytest.raises(NotFound):
         op(users["viewer"], "firmware.read", {"revision_id": frozen["revision_id"]})
 
@@ -667,18 +666,14 @@ def test_replay_authorizes_old_result_after_draft_moves_to_new_sources(
         {"draft_id": draft["draft_id"], "firmware": new},
         expected_state=draft["state"],
     )
-    other = op(users["outsider"], "project.create", {"name": "Private source origin"})["project_id"]
-    register(users["outsider"], other, b"private source")
-    SourceBundleFile.objects.create(
-        revision_id=sources["revision_id"],
-        path="unavailable.bin",
-        media_type="x",
-        rights="private",
-        blob=SourceBlob.objects.get(project_id=other),
-    )
     # The current draft and changed request are readable, but the key's retained
-    # source closure is not. Denial must precede the otherwise applicable mismatch.
+    # source closure is authorized afresh: role loss and membership loss both deny
+    # before the otherwise applicable mismatch.
     assert op(users["editor"], "firmware.read", {"draft_id": draft["draft_id"]})
+    set_role(users["editor"], "viewer", project=project)
+    with pytest.raises(PermissionDenied):
+        create(users, project, new, idempotency_key="retained")
+    remove_member(users["editor"], project=project)
     with pytest.raises(NotFound):
         create(users, project, new, idempotency_key="retained")
 

@@ -7,7 +7,7 @@ from specmate.firmware_builds.contracts import FirmwareRef
 
 
 class CompareImpact(StrictModel):
-    project_id: UUID
+    workspace_id: UUID
     baseline: FirmwareRef
     candidate: FirmwareRef
     assertion_ids: list[UUID] = Field(default_factory=list, max_length=100)
