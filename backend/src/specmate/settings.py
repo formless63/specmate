@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "specmate.harnesses",
     "specmate.sources",
     "specmate.builds",
+    "specmate.diagnostics.apps.DiagnosticsConfig",
     "specmate.pcb",
     "specmate.mechanical_proposals.apps.MechanicalProposalsConfig",
     "specmate.pcb_disagreement",

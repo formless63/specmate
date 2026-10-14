@@ -24,6 +24,7 @@ from specmate.catalog_packs.api import router as packs_router
 from specmate.collaboration.api import router as collaboration_router
 from specmate.contracts import OperationEnvelope
 from specmate.copper.api import router as copper_router
+from specmate.diagnostics.api import router as diagnostics_router
 from specmate.discovery.api import router as discovery_router
 from specmate.end_preparation.api import router as end_preparation_router
 from specmate.evidence.api import router as evidence_router
@@ -77,6 +78,7 @@ api.add_router("/v0/passive-passages", passages_router)
 api.add_router("/v0/revision-upgrades", upgrades_router)
 api.add_router("/v0/runner", runner_router)
 api.add_router("/v0/builds", artifacts_router)
+api.add_router("/v0/diagnostics", diagnostics_router)
 api.add_router("/v0/pcb", pcb_router)
 api.add_router("/v0/pcb-disagreement", disagreement_router)
 api.add_router("/v0/pcb-fabrication", fabrication_router)

@@ -2,6 +2,7 @@ import { PermissionsProvider } from "./lib/permissions";
 import { Alert, Button, Stack, Tabs, Text } from "@mantine/core";
 import { Component, lazy, Suspense, useCallback, useState, type ReactNode } from "react";
 
+import { StatusIndicator } from "./features/diagnostics/StatusIndicator";
 import { ProjectOverview } from "./features/overview/ProjectOverview";
 import { DEFAULT_TOOL, SbShell } from "./features/shell";
 import { WorkspaceShell, type ShellChrome } from "./features/workspace";
@@ -9,6 +10,7 @@ import { WorkspaceShell, type ShellChrome } from "./features/workspace";
 const BuildsPanel = lazy(() => import("./features/builds/BuildsPanel").then((module) => ({ default: module.BuildsPanel })));
 const AssemblyPanel = lazy(() => import("./features/assemblies/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel })));
 const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/AgentCapabilitiesPanel").then((module) => ({ default: module.AgentCapabilitiesPanel })));
+const DiagnosticsPanel = lazy(() => import("./features/diagnostics/DiagnosticsPanel").then((module) => ({ default: module.DiagnosticsPanel })));
 const ProjectAccessPanel = lazy(() => import("./features/project-access/ProjectAccessPanel").then((module) => ({ default: module.ProjectAccessPanel })));
 const IdentityPanel = lazy(() => import("./features/identity/IdentityPanel").then((module) => ({ default: module.IdentityPanel })));
 const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
@@ -65,13 +67,15 @@ export function App() {
 function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permissions, onAccessChanged }: { projectId: string; projectName: string; chrome: ShellChrome; principalKey: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
   const [active, setActiveTool] = useState<string>(DEFAULT_TOOL);
   const [upgradeProposalId, setUpgradeProposalId] = useState<string | null>(null);
+  const [statusTick, setStatusTick] = useState(0);
   const [visited, setVisited] = useState(() => new Set([DEFAULT_TOOL]));
   // Opening any tool (from an area, a lens, the command palette or a deep link) mounts it once and keeps it mounted while hidden.
   const setActive = useCallback((value: string) => {
     setActiveTool(value);
     setVisited((current) => current.has(value) ? current : new Set([...current, value]));
   }, []);
-  return <PermissionsProvider permissions={permissions}><SbShell projectName={projectName} permissions={permissions} activeTool={active} onToolChange={setActive} chrome={chrome}>
+  return <PermissionsProvider permissions={permissions}><SbShell projectName={projectName} permissions={permissions} activeTool={active} onToolChange={setActive} chrome={chrome}
+    statusIndicator={<StatusIndicator projectId={projectId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} />}>
     <ToolPanel value="overview">{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="builds">{visited.has("builds") && <BuildsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
@@ -110,6 +114,7 @@ function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permis
     <ToolPanel value="bom">{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="physical-units">{visited.has("physical-units") && <PhysicalUnitsPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="agent-capabilities">{visited.has("agent-capabilities") && <AgentCapabilitiesPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="diagnostics">{visited.has("diagnostics") && <DiagnosticsPanel projectId={projectId} active={active === "diagnostics"} onChanged={() => setStatusTick((n) => n + 1)} />}</ToolPanel>
     <ToolPanel value="access">{visited.has("access") && <ProjectAccessPanel projectId={projectId} onAccessChanged={onAccessChanged} />}</ToolPanel>
   </SbShell></PermissionsProvider>;
 }

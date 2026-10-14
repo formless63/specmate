@@ -27,6 +27,7 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
 .sb-led[data-state="active"] { background: var(--sb-accent); }
 .sb-led[data-state="review"] { background: var(--sb-review); }
 .sb-led[data-state="failed"] { background: var(--sb-invalid); border-radius: 0; }
+.sb-led[data-state="idle"] { border: 1px solid var(--sb-accent); }
 .sb-led[data-state="not-evaluated"] { border: 1px solid var(--sb-text-tertiary); }
 
 /* ---- Buttons ----

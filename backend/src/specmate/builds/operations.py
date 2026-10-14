@@ -174,6 +174,9 @@ def request_build(ctx: Context, p: RequestBuild) -> dict:
     project = authorize(ctx.user, p.project_id, Perm.BUILD_EXECUTE)
     if not ctx.idempotency_key:
         raise ValidationFailed("build.request requires an idempotency key.")
+    from specmate.diagnostics.guards import require_accepting_work
+
+    require_accepting_work()
     source = SourceBundleRevision.objects.filter(
         id=p.source_revision_id, bundle__project=project
     ).first()
@@ -457,6 +460,10 @@ def claim_lease(ctx: Context, p: ClaimLease) -> dict:
         )
         .order_by("created_at")[:20]
     )
+    from specmate.diagnostics.guards import leasing_allowed
+
+    if not leasing_allowed():
+        return {"lease": None}
     for stage in candidates:
         if not _execution_allowed(stage.build):
             _cancel(stage, "execution_authority_revoked")
