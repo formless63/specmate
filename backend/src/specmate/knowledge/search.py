@@ -15,7 +15,7 @@ from specmate.knowledge.queries import (
     visible_link,
 )
 from specmate.knowledge.search_contracts import SearchKnowledge
-from specmate.operations import Context, ValidationFailed, operation
+from specmate.operations import Context, NotFound, ValidationFailed, operation
 
 SNIPPET_LENGTH = 320
 
@@ -28,7 +28,7 @@ def snippet(text, query):
     return ("…" if start else "") + value + ("…" if start + len(value) < len(text) else "")
 
 
-def search_knowledge(user, payload):
+def _search_knowledge(user, payload):
     user = current_actor(user)
     if payload.project_id:
         authorize(user, payload.project_id, Perm.PROJECT_READ)
@@ -105,10 +105,13 @@ def search_knowledge(user, payload):
         authorize(user, payload.project_id, Perm.PROJECT_READ)
     if payload.target:
         target = describe_target(user, payload.target)
+    # Cursor and lookahead items also determine the disclosed page/cursor. Their
+    # successfully consumed closures must still be readable, even if not returned.
+    fresh_items = {str(item_id): get_item(user, item_id)[0] for item_id in authorized}
     refreshed = {}
     for row in page["results"]:
         if row["item_id"] not in refreshed:
-            item, _, _ = get_item(user, row["item_id"])
+            item = fresh_items[row["item_id"]]
             links = list(item.links.filter(removed_at__isnull=True).order_by("id")[: MAX_LINKS + 1])
             if len(links) > MAX_LINKS:
                 raise ValidationFailed("Knowledge links exceed the supported limit.")
@@ -122,6 +125,14 @@ def search_knowledge(user, payload):
         "include_history": payload.include_history,
         **page,
     }
+
+
+def search_knowledge(user, payload):
+    """Forbidden and missing exact inputs share one denial without existence hints."""
+    try:
+        return _search_knowledge(user, payload)
+    except NotFound:
+        raise NotFound("Knowledge search inputs unavailable.") from None
 
 
 @operation(

@@ -519,3 +519,104 @@ def test_revocation_during_mismatching_blob_read_precedes_integrity_diagnostics(
         op(users["viewer"], "knowledge.preview", payload)
     monkeypatch.setattr(blobstore, "open_blob", original)
     assert op(users["viewer"], "knowledge.preview", payload)["text"] == "Registered original"
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("stage", ["lookahead", "cursor"])
+def test_consumed_pagination_records_reauthorize_after_committed_source_revocation(
+    users, project, monkeypatch, stage
+):
+    from specmate.knowledge import search as module
+
+    rows = []
+    for label in ("first", "second"):
+        scope = op(users["owner"], "project.create", {"name": "Independent " + label + " source"})[
+            "project_id"
+        ]
+        Membership.objects.create(project_id=scope, user=users["viewer"], role="viewer")
+        source = preserve(
+            users["owner"], scope, "Original " + label, label.encode(), "note.txt", "text/plain"
+        )
+        item = create(
+            users["owner"],
+            scope,
+            kind="note",
+            title="Needle " + label,
+            attachments=[attachment_ref(source, "note.txt", "Exact independent source")],
+        )
+        rows.append((item, scope))
+    rows.sort(key=lambda row: row[0]["current"]["entry_id"])
+    cursor = rows[0][0]["current"]["entry_id"]
+    options = {"limit": 1}
+    if stage == "cursor":
+        options["after"] = cursor
+    baseline = search(users["viewer"], "Needle", **options)
+    assert baseline["results"][0]["item_id"] == rows[stage == "cursor"][0]["item_id"]
+    assert baseline["next_after"] == (cursor if stage == "lookahead" else None)
+    revoked_item, revoked_scope = rows[stage == "lookahead"]
+    original = module.snippet
+    revoked = False
+
+    def render_then_revoke(text, query):
+        nonlocal revoked
+        result = original(text, query)
+        if text == revoked_item["current"]["title"] and not revoked:
+            committed_revoke(revoked_scope, users["viewer"])
+            revoked = True
+        return result
+
+    monkeypatch.setattr(module, "snippet", render_then_revoke)
+    with pytest.raises(NotFound):
+        search(users["viewer"], "Needle", **options)
+    assert revoked
+    assert not Membership.objects.filter(project_id=revoked_scope, user=users["viewer"]).exists()
+    monkeypatch.setattr(module, "snippet", original)
+    Membership.objects.create(project_id=revoked_scope, user=users["viewer"], role="viewer")
+    assert search(users["viewer"], "Needle", **options) == baseline
+
+
+@pytest.mark.parametrize("transport", ["get", "operation"])
+def test_missing_and_forbidden_preview_owners_have_identical_error_responses(
+    users, project, transport
+):
+    _, payload = attachment(users, project, b"Private registered original")
+    client = api(users["outsider"])
+    missing = {**payload, "item_id": "00000000-0000-0000-0000-000000000000"}
+    if transport == "get":
+        private_response = client.get("/api/v0/knowledge/preview", payload)
+        missing_response = client.get("/api/v0/knowledge/preview", missing)
+    else:
+        private_response = post_op(client, "knowledge.preview", payload)
+        missing_response = post_op(client, "knowledge.preview", missing)
+    assert private_response.status_code == missing_response.status_code == 404
+    assert private_response.json() == missing_response.json()
+
+
+@pytest.mark.parametrize("transport", ["get", "operation"])
+def test_missing_and_forbidden_exact_search_targets_have_identical_error_responses(
+    users, project, transport
+):
+    private = op(
+        users["owner"],
+        "definition.create",
+        {"project_id": project, "kind": "part", "name": "Protected search target"},
+    )
+    client = api(users["outsider"])
+    target = {"kind": "definition", "definition_id": private["definition_id"]}
+    missing = {"kind": "definition", "definition_id": "00000000-0000-0000-0000-000000000000"}
+    if transport == "get":
+        private_response = client.get(
+            "/api/v0/knowledge/search", {"query": "needle", "target": json.dumps(target)}
+        )
+        missing_response = client.get(
+            "/api/v0/knowledge/search", {"query": "needle", "target": json.dumps(missing)}
+        )
+    else:
+        private_response = post_op(
+            client, "knowledge.search", {"query": "needle", "target": target}
+        )
+        missing_response = post_op(
+            client, "knowledge.search", {"query": "needle", "target": missing}
+        )
+    assert private_response.status_code == missing_response.status_code == 404
+    assert private_response.json() == missing_response.json()

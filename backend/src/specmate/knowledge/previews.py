@@ -166,7 +166,7 @@ def _inspect(data, file):
     raise ValueError
 
 
-def preview_attachment(user, payload):
+def _preview_attachment(user, payload):
     user = current_actor(user)
     item, entries, by_entry = get_item(user, payload.item_id)
     entry = next((e for e in entries if e.id == payload.entry_id), None)
@@ -213,6 +213,14 @@ def preview_attachment(user, payload):
     # Byte parsing may overlap a separately committed account/source revocation.
     get_item(current_actor(user), item.id)
     return {**result, "integrity": "original_sha256_and_size_verified", **preview}
+
+
+def preview_attachment(user, payload):
+    """Do not reveal whether a denied item/entry/source/attachment reference exists."""
+    try:
+        return _preview_attachment(user, payload)
+    except NotFound:
+        raise NotFound("Knowledge attachment not found.") from None
 
 
 @operation(
