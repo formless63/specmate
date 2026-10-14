@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "specmate.copper",
     "specmate.revision_upgrades",
     "specmate.facts",
+    "specmate.evidence.apps.EvidenceConfig",
     "specmate.knowledge.apps.KnowledgeConfig",
     "specmate.collaboration.apps.CollaborationConfig",
     "specmate.wire_stock",

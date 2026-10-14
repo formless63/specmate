@@ -1,0 +1,68 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kinds": {
+      "anyOf": [
+        {
+          "items": {
+            "enum": [
+              "requirement",
+              "source_claim",
+              "calculation",
+              "generated_check",
+              "review",
+              "physical_measurement",
+              "physical_observation",
+              "preference"
+            ],
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kinds"
+    },
+    "limit": {
+      "default": 50,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "default": 0,
+      "maximum": 10000,
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "subject_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subject Id"
+    }
+  },
+  "required": [
+    "project_id"
+  ],
+  "title": "ListEvidence",
+  "type": "object"
+}

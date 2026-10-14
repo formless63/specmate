@@ -84,6 +84,11 @@ def append_fact(ctx: Context, p: AppendFact):
         raise Conflict("Fact ledger changed.", details={"current_state": subject.state_token})
     if len(rows) >= MAX_ASSERTIONS:
         raise ValidationFailed("Fact ledger exceeds the supported limit.")
+    if p.fact.provenance.method == "measurement" and subject.kind != "physical_unit":
+        raise ValidationFailed(
+            "A physical measurement attaches only to an actual physical unit; "
+            "record a design-scope value as a source claim, review or calculation."
+        )
     sources, inputs = validate_evidence(ctx.user, p.fact)
     if p.fact.status == "conflicting":
         context = {

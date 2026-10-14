@@ -10,7 +10,7 @@ export type Numeric = { kind: "quantity" | "range" | "tolerance"; dimension: str
 export type Value = Numeric | { kind: "text"; text: string } | { kind: "boolean"; value: boolean };
 export type Evidence = { kind: "citation"; citation: string } | { kind: "source_file"; bundle_revision_id: string; path: string; locator?: string } | { kind: "assertion"; assertion_id: string };
 export type Fact = { property: string; status: Status; purpose: Purpose; role: Role; value: Value | null; conditions: { property: string; status: "known" | "unknown"; value: Value | null }[]; basis: string; provenance: { method: Method; evidence: Evidence[]; observed_at?: string | null; instrument?: string | null; procedure?: string | null; formula?: string | null; algorithm_version?: string | null } };
-export type Assertion = { assertion_id: string; subject_id: string; sequence: number; fact: Fact; canonical_value: Value | null; recorded_at: string; relation_to_design_state: "attached_evidence"; evidence_status: "declared" };
+export type Assertion = { assertion_id: string; subject_id: string; sequence: number; fact: Fact; canonical_value: Value | null; recorded_at: string; relation_to_design_state: "attached_evidence"; evidence_status: "declared"; evidence_kind?: string };
 export type Assessment = { status: Status; value: Value | null; assertion_ids: string[]; purpose?: Purpose; role?: Role; conditions?: Fact["conditions"]; reason?: string };
 export type Facts = Subject & { assertions: Assertion[]; assessments: Record<string, Assessment[]>; offset: number; limit: number; has_more: boolean };
 

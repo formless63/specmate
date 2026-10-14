@@ -45,14 +45,14 @@ test("an absent allowance stays unknown and is recorded without a guessed zero o
 test("conflicting dimensional assertions remain visible without a selected winner", async () => {
   const body = ledger();
   body.assessments = { width: [{ status: "conflicting", value: null, assertion_ids: ["first", "second"], purpose: "manufacturing", role: "nominal" }] };
-  body.assertions = ["10", "12"].map((magnitude, index) => ({ assertion_id: index ? "second" : "first", subject_id: "subject", sequence: index + 1, fact: { property: "width", status: "known", purpose: "manufacturing", role: "nominal", value: { kind: "quantity", dimension: "length", unit: "mm", magnitude }, conditions: [], basis: `Original synthetic source ${index + 1}`, provenance: { method: index ? "measurement" : "source_observation", evidence: [{ kind: "citation", citation: `Synthetic source ${index + 1}` }] } } as Fact, canonical_value: { kind: "quantity", dimension: "length", unit: "mm", magnitude }, recorded_at: "2026-01-01T12:00:00Z", relation_to_design_state: "attached_evidence", evidence_status: "declared" }));
+  body.assertions = ["10", "12"].map((magnitude, index) => ({ assertion_id: index ? "second" : "first", subject_id: "subject", sequence: index + 1, fact: { property: "width", status: "known", purpose: "manufacturing", role: "nominal", value: { kind: "quantity", dimension: "length", unit: "mm", magnitude }, conditions: [], basis: `Original synthetic source ${index + 1}`, provenance: { method: index ? "reviewed_association" : "source_observation", evidence: [{ kind: "citation", citation: `Synthetic source ${index + 1}` }] } } as Fact, canonical_value: { kind: "quantity", dimension: "length", unit: "mm", magnitude }, recorded_at: "2026-01-01T12:00:00Z", relation_to_design_state: "attached_evidence", evidence_status: "declared", evidence_kind: index ? "review" : "source_claim" }));
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
   render(wrap(<FactLedger subjectId="subject" />));
   fireEvent.change(screen.getByLabelText("Fact property"), { target: { value: "width" } });
   expect(await screen.findByText("width: conflicting")).toBeTruthy();
   expect(screen.getByText("Conflicting assertions retained; no value selected.")).toBeTruthy();
   expect(screen.getByText("10 mm")).toBeTruthy(); expect(screen.getByText("12 mm")).toBeTruthy();
-  expect(screen.getByText("known / source_observation")).toBeTruthy(); expect(screen.getByText("known / measurement")).toBeTruthy();
+  expect(screen.getByText("known / source_observation")).toBeTruthy(); expect(screen.getByText("known / reviewed_association")).toBeTruthy();
   expect(screen.getByText("Original synthetic source 1")).toBeTruthy(); expect(screen.getByText("Original synthetic source 2")).toBeTruthy();
 });
 
@@ -169,4 +169,15 @@ test("read-only permissions disable opening a new fact ledger but not reading ex
   cleanup();
   render(wrap(<PermissionsProvider permissions={["project.read", "design.edit"]}><FactsPanel projectId="project-1" /></PermissionsProvider>));
   expect(((await screen.findByRole("button", { name: "Open fact ledger" })) as HTMLButtonElement).disabled).toBe(false);
+});
+
+test("a design-scope ledger cannot choose the physical measurement method", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ledger()), { status: 200 })));
+  render(wrap(<FactLedger subjectId="subject" />));
+  await screen.findByText("Record assertion");
+  const input = screen.getByRole("combobox", { name: "Assertion method" });
+  fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" });
+  const options = screen.getByRole("listbox", { name: "Assertion method", hidden: true });
+  expect(within(options).queryByText("measurement", { exact: true })).toBeNull();
+  expect(within(options).getByText("calculation", { exact: true })).toBeTruthy();
 });

@@ -25,6 +25,7 @@ from specmate.collaboration.api import router as collaboration_router
 from specmate.contracts import OperationEnvelope
 from specmate.copper.api import router as copper_router
 from specmate.end_preparation.api import router as end_preparation_router
+from specmate.evidence.api import router as evidence_router
 from specmate.facts.api import router as facts_router
 from specmate.firmware_builds.api import router as firmware_builds_router
 from specmate.firmware_impact.api import router as firmware_impact_router
@@ -56,6 +57,7 @@ api.add_router("/v0/sources", sources_router)
 api.add_router("/v0/catalog-matching", matching_router)
 api.add_router("/v0/catalog-packs", packs_router)
 api.add_router("/v0/facts", facts_router)
+api.add_router("/v0/evidence", evidence_router)
 api.add_router("/v0/knowledge", knowledge_router)
 api.add_router("/v0/collaboration", collaboration_router)
 api.add_router("/v0/session", session_router)

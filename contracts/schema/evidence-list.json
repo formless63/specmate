@@ -1,0 +1,330 @@
+{
+  "$defs": {
+    "Basis": {
+      "additionalProperties": false,
+      "properties": {
+        "independently_verified": {
+          "default": false,
+          "title": "Independently Verified",
+          "type": "boolean"
+        },
+        "origin": {
+          "enum": [
+            "manual_entry",
+            "registered_source",
+            "assertion_inputs",
+            "human_review",
+            "instrument_record",
+            "tool_receipt",
+            "plan_declaration",
+            "unit_declaration",
+            "declared_preference"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "type": "string"
+          },
+          "title": "References",
+          "type": "array"
+        }
+      },
+      "required": [
+        "origin"
+      ],
+      "title": "Basis",
+      "type": "object"
+    },
+    "EvidenceItem": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actor Id"
+        },
+        "basis": {
+          "$ref": "#/$defs/Basis"
+        },
+        "conditions": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "does_not_establish": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Does Not Establish",
+          "type": "array"
+        },
+        "establishes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Establishes",
+          "type": "array"
+        },
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "requirement",
+            "source_claim",
+            "calculation",
+            "generated_check",
+            "review",
+            "physical_measurement",
+            "physical_observation",
+            "preference"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "kind_label": {
+          "title": "Kind Label",
+          "type": "string"
+        },
+        "method": {
+          "$ref": "#/$defs/MethodDetail"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "physical_qualification": {
+          "const": false,
+          "default": false,
+          "title": "Physical Qualification",
+          "type": "boolean"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "recorded_at": {
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "facts",
+            "builds",
+            "cable_test_plan",
+            "physical_units"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/SubjectRef"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "kind_label",
+        "source",
+        "project_id",
+        "subject",
+        "statement",
+        "status",
+        "method",
+        "basis",
+        "recorded_at",
+        "establishes",
+        "does_not_establish"
+      ],
+      "title": "EvidenceItem",
+      "type": "object"
+    },
+    "MethodDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Algorithm Version"
+        },
+        "formula": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Formula"
+        },
+        "instrument": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instrument"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "procedure": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Procedure"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "MethodDetail",
+      "type": "object"
+    },
+    "SubjectRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "design",
+            "actual",
+            "project"
+          ],
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "kind",
+        "id",
+        "label"
+      ],
+      "title": "SubjectRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "has_more": {
+      "title": "Has More",
+      "type": "boolean"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/EvidenceItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "limit": {
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "title": "Offset",
+      "type": "integer"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "scan_limit_reached": {
+      "default": false,
+      "title": "Scan Limit Reached",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "project_id",
+    "items",
+    "offset",
+    "limit",
+    "has_more"
+  ],
+  "title": "EvidenceList",
+  "type": "object"
+}

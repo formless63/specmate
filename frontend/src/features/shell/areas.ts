@@ -53,6 +53,7 @@ export const AREAS: AreaDef[] = [
   ] },
   { id: "evidence", label: "Evidence", key: "7", tools: [
     { id: "facts", label: "Facts" },
+    { id: "evidence-kinds", label: "Evidence kinds" },
     { id: "cable-test-intent", label: "Cable test intent" },
   ] },
 ];
