@@ -197,7 +197,7 @@ def _base(closure, option):
     path = tuple(option.path)
     node = closure.nodes[path]
     assigned = closure.assignments.get(path) or node.occurrence.assignments
-    return {
+    base = {
         "display_ref": node.occurrence.display_ref,
         "population_revision_id": str(node.revision.id),
         "population_snapshot_sha256": node.revision.snapshot.sha256,
@@ -205,6 +205,11 @@ def _base(closure, option):
             str(assigned.firmware_revision_id) if assigned.firmware_revision_id else None
         ),
     }
+    # The fitted option recorded on the occurrence (e.g. by an earlier adoption); absent
+    # when none is recorded, so resolutions without one keep their exact bytes.
+    if assigned.population_option_id is not None:
+        base["population_option_id"] = assigned.population_option_id
+    return base
 
 
 def resolve(reader, configuration):

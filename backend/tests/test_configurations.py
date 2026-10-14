@@ -753,6 +753,88 @@ def test_firmware_target_rule_compares_declared_and_chosen_population(
     )
 
 
+def recorded_option_target(users, project, board, first, option_id):  # noqa: F811
+    """A frozen two-level assembly whose board occurrence records a fitted option."""
+    module = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "workspace_id": workspace_of(project),
+            "name": f"Synthetic module fitted {option_id}",
+            "assembly": {
+                "occurrences": [
+                    {
+                        "local_id": "board",
+                        "display_ref": "A1",
+                        "revision_id": board[0]["revision_id"],
+                        "assignments": {
+                            "firmware_revision_id": first["revision_id"],
+                            "population_option_id": option_id,
+                        },
+                    }
+                ]
+            },
+        },
+    )
+    module_revision = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": module["draft_id"]},
+        expected_state=module["state"],
+    )
+    assembly = op(
+        users["owner"],
+        "assembly.create",
+        {
+            "workspace_id": workspace_of(project),
+            "name": f"Synthetic controllers fitted {option_id}",
+            "assembly": {
+                "occurrences": [
+                    {
+                        "local_id": local,
+                        "display_ref": "A1",
+                        "revision_id": module_revision["revision_id"],
+                    }
+                    for local in ("left", "right")
+                ]
+            },
+        },
+    )
+    return op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=assembly["state"],
+    )
+
+
+def test_firmware_target_rule_reads_the_occurrence_recorded_population_option(
+    users,
+    project,
+    sources,  # noqa: F811
+    board,  # noqa: F811
+    pair,  # noqa: F811
+):
+    _, first, _ = pair
+    # No population choice: the occurrence's recorded fitted option decides instead of
+    # leaving the comparison unknown.
+    target = recorded_option_target(users, project, board, first, "default")
+    rule, preview = firmware_target_results(users, project, target, first, [])
+    decision = next(
+        d for d in preview["resolution"]["decisions"] if d["option_key"] == "right-firmware"
+    )
+    assert decision["base"]["population_option_id"] == "default"
+    assert rule["outcome"] == "valid"
+    assert [r["code"] for r in rule["reasons"] if r["level"] == "fact"][-1] == "target_matches"
+
+    target = recorded_option_target(users, project, board, first, "no-mcu")
+    rule, _ = firmware_target_results(users, project, target, first, [])
+    assert rule["outcome"] == "invalid"
+    assert [r["code"] for r in rule["reasons"] if r["level"] == "fact"][-1] == (
+        "target_option_mismatch"
+    )
+
+
 def decision(**changes):
     base = {
         "option_key": "fw",
@@ -784,6 +866,18 @@ def test_firmware_target_rule_reports_mismatch_and_undeclared_sides():
     undeclared["choice"]["declared_target"] = {"population_revision_id": None, "option_id": None}
     assert run(undeclared) == "unknown"
     assert run(decision(base=None)) == "unknown"
+    # A recorded fitted option on the occurrence decides an option-specific declaration.
+    declares = decision()
+    declares["choice"]["declared_target"] = {"population_revision_id": "p1", "option_id": "a"}
+    assert run(declares) == "unknown"
+    assert (
+        run({**declares, "base": {"population_revision_id": "p1", "population_option_id": "a"}})
+        == "valid"
+    )
+    assert (
+        run({**declares, "base": {"population_revision_id": "p1", "population_option_id": "b"}})
+        == "invalid"
+    )
     assert run(decision(status="unresolved", choice=None)) == "unknown"
     assert run(decision(status="none", choice=None)) == "not_evaluated"
     population = {

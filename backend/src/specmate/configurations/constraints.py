@@ -373,8 +373,10 @@ def _firmware_target_rule(option, by_key):
         option_id = population["choice"].get("population_option_id")
         origin = f"chosen by {population['option_key']}"
     else:
-        revision_id = (option["base"] or {}).get("population_revision_id")
-        option_id = None
+        base = option["base"] or {}
+        revision_id = base.get("population_revision_id")
+        # The occurrence's recorded fitted option, if any; unrecorded stays unknown.
+        option_id = base.get("population_option_id")
         origin = "of the target assembly occurrence (no population choice)"
     want = declared.get("population_revision_id")
     if want is None:
