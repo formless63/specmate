@@ -15,7 +15,14 @@ from django.utils import timezone
 
 from specmate.access.models import Installation, WorkspaceMember
 from specmate.builds.dispatch import ack_outbox, ready_outbox, record_dispatch_failure
-from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageEvent, StageOutput
+from specmate.builds.models import (
+    BuildAttempt,
+    BuildOutbox,
+    BuildReuse,
+    BuildStage,
+    StageEvent,
+    StageOutput,
+)
 from specmate.builds.operations import authenticate_runner
 from specmate.builds.recipes import MAX_ARG_BYTES
 from specmate.operations import (
@@ -910,3 +917,110 @@ def test_disabled_adapter_refuses_new_builds_but_keeps_earlier_evidence(
     response = client.get(f"{base}/outputs/{output['output_id']}")
     assert response.status_code == 200
     assert b"".join(response.streaming_content) == OUTPUT
+
+
+def _succeeded_build(users, build, credential, lease):
+    output = upload(credential, lease)
+    runner_op(credential, "runner.complete", success_receipt(lease))
+    return output
+
+
+def test_identical_request_is_offered_a_succeeded_result_and_reuse_is_recorded(
+    users, workspace, build_payload, credential, lease, build
+):
+    assert op(users["owner"], "build.find_reusable", build_payload)["reusable"] is None
+    output = _succeeded_build(users, build, credential, lease)
+    offer = op(users["owner"], "build.find_reusable", build_payload)["reusable"]
+    assert offer["build_id"] == build["build_id"]
+    assert [o["sha256"] for o in offer["outputs"]] == [digest(OUTPUT)]
+    reused = op(
+        users["owner"], "build.reuse", {**build_payload, "result_build_id": build["build_id"]}
+    )
+    again = op(
+        users["owner"], "build.reuse", {**build_payload, "result_build_id": build["build_id"]}
+    )
+    assert reused["reuse_id"] == again["reuse_id"]
+    assert BuildReuse.objects.count() == 1
+    assert BuildAttempt.objects.count() == 1
+    read = op(
+        users["viewer"],
+        "build.reuse_output",
+        {"reuse_id": reused["reuse_id"], "output_id": output["output_id"]},
+    )
+    assert read["sha256"] == digest(OUTPUT)
+
+
+def test_revoked_user_cannot_retrieve_a_result_through_a_reuse_link(
+    users, workspace, build_payload, credential, lease, build
+):
+    output = _succeeded_build(users, build, credential, lease)
+    reused = op(
+        users["owner"], "build.reuse", {**build_payload, "result_build_id": build["build_id"]}
+    )
+    payload = {"reuse_id": reused["reuse_id"], "output_id": output["output_id"]}
+    client = Client()
+    client.force_login(users["owner"])
+    url = f"/api/v0/builds/reuse/{reused['reuse_id']}/outputs/{output['output_id']}"
+    assert client.get(url).status_code == 200
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["owner"]).delete()
+    assert client.get(url).status_code == 404
+    with pytest.raises(NotFound):
+        op(users["owner"], "build.reuse_output", payload)
+    with pytest.raises(NotFound):
+        op(users["owner"], "build.find_reusable", build_payload)
+
+
+def test_incomplete_or_mismatched_attempts_are_never_offered(
+    users, workspace, build_payload, recipe, settings, credential, lease, build
+):
+    # Partial output on a still-running attempt, then a failed attempt: neither is reusable.
+    upload(credential, lease)
+    assert op(users["owner"], "build.find_reusable", build_payload)["reusable"] is None
+    runner_op(
+        credential,
+        "runner.complete",
+        {
+            **fence(lease),
+            "outcome": "failed",
+            "exit_code": 1,
+            "outputs": [{"path": "result.txt", "sha256": digest(OUTPUT)}],
+        },
+    )
+    assert op(users["owner"], "build.find_reusable", build_payload)["reusable"] is None
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            "build.reuse",
+            {**build_payload, "result_build_id": build["build_id"]},
+        )
+
+
+def test_changed_recipe_digest_or_limits_are_not_offered_a_prior_result(
+    users, build_payload, recipe, settings, credential, lease, build
+):
+    _succeeded_build(users, build, credential, lease)
+    assert op(users["owner"], "build.find_reusable", build_payload)["reusable"] is not None
+    changed = {**recipe, "limits": {**recipe["limits"], "timeout_seconds": 61}}
+    settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: changed}
+    assert op(users["owner"], "build.find_reusable", build_payload)["reusable"] is None
+    changed = {**recipe, "image": "example.invalid/test@sha256:" + "2" * 64}
+    settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: changed}
+    assert op(users["owner"], "build.find_reusable", build_payload)["reusable"] is None
+
+
+def test_reuse_is_never_shared_across_workspaces(
+    users, workspace, other_workspace, build_payload, credential, lease, build
+):
+    _succeeded_build(users, build, credential, lease)
+    # The foreign workspace's admin cannot see the source revision, hence no offer or link.
+    with pytest.raises(NotFound):
+        op(
+            users["outsider"],
+            "build.reuse",
+            {
+                **build_payload,
+                "workspace_id": other_workspace,
+                "result_build_id": build["build_id"],
+            },
+        )
+    assert not BuildReuse.objects.exists()

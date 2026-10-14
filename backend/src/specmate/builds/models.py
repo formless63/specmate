@@ -163,3 +163,29 @@ class StageEvent(models.Model):
     kind = models.CharField(max_length=40)
     detail = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class BuildReuse(models.Model):
+    """An explicit, requester-recorded link to an earlier succeeded attempt's result.
+
+    The link grants nothing: every read rechecks current authority on the original
+    attempt's workspace. It is never created across workspaces.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    project = models.ForeignKey(
+        "access.Project", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    reused_build = models.ForeignKey(BuildAttempt, on_delete=models.PROTECT, related_name="reuses")
+    source_revision = models.ForeignKey("sources.SourceBundleRevision", on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["requested_by", "reused_build", "source_revision"],
+                name="build_reuse_once_per_request_shape",
+            ),
+        ]
