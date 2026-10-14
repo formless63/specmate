@@ -10,10 +10,12 @@ from pydantic import ValidationError
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import get_snapshot
 from specmate.builds.models import BuildAttempt
-from specmate.builds.operations import RequestBuild, request_build, stage_result
+from specmate.builds.operations import BuildRef, RequestBuild, request_build, stage_result
 from specmate.builds.recipes import Recipe, approved_recipe
 from specmate.builds.recovery import _actions as stage_actions
+from specmate.builds.recovery import _build_scope as build_scope
 from specmate.builds.recovery import _lineage as lineage
+from specmate.builds.recovery import reproduce_build
 from specmate.builds.rights import derive_output_rights
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
@@ -21,6 +23,7 @@ from specmate.firmware_builds.contracts import (
     CompileRef,
     CompileReport,
     FirmwareRef,
+    ReproduceCompile,
     RequestCompile,
 )
 from specmate.firmware_builds.pack import (
@@ -230,6 +233,40 @@ def request(ctx, p):
         ).model_dump(mode="json"),
         "build_id": result["build_id"],
     }
+    return {**result, "reference": reference, "source_execution_authorized": True, "basis": p.basis}
+
+
+def reproduce_replay(ctx, p, stored):
+    retained(ctx, stored)
+    if not BuildAttempt.objects.filter(
+        id=stored["build_id"], reproduction_of_id=p.build_id
+    ).exists():
+        raise NotFound("Compiler build unavailable.")
+
+
+@operation(
+    "firmware_build.reproduce",
+    ReproduceCompile,
+    status="accepted_async",
+    requires_expected_state=True,
+    idempotency_scope=lambda ctx, p: build_scope(ctx, p),
+    authorize_replay=reproduce_replay,
+    summary="Request a reproducibility check of an accepted compile: a new independent attempt "
+    "over its exact inputs, with explicit source-execution consent; no flashing.",
+    access=Perm.BUILD_EXECUTE,
+)
+def reproduce(ctx, p):
+    ref = CompileRef.model_validate(p.model_dump(include=set(CompileRef.model_fields)))
+    _, _, build = scoped_build(ctx, ref, Perm.BUILD_EXECUTE)
+    # The same consent path as firmware_build.request: current exact inputs and approval.
+    _, _, spec, source = executable_inputs(ctx.user, ref, Perm.BUILD_EXECUTE)
+    checked_recipe(spec, approved_recipe(build.recipe_id))
+    token = _REQUEST.set((source.id, build.recipe_id))
+    try:
+        result = reproduce_build(ctx, BuildRef(build_id=build.id))
+    finally:
+        _REQUEST.reset(token)
+    reference = {**ref.model_dump(mode="json"), "build_id": result["build_id"]}
     return {**result, "reference": reference, "source_execution_authorized": True, "basis": p.basis}
 
 
