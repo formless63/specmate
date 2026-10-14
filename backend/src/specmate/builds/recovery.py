@@ -26,6 +26,7 @@ from specmate.builds.operations import (
     stage_result,
 )
 from specmate.builds.recipes import approved_recipe
+from specmate.builds.rights import derive_for_record
 from specmate.operations import Conflict, NotFound, ValidationFailed, operation
 from specmate.operations.scope import WorkspaceProjectPayload, workspace_scope
 from specmate.sources.models import SourceBundleRevision
@@ -229,6 +230,12 @@ def history(ctx, p: HistoryRead) -> dict:
         "recipe_id": build.recipe_id,
         "source_revision_id": str(build.source_revision_id),
         "configuration": build.configuration_input,
+        # Per-file rights as staged (null only for attempts recorded before this existed),
+        # and the conservative rights an output of these inputs carries.
+        "staged_inputs": build.staged_inputs,
+        "output_rights": dict(
+            zip(("rights", "basis"), derive_for_record(build.staged_inputs), strict=True)
+        ),
         "requested_at": build.created_at.isoformat(),
         "retry_of": str(build.retry_of_id) if build.retry_of_id else None,
         "retried_by": str(retried.id) if retried else None,
@@ -249,6 +256,7 @@ def history(ctx, p: HistoryRead) -> dict:
                 "path": o.path,
                 "sha256": o.sha256,
                 "size": o.size,
+                "rights": o.rights,
                 "accepted": stage.state == "succeeded",
             }
             for o in stage.outputs.order_by("path")

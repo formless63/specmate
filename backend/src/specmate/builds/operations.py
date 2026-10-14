@@ -38,6 +38,7 @@ from specmate.builds.recipes import (
     approved_recipe,
     check_file_tree,
 )
+from specmate.builds.rights import derive_for_record, staged_input_record
 from specmate.contracts import SHA256, check_package_path
 from specmate.operations import (
     Conflict,
@@ -241,9 +242,7 @@ def _create_attempt(
         check_file_tree([entry["path"] for entry in inputs])
     except ValueError:
         raise ValidationFailed("Source bundle has a file/directory path collision.") from None
-    source_rights = set(source.files.values_list("rights", flat=True))
-    if any(source_rights != {output.rights} for output in recipe.outputs):
-        raise ValidationFailed("Output rights must preserve the declared source rights.")
+    staged_inputs = staged_input_record(source.files.select_related("blob"))
     if retry_of is not None:
         # A retry reuses the original attempt's exact retained configuration input.
         configuration = retry_of.configuration_input
@@ -263,6 +262,7 @@ def _create_attempt(
             configuration["resolved_configuration_id"] if configuration else None
         ),
         configuration_input=configuration,
+        staged_inputs=staged_inputs,
     )
     stage = BuildStage.objects.create(build=build)
     BuildOutbox.objects.create(build=build)
@@ -672,6 +672,12 @@ class RegisterOutput(StageLease):
         return check_package_path(value)
 
 
+def _staged_inputs(build: BuildAttempt) -> list[dict]:
+    if build.staged_inputs is not None:
+        return build.staged_inputs
+    return staged_input_record(build.source_revision.files.select_related("blob"))
+
+
 def _output_result(output: StageOutput) -> dict:
     return {
         "output_id": str(output.id),
@@ -693,8 +699,8 @@ def _output_result(output: StageOutput) -> dict:
 def register_output(ctx: Context, p: RegisterOutput) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)
     spec = next((o for o in stage.build.recipe["outputs"] if o["path"] == p.path), None)
-    if spec is None or spec["media_type"] != p.media_type or spec["rights"] != p.rights:
-        raise ValidationFailed("Output path, type and rights must match the approved recipe.")
+    if spec is None or spec["media_type"] != p.media_type:
+        raise ValidationFailed("Output path and type must match the approved recipe.")
     if stage.build.source_revision_id != p.source_revision_id:
         raise ValidationFailed("Output source association does not match the leased revision.")
     previous = StageOutput.objects.filter(stage=stage, path=p.path).first()
@@ -727,7 +733,8 @@ def register_output(ctx: Context, p: RegisterOutput) -> dict:
         sha256=p.sha256,
         size=p.size,
         media_type=p.media_type,
-        rights=p.rights,
+        # Server-derived from the staged inputs; the runner's claim is not trusted or gated.
+        rights=derive_for_record(_staged_inputs(stage.build))[0],
         source_revision_id=p.source_revision_id,
     )
     _event(stage, "output_verified", output_id=str(output.id), sha256=p.sha256)

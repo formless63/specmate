@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 
+from specmate.builds.rights import derive_output_rights
 from specmate.firmware_builds.native_script import SCRIPT
 from specmate.operations import Unsupported
 
@@ -55,8 +56,6 @@ def supported(firmware):
         raise Unsupported(
             "External build scripts/configuration cannot be silently ignored by this profile."
         )
-    if len({f["rights"] for f in files}) != 1:
-        raise Unsupported("Mixed output rights require a reviewed rights-composition profile.")
     for entry in firmware["configuration"]:
         if (
             entry["status"] != "known"
@@ -80,7 +79,7 @@ def recipe_for(spec, image):
         raise Unsupported(
             "This exact compiler input manifest exceeds its bounded argument envelope."
         )
-    rights = spec["sources"][0]["files"][0]["rights"]
+    rights = derive_output_rights(f["rights"] for f in spec["sources"][0]["files"])[0]
     return {
         "id": recipe_id(spec),
         "image": image,
