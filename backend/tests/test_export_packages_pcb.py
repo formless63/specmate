@@ -76,6 +76,7 @@ def test_fabrication_outputs_cite_the_pinned_board_and_count_repeated_boards(
     assert board["scope_quantity"] == {"status": "known", "amount": 10, "per_root": 2}
     assert [c["revision_id"] for c in board["cited_revisions"]] == [population["revision_id"]]
     assert board["manufacturing_approval"] is False
+    assert board["reproducibility"]["level"] == "provenance"
     assert picture["kind"] == "scene_drawing" and picture["scale"] == "not_established"
     assert picture["cited_revisions"][0]["revision_id"] == root["revision_id"]
     _, files = download(users["viewer"], payload, reviewed)

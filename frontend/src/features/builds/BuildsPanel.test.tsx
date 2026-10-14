@@ -3,9 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
 import { BuildsPanel } from './BuildsPanel';
-import { abandonBuild, cancelBuild, listBuilds, readHistory, retryBuild, type BuildHistory } from './api';
+import { abandonBuild, cancelBuild, listBuilds, readHistory, reproduceBuild, retryBuild, type BuildHistory, type PinnedTool } from './api';
 
-vi.mock('./api', () => ({ listBuilds: vi.fn(), readHistory: vi.fn(), cancelBuild: vi.fn(), retryBuild: vi.fn(), abandonBuild: vi.fn() }));
+vi.mock('./api', () => ({ listBuilds: vi.fn(), readHistory: vi.fn(), cancelBuild: vi.fn(), retryBuild: vi.fn(), abandonBuild: vi.fn(), reproduceBuild: vi.fn() }));
 
 const summary = (id: string, state: string, retryOf: string | null = null) => ({
   build_id: id, stage_id: `stage-${id}`, state, state_token: 'stage-v3', terminal: false, cancellation_requested: false,
@@ -29,6 +29,58 @@ beforeEach(() => {
   vi.mocked(cancelBuild).mockResolvedValue({});
   vi.mocked(retryBuild).mockResolvedValue({ build_id: 'build-b' });
   vi.mocked(abandonBuild).mockResolvedValue({});
+  vi.mocked(reproduceBuild).mockResolvedValue({ build_id: 'build-r', reproduction_of: 'build-a' });
+});
+
+const pinned: PinnedTool = {
+  recipe_id: 'synthetic-check-r1', image: `example.invalid/tool@sha256:${'1'.repeat(64)}`, image_digest: `sha256:${'1'.repeat(64)}`,
+  argv: ['/tool', '/inputs/a.txt'], network: 'none', resolved_image_id: null,
+  limits: { cpus: 1, memory_bytes: 64 * 1024 ** 2, timeout_seconds: 60, pids: 16, max_output_bytes: 1024 },
+};
+const accepted = (over: Partial<BuildHistory> = {}) => history({
+  state: 'succeeded', cancel_available: false, reproduce_available: true, pinned,
+  receipt: { outcome: 'succeeded', exit_code: 0, message: 'Tool execution completed', outputs: [{ path: 'result.txt', sha256: 'abc' }] },
+  outputs: [{ path: 'result.txt', sha256: 'abc', size: 4, rights: 'MIT', accepted: true, reproducibility: 'provenance' }],
+  reproducibility: { level: 'provenance', outputs: { 'result.txt': { level: 'provenance', attempts_compared: 0, comparators: [] } } },
+  comparisons: [], ...over,
+});
+
+test('a single tool success shows provenance only, never byte-identical, with its exact tool pin', async () => {
+  vi.mocked(readHistory).mockResolvedValue(accepted());
+  await open();
+  expect(screen.getAllByText('provenance only').length).toBe(2);
+  expect(screen.queryByText('byte-identical')).toBeNull();
+  expect(screen.getByText(/No repeated execution has been compared/)).toBeTruthy();
+  expect(screen.getByText(/Tool pin/)).toBeTruthy();
+  expect(screen.getByText(/resolved image not reported/)).toBeTruthy();
+  expect(screen.getByText(/60s · network none/)).toBeTruthy();
+});
+
+test('byte-identical is shown only from a recorded comparison with another attempt', async () => {
+  vi.mocked(readHistory).mockResolvedValue(accepted({
+    outputs: [{ path: 'result.txt', sha256: 'abc', size: 4, rights: 'MIT', accepted: true, reproducibility: 'byte_reproducible' }],
+    reproducibility: { level: 'byte_reproducible', outputs: { 'result.txt': { level: 'byte_reproducible', attempts_compared: 1, comparators: [] } } },
+    comparisons: [{ path: 'result.txt', other_build_id: 'build-r', byte_identical: true, comparator: null, result: 'not_needed', level: 'byte_reproducible', this_sha256: 'abc', other_sha256: 'abc', recorded_at: 't2' }],
+  }));
+  await open();
+  expect(screen.getAllByText('byte-identical').length).toBe(2);
+  expect(screen.getByText('build-r')).toBeTruthy();
+  expect(screen.getByText('identical')).toBeTruthy();
+});
+
+test('a reproducibility check needs build.execute and opens the new attempt', async () => {
+  vi.mocked(readHistory).mockResolvedValue(accepted());
+  render(panel(['workspace.read']));
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' }));
+  const denied = await screen.findByRole('button', { name: 'Request reproducibility check' }) as HTMLButtonElement;
+  expect(denied.disabled).toBe(true);
+  cleanup();
+  await open();
+  vi.mocked(readHistory).mockResolvedValue(history({ build_id: 'build-r', state: 'waiting_dispatch', reproduction_of: 'build-a' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Request reproducibility check' }));
+  await waitFor(() => expect(reproduceBuild).toHaveBeenCalledWith('build-a', 'stage-v3', expect.any(String)));
+  await screen.findByText('Build build-r');
+  expect(screen.getByText('Reproducibility check of build-a')).toBeTruthy();
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 

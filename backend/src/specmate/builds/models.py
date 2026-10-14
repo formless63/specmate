@@ -36,6 +36,15 @@ class BuildAttempt(models.Model):
     # Exact per-file record (path, hash, size, type, per-file rights) of the staged inputs,
     # retained at request time. Null only for attempts recorded before it existed.
     staged_inputs = models.JSONField(null=True)
+    # Digest of the exact staged inputs, pinned recipe and configuration input (BLD-006).
+    # Attempts with equal keys are repeated executions over identical inputs; null only
+    # for attempts recorded before staged inputs were retained, which are never compared.
+    input_key = models.CharField(max_length=64, null=True, db_index=True)  # noqa: DJ001
+    # A deliberate reproducibility check: a new attempt over the exact inputs of an
+    # accepted build. Unlike a retry it does not replace the earlier attempt.
+    reproduction_of = models.ForeignKey(
+        "self", null=True, on_delete=models.PROTECT, related_name="reproductions"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -54,6 +63,14 @@ class BuildAttempt(models.Model):
                 fields=["retry_of"],
                 condition=models.Q(retry_of__isnull=False),
                 name="build_attempt_single_retry",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(retry_of__isnull=True) | models.Q(reproduction_of__isnull=True),
+                name="build_attempt_retry_or_reproduction",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(reproduction_of=models.F("id")),
+                name="build_attempt_not_own_reproduction",
             ),
         ]
 
@@ -163,3 +180,56 @@ class StageEvent(models.Model):
     kind = models.CharField(max_length=40)
     detail = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ReproducibilityComparison(models.Model):
+    """Append-only comparison of one output path between two accepted attempts.
+
+    Both attempts executed independently over the same ``input_key`` (identical staged
+    inputs, pinned recipe and configuration). Byte identity is decided by hash and size;
+    otherwise a declared comparator, when one applies to the media type, records whether
+    the outputs are semantically equal. Nothing here is ever updated or deleted.
+    """
+
+    class Result(models.TextChoices):
+        NOT_NEEDED = "not_needed"  # bytes identical; no comparator was applied
+        EQUAL = "equal"
+        DIFFERENT = "different"
+        UNREADABLE = "unreadable"  # the comparator could not interpret the bytes
+        NONE_DECLARED = "none_declared"  # no comparator is declared for this media type
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    input_key = models.CharField(max_length=64)
+    baseline = models.ForeignKey(BuildAttempt, on_delete=models.PROTECT, related_name="+")
+    candidate = models.ForeignKey(BuildAttempt, on_delete=models.PROTECT, related_name="+")
+    path = models.CharField(max_length=512)
+    media_type = models.CharField(max_length=200)
+    baseline_sha256 = models.CharField(max_length=64)
+    candidate_sha256 = models.CharField(max_length=64)
+    byte_identical = models.BooleanField()
+    comparator = models.CharField(max_length=64, blank=True)
+    result = models.CharField(max_length=16, choices=Result.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["baseline", "candidate", "path"], name="repro_comparison_unique"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(baseline=models.F("candidate")),
+                name="repro_comparison_independent",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(byte_identical=True, result="not_needed", comparator="")
+                | (models.Q(byte_identical=False) & ~models.Q(result="not_needed")),
+                name="repro_comparison_result",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(result__in=["equal", "different", "unreadable"])
+                & ~models.Q(comparator="")
+                | models.Q(result__in=["not_needed", "none_declared"], comparator=""),
+                name="repro_comparison_comparator",
+            ),
+        ]

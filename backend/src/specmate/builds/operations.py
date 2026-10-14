@@ -38,6 +38,7 @@ from specmate.builds.recipes import (
     approved_recipe,
     check_file_tree,
 )
+from specmate.builds.reproducibility import derive, input_key, record_comparisons
 from specmate.builds.rights import derive_for_record, staged_input_record
 from specmate.contracts import SHA256, check_package_path
 from specmate.operations import (
@@ -117,6 +118,25 @@ def stage_result(stage: BuildStage) -> dict:
         "terminal": stage.state in TERMINAL or stage.state == "interrupted",
         "lease_expires_at": stage.lease_expires_at.isoformat() if stage.lease_expires_at else None,
         "cancellation_requested": stage.cancellation_requested_at is not None,
+    }
+
+
+def pinned_tool(build: BuildAttempt, stage: BuildStage) -> dict:
+    """The exact tool pin recorded at request time, never the current approval.
+
+    ``resolved_image_id`` is the local content-addressed image the runner reported for
+    the execution (null when no runner reported one); the digest remains the pin.
+    """
+    recipe = build.recipe
+    receipt = stage.receipt or {}
+    return {
+        "recipe_id": build.recipe_id,
+        "image": recipe["image"],
+        "image_digest": recipe["image"].rsplit("@", 1)[-1],
+        "argv": recipe["argv"],
+        "limits": recipe["limits"],
+        "network": recipe.get("network", "none"),
+        "resolved_image_id": receipt.get("image_id"),
     }
 
 
@@ -222,8 +242,10 @@ def _create_attempt(
     retry_of: BuildAttempt | None = None,
     project=None,
     configuration: dict | None = None,
+    reproduction_of: BuildAttempt | None = None,
 ) -> dict:
-    """Shared by first requests and deliberate retries; every attempt gets a new identity."""
+    """Shared by first requests, retries and reproducibility checks; every attempt gets a
+    new identity."""
     from specmate.firmware_builds.operations import authorize_request
 
     authorize_request(ctx, p, recipe)
@@ -243,21 +265,28 @@ def _create_attempt(
     except ValueError:
         raise ValidationFailed("Source bundle has a file/directory path collision.") from None
     staged_inputs = staged_input_record(source.files.select_related("blob"))
-    if retry_of is not None:
-        # A retry reuses the original attempt's exact retained configuration input.
-        configuration = retry_of.configuration_input
+    basis = retry_of or reproduction_of
+    if basis is not None:
+        # A retry or reproducibility check reuses the exact retained configuration input.
+        configuration = basis.configuration_input
+    recipe_record = recipe.model_dump(mode="json")
+    key = input_key(staged_inputs, recipe_record, configuration)
+    if reproduction_of is not None and key != reproduction_of.input_key:
+        raise Conflict("The staged inputs differ from the accepted build; nothing was requested.")
     build_id = uuid.uuid4()
     build = BuildAttempt.objects.create(
         id=build_id,
         workspace=workspace,
         # Optional navigation context; a retry keeps the original attempt's context.
-        project=retry_of.project if retry_of else project,
+        project=basis.project if basis else project,
         requested_by=ctx.user,
         source_revision=source,
         recipe_id=recipe.id,
-        recipe=recipe.model_dump(mode="json"),
+        recipe=recipe_record,
         workflow_id=f"specmate-build-{build_id}",
         retry_of=retry_of,
+        reproduction_of=reproduction_of,
+        input_key=key,
         resolved_configuration_id=(
             configuration["resolved_configuration_id"] if configuration else None
         ),
@@ -271,6 +300,7 @@ def _create_attempt(
         "requested",
         request_id=ctx.request_id,
         **({"retry_of": str(retry_of.id)} if retry_of else {}),
+        **({"reproduction_of": str(reproduction_of.id)} if reproduction_of else {}),
     )
     return {**stage_result(stage), "workflow_id": build.workflow_id}
 
@@ -344,7 +374,13 @@ def get_build(ctx: Context, p: BuildRef) -> dict:
     stage = _stage_for_build(p.build_id)
     authorize(ctx.user, stage.build.workspace_id, Perm.WORKSPACE_READ)
     _authorize_compiler_read(ctx, stage)
-    return {**stage_result(stage), "receipt": stage.receipt}
+    derived = derive(stage.build, stage)
+    return {
+        **stage_result(stage),
+        "receipt": stage.receipt,
+        "pinned": pinned_tool(stage.build, stage),
+        "reproducibility": derived["level"] if derived else None,
+    }
 
 
 class ArtifactRef(BuildRef):
@@ -367,7 +403,14 @@ def get_output(ctx: Context, p: ArtifactRef) -> dict:
     output = stage.outputs.filter(id=p.output_id).first()
     if output is None:
         raise NotFound("Accepted output not found.")
-    return {**_output_result(output), "media_type": output.media_type, "rights": output.rights}
+    derived = derive(stage.build, stage)
+    return {
+        **_output_result(output),
+        "media_type": output.media_type,
+        "rights": output.rights,
+        "pinned": pinned_tool(stage.build, stage),
+        "reproducibility": derived["outputs"][output.path],
+    }
 
 
 def _authorize_compiler_read(ctx, stage):
@@ -751,6 +794,8 @@ class CompleteStage(StageLease):
     exit_code: int | None = None
     outputs: list[ReceiptOutput] = Field(default_factory=list, max_length=1000)
     message: str = Field(default="", max_length=2000)
+    # Local content-addressed image ID the runner observed for this execution, if reported.
+    image_id: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
 
 
 @operation(
@@ -764,6 +809,8 @@ class CompleteStage(StageLease):
 def complete(ctx: Context, p: CompleteStage) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)
     receipt = p.model_dump(mode="json", exclude={"stage_id", "fencing_token"})
+    if receipt["image_id"] is None:
+        del receipt["image_id"]
     if stage.receipt is not None:
         if stage.receipt != receipt:
             raise Conflict("Stage already has a different terminal receipt.")
@@ -789,4 +836,7 @@ def complete(ctx: Context, p: CompleteStage) -> dict:
     stage.receipt = receipt
     _save(stage)
     _event(stage, "completed", outcome=p.outcome, exit_code=p.exit_code)
+    if p.outcome == "succeeded":
+        # Exit code zero alone is provenance; repeated accepted outputs are compared here.
+        record_comparisons(stage)
     return stage_result(stage)

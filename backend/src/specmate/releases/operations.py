@@ -310,7 +310,7 @@ def verify(ctx: Context, p: ReleaseRef):
             {k: release.request[k] for k in ExportRequest.model_fields if k in release.request}
         )
         get_revision(ctx.user, release.root_revision_id)
-        _, _, rebuilt = build_package(ctx, request)
+        _, _, rebuilt = build_package(ctx, request, as_of=release.released_at)
         reconstruction = "identical" if rebuilt == release.manifest_sha256 else "differs"
     except NotFound:
         reconstruction = "unavailable"

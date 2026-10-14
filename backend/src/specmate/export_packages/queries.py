@@ -20,6 +20,7 @@ from openpyxl.writer.excel import ExcelWriter
 
 from specmate.assemblies.queries import get_snapshot, occurrence_result
 from specmate.bom.queries import inspect_revision as inspect_bom
+from specmate.builds.reproducibility import derive as derive_reproducibility
 from specmate.cable_test_intent.queries import portable_package as test_package
 from specmate.cable_test_intent.queries import result as test_result
 from specmate.cables.queries import inspect_revision as inspect_cable
@@ -246,6 +247,7 @@ class Package:
         self.outputs = []
         self.unresolved = []
         self.rights_items = []
+        self.as_of = None
 
     def add(self, path, data, media_type, section, origin):
         if path in self.files:
@@ -271,6 +273,17 @@ def output_record(section, kind, ident, anchor, cited, findings, quantity=None, 
         "coherence": coherence,
         "findings": findings,
         **extra,
+    }
+
+
+def reproducibility(build, as_of):
+    """Derived BLD-006 level of an included build; one success is only provenance."""
+    derived = derive_reproducibility(build, build.stage, as_of=as_of)
+    if derived is None:
+        return {"level": "provenance", "outputs": {}}
+    return {
+        "level": derived["level"],
+        "outputs": {path: row["level"] for path, row in derived["outputs"].items()},
     }
 
 
@@ -743,6 +756,7 @@ def firmware_section(ctx, scope, package, p):
                 cited,
                 findings,
                 quantity,
+                reproducibility=reproducibility(build, package.as_of),
                 hardware_compatibility="not_evaluated",
                 flashing="not_performed",
                 device_operation="not_observed",
@@ -894,6 +908,7 @@ def pcb_section(ctx, scope, package, p):
                 cited,
                 findings,
                 quantity,
+                reproducibility=reproducibility(build, package.as_of),
                 drc_counts=report.drc_counts.model_dump(),
                 manufacturing_approval=False,
                 assembly_outputs="not_provided",
@@ -1107,10 +1122,12 @@ def review_document(manifest):
     ).encode()
 
 
-def build_package(ctx, p):
+def build_package(ctx, p, as_of=None):
+    """``as_of`` bounds reproducibility evidence, so a retained manifest rebuilds exactly."""
     user = current_actor(ctx.user)
     scope = Scope(user, p)
     package = Package()
+    package.as_of = as_of
     system_section(scope, package)
     spreadsheet_section(scope, package, p)
     cable_section(scope, package, p)

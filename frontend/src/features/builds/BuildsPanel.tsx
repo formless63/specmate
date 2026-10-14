@@ -1,9 +1,9 @@
 import { Alert, Button, Card, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { JOB_LED, SbJobCard, SbProvenance, SbStatus, type JobState } from '../../components/sb';
+import { JOB_LED, SbJobCard, SbProvenance, SbStatus, type JobState, type SbLed } from '../../components/sb';
 import { randomUUID } from '../../lib/random-id';
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
-import { abandonBuild, cancelBuild, listBuilds, readHistory, retryBuild, type BuildHistory, type BuildList } from './api';
+import { abandonBuild, cancelBuild, listBuilds, readHistory, reproduceBuild, retryBuild, type BuildHistory, type BuildList, type PinnedTool, type ReproducibilityLevel } from './api';
 
 const EXPLAIN: Record<string, string> = {
   waiting_dispatch: 'Recorded; not yet offered to a runner.',
@@ -17,6 +17,28 @@ const EXPLAIN: Record<string, string> = {
   cancelled: 'A runner confirmed the process stopped after a cancellation request.',
 };
 export const pretty = (value: string) => value.replaceAll('_', ' ');
+// Weakest first. Only independent repeated outputs move a build past provenance.
+const LEVEL: Record<ReproducibilityLevel, { words: string; led: SbLed; explain: string }> = {
+  provenance: { words: 'provenance only', led: 'not-evaluated', explain: 'Exact inputs, tool pin and outputs are recorded. No repeated execution has been compared, so nothing about reproducibility is established.' },
+  rerun_recorded: { words: 'rerun recorded', led: 'review', explain: 'Another accepted attempt over the identical inputs exists, but its outputs differ and no declared comparator found them equal.' },
+  semantic_equality: { words: 'semantic equality', led: 'info', explain: 'Repeated outputs differ in bytes but are equal under a declared comparator.' },
+  byte_reproducible: { words: 'byte-identical', led: 'active', explain: 'Independent repeated attempts over the identical inputs produced byte-identical outputs.' },
+};
+export function ReproLevel({ level }: { level: ReproducibilityLevel | null | undefined }) {
+  // Missing evidence is shown as not recorded, never as a level.
+  if (!level) return <SbStatus dimension='reproducibility' value='not recorded' led='off' />;
+  return <SbStatus dimension='reproducibility' value={LEVEL[level].words} led={LEVEL[level].led} />;
+}
+const bytes = (value: number) => value >= 1024 ** 2 ? `${(value / 1024 ** 2).toFixed(0)} MiB` : `${value} bytes`;
+function ToolPin({ pinned }: { pinned: PinnedTool | undefined }) {
+  if (!pinned) return <Text size="xs">The tool pin was not reported for this build.</Text>;
+  const l = pinned.limits;
+  return <SbProvenance label='Tool pin' summary={`${pinned.image_digest.slice(0, 19)}… · ${l.cpus} CPU · ${bytes(l.memory_bytes)} · ${l.timeout_seconds}s · network ${pinned.network} · ${pinned.resolved_image_id ? 'resolved image reported' : 'resolved image not reported'}`}
+    pins={[{ label: 'Image', value: pinned.image }, { label: 'Image digest', value: pinned.image_digest },
+      { label: 'Resolved image ID', value: pinned.resolved_image_id ?? 'not reported by the runner' },
+      { label: 'Arguments', value: JSON.stringify(pinned.argv) },
+      { label: 'Limits', value: `cpus ${l.cpus}, memory ${l.memory_bytes} bytes, timeout ${l.timeout_seconds} s, pids ${l.pids}, output ${l.max_output_bytes} bytes` }]} />;
+}
 // Only the runner-confirmed states map to terminal looks; interrupted and requested-cancellation stay in review.
 const JOB_STATE: Record<string, JobState> = { waiting_dispatch: 'queued', queued: 'queued', leased: 'running', running: 'running', succeeded: 'succeeded', failed: 'failed', cancelled: 'cancelled', interrupted: 'review', cancellation_requested: 'review' };
 export const jobState = (state: string): JobState => JOB_STATE[state] ?? 'review';
@@ -68,7 +90,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
   // The original requester may cancel their own build; anyone else needs the build.execute grant.
   // The server decides; this only avoids offering a control it would refuse.
   const canCancel = execute.allowed || Boolean(detail?.requested_by_viewer);
-  async function act(action: 'cancel' | 'retry' | 'abandon') {
+  async function act(action: 'cancel' | 'retry' | 'abandon' | 'reproduce') {
     if (!detail) return;
     const { build_id: id, state_token: token } = detail;
     const key = keyFor(action, id, token);
@@ -77,6 +99,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       let next: string | null = id;
       if (action === 'cancel') await cancelBuild(id, token, key);
       else if (action === 'retry') next = (await retryBuild(id, token, key)).build_id;
+      else if (action === 'reproduce') next = (await reproduceBuild(id, token, key)).build_id;
       else await abandonBuild(id, basis.trim(), token, key);
       keys.current.delete(`${action}:${id}:${token}`); setBasis('');
       await load(next);
@@ -95,11 +118,12 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
     <Group><Button variant="quiet" loading={busy} onClick={() => void load()}>Refresh builds</Button></Group>
     {error && <Alert color="red">{error}</Alert>}
     {list && list.builds.length === 0 && <Text>No builds have been requested in this project.</Text>}
-    {list && list.builds.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Build</Table.Th><Table.Th>State</Table.Th><Table.Th>Recipe</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
+    {list && list.builds.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Build</Table.Th><Table.Th>State</Table.Th><Table.Th>Recipe</Table.Th><Table.Th>Reproducibility</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
       {list.builds.map(b => <Table.Tr key={b.build_id}>
         <Table.Td><Text size="xs">{b.build_id}</Text>{b.retry_of && <Text size="xs">Retry of {b.retry_of}</Text>}</Table.Td>
         <Table.Td><SbStatus dimension='build' value={pretty(b.state)} {...JOB_LED[jobState(b.state)]} /></Table.Td>
         <Table.Td><Text size="xs">{b.recipe_id}</Text></Table.Td>
+        <Table.Td>{b.state === 'succeeded' ? <ReproLevel level={b.reproducibility} /> : <Text size="xs">no accepted outputs</Text>}</Table.Td>
         <Table.Td><Button variant="quiet" disabled={busy} onClick={() => void load(b.build_id)}>Inspect build {b.build_id}</Button></Table.Td>
       </Table.Tr>)}</Table.Tbody></Table>}
     {list?.truncated && <Text size="xs">Showing the latest 100 builds; earlier history is retained.</Text>}
@@ -107,6 +131,8 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       <Title order={4}>Build {detail.build_id}</Title>
       <SbJobCard title={detail.recipe_id} state={jobState(detail.state)} stateWords={pretty(detail.state)} dimension='build' detail={EXPLAIN[detail.state] ?? ''} />
       <SbProvenance label='Request' summary={`Recipe ${detail.recipe_id} · requested ${detail.requested_at}`} pins={[{ label: 'Source revision', value: detail.source_revision_id }]} />
+      <ToolPin pinned={detail.pinned} />
+      {detail.reproduction_of && <Text size="sm">Reproducibility check of {detail.reproduction_of}</Text>}
       <Lineage lineage={detail.lineage} retryOf={detail.retry_of} />
       {detail.configuration
         ? <SbProvenance label='Configuration' summary={`Resolved configuration · ${detail.configuration.choices.length} choices · ${detail.configuration.pins.length} pinned revisions`}
@@ -118,14 +144,24 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
         ? <Table><Table.Thead><Table.Tr><Table.Th>Staged input</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
           {detail.staged_inputs.map(i => <Table.Tr key={i.path}><Table.Td>{i.path}<Text size="xs">{i.bytes} bytes</Text></Table.Td><Table.Td><Text size="xs">{i.sha256}</Text></Table.Td><Table.Td>{i.rights}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
         : <Text size="xs">Per-file input rights were not recorded for this older build; output rights are unknown.</Text>}
+      {detail.state === 'succeeded' && <Stack gap={2} aria-label="Reproducibility">
+        <ReproLevel level={detail.reproducibility?.level} />
+        <Text size="xs">{detail.reproducibility ? LEVEL[detail.reproducibility.level].explain : 'Reproducibility evidence was not reported.'} A tool success is not engineering or physical qualification.</Text>
+        {(detail.comparisons ?? []).length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Compared output</Table.Th><Table.Th>Other attempt</Table.Th><Table.Th>Bytes</Table.Th><Table.Th>Comparator</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+          {(detail.comparisons ?? []).map(c => <Table.Tr key={`${c.path}:${c.other_build_id}`}><Table.Td>{c.path}</Table.Td><Table.Td><Text size="xs">{c.other_build_id}</Text></Table.Td>
+            <Table.Td>{c.byte_identical ? 'identical' : 'differ'}</Table.Td>
+            <Table.Td>{c.byte_identical ? 'not needed' : c.comparator ? `${c.comparator}: ${pretty(c.result)}` : 'none declared for this type'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
+      </Stack>}
       <Text size="xs">Output rights: {detail.output_rights.rights} ({detail.output_rights.basis === 'uniform' ? 'all inputs share these rights' : detail.output_rights.basis === 'most_restrictive' ? 'most restrictive input' : 'cannot be determined from the inputs'}).</Text>
-      {detail.outputs.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Verified output</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-        {detail.outputs.map(o => <Table.Tr key={o.path}><Table.Td>{o.path}<Text size="xs">{o.size} bytes</Text></Table.Td><Table.Td><Text size="xs">{o.sha256}</Text></Table.Td><Table.Td>{o.rights}</Table.Td><Table.Td>{o.accepted ? 'Accepted' : 'Retained evidence only; not an accepted artifact'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
+      {detail.outputs.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Verified output</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th><Table.Th>Status</Table.Th><Table.Th>Reproducibility</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+        {detail.outputs.map(o => <Table.Tr key={o.path}><Table.Td>{o.path}<Text size="xs">{o.size} bytes</Text></Table.Td><Table.Td><Text size="xs">{o.sha256}</Text></Table.Td><Table.Td>{o.rights}</Table.Td><Table.Td>{o.accepted ? 'Accepted' : 'Retained evidence only; not an accepted artifact'}</Table.Td>
+          <Table.Td>{o.accepted ? <ReproLevel level={o.reproducibility} /> : <Text size="xs">not applicable</Text>}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
       <Text size="sm">History</Text>
       <ol aria-label="Build events">{detail.events.map((e, i) => <li key={i}><Text size="xs">{e.at} · {pretty(e.kind)}{typeof e.detail.reason === 'string' ? ` · ${pretty(e.detail.reason)}` : ''}</Text></li>)}</ol>
       <Group>
         {detail.cancel_available && <Button variant="risk" {...(canCancel ? {} : execute.props)} disabled={!canCancel || busy} onClick={() => void act('cancel')}>Request cancellation</Button>}
         {detail.retry_available && <Button variant="primary" {...execute.props} disabled={!execute.allowed || busy} onClick={() => void act('retry')}>Retry as a new attempt</Button>}
+        {detail.reproduce_available && <Button variant="quiet" {...execute.props} disabled={!execute.allowed || busy} onClick={() => void act('reproduce')}>Request reproducibility check</Button>}
         {detail.retried_by && <Button variant="quiet" disabled={busy} onClick={() => void load(detail.retried_by)}>Open retry {detail.retried_by}</Button>}
       </Group>
       {detail.awaiting_runner_confirmation && !detail.abandon_available && <Text size="sm">Waiting for the runner to confirm termination or reconcile.</Text>}

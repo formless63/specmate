@@ -183,6 +183,10 @@ def test_firmware_outputs_are_packaged_with_hashes_handoff_and_rights(
     assert output["anchor"]["occurrence"]["path"] == ["right"]
     assert output["flashing"] == "not_performed" and output["physical_qualification"] is False
     assert output["hardware_compatibility"] == "not_evaluated"
+    # BLD-006: one accepted compile is provenance only, for the build and every file.
+    assert output["reproducibility"]["level"] == "provenance"
+    assert set(output["reproducibility"]["outputs"].values()) == {"provenance"}
+    assert set(output["reproducibility"]["outputs"]) == set(registered)
     # The root assembly occurs once, so three units are in scope for the exact occurrence.
     assert output["scope_quantity"] == {"status": "known", "amount": 3, "per_root": 1}
     statuses = {c["revision_id"]: c["status"] for c in output["cited_revisions"]}

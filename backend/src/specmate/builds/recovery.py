@@ -23,16 +23,26 @@ from specmate.builds.operations import (
     _event,
     _save,
     _stage_for_build,
+    pinned_tool,
     stage_result,
 )
 from specmate.builds.recipes import approved_recipe
+from specmate.builds.reproducibility import comparison_rows, comparisons_for, derive, levels_for
 from specmate.builds.rights import derive_for_record
 from specmate.operations import Conflict, NotFound, ValidationFailed, operation
 from specmate.operations.scope import WorkspaceProjectPayload, workspace_scope
 from specmate.sources.models import SourceBundleRevision
 
 # Event details safe for workspace readers; runner identities and fencing tokens are not.
-PUBLIC_EVENT_DETAIL = ("reason", "observed", "outcome", "exit_code", "retry_of", "sha256")
+PUBLIC_EVENT_DETAIL = (
+    "reason",
+    "observed",
+    "outcome",
+    "exit_code",
+    "retry_of",
+    "reproduction_of",
+    "sha256",
+)
 MAX_LINEAGE = 100
 LIST_LIMIT = 100
 
@@ -162,6 +172,55 @@ def retry_build(ctx, p: BuildRef) -> dict:
     return {**result, "retry_of": str(build.id)}
 
 
+@operation(
+    "build.reproduce",
+    BuildRef,
+    summary="Request a reproducibility check: a new independent attempt over the exact staged "
+    "inputs, pinned recipe and configuration of an accepted build.",
+    requires_expected_state=True,
+    status="accepted_async",
+    idempotency_scope=_build_scope,
+    authorize_replay=lambda ctx, p, stored: _reproduce_replay(ctx, p, stored),
+    access=Perm.BUILD_EXECUTE,
+)
+def reproduce_build(ctx, p: BuildRef) -> dict:
+    if not ctx.idempotency_key:
+        raise ValidationFailed("build.reproduce requires an idempotency key.")
+    stage = _stage_for_build(p.build_id)
+    build = stage.build
+    authorize(ctx.user, build.workspace_id, Perm.BUILD_EXECUTE)
+    _check_state(ctx, stage)
+    if stage.state != "succeeded":
+        raise Conflict(
+            "Only an accepted build can be checked for reproducibility.",
+            details=stage_result(stage),
+        )
+    if build.input_key is None:
+        raise Conflict("This build predates retained staged inputs; request a new build.")
+    recipe = approved_recipe(build.recipe_id)
+    if recipe.model_dump(mode="json") != build.recipe:
+        raise Conflict("The approved recipe changed; request a new build deliberately.")
+    source = SourceBundleRevision.objects.filter(
+        id=build.source_revision_id, bundle__workspace_id=build.workspace_id
+    ).first()
+    if source is None:
+        raise NotFound("Source revision not found.")
+    request = RequestBuild(
+        workspace_id=build.workspace_id, source_revision_id=source.id, recipe_id=recipe.id
+    )
+    result = _create_attempt(ctx, build.workspace, source, recipe, request, reproduction_of=build)
+    return {**result, "reproduction_of": str(build.id)}
+
+
+def _reproduce_replay(ctx, p, stored) -> None:
+    previous = BuildAttempt.objects.filter(id=p.build_id).first()
+    if previous is None:
+        raise NotFound("Build not found.")
+    authorize(ctx.user, previous.workspace_id, Perm.BUILD_EXECUTE)
+    if not BuildAttempt.objects.filter(id=stored["build_id"], reproduction_of=previous).exists():
+        raise NotFound("Build not found.")
+
+
 def _retry_replay(ctx, p, stored) -> None:
     previous = BuildAttempt.objects.filter(id=p.build_id).first()
     if previous is None:
@@ -200,6 +259,7 @@ def _actions(stage: BuildStage, retried: bool) -> dict:
         "cancel_available": stage.state not in TERMINAL and stage.cancellation_requested_at is None,
         "retry_available": stage.state in {"failed", "cancelled"} and not retried,
         "abandon_available": stage.state in ACTIVE and _runner_unavailable(stage),
+        "reproduce_available": stage.state == "succeeded" and stage.build.input_key is not None,
         "awaiting_runner_confirmation": waiting
         or (stage.state == "interrupted" and stage.cancellation_requested_at is not None),
     }
@@ -222,14 +282,29 @@ def history(ctx, p: HistoryRead) -> dict:
     authorize(ctx.user, build.workspace_id, Perm.WORKSPACE_READ)
     _authorize_compiler_read(ctx, stage)
     retried = _retry_of(build)
+    rows = comparisons_for([build.id])
+    derived = derive(build, stage, rows)
     return {
         **stage_result(stage),
         "workspace_id": str(build.workspace_id),
         "project_id": str(build.project_id) if build.project_id else None,
         "receipt": stage.receipt,
         "recipe_id": build.recipe_id,
+        # The exact image digest, argv and limits pinned at request time.
+        "pinned": pinned_tool(build, stage),
         "source_revision_id": str(build.source_revision_id),
         "configuration": build.configuration_input,
+        "input_key": build.input_key,
+        "reproduction_of": str(build.reproduction_of_id) if build.reproduction_of_id else None,
+        "reproductions": [
+            str(i)
+            for i in build.reproductions.order_by("created_at", "id").values_list("id", flat=True)[
+                :LIST_LIMIT
+            ]
+        ],
+        # Null until outputs are accepted; a single success is only "provenance".
+        "reproducibility": derived,
+        "comparisons": comparison_rows(build, rows[:LIST_LIMIT]),
         # Per-file rights as staged (null only for attempts recorded before this existed),
         # and the conservative rights an output of these inputs carries.
         "staged_inputs": build.staged_inputs,
@@ -258,6 +333,7 @@ def history(ctx, p: HistoryRead) -> dict:
                 "size": o.size,
                 "rights": o.rights,
                 "accepted": stage.state == "succeeded",
+                "reproducibility": derived["outputs"][o.path]["level"] if derived else None,
             }
             for o in stage.outputs.order_by("path")
         ],
@@ -288,6 +364,7 @@ def list_builds(ctx, p: ListBuilds) -> dict:
         .select_related("stage")
         .order_by("-created_at", "-id")[: LIST_LIMIT + 1]
     )
+    levels = levels_for(rows[:LIST_LIMIT])
     return {
         "workspace_id": str(workspace.id),
         "builds": [
@@ -296,6 +373,8 @@ def list_builds(ctx, p: ListBuilds) -> dict:
                 "recipe_id": b.recipe_id,
                 "requested_at": b.created_at.isoformat(),
                 "retry_of": str(b.retry_of_id) if b.retry_of_id else None,
+                "reproduction_of": str(b.reproduction_of_id) if b.reproduction_of_id else None,
+                "reproducibility": levels.get(b.id),
                 "requested_by_viewer": ctx.user.pk == b.requested_by_id,
                 "project_id": str(b.project_id) if b.project_id else None,
             }
