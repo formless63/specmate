@@ -101,3 +101,29 @@ test("the workflow engine probe reason is shown with its state", async () => {
   show(["workspace.read"], vi.fn(async () => reply({ ...status, workflow_engine: { state: "unreachable", reason: "connect_timeout" } })));
   expect(await screen.findByText(/Workflow engine: unreachable \(connect timeout\)\./)).toBeTruthy();
 });
+
+test("optional tools list enablement, platforms, size with unknown kept unknown, recipes and unevaluated image", async () => {
+  const entry = { state: "x", platforms: ["linux/amd64"], image_state: "not_evaluated" };
+  const withCatalog = { ...status, tool_catalog: { gated: true, tools: [
+    { ...entry, id: "kicad-10.0.6", title: "KiCad", enabled: true, download_bytes: 808797538, approved_recipe_ids: ["a", "b"] },
+    { ...entry, id: "avr-gcc-5.4.0", title: "AVR", enabled: false, download_bytes: null, approved_recipe_ids: [] },
+  ] } };
+  show(["workspace.read"], vi.fn(async () => reply(withCatalog)));
+  const items = within(await screen.findByRole("list", { name: "Optional native tools" })).getAllByRole("listitem");
+  expect(items[0]?.textContent).toContain("enabled");
+  expect(items[0]?.textContent).toContain("809 MB");
+  expect(items[0]?.textContent).toContain("2 approved recipes");
+  expect(items[0]?.textContent).toContain("image not evaluated");
+  expect(items[1]?.textContent).toContain("not enabled");
+  expect(items[1]?.textContent).toContain("size unknown");
+  expect(items[1]?.textContent).toContain("0 approved recipes");
+  expect(screen.getByText(/host tool console checks cached images/)).toBeTruthy();
+});
+
+test("an ungated installation shows not gated rather than enabled", async () => {
+  const ungated = { ...status, tool_catalog: { gated: false, tools: [
+    { id: "kicad-10.0.6", title: "KiCad", state: "not_gated", enabled: null, platforms: ["linux/amd64"], download_bytes: 1000000, approved_recipe_ids: [], image_state: "not_evaluated" },
+  ] } };
+  show(["workspace.read"], vi.fn(async () => reply(ungated)));
+  expect((await screen.findByRole("list", { name: "Optional native tools" })).textContent).toContain("not gated");
+});

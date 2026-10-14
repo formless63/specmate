@@ -13,6 +13,11 @@ export type StatusBuild = {
   cancellation_requested: boolean; lease_expired: boolean;
 };
 
+export type CatalogTool = {
+  id: string; title: string; state: string; enabled: boolean | null; platforms: string[];
+  download_bytes: number | null; approved_recipe_ids: string[]; image_state: string;
+};
+
 export type WorkspaceStatus = {
   workspace_id: string; evaluated_at: string;
   work: { mode: "running" | "draining" | "interrupting" | "maintenance"; accepting_new_work: boolean; reason: string; state_token: string };
@@ -20,6 +25,7 @@ export type WorkspaceStatus = {
   dispatch: { undelivered: number; oldest_undelivered_seconds: number | null };
   runner: { state: string; credentials_usable: number; stages_holding_lease: number; stages_lease_expired: number };
   tools: { recipe_id: string; status: string; builds: number }[];
+  tool_catalog?: { gated: boolean; tools: CatalogTool[] };
   storage: { state: string; code: string | null; sampled: number; missing?: number };
   workflow_engine: { state: string; reason?: string };
   builds: StatusBuild[];
@@ -30,6 +36,8 @@ export type WorkspaceStatus = {
 export function readWorkspaceStatus(workspaceId: string, signal?: AbortSignal): Promise<WorkspaceStatus> {
   return requestJson<WorkspaceStatus>(`/api/v0/diagnostics/workspaces/${encodeURIComponent(workspaceId)}/status`, { signal });
 }
+
+export const downloadLabel = (bytes: number | null) => bytes === null ? null : `${Math.round(bytes / 1e6).toLocaleString("en-US")} MB`;
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   tool_unavailable: "Tool unavailable", storage_failure: "Storage failure", permission_denied: "Permission denied",
