@@ -2,9 +2,24 @@ import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
-import type { BuildInput, DraftResolution } from './api';
+import type { BuildInput, ConstraintEvaluation, DraftResolution } from './api';
 import { ConfigurationsPanel } from './ConfigurationsPanel';
 
+function constraints(finish: string | null): ConstraintEvaluation {
+  return {
+    outcome: 'unknown', scope: 'declared_rules_and_recorded_facts_of_exact_revisions', limitations: ['A valid outcome is a declaration check, not physical qualification.'],
+    counts: { valid: finish ? 1 : 0, invalid: 0, unknown: finish ? 1 : 2, not_evaluated: 0 },
+    results: [
+      { key: 'sensor-current', label: 'Sensor carries the supply current', kind: 'fact_limit', basis: 'Synthetic supply demand.', rule: {}, outcome: 'unknown', facts: [],
+        reasons: [{ level: 'rule', code: 'fact_limit', message: 'Requires current_rating (rating, upper_bound) at least 2000 mA on the revision chosen for sensor.' },
+          { level: 'fact', code: 'decision_resolved', message: 'Option sensor is resolved to choice a (default).' },
+          { level: 'fact', code: 'fact_missing', message: 'Synthetic sensor A rev 1 records no current_rating (rating, upper_bound); compatibility is not assumed.' }] },
+      { key: 'paint-sealing', label: 'Painted finish needs a primer', kind: 'requires', basis: 'Synthetic process note.', rule: {}, outcome: finish ? 'valid' : 'unknown', facts: [],
+        reasons: finish ? [{ level: 'rule', code: 'applicable', message: 'Applies because finish is paint.' }, { level: 'fact', code: 'decision_resolved', message: 'Option sensor is resolved to choice a (default).', assertion_ids: ['assertion-1234567'] }]
+          : [{ level: 'rule', code: 'applicability_unknown', message: 'Applies when finish is paint; that option is unresolved, so applicability is unknown.' }] },
+    ],
+  };
+}
 const pin = (name: string, number: number) => ({ revision_id: `${name}-rev`, definition_id: name, kind: 'component', name, number, snapshot_sha256: 'a'.repeat(64) });
 function resolution(finish: string | null): DraftResolution {
   return {
@@ -17,7 +32,7 @@ function resolution(finish: string | null): DraftResolution {
     resolved: finish ? [{ resolved_configuration_id: 'resolved-1', status: 'complete', snapshot_id: 'snap-1', resolution_sha256: 'e'.repeat(64), draft_version: 2, basis: 'Synthetic review', created_at: '2026-01-01T00:00:00Z' }] : [],
     history_truncated: false,
     resolution: {
-      option_set: pin('Synthetic options', 1), target: null, invalid_selections: [], compatibility: 'not_evaluated',
+      option_set: pin('Synthetic options', 1), target: null, invalid_selections: [], compatibility: 'not_evaluated', constraints: constraints(finish),
       status: finish ? 'complete' : 'incomplete', counts: { resolved: finish ? 2 : 1, none: 0, unresolved: finish ? 0 : 1, invalid: 0 },
       decisions: [
         { option_key: 'sensor', label: 'Sensor part', domain: 'part', path: null, required: true, status: 'resolved', source: 'default', reason: 'Default declared by option-set revision 1.', compatibility: 'not_evaluated', base: null,
@@ -30,7 +45,8 @@ function resolution(finish: string | null): DraftResolution {
   };
 }
 const buildInput: BuildInput = { resolved_configuration_id: 'resolved-1', snapshot_id: 'snap-1', snapshot_sha256: 'f'.repeat(64), resolution_sha256: 'e'.repeat(64), option_set_revision_id: 'set-rev',
-  pins: [{ revision_id: 'set-rev', sha256: 'a'.repeat(64) }], choices: [{ option_key: 'sensor', domain: 'part', path: null, status: 'resolved', source: 'default', revision_id: 'Synthetic sensor A-rev', population_option_id: null, value: null }] };
+  pins: [{ revision_id: 'set-rev', sha256: 'a'.repeat(64) }], choices: [{ option_key: 'sensor', domain: 'part', path: null, status: 'resolved', source: 'default', revision_id: 'Synthetic sensor A-rev', population_option_id: null, value: null }],
+  constraints: { outcome: 'unknown', counts: { valid: 1, invalid: 0, unknown: 1, not_evaluated: 0 }, unknown: ['sensor-current'], invalid: [] } };
 function response(value: unknown, status = 200) { return new Response(JSON.stringify(value), { status }); }
 
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); });
@@ -87,6 +103,23 @@ test('shows explicit decisions, saves selections under CAS and captures a review
   expect(captured.idempotency_key).toBeTruthy();
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect build input' }));
   await screen.findByText('1 exact revision pins', { exact: false });
+  expect(screen.getByText('Unknown: sensor-current')).toBeTruthy();
+  expect(screen.getByText('captured constraints')).toBeTruthy();
+});
+
+test('shows each constraint outcome with rule and fact reasons; a missing rating stays unknown', async () => {
+  setup(['workspace.read']);
+  await openDraft();
+  const table = screen.getByRole('table', { name: 'Constraint outcomes' });
+  const rows = table.querySelectorAll('tbody tr');
+  expect(rows).toHaveLength(2);
+  expect(rows[0]!.getAttribute('data-outcome')).toBe('unknown');
+  expect(rows[0]!.textContent).toContain('records no current_rating');
+  expect(rows[0]!.textContent).toContain('Requires current_rating');
+  expect(rows[1]!.textContent).toContain('applicability is unknown');
+  // The overall outcome is unknown, never shown as valid or OK.
+  expect(screen.getByText('overall').parentElement!.textContent).toContain('unknown');
+  expect(screen.queryByText('valid')).toBeNull();
 });
 
 test('read-only principals review resolutions without mutating controls', async () => {

@@ -134,7 +134,16 @@ rewritten; population option IDs stay in the resolution. Immutable adoption evid
 the draft version to the resolved configuration, review and before/after content.
 
 Missing choices remain explicit. Engineering result is valid/invalid/unknown/not-evaluated
-with reasons and applicability. Development proposals are separate linked objects; a
+with reasons and applicability. An option-set revision may declare constraint rules:
+`requires`/`excludes` relate one option's resolved choice to another's, optionally only
+when a stated choice is resolved; `fact_limit` requires the exact revision chosen for an
+option to record a property (purpose, role) at least or at most a dimensioned limit.
+Resolution evaluates every rule with rule-level and fact-level reasons and the exact
+fact assertion IDs used. A missing, unknown or conflicting fact, a range straddling the
+limit, condition-scoped facts only, or an unresolved input choice is `unknown`, never
+valid; a rule that does not apply or cannot be compared is `not_evaluated`. The overall
+outcome is invalid, else unknown, else valid, else not-evaluated. A captured resolution
+retains its outcome; `configuration.build_input` reports it without enforcing it. Development proposals are separate linked objects; a
 solver may return invalid-with-proposal or unknown-with-information-request.
 
 ## Facts, units and uncertainty

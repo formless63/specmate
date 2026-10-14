@@ -4,8 +4,9 @@ Resolution reads only exact frozen revisions: the configuration pins one option-
 revision, every revision choice is an exact pin, and the optional target is a frozen
 assembly revision. Mutable drafts and later revisions are never consulted, so a
 captured resolution is reproducible. Compatibility between choices is not inferred
-here (labels, names and part numbers prove nothing); it stays `not_evaluated` until
-explicit constraint evaluation.
+here (labels, names and part numbers prove nothing); it stays `not_evaluated`. Rules the
+option set declares are evaluated explicitly (constraints.py) with valid/invalid/unknown/
+not-evaluated outcomes; their fact reads are recorded by assertion ID in the resolution.
 """
 
 from __future__ import annotations
@@ -29,7 +30,6 @@ from specmate.operations import NotFound, ValidationFailed
 KINDS = {"option_set": "option_set", "configuration": "configuration"}
 NOT_EVALUATED = {
     "compatibility": "not_evaluated",
-    "constraints": "not_evaluated",
     "physical_qualification": False,
 }
 
@@ -209,6 +209,9 @@ def _base(closure, option):
 
 def resolve(reader, configuration):
     """Deterministic resolution of explicit selections against one exact option set."""
+    # Deferred: fact queries import assembly queries, which import design operations.
+    from specmate.configurations.constraints import evaluate
+
     revision, option_set = option_set_revision(reader, configuration.option_set_revision_id)
     target, closure = check_option_set(reader, option_set)
     selections = {s.option_key: s.choice_key for s in configuration.selections}
@@ -277,6 +280,7 @@ def resolve(reader, configuration):
         "invalid_selections": invalid,
         "counts": counts,
         "status": status,
+        "constraints": evaluate(reader, option_set, decisions),
         **NOT_EVALUATED,
     }
 

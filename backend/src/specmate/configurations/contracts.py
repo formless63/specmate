@@ -11,11 +11,13 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from specmate.assemblies.contracts import Path, StrictModel
+from specmate.facts.contracts import NumericValue, Purpose, Role
 
 Key = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,79}$")]
 Text = Annotated[str, Field(min_length=1, max_length=500, pattern=r"\S")]
 Basis = Annotated[str, Field(min_length=1, max_length=2000, pattern=r"\S")]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+FactProperty = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")]
 
 Domain = Literal["part", "population", "firmware", "material", "process", "requirement"]
 # Domains whose choices always pin an exact frozen design revision.
@@ -77,16 +79,88 @@ class Option(StrictModel):
         return self
 
 
+class ChoiceRef(StrictModel):
+    option_key: Key
+    choice_key: Key
+
+
+class ChoiceRule(StrictModel):
+    """When `when` resolves, `option_key` must (requires) or must not (excludes) resolve
+    to one of `choice_keys`. An unresolved input leaves the outcome unknown."""
+
+    kind: Literal["requires", "excludes"]
+    key: Key
+    label: Text
+    basis: Basis
+    when: ChoiceRef
+    option_key: Key
+    choice_keys: list[Key] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if len(self.choice_keys) != len(set(self.choice_keys)):
+            raise ValueError("Name each constrained choice once.")
+        if self.when.option_key == self.option_key:
+            raise ValueError("A choice rule relates two different options.")
+        return self
+
+
+class FactLimitRule(StrictModel):
+    """The exact revision chosen for `option_key` must record `property` at least/at most
+    `limit`. A missing, unknown or conflicting fact is unknown, never assumed compatible."""
+
+    kind: Literal["fact_limit"]
+    key: Key
+    label: Text
+    basis: Basis
+    when: ChoiceRef | None = None
+    option_key: Key
+    property: FactProperty
+    purpose: Purpose = "rating"
+    role: Role = "actual"
+    comparison: Literal["at_least", "at_most"]
+    limit: NumericValue
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if self.limit.kind != "quantity":
+            raise ValueError("A fact limit is one quantity.")
+        if self.role == "tolerance":
+            raise ValueError("A tolerance is not a comparable limit.")
+        if self.purpose == "preference":
+            raise ValueError("A preference is not an engineering rating.")
+        if self.when is not None and self.when.option_key == self.option_key:
+            raise ValueError("A rule's applicability names another option.")
+        return self
+
+
+Constraint = Annotated[ChoiceRule | FactLimitRule, Field(discriminator="kind")]
+
+
 class OptionSetContent(StrictModel):
     schema_version: Literal["0.1"] = "0.1"
     target_revision_id: UUID | None = None
     options: list[Option] = Field(default_factory=list, max_length=200)
+    constraints: list[Constraint] = Field(default_factory=list, max_length=200)
 
     @model_validator(mode="after")
     def unique(self):
         keys = [option.key for option in self.options]
         if len(keys) != len(set(keys)):
             raise ValueError("Option keys must be unique.")
+        rules = [rule.key for rule in self.constraints]
+        if len(rules) != len(set(rules)):
+            raise ValueError("Constraint keys must be unique.")
+        choices = {option.key: {c.key for c in option.choices} for option in self.options}
+        for rule in self.constraints:
+            refs = [(rule.option_key, getattr(rule, "choice_keys", []))]
+            if rule.when is not None:
+                refs.append((rule.when.option_key, [rule.when.choice_key]))
+            for option_key, choice_keys in refs:
+                if option_key not in choices:
+                    raise ValueError("A constraint names an undeclared option.")
+                if not set(choice_keys) <= choices[option_key]:
+                    raise ValueError("A constraint names an undeclared choice.")
         addressed = [
             (option.domain, tuple(option.path))
             for option in self.options

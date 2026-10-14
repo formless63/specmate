@@ -40,6 +40,20 @@ from specmate.operations.models import IdempotencyRecord
 HISTORY = 100
 
 
+def constraint_summary(resolution):
+    constraints = resolution.get("constraints")
+    if not isinstance(constraints, dict):
+        # Captured before constraint evaluation existed: nothing was evaluated.
+        return {"outcome": "not_evaluated", "counts": None, "unknown": [], "invalid": []}
+    results = constraints["results"]
+    return {
+        "outcome": constraints["outcome"],
+        "counts": constraints["counts"],
+        "unknown": [r["key"] for r in results if r["outcome"] == "unknown"],
+        "invalid": [r["key"] for r in results if r["outcome"] == "invalid"],
+    }
+
+
 def configuration_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, *, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
     if draft.definition.kind != "configuration":
@@ -262,6 +276,8 @@ def build_input(ctx: Context, p: ResolvedRef):
             }
             for d in resolution["decisions"]
         ],
+        # Reported, not enforced: the captured outcome travels with the exact snapshot.
+        "constraints": constraint_summary(resolution),
         **NOT_EVALUATED,
     }
 
