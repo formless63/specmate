@@ -619,7 +619,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["owner"],
         "interface.create",
         {
-            "project_id": workspace,
+            "workspace_id": workspace,
             "name": "One contact body",
             "interface": {
                 "kind": "connector_body",
@@ -642,7 +642,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["owner"],
         "interface.create",
         {
-            "project_id": workspace,
+            "workspace_id": workspace,
             "name": "One contact pinout",
             "interface": {
                 "kind": "pinout",

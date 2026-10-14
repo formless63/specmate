@@ -18,6 +18,7 @@ from specmate.preparation.queries import inspect_profile
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleFile, SourceBundleRevision
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_cable_lengths import declaration, length_plan
 from .test_cables import capture as capture_cable
 from .test_cables import create as create_cable
@@ -70,7 +71,7 @@ def create(user, project, value, **ctx):
     return op(
         user,
         "preparation.create",
-        {"project_id": project, "name": "Synthetic cut profile", "profile": value},
+        {"workspace_id": workspace_of(project), "name": "Synthetic cut profile", "profile": value},
         **ctx,
     )
 
@@ -107,10 +108,14 @@ def compute(user, target, recipe, **extra):
 def evidence(user, project, parent=None):
     digest = hashlib.sha256(f"Synthetic preparation evidence {project}".encode()).hexdigest()
     blob = SourceBlob.objects.create(
-        project_id=project, sha256=digest, size=12, media_type="text/plain", registered_by=user
+        workspace_id=workspace_of(project),
+        sha256=digest,
+        size=12,
+        media_type="text/plain",
+        registered_by=user,
     )
     bundle = SourceBundle.objects.create(
-        project_id=project,
+        workspace_id=workspace_of(project),
         name="Synthetic allowance evidence",
         role="derivative" if parent else "original",
         derived_from=parent,
@@ -350,7 +355,7 @@ def test_source_ancestor_revocation_precedes_missing_file_and_replay_diagnostics
     with pytest.raises((NotFound, PermissionDenied)):
         inspect_profile(user, recipe["revision_id"])
     rules["formulas"][0]["allowances"][0]["source"]["path"] = "missing.txt"
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises((NotFound, PermissionDenied), match=r"^Not found\.$"):
         create(user, project, rules)
 
 
@@ -410,7 +415,7 @@ def test_every_application_source_is_authorized_before_cut_diagnostics(users, pr
     hidden["formulas"][0]["allowances"][0]["source"] = source
     hidden_revision = freeze(user, create(user, project, hidden))
     WorkspaceMember.objects.filter(workspace__projects=hidden_project, user=user).delete()
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises((NotFound, PermissionDenied), match=r"^Not found\.$"):
         op(
             user,
             "preparation.compute",

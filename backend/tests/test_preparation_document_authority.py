@@ -15,7 +15,8 @@ from specmate.preparation_documents import operations
 from specmate.preparation_documents.api import records
 from specmate.preparation_documents.models import DocumentOutput, DocumentSet
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_preparation import cable, profile
 from .test_preparation import create as create_cuts
 from .test_preparation import freeze as freeze_cuts
@@ -31,7 +32,7 @@ def test_mounted_document_routes_preserve_viewer_bytes_and_hide_outside_receipts
     _, saved = retain(users["owner"], configuration(root))
     expected = files(users["viewer"], saved)
     viewer = api(users["viewer"])
-    listing = viewer.get(f"/api/v0/preparation-documents/projects/{project}")
+    listing = viewer.get("/api/v0/preparation-documents/workspace")
     assert listing.status_code == 200
     assert listing["Cache-Control"] == "private, no-store"
     assert listing.json()["document_sets"] == [saved]
@@ -52,7 +53,12 @@ def test_mounted_document_routes_preserve_viewer_bytes_and_hide_outside_receipts
         assert response["X-Content-Type-Options"] == "nosniff"
     outsider = api(users["outsider"])
     assert outsider.get(receipt_url).status_code == 404
-    assert outsider.get(f"/api/v0/preparation-documents/projects/{project}").status_code == 404
+    assert (
+        outsider.get(
+            f"/api/v0/preparation-documents/workspace?workspace_id={workspace_of(project)}"
+        ).status_code
+        == 404
+    )
     response = outsider.post(
         "/api/v0/preparation-documents/download",
         data=json.dumps({"document_set_id": saved["document_set_id"], "filename": "schematic.svg"}),
@@ -138,8 +144,8 @@ def test_source_revoked_during_promotion_rolls_back_receipt_and_key(users, proje
 
 
 def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users, project):
-    user = users["owner"]
-    value, root = cable(user, project)
+    user = users["editor"]
+    value, root = cable(users["owner"], project)
     foreign = op(user, "project.create", {"name": "Original recipe evidence"})["project_id"]
     data = b"Original synthetic allowance basis, retained by its owning project.\n"
     register(user, foreign, data)
@@ -164,8 +170,11 @@ def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users
     review, saved = retain(user, config)
     original = files(user, saved)
     changed = configuration(root)  # Same root, but no longer proposes protected recipe/source.
-    WorkspaceMember.objects.filter(user=user, workspace__projects=foreign).delete()
-    assert op(user, "preparation_documents.review", changed)
+    # Membership loss is the remaining revocation; a member still reviews the change.
+    remove_member(user)
+    assert op(users["owner"], "preparation_documents.review", changed)
+    with pytest.raises(NotFound):
+        op(user, "preparation_documents.review", changed)
     with pytest.raises(NotFound):
         op(user, "preparation_documents.read", {"document_set_id": saved["document_set_id"]})
     with pytest.raises(NotFound):
@@ -184,7 +193,7 @@ def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users
             expected_state=review["state"],
             idempotency_key="documents",
         )
-    ensure_member(user, "owner", project=foreign)
+    member(user, "editor")
     with pytest.raises(IdempotencyMismatch):
         op(
             user,
@@ -217,26 +226,26 @@ def test_valid_catalog_origin_denies_whole_set_before_bad_binding_and_restores(u
     before = files(viewer, saved)
     receipt = {"document_set_id": saved["document_set_id"]}
     request = SimpleNamespace(user=viewer)
-    response = records(request, project)
+    response = records(request)
     assert response["Cache-Control"] == "private, no-store"
     assert json.loads(response.content)["document_sets"] == [saved]
     revoke(users, remote)  # Unselected retained pack entry, not a wiring child.
-    with pytest.raises(NotFound, match="Project not found"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         op(
             viewer,
             "preparation_documents.review",
             {**config, "bindings": [{"occurrence_path": ["missing"]}]},
         )
-    with pytest.raises(NotFound, match="Project not found"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         op(viewer, "preparation_documents.read", receipt)
-    with pytest.raises(NotFound, match="Project not found"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         files(viewer, saved)
-    response = records(request, project)
-    assert response["Cache-Control"] == "private, no-store"
-    assert json.loads(response.content)["document_sets"] == []
+    # A former member's listing is not found rather than empty.
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        records(request)
     restore(users, remote)
     assert op(viewer, "preparation_documents.read", receipt) == saved
-    response = records(request, project)
+    response = records(request)
     assert response["Cache-Control"] == "private, no-store"
     assert json.loads(response.content)["document_sets"] == [saved]
     assert files(viewer, saved) == before

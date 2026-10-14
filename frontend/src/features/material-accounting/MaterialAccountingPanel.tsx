@@ -40,7 +40,7 @@ function Workspace({ projectId }: { projectId: string }) {
     generation.current += 1; authorityEpoch.current += 1; setCurrent(data); setPlan(data.content.material_plan); setDefinition(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setReferences({}); setBlocked(false);
     save.reset(); freeze.reset(); refresh.reset(); cache.removeQueries({ queryKey: ['material-sheet'] });
   }, onError: (error, input) => fail(error, input.version) });
-  const save = useMutation({ mutationFn: ({ version, payload, draft }: { version: number; payload: Plan; draft: Draft | null }) => command<Draft>(draft ? 'material_plan.update' : 'material_plan.create', draft ? { draft_id: draft.draft_id, plan: payload } : { project_id: projectId, name, plan: payload }, draft?.state).then(data => ({ data, version })), onSuccess: ({ data, version }) => {
+  const save = useMutation({ mutationFn: ({ version, payload, draft }: { version: number; payload: Plan; draft: Draft | null }) => command<Draft>(draft ? 'material_plan.update' : 'material_plan.create', draft ? { draft_id: draft.draft_id, plan: payload } : { name, plan: payload }, draft?.state).then(data => ({ data, version })), onSuccess: ({ data, version }) => {
     if (version !== generation.current) return;
     setCurrent(data); setDefinition(data.definition_id); setDraftId(data.draft_id);
     cache.invalidateQueries({ queryKey: ['material-definitions', projectId] }); cache.invalidateQueries({ queryKey: ['material-identity', data.definition_id] });

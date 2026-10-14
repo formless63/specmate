@@ -13,15 +13,13 @@ from specmate.end_preparation import api
 from specmate.end_preparation.contracts import ApplyHarnessProfile
 from specmate.harnesses.queries import inspect_revision
 from specmate.operations import (
-    Conflict,
     IdempotencyMismatch,
     NotFound,
     Unauthenticated,
     ValidationFailed,
 )
-from specmate.operations.models import IdempotencyRecord
 
-from .conftest import op
+from .conftest import op, remove_member
 from .test_end_preparation import create as create_profile
 from .test_end_preparation import freeze, profile
 from .test_harnesses import capture, create, fixture
@@ -159,25 +157,23 @@ def test_full_unselected_closure_before_section_diagnostics_and_current_actor(us
         api.calculate_harness(SimpleNamespace(user=users["owner"]), ApplyHarnessProfile(**request))
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-def test_retained_harness_authority_before_changed_target_mismatch(users, project, legacy):
-    owner = users["owner"]
-    other = op(owner, "project.create", {"name": "Synthetic shared stock origin"})["project_id"]
-    _, _, _, retained_content = fixture(owner, other)
+def test_retained_harness_authority_before_changed_target_mismatch(users, project):
+    editor = users["editor"]
+    other = op(users["owner"], "project.create", {"name": "Synthetic shared stock origin"})[
+        "project_id"
+    ]
+    _, _, _, retained_content = fixture(users["owner"], other)
     retained_content["sections"][0]["physical_ends"] = declarations()
-    stored = create(owner, project, retained_content, idempotency_key="physical-ends")
-    _, _, _, visible = fixture(owner, project)
-    if legacy:
-        IdempotencyRecord.objects.filter(
-            actor=owner, operation="harness.create", key="physical-ends"
-        ).update(scope="legacy")
-    with pytest.raises(Conflict if legacy else IdempotencyMismatch):
-        create(owner, project, visible, idempotency_key="physical-ends")
-    WorkspaceMember.objects.filter(workspace__projects=other, user=owner).delete()
+    stored = create(editor, project, retained_content, idempotency_key="physical-ends")
+    _, _, _, visible = fixture(users["owner"], project)
+    with pytest.raises(IdempotencyMismatch):
+        create(editor, project, visible, idempotency_key="physical-ends")
+    # Membership loss is the remaining revocation; it precedes the changed-target mismatch.
+    remove_member(editor)
     visible["sections"][0]["physical_ends"] = declarations()
     visible["sections"][0]["physical_ends"][0]["segment_ends"][0]["segment_id"] = "missing"
-    with pytest.raises(NotFound):
-        create(owner, project, visible, idempotency_key="physical-ends")
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        create(editor, project, visible, idempotency_key="physical-ends")
     assert (
         stored["content"]["harness"]["sections"][0]["physical_ends"]
         == retained_content["sections"][0]["physical_ends"]
@@ -234,18 +230,3 @@ def test_all_supplied_profile_authority_precedes_missing_section(users, project)
     WorkspaceMember.objects.filter(workspace__projects=other, user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(users["owner"], "end_preparation.apply_harness", request)
-
-
-def test_legacy_retained_owner_denied_even_when_all_stock_references_remain_visible(users, project):
-    owner = users["owner"]
-    other = op(owner, "project.create", {"name": "Synthetic former harness owner"})["project_id"]
-    _, _, _, harness = fixture(owner, project)
-    create(owner, other, harness, idempotency_key="old-owner")
-    IdempotencyRecord.objects.filter(
-        actor=owner, operation="harness.create", key="old-owner"
-    ).update(scope="legacy")
-    with pytest.raises(Conflict):
-        create(owner, project, harness, idempotency_key="old-owner")
-    WorkspaceMember.objects.filter(workspace__projects=other, user=owner).delete()
-    with pytest.raises(NotFound):
-        create(owner, project, harness, idempotency_key="old-owner")

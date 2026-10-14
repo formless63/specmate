@@ -21,6 +21,7 @@ from specmate.operations import (
 from specmate.operations.models import IdempotencyRecord
 
 from .conftest import op, remove_member, set_role
+from .scope_helpers import workspace_of
 from .test_firmware import (  # noqa: F401
     CONFIG,
     MAIN,
@@ -64,7 +65,7 @@ def pair(users, project, sources, board):  # noqa: F811
         users["owner"],
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic controller module",
             "assembly": {
                 "occurrences": [
@@ -88,7 +89,7 @@ def pair(users, project, sources, board):  # noqa: F811
         users["owner"],
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic repeated controllers",
             "assembly": {
                 "occurrences": [
@@ -290,7 +291,7 @@ def test_retained_source_authority_precedes_changed_request(
         users["owner"],
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic direct controller",
             "assembly": {
                 "occurrences": [{"local_id": "board", "revision_id": board[0]["revision_id"]}]

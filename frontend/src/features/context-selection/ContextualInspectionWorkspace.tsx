@@ -19,7 +19,7 @@ function Workspace({ projectId, principalKey }: { projectId: string; principalKe
   async function refreshChoices() {
     const ticket = ++generation.current; setChoices([]); setBusy(true); setError('');
     try {
-      const result = await request<SceneChoices>(`shared-scenes/projects/${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+      const result = await request<SceneChoices>('shared-scenes/workspace', { cache: 'no-store' });
       if (mounted.current && ticket === generation.current) setChoices(result.assemblies);
     } catch (reason) {
       if (mounted.current && ticket === generation.current) { setChoices([]); setRoot(null); setError(reason instanceof Error ? reason.message : 'Scene choices unavailable.'); }

@@ -8,6 +8,9 @@ assertion merely because its labels or child definitions match.
 `passage.create`, `.update` and `.freeze` share design permissions, optimistic draft
 concurrency, exact dependency capture and current source authorization with generic design
 operations. Typed content is under `passages`; generic operations enforce the same rules.
+A passive model is a workspace item: `passage.create` takes an optional `workspace_id`
+and no project, and its pinned root graph must be in that workspace (a foreign
+revision reads as not found).
 Each declaration retains its type, endpoints, basis, nullable parameters, condition and
 unknown/citation/exact registered file evidence. A link to a native candidate names an exact
 boundary containing both terminals. It does not accept an extracted label, value, population
@@ -93,7 +96,7 @@ kind and parameters start unknown. Electrical text reaches the operation unchang
 Registered assertion and review files show exact bundle/path/hash/rights provenance.
 A source denial clears cached models, graphs and results. A changed draft token requires
 reopening current state rather than rebasing unsaved edits silently. Changing query inputs
-or projects fences stale responses; an authorized unchanged refresh retains review text.
+or the project context fences stale responses; an authorized unchanged refresh retains review text.
 
 Exclusive conditions can be authored alongside passages, reopened from saved drafts and
 inspected on frozen models. Conditional contact selectors name exact declared identities

@@ -9,7 +9,6 @@ import json
 import pytest
 from django.db import DatabaseError, connection, transaction
 
-from specmate.access.models import WorkspaceMember
 from specmate.configurations.models import ResolvedConfiguration
 from specmate.design.models import Snapshot, SnapshotDependency
 from specmate.operations import (
@@ -20,7 +19,7 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
 from .test_firmware import (  # noqa: F401
     CONFIG,
     MAIN,
@@ -354,7 +353,7 @@ def test_invalid_selections_and_content_are_rejected(users, project, parts, opti
         op(users["editor"], "configuration.resolve", {})
 
 
-def test_authority_cross_project_and_stale_review(users, project, parts, option_set):
+def test_authority_cross_workspace_and_stale_review(users, project, parts, option_set):
     draft = configuration(users["editor"], project, option_set["revision_id"])
     reviewed = op(users["viewer"], "configuration.resolve", {"draft_id": draft["draft_id"]})
     payload = {
@@ -394,7 +393,8 @@ def test_authority_cross_project_and_stale_review(users, project, parts, option_
     with pytest.raises(NotFound):
         op(users["outsider"], "configuration.resolve", {"snapshot_id": done["snapshot_id"]})
 
-    # Another project's option set: unreadable pins never resolve; readable pins may.
+    # A foreign workspace's option set never resolves, even for an actor in both
+    # workspaces: the pin reads as missing before the database guard.
     other = op(users["outsider"], "project.create", {"name": "Synthetic other bench"})["project_id"]
     foreign_parts = [frozen(users["outsider"], other, f"Foreign {n}") for n in "AB"]
     foreign = frozen(
@@ -403,7 +403,10 @@ def test_authority_cross_project_and_stale_review(users, project, parts, option_
     with pytest.raises(NotFound):
         configuration(users["editor"], project, foreign["revision_id"])
     ensure_member(users["editor"], "viewer", project=other)
-    shared = configuration(users["editor"], project, foreign["revision_id"])
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        configuration(users["editor"], project, foreign["revision_id"])
+    # Same-workspace reuse of a shared option set resolves and captures.
+    shared = configuration(users["editor"], project, option_set["revision_id"])
     assert (
         op(users["editor"], "configuration.resolve", {"draft_id": shared["draft_id"]})[
             "resolution"
@@ -411,8 +414,8 @@ def test_authority_cross_project_and_stale_review(users, project, parts, option_
         == "incomplete"
     )
     shared_capture = capture(users["editor"], shared["draft_id"])
-    # Revoking the foreign read hides the retained record and the draft closure.
-    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
+    # Losing membership hides the retained record and the draft closure.
+    remove_member(users["editor"], project=project)
     with pytest.raises(NotFound):
         op(
             users["editor"],
@@ -506,7 +509,7 @@ def test_database_keeps_resolution_evidence_immutable_and_consistent(users, proj
     tampered = {**row.resolution, "status": "incomplete"}
     with pytest.raises(DatabaseError), transaction.atomic():
         ResolvedConfiguration.objects.create(
-            project_id=row.project_id,
+            workspace_id=row.workspace_id,
             draft_id=row.draft_id,
             draft_version=row.draft_version,
             snapshot=Snapshot.objects.get(

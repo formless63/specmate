@@ -13,26 +13,27 @@ from specmate.operations.models import IdempotencyRecord
 from specmate.queries import get_draft, get_revision
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleFile, SourceBundleRevision
 
-from .conftest import op
+from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, endpoint, freeze, occ
 from .test_workshop_profiles import create as create_profile
 from .test_workshop_profiles import profile, stock_revision
 
 
 @pytest.fixture
-def sourced_child(users, project):
+def sourced_child(users, project, workspace):
     stock_id, _ = stock_revision(users, project)
     raw = b"Synthetic assembly preparation instruction."
     digest = hashlib.sha256(raw).hexdigest()
     blob = SourceBlob.objects.create(
-        project_id=project,
+        workspace_id=workspace,
         sha256=digest,
         size=len(raw),
         media_type="text/plain",
         registered_by=users["owner"],
     )
     bundle = SourceBundle.objects.create(
-        project_id=project,
+        workspace_id=workspace,
         name="Synthetic instructions",
         role="original",
         created_by=users["owner"],
@@ -76,13 +77,12 @@ def sourced_child(users, project):
         expected_state=draft["state"],
     )
     module = freeze(users["owner"], create(users["owner"], project, [occ("profile", child)]))
-    hidden_project = op(users["outsider"], "project.create", {"name": "Restricted sources"})
 
     def revoke():
-        # Trusted fixture mutation changes current source authority; immutable design
-        # snapshots and their project memberships deliberately remain unchanged.
-        bundle.project_id = hidden_project["project_id"]
-        bundle.save(update_fields=["project"])
+        # Sources share the workspace boundary: losing membership is the remaining way
+        # to lose source authority. Immutable design snapshots stay unchanged.
+        for name in ("owner", "editor", "contributor", "viewer"):
+            remove_member(users[name])
 
     return module, revoke
 
@@ -170,11 +170,14 @@ def test_new_assembly_authorizes_sources_before_graph_diagnostics(users, project
     }
     before = Definition.objects.count()
     for name, payload in [
-        ("assembly.create", {"project_id": project, "name": "Assembly", "assembly": assembly}),
+        (
+            "assembly.create",
+            {"workspace_id": workspace_of(project), "name": "Assembly", "assembly": assembly},
+        ),
         (
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "name": "Assembly",
                 "kind": "assembly",
                 "content": {"assembly": assembly},
@@ -199,13 +202,13 @@ def test_new_assembly_authorizes_sources_before_graph_diagnostics(users, project
     ],
 )
 def test_replay_checks_original_source_after_current_draft_removes_it(
-    users, project, sourced_child, name
+    users, project, workspace, sourced_child, name
 ):
     child, revoke = sourced_child
     assembly = {"occurrences": [occ("module", child)]}
     expected = None
     if name.endswith("create"):
-        payload = {"project_id": project, "name": "Retained assembly"}
+        payload = {"workspace_id": workspace, "name": "Retained assembly"}
         if name == "assembly.create":
             payload["assembly"] = assembly
         else:
@@ -233,8 +236,8 @@ def test_replay_checks_original_source_after_current_draft_removes_it(
         {"draft_id": draft_id, "assembly": {}},
         expected_state=current["state"],
     )
-    revoke()
     assert get_draft(users["owner"], draft_id)["content"]["assembly"]["occurrences"] == []
+    revoke()
     assert_hidden(
         lambda: op(
             users["owner"], name, payload, expected_state=expected, idempotency_key="retained"

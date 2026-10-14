@@ -35,10 +35,13 @@ including supplementary profiles, BOM and test plans. It returns a manifest and
 identity; it does not detect access changes, which are independently reauthorized.
 
 `preparation_documents.generate` is a controlled engineering write: it additionally
-requires `DESIGN_EDIT` on the root's owning project, the reviewed token and a stable
+requires `design.edit` in the root's workspace, the reviewed token and a stable
 idempotency key. Replay freshly checks both that write authority and the entire
-stored receipt closure. Review, read, list and download require `PROJECT_READ` for
-the owning project and complete current closure. Changed keyed requests also check
+stored receipt closure. Review, read, list and download require workspace membership
+and the complete current closure. Every bound plan, profile and supplementary
+revision must belong to the root's workspace; a foreign revision reads as not found
+before any projection or receipt write. `GET /api/v0/preparation-documents/workspace`
+lists the latest receipts of the actor's workspace. Changed keyed requests also check
 the original receipt's inputs before exposing mismatch diagnostics, even when those
 inputs are absent from the proposed configuration. Hidden input authority withholds
 the whole set, not a partial receipt or cached source label.

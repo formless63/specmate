@@ -23,6 +23,7 @@ from specmate.configurations.contracts import (
     OptionSetContent,
 )
 from specmate.design.models import Revision
+from specmate.design.pins import check_pin
 from specmate.operations import NotFound, ValidationFailed
 
 KINDS = {"option_set": "option_set", "configuration": "configuration"}
@@ -94,8 +95,8 @@ class Reader:
             .filter(id=revision_id)
             .first()
         )
-        if revision is None:
-            raise NotFound(message)
+        # Missing, foreign-workspace and non-member pins all read as the same NotFound.
+        check_pin(self.user, revision)
         try:
             authorize_snapshot(self.user, revision.snapshot, _authorized=self.authorized)
         except NotFound:

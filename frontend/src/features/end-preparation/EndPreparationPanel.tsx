@@ -32,7 +32,7 @@ function Workspace({ projectId }: { projectId: string }) {
   async function save() {
     const generation = scope.current; const selected = selection.current; const edit = edits.current; const submitted = profile; const accepted = current; setBusy('save'); setError(null);
     try {
-      const data = await command<Draft>(accepted ? 'end_preparation.update' : 'end_preparation.create', accepted ? { draft_id: accepted.draft_id, profile: submitted } : { project_id: projectId, name, profile: submitted }, accepted?.state);
+      const data = await command<Draft>(accepted ? 'end_preparation.update' : 'end_preparation.create', accepted ? { draft_id: accepted.draft_id, profile: submitted } : { name, profile: submitted }, accepted?.state);
       if (!active(generation)) return;
       // Accepted token advances even when fields changed during the request.
       setCurrent(data); if (edit === edits.current) setProfile(data.content.end_preparation_profile);

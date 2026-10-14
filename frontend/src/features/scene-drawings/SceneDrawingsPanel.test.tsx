@@ -8,7 +8,7 @@ import { createDrawing, drawingBytes, readDrawing, type Detail, type Options } f
 vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), createDrawing: vi.fn(), readDrawing: vi.fn(), drawingBytes: vi.fn() }));
 const options = (): Options => ({ ...closedDisplay(), view: 'top', opening: null });
 const output = (settings = options()): Detail => ({
-  drawing_id: 'drawing-one', project_id: 'project-one', snapshot_id: 'root-snapshot', renderer_version: 'scene-line-svg-v1', purpose: 'internal_inspection', options: settings,
+  drawing_id: 'drawing-one', workspace_id: 'workspace-one', snapshot_id: 'root-snapshot', renderer_version: 'scene-line-svg-v1', purpose: 'internal_inspection', options: settings,
   svg_sha256: 'svg-hash', manifest_sha256: 'manifest-hash', svg_bytes: 321, manifest_bytes: 456, created_at: '2026-01-01T00:00:00Z',
   limitations: ['Native mechanical geometry unavailable; fit not evaluated.'], qualification: syntheticScene().qualification,
   manifest: { scene_snapshot_id: 'root-snapshot', scene_snapshot_sha256: syntheticScene().sha256, root: syntheticScene().root, options: settings, source_rights: 'Restricted synthetic rights; no blanket redistribution.', nodes: syntheticScene().nodes, geometry_provenance: syntheticScene().geometry, unresolved: [{ address: { path: ['unknown', 'board'] }, reason: 'Canonical placement unknown; no position assigned.' }], outputs: [{ path: 'drawing.svg', size: 321, sha256: 'svg-hash' }] },
@@ -18,7 +18,7 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn();
   objectUrl = vi.fn((_blob: Blob | MediaSource) => 'blob:owned-svg'); revoke = vi.fn((_url: string) => {}); URL.createObjectURL = objectUrl; URL.revokeObjectURL = revoke;
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(syntheticScene()))));
-  vi.mocked(createDrawing).mockImplementation(async (_project, _snapshot, settings) => output(settings));
+  vi.mocked(createDrawing).mockImplementation(async (_snapshot, settings) => output(settings));
   vi.mocked(readDrawing).mockResolvedValue(output()); vi.mocked(drawingBytes).mockResolvedValue(new Blob(['<svg/>'], { type: 'image/svg+xml' }));
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
@@ -35,9 +35,9 @@ async function preview() { fireEvent.click(screen.getByRole('button', { name: 'P
 
 test('deliberate readonly record and each preview/download use a fresh read plus authorized bytes', async () => {
   render(panel()); await inspect();
-  expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe('/api/v0/shared-scenes/drawing-scenes/root-snapshot?project_id=project-one');
+  expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe('/api/v0/shared-scenes/drawing-scenes/root-snapshot');
   expect(createDrawing).not.toHaveBeenCalled(); await generate();
-  expect(createDrawing).toHaveBeenCalledWith('project-one', 'root-snapshot', options(), expect.any(String));
+  expect(createDrawing).toHaveBeenCalledWith('root-snapshot', options(), expect.any(String));
   expect(screen.getByText(/Restricted synthetic rights/)).toBeTruthy(); expect(screen.getByText(/Canonical placement unknown/)).toBeTruthy();
   await preview(); expect(readDrawing).toHaveBeenCalledTimes(2);
   expect(drawingBytes).toHaveBeenLastCalledWith(output(), 'svg', expect.any(AbortSignal));
@@ -53,11 +53,11 @@ test('right occurrence opening and Restore preserve exact selection and canonica
   fireEvent.click(screen.getByRole('button', { name: 'right/board · known' })); fireEvent.click(screen.getByRole('button', { name: 'Open displayed occurrence branch' }));
   const moved: Options = { ...options(), opening: { path: ['right', 'board'], axis: 'z', angle_deg: 90, pivot_local_mm: [0, 0, 0] } };
   vi.mocked(readDrawing).mockResolvedValue(output(moved)); await generate();
-  expect(createDrawing).toHaveBeenLastCalledWith('project-one', 'root-snapshot', moved, expect.any(String));
+  expect(createDrawing).toHaveBeenLastCalledWith('root-snapshot', moved, expect.any(String));
   fireEvent.click(screen.getByRole('button', { name: 'Restore canonical display' })); expect(screen.queryByText('Retained inspection output')).toBeNull();
   expect(screen.getByRole('button', { name: 'right/board · known' }).getAttribute('aria-pressed')).toBe('true');
   vi.mocked(readDrawing).mockResolvedValue(output()); await generate();
-  expect(createDrawing).toHaveBeenLastCalledWith('project-one', 'root-snapshot', options(), expect.any(String)); expect(JSON.stringify(scene)).toBe(before);
+  expect(createDrawing).toHaveBeenLastCalledWith('root-snapshot', options(), expect.any(String)); expect(JSON.stringify(scene)).toBe(before);
 });
 
 test('current denial clears preview and source pins, and stale successful bytes cannot reopen them', async () => {
@@ -85,8 +85,8 @@ test('project and principal changes revoke blobs, clear inputs and fence old gen
   expect(readDrawing).toHaveBeenCalledTimes(calls); expect(screen.queryByText('Retained inspection output')).toBeNull();
 });
 
-test('wrong project and options cannot expose output labels', async () => {
-  render(panel()); await inspect(); vi.mocked(readDrawing).mockResolvedValueOnce({ ...output(), project_id: 'another-project' });
+test('wrong drawing identity and options cannot expose output labels', async () => {
+  render(panel()); await inspect(); vi.mocked(readDrawing).mockResolvedValueOnce({ ...output(), drawing_id: 'another-drawing' });
   await generate(true); expect(screen.queryByText('Retained inspection output')).toBeNull(); expect(drawingBytes).not.toHaveBeenCalled();
   await inspect(); vi.mocked(readDrawing).mockResolvedValueOnce(output({ ...options(), view: 'front' }));
   await generate(true); expect(screen.queryByText('Retained inspection output')).toBeNull();
@@ -142,7 +142,7 @@ test('held generation hides cached scene controls until fresh authority succeeds
   await screen.findByText('Retained inspection output');
   expect(screen.getByRole('button', { name: 'right/board · known' }).getAttribute('aria-pressed')).toBe('true');
   expect(createDrawing).toHaveBeenCalledTimes(1);
-  expect(captured).toEqual(['project-one', 'root-snapshot', options(), expect.any(String)]);
+  expect(captured).toEqual(['root-snapshot', options(), expect.any(String)]);
 });
 
 test('held generation denial clears source controls and retains only the exact deliberate retry intent', async () => {

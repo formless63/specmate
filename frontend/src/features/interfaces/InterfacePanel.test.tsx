@@ -44,7 +44,7 @@ test("body create, tokened edit and freeze preserve physical roles and unknown o
   fireEvent.click(screen.getByText("Freeze interface revision"));
   await screen.findAllByText("exact-body", { selector: "code" });
   expect(calls).toHaveLength(3);
-  expect(calls[0]).toMatchObject({ operation: "interface.create", payload: { project_id: "project", interface: { contacts: [{ contact_id: "a", physical_role: "contact", position_mm: null }], drawing_orientation: { viewing_side: "unknown", rotation_degrees: null, datum: null } } } });
+  expect(calls[0]).toMatchObject({ operation: "interface.create", payload: { interface: { contacts: [{ contact_id: "a", physical_role: "contact", position_mm: null }], drawing_orientation: { viewing_side: "unknown", rotation_degrees: null, datum: null } } } });
   expect(calls[1]).toMatchObject({ operation: "interface.update", expected_state: "draft-v1", payload: { interface: { family: "Synthetic family" } } });
   expect(calls[2]).toMatchObject({ operation: "interface.freeze", expected_state: "draft-v2" });
 });
@@ -106,7 +106,7 @@ test("mapping form pins the selected repeated occurrence and its exact revision"
   expect(screen.getByText("a → right / board · header.pin3")).toBeTruthy();
   fireEvent.click(screen.getByText("Create interface draft"));
   await waitFor(() => expect(calls).toHaveLength(1));
-  expect(calls[0]).toMatchObject({ operation: "interface.create", payload: { project_id: "project", interface: { kind: "interface_map", assembly_revision_id: "assembly-rev", external_pinout_revision_id: "pinout-rev", passages: [{ local_id: "path-a", external_contact_id: "a", internal: { path: ["right", "board"], revision_id: "board-rev", feature_id: "header.pin3" }, condition: null, basis: "Synthetic connection table", kind: "declared_passage" }] } } });
+  expect(calls[0]).toMatchObject({ operation: "interface.create", payload: { interface: { kind: "interface_map", assembly_revision_id: "assembly-rev", external_pinout_revision_id: "pinout-rev", passages: [{ local_id: "path-a", external_contact_id: "a", internal: { path: ["right", "board"], revision_id: "board-rev", feature_id: "header.pin3" }, condition: null, basis: "Synthetic connection table", kind: "declared_passage" }] } } });
 });
 
 test("incomplete pinout draft opens with unknowns and requires an explicitly selected body", async () => {

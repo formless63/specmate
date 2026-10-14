@@ -7,7 +7,6 @@ import pytest
 from django.db import close_old_connections, connections
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.assemblies.queries import (
     permitted_self_dependencies,
     read_assembly,
@@ -23,7 +22,8 @@ from specmate.operations import (
 )
 from specmate.operations.models import IdempotencyRecord
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 
 
 def part(user, project, kind="board", name="Synthetic board"):
@@ -80,7 +80,7 @@ def create(user, project, occurrences=(), relationships=(), assignments=()):
         user,
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic assembly",
             "assembly": {
                 "occurrences": list(occurrences),
@@ -288,33 +288,38 @@ def test_canonical_placement_unknowns_and_view_arrangements_are_separate(users, 
         op(
             users["owner"],
             "assembly.create",
-            {"project_id": project, "name": "Exploded", "assembly": {"view_arrangement": {}}},
+            {
+                "workspace_id": workspace_of(project),
+                "name": "Exploded",
+                "assembly": {"view_arrangement": {}},
+            },
         )
 
 
 def test_unreadable_nested_closure_returns_no_paths_counts_or_conflict_content(users, project):
-    remote = op(users["outsider"], "project.create", {"name": "Restricted project"})["project_id"]
-    ensure_member(users["owner"], "viewer", project=remote)
-    _, board = part(users["outsider"], remote)
-    module = create(users["owner"], project, [occ("private-child", board)])
-    module_rev = freeze(users["owner"], module)
-    root = create(users["owner"], project, [occ("nested", module_rev)])
-    root_rev = freeze(users["owner"], root)
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
+    ensure_member(users["outsider"], "editor", project=project)
+    _, board = part(users["owner"], project)
+    module = create(users["outsider"], project, [occ("private-child", board)])
+    module_rev = freeze(users["outsider"], module)
+    root = create(users["outsider"], project, [occ("nested", module_rev)])
+    root_rev = freeze(users["outsider"], root)
+    # Losing workspace membership hides the whole nested closure from every transport.
+    remove_member(users["outsider"], project=project)
     for operation, payload in [
         ("assembly.read", {"snapshot_id": root_rev["snapshot_id"]}),
         ("assembly.resolve", {"snapshot_id": root_rev["snapshot_id"], "path": ["no-such-path"]}),
         ("assembly.update", {"draft_id": root["draft_id"], "assembly": {}}),
     ]:
         with pytest.raises(NotFound) as exc:
-            op(users["owner"], operation, payload, expected_state="stale")
+            op(users["outsider"], operation, payload, expected_state="stale")
         assert exc.value.details == {}
-        assert "private-child" not in exc.value.message
+        assert exc.value.message == "Draft not found." or "private-child" not in exc.value.message
     client = Client()
-    client.force_login(users["owner"])
+    client.force_login(users["outsider"])
     response = client.get(f"/api/v0/assemblies/snapshots/{root_rev['snapshot_id']}")
     assert response.status_code == 404
     assert response.json()["error"]["details"] == {}
+    assert "private-child" not in response.content.decode()
 
 
 def test_shared_operations_stale_replay_mismatch_permissions_and_rollback(users, project):
@@ -363,19 +368,78 @@ def test_shared_operations_stale_replay_mismatch_permissions_and_rollback(users,
     assert Draft.objects.get(id=created["draft_id"]).state_token == "draft-v2"
 
 
-def test_replayed_create_rechecks_child_access(users, project):
-    remote = op(users["outsider"], "project.create", {"name": "Restricted project"})["project_id"]
-    ensure_member(users["owner"], "viewer", project=remote)
-    _, board = part(users["outsider"], remote)
+def test_replayed_create_rechecks_current_membership(users, project, workspace):
+    _, board = part(users["owner"], project)
     payload = {
-        "project_id": project,
+        "workspace_id": workspace,
         "name": "Synthetic assembly",
         "assembly": {"occurrences": [occ("child", board)]},
     }
-    op(users["owner"], "assembly.create", payload, idempotency_key="create-assembly")
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
-    with pytest.raises(NotFound):
-        op(users["owner"], "assembly.create", payload, idempotency_key="create-assembly")
+    op(users["editor"], "assembly.create", payload, idempotency_key="create-assembly")
+    remove_member(users["editor"])
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(users["editor"], "assembly.create", payload, idempotency_key="create-assembly")
+
+
+def test_foreign_workspace_pin_reads_as_missing_before_any_guard(
+    users, project, workspace, other_workspace
+):
+    # An actor in both workspaces still cannot pin a revision across the boundary.
+    ensure_member(users["outsider"], "editor", workspace=workspace)
+    remote = op(
+        users["outsider"],
+        "project.create",
+        {"name": "Foreign bench", "workspace_id": other_workspace},
+    )["project_id"]
+    _, board = part(users["outsider"], remote)
+    _, local = part(users["owner"], project)
+    before = (Definition.objects.count(), Snapshot.objects.count())
+    with pytest.raises(NotFound, match=r"^Not found\.$") as exc:
+        op(
+            users["outsider"],
+            "assembly.create",
+            {
+                "workspace_id": workspace,
+                "name": "Mixed",
+                "assembly": {"occurrences": [occ("local", local), occ("foreign", board)]},
+            },
+        )
+    assert exc.value.details == {}
+    draft = create(users["outsider"], project, [occ("local", local)])
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(
+            users["outsider"],
+            "assembly.update",
+            {"draft_id": draft["draft_id"], "assembly": {"occurrences": [occ("foreign", board)]}},
+            expected_state=draft["state"],
+        )
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(
+            users["outsider"],
+            "draft.update",
+            {
+                "draft_id": draft["draft_id"],
+                "changes": {"assembly": {"occurrences": [occ("foreign", board)]}},
+            },
+            expected_state=draft["state"],
+        )
+    # Generic capture with an explicit foreign pin is refused the same way.
+    generic = op(
+        users["outsider"],
+        "definition.create",
+        {"workspace_id": workspace, "kind": "note", "name": "Generic"},
+    )
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(
+            users["outsider"],
+            "draft.freeze",
+            {"draft_id": generic["draft_id"], "dependencies": [board["revision_id"]]},
+            expected_state=generic["state"],
+        )
+    assert (Definition.objects.count(), Snapshot.objects.count()) == (
+        before[0] + 2,
+        before[1],
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -418,7 +482,9 @@ def test_api_and_job_read_same_projection_and_read_does_not_cache(users, project
         op(users["viewer"], "assembly.read", payload, idempotency_key="never-cache-reads")
 
 
-def test_capture_discovers_closure_replay_and_project_namespaces(users, project):
+def test_capture_discovers_closure_replay_and_workspace_namespaces(
+    users, project, workspace, other_workspace
+):
     _, board = part(users["owner"], project)
     draft = create(users["owner"], project, [occ("a", board)])
     payload = {"draft_id": draft["draft_id"]}
@@ -448,15 +514,32 @@ def test_capture_discovers_closure_replay_and_project_namespaces(users, project)
         users["owner"], "assembly.freeze", payload, expected_state=before, idempotency_key="freeze"
     )
     with pytest.raises(PermissionDenied):
-        op(users["editor"], "assembly.freeze", payload, expected_state=before)
-    remote = op(users["owner"], "project.create", {"name": "Other synthetic project"})["project_id"]
-    for project_id in (project, remote):
-        op(
-            users["owner"],
-            "assembly.create",
-            {"project_id": project_id, "name": "Reusable"},
-            idempotency_key="same-key",
-        )
+        # Contributors may not freeze (editors hold design.freeze by default).
+        op(users["contributor"], "assembly.freeze", payload, expected_state=before)
+    # One key is one workspace namespace: creating "in" another project of the same
+    # workspace replays the first result instead of creating a second item.
+    first = op(
+        users["owner"],
+        "assembly.create",
+        {"workspace_id": workspace, "name": "Reusable"},
+        idempotency_key="same-key",
+    )
+    assert first == op(
+        users["owner"],
+        "assembly.create",
+        {"workspace_id": workspace, "name": "Reusable"},
+        idempotency_key="same-key",
+    )
+    # A second workspace has its own namespace for the same actor and key.
+    ensure_member(users["owner"], "contributor", workspace=other_workspace)
+    second = op(
+        users["owner"],
+        "assembly.create",
+        {"workspace_id": other_workspace, "name": "Reusable"},
+        idempotency_key="same-key",
+    )
+    assert second["definition_id"] != first["definition_id"]
+    assert second["workspace_id"] == other_workspace
     assert (
         IdempotencyRecord.objects.filter(operation="assembly.create", key="same-key").count() == 2
     )
@@ -551,7 +634,7 @@ def test_api_mutation_uses_same_shared_operation(users, project):
                 "operation": "assembly.create",
                 "request_id": "assembly-api",
                 "idempotency_key": "api-create",
-                "payload": {"project_id": project, "name": "API assembly"},
+                "payload": {"workspace_id": workspace_of(project), "name": "API assembly"},
             }
         ),
         content_type="application/json",

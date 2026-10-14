@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 from specmate.access.permissions import Perm, authorize, authorize_item
 from specmate.design.models import Definition, Draft, Revision, Snapshot, SnapshotDependency
+from specmate.design.pins import NOT_FOUND, pin_workspace
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 
 KIND_PATTERN = r"^[a-z][a-z0-9_]{0,49}$"
@@ -128,6 +129,12 @@ class CaptureDraft(BaseModel):
 
 def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot]:
     draft = scoped_draft(ctx, p.draft_id, perm, lock=True)
+    # Typed closures reject foreign-workspace pins before the database guard can.
+    with pin_workspace(draft.definition.workspace_id):
+        return _capture_scoped(ctx, p, draft)
+
+
+def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft, Snapshot]:
     check_state(ctx, draft)
     validate_content(draft.definition.kind, draft.content)
     if len(set(p.dependencies)) != len(p.dependencies):
@@ -235,7 +242,7 @@ def _capture(ctx: Context, p: CaptureDraft, perm: Perm) -> tuple[Draft, Snapshot
         revision = found.get(rid)
         if revision is None or revision.definition.workspace_id != draft.definition.workspace_id:
             # Pins never cross workspaces; a foreign revision reads as missing.
-            raise NotFound("Dependency revision not found.")
+            raise NotFound(NOT_FOUND)
         authorize_snapshot(ctx.user, revision.snapshot, _authorized=authorized_snapshots)
         if revision.definition_id == draft.definition_id and derived is None:
             raise ValidationFailed("A definition cannot depend on its own revision.")
@@ -386,6 +393,12 @@ def validate_content(kind, content):
 
 
 def authorize_design_content(user, definition, content):
+    # Every typed pin named in this content must stay in the definition's workspace.
+    with pin_workspace(definition.workspace_id):
+        _authorize_design_content(user, definition, content)
+
+
+def _authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)

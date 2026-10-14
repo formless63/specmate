@@ -22,7 +22,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const definitions = useQuery({ queryKey: ["bom-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
   const identity = useQuery({ queryKey: ["bom-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["bom-draft", draftId], queryFn: () => read<Draft>(`bom/drafts/${draftId}`), enabled: !!draftId });
-  const create = useMutation({ mutationFn: () => command<Draft>("bom.create", { project_id: projectId, name, bom: plan }), onSuccess: async (data) => {
+  const create = useMutation({ mutationFn: () => command<Draft>("bom.create", { name, bom: plan }), onSuccess: async (data) => {
     setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["bom-definitions", projectId] });
   } });

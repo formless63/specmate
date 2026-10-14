@@ -10,6 +10,7 @@ from specmate.access.models import Project, WorkspaceMember
 from specmate.access.permissions import Perm, authorize, permissions_for
 from specmate.design.models import Definition, Draft, Revision
 from specmate.design.operations import authorize_design_content, authorize_snapshot, draft_state
+from specmate.design.pins import check_pin
 from specmate.operations import NotFound
 from specmate.sources.models import SourceBundleRevision
 
@@ -62,6 +63,8 @@ def get_revision(user: Any, revision_id: UUID) -> Revision:
     )
     if revision is None:
         raise NotFound("Revision not found.")
+    # Inside a typed closure a foreign-workspace pin reads as missing, before any guard.
+    check_pin(user, revision)
     authorize_snapshot(user, revision.snapshot)
     return revision
 

@@ -62,7 +62,7 @@ test("new plan chooses exact root and sends explicit unknown count and root buy 
   fireEvent.change(screen.getByLabelText("Decision basis for Root assembly"), { target: { value: "Bought populated assembly" } });
   fireEvent.click(screen.getByText("Create BOM draft"));
   await screen.findByText("Captured command");
-  expect(commands[0]).toMatchObject({ operation: "bom.create", payload: { project_id: "project", bom: { assembly_revision_id: "root-rev", quantity: { status: "unknown", amount: null }, policies: [{ path: [], revision_id: "root-rev", decision: "buy", basis: "Bought populated assembly" }], needs: [] } } });
+  expect(commands[0]).toMatchObject({ operation: "bom.create", payload: { bom: { assembly_revision_id: "root-rev", quantity: { status: "unknown", amount: null }, policies: [{ path: [], revision_id: "root-rev", decision: "buy", basis: "Bought populated assembly" }], needs: [] } } });
 });
 
 test("exact dimensional occurrence demand and additive waste remain strings in command", async () => {

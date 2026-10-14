@@ -13,7 +13,8 @@ from specmate.design.models import Snapshot
 from specmate.operations import NotFound
 from specmate.shared_scene import operations  # noqa: F401
 
-from .conftest import ensure_member, op
+from .conftest import op
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ
 from .test_assembly_source_authority import sourced_child  # noqa: F401
 from .test_bom import capture, policy
@@ -197,23 +198,33 @@ def test_supplemental_needs_keep_the_declared_repeated_native_owner_and_unknown_
     )
 
 
-def test_accessible_shared_revision_does_not_make_a_foreign_root_a_selected_project_choice(
+def test_scene_choices_are_the_workspace_collection_not_a_project_or_foreign_root(
     users,
     project,
+    workspace,
     mec_board,  # noqa: F811
 ):
-
-    owner, viewer = users["owner"], users["viewer"]
-    foreign = op(owner, "project.create", {"name": "Synthetic second root project"})["project_id"]
-    ensure_member(viewer, "viewer", project=foreign)
-    frozen = freeze(owner, create(owner, foreign, [occ("board", mec_board)]))
+    owner, viewer, outsider = users["owner"], users["viewer"], users["outsider"]
+    # A root made while working in another project is still a workspace collection item.
+    other = op(owner, "project.create", {"name": "Synthetic second root project"})["project_id"]
+    frozen = freeze(owner, create(owner, other, [occ("board", mec_board)]))
     scene = op(viewer, "shared_scene.read", {"snapshot_id": frozen["snapshot_id"]})
     assert scene["nodes"][0]["revision_id"] == mec_board["revision_id"]
+    choices = op(viewer, "shared_scene.list", {"workspace_id": workspace})
+    assert choices["workspace_id"] == workspace
+    assert frozen["snapshot_id"] in {row["snapshot_id"] for row in choices["assemblies"]}
     client = Client()
     client.force_login(viewer)
-    original = client.get(f"/api/v0/projects/{project}/definitions").json()
-    other = client.get(f"/api/v0/projects/{foreign}/definitions").json()
-    assert scene["root"]["definition_id"] not in {row["definition_id"] for row in original}
-    assert scene["root"]["definition_id"] in {row["definition_id"] for row in other}
-    choices = op(viewer, "shared_scene.list", {"project_id": project})
-    assert frozen["snapshot_id"] not in {row["snapshot_id"] for row in choices["assemblies"]}
+    listed = client.get("/api/v0/shared-scenes/workspace")
+    assert listed.status_code == 200 and listed.json() == choices
+    # A foreign workspace's root never appears, and its listing is not found.
+    remote = op(outsider, "project.create", {"name": "Foreign root"})["project_id"]
+    foreign = freeze(outsider, create(outsider, remote, []))
+    assert foreign["snapshot_id"] not in {
+        row["snapshot_id"]
+        for row in op(viewer, "shared_scene.list", {"workspace_id": workspace})["assemblies"]
+    }
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(viewer, "shared_scene.list", {"workspace_id": workspace_of(remote)})
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(outsider, "shared_scene.list", {"workspace_id": workspace})

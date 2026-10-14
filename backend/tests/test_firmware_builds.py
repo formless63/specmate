@@ -308,9 +308,11 @@ def test_exact_frozen_occurrence_binding(users, firmware, compiler_recipe, board
         users["owner"],
         "assembly.create",
         {
-            "project_id": operations.inputs(
-                users["owner"], FirmwareRef(firmware_revision_id=firmware["revision_id"])
-            )[0].definition.workspace_id,
+            "workspace_id": str(
+                operations.inputs(
+                    users["owner"], FirmwareRef(firmware_revision_id=firmware["revision_id"])
+                )[0].definition.workspace_id
+            ),
             "name": "Synthetic repeated compiler targets",
             "assembly": {
                 "occurrences": [

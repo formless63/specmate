@@ -6,7 +6,6 @@ from uuid import UUID
 import pytest
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.harnesses.contracts import SegmentTerminal
 from specmate.harnesses.queries import inspect_relationships, inspect_revision
@@ -19,7 +18,8 @@ from specmate.operations import (
 )
 from specmate.queries import get_draft, get_revision
 
-from .conftest import ensure_member, op
+from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_cables import fixture as cable_fixture
 
 
@@ -132,7 +132,7 @@ def create(user, project, harness, **ctx):
     return op(
         user,
         "harness.create",
-        {"project_id": project, "name": "Synthetic harness", "harness": harness},
+        {"workspace_id": workspace_of(project), "name": "Synthetic harness", "harness": harness},
         **ctx,
     )
 
@@ -350,14 +350,17 @@ def source_backed_stock(users, project):
     raw = b"Synthetic harness source basis."
     digest = hashlib.sha256(raw).hexdigest()
     blob = SourceBlob.objects.create(
-        project_id=project,
+        workspace_id=workspace_of(project),
         sha256=digest,
         size=len(raw),
         media_type="text/plain",
         registered_by=owner,
     )
     bundle = SourceBundle.objects.create(
-        project_id=project, name="Synthetic harness evidence", role="original", created_by=owner
+        workspace_id=workspace_of(project),
+        name="Synthetic harness evidence",
+        role="original",
+        created_by=owner,
     )
     source = SourceBundleRevision.objects.create(
         bundle=bundle,
@@ -416,20 +419,16 @@ def source_backed_stock(users, project):
 def test_deep_source_denial_precedes_relationship_diagnostics_current_stale_replay_and_read(
     users, project
 ):
-    owner, user = users["owner"], users["editor"]
-    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
-        grants=["design.freeze"]
-    )
-    stock, bundle = source_backed_stock(users, project)
+    user = users["editor"]
+    stock, _ = source_backed_stock(users, project)
     harness = {
         "sections": [{"local_id": "piece", "stock_revision_id": stock["revision_id"]}],
         "segments": [{"local_id": "run", "section_id": "piece"}],
     }
     draft = create(user, project, harness, idempotency_key="source-harness")
     frozen = capture(user, draft, idempotency_key="source-freeze")
-    hidden = op(owner, "project.create", {"name": "Restricted evidence"})["project_id"]
-    bundle.project_id = hidden
-    bundle.save(update_fields=["project"])
+    # Sources share the workspace boundary: membership loss is the remaining revocation.
+    remove_member(user)
     malformed = copy.deepcopy(harness)
     malformed["segments"][0]["section_id"] = "missing"
     malformed["sections"][0]["planned_cut_length_mm"] = -1
@@ -472,9 +471,7 @@ def test_deep_source_denial_precedes_relationship_diagnostics_current_stale_repl
 
 def test_stored_replay_still_checks_old_pins_after_current_draft_changes(users, project):
     owner, user = users["owner"], users["editor"]
-    private = op(owner, "project.create", {"name": "Restricted later"})["project_id"]
-    grant = ensure_member(user, "viewer", project=private)
-    *_, old = fixture(owner, private)
+    *_, old = fixture(owner, project)
     *_, current = fixture(owner, project)
     draft = create(user, project, old, idempotency_key="old-harness")
     changed = op(
@@ -490,11 +487,12 @@ def test_stored_replay_still_checks_old_pins_after_current_draft_changes(users, 
         {"draft_id": draft["draft_id"], "harness": current},
         expected_state=changed["state"],
     )
-    grant.delete()
     assert (
         get_draft(user, draft["draft_id"])["content"]["harness"]["sections"][0]["stock_revision_id"]
         == current["sections"][0]["stock_revision_id"]
     )
+    # Retained receipts recheck current membership before replay or stale diagnostics.
+    remove_member(user)
     with pytest.raises(NotFound):
         create(user, project, old, idempotency_key="old-harness")
     with pytest.raises(NotFound):

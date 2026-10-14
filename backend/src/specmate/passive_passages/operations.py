@@ -1,4 +1,4 @@
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
 from specmate.catalog_matching.operations import evidence_fields
 from specmate.design.operations import (
     CaptureDraft,
@@ -10,6 +10,7 @@ from specmate.design.operations import (
     scoped_draft,
     update_draft,
 )
+from specmate.design.pins import item_workspace, pin_workspace
 from specmate.operations import Conflict, Context, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.passive_passages import queries
@@ -46,10 +47,11 @@ def retained(ctx, operation_name, scope):
 
 
 def create_scope(ctx, p):
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
-    queries.closure(
-        ctx.user, {"passages": p.model.model_dump(mode="json")}, "passage_model", validate=False
-    )
+    workspace = item_workspace(ctx.user, p.workspace_id)
+    with pin_workspace(workspace.id):
+        queries.closure(
+            ctx.user, {"passages": p.model.model_dump(mode="json")}, "passage_model", validate=False
+        )
     scope = f"workspace:{workspace.id}"
     retained(ctx, "passage.create", scope)
     return scope
@@ -93,13 +95,14 @@ def replay(ctx, p, stored):
     authorize_replay=replay,
 )
 def create(ctx: Context, p: CreateModel):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = item_workspace(ctx.user, p.workspace_id)
     content = {"passages": p.model.model_dump(mode="json")}
-    queries.closure(ctx.user, content, "passage_model")
+    with pin_workspace(workspace.id):
+        queries.closure(ctx.user, content, "passage_model")
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=p.project_id, name=p.name, kind="passage_model", content=content
+            workspace_id=workspace.id, name=p.name, kind="passage_model", content=content
         ),
     )
 

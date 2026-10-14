@@ -155,7 +155,8 @@ class AssemblyContent(StrictModel):
 
 
 class CreateAssembly(StrictModel):
-    project_id: UUID
+    # The workspace collection that receives the item; omitted means the actor's only one.
+    workspace_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
     assembly: AssemblyContent = Field(default_factory=AssemblyContent)
 

@@ -44,7 +44,6 @@ class DrawingOptions(BaseModel):
 
 class CreateDrawing(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    project_id: UUID
     snapshot_id: UUID
     renderer_version: Literal["scene-line-svg-v1"] = "scene-line-svg-v1"
     purpose: Literal["internal_inspection"] = "internal_inspection"
@@ -54,10 +53,8 @@ class CreateDrawing(BaseModel):
 class ReadDrawing(BaseModel):
     model_config = ConfigDict(extra="forbid")
     drawing_id: UUID
-    project_id: UUID | None = None
 
 
 class ReadDrawingScene(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    project_id: UUID
     snapshot_id: UUID

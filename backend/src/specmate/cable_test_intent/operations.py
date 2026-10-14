@@ -20,6 +20,7 @@ from specmate.design.operations import (
     snapshot_draft,
     update_draft,
 )
+from specmate.design.pins import item_workspace, pin_workspace
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import workspace_scope
@@ -58,12 +59,14 @@ def scope(name, permission):
                 "cable_test_plan",
                 validate=False,
             )
-        project_id = (
-            p.project_id
-            if isinstance(p, CreatePlan)
-            else plan_draft(ctx, p.draft_id, permission).definition.workspace_id
-        )
-        namespace = workspace_scope(ctx, project_id, permission)
+        needed = permission
+        if isinstance(p, CreatePlan):
+            # Creating adds a workspace collection item (item.create); no project is involved.
+            needed = Perm.ITEM_CREATE
+            workspace_id = item_workspace(ctx.user, p.workspace_id).id
+        else:
+            workspace_id = plan_draft(ctx, p.draft_id, permission).definition.workspace_id
+        namespace = workspace_scope(ctx, workspace_id, needed)
         if ctx.idempotency_key is not None:
             for record in IdempotencyRecord.objects.filter(
                 actor=ctx.user,
@@ -86,17 +89,19 @@ def replay(ctx, p, stored):
     "cable_test_plan.create",
     CreatePlan,
     summary="Create authored test expectations and labels for exact cable scope.",
-    idempotency_scope=scope("cable_test_plan.create", Perm.DESIGN_EDIT),
+    idempotency_scope=scope("cable_test_plan.create", Perm.ITEM_CREATE),
     authorize_replay=replay,
 )
 def create(ctx: Context, p: CreatePlan):
-    scope("cable_test_plan.create", Perm.DESIGN_EDIT)(ctx, p)
+    scope("cable_test_plan.create", Perm.ITEM_CREATE)(ctx, p)
+    workspace = item_workspace(ctx.user, p.workspace_id)
     content = {"test_plan": p.test_plan.model_dump(mode="json")}
-    queries.closure(ctx.user, content, "cable_test_plan")
+    with pin_workspace(workspace.id):
+        queries.closure(ctx.user, content, "cable_test_plan")
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=p.project_id, name=p.name, kind="cable_test_plan", content=content
+            workspace_id=workspace.id, name=p.name, kind="cable_test_plan", content=content
         ),
     )
 

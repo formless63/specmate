@@ -44,7 +44,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const definitions = useQuery({ queryKey: ["harness-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
   const identity = useQuery({ queryKey: ["harness-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["harness-draft", draftId], queryFn: () => read<Draft>(`harnesses/drafts/${draftId}`), enabled: !!draftId });
-  const create = useMutation({ mutationFn: async ({ generation }: { generation: number }) => { const data = await command<Draft>("harness.create", { project_id: projectId, name, harness: value }); return { data, generation }; }, onSuccess: async ({ data, generation }) => {
+  const create = useMutation({ mutationFn: async ({ generation }: { generation: number }) => { const data = await command<Draft>("harness.create", { name, harness: value }); return { data, generation }; }, onSuccess: async ({ data, generation }) => {
     if (generation !== creationGeneration.current) return;
     replaceEditor(); setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["harness-definitions", projectId] });

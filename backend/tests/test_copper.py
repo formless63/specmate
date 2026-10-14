@@ -10,7 +10,8 @@ from specmate.copper.queries import inspect_graph
 from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_cables import capture as cable_capture
 from .test_cables import create as cable_create
 from .test_cables import fixture as cable_fixture
@@ -38,7 +39,7 @@ def assembly(user, project, children, relationships=()):
         user,
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic composition",
             "assembly": {
                 "occurrences": [
@@ -174,7 +175,7 @@ def test_unknown_interface_passage_is_not_copper(users, project):
 
 def test_current_full_source_authority_precedes_selection_and_limits(users, project, monkeypatch):
     owner, user = users["owner"], users["editor"]
-    stock, bundle = source_backed_stock(users, project)
+    stock, _ = source_backed_stock(users, project)
     harness = {
         "sections": [{"local_id": "piece", "stock_revision_id": stock["revision_id"]}],
         "segments": [{"local_id": "run", "section_id": "piece"}],
@@ -182,9 +183,8 @@ def test_current_full_source_authority_precedes_selection_and_limits(users, proj
     frozen = capture(owner, create(owner, project, harness))
     root = assembly(owner, project, [("lead", frozen)])
     assert graph(user, root)["nodes"]
-    hidden = op(owner, "project.create", {"name": "Restricted evidence"})["project_id"]
-    bundle.project_id = hidden
-    bundle.save(update_fields=["project"])
+    # Sources share the workspace boundary: membership loss is the remaining revocation.
+    remove_member(user)
     monkeypatch.setattr("specmate.copper.queries.MAX_NODES", 0)
     for kwargs in ({}, {"occurrence_path": ["missing"]}, {"terminal_id": "missing"}):
         with pytest.raises(NotFound):

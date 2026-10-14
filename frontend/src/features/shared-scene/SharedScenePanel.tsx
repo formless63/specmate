@@ -39,7 +39,7 @@ function Workspace({ projectId }: { projectId: string }) {
     setScene(null); setChoices(none); setSelected(null); setShow3d(false); setError(''); setLoading(true);
     try {
       const [nextChoices, nextScene] = await Promise.all([
-        request<SceneChoices>(`shared-scenes/projects/${projectId}`),
+        request<SceneChoices>('shared-scenes/workspace'),
         target ? request<SharedScene>(`shared-scenes/snapshots/${target}`) : Promise.resolve(null),
       ]);
       if (!mounted.current || token !== generation.current) return;

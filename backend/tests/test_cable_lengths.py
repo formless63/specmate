@@ -14,7 +14,8 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import op, set_role
+from .scope_helpers import workspace_of
 from .test_cables import capture, create, fixture
 
 
@@ -238,7 +239,11 @@ def test_hidden_retained_result_is_checked_before_changed_payload_diagnostics(
     *_, accessible_cable = fixture(user, project)
     original = create(user, project, hidden_cable, idempotency_key="guard-create")
     if operation_name == "cable.create":
-        payload = {"project_id": project, "name": "Replacement", "cable": accessible_cable}
+        payload = {
+            "workspace_id": workspace_of(project),
+            "name": "Replacement",
+            "cable": accessible_cable,
+        }
         state = None
         key = "guard-create"
     else:
@@ -296,14 +301,11 @@ def test_fractional_allowances_zero_and_endpoint_scope_remain_exact(users, proje
 
 @pytest.mark.parametrize("invalid", ["cut", "allowance_endpoint", "termination_endpoint"])
 @pytest.mark.parametrize("operation_name", ["cable.create", "cable.update"])
-def test_hidden_retained_authority_precedes_supplied_semantic_diagnostics(
+def test_current_role_precedes_supplied_semantic_diagnostics(
     users, project, invalid, operation_name
 ):
-    user = users["owner"]
-    hidden_project = op(user, "project.create", {"name": "Hidden retained length source"})[
-        "project_id"
-    ]
-    *_, hidden = fixture(user, hidden_project)
+    user = users["editor"]
+    *_, hidden = fixture(user, project)
     *_, replacement = fixture(user, project)
     original = create(user, project, hidden, idempotency_key="semantic-guard")
     if operation_name == "cable.update":
@@ -331,12 +333,14 @@ def test_hidden_retained_authority_precedes_supplied_semantic_diagnostics(
         replacement["assignments"][0]["endpoint_id"] = "missing"
     fresh = create(user, project, fixture(user, project)[-1])
     payload = (
-        {"project_id": project, "name": "Replacement", "cable": replacement}
+        {"workspace_id": workspace_of(project), "name": "Replacement", "cable": replacement}
         if operation_name == "cable.create"
         else {"draft_id": fresh["draft_id"], "cable": replacement}
     )
-    WorkspaceMember.objects.filter(workspace__projects=hidden_project, user=user).delete()
-    with pytest.raises((PermissionDenied, NotFound)):
+    # A role downgrade is the remaining in-workspace revocation: current authority for the
+    # retained key precedes every supplied semantic diagnostic.
+    set_role(user, "viewer")
+    with pytest.raises(PermissionDenied):
         op(
             user,
             operation_name,
@@ -344,8 +348,10 @@ def test_hidden_retained_authority_precedes_supplied_semantic_diagnostics(
             expected_state=fresh["state"],
             idempotency_key="semantic-guard",
         )
-    with pytest.raises(ValidationFailed):
+    with pytest.raises(PermissionDenied):
         op(user, operation_name, payload, expected_state=fresh["state"])
+    with pytest.raises(ValidationFailed):
+        op(users["owner"], operation_name, payload, expected_state=fresh["state"])
 
 
 def test_stock_pin_change_does_not_report_route_declaration_change(users, project):

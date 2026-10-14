@@ -8,9 +8,9 @@ from specmate.access.models import WorkspaceMember
 from specmate.assemblies import placement as placement_operations  # noqa: F401
 from specmate.design.models import Draft, Snapshot
 from specmate.operations import Conflict, NotFound, PermissionDenied, ValidationFailed
-from specmate.sources.models import SourceBundle
 
-from .conftest import op
+from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_cables import fixture as cable_fixture
 from .test_mechanical_sources import declaration, mec_sources, mec_target  # noqa: F401
@@ -26,7 +26,11 @@ def mounted(users, project):
     cable_draft = op(
         users["owner"],
         "cable.create",
-        {"project_id": project, "name": "Synthetic internal cable", "cable": cable_content},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic internal cable",
+            "cable": cable_content,
+        },
     )
     cable = op(
         users["owner"],
@@ -168,7 +172,7 @@ def test_current_authority_and_readonly_transport(users, project, mounted):
         op(users["viewer"], "assembly.placement_inputs", {"draft_id": mounted["draft_id"]})
 
 
-def test_restricted_mechanical_source_closure_hides_choices_and_saved_mounting(
+def test_lost_membership_hides_mechanical_source_choices_and_saved_mounting(
     users,
     project,
     mec_sources,  # noqa: F811
@@ -196,8 +200,9 @@ def test_restricted_mechanical_source_closure_hides_choices_and_saved_mounting(
         ][0]["name"]
         == "Synthetic enclosure source"
     )
-    other = op(users["owner"], "project.create", {"name": "Restricted original sources"})
-    SourceBundle.objects.filter(id=mec_sources["bundle_id"]).update(project_id=other["project_id"])
+    # Sources share the workspace boundary; losing membership hides the whole closure.
+    remove_member(users["viewer"])
+    remove_member(users["editor"])
     denied = post_op(
         api(users["viewer"]), "assembly.placement_inputs", {"draft_id": root["draft_id"]}
     )

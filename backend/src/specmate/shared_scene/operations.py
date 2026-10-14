@@ -9,17 +9,18 @@ from specmate.shared_scene.projection import list_scenes, read_scene
 
 class ListScenes(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    project_id: UUID
+    # Omitted means the actor's only workspace.
+    workspace_id: UUID | None = None
 
 
 @operation(
     "shared_scene.list",
     ListScenes,
-    summary="List currently readable frozen assembly scenes in a project.",
+    summary="List the latest frozen assembly scenes in the workspace collection.",
     supports_idempotency=False,
 )
 def inspect_choices(ctx: Context, payload: ListScenes):
-    return list_scenes(ctx.user, payload.project_id)
+    return list_scenes(ctx.user, payload.workspace_id)
 
 
 @operation(

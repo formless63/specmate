@@ -10,6 +10,7 @@ from specmate.cables.contracts import Cable
 from specmate.cables.lengths import project_lengths
 from specmate.design.models import Revision
 from specmate.design.operations import authorize_snapshot
+from specmate.design.pins import check_pin
 from specmate.interfaces.contracts import ConnectorBody, Pinout
 from specmate.interfaces.queries import parse_content as parse_interface
 from specmate.operations import NotFound, ValidationFailed
@@ -67,6 +68,7 @@ class Closure:
             *(e.pinout_revision_id for e in self.cable.endpoints),
             *dependencies,
         ]
+        pin_scope = None
         while pending:
             rid = pending.pop()
             if rid in self.revisions:
@@ -76,9 +78,8 @@ class Closure:
             revision = (
                 Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
             )
-            if revision is None:
-                raise NotFound("Cable reference unavailable.")
-            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
+            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+            pin_scope = check_pin(user, revision, pin_scope)
             self.revisions[rid] = revision
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         # Recheck typed source evidence, not just membership or snapshot dependency rows.

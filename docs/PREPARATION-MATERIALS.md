@@ -67,7 +67,10 @@ establish exclusive global attribution of Inventory events.
 ## Controlled operations and disclosure
 
 `material_plan.create`, `.update`, `.freeze`, `.read` and `.authority` use the shared
-operation layer used by HTTP, jobs and agent adapters. Draft updates require the
+operation layer used by HTTP, jobs and agent adapters. Material plans are global
+workspace items that projects reference; `material_plan.create` takes an optional
+`workspace_id` and no project, and every pinned subject, stock and source must
+belong to that workspace. Draft updates require the
 original optimistic token. Freeze captures the saved draft and its exact dependencies;
 unsaved edits stay separate. Replays authorize retained and supplied closures before
 payload-mismatch or engineering diagnostics. All direct reads refresh the actor's

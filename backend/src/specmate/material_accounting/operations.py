@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize_item
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Draft, Snapshot
 from specmate.design.operations import (
@@ -12,6 +12,7 @@ from specmate.design.operations import (
     freeze_draft,
     update_draft,
 )
+from specmate.design.pins import item_workspace, pin_workspace
 from specmate.material_accounting.contracts import (
     CapturePlan,
     CreatePlan,
@@ -33,7 +34,8 @@ def plan_draft(ctx, draft_id, permission=Perm.WORKSPACE_READ, lock=False):
     draft = query.filter(id=draft_id).first()
     if draft is None:
         raise NotFound("Material plan draft unavailable.")
-    authorize(ctx.user, draft.definition.workspace_id, permission)
+    # Contributors may edit drafts of the plans they created (shared object rule).
+    authorize_item(ctx.user, draft.definition, permission)
     if draft.definition.kind != "material_plan":
         raise NotFound("Material plan draft unavailable.")
     closure(ctx.user, draft.content, draft.definition.kind, authority_only=True)
@@ -52,12 +54,13 @@ def retained(ctx, stored, permission):
 
 
 def scope(ctx, payload, permission=Perm.DESIGN_EDIT):
-    project_id = (
-        payload.project_id
-        if isinstance(payload, CreatePlan)
-        else plan_draft(ctx, payload.draft_id, permission).definition.workspace_id
-    )
-    namespace = workspace_scope(ctx, project_id, permission)
+    if isinstance(payload, CreatePlan):
+        # Creating adds a workspace collection item (item.create); no project is involved.
+        permission = Perm.ITEM_CREATE
+        workspace_id = item_workspace(ctx.user, payload.workspace_id).id
+    else:
+        workspace_id = plan_draft(ctx, payload.draft_id, permission).definition.workspace_id
+    namespace = workspace_scope(ctx, workspace_id, permission)
     if isinstance(payload, (CreatePlan, UpdatePlan)):
         closure(
             ctx.user,
@@ -95,13 +98,14 @@ def replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     idempotency_scope=scope,
 )
 def create(ctx: Context, payload: CreatePlan):
-    authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+    workspace = item_workspace(ctx.user, payload.workspace_id)
     content = {"material_plan": payload.plan.model_dump(mode="json")}
-    closure(ctx.user, content)
+    with pin_workspace(workspace.id):
+        closure(ctx.user, content)
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=payload.project_id,
+            workspace_id=workspace.id,
             name=payload.name,
             kind="material_plan",
             content=content,

@@ -21,6 +21,7 @@ from specmate.operations import (
 )
 
 from .conftest import op, remove_member, set_role
+from .scope_helpers import workspace_of
 from .test_pcb import (  # noqa: F401
     attempt,
     digest,
@@ -508,7 +509,7 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, workspa
         users["owner"],
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic controller pair",
             "assembly": {
                 "occurrences": [

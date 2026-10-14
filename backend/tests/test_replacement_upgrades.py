@@ -20,6 +20,7 @@ from specmate.operations import (
 from specmate.revision_upgrades.models import UpgradeApplication, UpgradeProposal, UpgradeReview
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_transports import api
 
@@ -29,7 +30,7 @@ def connector(user, project, name, contacts):
         user,
         "interface.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": name,
             "interface": {
                 "kind": "connector_body",

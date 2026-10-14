@@ -22,11 +22,10 @@ from specmate.operations import (
     Unauthenticated,
     ValidationFailed,
 )
-from specmate.operations.models import IdempotencyRecord
 from specmate.queries import get_draft, get_revision
-from specmate.sources.models import SourceBundle
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create as create_assembly
 from .test_assemblies import freeze as freeze_assembly
 from .test_assemblies import occ, part
@@ -60,7 +59,7 @@ def create(user, project, plan, **ctx):
         user,
         "cable_test_plan.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic cable test plan",
             "test_plan": plan,
         },
@@ -76,6 +75,14 @@ def freeze(user, draft, **ctx):
         expected_state=draft["state"],
         **ctx,
     )
+
+
+def foreign_cable(users):
+    """A frozen cable in the outsider's separate workspace."""
+    outsider = users["outsider"]
+    remote = op(outsider, "project.create", {"name": "Foreign cable bench"})["project_id"]
+    *_, specification = cable_fixture(outsider, remote)
+    return freeze_cable(outsider, create_cable(outsider, remote, specification))
 
 
 @pytest.fixture
@@ -349,7 +356,7 @@ def test_cas_replay_permission_and_api_download(users, project, plan):
     with pytest.raises(PermissionDenied):
         create(users["viewer"], project, plan)
     with pytest.raises(PermissionDenied):
-        freeze(users["editor"], frozen["draft"])
+        freeze(users["contributor"], frozen["draft"])
     with pytest.raises(NotFound):
         result(users["outsider"], frozen["revision_id"])
     assert (
@@ -398,10 +405,9 @@ def test_registered_evidence_retains_rights_hash_and_revocation_precedes_diagnos
     source = output["evidence"][0]["evidence"]
     assert source["sha256"] and source["rights"] == "synthetic-test"
     assert source["source_bundle_revision_id"] == evidence["source_bundle_revision_id"]
-    hidden = op(owner, "project.create", {"name": "Restricted synthetic evidence"})["project_id"]
-    SourceBundle.objects.filter(revisions__id=evidence["source_bundle_revision_id"]).update(
-        project_id=hidden
-    )
+    # Sources share the workspace boundary: membership loss hides evidence and results.
+    remove_member(users["viewer"])
+    remove_member(users["editor"])
     invalid = copy.deepcopy(plan)
     invalid["pairs"][0]["first"]["contact_id"] = "missing"
     for query in (
@@ -415,17 +421,12 @@ def test_registered_evidence_retains_rights_hash_and_revocation_precedes_diagnos
             query()
 
 
-@pytest.mark.parametrize("legacy", [False, True])
 def test_retained_key_authority_checked_before_mismatch_even_after_draft_replaced(
-    users, project, plan, legacy
+    users, project, plan
 ):
     editor = users["editor"]
-    private_project = op(users["owner"], "project.create", {"name": "Temporary shared source"})[
-        "project_id"
-    ]
-    ensure_member(editor, "viewer", project=private_project)
     old = copy.deepcopy(plan)
-    old["pairs"][0]["evidence"] = source_evidence(users, private_project)
+    old["pairs"][0]["evidence"] = source_evidence(users, project)
     draft = create(editor, project, old, idempotency_key="old-reference")
     op(
         editor,
@@ -433,24 +434,18 @@ def test_retained_key_authority_checked_before_mismatch_even_after_draft_replace
         {"draft_id": draft["draft_id"], "test_plan": plan},
         expected_state=draft["state"],
     )
-    if legacy:
-        IdempotencyRecord.objects.filter(
-            operation="cable_test_plan.create", key="old-reference"
-        ).update(scope="legacy")
-    WorkspaceMember.objects.filter(workspace__projects=private_project, user=editor).delete()
+    remove_member(editor)
     with pytest.raises(NotFound):
         create(editor, project, plan, idempotency_key="old-reference")
 
 
 def test_incoming_scope_authority_precedes_wrong_root_occurrence_diagnostics(users, project, plan):
-    owner = users["owner"]
-    hidden = op(owner, "project.create", {"name": "Restricted cable scope"})["project_id"]
-    *_, specification = cable_fixture(owner, hidden)
-    other = freeze_cable(owner, create_cable(owner, hidden, specification))
+    # A cable from a foreign workspace reads as missing before any occurrence diagnostic.
+    other = foreign_cable(users)
     invalid = {**plan, "cable_revision_id": other["revision_id"], "occurrence_path": ["missing"]}
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         create(users["editor"], project, invalid)
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         inspect_target(
             users["viewer"],
             InspectTarget(
@@ -571,7 +566,7 @@ def test_evidence_source_ancestry_revocation_denies_reads_exports_and_generic_st
     users, project, plan, kind, target_kind
 ):
     owner = users["owner"]
-    evidence, ancestor_id = evidence_derivative(users, project, kind)
+    evidence, _ = evidence_derivative(users, project, kind)
     rows = plan["pairs"] if target_kind == "pair" else plan["labels"]
     rows[0]["evidence"] = evidence
     draft = create(owner, project, plan)
@@ -581,9 +576,9 @@ def test_evidence_source_ancestry_revocation_denies_reads_exports_and_generic_st
     assert (
         resolved["evidence"]["source_bundle_revision_id"] == evidence["source_bundle_revision_id"]
     )
-    from .test_source_editing import hide_archive_member
-
-    hide_archive_member(users, ancestor_id)
+    # Ancestry shares the workspace boundary: membership loss is the remaining revocation.
+    remove_member(users["viewer"])
+    remove_member(users["editor"])
     for read in (
         lambda: result(users["viewer"], frozen["revision_id"]),
         lambda: portable_package(users["viewer"], frozen["revision_id"]),
@@ -602,17 +597,14 @@ def test_evidence_source_ancestry_revocation_denies_reads_exports_and_generic_st
     invalid = copy.deepcopy(plan)
     invalid["pairs"][0]["first"]["contact_id"] = "missing"
     invalid["labels"][0]["evidence"] = {**evidence, "source_path": "absent.txt"}
-    with pytest.raises(NotFound, match="Project"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         create(users["editor"], project, invalid)
 
 
-@pytest.mark.parametrize("legacy", [False, True])
 @pytest.mark.parametrize("kind", ["derivative", "archive", "edit"])
-def test_retained_evidence_ancestry_authority_precedes_key_mismatch(
-    users, project, plan, legacy, kind
-):
+def test_retained_evidence_ancestry_authority_precedes_key_mismatch(users, project, plan, kind):
     editor = users["editor"]
-    evidence, ancestor_id = evidence_derivative(users, project, kind)
+    evidence, _ = evidence_derivative(users, project, kind)
     old = copy.deepcopy(plan)
     old["pairs"][0]["evidence"] = evidence
     draft = create(editor, project, old, idempotency_key="ancestor-key")
@@ -622,14 +614,8 @@ def test_retained_evidence_ancestry_authority_precedes_key_mismatch(
         {"draft_id": draft["draft_id"], "test_plan": plan},
         expected_state=draft["state"],
     )
-    if legacy:
-        IdempotencyRecord.objects.filter(
-            operation="cable_test_plan.create", key="ancestor-key"
-        ).update(scope="legacy")
-    from .test_source_editing import hide_archive_member
-
-    hide_archive_member(users, ancestor_id)
-    with pytest.raises(NotFound, match="Project"):
+    remove_member(editor)
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         create(editor, project, plan, idempotency_key="ancestor-key")
 
 
@@ -642,11 +628,7 @@ def test_scope_and_retained_authority_precede_missing_evidence_path_diagnostics(
     create(users["editor"], project, plan, idempotency_key="authorized-key")
     with pytest.raises(IdempotencyMismatch):
         create(users["editor"], project, missing, idempotency_key="authorized-key")
-    hidden = op(users["owner"], "project.create", {"name": "Restricted incoming cable"})[
-        "project_id"
-    ]
-    *_, specification = cable_fixture(users["owner"], hidden)
-    cable = freeze_cable(users["owner"], create_cable(users["owner"], hidden, specification))
+    cable = foreign_cable(users)
     missing.update(root_revision_id=cable["revision_id"], cable_revision_id=cable["revision_id"])
-    with pytest.raises(NotFound, match="Project"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         create(users["editor"], project, missing)

@@ -8,13 +8,12 @@ import pytest
 from django.db import close_old_connections, connection
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.operations import Conflict, IdempotencyMismatch, NotFound
 from specmate.operations.models import IdempotencyRecord
 from specmate.shared_scene import drawing_operations, drawing_render
 from specmate.shared_scene.models import SceneDrawing
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
 from .test_assemblies import create, freeze, occ
 from .test_preparation import cable, profile
 from .test_preparation import create as create_cuts
@@ -69,6 +68,8 @@ def test_changed_key_retains_old_scene_authority_when_proposed_scene_drops_it(
         }
         recipe = freeze_cuts(user, create_cuts(user, project, rules))
         root = freeze(user, create(user, project, [occ("preparation", recipe)]))
+    # The viewer generates and reads; membership loss is the remaining revocation.
+    user = users["viewer"]
     saved = drawing(user, project, root)
     before = read(user, saved)
     client = Client()
@@ -77,11 +78,9 @@ def test_changed_key_retains_old_scene_authority_when_proposed_scene_drops_it(
     retained = {
         part: client.get(url + "/" + part).content for part in ("svg", "manifest", "package")
     }
-    WorkspaceMember.objects.filter(user=user, workspace__projects=remote).delete()
+    remove_member(user)
     assert op(
-        user,
-        "shared_scene.read_drawing_scene",
-        {"project_id": project, "snapshot_id": clean["snapshot_id"]},
+        users["owner"], "shared_scene.read_drawing_scene", {"snapshot_id": clean["snapshot_id"]}
     )
     # Proposed clean root has no protected inputs; the old receipt still does.
     with pytest.raises(NotFound):
@@ -93,8 +92,8 @@ def test_changed_key_retains_old_scene_authority_when_proposed_scene_drops_it(
     for part in ("svg", "manifest", "package", "invalid-part"):
         response = client.get(url + "/" + part)
         assert response.status_code == 404
-        assert response.json()["error"]["message"] == "Project not found."
-    ensure_member(user, "owner", project=remote)
+        assert response.json()["error"]["message"] == "Not found."
+    member(user, "viewer")
     assert drawing(user, project, root) == saved
     assert read(user, saved) == before
     assert {part: client.get(url + "/" + part).content for part in retained} == retained

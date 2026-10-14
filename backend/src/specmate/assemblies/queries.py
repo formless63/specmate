@@ -15,6 +15,7 @@ from specmate.assemblies.contracts import (
     RevisionRef,
 )
 from specmate.design.models import Revision, Snapshot
+from specmate.design.pins import check_pin
 from specmate.operations import NotFound, ValidationFailed
 
 MAX_NODES = 5000
@@ -55,8 +56,9 @@ class Node:
 class Closure:
     """Authorize every revision before returning any path, count or graph diagnostic."""
 
-    def __init__(self, user, content, kind=None, dependencies=()):
+    def __init__(self, user, content, kind=None, dependencies=(), *, workspace_id=None):
         self.user = user
+        self.workspace_id = workspace_id
         self.revisions = {}
         self.nodes = {}
         self.relationships = []
@@ -73,12 +75,9 @@ class Closure:
         revision = (
             Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
         )
-        if revision is None:
-            raise NotFound("Assembly unavailable.")
-        try:
-            authorize(self.user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
-        except NotFound:
-            raise NotFound("Assembly unavailable.") from None
+        # Missing, foreign-workspace and unreadable pins all read as the same NotFound,
+        # before any graph diagnostic or a database guard can see them.
+        self.workspace_id = check_pin(self.user, revision, self.workspace_id)
         if len(self.revisions) >= MAX_REVISIONS:
             raise ValidationFailed("Assembly exceeds the supported closure limit.")
         self.revisions[revision_id] = revision
@@ -209,7 +208,8 @@ class Closure:
 
 def dependency_revisions(user, definition, content):
     """Design capture hook: exact recursively pinned closure, never live draft children."""
-    return sorted(Closure(user, content, kind=definition.kind).revisions, key=str)
+    closure = Closure(user, content, kind=definition.kind, workspace_id=definition.workspace_id)
+    return sorted(closure.revisions, key=str)
 
 
 def permitted_self_dependencies(user, definition, content):
@@ -219,7 +219,7 @@ def permitted_self_dependencies(user, definition, content):
     revision can contain an older, finite assembly or document its prior revision.
     Arbitrary caller-added self pins never enter this set.
     """
-    closure = Closure(user, content, kind=definition.kind)
+    closure = Closure(user, content, kind=definition.kind, workspace_id=definition.workspace_id)
     return {
         rid
         for rid, revision in closure.revisions.items()
@@ -227,8 +227,8 @@ def permitted_self_dependencies(user, definition, content):
     }
 
 
-def authorize_content(user, content):
-    Closure(user, content)
+def authorize_content(user, content, workspace_id=None):
+    Closure(user, content, workspace_id=workspace_id)
 
 
 def get_snapshot(user, snapshot_id):
@@ -249,6 +249,7 @@ def get_snapshot(user, snapshot_id):
         body["content"],
         kind=snapshot.definition.kind,
         dependencies=snapshot.dependencies.values_list("revision_id", flat=True),
+        workspace_id=snapshot.definition.workspace_id,
     )
     if closure.root is None:
         raise ValidationFailed("Snapshot is not an assembly.")

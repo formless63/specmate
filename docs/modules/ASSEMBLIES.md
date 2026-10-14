@@ -31,8 +31,11 @@ from canonical placement. Native geometry, collision evaluation, world-transform
 composition and placement tooling remain separate mechanical-scene obligations.
 
 Assembly reads and replay checks reauthorize the entire referenced closure before
-disclosing paths, counts or diagnostics. A restricted dependency makes the closure
-unavailable; omission never masquerades as a complete assembly. Reads are bounded to
+disclosing paths, counts or diagnostics. The closure stays inside the assembly's
+workspace: workspace membership covers it, and a child from another workspace (even
+one the actor can read) is rejected as not found before any path or graph
+diagnostic. An unavailable dependency makes the closure unavailable; omission never
+masquerades as a complete assembly. Reads are bounded to
 5,000 contextual occurrences, depth 32 and 2,000 distinct revisions, and cannot use
 idempotency to preserve readable results after permission changes.
 

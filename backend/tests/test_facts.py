@@ -23,6 +23,7 @@ from specmate.operations import (
 from specmate.operations.models import IdempotencyRecord
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
 
@@ -365,7 +366,7 @@ def test_repeated_occurrences_get_distinct_fact_ledgers_and_require_nested_acces
         users["owner"],
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Repeated parts",
             "assembly": {
                 "occurrences": [

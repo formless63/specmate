@@ -21,6 +21,7 @@ from specmate.operations import (
 from specmate.passive_passages.models import PassageReview
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_catalog_matching import source_evidence
 from .test_copper import board_population
 from .test_interfaces import create as interface_create
@@ -59,7 +60,7 @@ def circuit(users, project):
     draft = op(
         owner,
         "passage.create",
-        {"project_id": project, "name": "Synthetic passive model", "model": model},
+        {"workspace_id": workspace_of(project), "name": "Synthetic passive model", "model": model},
     )
     frozen = op(
         owner, "passage.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]
@@ -179,7 +180,7 @@ def test_scope_stale_state_review_replay_and_current_decision_are_shared(users, 
         op(
             users["viewer"],
             "passage.create",
-            {"project_id": project, "name": "Denied", "model": model},
+            {"workspace_id": workspace_of(project), "name": "Denied", "model": model},
         )
     with pytest.raises(NotFound):
         op(users["outsider"], "passage.read", {"revision_id": frozen["revision_id"]})
@@ -245,7 +246,11 @@ def test_supplied_source_and_retained_create_closures_precede_terminal_or_key_di
     assertion_source = source_evidence(users, other)
     sourced = copy.deepcopy(model)
     sourced["passages"][0]["evidence"] = assertion_source
-    body = {"project_id": project, "name": "Source-backed assertion", "model": sourced}
+    body = {
+        "workspace_id": workspace_of(project),
+        "name": "Source-backed assertion",
+        "model": sourced,
+    }
     created = op(editor, "passage.create", body, idempotency_key="create")
     WorkspaceMember.objects.filter(workspace__projects=other, user=editor).delete()
     invalid = copy.deepcopy(sourced)
@@ -360,7 +365,11 @@ def test_native_resistor_candidates_remain_boundaries_until_separate_assertion_a
     draft = op(
         owner,
         "passage.create",
-        {"project_id": project, "name": "Explicit native-root ideal model", "model": model},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Explicit native-root ideal model",
+            "model": model,
+        },
     )
     frozen = op(
         owner, "passage.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]
@@ -425,7 +434,9 @@ def test_root_project_revocation_precedes_query_selection_and_review_conflict(us
         "passages": [],
     }
     draft = op(
-        editor, "passage.create", {"project_id": project, "name": "Owned model", "model": model}
+        editor,
+        "passage.create",
+        {"workspace_id": workspace_of(project), "name": "Owned model", "model": model},
     )
     frozen = op(
         owner, "passage.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]

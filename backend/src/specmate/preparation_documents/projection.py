@@ -11,6 +11,7 @@ from specmate.cable_test_intent.queries import result as inspect_tests
 from specmate.cables.queries import inspect_revision as inspect_cable
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import canonical_bytes
+from specmate.design.pins import pin_workspace
 from specmate.end_preparation.application import apply_harness_profile, apply_profile
 from specmate.end_preparation.contracts import ApplyHarnessProfile, ApplyProfile
 from specmate.end_preparation.queries import profile_revision as end_profile_revision
@@ -46,17 +47,21 @@ def authorize_inputs(user, configuration, supplementary=()):
     """Resolve all owning/catalog/design/source closure before projection diagnostics."""
     user = current_actor(user)
     captured = {}
-    pending = list(references(configuration) | set(supplementary))
-    while pending:
-        rid = pending.pop()
-        if rid in captured:
-            continue
-        revision = get_revision(user, rid)
-        captured[revision.id] = revision
-        pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
-        if len(captured) > MAX_REVISIONS:
-            raise ValidationFailed("Document inputs exceed the bounded revision limit.")
-    files, opaque = collect_sources(user, captured)
+    root = get_revision(user, configuration.root_revision_id)
+    # Every bound plan/profile and supplementary pin stays in the root's workspace; a
+    # foreign revision reads as missing before any projection or receipt write.
+    with pin_workspace(root.definition.workspace_id):
+        pending = list(references(configuration) | set(supplementary))
+        while pending:
+            rid = pending.pop()
+            if rid in captured:
+                continue
+            revision = get_revision(user, rid)
+            captured[revision.id] = revision
+            pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
+            if len(captured) > MAX_REVISIONS:
+                raise ValidationFailed("Document inputs exceed the bounded revision limit.")
+        files, opaque = collect_sources(user, captured)
     if sum(len(r.snapshot.canonical) for r in captured.values()) > MAX_INPUT_BYTES:
         raise ValidationFailed("Canonical document inputs exceed the bounded byte limit.")
     if len(files) > MAX_SOURCE_FILES:

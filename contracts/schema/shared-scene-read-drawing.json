@@ -5,19 +5,6 @@
       "format": "uuid",
       "title": "Drawing Id",
       "type": "string"
-    },
-    "project_id": {
-      "anyOf": [
-        {
-          "format": "uuid",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Project Id"
     }
   },
   "required": [
