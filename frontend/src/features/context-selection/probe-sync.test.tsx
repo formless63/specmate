@@ -9,7 +9,7 @@ import { RelationRegistry } from '../probe/relations';
 import { ContextualInspectionWorkspace } from './ContextualInspectionWorkspace';
 import { contextScene } from './test-fixtures';
 
-vi.mock('../shared-scene/SceneViewport', () => ({ default: () => <div /> }));
+vi.mock('../shared-scene/SceneViewport', () => ({ default: ({ related }: { related?: { path: string[] }[] }) => <p>Viewport related: {(related ?? []).map(a => a.path.join('/')).join(',') || 'none'}</p> }));
 const response = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
 const choices = { assemblies: [{ snapshot_id: 'root-snapshot', revision_id: 'root-r1', name: 'Synthetic root', number: 1 }], window: 'latest_50_frozen_revisions' };
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
@@ -90,4 +90,12 @@ test('a link to a repeated use opens with exactly that use selected; clearing th
   expect(within(screen.getByRole('region', { name: 'Shared contextual selection' })).getByText('Selected occurrence: right/board')).toBeTruthy();
   expect(screen.getByRole('button', { name: /^Tree left\/board · J1/ }).getAttribute('aria-pressed')).toBe('false');
   expect(address()).toBe('/design/root/~/right/board/%23component%3Aone?lens=shared-scene');
+});
+
+test('the 3D viewport receives the related uses (not the selected one, not other repeated uses)', async () => {
+  install(); render(<Host />); await open();
+  fireEvent.click(screen.getByRole('button', { name: /^Tree right\/board · J1/ }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Context scene' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open connected scene' }));
+  await screen.findByText('Viewport related: right/cable');
 });

@@ -9,7 +9,7 @@ import { exactKey, sameOccurrence, selectedFeature, selectedNode } from './selec
 import { groupBomRows, readBom, validBomContext } from './reads';
 import type { LoadedBom } from './reads';
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { useSceneMark } from '../probe';
+import { useSceneMark, useSceneRelated } from '../probe';
 
 const Viewport = lazy(() => import('../shared-scene/SceneViewport'));
 const viewNames = ['tree', 'board', 'cable', 'scene', 'inspector', 'schematic', 'bom'] as const;
@@ -144,13 +144,14 @@ function SceneView() {
   const [open, setOpen] = useState(false), [arrangement, setArrangement] = useState<'canonical' | 'inspection'>('canonical');
   const node = selectedNode(state), feature = selectedFeature(state);
   const address = state.selection?.kind === 'occurrence' ? state.selection.address : null;
+  const related = useSceneRelated(state.scene);
   const drawable = feature?.geometry_id && feature.world_transform !== null;
   const visualAddress: Address | null = address && feature && !drawable ? { snapshot_id: address.snapshot_id, path: address.path } : address;
   return <Stack><Title order={3}>Connected scene</Title>
     <Text>Scene selection: {node?.address.path.join('/') ?? 'No occurrence'} · feature {feature?.feature_id ?? 'Whole occurrence'}</Text>
     {feature && !drawable && <Text>The selected feature has no drawable 3D geometry. The containing occurrence illustration is highlighted; the exact feature selection remains unchanged.</Text>}
     <Group><Button onClick={() => setOpen(v => !v)}>{open ? 'Close connected scene' : 'Open connected scene'}</Button><Select label="Connected scene arrangement" value={arrangement} allowDeselect={false} data={[{ value: 'canonical', label: 'Canonical' }, { value: 'inspection', label: 'Local inspection' }]} onChange={next => setArrangement(next as 'canonical' | 'inspection')} /></Group>
-    {open && <ViewerBoundary><Suspense fallback={<Text>Loading connected scene…</Text>}><Viewport scene={state.scene!} arrangement={arrangement} selected={visualAddress} onSelect={address => controller.selectOccurrence(address)} onRestoreCanonical={() => setArrangement('canonical')} /></Suspense></ViewerBoundary>}
+    {open && <ViewerBoundary><Suspense fallback={<Text>Loading connected scene…</Text>}><Viewport scene={state.scene!} arrangement={arrangement} selected={visualAddress} related={related} onSelect={address => controller.selectOccurrence(address)} onRestoreCanonical={() => setArrangement('canonical')} /></Suspense></ViewerBoundary>}
   </Stack>;
 }
 function InspectorView() {

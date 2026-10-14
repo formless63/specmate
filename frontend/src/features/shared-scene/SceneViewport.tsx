@@ -13,14 +13,14 @@ import type { CameraView, Display } from './display';
 import { DisplayControls, openingInput } from './DisplayControls';
 
 type Live = {
-  scene: THREE.Scene; object?: SceneObject; highlight?: THREE.Box3Helper;
+  scene: THREE.Scene; object?: SceneObject; highlight?: THREE.Box3Helper; relatedMarks: THREE.Box3Helper[];
   frame: (mode?: CameraView) => void; render: () => void; setSection: (display: Display) => void; plane: THREE.Plane | null;
 };
-type Props = { scene: SharedScene; arrangement: Arrangement; selected: Address | null; onSelect: (address: Address) => void; onRestoreCanonical?: () => void };
+type Props = { scene: SharedScene; arrangement: Arrangement; selected: Address | null; related?: Address[]; onSelect: (address: Address) => void; onRestoreCanonical?: () => void };
 export default function SceneViewport(props: Props) {
   return <ScopedViewport key={JSON.stringify([props.scene.snapshot_id, props.scene.sha256])} {...props} />;
 }
-function ScopedViewport({ scene: projection, arrangement, selected, onSelect, onRestoreCanonical }: Props) {
+function ScopedViewport({ scene: projection, arrangement, selected, related, onSelect, onRestoreCanonical }: Props) {
   const host = useRef<HTMLDivElement>(null), live = useRef<Live | null>(null);
   const selection = useRef(onSelect); selection.current = onSelect;
   const reset = useRef<(mode?: CameraView) => void>(() => {});
@@ -63,7 +63,7 @@ function ScopedViewport({ scene: projection, arrangement, selected, onSelect, on
       camera.position.copy(center).addScaledVector(direction, radius * 3); camera.lookAt(center);
       camera.updateProjectionMatrix(); controls.target.copy(center); controls.update(); render();
     };
-    live.current = { scene, frame, render, plane: null, setSection: display => {
+    live.current = { scene, relatedMarks: [], frame, render, plane: null, setSection: display => {
       const plane = sectionPlane(display); renderer.clippingPlanes = plane ? [plane] : [];
       if (live.current) live.current.plane = plane; render();
     } }; reset.current = frame;
@@ -94,6 +94,7 @@ function ScopedViewport({ scene: projection, arrangement, selected, onSelect, on
       element.removeEventListener('webglcontextlost', lost); element.removeEventListener('pointerdown', down); element.removeEventListener('pointerup', pick);
       controls.removeEventListener('change', render); controls.dispose();
       const state = live.current; state?.object?.dispose(); state?.highlight?.geometry.dispose();
+      state?.relatedMarks.forEach(disposeMark);
       if (state?.highlight) (state.highlight.material as THREE.Material).dispose(); live.current = null;
       renderer.dispose(); renderer.forceContextLoss(); element.remove();
     };
@@ -112,6 +113,20 @@ function ScopedViewport({ scene: projection, arrangement, selected, onSelect, on
     if (object) { state.highlight = new THREE.Box3Helper(new THREE.Box3().setFromObject(object), '#e2a000'); state.scene.add(state.highlight); }
     state.render();
   }, [projection, arrangement, display.explosion, display.opening, selected]);
+  // Related uses get a neutral outline (theme token), distinct from the selected accent; no animation.
+  const relatedKey = JSON.stringify((related ?? []).map(address => selectionKey(address)));
+  useEffect(() => {
+    const state = live.current; if (!state) return;
+    state.relatedMarks.forEach(mark => { state.scene.remove(mark); disposeMark(mark); }); state.relatedMarks = [];
+    const color = tokenColor('--sb-border-strong', '#8a8f98');
+    for (const address of related ?? []) {
+      const object = state.object?.objects.get(selectionKey(address));
+      if (!object || (selected && selectionKey(selected) === selectionKey(address))) continue;
+      const mark = new THREE.Box3Helper(new THREE.Box3().setFromObject(object), color);
+      state.scene.add(mark); state.relatedMarks.push(mark);
+    }
+    state.render();
+  }, [projection, arrangement, display.explosion, display.opening, selected, relatedKey]);
   return <Stack>
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
     <DisplayControls scene={projection} arrangement={arrangement} selected={selected} display={display} setDisplay={setDisplay} input={input} setInput={setInput} restore={() => { onRestoreCanonical?.(); setInput(openingInput()); setDisplay(closedDisplay()); reset.current('isometric'); }} />
@@ -120,4 +135,10 @@ function ScopedViewport({ scene: projection, arrangement, selected, onSelect, on
     <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. Click geometry to select its contextual occurrence. All views are orthographic illustrations; display geometry provides no fit, clearance or manufacturing approval.</Text>
     {unknown.map((issue, i) => <Text size="sm" key={i}>{issue}</Text>)}
   </Stack>;
+}
+
+function disposeMark(mark: THREE.Box3Helper) { mark.geometry.dispose(); (mark.material as THREE.Material).dispose(); }
+function tokenColor(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
 }

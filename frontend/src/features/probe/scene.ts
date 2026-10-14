@@ -128,3 +128,17 @@ export function useSceneMark(scene: SharedScene, address: Address): ProbeMark {
   if (sameContext(normal(probe), own)) return "selected";
   return related.some((item) => sameContext(normal(item), own)) ? "related" : null;
 }
+
+/** Whole uses (features folded into their use) the open views relate to the probe, for the 3D viewport. */
+export function useSceneRelated(scene: SharedScene | null): Address[] {
+  const related = useRelated();
+  return useMemo(() => {
+    if (!scene) return [];
+    const seen = new Map<string, Address>();
+    for (const item of related) {
+      const address = sceneAddress(scene, withoutFeature(item));
+      if (address) seen.set(JSON.stringify(address.path), { snapshot_id: address.snapshot_id, path: address.path });
+    }
+    return [...seen.values()];
+  }, [scene, related]);
+}

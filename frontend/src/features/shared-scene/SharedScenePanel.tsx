@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { request, selectionKey } from './api';
 import type { Address, Geometry, SceneChoices, SceneNode, SharedScene } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { useSceneMark, useSceneProbe } from "../probe";
+import { useSceneMark, useSceneProbe, useSceneRelated } from "../probe";
 
 const Viewport = lazy(() => import('./SceneViewport'));
 const none: SceneChoices = { assemblies: [], window: 'latest_50_frozen_revisions' };
@@ -32,6 +32,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
   const [arrangement, setArrangement] = useState<'canonical' | 'inspection'>('canonical');
   // The selected use is the shared probe inside the shell (so other views and the URL follow it).
   const [selected, setSelected, forgetSelection] = useSceneProbe(scene, choices.assemblies.find(a => a.snapshot_id === snapshot)?.number ?? null);
+  const related = useSceneRelated(scene);
   const generation = useRef(0), mounted = useRef(false);
   const currentSnapshot = useRef<string | null>(null);
 
@@ -78,7 +79,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
       <Text size="sm">Fit, clearance and manufacturing: not evaluated. Physical qualification: false.</Text>
       <Group><Button onClick={() => setShow3d(v => !v)}>{show3d ? 'Close scene view' : 'Open scene view'}</Button><Select label="Display arrangement" value={arrangement} allowDeselect={false} data={[{ value: 'canonical', label: 'Canonical placed illustrations' }, { value: 'inspection', label: 'Separate local illustrations for inspection' }]} onChange={value => setArrangement(value as 'canonical' | 'inspection')} /></Group>
       <Text size="sm">The inspection arrangement uses separate display spacing. It does not assign missing placements, route wires, establish model correspondence or change frozen state. Board drawings have unknown depth; stock illustrations have unknown installed routes.</Text>
-      {show3d && <ViewerBoundary><Suspense fallback={<Text>Loading scene viewer…</Text>}><Viewport scene={scene} arrangement={arrangement} selected={selected} onSelect={setSelected} onRestoreCanonical={() => setArrangement('canonical')} /></Suspense></ViewerBoundary>}
+      {show3d && <ViewerBoundary><Suspense fallback={<Text>Loading scene viewer…</Text>}><Viewport scene={scene} arrangement={arrangement} selected={selected} related={related} onSelect={setSelected} onRestoreCanonical={() => setArrangement('canonical')} /></Suspense></ViewerBoundary>}
       <OccurrenceList scene={scene} selected={selected} onSelect={setSelected} />
       {node && <SceneInspector key={node.node_id} node={node} selected={selected} geometry={scene.geometry} onSelect={setSelected} />}
       <Title order={3}>Contextual relationships</Title>
