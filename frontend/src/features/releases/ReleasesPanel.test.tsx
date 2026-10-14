@@ -69,9 +69,9 @@ function fixture() {
   return calls;
 }
 
-function wrap(permissions?: string[]) {
+function wrap(permissions?: string[], username: string | null = 'contributor') {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <PermissionsProvider permissions={permissions}><ReleasesPanel workspaceId="ws" projectId="project-1" /></PermissionsProvider>
+    <PermissionsProvider permissions={permissions}><ReleasesPanel workspaceId="ws" projectId="project-1" username={username} /></PermissionsProvider>
   </QueryClientProvider></MantineProvider>;
 }
 
@@ -81,8 +81,8 @@ async function choose(label: string, option: string) {
   fireEvent.click(await screen.findByRole('option', { name: option, hidden: true }));
 }
 
-async function reviewRoot(permissions?: string[], quantity = '') {
-  render(wrap(permissions));
+async function reviewRoot(permissions?: string[], quantity = '', username: string | null = 'contributor') {
+  render(wrap(permissions, username));
   await choose('Release root definition', 'Synthetic root (assembly)');
   await waitFor(() => expect((screen.getByRole('combobox', { name: 'Release root revision' }) as HTMLInputElement).disabled).toBe(false));
   await choose('Release root revision', 'Synthetic root · r1');
@@ -169,4 +169,23 @@ test('read-only members see warnings but cannot attach or withdraw them', async 
   expect(screen.queryByRole('button', { name: 'Attach warning' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Withdraw Synthetic advisory' })).toBeNull();
   expect(screen.getByText(/Read-only access: requires Contributor access/)).toBeTruthy();
+});
+
+test('withdraw is offered only to the warning author or a workspace admin', async () => {
+  fixture();
+  await reviewRoot(['workspace.read', 'design.freeze', 'item.create'], '2', 'someone-else');
+  fireEvent.change(screen.getByLabelText('Release name'), { target: { value: 'Synthetic release' } });
+  fireEvent.change(screen.getByLabelText(/Acknowledgement reason/), { target: { value: 'Synthetic evaluation' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Acknowledge and release' }));
+  await screen.findByText('Synthetic advisory');
+  expect(screen.getByRole('button', { name: 'Supersede Synthetic advisory' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Withdraw Synthetic advisory' })).toBeNull();
+  cleanup();
+
+  fixture();
+  await reviewRoot(['workspace.read', 'design.freeze', 'item.create', 'workspace.admin'], '2', 'someone-else');
+  fireEvent.change(screen.getByLabelText('Release name'), { target: { value: 'Synthetic release' } });
+  fireEvent.change(screen.getByLabelText(/Acknowledgement reason/), { target: { value: 'Synthetic evaluation' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Acknowledge and release' }));
+  await screen.findByRole('button', { name: 'Withdraw Synthetic advisory' });
 });

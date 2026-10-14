@@ -19,7 +19,7 @@ const CATEGORY = { quantity: 'Quantity', artifacts: 'Artifacts', configuration: 
 function message(e: unknown, fallback: string) { return e instanceof Error ? e.message : fallback; }
 
 /** Reviewed release closures: workspace items a project may reference (EVD-004). */
-export function ReleasesPanel({ workspaceId, projectId = null }: { workspaceId: string; projectId?: string | null }) {
+export function ReleasesPanel({ workspaceId, projectId = null, username = null }: { workspaceId: string; projectId?: string | null; username?: string | null }) {
   const [selected, setSelected] = useState<string | null>(null);
   const releases = useQuery({ queryKey: ['releases', workspaceId, projectId], queryFn: () => listReleases(workspaceId, projectId), staleTime: 0 });
   return <Stack gap="sm" key={projectId ?? 'library'}>
@@ -40,7 +40,7 @@ export function ReleasesPanel({ workspaceId, projectId = null }: { workspaceId: 
         </Table.Tr>)}
       </Table.Tbody></Table>}
     </Stack></Card>
-    {selected && <ReleaseDetail key={selected} releaseId={selected} />}
+    {selected && <ReleaseDetail key={selected} releaseId={selected} username={username} />}
     <ReleaseReviewForm workspaceId={workspaceId} projectId={projectId} onReleased={id => { setSelected(id); void releases.refetch(); }} />
   </Stack>;
 }
@@ -98,7 +98,7 @@ function ClosureSummary({ body }: { body: ReleaseReviewBody }) {
   </Stack>;
 }
 
-function ReleaseDetail({ releaseId }: { releaseId: string }) {
+function ReleaseDetail({ releaseId, username }: { releaseId: string; username: string | null }) {
   const release = useQuery({ queryKey: ['release', releaseId], queryFn: () => readRelease(releaseId), staleTime: 0 });
   const [verified, setVerified] = useState<Verification | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +116,7 @@ function ReleaseDetail({ releaseId }: { releaseId: string }) {
     {record.acknowledgement && <Alert color="yellow" title="Released with acknowledged unresolved items">{record.acknowledgement.reason}</Alert>}
     <ClosureSummary body={record.review} />
     <Unresolved title="Unresolved items at release" items={record.review.unresolved} />
-    <ReleaseWarnings releaseId={releaseId} warnings={data.warnings} onChanged={() => void release.refetch()} />
+    <ReleaseWarnings releaseId={releaseId} username={username} warnings={data.warnings} onChanged={() => void release.refetch()} />
     {error && <Alert color="red">{error}</Alert>}
     <Group>
       <Button size="xs" loading={busy} onClick={() => void run(async () => setVerified(await verifyRelease(releaseId)))}>Verify release</Button>
@@ -134,8 +134,9 @@ const WARNING_KINDS: { value: WarningKind; label: string }[] = [{ value: 'contra
 const WARNING_SEVERITIES: WarningSeverity[] = ['info', 'caution', 'critical'];
 
 /** Later warnings sit beside the immutable approval record; they never edit it (EVD-005). */
-function ReleaseWarnings({ releaseId, warnings, onChanged }: { releaseId: string; warnings: ReleaseWarning[]; onChanged: () => void }) {
+function ReleaseWarnings({ releaseId, username, warnings, onChanged }: { releaseId: string; username: string | null; warnings: ReleaseWarning[]; onChanged: () => void }) {
   const add = usePermission('item.create');
+  const admin = usePermission('workspace.admin').allowed;
   const [kind, setKind] = useState<WarningKind>('engineering');
   const [severity, setSeverity] = useState<WarningSeverity>('caution');
   const [title, setTitle] = useState('');
@@ -163,7 +164,7 @@ function ReleaseWarnings({ releaseId, warnings, onChanged }: { releaseId: string
         <Table.Td>{row.author} · {new Date(row.created_at).toLocaleString()}</Table.Td>
         <Table.Td>{row.state === 'active' && add.allowed && <Group gap={4}>
           <Button size="xs" variant="subtle" disabled={busy} onClick={() => { setSupersedes(row.warning_id); setKind(row.kind); setSeverity(row.severity); setTitle(row.title); }}>Supersede {row.title}</Button>
-          <Button size="xs" variant="subtle" color="red" disabled={busy} onClick={() => setWithdrawing(row.warning_id)}>Withdraw {row.title}</Button>
+          {(admin || (username !== null && row.author === username)) && <Button size="xs" variant="subtle" color="red" disabled={busy} onClick={() => setWithdrawing(row.warning_id)}>Withdraw {row.title}</Button>}
         </Group>}</Table.Td>
       </Table.Tr>)}
     </Table.Tbody></Table>}

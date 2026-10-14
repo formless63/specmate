@@ -262,12 +262,15 @@ def export_warnings(ctx: Context, p: ReleaseRef):
 
 
 def raise_for_assertion(subject, prior_rows, assertion):
-    """Automatically warn releases that pin a revision when a new assertion contradicts.
+    """Automatically warn releases that pin an affected revision when an assertion contradicts.
+
+    A revision subject affects itself; an occurrence subject affects the revision placed at
+    its path; a definition subject affects every revision of that definition.
 
     Called inside the appending transaction. The contradiction must be new: the same
     property/context group was not already conflicting before this assertion.
     """
-    if subject.kind != "revision":
+    if subject.kind not in ("revision", "occurrence", "definition"):
         return
     from specmate.facts.queries import assessments, group_key
     from specmate.releases.models import ReleasePin
@@ -287,7 +290,16 @@ def raise_for_assertion(subject, prior_rows, assertion):
 
     if not conflicting([*prior_rows, assertion]) or conflicting(prior_rows):
         return
-    pins = ReleasePin.objects.filter(revision_id=subject.revision_id).select_related("release")
+    if subject.kind == "revision":
+        pins = ReleasePin.objects.filter(revision_id=subject.revision_id)
+    elif subject.kind == "definition":
+        pins = ReleasePin.objects.filter(revision__definition_id=subject.definition_id)
+    else:
+        from specmate.assemblies.queries import resolve_occurrence
+
+        placed = resolve_occurrence(assertion.actor, subject.snapshot_id, subject.path)
+        pins = ReleasePin.objects.filter(revision_id=placed["revision_id"])
+    pins = pins.select_related("release").order_by("release_id", "id")
     with transaction.atomic():
         for pin in pins:
             ReleaseWarning.objects.get_or_create(
@@ -299,11 +311,11 @@ def raise_for_assertion(subject, prior_rows, assertion):
                     "title": f"New contradicting assertion on {assertion.property}",
                     "body": (
                         f"A later {assertion.status} assertion on property "
-                        f"'{assertion.property}' of pinned revision {subject.revision_id} "
+                        f"'{assertion.property}' of pinned revision {pin.revision_id} "
                         "makes its recorded facts conflict. Review the fact ledger; the "
                         "release record is unchanged."
                     ),
-                    "revision_id": subject.revision_id,
+                    "revision_id": pin.revision_id,
                     "origin": "automatic",
                     "author": assertion.actor,
                     "request_id": assertion.request_id,
