@@ -8,13 +8,19 @@ import { FirmwarePanel } from "../firmware/FirmwarePanel";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
-export type PcbPanelProps = { workspaceId: string };
+export type PcbPanelProps = { workspaceId: string; projectId?: string | null };
 
 export function PcbPanel(props: PcbPanelProps) {
-  return <ProjectPanel key={props.workspaceId} {...props} />;
+  return <ProjectPanel key={`${props.workspaceId}:${props.projectId ?? ""}`} {...props} />;
 }
 
-function ProjectPanel({ workspaceId }: PcbPanelProps) {
+/** Project-referenced intakes first, superseded originals last; nothing is hidden. Stable within each tier. */
+export function orderIntakes(items: IntakeSummary[]): IntakeSummary[] {
+  const tier = (i: IntakeSummary) => (i.superseded_by_intake_id ? 2 : i.referenced_by_project ? 0 : 1);
+  return items.map((item, index) => ({ item, index })).sort((a, b) => tier(a.item) - tier(b.item) || a.index - b.index).map(({ item }) => item);
+}
+
+function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
   const [items, setItems] = useState<IntakeSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [intake, setIntake] = useState<Intake | null>(null);
@@ -42,7 +48,7 @@ function ProjectPanel({ workspaceId }: PcbPanelProps) {
   }
   async function refreshList() {
     try {
-      const result = await listIntakes(workspaceId, lifetime.current.signal);
+      const result = await (projectId ? listIntakes(workspaceId, lifetime.current.signal, projectId) : listIntakes(workspaceId, lifetime.current.signal));
       if (!denied.current) setItems(result);
     }
     catch (reason) { failure(reason); }
@@ -138,7 +144,7 @@ function ProjectPanel({ workspaceId }: PcbPanelProps) {
       <Select label="Board to interpret" description="Optional. Other inputs are preserved with unsupported semantic coverage." clearable data={boardOptions} value={boardPath} onChange={setBoardPath} />
       <Button onClick={() => void importSources()} loading={busy} disabled={!files.length || !name.trim() || !rights.trim()}>Preserve sources</Button>
     </Stack>}
-    <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={items.map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}${i.upgraded_from_kicad ? ` · upgraded from KiCad ${i.upgraded_from_kicad}` : ""}` }))} />
+    <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={orderIntakes(items).map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}${i.upgraded_from_kicad ? ` · upgraded from KiCad ${i.upgraded_from_kicad}` : ""}${i.referenced_by_project ? " · used by this project" : ""}${i.superseded_by_intake_id ? " · superseded by upgraded derivative" : ""}` }))} />
     <Button variant="subtle" onClick={() => { void refreshList(); if (selected) void load(selected); }}>Refresh intake</Button>
     {intake && <Stack>
       <Text size="sm"><RevisionLabel kind="source" id={intake.source_revision_id} role="source" /></Text>

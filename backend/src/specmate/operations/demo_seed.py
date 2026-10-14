@@ -8,6 +8,7 @@ tool runs, no account is created and no raw SQL is issued.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import io
 from dataclasses import dataclass, field
@@ -855,6 +856,95 @@ class Seeder:
         )
         self.tally("preferences")
 
+    def integration(self, lib: dict, plans: dict) -> None:
+        """A file-based supplier integration with one import run of dated observations.
+
+        Rows name items by registered source identifier (never by revision id), so the
+        Integrations lens and the Sourcing "External observations" section both show
+        them. One row is rejected on purpose so rejection reporting is visible too.
+        Declaring an integration is a workspace-admin decision; other accounts skip it.
+        """
+        member = WorkspaceMember.objects.filter(user=self.user, workspace=self.workspace).first()
+        if member is None or Perm.WORKSPACE_ADMIN not in permissions_for(member):
+            return
+        for revision, identifier in (
+            (plans["populated"], "DEMO-SKU-BOARD"),
+            (lib["resistor"], "DEMO-SKU-RES10K"),
+        ):
+            self.call(
+                "catalog.register_source_identifier",
+                {
+                    "revision_id": revision["revision_id"],
+                    "scheme": "supplier-sku",
+                    "identifier": identifier,
+                    "label": "Demo supplier catalogue number",
+                    "rights_status": "unknown",
+                    "rights": "Demo note; rights not assessed",
+                },
+            )
+        created = self.call(
+            "integration.create",
+            {
+                "workspace_id": self.ws,
+                "name": "Demo supplier price file",
+                "ownership": {"supplier_offer": "external"},
+                "columns": {
+                    "identifier": "sku",
+                    "supplier": "vendor",
+                    "price_amount": "unit_price",
+                },
+            },
+        )
+        self.tally("integration")
+        today = date.today()
+        out = io.StringIO()
+        writer = csv.writer(out, lineterminator="\n")
+        writer.writerow(
+            [
+                "scheme",
+                "sku",
+                "vendor",
+                "supplier_ref",
+                "offered_on",
+                "unit_price",
+                "price_currency",
+                "price_unit",
+                "availability",
+                "lead_time_days",
+            ]
+        )
+        rows = (
+            ("DEMO-SKU-BOARD", "42.50", "USD", "ea", "in_stock", "3"),
+            ("DEMO-SKU-RES10K", "0.04", "USD", "ea", "limited", "14"),
+            ("DEMO-SKU-MISSING", "1.00", "USD", "ea", "unknown", ""),
+        )
+        for sku, price, currency, unit, availability, lead in rows:
+            writer.writerow(
+                [
+                    "supplier-sku",
+                    sku,
+                    "Demo Supply",
+                    f"REF-{sku[-4:]}",
+                    (today - timedelta(days=1)).isoformat(),
+                    price,
+                    currency,
+                    unit,
+                    availability,
+                    lead,
+                ]
+            )
+        self.call(
+            "integration.import",
+            {
+                "integration_id": created["integration_id"],
+                "field": "supplier_offer",
+                "file_name": "demo-supplier-prices.csv",
+                "file_format": "csv",
+                "content": out.getvalue(),
+            },
+        )
+        self.tally("import run")
+
     def agent_run(self) -> None:
         run = self.call(
             "agent_run.create",
@@ -965,6 +1055,7 @@ def seed(user, workspace: Workspace) -> dict[str, int]:
     s.units_and_evidence(lib, plans, stock)
     s.release(lib, plans, cfg)
     s.sourcing_knowledge_preferences(lib, plans)
+    s.integration(lib, plans)
     s.agent_run()
     s.projects(lib, plans, made)
     return s.created

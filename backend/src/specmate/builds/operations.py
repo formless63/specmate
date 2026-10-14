@@ -932,7 +932,12 @@ def _reuse_result(build: BuildAttempt) -> dict:
     access=Perm.BUILD_EXECUTE,
 )
 def find_reusable(ctx: Context, p: ReusableLookup) -> dict:
-    workspace, _, source, recipe, configuration = _request_context(ctx, p)
+    try:
+        workspace, _, source, recipe, configuration = _request_context(ctx, p)
+    except Unsupported:
+        # A recipe this installation no longer approves (or whose tool is disabled) can offer
+        # nothing to reuse; that is an empty offer, not a failed lookup.
+        return {"reusable": None}
     build = next(_reuse_candidates(ctx, workspace, source, recipe, configuration), None)
     return {"reusable": _reuse_result(build) if build else None}
 

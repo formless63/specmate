@@ -973,6 +973,14 @@ def test_revoked_user_cannot_retrieve_a_result_through_a_reuse_link(
         op(users["owner"], "build.find_reusable", build_payload)
 
 
+def test_unapproved_recipe_yields_an_empty_offer_not_a_not_found(
+    users, build_payload, settings, credential, lease, build
+):
+    _succeeded_build(users, build, credential, lease)
+    settings.SPECMATE_APPROVED_RECIPES = {}
+    assert op(users["owner"], "build.find_reusable", build_payload) == {"reusable": None}
+
+
 def test_incomplete_or_mismatched_attempts_are_never_offered(
     users, workspace, build_payload, recipe, settings, credential, lease, build
 ):
