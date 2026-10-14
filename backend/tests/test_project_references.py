@@ -182,7 +182,8 @@ def test_delete_only_when_nothing_depends_and_items_stay(users, workspace, proje
     with pytest.raises(Conflict) as blocked:
         op(users["owner"], "project.delete", {"project_id": project}, expected_state=added["state"])
     assert blocked.value.details == {"dependents": {"knowledge.knowledgeitem": 1}}
-    other = op(users["owner"], "project.create", {"name": "Disposable bench"})["project_id"]
+    # The creator (here a contributor) or an admin deletes; see test_workspace_library.
+    other = op(users["contributor"], "project.create", {"name": "Disposable bench"})["project_id"]
     reference = add(users["owner"], other, "definition", item["definition_id"])
     deleted = op(
         users["contributor"],

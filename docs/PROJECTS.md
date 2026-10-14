@@ -16,6 +16,12 @@ the collection items it uses. Creating a project gives nobody special ownership;
 member sees every project. Archiving a project hides it from default lists and keeps its
 history; it never deletes or edits referenced items.
 
+An archived project is read-only (name, purpose and references) until it is unarchived.
+`project.delete` is allowed only for the project's creator or a workspace admin, and only
+while nothing depends on the project (decisions, notes, reviews, reservations, work and
+other project-held records); otherwise it reports the dependent counts and the project
+can be archived instead. Deleting a project never deletes or edits a referenced item.
+
 `project.add_reference` and `project.remove_reference` record and retire a project's use
 of an item, with its role, under the project's state token. Removal is recorded, not
 erased. Creating a definition, source or other record takes no project; a client that
@@ -33,6 +39,12 @@ the member roster and access-state token. `workspace.set_member` and
 stale edits and keep at least one active admin. Keyed outcomes use the workspace
 namespace and recheck current administration before replay. Database administrators
 retain their direct administration authority.
+
+Workspace reads (`/api/v0/workspace/library`, `/projects`, `/projects/{id}`) list one
+collection family at a time with no owning project. Each row reports where it is used:
+the projects whose active references name it, floating or pinned to an exact revision.
+With a project as navigation context the project's referenced items come first. Every
+read is one bounded page served by a fixed number of queries; non-members get NotFound.
 
 The Workspace access panel creates local accounts where permitted and manages members,
 roles and explicit `build.execute`/`inventory.manage` grants. Losing membership clears

@@ -1,0 +1,139 @@
+{
+  "$defs": {
+    "KindCount": {
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "count"
+      ],
+      "title": "KindCount",
+      "type": "object"
+    },
+    "WorkspaceProject": {
+      "properties": {
+        "archived": {
+          "title": "Archived",
+          "type": "boolean"
+        },
+        "can_delete": {
+          "description": "The actor may delete it now (presentation aid).",
+          "title": "Can Delete",
+          "type": "boolean"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "created_by": {
+          "title": "Created By",
+          "type": "string"
+        },
+        "dependents": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Records that depend on the project; deletion needs none.",
+          "title": "Dependents",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "purpose": {
+          "title": "Purpose",
+          "type": "string"
+        },
+        "references": {
+          "description": "Active references by target kind (definitions also by definition kind).",
+          "items": {
+            "$ref": "#/$defs/KindCount"
+          },
+          "title": "References",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project_id",
+        "name",
+        "purpose",
+        "archived",
+        "created_by",
+        "created_at",
+        "references",
+        "dependents",
+        "can_delete"
+      ],
+      "title": "WorkspaceProject",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "next_after": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Next After"
+    },
+    "permissions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Permissions",
+      "type": "array"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/WorkspaceProject"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "role": {
+      "title": "Role",
+      "type": "string"
+    },
+    "total": {
+      "description": "Projects matching the query.",
+      "minimum": 0,
+      "title": "Total",
+      "type": "integer"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "role",
+    "permissions",
+    "results",
+    "total",
+    "next_after"
+  ],
+  "title": "WorkspaceProjectPage",
+  "type": "object"
+}

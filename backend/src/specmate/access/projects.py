@@ -13,13 +13,21 @@ from typing import Literal
 from uuid import UUID
 
 from django.db import IntegrityError, connection, transaction
+from django.db.models import Count
 from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field
 
 from specmate.access.models import Project, ProjectReference
 from specmate.access.permissions import Perm, authorize, authorize_project, held_permissions
 from specmate.access.workspaces import actor_workspace_id
-from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
+from specmate.operations import (
+    Conflict,
+    Context,
+    NotFound,
+    PermissionDenied,
+    ValidationFailed,
+    operation,
+)
 
 ReferenceKind = Literal["definition", "revision", "source_bundle", "physical_unit", "work_batch"]
 
@@ -114,6 +122,7 @@ def project_view(project: Project, *, include_removed: bool = False) -> dict:
         "purpose": project.purpose,
         "archived": project.archived_at is not None,
         "archived_at": project.archived_at.isoformat() if project.archived_at else None,
+        "created_by": project.created_by.get_username(),
         "state": state(project),
         "references": [reference_view(r) for r in references],
     }
@@ -219,20 +228,45 @@ def archive_project(ctx: Context, p: ArchiveProject) -> dict:
     return project_view(project)
 
 
-def dependents(project: Project) -> dict[str, int]:
-    """Records outside the project's own references that point at it (releases,
-    decisions, notes, reviews, reservations, work, builds, links and future records)."""
-    counts = {}
+def dependents_by_project(project_ids) -> dict:
+    """Records outside each project's own references that point at it (releases,
+    decisions, notes, reviews, reservations, work, builds, links and future records).
+
+    One grouped query per dependent relation, independent of how many projects are asked.
+    """
+    project_ids = list(project_ids)
+    counts: dict = {project_id: {} for project_id in project_ids}
+    if not project_ids:
+        return counts
     for relation in Project._meta.get_fields(include_hidden=True):
         if not (relation.auto_created and not relation.concrete and relation.is_relation):
             continue
         if relation.related_model is ProjectReference:
             continue
         model = relation.related_model
-        count = model._default_manager.filter(**{relation.field.name: project}).count()
-        if count:
-            counts[f"{model._meta.app_label}.{model._meta.model_name}"] = count
+        name = relation.field.name
+        label = f"{model._meta.app_label}.{model._meta.model_name}"
+        rows = (
+            model._default_manager.filter(**{f"{name}__in": project_ids})
+            .order_by()
+            .values(name)
+            .annotate(n=Count("pk"))
+            .values_list(name, "n")
+        )
+        for project_id, n in rows:
+            counts.setdefault(project_id, {})[label] = n
     return counts
+
+
+def dependents(project: Project) -> dict[str, int]:
+    return dependents_by_project([project.id])[project.id]
+
+
+def may_delete(user, project: Project, held: frozenset[Perm]) -> bool:
+    """Deleting is for the project's creator (with project.edit) or a workspace admin."""
+    if Perm.WORKSPACE_ADMIN in held:
+        return True
+    return Perm.PROJECT_EDIT in held and project.created_by_id == user.pk
 
 
 @operation(
@@ -247,6 +281,8 @@ def dependents(project: Project) -> dict[str, int]:
 )
 def delete_project(ctx: Context, p: ProjectRef) -> dict:
     project = editable(ctx, p.project_id)
+    if not may_delete(ctx.user, project, held_permissions(ctx.user, project.workspace_id)):
+        raise PermissionDenied("Only the project's creator or a workspace admin can delete it.")
     blocking = dependents(project)
     if blocking:
         raise Conflict(
