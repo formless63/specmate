@@ -1,4 +1,4 @@
-"""FND-008 / CFG-004: reviewed selected adoption preserves historic pins."""
+"""FND-008 / CFG-004 / KNW-002: reviewed selected adoption preserves historic pins."""
 
 import pytest
 from django.db import DatabaseError, transaction
@@ -343,8 +343,22 @@ def test_preserves_repeated_nested_firmware_assignments_and_rejects_changed_desc
         expected_state=new["draft"]["state"],
     )
     latest = freeze(owner, changed)
-    with pytest.raises(Unsupported):
-        op(owner, "upgrade.propose", {**payload, "candidate_revision_id": latest["revision_id"]})
+    # A changed assigned descendant is never silently retained or dropped.
+    changed_proposal = op(
+        owner, "upgrade.propose", {**payload, "candidate_revision_id": latest["revision_id"]}
+    )
+    assert changed_proposal["assignment_decisions_required"] == [["left", "board"]]
+    with pytest.raises(ValidationFailed):
+        op(
+            owner,
+            "upgrade.review",
+            {
+                "proposal_id": changed_proposal["proposal_id"],
+                "decision": "accepted",
+                "basis": "Missing descendant decision",
+            },
+            expected_state=changed_proposal["state"],
+        )
     with pytest.raises(Unsupported):
         op(owner, "upgrade.propose", {**payload, "paths": [["left", "board"]]})
 

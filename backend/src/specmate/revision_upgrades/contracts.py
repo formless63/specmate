@@ -5,14 +5,25 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from specmate.assemblies.contracts import FeatureId, Path, StrictModel
+from specmate.assemblies.contracts import FeatureId, LocalId, Path, StrictModel
 from specmate.catalog_matching.contracts import EvidenceInput
 
 
 class ProposeUpgrade(StrictModel):
+    """Selected occurrences of one exact consuming context and one explicit identity pair.
+
+    `later_revision` keeps the same definition. `declared_replacement` names a different
+    definition of the same kind; its human declaration is the only correspondence basis,
+    never label equality or a catalog matching association. `context_path` reaches a
+    nested consuming subassembly in the owning snapshot; `paths` are relative to it.
+    """
+
     owning_snapshot_id: UUID
     old_revision_id: UUID
     candidate_revision_id: UUID
+    relation: Literal["later_revision", "declared_replacement"] = "later_revision"
+    replacement_basis: str | None = Field(default=None, min_length=1, max_length=4000)
+    context_path: Path = Field(default_factory=list)
     paths: list[Path] = Field(min_length=1, max_length=1000)
     basis: str = Field(min_length=1, max_length=4000)
 
@@ -20,6 +31,8 @@ class ProposeUpgrade(StrictModel):
     def unique_paths(self):
         if len({tuple(p) for p in self.paths}) != len(self.paths):
             raise ValueError("Selected paths must be unique.")
+        if (self.relation == "declared_replacement") != (self.replacement_basis is not None):
+            raise ValueError("Only a declared replacement carries a replacement declaration.")
         return self
 
 
@@ -27,6 +40,22 @@ class FeatureCorrespondence(StrictModel):
     path: Path = Field(min_length=1)
     old_feature_id: FeatureId
     candidate_feature_id: FeatureId
+    basis: str = Field(min_length=1, max_length=4000)
+
+
+class RelationshipDecision(StrictModel):
+    """Explicitly retain or remove one consuming-context relationship to a changed use."""
+
+    local_id: LocalId
+    decision: Literal["retain", "remove"]
+    basis: str = Field(min_length=1, max_length=4000)
+
+
+class AssignmentDecision(StrictModel):
+    """Explicitly retain or remove an occurrence assignment on a changed use."""
+
+    path: Path = Field(min_length=1)
+    decision: Literal["retain", "remove"]
     basis: str = Field(min_length=1, max_length=4000)
 
 
@@ -57,8 +86,17 @@ class ReviewUpgrade(ReadUpgrade):
     decision: Literal["accepted", "rejected", "needs_evidence"]
     basis: str = Field(min_length=1, max_length=4000)
     features: list[FeatureCorrespondence] = Field(default_factory=list, max_length=2000)
+    relationships: list[RelationshipDecision] = Field(default_factory=list, max_length=2000)
+    assignments: list[AssignmentDecision] = Field(default_factory=list, max_length=1000)
     impacts: Impacts = Field(default_factory=Impacts)
     evidence: EvidenceInput = Field(default_factory=EvidenceInput)
+
+
+class ReadConsumers(StrictModel):
+    """Authorized frozen consumers in one project that pin an exact revision at any depth."""
+
+    project_id: UUID
+    revision_id: UUID
 
 
 class ApplyUpgrade(ReadUpgrade):

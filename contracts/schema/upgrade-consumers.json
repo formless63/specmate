@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "Authorized frozen consumers in one project that pin an exact revision at any depth.",
+  "properties": {
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "revision_id"
+  ],
+  "title": "ReadConsumers",
+  "type": "object"
+}

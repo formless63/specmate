@@ -1,5 +1,42 @@
 {
   "$defs": {
+    "AssignmentDecision": {
+      "additionalProperties": false,
+      "description": "Explicitly retain or remove an occurrence assignment on a changed use.",
+      "properties": {
+        "basis": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "retain",
+            "remove"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "decision",
+        "basis"
+      ],
+      "title": "AssignmentDecision",
+      "type": "object"
+    },
     "EvidenceInput": {
       "additionalProperties": false,
       "properties": {
@@ -151,10 +188,50 @@
       },
       "title": "Impacts",
       "type": "object"
+    },
+    "RelationshipDecision": {
+      "additionalProperties": false,
+      "description": "Explicitly retain or remove one consuming-context relationship to a changed use.",
+      "properties": {
+        "basis": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "retain",
+            "remove"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "decision",
+        "basis"
+      ],
+      "title": "RelationshipDecision",
+      "type": "object"
     }
   },
   "additionalProperties": false,
   "properties": {
+    "assignments": {
+      "items": {
+        "$ref": "#/$defs/AssignmentDecision"
+      },
+      "maxItems": 1000,
+      "title": "Assignments",
+      "type": "array"
+    },
     "basis": {
       "maxLength": 4000,
       "minLength": 1,
@@ -188,6 +265,14 @@
       "format": "uuid",
       "title": "Proposal Id",
       "type": "string"
+    },
+    "relationships": {
+      "items": {
+        "$ref": "#/$defs/RelationshipDecision"
+      },
+      "maxItems": 2000,
+      "title": "Relationships",
+      "type": "array"
     }
   },
   "required": [
