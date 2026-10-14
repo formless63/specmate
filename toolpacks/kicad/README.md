@@ -45,7 +45,7 @@ The fixture/checker below retains its original authoring/DRC/SVG behavior.
 ## Recorded format upgrade pack
 
 `kicad-format-upgrade-v1` (`specmate.pcb.upgrade_script`) converts a released KiCad
-6-9 board, and every schematic in the same bundle, to the KiCad 10 formats with the
+5-9 board, and every `.kicad_sch` schematic in the same bundle, to the KiCad 10 formats with the
 pinned `kicad-cli pcb upgrade` / `sch upgrade`. It works on copies in the container's
 private `/tmp` (bounded at 64 MiB by the runner), never on the read-only inputs, and
 writes `upgraded/<path>` files plus `kicad-upgrade.json`. Unrecognized, too-old or
@@ -144,7 +144,7 @@ licensing and publication review.
 
 `kicad-net-assertions-v1` is a separate, bounded source extraction program in
 `specmate.pcb_disagreement.native_script`. It exports a standalone schematic format
-20250114 with the pinned KiCad 10.0.6 CLI, or parses preserved KiCad XML version E.
+20250114 or 20260306 (KiCad 10, including upgraded derivatives) with the pinned KiCad 10.0.6 CLI, or parses preserved KiCad XML version E.
 The parser rejects DTDs/entities, namespaces, unsupported versions, oversized/deep XML,
 missing identity fields and conflicting repeated assignments. Unknown metadata remains
 in retained XML and is listed as unsupported. Missing net membership remains unknown.

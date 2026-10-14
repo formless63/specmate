@@ -13,7 +13,8 @@ NATIVE_BOARD_FORMAT = 20260206
 NATIVE_SCHEMATIC_FORMAT = 20260306
 
 # Released formats the recorded upgrade stage accepts (format -> KiCad major).
-UPGRADABLE_BOARD_FORMATS = {20211014: 6, 20221018: 7, 20240108: 8, 20241229: 9}
+# KiCad 5.0/5.1 boards are 20171130; KiCad 5 schematics are legacy .sch, not .kicad_sch.
+UPGRADABLE_BOARD_FORMATS = {20171130: 5, 20211014: 6, 20221018: 7, 20240108: 8, 20241229: 9}
 UPGRADABLE_SCHEMATIC_FORMATS = {20211123: 6, 20230121: 7, 20231120: 8, 20250114: 9}
 
 # One classifier text, executed here and embedded verbatim in the native programs.
@@ -30,11 +31,12 @@ def format_message(kind,version):
         return (f"KiCad {{old[version]}} {{kind}} format {{version}} must be upgraded first: "
             "request the recorded KiCad 10 format upgrade.")
     if version<min(old):
-        return (f"{{kind.capitalize()}} format {{version}} predates KiCad 6 and is too old "
-            "for the recorded upgrade (KiCad 6-9 formats only).")
+        first=min(old.values())
+        return (f"{{kind.capitalize()}} format {{version}} predates KiCad {{first}} and is too "
+            f"old for the recorded upgrade (KiCad {{first}}-9 formats only).")
     if version>native:
         return f"{{kind.capitalize()}} format {{version}} is newer than KiCad 10.0.6 supports."
-    return (f"{{kind.capitalize()}} format {{version}} is not a released KiCad 6-10 format "
+    return (f"{{kind.capitalize()}} format {{version}} is not a released KiCad 5-10 format "
         "(development build?); it cannot be upgraded.")
 """.strip()
 

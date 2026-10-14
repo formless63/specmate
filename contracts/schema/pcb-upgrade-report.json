@@ -17,6 +17,7 @@
         },
         "from_kicad_major": {
           "enum": [
+            5,
             6,
             7,
             8,

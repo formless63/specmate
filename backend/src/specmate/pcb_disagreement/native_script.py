@@ -23,8 +23,9 @@ if mode=="schematic":
     text=raw.decode("utf-8",errors="strict")
     version_match=re.search(r"\(version\s+(\d+)\)",text[:4096])
     if (not text.lstrip().startswith("(kicad_sch") or not version_match
-            or version_match[1]!="20250114"):
-        raise ValueError("Only the qualified schematic format 20250114 is supported")
+            or version_match[1] not in ("20250114","20260306")):
+        raise ValueError("Only the qualified schematic formats 20250114 and 20260306 "
+                         "(KiCad 10 or a recorded format upgrade) are supported")
     if re.search(r"\(sheet\s",text):
         raise ValueError("Hierarchical sheet extraction is unsupported")
     result=subprocess.run(["kicad-cli","sch","export","netlist","--format","kicadxml",
@@ -33,7 +34,7 @@ if mode=="schematic":
     if result.returncode or not xml_output.is_file():
         raise ValueError("KiCad schematic export failed with exit "+str(result.returncode))
     method="native_schematic_export"
-    native_format="20250114"
+    native_format=version_match[1]
 elif mode=="netlist":
     xml_output.write_bytes(raw)
     method="preserved_netlist_parser"

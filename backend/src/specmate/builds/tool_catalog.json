@@ -12,12 +12,12 @@
       "size_note": "Compressed linux/amd64 layers plus config from the registry manifest; installed size is the unpacked image on disk.",
       "capabilities": [
         "kicad_pcb intake, inspection and DRC (JSON)",
-    "recorded KiCad 6-9 board/schematic format upgrade to KiCad 10 (derivative bundle)",
+    "recorded KiCad 5-9 board/schematic format upgrade to KiCad 10 (derivative bundle)",
         "fixed-layer Gerber X2 and circular Excellon export",
         "schematic export and net extraction (XML, version E)"
       ],
       "rights": "KiCad is GPL-3.0-or-later; library and notice terms stay in the image under /usr/share/doc.",
-      "qualification": "Synthetic original fixtures only; older KiCad 6-9 boards only through the recorded upgrade derivative; linux/arm64, ERC/parity and assembly outputs are unverified.",
+      "qualification": "Synthetic original fixtures only; older KiCad 5-9 boards only through the recorded upgrade derivative; linux/arm64, ERC/parity and assembly outputs are unverified.",
       "acquire": "docker pull kicad/kicad:10.0.6@sha256:40568bc95527f3a673a31a9b59badf512e71046c2d5068a364503c525f946a4e"
     },
     {

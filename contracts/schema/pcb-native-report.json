@@ -114,6 +114,7 @@
     "native_format_version": {
       "enum": [
         "20250114",
+        "20260306",
         "E"
       ],
       "title": "Native Format Version",

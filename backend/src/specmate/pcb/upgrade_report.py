@@ -26,7 +26,7 @@ class UpgradedFile(Record):
     source_sha256: str = Field(pattern=SHA256)
     output_sha256: str = Field(pattern=SHA256)
     from_format_version: int
-    from_kicad_major: Literal[6, 7, 8, 9, 10]
+    from_kicad_major: Literal[5, 6, 7, 8, 9, 10]
     to_format_version: int
     argv: list[str] = Field(max_length=4)
 

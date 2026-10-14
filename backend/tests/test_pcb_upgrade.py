@@ -189,16 +189,17 @@ def test_format_classifier_gives_specific_messages():
         "board", 20221018
     )
     assert "KiCad 6 schematic format 20211123" in format_message("schematic", 20211123)
-    assert "predates KiCad 6 and is too old" in format_message("board", 20171130)
-    assert "not a released KiCad 6-10 format" in format_message("board", 20230517)
+    assert "predates KiCad 5 and is too old" in format_message("board", 4)
+    assert "KiCad 5 board format 20171130 must be upgraded first" in format_message(
+        "board", 20171130
+    )
+    assert "predates KiCad 6" in format_message("schematic", 20200101)
+    assert "not a released KiCad 5-10 format" in format_message("board", 20230517)
     assert "newer than KiCad 10.0.6" in format_message("board", 20990101)
     assert "Not a KiCad s-expression board" in format_message("board", None)
-    assert [kicad_major("board", v) for v in (20211014, 20221018, 20240108, 20241229)] == [
-        6,
-        7,
-        8,
-        9,
-    ]
+    assert [
+        kicad_major("board", v) for v in (20171130, 20211014, 20221018, 20240108, 20241229)
+    ] == [5, 6, 7, 8, 9]
     assert kicad_major("board", 20260206) == 10
     assert kicad_major("board", 20230517) is None
     # The native programs embed the very classifier text the app executes.
@@ -249,7 +250,7 @@ def test_intake_offers_exact_upgrade_and_request_is_scoped(users, workspace, int
     assert intake["upgrade"]["available_recipe_id"] is None
     shown = op(users["viewer"], "pcb.get", {"intake_id": intake["intake_id"]})
     assert shown["upgrade"]["available_recipe_id"] == recipes["upgrade"]["id"]
-    assert shown["upgrade"]["upgradable_kicad_majors"] == [6, 7, 8, 9]
+    assert shown["upgrade"]["upgradable_kicad_majors"] == [5, 6, 7, 8, 9]
     assert shown["format_upgrade"] is None
     payload = {"intake_id": intake["intake_id"], "recipe_id": recipes["upgrade"]["id"]}
     with pytest.raises(PermissionDenied):
@@ -367,7 +368,7 @@ def test_accept_rejects_mismatched_native_evidence(users, requested, report, out
 
 
 def test_failed_upgrade_shows_specific_diagnostic_and_cannot_be_accepted(users, intake, requested):
-    message = "hw/board.kicad_pcb: " + format_message("board", 20171130)
+    message = "hw/board.kicad_pcb: " + format_message("board", 4)
     finish(
         requested,
         state="failed",
@@ -378,7 +379,7 @@ def test_failed_upgrade_shows_specific_diagnostic_and_cannot_be_accepted(users, 
     view = op(users["viewer"], "pcb.get", {"intake_id": intake["intake_id"]})
     [attempt] = view["upgrade"]["attempts"]
     assert attempt["state"] == "failed"
-    assert "predates KiCad 6 and is too old" in attempt["diagnostic"]
+    assert "predates KiCad 5 and is too old" in attempt["diagnostic"]
     assert attempt["derived_intake_id"] is None
 
 
@@ -410,3 +411,64 @@ def test_accept_rechecks_current_authority(users, workspace, requested):
     with pytest.raises(NotFound):
         accept(users, requested)
     assert PcbIntake.objects.filter(id=result["intake_id"]).exists()
+
+
+def test_kicad5_board_upgrades_and_legacy_schematic_is_preserved(users, workspace, settings):
+    """Synthetic KiCad 5 stand-in: 20171130 board plus a legacy .sch that is not upgraded."""
+    kicad5 = b"(kicad_pcb (version 20171130) (host pcbnew 5.1.9)\n)\n"
+    legacy = b"EESchema Schematic File Version 4\n"
+    files = []
+    for path, content in (("k5/board.kicad_pcb", kicad5), ("k5/board.sch", legacy)):
+        register(users["editor"], workspace, content)
+        files.append(
+            {"path": path, "sha256": digest(content), "media_type": "text/plain", "rights": RIGHTS}
+        )
+    bundle = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {"workspace_id": workspace, "name": "KiCad 5 synthetic", "files": files},
+    )
+    k5 = op(
+        users["editor"],
+        "pcb.register_intake",
+        {
+            "workspace_id": workspace,
+            "source_revision_id": bundle["revision_id"],
+            "board_path": "k5/board.kicad_pcb",
+        },
+    )
+    recipe = upgrade_recipe_for("k5/board.kicad_pcb", RIGHTS, [])
+    assert [o["path"] for o in recipe["outputs"]] == [
+        "kicad-upgrade.json",
+        "upgraded/k5/board.kicad_pcb",
+    ]
+    settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: recipe}
+    requested = op(
+        users["owner"],
+        "pcb.request_upgrade",
+        {"intake_id": k5["intake_id"], "recipe_id": recipe["id"]},
+        idempotency_key="k5",
+    )
+    report = upgrade_report(
+        path="k5/board.kicad_pcb",
+        output_path="upgraded/k5/board.kicad_pcb",
+        source_sha256=digest(kicad5),
+        from_format_version=20171130,
+        from_kicad_major=5,
+    )
+    report["files"] = report["files"][:1]
+    finish(
+        requested,
+        outputs={
+            "kicad-upgrade.json": json.dumps(report).encode(),
+            "upgraded/k5/board.kicad_pcb": NEW_BOARD,
+        },
+    )
+    result = accept(users, requested, key="k5-accept")
+    assert result["format_upgrade"]["label"] == "Upgraded from KiCad 5 format"
+    assert result["format_upgrade"]["from_format_version"] == 20171130
+    derived = SourceBundleRevision.objects.get(id=result["source_revision_id"])
+    assert {f.path: f.blob.sha256 for f in derived.files.select_related("blob")} == {
+        "k5/board.kicad_pcb": digest(NEW_BOARD),
+        "k5/board.sch": digest(legacy),
+    }

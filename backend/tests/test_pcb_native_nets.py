@@ -423,3 +423,38 @@ def test_changed_native_payload_authorizes_retained_source_before_key_mismatch(
         op(editor, name, payload, idempotency_key=key)
     assert SourceNetAttempt.objects.count() == 2
     assert SourceNetInterpretation.objects.count() == 1
+
+
+@pytest.mark.parametrize(
+    ("role", "method", "version", "valid"),
+    [
+        ("schematic", "native_schematic_export", "20250114", True),
+        ("schematic", "native_schematic_export", "20260306", True),  # KiCad 10 / upgraded
+        ("schematic", "native_schematic_export", "E", False),
+        ("netlist", "preserved_netlist_parser", "20260306", False),
+        ("netlist", "preserved_netlist_parser", "E", True),
+    ],
+)
+def test_schematic_formats_accepted_by_the_native_report(role, method, version, valid):
+    from pydantic import ValidationError
+
+    from specmate.pcb_disagreement.native_report import NativeReport
+    from specmate.pcb_disagreement.native_script import PROGRAM
+
+    raw = document()
+    sha = hashlib.sha256(raw).hexdigest()
+    report = {
+        "adapter": "kicad-net-assertions-v1",
+        "tool_version": "10.0.6",
+        "source_role": role,
+        "method": method,
+        "source_sha256": sha,
+        "native_format_version": version,
+        **normalize_xml(raw, sha),
+    }
+    if valid:
+        NativeReport.model_validate(report)
+    else:
+        with pytest.raises(ValidationError):
+            NativeReport.model_validate(report)
+    assert '("20250114","20260306")' in PROGRAM

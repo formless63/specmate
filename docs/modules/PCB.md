@@ -35,7 +35,7 @@ native file and reconciled from accepted reports; see [explicit property
 authority](SOURCES-AND-JOBS.md#explicit-property-authority). Copper membership never follows the separately
 labelled, unreviewed resistor reference/value candidate passages.
 
-Boards in released KiCad 6, 7, 8 or 9 formats are read only through a recorded
+Boards in released KiCad 5, 6, 7, 8 or 9 formats are read only through a recorded
 upgrade derivative (below). Schematic parity, netlist/fabrication/BOM/placement-file parsing,
 foreign CAD formats, native model extraction and manufacturing rules remain unsupported
 or unverified. Companion bytes are retained with unparsed coverage. A native source
@@ -56,9 +56,9 @@ oracle, including malformed input. See the [pack guide](../../toolpacks/kicad/RE
 ### Recorded KiCad format upgrade
 
 Extraction reads only board format 20260206. An older board fails with a specific
-message instead of a generic one: a released KiCad 6-9 format (boards 20211014,
-20221018, 20240108, 20241229) "must be upgraded first"; KiCad 5 and older formats are
-too old; unreleased development formats and formats newer than KiCad 10.0.6 are named
+message instead of a generic one: a released KiCad 5-9 format (boards 20171130,
+20211014, 20221018, 20240108, 20241229) "must be upgraded first"; older s-expression
+formats (KiCad 4) are too old; unreleased development formats and formats newer than KiCad 10.0.6 are named
 as such; a file without an s-expression version is not a KiCad board.
 
 `pcb.request_upgrade` (`build.execute`) runs the separate `kicad-format-upgrade-v1`
@@ -91,7 +91,8 @@ derivative. Project (`.kicad_pro`), library, rule and other companion files are
 preserved unchanged; KiCad migrates project settings when the project is opened. The
 upgrade is a native format conversion only. It is not a design review, schematic
 parity check or physical qualification. Upgraded schematics are format 20260306,
-which the separate `kicad-net-assertions-v1` pack does not read (it accepts 20250114).
+which the separate `kicad-net-assertions-v1` pack reads. KiCad 5 schematics are legacy
+`.sch` files; they are preserved unchanged and not upgraded.
 
 ## Population options and reviewed associations
 
@@ -438,7 +439,8 @@ It accepts no client report payload. The app validates bounded JSON and register
 bytes; XML parsing and schematic export occur only inside the isolated native program.
 Accepted attempts and interpretations have database immutability guards.
 
-The supported subset is standalone schematic format 20250114 exported by KiCad 10.0.6,
+The supported subset is a standalone schematic in format 20250114 or 20260306 (written
+by KiCad 10, including a recorded format upgrade), exported by KiCad 10.0.6,
 or preserved KiCad XML version E. Methods remain `native_schematic_export` and
 `preserved_netlist_parser`; a netlist's source-tool string is retained as reported
 metadata. Native component UUID, actual root sheet path, unit and pin fields combine
