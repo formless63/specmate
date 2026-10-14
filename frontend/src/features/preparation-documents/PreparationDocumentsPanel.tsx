@@ -1,3 +1,4 @@
+import { ReadOnlyNote, useCan } from '../../lib/permissions';
 import { Alert, Button, Card, Fieldset, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
@@ -7,9 +8,10 @@ import { RevisionChoice } from './RevisionChoice';
 import { svgSize } from './svg-size';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-type Props = { projectId?: string | null; principalKey: string; canGenerate: boolean; active?: boolean; onAccessLost?: () => void };
+type Props = { projectId?: string | null; principalKey: string; active?: boolean; onAccessLost?: () => void };
 export function PreparationDocumentsPanel(props: Props) { return <Workspace key={`${props.projectId ?? 'library'}:${props.principalKey}`} {...props} />; }
-function Workspace({ canGenerate, active = true, onAccessLost }: Props) {
+function Workspace({ active = true, onAccessLost }: Props) {
+  const canGenerate = useCan('design.edit');
   const [config, setConfig] = useState<Configuration>(emptyConfiguration), [quantity, setQuantity] = useState('1');
   const [definitions, setDefinitions] = useState<Definition[]>([]), [history, setHistory] = useState<Receipt[]>([]);
   const [reviewed, setReviewed] = useState<Review | null>(null), [retained, setRetained] = useState<Receipt | null>(null), [selectedId, setSelectedId] = useState<string | null>(null);
@@ -132,7 +134,7 @@ function Workspace({ canGenerate, active = true, onAccessLost }: Props) {
         {scopes.filter(s => !config.bindings.some(b => JSON.stringify(b.occurrence_path) === JSON.stringify(s.address.path))).map(s => <Button key={JSON.stringify(s.address.path)} onClick={() => change({ ...config, bindings: [...config.bindings, { occurrence_path: s.address.path, cut_profiles: [], end_profiles: [], test_plan_revision_id: null }] })}>Bind {s.address.path.join('/') || 'standalone'} · {s.kind}</Button>)}
         {config.bindings.map((b, i) => <BindingEditor key={JSON.stringify(b.occurrence_path)} value={b} context={scopes.find(s => JSON.stringify(s.address.path) === JSON.stringify(b.occurrence_path))} definitions={definitions} onChange={v => replaceBinding(i, v)} onDenied={fail} active={active && focused} disabled={!visible} onActivity={choiceActivity} onRemove={() => change({ ...config, bindings: config.bindings.filter((_, n) => n !== i) })} />)}
         <Group><Button disabled={!config.root_revision_id || !quantityValid} onClick={() => void check()}>Review coordinated documents</Button><Button disabled={!canGenerate || !reviewed || !reviewVisible || !quantityValid} onClick={() => void retain()}>Generate reviewed document set</Button></Group>
-        {!canGenerate && <Text>Read-only access: review and retained downloads are available; generation requires engineering edit authority.</Text>}
+        <ReadOnlyNote permission="design.edit">Review and retained downloads are available; generation needs engineering edit authority.</ReadOnlyNote>
       </Stack></Fieldset>
     {visible && <>
       <Select label="Retained document history" searchable clearable disabled={busy} value={selectedId} data={history.map(r => ({ value: r.document_set_id, label: `${r.manifest.inputs.root.name} · ${r.created_at} · ${r.document_set_id}` }))} onChange={chooseSet} />

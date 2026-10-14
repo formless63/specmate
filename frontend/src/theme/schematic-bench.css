@@ -216,6 +216,9 @@ html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-inp
 html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input, .mantine-PillsInput-input):is(:focus, :focus-within) { border-bottom-color: var(--sb-accent); box-shadow: 0 1px 0 var(--sb-accent); outline: none; }
 html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):is([data-error], [aria-invalid="true"]) { border-bottom: 1px dashed var(--sb-invalid); color: var(--sb-text-primary); }
 html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):is(:disabled, [data-disabled]) { background: transparent; color: var(--sb-text-disabled); border-bottom-style: dotted; opacity: 1; cursor: not-allowed; }
+/* Inspection: a form without its permission keeps its values as text; dotted rule, no grey wall */
+html[data-mantine-color-scheme] [data-inspect] :is(input, textarea)[data-inspect-locked] { background: transparent; border-bottom-style: dotted; cursor: default; }
+html[data-mantine-color-scheme] [data-inspect] :is(select, input[type="checkbox"], input[type="radio"])[data-inspect-locked], html[data-mantine-color-scheme] [data-inspect] [aria-haspopup][data-inspect-locked] { pointer-events: none; }
 html[data-mantine-color-scheme] :is(.mantine-NumberInput-input, input[type="number"]) { font-family: var(--sb-font-data); font-variant-numeric: tabular-nums; }
 html[data-mantine-color-scheme] .mantine-NumberInput-controls { border: 0; }
 html[data-mantine-color-scheme] .mantine-NumberInput-control { border: 0; color: var(--sb-text-tertiary); background: transparent; }

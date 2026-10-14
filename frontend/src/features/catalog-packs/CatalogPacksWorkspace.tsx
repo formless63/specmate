@@ -3,7 +3,7 @@ import { Alert, Badge, Button, Card, Checkbox, Group, MultiSelect, NativeSelect,
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { command, PackRequestError, read, type Decision, type Entry, type FilePin, type Manifest, type Pack, type SourceFile, type Version } from "./api";
 import { allLibraryDefinitions } from "../identity/api";
-import { useCan } from "../../lib/permissions";
+import { ReadOnlyNote, useCan } from "../../lib/permissions";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
@@ -95,9 +95,9 @@ function Workspace({ projectId }: { projectId: string | null }) {
     <Text>Version inert catalog content, profiles, model/rule files and recipe references. Installation and adoption grant no executable authority; old consumers retain their exact pins.</Text>
     {error && <Alert color="red">{error}</Alert>}
     {blocked && <Alert color="yellow">Refresh access before continuing. Retained choices and history were cleared.</Alert>}
-    {!canImport && <Text>Read only. Importing packs needs contributor access; installation and adoption need editor access.</Text>}
-    {canImport && !canEdit && <Text>You can import pack versions. Installation and adoption need editor access.</Text>}
-    {!blocked && <RegisterForm projectId={projectId} packs={packs} canEdit={canImport} onRegistered={registered} onDenied={invalidate} />}
+    <ReadOnlyNote permission="item.create">Installation and adoption need editor access.</ReadOnlyNote>
+    {canImport && !canEdit && <ReadOnlyNote permission="design.edit">You can import pack versions. Installation and adoption need editor access.</ReadOnlyNote>}
+    {!blocked && canImport && <RegisterForm projectId={projectId} packs={packs} canEdit={canImport} onRegistered={registered} onDenied={invalidate} />}
     <Title order={3}>Registered packs</Title>
     {packs.map((pack) => <Card withBorder key={pack.pack_id}><Group><Text>{pack.package_key}</Text><Badge>{pack.enabled ? "Enabled" : "Not enabled"}</Badge></Group><Button variant="light" disabled={busy} onClick={() => void inspect(pack.pack_id)}>Inspect pack</Button></Card>)}
     {nextPack && <Button onClick={() => void morePacks()}>More packs</Button>}
@@ -107,14 +107,14 @@ function Workspace({ projectId }: { projectId: string | null }) {
       <Text>Installed version: {selected.installed_version_id ?? "none"} · {selected.enabled ? "enabled" : "disabled or not installed"}</Text>
       <VersionView version={version} />
       <Title order={4}>Deliberate use</Title>
-      <Textarea label="Pack decision basis" value={basis} onChange={(event) => setBasis(event.currentTarget.value)} maxLength={4000} />
+      {canEdit && <><Textarea label="Pack decision basis" value={basis} onChange={(event) => setBasis(event.currentTarget.value)} maxLength={4000} />
       <Text>Select content to create fresh local editable drafts; other selected entries remain inert references.</Text>
       {version.entries.map((entry) => <Checkbox key={entry.key} label={`Adopt ${entry.label} (${entry.key})`} checked={entryKeys.includes(entry.key)} disabled={!canEdit} onChange={(event) => { const checked = event.currentTarget.checked; setEntryKeys((current) => checked ? [...current, entry.key] : current.filter((key) => key !== entry.key)); }} />)}
       <Group>
         <Button disabled={!canEdit || !basis.trim() || version.compatibility !== "supported_contract"} loading={busy} onClick={() => void decide("install")}>Install selected version</Button>
         <Button disabled={!canEdit || !basis.trim() || entryKeys.length === 0 || !selected.enabled || selected.installed_version_id !== version.version_id} loading={busy} onClick={() => void decide("adopt")}>Adopt selected entries</Button>
         <Button color="orange" disabled={!canEdit || !basis.trim() || !selected.enabled} loading={busy} onClick={() => void decide("disable")}>Disable new adoption</Button>
-      </Group>
+      </Group></>}
       <Title order={4}>Retained decisions</Title>
       {decisions.map((decision) => <Card withBorder key={decision.decision_id}>
         <Text fw={600}>{decision.sequence}: {decision.action} · version {decision.version}</Text><Text>{decision.basis}</Text><Text size="sm">Decision {decision.decision_id} · actor {decision.decided_by_id} · {decision.decided_at}</Text>

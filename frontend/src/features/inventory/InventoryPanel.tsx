@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Switch, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -53,12 +53,15 @@ function Workspace({ workspaceId, projectId }: { workspaceId: string; projectId?
     {mutation.isSuccess && <Alert color="green">Inventory operation completed.</Alert>}
     <Card withBorder><Stack>
       <Title order={3}>Locations</Title>
+      <InspectionScope permission="inventory.manage">
       <TextInput label="New location name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
+      </InspectionScope>
       <Button disabled={!name.trim()} loading={mutation.isPending} onClick={() => submit("inventory.create_location", { workspace_id: workspaceId, name })} {...manageGate.props}>Create location</Button><ReadOnlyNote permission="inventory.manage">Opening locations and accounts is unavailable.</ReadOnlyNote>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Open stock account</Title>
       <Text size="sm">Choose a registered physical lot and location. An unknown balance remains unavailable until an explicit quantity assertion is recorded.</Text>
+      <InspectionScope permission="inventory.manage">
       <NativeSelect label="Physical lot" value={lot} onChange={(event) => setLot(event.currentTarget.value)} data={[{ value: "", label: "Choose lot" }, ...(data?.lots ?? []).map((item) => ({ value: item.lot_id, label: `${item.label} · ${item.lot_id}` }))]} />
       <NativeSelect label="Stock location" value={location} onChange={(event) => setLocation(event.currentTarget.value)} data={[{ value: "", label: "Choose location" }, ...(data?.locations ?? []).map((item) => ({ value: item.location_id, label: item.name }))]} />
       <NativeSelect label="Quantity dimension" value={dimension} onChange={(event) => { setDimension(event.currentTarget.value); setUnit(units[event.currentTarget.value]?.[0] ?? "ea"); }} data={["count", "length", "mass"]} />
@@ -66,6 +69,7 @@ function Workspace({ workspaceId, projectId }: { workspaceId: string; projectId?
       {known === "known" && <><TextInput label="Opening quantity" value={amount} onChange={(event) => setAmount(event.currentTarget.value)} /><NativeSelect label="Opening unit" value={unit} onChange={(event) => setUnit(event.currentTarget.value)} data={units[dimension]} /></>}
       <TextInput label="Opening reason" value={reason} onChange={(event) => setReason(event.currentTarget.value)} />
       <TextInput label="Opening assertion source" value={source} onChange={(event) => setSource(event.currentTarget.value)} />
+      </InspectionScope>
       <Button disabled={!lot || !location || !reason.trim() || !source.trim() || (known === "known" && !amount.trim())} loading={mutation.isPending} onClick={() => submit("inventory.open_stock", { lot_id: lot, location_id: location, dimension, quantity: known === "known" ? { amount, unit } : null, reason, assertion_source: source, assertion_status: "declared" })} {...manageGate.props}>Open account</Button>
     </Stack></Card>
     {projectId && <Switch label="Only work filed under this project" checked={projectOnly} onChange={(event) => { setProjectOnly(event.currentTarget.checked); setOffset(0); }} />}
@@ -110,11 +114,13 @@ function StockForm({ account, projectId, pending, submit }: { account: Account; 
     <Title order={3}>{account.lot_label} at {account.location_name}</Title>
     <Text size="sm"><RevisionLabel id={account.revision_id} />. Current assertion: {account.assertion_status} · {account.assertion_source}. Stock observations do not qualify a physical item.</Text>
     {unknown && <Alert color="yellow">Stock quantity is unknown. Record an explicit quantity assertion before receiving, adjusting or reserving stock.</Alert>}
+    <InspectionScope permission={action === "reserve" ? "inventory.reserve" : "inventory.manage"}>
     <NativeSelect label="Stock operation" value={action} onChange={(event) => setAction(event.currentTarget.value)} data={[{ value: "establish_quantity", label: "Record quantity assertion" }, { value: "receive", label: "Receive stock" }, { value: "adjust", label: "Adjust stock" }, { value: "reserve", label: "Reserve stock" }]} />
     <TextInput label="Operation quantity" value={amount} onChange={(event) => setAmount(event.currentTarget.value)} />
     <NativeSelect label="Operation unit" value={unit} onChange={(event) => setUnit(event.currentTarget.value)} data={units[account.dimension]} />
     <TextInput label={action === "reserve" ? "Reservation purpose" : "Operation reason"} value={reason} onChange={(event) => setReason(event.currentTarget.value)} />
     {action !== "reserve" && <><TextInput label="Assertion source" value={source} onChange={(event) => setSource(event.currentTarget.value)} /><NativeSelect label="Assertion status" value={status} onChange={(event) => setStatus(event.currentTarget.value)} data={["declared", "observed", "measured"]} /></>}
+    </InspectionScope>
     <Button disabled={blocked || !amount.trim() || !reason.trim() || (action !== "reserve" && !source.trim())} loading={pending} onClick={() => submit(`inventory.${action}`, { account_id: account.account_id, quantity: { amount, unit }, ...(action === "reserve" ? { purpose: reason, ...(projectId ? { project_id: projectId } : {}) } : { reason, assertion_source: source, assertion_status: status }) }, account.state)} {...(action === "reserve" ? reserveGate : manageGate).props}>Apply stock operation</Button><ReadOnlyNote permission={action === "reserve" ? "inventory.reserve" : "inventory.manage"}>Stock operations are unavailable.</ReadOnlyNote>
   </Stack>;
 }

@@ -1,6 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vitest";
-import { PermissionsProvider, ReadOnlyNote, gateFor, holds, readOnlyReason, usePermission } from "./permissions";
+import { InspectionScope, PermissionsProvider, ReadOnlyNote, gateFor, holds, readOnlyReason, usePermission } from "./permissions";
 
 afterEach(cleanup);
 
@@ -58,4 +58,31 @@ test("workspace atoms are matched exactly; former per-project names grant nothin
   expect(holds(["project.read"], "workspace.read")).toBe(false);
   expect(holds(["workspace.read"], "workspace.admin")).toBe(false);
   expect(readOnlyReason("item.create")).toBe("Read-only access: requires Contributor access");
+});
+
+function Form() {
+  return <InspectionScope permission="design.edit"><input aria-label="Name" defaultValue="Pump" /><textarea aria-label="Basis" defaultValue="Declared" /><select aria-label="Kind"><option>a</option></select><input type="checkbox" aria-label="Use" /></InspectionScope>;
+}
+
+test("without the permission an authoring form is read-only in place, never disabled", async () => {
+  render(<PermissionsProvider permissions={["workspace.read"]}><Form /></PermissionsProvider>);
+  const name = screen.getByLabelText("Name") as HTMLInputElement;
+  expect(name.readOnly).toBe(true);
+  expect(name.disabled).toBe(false);
+  expect(name.value).toBe("Pump");
+  expect((screen.getByLabelText("Basis") as HTMLTextAreaElement).readOnly).toBe(true);
+  expect(screen.getByLabelText("Kind").getAttribute("tabindex")).toBe("-1");
+  expect(screen.getByLabelText("Use").getAttribute("aria-readonly")).toBe("true");
+  expect(document.querySelector("[data-inspect]")?.getAttribute("data-inspect")).toBe("design.edit");
+});
+
+test("fields added later are locked too, and a held permission leaves the form editable", async () => {
+  render(<PermissionsProvider permissions={["workspace.read"]}><InspectionScope permission="design.edit"><div id="host" /></InspectionScope></PermissionsProvider>);
+  const host = document.getElementById("host")!;
+  const late = document.createElement("input"); late.setAttribute("aria-label", "Late"); host.appendChild(late);
+  await waitFor(() => expect(late.readOnly).toBe(true));
+  cleanup();
+  render(<PermissionsProvider permissions={["workspace.read", "design.edit"]}><Form /></PermissionsProvider>);
+  expect((screen.getByLabelText("Name") as HTMLInputElement).readOnly).toBe(false);
+  expect(document.querySelector("[data-inspect]")).toBeNull();
 });

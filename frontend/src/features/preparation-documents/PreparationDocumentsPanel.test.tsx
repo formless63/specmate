@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createHash } from 'node:crypto';
@@ -51,7 +53,7 @@ function fixture(extraHistory = false) {
   vi.stubGlobal('fetch', fetch);
   return { calls, fetch, deny: () => { deny = true; }, restore: () => { deny = false; }, failGenerate: () => { failGenerate = true; } };
 }
-function panel(projectId = 'project', principalKey = 'owner', canGenerate = true) { return <MantineProvider><PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} canGenerate={canGenerate} /></MantineProvider>; }
+function panel(projectId = 'project', principalKey = 'owner', canGenerate = true) { return <MantineProvider><PermissionsProvider permissions={grants({ edit: canGenerate })}><PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} /></PermissionsProvider></MantineProvider>; }
 async function choose(label: string, option: string) {
   const input = await screen.findByRole('combobox', { name: label });
   await waitFor(() => expect(input.hasAttribute('disabled')).toBe(false));
@@ -192,9 +194,9 @@ test('blur/focus and inactive/return preserve staging and original retry token/k
   fireEvent.focus(window);
   await waitFor(() => expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.style.display).not.toBe('none'));
   expect((screen.getByLabelText('Generated output rights basis') as HTMLTextAreaElement).value).toBe('Original staged scope recovery basis');
-  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active={false} /></MantineProvider>);
+  view.rerender(<MantineProvider><PermissionsProvider permissions={grants({ edit: true })}><PreparationDocumentsPanel projectId="project" principalKey="owner" active={false} /></PermissionsProvider></MantineProvider>);
   expect(screen.queryByRole('heading', { name: 'Retained coordinated provenance' })).toBeNull();
-  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active /></MantineProvider>);
+  view.rerender(<MantineProvider><PermissionsProvider permissions={grants({ edit: true })}><PreparationDocumentsPanel projectId="project" principalKey="owner" active /></PermissionsProvider></MantineProvider>);
   await waitFor(() => expect(screen.getByLabelText('Generated output rights basis').closest('fieldset')?.style.display).not.toBe('none'));
   expect((screen.getByLabelText('Generated output rights basis') as HTMLTextAreaElement).value).toBe('Original staged scope recovery basis');
   fireEvent.click(screen.getByRole('button', { name: 'Generate reviewed document set' }));
@@ -228,8 +230,8 @@ test('incomplete staged mapping remains editable after tab return without comple
     if (body?.operation === 'preparation_documents.review' && body.payload.bindings?.some((b: { end_profiles: { mapping_basis: string }[] }) => b.end_profiles.some(e => e.mapping_basis === ''))) return Promise.resolve(json({ error: { message: 'Incomplete mapping basis.' } }, 422));
     return original(url, options);
   });
-  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active={false} /></MantineProvider>);
-  view.rerender(<MantineProvider><PreparationDocumentsPanel projectId="project" principalKey="owner" canGenerate active /></MantineProvider>);
+  view.rerender(<MantineProvider><PermissionsProvider permissions={grants({ edit: true })}><PreparationDocumentsPanel projectId="project" principalKey="owner" active={false} /></PermissionsProvider></MantineProvider>);
+  view.rerender(<MantineProvider><PermissionsProvider permissions={grants({ edit: true })}><PreparationDocumentsPanel projectId="project" principalKey="owner" active /></PermissionsProvider></MantineProvider>);
   await waitFor(() => expect(screen.getByLabelText('End mapping basis shared').closest('fieldset')?.parentElement?.closest('fieldset')?.style.display).not.toBe('none'));
   expect((screen.getByLabelText('End mapping basis shared') as HTMLTextAreaElement).value).toBe('');
   fireEvent.change(screen.getByLabelText('End mapping basis shared'), { target: { value: 'Original explicit mapping recovered' } });

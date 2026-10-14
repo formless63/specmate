@@ -6,6 +6,12 @@ import { command, read, type Definition, type Identity } from '../identity/api';
 import { operation, type BuildInput, type Decision, type DraftResolution, type Selection, type Submission } from './api';
 
 const NONE = '__none__';
+/** Inspection text for a selection the viewer cannot change. */
+function selectionText(value: string, options?: { default_choice?: unknown; choices: { key: string; label: string }[] }) {
+  if (value === NONE) return 'Explicitly none';
+  if (value === '') return options?.default_choice ? 'Declared default' : 'No selection';
+  return options?.choices.find((choice) => choice.key === value)?.label ?? value;
+}
 const STATUS_COLOR: Record<string, string> = { resolved: 'green', complete: 'green', none: 'blue', unresolved: 'yellow', incomplete: 'yellow', invalid: 'red' };
 const SOURCE: Record<Decision['source'], string> = { selected: 'Selected', default: 'Option-set default', explicit_none: 'Explicitly none', not_selected: 'Not selected' };
 
@@ -154,9 +160,9 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
           return <Table.Tr key={decision.option_key}>
             <Table.Td><Text size="sm">{decision.label}</Text><Text className="sb-silk">{decision.domain}{decision.required ? '' : ' · optional'}</Text></Table.Td>
             <Table.Td>{decision.path ? <Badge variant="occurrence">{decision.path.join('/')}</Badge> : <Text size="sm">Whole configuration</Text>}</Table.Td>
-            <Table.Td><NativeSelect aria-label={`Selection for ${decision.label}`} disabled={!edit.allowed || busy} value={edits[decision.option_key] ?? ''}
+            <Table.Td>{!edit.allowed ? <Text size="sm">{selectionText(edits[decision.option_key] ?? '', options)}</Text> : <NativeSelect aria-label={`Selection for ${decision.label}`} disabled={busy} value={edits[decision.option_key] ?? ''}
               data={[{ value: '', label: options?.default_choice ? 'Use declared default' : 'No selection' }, ...(decision.required ? [] : [{ value: NONE, label: 'Explicitly none' }]), ...(options?.choices ?? []).map((choice) => ({ value: choice.key, label: choice.label }))]}
-              onChange={(event) => { const value = event.currentTarget.value; setEdits((current) => ({ ...current, [decision.option_key]: value })); setDirty(true); }} /></Table.Td>
+              onChange={(event) => { const value = event.currentTarget.value; setEdits((current) => ({ ...current, [decision.option_key]: value })); setDirty(true); }} />}</Table.Td>
             <Table.Td><Badge variant="outline" color={STATUS_COLOR[decision.status]}>{decision.status}</Badge><Text className="sb-silk">{SOURCE[decision.source]}</Text></Table.Td>
             <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}>{decision.choice ? (decision.choice.revision
               ? <>{decision.choice.revision.name} · rev {decision.choice.revision.number}{decision.choice.population_option_id ? ` · option ${decision.choice.population_option_id}` : ''}<br />{decision.choice.revision.snapshot_sha256.slice(0, 12)}</>
@@ -168,11 +174,13 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
       </Table>
       {resolution.invalid_selections.map((item) => <Alert key={item.option_key} color="red">{item.option_key}: {item.reason}</Alert>)}
       <ReadOnlyNote permission="design.edit" />
-      <Group><Button {...edit.props} disabled={!edit.allowed || !dirty || busy} onClick={() => { void save(); }}>Save selections</Button>
+      {edit.allowed && <>
+      <Group><Button disabled={!dirty || busy} onClick={() => { void save(); }}>Save selections</Button>
         {dirty && <Text size="sm">Unsaved selections are not resolved or captured. Saving drops selections for undeclared options.</Text>}</Group>
-      <Textarea label="Capture basis" disabled={!edit.allowed || busy} value={basis} onChange={(event) => { setBasis(event.currentTarget.value); setSubmission(null); }} />
-      <Group><Button variant="commit" {...edit.props} disabled={!edit.allowed || dirty || busy || resolution.status === 'invalid' || !basis.trim()} onClick={() => { void capture(); }}>Capture resolved snapshot</Button>
-        {submission && <Button variant="quiet" {...edit.props} disabled={!edit.allowed || busy} onClick={() => { void capture(true); }}>Retry capture</Button>}</Group>
+      <Textarea label="Capture basis" disabled={busy} value={basis} onChange={(event) => { setBasis(event.currentTarget.value); setSubmission(null); }} />
+      <Group><Button variant="commit" disabled={dirty || busy || resolution.status === 'invalid' || !basis.trim()} onClick={() => { void capture(); }}>Capture resolved snapshot</Button>
+        {submission && <Button variant="quiet" disabled={busy} onClick={() => { void capture(true); }}>Retry capture</Button>}</Group>
+      </>}
       {resolution.status === 'incomplete' && <Text size="sm">An incomplete snapshot may be captured as review evidence; builds refuse it until every required option resolves.</Text>}
       <Title order={4}>Resolved snapshots</Title>
       {preview.resolved.length === 0 && <Text size="sm">No resolved snapshot captured for this draft.</Text>}

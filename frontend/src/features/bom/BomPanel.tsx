@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -30,8 +30,8 @@ function Workspace({ projectId }: { projectId: string }) {
     <Title order={2}>Purpose-specific BOM planning</Title>
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
     <Card withBorder><Stack><Title order={3}>New BOM plan</Title>
-      <TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} />
+      <InspectionScope permission="item.create"><TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+      <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} /></InspectionScope>
       <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...createGate.props}>Create BOM draft</Button><ReadOnlyNote permission="item.create">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
@@ -57,7 +57,7 @@ function DraftEditor({ draft, definitions, onSaved, onFrozen }: { draft: Draft; 
   const save = useMutation({ mutationFn: () => command("bom.update", { draft_id: draft.draft_id, bom: value }, draft.state), onSuccess: onSaved });
   const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("bom.freeze", { draft_id: draft.draft_id }, draft.state), onSuccess: result => onFrozen(result.revision_id) });
   return <Card withBorder><Stack><Title order={3}>Edit BOM draft</Title>
-    <PlanEditor value={value} definitions={definitions} onChange={next => { setValue(next); setDirty(true); }} />
+    <InspectionScope permission="design.edit"><PlanEditor value={value} definitions={definitions} onChange={next => { setValue(next); setDirty(true); }} /></InspectionScope>
     <Group><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save BOM draft</Button><Button disabled={dirty || !draft.content.bom} loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze BOM revision</Button><ReadOnlyNote permission="design.edit">Saving and freezing BOM drafts are unavailable.</ReadOnlyNote></Group>
     {dirty && <Text>Save your edits before freezing.</Text>}
     {save.isError && <Alert color="red">{save.error.message}</Alert>}{freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}

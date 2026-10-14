@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from "@mantine/core";
 import { StrictMode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -20,7 +22,7 @@ const proposal: Proposal = {
   contextual_assignments: [], reviews: [], applications: [], limitations: ["Direct occurrences only"],
 };
 function view(projectId = "p1", canEdit = true) {
-  return <MantineProvider><RevisionUpgradeWorkspace projectId={projectId} canEdit={canEdit} /></MantineProvider>;
+  return <MantineProvider><PermissionsProvider permissions={grants({ edit: canEdit })}><RevisionUpgradeWorkspace projectId={projectId} /></PermissionsProvider></MantineProvider>;
 }
 async function reload() {
   fireEvent.change(screen.getByLabelText("Saved proposal ID"), { target: { value: "proposal-one" } });
@@ -111,8 +113,9 @@ test("changing project clears retained proposal and stale async results", async 
 test("readers inspect persisted proposals without enabling mutations", async () => {
   vi.stubGlobal("fetch", vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "assembly-one" }]) : reply(proposal)));
   render(view("p1", false)); await reload();
-  expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: "Apply reviewed upgrade to draft" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "Append review" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Apply reviewed upgrade to draft" })).toBeNull();
+  expect(screen.getByText(/Review history|Immutable review history/)).toBeTruthy();
 });
 
 test("existing draft adoption carries a separate draft token and clears a conflicted preview", async () => {
@@ -185,7 +188,7 @@ test.each(["needs_evidence", "rejected"] as const)("%s review preserves required
 
 
 function handoff({ projectId = "p1", principalKey = "actor-one", active = true, initialProposalId = "proposal-one", canEdit = false } = {}) {
-  return <MantineProvider><RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active} initialProposalId={initialProposalId} canEdit={canEdit} /></MantineProvider>;
+  return <MantineProvider><PermissionsProvider permissions={grants({ edit: canEdit })}><RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active} initialProposalId={initialProposalId} /></PermissionsProvider></MantineProvider>;
 }
 function heldReply() {
   let resolve!: (value: Response) => void;
@@ -202,8 +205,9 @@ test.each([false, true])("handed off exact proposal is read freshly without revi
   await screen.findByText("Exact proposal proposal-one");
   expect((screen.getByLabelText("Saved proposal ID") as HTMLInputElement).value).toBe("proposal-one");
   expect(screen.getByText("Owning snapshot snapshot-one · SHA-256 " + "a".repeat(64))).toBeTruthy();
-  expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: "Apply reviewed upgrade to draft" }) as HTMLButtonElement).disabled).toBe(!canEdit);
+  const append = screen.queryByRole("button", { name: "Append review" }) as HTMLButtonElement | null;
+  const apply = screen.queryByRole("button", { name: "Apply reviewed upgrade to draft" }) as HTMLButtonElement | null;
+  if (canEdit) { expect(append?.disabled).toBe(true); expect(apply?.disabled).toBe(false); } else { expect(append).toBeNull(); expect(apply).toBeNull(); }
   // Only the proposal itself is read: a project never limits which workspace proposals open.
   expect(fetch.mock.calls.map(([path]) => path)).toEqual(["/api/v0/revision-upgrades/proposals/proposal-one"]);
 });

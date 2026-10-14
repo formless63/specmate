@@ -1,3 +1,4 @@
+import { useCan } from "../../lib/permissions";
 import { Alert, Badge, Button, Card, Group, Select, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
@@ -46,10 +47,11 @@ function ProjectionCard({ projection, title }: { projection: Projection; title: 
   </Stack></Card>;
 }
 
-export function PropertyAuthorityPanel({ workspaceId, canWrite, detail, onOpenRevision, onAuthorityFailure }: {
-  workspaceId: string; canWrite: boolean; detail: RevisionDetail | null;
+export function PropertyAuthorityPanel({ workspaceId, detail, onOpenRevision, onAuthorityFailure }: {
+  workspaceId: string; detail: RevisionDetail | null;
   onOpenRevision: (revisionId: string) => void; onAuthorityFailure: (reason: unknown) => void;
 }) {
+  const canWrite = useCan('source.register');
   const [list, setList] = useState<AuthoritySummary[]>([]);
   const [selected, setSelected] = useState<Authority | null>(null);
   const [boardPath, setBoardPath] = useState<string | null>(null);

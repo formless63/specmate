@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
@@ -13,7 +15,7 @@ const model: Model = { root_revision_id: "root-revision", assumptions: "ideal_lu
 const draft: Draft = { definition_id: "model-definition", draft_id: "model-draft", state: "draft-v1", content: { passages: model } };
 const inspection: Inspection = { revision_id: "model-revision", sha256: "c".repeat(64), snapshot_id: "model-snapshot", model, graph, state: "passage-review-v0", decision: "unreviewed", reviews: [] };
 const unknown: Interpretation = { revision_id: "model-revision", sha256: "c".repeat(64), review_state: "passage-review-v0", query: "dc_continuity", status: "unknown", reason: "current_accepted_model_review_required", paths: [], physical_continuity: "not_evaluated", signal_transfer: "not_evaluated", physical_qualification: "not_evaluated" };
-function view(projectId = "project-one", canEdit = true) { return <MantineProvider><PassivePassagesWorkspace projectId={projectId} canEdit={canEdit} canFreeze={canEdit} /></MantineProvider>; }
+function view(projectId = "project-one", canEdit = true) { return <MantineProvider><PermissionsProvider permissions={grants({ edit: canEdit, freeze: canEdit })}><PassivePassagesWorkspace projectId={projectId} /></PermissionsProvider></MantineProvider>; }
 async function load() {
   fireEvent.change(screen.getByLabelText("Exact frozen passive model revision ID"), { target: { value: "model-revision" } });
   fireEvent.click(screen.getByRole("button", { name: "Inspect frozen passive model" }));
@@ -144,7 +146,8 @@ test("changing project fences delayed frozen inspection and clears private evide
 test("readers can inspect/query but cannot append model reviews", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => reply(inspection)));
   render(view("project-one", false)); await load();
-  expect((screen.getByRole("button", { name: "Append passive model review" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "Append passive model review" })).toBeNull();
+  expect(screen.getByRole("note").textContent).toContain("Read-only access: requires Edit");
 });
 
 test("update and freeze use saved draft concurrency tokens independently", async () => {

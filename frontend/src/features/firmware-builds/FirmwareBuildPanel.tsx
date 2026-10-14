@@ -4,13 +4,15 @@ import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
 import { compileOptions, compileOutputUrl, compileReview, type CompileOptions, type CompileReview, type FirmwareBuildRef } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
-type Props = FirmwareBuildRef & { canExecute?: boolean };
-export function FirmwareBuildPanel({ firmware_revision_id, assembly_snapshot_id = null, path = [], canExecute = false }: Props) {
+type Props = FirmwareBuildRef;
+export function FirmwareBuildPanel({ firmware_revision_id, assembly_snapshot_id = null, path = [] }: Props) {
   const scopeKey = JSON.stringify([firmware_revision_id, assembly_snapshot_id, path]);
-  return <CompilerWorkspace key={scopeKey} reference={{ firmware_revision_id, assembly_snapshot_id, path }} canExecute={canExecute} />;
+  return <CompilerWorkspace key={scopeKey} reference={{ firmware_revision_id, assembly_snapshot_id, path }} />;
 }
-function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuildRef; canExecute: boolean }) {
+function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
+  const canExecute = useCan('build.execute');
   const [available, setAvailable] = useState<CompileOptions>();
   const [review, setReview] = useState<CompileReview>();
   const [error, setError] = useState('');

@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -18,7 +20,7 @@ const result: Result = {
 function wrap(node: React.ReactNode, client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return <MantineProvider env="test"><QueryClientProvider client={client}>{node}</QueryClientProvider></MantineProvider>;
 }
-function panel(principal = "owner", edit = true) { return <InterfaceAssessmentPanel projectId="project" principalKey={principal} canEdit={edit} canFreeze={edit} />; }
+function panel(principal = "owner", edit = true) { return <PermissionsProvider permissions={grants({ edit: edit, freeze: edit })}><InterfaceAssessmentPanel projectId="project" principalKey={principal} /></PermissionsProvider>; }
 async function choose(label: string, option: string) {
   fireEvent.click(await screen.findByRole("combobox", { name: label }));
   fireEvent.click(await screen.findByRole("option", { name: option }));
@@ -186,7 +188,7 @@ test("replacing a voltage with a negative value keeps the intermediate minus sig
 
 test("inactive tab return checks authority before restoring prepared edits and original CAS", async () => {
   const f = fixture(); const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const node = (active: boolean) => wrap(<InterfaceAssessmentPanel projectId="project" principalKey="owner" canEdit canFreeze active={active} />, client);
+  const node = (active: boolean) => wrap(<PermissionsProvider permissions={grants({ edit: true, freeze: true })}><InterfaceAssessmentPanel projectId="project" principalKey="owner" active={active} /></PermissionsProvider>, client);
   const view = render(node(true)); await editExisting();
   fireEvent.change(screen.getByLabelText("mating basis"), { target: { value: "Prepared across inactive tab" } });
   await choose("Frozen assessment revision", "Revision 1");

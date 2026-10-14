@@ -8,16 +8,17 @@ import { MountingDetails, MountingEditor } from './MountingEditor';
 import { addressKey, command, read, relationship, type Assembly, type Definition, type Draft, type Identity, type Occurrence, type Projection, type RelationshipKind } from "./api";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
-export function AssemblyPanel({ projectId, permissions, onAccessLost }: { projectId: string; permissions?: string[]; onAccessLost?: () => void }) {
-  return <AssemblyWorkspace key={projectId} projectId={projectId} permissions={permissions} onAccessLost={onAccessLost} />;
+export function AssemblyPanel({ projectId, onAccessLost }: { projectId: string; onAccessLost?: () => void }) {
+  return <AssemblyWorkspace key={projectId} projectId={projectId} onAccessLost={onAccessLost} />;
 }
 
-function AssemblyWorkspace({ projectId, permissions, onAccessLost }: { projectId: string; permissions?: string[]; onAccessLost?: () => void }) {
-  const canEdit = !permissions || permissions.includes("design.edit");
+function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string; onAccessLost?: () => void }) {
+  const canEdit = useCan("design.edit");
   // Creating an assembly adds a workspace item (item.create); editing drafts needs design.edit.
-  const canCreate = !permissions || permissions.includes("item.create");
-  const canFreeze = !permissions || permissions.includes("design.freeze");
+  const canCreate = useCan("item.create");
+  const canFreeze = useCan("design.freeze");
   const [accessError, setAccessError] = useState("");
   const generation = useRef(0);
   const [acceptedCapture, setAcceptedCapture] = useState<Draft | null>(null);

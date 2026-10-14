@@ -4,12 +4,13 @@ import { command, preserve, request, SourceError, type RevisionDetail, type Sour
 import { EditHandoff, EditProvenanceCard } from './EditHandoff';
 import { PropertyAuthorityPanel } from '../source-authority/PropertyAuthority';
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
-export function SourcesPanel(props: { workspaceId: string; permissions?: string[] }) {
+export function SourcesPanel(props: { workspaceId: string }) {
   return <SourceWorkspace key={props.workspaceId} {...props} />;
 }
-function SourceWorkspace({ workspaceId, permissions }: { workspaceId: string; permissions?: string[] }) {
-  const canWrite = !permissions || permissions.includes('source.register');
+function SourceWorkspace({ workspaceId }: { workspaceId: string }) {
+  const canWrite = useCan('source.register');
   const [page, setPage] = useState<SourcePage>({ revisions: [], next_after: null });
   const [detail, setDetail] = useState<RevisionDetail | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -106,9 +107,9 @@ function SourceWorkspace({ workspaceId, permissions }: { workspaceId: string; pe
         <TextInput label="Expanded bundle name" value={derivedName} disabled={busy} onChange={event => setDerivedName(event.currentTarget.value)} />
         <Button disabled={!path || !derivedName.trim()} loading={busy} onClick={() => void expand()}>Expand ZIP into derivative</Button>
       </Stack>}
-      <EditHandoff key={detail.revision_id} workspaceId={workspaceId} detail={detail} canWrite={canWrite} busy={busy} setBusy={value => { if (alive.current) setBusy(value); }}
+      <EditHandoff key={detail.revision_id} workspaceId={workspaceId} detail={detail} busy={busy} setBusy={value => { if (alive.current) setBusy(value); }}
         onAuthorityFailure={failed} onSubmitted={async id => { if (alive.current && await refresh()) await inspect(id); }} />
     </Stack></Card>}
-    {!denied && <PropertyAuthorityPanel workspaceId={workspaceId} canWrite={canWrite} detail={detail} onOpenRevision={id => void inspect(id)} onAuthorityFailure={failed} />}
+    {!denied && <PropertyAuthorityPanel workspaceId={workspaceId} detail={detail} onOpenRevision={id => void inspect(id)} onAuthorityFailure={failed} />}
   </Stack>;
 }

@@ -1,6 +1,6 @@
 import { Alert, Badge, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { ReadOnlyNote, usePermission, InspectionScope } from '../../lib/permissions';
 import { randomUUID } from '../../lib/random-id';
 import { SourceError } from '../sources/api';
 import { boardInputs, createDraft, listBoards, listDrafts, readDraft, readRetained, retainDraft, updateDraft, type BoardChoice, type BoardInputs, type Draft, type DraftRow, type Feature, type Proposal, type Retained, type Side } from './api';
@@ -128,8 +128,10 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
         {rows.map(row => <Table.Tr key={row.draft_id}><Table.Td>{row.name}</Table.Td><Table.Td><Badge variant="draft">{row.state}</Badge></Table.Td><Table.Td>{row.revision_count}</Table.Td><Table.Td><Button variant="quiet" disabled={busy} onClick={() => void open(row.draft_id)} aria-label={`Open proposal ${row.name}`}>Open</Button></Table.Td></Table.Tr>)}
       </Table.Tbody></Table>}
       <Group align="end">
+        <InspectionScope permission="item.create">
         <Select label="Accepted board" placeholder={boards.length ? 'Choose a board' : 'No accepted board interpretation'} value={board} onChange={setBoard} data={boards.map(b => ({ value: b.interpretation_id, label: `${b.board_path || 'board'} · ${b.sha256.slice(0, 12)} · outline ${b.outline}` }))} />
         <TextInput label="New proposal name" value={name} onChange={event => setName(event.currentTarget.value)} />
+        </InspectionScope>
         <Button {...createGate.props} disabled={!createGate.allowed || busy || !board || !name.trim()} onClick={() => void create()}>Create proposal draft</Button>
       </Group>
     </Stack></Card>
@@ -138,51 +140,55 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <Card withBorder><Stack>
         <Group><Title order={3}>{draft.name}</Title><Badge variant="draft">{draft.state}</Badge>{dirty && <Badge variant="occurrence">Unsaved edits</Badge>}</Group>
         <Text size="xs">Board interpretation {draft.interpretation_id} · SHA-256 {inputs.sha256} · frame: {inputs.frame}</Text>
+      <InspectionScope permission="design.edit">
         <Title order={4}>Enclosure shell</Title>
         <Group grow align="start">
           {([['board_clearance_mm', 'Board clearance'], ['wall_mm', 'Wall thickness'], ['corner_radius_mm', 'Corner radius'], ['interior_height_mm', 'Interior height'], ['board_thickness_mm', 'Board thickness']] as const).map(([key, label]) =>
-            <Field key={key} label={label} value={form.shell[key]} disabled={readOnly} onChange={value => change(f => ({ ...f, shell: { ...f.shell, [key]: value } }))} />)}
+            <Field key={key} label={label} value={form.shell[key]} onChange={value => change(f => ({ ...f, shell: { ...f.shell, [key]: value } }))} />)}
         </Group>
         <Title order={4}>Mounting bosses</Title>
         <Group grow align="start">
           {([['outer_diameter_mm', 'Boss outer diameter'], ['pilot_diameter_mm', 'Pilot diameter'], ['height_mm', 'Standoff height'], ['lid_clearance_diameter_mm', 'Lid fastener clearance diameter']] as const).map(([key, label]) =>
-            <Field key={key} label={label} value={form.boss[key]} disabled={readOnly} onChange={value => change(f => ({ ...f, boss: { ...f.boss, [key]: value } }))} />)}
+            <Field key={key} label={label} value={form.boss[key]} onChange={value => change(f => ({ ...f, boss: { ...f.boss, [key]: value } }))} />)}
         </Group>
         {inputs.holes.length === 0 ? <Text>The accepted board lists no non-plated hole candidates.</Text> : inputs.holes.map(hole =>
-          <Select key={hole.pad_id} label={`Hole at (${hole.position[0]}, ${hole.position[1]}) drill ${hole.drill[0]} x ${hole.drill[1]} mm`} description={`${hole.mounting_status}; native ${hole.pad_id}`} allowDeselect={false} disabled={readOnly} data={choiceData} value={form.mounts[hole.pad_id] ?? 'undecided'} onChange={value => change(f => ({ ...f, mounts: { ...f.mounts, [hole.pad_id]: (value ?? 'undecided') as Choice } }))} />)}
+          <Select key={hole.pad_id} label={`Hole at (${hole.position[0]}, ${hole.position[1]}) drill ${hole.drill[0]} x ${hole.drill[1]} mm`} description={`${hole.mounting_status}; native ${hole.pad_id}`} allowDeselect={false} data={choiceData} value={form.mounts[hole.pad_id] ?? 'undecided'} onChange={value => change(f => ({ ...f, mounts: { ...f.mounts, [hole.pad_id]: (value ?? 'undecided') as Choice } }))} />)}
+      </InspectionScope>
       </Stack></Card>
 
+      <InspectionScope permission="design.edit">
       <Section title="Connector openings" onAdd={readOnly ? undefined : () => change(f => ({ ...f, connectors: [...f.connectors, { component_id: inputs.components.find(c => !f.connectors.some(x => x.component_id === c.component_id))?.component_id ?? '', side: 'east', lateral_offset_mm: '', width_mm: '', height_mm: '', center_above_board_mm: '', clearance_mm: '' }] }))} addLabel="Add connector opening" addDisabled={inputs.components.length === 0}>
         {form.connectors.map((c, index) => <Card withBorder key={index}><Stack>
           <Group align="end">
-            <Select label="Component (native identity)" description={component(c.component_id) ? `${component(c.component_id)?.footprint} · ${component(c.component_id)?.side} side · origin ${component(c.component_id)?.position.join(', ')}` : 'Choose a component'} data={inputs.components.map(x => ({ value: x.component_id, label: `${x.reference} · ${x.value}` }))} value={c.component_id || null} disabled={readOnly} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, component_id: value ?? '' } : x) }))} />
-            <Select label="Wall" data={sideData} allowDeselect={false} value={c.side} disabled={readOnly} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, side: (value ?? 'east') as Side } : x) }))} />
+            <Select label="Component (native identity)" description={component(c.component_id) ? `${component(c.component_id)?.footprint} · ${component(c.component_id)?.side} side · origin ${component(c.component_id)?.position.join(', ')}` : 'Choose a component'} data={inputs.components.map(x => ({ value: x.component_id, label: `${x.reference} · ${x.value}` }))} value={c.component_id || null} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, component_id: value ?? '' } : x) }))} />
+            <Select label="Wall" data={sideData} allowDeselect={false} value={c.side} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, side: (value ?? 'east') as Side } : x) }))} />
             <Button variant="risk" disabled={readOnly} onClick={() => change(f => ({ ...f, connectors: f.connectors.filter((_, i) => i !== index) }))}>Remove opening</Button>
           </Group>
           <Group grow align="start">{([['lateral_offset_mm', 'Centreline offset from origin along wall'], ['width_mm', 'Envelope width'], ['height_mm', 'Envelope height'], ['center_above_board_mm', 'Centre above board surface'], ['clearance_mm', 'Opening clearance per side']] as const).map(([key, label]) =>
-            <Field key={key} label={label} value={c[key]} disabled={readOnly} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, [key]: value } : x) }))} />)}</Group>
+            <Field key={key} label={label} value={c[key]} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, [key]: value } : x) }))} />)}</Group>
         </Stack></Card>)}
       </Section>
 
       <Section title="Vent slot arrays" onAdd={readOnly ? undefined : () => change(f => ({ ...f, vents: [...f.vents, { local_id: `vent-${f.vents.length + 1}`, face: 'lid', slot_width_mm: '', slot_length_mm: '', pitch_x_mm: '', pitch_y_mm: '', edge_margin_mm: '', keepout_margin_mm: '' }] }))} addLabel="Add vent array">
         {form.vents.map((v, index) => <Card withBorder key={index}><Stack>
-          <Group align="end"><TextInput label="Vent ID" value={v.local_id} disabled={readOnly} onChange={event => { const value = event.currentTarget.value; change(f => ({ ...f, vents: f.vents.map((x, i) => i === index ? { ...x, local_id: value } : x) })); }} />
-            <Select label="Face" data={faceData} allowDeselect={false} value={v.face} disabled={readOnly} onChange={value => change(f => ({ ...f, vents: f.vents.map((x, i) => i === index ? { ...x, face: (value ?? 'lid') as 'lid' | 'floor' } : x) }))} />
+          <Group align="end"><TextInput label="Vent ID" value={v.local_id} onChange={event => { const value = event.currentTarget.value; change(f => ({ ...f, vents: f.vents.map((x, i) => i === index ? { ...x, local_id: value } : x) })); }} />
+            <Select label="Face" data={faceData} allowDeselect={false} value={v.face} onChange={value => change(f => ({ ...f, vents: f.vents.map((x, i) => i === index ? { ...x, face: (value ?? 'lid') as 'lid' | 'floor' } : x) }))} />
             <Button variant="risk" disabled={readOnly} onClick={() => change(f => ({ ...f, vents: f.vents.filter((_, i) => i !== index) }))}>Remove vent array</Button></Group>
           <Group grow align="start">{([['slot_width_mm', 'Slot width'], ['slot_length_mm', 'Slot length'], ['pitch_x_mm', 'Pitch along x'], ['pitch_y_mm', 'Pitch along y'], ['edge_margin_mm', 'Edge margin'], ['keepout_margin_mm', 'Boss keep-out margin']] as const).map(([key, label]) =>
-            <Field key={key} label={`${v.local_id || 'Vent'} ${label}`} value={v[key]} disabled={readOnly} onChange={value => change(f => ({ ...f, vents: f.vents.map((x, i) => i === index ? { ...x, [key]: value } : x) }))} />)}</Group>
+            <Field key={key} label={`${v.local_id || 'Vent'} ${label}`} value={v[key]} onChange={value => change(f => ({ ...f, vents: f.vents.map((x, i) => i === index ? { ...x, [key]: value } : x) }))} />)}</Group>
         </Stack></Card>)}
       </Section>
 
       <Section title="Cable guides" onAdd={readOnly ? undefined : () => change(f => ({ ...f, guides: [...f.guides, { local_id: `guide-${f.guides.length + 1}`, side: 'north', offset_along_wall_mm: '', cable_diameter_mm: '', clearance_mm: '', post_width_mm: '', post_depth_mm: '' }] }))} addLabel="Add cable guide">
         {form.guides.map((g, index) => <Card withBorder key={index}><Stack>
-          <Group align="end"><TextInput label="Guide ID" value={g.local_id} disabled={readOnly} onChange={event => { const value = event.currentTarget.value; change(f => ({ ...f, guides: f.guides.map((x, i) => i === index ? { ...x, local_id: value } : x) })); }} />
-            <Select label="Guide wall" data={sideData} allowDeselect={false} value={g.side} disabled={readOnly} onChange={value => change(f => ({ ...f, guides: f.guides.map((x, i) => i === index ? { ...x, side: (value ?? 'north') as Side } : x) }))} />
+          <Group align="end"><TextInput label="Guide ID" value={g.local_id} onChange={event => { const value = event.currentTarget.value; change(f => ({ ...f, guides: f.guides.map((x, i) => i === index ? { ...x, local_id: value } : x) })); }} />
+            <Select label="Guide wall" data={sideData} allowDeselect={false} value={g.side} onChange={value => change(f => ({ ...f, guides: f.guides.map((x, i) => i === index ? { ...x, side: (value ?? 'north') as Side } : x) }))} />
             <Button variant="risk" disabled={readOnly} onClick={() => change(f => ({ ...f, guides: f.guides.filter((_, i) => i !== index) }))}>Remove cable guide</Button></Group>
           <Group grow align="start">{([['offset_along_wall_mm', 'Offset from wall low end'], ['cable_diameter_mm', 'Cable diameter'], ['clearance_mm', 'Slot clearance (total)'], ['post_width_mm', 'Post width'], ['post_depth_mm', 'Post depth']] as const).map(([key, label]) =>
-            <Field key={key} label={`${g.local_id || 'Guide'} ${label}`} value={g[key]} disabled={readOnly} onChange={value => change(f => ({ ...f, guides: f.guides.map((x, i) => i === index ? { ...x, [key]: value } : x) }))} />)}</Group>
+            <Field key={key} label={`${g.local_id || 'Guide'} ${label}`} value={g[key]} onChange={value => change(f => ({ ...f, guides: f.guides.map((x, i) => i === index ? { ...x, [key]: value } : x) }))} />)}</Group>
         </Stack></Card>)}
       </Section>
+      </InspectionScope>
 
       {parsed.errors.map(message => <Alert key={message} color="red" role="alert">{message}</Alert>)}
       <Group>

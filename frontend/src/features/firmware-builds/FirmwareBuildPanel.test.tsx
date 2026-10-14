@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
@@ -22,7 +24,7 @@ const evidence: CompileReview = {
 };
 beforeEach(() => { vi.mocked(compileOptions).mockResolvedValue(options); vi.mocked(compileReview).mockResolvedValue(evidence); vi.mocked(command).mockResolvedValue({ build_id: 'new-one' }); });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
-const panel = (canExecute = false, firmware = 'firmware-one') => <MantineProvider env="test"><FirmwareBuildPanel firmware_revision_id={firmware} canExecute={canExecute} /></MantineProvider>;
+const panel = (canExecute = false, firmware = 'firmware-one') => <MantineProvider env="test"><PermissionsProvider permissions={grants({ execute: canExecute })}><FirmwareBuildPanel firmware_revision_id={firmware} /></PermissionsProvider></MantineProvider>;
 
 test('read-only handoff retains exact source/configuration and separate qualification claims', async () => {
   render(panel()); fireEvent.click(await screen.findByRole('button', { name: 'Inspect firmware handoff build-one' }));

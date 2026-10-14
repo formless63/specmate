@@ -1,5 +1,5 @@
 import { formatCoordinates } from "../../lib/format";
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -39,9 +39,9 @@ function Workspace({ projectId }: { projectId: string }) {
     <Text>Physical contacts remain separate from signal roles. Placement belongs to assembly occurrences. Unknown values stay unknown; reviewed pin tables and declared paths do not establish compatibility or measured continuity.</Text>
     <Card withBorder><Stack>
       <Title order={3}>New reusable definition</Title>
-      <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+      <InspectionScope permission="item.create"><TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <Select label="Interface definition kind" data={kinds} value={value.kind} onChange={(v) => setValue(initialInterface(v as Interface["kind"]))} />
-      <Editor value={value} onChange={setValue} definitions={definitions.data ?? []} />
+      <Editor value={value} onChange={setValue} definitions={definitions.data ?? []} /></InspectionScope>
       <Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create interface draft</Button><ReadOnlyNote permission="item.create">Creating interface drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
@@ -64,7 +64,7 @@ function DraftEditor({ draft, definitions, onSaved }: { draft: Draft; definition
   const editGate = usePermission('design.edit');
   const [value, setValue] = useState(() => draft.content.interface ?? initialInterface(draft.kind));
   const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><Editor value={value} onChange={setValue} definitions={definitions} /><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save interface draft</Button><ReadOnlyNote permission="design.edit">Saving interface drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><InspectionScope permission="design.edit"><Editor value={value} onChange={setValue} definitions={definitions} /></InspectionScope><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save interface draft</Button><ReadOnlyNote permission="design.edit">Saving interface drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
 function Editor({ value, onChange, definitions }: { value: Interface; onChange: (v: Interface) => void; definitions: Definition[] }) {
   if (value.kind === "connector_body") return <BodyEditor value={value} onChange={onChange} />;

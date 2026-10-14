@@ -6,22 +6,23 @@ import type { FirmwareRead, FirmwareSummary } from '../firmware/api';
 import { read, type Definition, type Identity } from '../identity/api';
 import { operation, type Adoption, type OccurrenceInspection, type Owner, type SelectionReview, type Submission } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { ReadOnlyNote, useCan } from "../../lib/permissions";
 
-export function FirmwareOccurrencesPanel({ workspaceId, permissions }: { workspaceId: string; permissions?: string[] }) {
-  return <Workspace key={workspaceId} workspaceId={workspaceId} canEdit={permissions?.includes('design.edit') ?? true} canExecute={permissions?.includes('build.execute') ?? false} />;
+export function FirmwareOccurrencesPanel({ workspaceId }: { workspaceId: string }) {
+  return <Workspace key={workspaceId} workspaceId={workspaceId} />;
 }
 
-function Workspace({ workspaceId, canEdit, canExecute }: { workspaceId: string; canEdit: boolean; canExecute: boolean }) {
+function Workspace({ workspaceId }: { workspaceId: string }) {
   const [opened, setOpened] = useState(false);
   return <Card withBorder><Stack>
     <Title order={3}>Firmware on repeated boards</Title>
     <Text>Choose firmware independently for each exact contextual board occurrence. Review its frozen sources, configuration and population before adopting the selection.</Text>
     <Button onClick={() => setOpened(!opened)}>{opened ? 'Hide occurrence firmware' : 'Show occurrence firmware'}</Button>
-    {opened && <Selector workspaceId={workspaceId} canEdit={canEdit} canExecute={canExecute} />}
+    {opened && <Selector workspaceId={workspaceId} />}
   </Stack></Card>;
 }
 
-function Selector({ workspaceId, canEdit, canExecute }: { workspaceId: string; canEdit: boolean; canExecute: boolean }) {
+function Selector({ workspaceId }: { workspaceId: string }) {
   const selectionGeneration = useRef(0);
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [firmware, setFirmware] = useState<FirmwareSummary[]>([]);
@@ -65,11 +66,12 @@ function Selector({ workspaceId, canEdit, canExecute }: { workspaceId: string; c
       <NativeSelect key={`${definition}:${offset}`} label="Assembly draft or frozen revision" defaultValue="" data={[{ value: '', label: 'Select exact assembly state' }, ...identity.drafts.map((item) => ({ value: `draft:${item.draft_id}`, label: `Draft ${item.draft_id} · ${item.state}` })), ...identity.revisions.map((item) => ({ value: `revision:${item.revision_id}`, label: `Frozen revision ${item.number}` }))]} onChange={(event) => { void choose(event.currentTarget.value); }} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous assembly states</Button><Button disabled={Math.max(identity.drafts.length, identity.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next assembly states</Button></Group>
     </>}
-    {owner && <OccurrenceWorkspace key={JSON.stringify(owner)} owner={owner} firmware={firmware} canEdit={canEdit} canExecute={canExecute} />}
+    {owner && <OccurrenceWorkspace key={JSON.stringify(owner)} owner={owner} firmware={firmware} />}
   </Stack>;
 }
 
-function OccurrenceWorkspace({ owner, firmware, canEdit, canExecute }: { owner: Owner; firmware: FirmwareSummary[]; canEdit: boolean; canExecute: boolean }) {
+function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: FirmwareSummary[] }) {
+  const canEdit = useCan('design.edit');
   const generation = useRef(0);
   const [inspection, setInspection] = useState<OccurrenceInspection | null>(null);
   const [path, setPath] = useState('');
@@ -134,7 +136,7 @@ function OccurrenceWorkspace({ owner, firmware, canEdit, canExecute }: { owner: 
       {owner.snapshot_id && <>
         <NativeSelect label="Frozen board occurrence for compilation" value={path} data={[{ value: '', label: 'Select an exact frozen board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
         {inspection.occurrences.filter((item) => item.kind === 'pcb_population' && JSON.stringify(item.path) === path).map((item) => item.firmware_revision_id
-          ? <FirmwareBuildPanel key={path} firmware_revision_id={item.firmware_revision_id} assembly_snapshot_id={owner.snapshot_id} path={item.path} canExecute={canExecute} />
+          ? <FirmwareBuildPanel key={path} firmware_revision_id={item.firmware_revision_id} assembly_snapshot_id={owner.snapshot_id} path={item.path} />
           : <Text key={path}>This exact frozen occurrence has no assigned firmware to compile.</Text>)}
       </>}
       {owner.draft_id && <>
@@ -151,7 +153,7 @@ function OccurrenceWorkspace({ owner, firmware, canEdit, canExecute }: { owner: 
       {preview.candidate && <Declaration label="Proposed firmware" value={preview.candidate} />}
       <Textarea label="Firmware adoption review basis" disabled={busy} value={basis} onChange={(event) => { setBasis(event.currentTarget.value); setSubmission(null); }} />
       <Button disabled={!canEdit || !preview.eligible || !basis.trim() || busy} onClick={() => { void adopt(); }}>Adopt reviewed firmware selection</Button>
-      {!canEdit && <Text>This account may review selections; editing permission is required to adopt.</Text>}
+      <ReadOnlyNote permission="design.edit">This account may review selections; adopting needs editing permission.</ReadOnlyNote>
     </Stack></Card>}
     {submission && canEdit && <Button disabled={busy} onClick={() => { void adopt(true); }}>Retry reviewed firmware adoption</Button>}
     {adoption && <Card withBorder><Stack><Text>Immutable adoption basis: {adoption.basis}</Text><Text>Context: {adoption.path.join('/')}</Text>

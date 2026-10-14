@@ -2,7 +2,7 @@ import { Alert, Button, Group, Popover, SegmentedControl, Select, Table, Text, T
 import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useMemo, useState } from "react";
-import { gateFor } from "../../lib/permissions";
+import { usePermission } from "../../lib/permissions";
 import { floatingKind, KNOWN_KINDS, type LibraryView as View } from "../shell/scope";
 import { addReference, listLibrary, readProjectDetail, removeReference, type LibraryRecord, type Project } from "../workspace/api";
 import { ReferenceForm, type ReferenceChoice } from "./ReferenceForm";
@@ -66,7 +66,7 @@ export function useReferenceActions() {
  * Used in column lists the projects that reference each item. At project scope the project's
  * referenced items come first and the lens can switch between them and the whole library.
  */
-export function LibraryView({ view, toolLabel, projectId, project, projects, principalKey, permissions, onOpenInProject }: {
+export function LibraryView({ view, toolLabel, projectId, project, projects, principalKey, onOpenInProject }: {
   view: View;
   toolLabel: string;
   /** Project context (navigation only); null at Library scope. */
@@ -74,7 +74,6 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   project: Project | null;
   projects: Project[];
   principalKey: string;
-  permissions: string[];
   onOpenInProject: (projectId: string, record: LibraryRecord) => void;
 }) {
   const [text, setText] = useState("");
@@ -93,7 +92,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   });
   const actions = useReferenceActions();
   const rows = useMemo(() => (records.data?.pages ?? []).flatMap((page) => page.results), [records.data]);
-  const edit = gateFor(permissions, "project.edit");
+  const edit = usePermission("project.edit");
   const archived = !!project?.archived;
   const filtered = !!query || !!kindFilter;
   const showKindFilter = view.family === "definition" && view.kinds.length !== 1;

@@ -23,7 +23,7 @@ const nested: Proposal = {
   parent_propagation: { status: "required", context_path: ["left"], consumer: pin("module-1", "module-def", "Synthetic module", 1), sibling_context_paths: [["right"]], outer_relationships: [{ context_path: [], local_id: "outer" }], outer_assignments: [], owning_snapshot_id: "root-snapshot" },
   occurrences: [], relationships: [], old_relationships: [], candidate_relationships: [], contextual_assignments: [], reviews: [], applications: [], limitations: [],
 };
-const view = (permissions?: string[]) => <MantineProvider><PermissionsProvider permissions={permissions}><RevisionUpgradeWorkspace projectId="p1" canEdit /></PermissionsProvider></MantineProvider>;
+const view = (permissions?: string[]) => <MantineProvider><PermissionsProvider permissions={permissions}><RevisionUpgradeWorkspace projectId="p1" /></PermissionsProvider></MantineProvider>;
 
 test("finds nested consumers and proposes a declared replacement in the exact consuming context", async () => {
   const proposals: object[] = [];
@@ -94,14 +94,14 @@ test("accepting requires explicit relationship decisions and sends them with cor
   expect(await screen.findByText("Relationship inner: retain · Same use in the module")).toBeTruthy();
 });
 
-test("read-only grants disable proposal, review and adoption with a visible reason", async () => {
+test("read-only grants withhold proposal, review and adoption with a visible reason", async () => {
   vi.stubGlobal("fetch", vi.fn(async (path: string) => path.endsWith("/definitions") ? reply([{ definition_id: "root-def" }]) : reply({ ...nested, decision: "accepted" })));
   render(view(["workspace.read"]));
   expect(screen.getByText(/Read-only access: requires Edit/)).toBeTruthy();
-  expect((screen.getByRole("button", { name: "Save upgrade proposal" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "Save upgrade proposal" })).toBeNull();
   fireEvent.change(screen.getByLabelText("Saved proposal ID"), { target: { value: "proposal-nested" } });
   fireEvent.click(screen.getByRole("button", { name: "Reload proposal" }));
   await screen.findByText("Exact proposal proposal-nested");
-  expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: "Apply reviewed upgrade to draft" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "Append review" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Apply reviewed upgrade to draft" })).toBeNull();
 });

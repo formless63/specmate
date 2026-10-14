@@ -198,7 +198,7 @@ test("documents, interfaces and knowledge mount with scoped read controls", asyn
   expect(await screen.findByRole("button", { name: "Create knowledge item" })).toBeTruthy();
   await screen.findByRole("heading", { name: "Search notes and attachments" });
   await screen.findByRole("heading", { name: "Team changes" });
-  expect((screen.getByRole("button", { name: "Open team review" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: "Open team review" })).toBeNull();
 });
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {

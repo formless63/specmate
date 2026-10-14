@@ -7,6 +7,7 @@ import {
   type PinAssumption, type PopulationReview, type SourceFileRole, type TargetSummary, type Toolchain,
 } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
 const ROLES: SourceFileRole[] = ['application', 'library', 'configuration', 'board_support', 'lockfile', 'other'];
 const FAMILIES: Toolchain['family'][] = ['platformio', 'esp_idf', 'arduino_cli', 'zephyr', 'cmake_gcc', 'other'];
@@ -29,17 +30,17 @@ export function FirmwareEvaluation({ read }: { read: FirmwareRead }) {
   </Stack>;
 }
 
-type FirmwarePanelProps = { workspaceId: string; permissions?: string[]; onAccessLost?: () => void };
+type FirmwarePanelProps = { workspaceId: string; onAccessLost?: () => void };
 
 export function FirmwarePanel(props: FirmwarePanelProps) {
   return <FirmwareWorkspace key={props.workspaceId} {...props} />;
 }
 
-function FirmwareWorkspace({ workspaceId, permissions, onAccessLost }: FirmwarePanelProps) {
-  const canEdit = !permissions || permissions.includes('design.edit');
+function FirmwareWorkspace({ workspaceId, onAccessLost }: FirmwarePanelProps) {
+  const canEdit = useCan('design.edit');
   // A new declaration creates a workspace item (item.create); revising a draft needs design.edit.
-  const canCreate = !permissions || permissions.includes('item.create');
-  const canFreeze = !permissions || permissions.includes('design.freeze');
+  const canCreate = useCan('item.create');
+  const canFreeze = useCan('design.freeze');
   const [shown, setShown] = useState(false);
   const [list, setList] = useState<FirmwareSummary[]>([]);
   const [targets, setTargets] = useState<TargetSummary[]>([]);
@@ -223,7 +224,7 @@ function FirmwareWorkspace({ workspaceId, permissions, onAccessLost }: FirmwareP
         <Text size="sm">Toolchain: {current.content.firmware.toolchain.family} · {current.content.firmware.toolchain.name} · version {current.content.firmware.toolchain.version ?? 'unknown'}{current.content.firmware.toolchain.board_id ? ` · board id ${current.content.firmware.toolchain.board_id}` : ''}</Text>
         <Text size="sm">Configuration: {current.content.firmware.configuration.map(c => `${c.key}=${c.status === 'known' ? c.value : c.status === 'secret_reference' ? '[secret reference]' : 'unknown'}`).join(', ') || 'none'}</Text>
         <FirmwareEvaluation read={current} />
-        {current.revision_id && <FirmwareBuildPanel firmware_revision_id={current.revision_id} canExecute={permissions?.includes('build.execute') ?? false} />}
+        {current.revision_id && <FirmwareBuildPanel firmware_revision_id={current.revision_id} />}
         {current.draft_id && canEdit && <Button variant="light" onClick={editCurrent}>Edit firmware draft</Button>}
         {current.draft_id && canFreeze && <Button disabled={busy || current.evaluation.readiness === 'blocked'} onClick={() => void freeze()}>Freeze firmware declarations</Button>}
       </Stack>}

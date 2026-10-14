@@ -1,3 +1,4 @@
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -40,7 +41,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
 function panel(workspaceId = "project-a", permissions = ["workspace.read"]) {
-  return <MantineProvider env="test"><PcbPanel workspaceId={workspaceId} permissions={permissions} /></MantineProvider>;
+  return <MantineProvider env="test"><PermissionsProvider permissions={permissions}><PcbPanel workspaceId={workspaceId} /></PermissionsProvider></MantineProvider>;
 }
 async function selectIntake() {
   await waitFor(() => expect(listIntakes).toHaveBeenCalled());

@@ -1,3 +1,4 @@
+import { useCan } from "../../lib/permissions";
 import { Alert, Badge, Button, Card, Checkbox, Group, Select, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useState } from 'react';
 import { command, preserve, registerBlob, SourceError, type EditReview, type RevisionDetail } from './api';
@@ -19,10 +20,11 @@ export function folderPaths(files: File[]) {
   });
 }
 
-export function EditHandoff({ workspaceId, detail, canWrite, busy, setBusy, onAuthorityFailure, onSubmitted }: {
-  workspaceId: string; detail: RevisionDetail; canWrite: boolean; busy: boolean; setBusy: (value: boolean) => void;
+export function EditHandoff({ workspaceId, detail, busy, setBusy, onAuthorityFailure, onSubmitted }: {
+  workspaceId: string; detail: RevisionDetail; busy: boolean; setBusy: (value: boolean) => void;
   onAuthorityFailure: (reason: unknown) => void; onSubmitted: (revisionId: string) => Promise<void>;
 }) {
+  const canWrite = useCan('source.register');
   const [mode, setMode] = useState<'zip' | 'folder'>('zip');
   const [archive, setArchive] = useState<File | null>(null);
   const [archiveRights, setArchiveRights] = useState('unknown');

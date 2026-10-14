@@ -216,5 +216,5 @@ test("contributors may propose but not review; viewers do neither", async () => 
   render(<MantineProvider><PermissionsProvider permissions={["workspace.read"]}><MatchingWorkspace projectId="p1" /></PermissionsProvider></MantineProvider>);
   await selectSource(); await selectTarget();
   expect((screen.getByRole("button", { name: "Create candidate" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Read only/)).toBeTruthy();
+  expect(screen.getByText(/Read-only access: requires Contributor access/)).toBeTruthy();
 });

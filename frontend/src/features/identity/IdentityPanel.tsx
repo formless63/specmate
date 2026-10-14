@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -45,9 +45,11 @@ function IdentityWorkspace({ projectId }: { projectId: string | null }) {
     <Text>Definitions hold reusable designs. Orderable manufacturer variants, source representations and physical lots keep separate identities pinned to an exact revision.</Text>
     <Card withBorder><Stack>
       <Title order={3}>Create definition</Title>
+      <InspectionScope permission="item.create">
       <TextInput label="Definition name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
       <TextInput label="Definition kind" value={kind} onChange={(event) => setKind(event.currentTarget.value)} />
       {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />}
+      </InspectionScope>
       <Button disabled={!name.trim() || !kind.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
       {referenceError && <Alert color="yellow">{referenceError}</Alert>}
@@ -92,27 +94,33 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
     <Card withBorder><Stack>
       <Title order={3}>Manufacturer variants</Title>
       <Table><Table.Thead><Table.Tr><Table.Th>Manufacturer / part</Table.Th><Table.Th>Association basis</Table.Th><Table.Th>Variant ID</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{catalog.data?.variants.map((v) => <Table.Tr key={v.variant_id}><Table.Td>{v.manufacturer} / {v.part_number}</Table.Td><Table.Td>{v.association_basis}</Table.Td><Table.Td>{v.variant_id}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+      <InspectionScope permission="item.create">
       <TextInput label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.currentTarget.value)} />
       <TextInput label="Manufacturer part number" value={partNumber} onChange={(e) => setPartNumber(e.currentTarget.value)} />
       <Textarea label="Basis for this association" value={basis} onChange={(e) => setBasis(e.currentTarget.value)} />
+      </InspectionScope>
       <Button disabled={!manufacturer.trim() || !partNumber.trim() || !basis.trim()} loading={registration.isPending} onClick={() => register("variant", { manufacturer, part_number: partNumber, association_basis: basis })} {...editGate.props}>Register variant</Button><ReadOnlyNote permission="item.create">Registering identities is unavailable.</ReadOnlyNote>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Physical lots</Title>
       <Text size="sm">A lot identifies a physical batch. Registration does not receive, reserve or consume stock.</Text>
       {catalog.data?.lots.map((lot) => <Text key={lot.lot_id}>{lot.label} · Lot {lot.lot_id} · {lot.variant_id ? `Variant ${lot.variant_id}` : "Manufacturer variant unknown"}</Text>)}
+      <InspectionScope permission="item.create">
       <TextInput label="Lot label" value={lotLabel} onChange={(e) => setLotLabel(e.currentTarget.value)} />
       <Select label="Lot manufacturer variant" placeholder="Unknown / unassigned" clearable value={variantId} onChange={setVariantId} data={(catalog.data?.variants ?? []).map((v) => ({ value: v.variant_id, label: `${v.manufacturer} / ${v.part_number}` }))} />
+      </InspectionScope>
       <Button disabled={!lotLabel.trim()} loading={registration.isPending} onClick={() => register("lot", { label: lotLabel, variant_id: variantId })} {...editGate.props}>Register lot identity</Button>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Representations</Title>
       {catalog.data?.representations.map((r) => <Text key={r.representation_id}>{r.label} ({r.kind}) · {r.source_path} · Rights: {r.rights} · SHA-256: {r.sha256}</Text>)}
+      <InspectionScope permission="item.create">
       <TextInput label="Representation label" value={representationLabel} onChange={(e) => setRepresentationLabel(e.currentTarget.value)} />
       <Select label="Representation kind" value={representationKind} onChange={setRepresentationKind} data={["symbol", "footprint", "model", "drawing", "datasheet"]} allowDeselect={false} />
       <TextInput label="Registered source bundle revision ID" value={bundleRevision} onChange={(e) => setBundleRevision(e.currentTarget.value)} />
       <TextInput label="Source package path" value={sourcePath} onChange={(e) => setSourcePath(e.currentTarget.value)} />
       <Text size="sm">Choose an exact file from a registered source bundle in this workspace. Its original rights are retained.</Text>
+      </InspectionScope>
       <Button disabled={!representationLabel.trim() || !bundleRevision.trim() || !sourcePath.trim()} loading={registration.isPending} onClick={() => register("representation", { label: representationLabel, kind: representationKind, source_bundle_revision_id: bundleRevision, source_path: sourcePath })} {...editGate.props}>Register representation</Button>
     </Stack></Card>
     <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous records</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={!catalog.data || Math.max(catalog.data.variants.length, catalog.data.lots.length, catalog.data.representations.length) < 50} onClick={() => setOffset(offset + 50)}>Next records</Button></Group>

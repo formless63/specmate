@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, useCan, usePermission } from "../../lib/permissions";
 import { Alert, Badge, Button, Card, Checkbox, FileInput, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,7 +10,9 @@ const DECISIONS: DecisionStatus[] = ["proposed", "accepted", "rejected", "supers
 
 /** Notes, decisions and attachment references linked to exact objects. Pass `target` to embed it for a selection. */
 /** `canCreate` (item.create) adds knowledge items; `canEdit` (design.edit) revises and links them. */
-export function KnowledgePanel({ workspaceId, projectId, canEdit, canCreate = canEdit, target, principalKey = "session", onAccessLost }: { workspaceId: string; projectId?: string; canEdit: boolean; canCreate?: boolean; target?: Target; principalKey?: string; onAccessLost?: () => void }) {
+export function KnowledgePanel({ workspaceId, projectId, target, principalKey = "session", onAccessLost }: { workspaceId: string; projectId?: string; target?: Target; principalKey?: string; onAccessLost?: () => void }) {
+  const canEdit = useCan("design.edit");
+  const canCreate = useCan("item.create");
   return <ScopedWorkspace key={`${workspaceId}:${projectId ?? ""}:${principalKey}:${canEdit}:${canCreate}:${JSON.stringify(target ?? null)}`} workspaceId={workspaceId} projectId={projectId} canEdit={canEdit} canCreate={canCreate} target={target} onAccessLost={onAccessLost} />;
 }
 function ScopedWorkspace({ workspaceId, projectId, canEdit, canCreate, target, onAccessLost }: { workspaceId: string; projectId?: string; canEdit: boolean; canCreate: boolean; target?: Target; onAccessLost?: () => void }) {

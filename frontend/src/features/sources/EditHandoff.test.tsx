@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -47,7 +49,7 @@ function setup(responses: Response[], canWrite = true) {
   const onSubmitted = vi.fn(async () => {});
   const onAuthorityFailure = vi.fn();
   function Harness() {
-    return <MantineProvider><EditHandoff workspaceId="project-a" detail={detail} canWrite={canWrite} busy={false} setBusy={() => {}} onAuthorityFailure={onAuthorityFailure} onSubmitted={onSubmitted} /></MantineProvider>;
+    return <MantineProvider><PermissionsProvider permissions={grants({ register: canWrite })}><EditHandoff workspaceId="project-a" detail={detail} busy={false} setBusy={() => {}} onAuthorityFailure={onAuthorityFailure} onSubmitted={onSubmitted} /></PermissionsProvider></MantineProvider>;
   }
   render(<Harness />);
   return { bodies, preserved, onSubmitted, onAuthorityFailure };

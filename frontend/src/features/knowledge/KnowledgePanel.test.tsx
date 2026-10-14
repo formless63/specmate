@@ -1,3 +1,4 @@
+import { grants } from "../../test/grants";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -54,7 +55,7 @@ function server(handlers: { item?: () => Item; post?: (call: Call["body"]) => { 
 
 test("a reader sees one item's exact links and attachment provenance without edit controls", async () => {
   server({ item: () => item({ removed_links: [link("l-old", "Synthetic bracket revision 2", { kind: "revision", revision_id: "rev-2" }, "removed")] }) });
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit={false} />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   fireEvent.click((await screen.findAllByRole("button", { name: "Open Joint photo" }))[0]!);
   const links = await screen.findByRole("table", { name: "Active links" });
   for (const label of ["Synthetic bracket revision 1", "Synthetic frame / left", "Unit SYN-001"]) expect(within(links).getByText(label)).toBeTruthy();
@@ -70,7 +71,7 @@ test("a reader sees one item's exact links and attachment provenance without edi
 
 test("an editor chooses an exact revision, sees linked items and creates a note linked to it", async () => {
   const calls = server({ post: () => ({ body: { result: item({ kind: "note", item_id: "item-2" }) } }) });
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   await select("Knowledge definition", "Synthetic bracket (part)");
   await select("Knowledge exact revision", "Revision 1");
   fireEvent.click(screen.getByRole("button", { name: "Show knowledge for this object" }));
@@ -94,7 +95,7 @@ test("unlinking one object records a reason and keeps the item, attachment and o
     item: () => unlinked ? item({ links: item().links.slice(1), removed_links: [{ ...item().links[0]!, status: "removed", removed_at: "2026-01-02T00:00:00Z", removal_reason: "Unit only." }] }) : item(),
     post: (body) => { if (body.operation === "knowledge.unlink") unlinked = true; return { body: { result: {} } }; },
   });
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit target={r1} />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider>));
   fireEvent.click((await screen.findAllByRole("button", { name: "Open Joint photo" }))[0]!);
   fireEvent.change(await screen.findByLabelText("Unlink reason"), { target: { value: "Unit only." } });
   fireEvent.click(screen.getByRole("button", { name: "Unlink Synthetic bracket revision 1" }));
@@ -111,7 +112,7 @@ test("relinking reports no duplicate and a stale revision shows the conflict", a
   const calls = server({ post: (body) => body.operation === "knowledge.link"
     ? { body: { result: { ...item().links[0], created: false } } }
     : { status: 409, body: { error: { code: "conflict", message: "Knowledge item changed. Nothing was overwritten; review the current entry." } } } });
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit target={r1} />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider>));
   fireEvent.click((await screen.findAllByRole("button", { name: "Open Joint photo" }))[0]!);
   fireEvent.click(await screen.findByRole("button", { name: "Link to the chosen object" }));
   expect(await screen.findByText("Already linked to Synthetic bracket revision 1; no duplicate link was created.")).toBeTruthy();
@@ -134,7 +135,7 @@ test("a new attachment is preserved through source operations before it is refer
     if (options?.body instanceof FormData) { uploads.push(url); return new Response(JSON.stringify({ result: {} }), { status: 200 }); }
     return base(url, options);
   }));
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   await select("Knowledge kind", "Attachment reference");
   fireEvent.change(screen.getByLabelText("Knowledge title"), { target: { value: "Datasheet" } });
   expect(screen.getByRole("button", { name: "Create knowledge item" }).hasAttribute("disabled")).toBe(true);
@@ -156,7 +157,7 @@ test("a new attachment is preserved through source operations before it is refer
 test("a denied current target refresh removes previously cached labels and linked rows", async () => {
   server();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit={false} target={r1} /></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   expect(await screen.findByText("Linked to Synthetic bracket revision 1")).toBeTruthy();
   const previous = globalThis.fetch as typeof fetch;
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
@@ -172,7 +173,7 @@ test("a revision keeps its opened CAS token when current knowledge refreshes", a
   let current = item();
   const calls = server({ item: () => current, post: () => ({ status: 409, body: { error: { message: "Stale edit preserved." } } }) });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit target={r1} /></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   fireEvent.click((await screen.findAllByRole("button", { name: "Open Joint photo" }))[0]!);
   fireEvent.click(await screen.findByRole("button", { name: "Revise content" }));
   const titles = screen.getAllByLabelText("Knowledge title");
@@ -196,7 +197,7 @@ test("source denial and recovery preserve staged content rights attachments and 
     return base(url, options);
   }));
   const lost = vi.fn();
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" principalKey="owner" canEdit target={r1} onAccessLost={lost} />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" principalKey="owner" target={r1} onAccessLost={lost} /></PermissionsProvider>));
   fireEvent.click((await screen.findAllByRole("button", { name: "Open Joint photo" }))[0]!);
   fireEvent.click(await screen.findByRole("button", { name: "Revise content" }));
   fireEvent.change(screen.getAllByLabelText("Knowledge title").at(-1)!, { target: { value: "Own staged title" } });
@@ -227,7 +228,7 @@ test("source denial and recovery preserve staged content rights attachments and 
 test("a held current authority refresh hides results while preserving inert staged inputs", async () => {
   server();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit target={r1} /></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   fireEvent.click((await screen.findAllByRole("button", { name: "Open Joint photo" }))[0]!);
   fireEvent.click(await screen.findByRole("button", { name: "Revise content" }));
   fireEvent.change(screen.getAllByLabelText("Knowledge title").at(-1)!, { target: { value: "Held own edit" } });
@@ -256,11 +257,11 @@ test.each(["principal", "project"])("late old %s query data cannot populate the 
     return base(url, options);
   }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const view = render(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId={workspace} canEdit={false} principalKey={principal} /></QueryClientProvider></MantineProvider>);
+  const view = render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId={workspace} principalKey={principal} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   await waitFor(() => expect(finish).toBeTypeOf("function"));
   pending = false;
   if (scopeChange === "principal") principal = "reader"; else workspace = "ws-2";
-  view.rerender(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId={workspace} canEdit={false} principalKey={principal} /></QueryClientProvider></MantineProvider>);
+  view.rerender(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId={workspace} principalKey={principal} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   expect(await screen.findByText("No knowledge items yet.")).toBeTruthy();
   finish(new Response(JSON.stringify({ items: [item()], offset: 0, limit: 50, has_more: false }), { status: 200 }));
   await new Promise(resolve => setTimeout(resolve, 10));
@@ -274,14 +275,14 @@ test("late upload cannot create a source bundle or attach into a changed princip
   let finish!: (response: Response) => void;
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => options?.body instanceof FormData ? new Promise<Response>(resolve => { finish = resolve; }) : base(url, options)));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const view = render(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit principalKey="owner" /></QueryClientProvider></MantineProvider>);
+  const view = render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" principalKey="owner" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   await screen.findByRole("button", { name: "Open Joint photo" });
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [new File(["own synthetic bytes"], "own.pdf", { type: "application/pdf" })] } });
   fireEvent.change(screen.getByLabelText(/Declared rights/), { target: { value: "own-rights" } });
   await waitFor(() => expect(screen.getByRole("button", { name: "Preserve and attach" }).hasAttribute("disabled")).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: "Preserve and attach" }));
   await waitFor(() => expect(finish).toBeTypeOf("function"));
-  view.rerender(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit={false} principalKey="reader" /></QueryClientProvider></MantineProvider>);
+  view.rerender(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" principalKey="reader" /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   finish(new Response(JSON.stringify({ result: {} }), { status: 200 }));
   await new Promise(resolve => setTimeout(resolve, 10));
   expect(calls.filter(call => call.body.operation === "source.create_original_bundle")).toHaveLength(0);
@@ -296,7 +297,7 @@ test("an uncertain revision retries the same original payload key and CAS after 
     if (body.operation === "knowledge.revise" && first) { first = false; current = item({ state: "knowledge-v2", current: { ...item().current, number: 2 } }); throw new TypeError("Injected lost response after synthetic commit"); }
     return { body: { result: current } };
   } });
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit target={r1} />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider>));
   fireEvent.click((await screen.findAllByRole("button", { name: "Open Joint photo" }))[0]!);
   fireEvent.click(await screen.findByRole("button", { name: "Revise content" }));
   fireEvent.change(screen.getAllByLabelText("Knowledge title").at(-1)!, { target: { value: "Same prepared revision" } });
@@ -326,9 +327,9 @@ test("late lookup from a previous exact fixed target cannot replace the selected
     return base(url, options);
   }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const view = render(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit={false} target={r1} /></QueryClientProvider></MantineProvider>);
+  const view = render(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   await waitFor(() => expect(finish).toBeTypeOf("function"));
-  view.rerender(<MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit={false} target={second} /></QueryClientProvider></MantineProvider>);
+  view.rerender(<MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={second} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   expect(await screen.findByText("Linked to Selected second revision")).toBeTruthy();
   finish(new Response(JSON.stringify({ result: { target: { target: r1, label: "Forbidden previous result" }, items: [], offset: 0, limit: 50, has_more: false } }), { status: 200 }));
   await new Promise(resolve => setTimeout(resolve, 10));
@@ -341,7 +342,7 @@ test("an uncertain create retries one prepared knowledge identity", async () => 
     if (body.operation === "knowledge.create" && first) { first = false; throw new TypeError("Injected create response loss"); }
     return { body: { result: item() } };
   } });
-  render(wrap(<KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   await screen.findByRole("button", { name: "Open Joint photo" });
   fireEvent.change(screen.getByLabelText("Knowledge title"), { target: { value: "Prepared own note" } });
   fireEvent.change(screen.getByLabelText("Knowledge text"), { target: { value: "Synthetic own content." } });
@@ -359,7 +360,7 @@ test("a readable linked item held by another workspace remains read only in an e
   server();
   const base = globalThis.fetch as typeof fetch;
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => url.includes("knowledge/workspaces/ws-2/") ? new Response(JSON.stringify({ items: [], offset: 0, limit: 50, has_more: false }), { status: 200 }) : base(url, options)));
-  render(wrap(<KnowledgePanel workspaceId="ws-2" canEdit target={r1} />));
+  render(wrap(<PermissionsProvider permissions={grants({ edit: true, register: true })}><KnowledgePanel workspaceId="ws-2" target={r1} /></PermissionsProvider>));
   fireEvent.click(await screen.findByRole("button", { name: "Open Joint photo" }));
   expect(await screen.findByRole("table", { name: "Current attachments" })).toBeTruthy();
   expect(screen.queryAllByRole("button", { name: /Unlink/ })).toHaveLength(0);
@@ -371,7 +372,7 @@ test("strict lifecycle replay still refreshes current authority and hides denied
   server();
   const { StrictMode } = await import("react");
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<StrictMode><MantineProvider><QueryClientProvider client={client}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit={false} target={r1} /></QueryClientProvider></MantineProvider></StrictMode>);
+  render(<StrictMode><MantineProvider><QueryClientProvider client={client}><PermissionsProvider permissions={grants({ edit: false })}><KnowledgePanel workspaceId="ws-1" projectId="project-1" target={r1} /></PermissionsProvider></QueryClientProvider></MantineProvider></StrictMode>);
   expect(await screen.findByText("Linked to Synthetic bracket revision 1")).toBeTruthy();
   const base = globalThis.fetch as typeof fetch;
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => options?.method === "POST" ? new Response(JSON.stringify({ error: { message: "Current target denied." } }), { status: 404 }) : base(url, options)));
@@ -385,7 +386,7 @@ test.each([
   ["editor with source registration", ["workspace.read", "item.create", "design.edit", "source.register"], false],
 ] as const)("%s: attachment upload follows the source registration permission", async (_name, permissions, off) => {
   server();
-  render(wrap(<PermissionsProvider permissions={[...permissions]}><KnowledgePanel workspaceId="ws-1" projectId="project-1" canEdit /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><KnowledgePanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   await select("Knowledge kind", "Attachment reference");
   const file = new File(["%PDF-1.4 synthetic"], "sheet.pdf", { type: "application/pdf" });
   fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } });

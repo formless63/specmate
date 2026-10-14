@@ -1,3 +1,4 @@
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -22,8 +23,7 @@ const loose = record("d2", "Loose lead");
 function show({ projectId = null as string | null, role = "editor", current = null as Project | null } = {}) {
   const onOpen = vi.fn();
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={cache}><LibraryView view={LIBRARY_VIEWS.cables!} toolLabel="Cables" projectId={projectId} project={current}
-    projects={[bench, rig]} principalKey="7" permissions={ROLE_PERMISSIONS[role]!} onOpenInProject={onOpen} /></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={ROLE_PERMISSIONS[role]!}><LibraryView view={LIBRARY_VIEWS.cables!} toolLabel="Cables" projectId={projectId} project={current} projects={[bench, rig]} principalKey="7" onOpenInProject={onOpen} /></PermissionsProvider></QueryClientProvider></MantineProvider>);
   return { onOpen };
 }
 
