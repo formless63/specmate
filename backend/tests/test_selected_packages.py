@@ -445,6 +445,39 @@ def test_distribution_requires_explicit_all_subject_reviews_and_separate_authori
         )
 
 
+def test_unknown_model_rights_block_distribution_but_not_private_preview(users, cable):
+    """ACC-DOC-004: unknown/restricted catalog rights block distribution, not private preview."""
+    from .test_catalog import identifier_payload
+
+    root, parts = cable
+    body = parts[2]
+    unknown = op(
+        users["editor"],
+        "catalog.register_source_identifier",
+        identifier_payload(body, "Synthetic:Model", "unknown", "unknown"),
+    )
+    reviewed, _, files = package(users["owner"], request(root))
+    listed = reviewed["manifest"]["catalog_rights"]
+    assert [(r["subject"], r["rights_status"]) for r in listed] == [
+        (f"source_identifier:{unknown['source_identifier_id']}", "unknown")
+    ]
+    assert verify_files(files, manifest_sha256=reviewed["sha256"]) == []
+    reviews = [
+        {
+            "subject": row["rights_review"]["subject"],
+            "decision": "permitted",
+            "basis": "Original synthetic design owner distribution declaration",
+        }
+        for row in reviewed["manifest"]["design_revisions"]
+    ]
+    with pytest.raises(ValidationFailed, match=r"Distribution blocked.*Library symbol id.*unknown"):
+        op(
+            users["owner"],
+            "selected_package.review",
+            request(root, purpose="distribution", rights_reviews=reviews),
+        )
+
+
 @pytest.mark.parametrize("urlconf", ["tests.selected_packages_urls", "specmate.urls"])
 def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(users, cable, urlconf):
     payload = request(cable[0])
