@@ -11,6 +11,10 @@ from types import SimpleNamespace
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
 from specmate.export_packages.queries import Scope, population_sources
+from specmate.firmware_builds.contracts import CompileRef, FirmwareRef
+from specmate.firmware_builds.operations import options as firmware_options
+from specmate.firmware_builds.operations import scoped_build as firmware_scoped_build
+from specmate.firmware_builds.operations import validate_outputs as validate_firmware
 from specmate.operations import OperationError
 from specmate.pcb_fabrication.operations import options as fabrication_options
 from specmate.pcb_fabrication.operations import scoped_build, validate_outputs
@@ -101,12 +105,48 @@ def candidates(ctx, p):
 
             if readable(check):
                 builds.append({"intake_id": intake_id, "build_id": row["build_id"]})
+    firmware = []
+    refs = {(r.id, None, ()) for r in scope.of_kind("firmware")}
+    if scope.closure:
+        for path, node in scope.closure.nodes.items():
+            assignment = scope.closure.assignments.get(path) or node.occurrence.assignments
+            if assignment.firmware_revision_id is not None:
+                refs.add((assignment.firmware_revision_id, scope.root.snapshot_id, path))
+    for revision_id, snapshot_id, path in sorted(refs, key=lambda r: (str(r[0]), r[2])):
+        ref = FirmwareRef(
+            firmware_revision_id=revision_id,
+            assembly_snapshot_id=snapshot_id,
+            path=list(path),
+        )
+        listed = readable(firmware_options, ctx, ref)
+        for row in (listed or {}).get("builds", []):
+            if row["state"] != "succeeded" or len(firmware) >= LIMIT:
+                continue
+
+            # Offer only builds whose registered outputs currently validate.
+            def check_firmware(ref=ref, build_id=row["build_id"]):
+                _, spec, build = firmware_scoped_build(
+                    ctx, CompileRef(**ref.model_dump(), build_id=build_id)
+                )
+                validate_firmware(spec, build)
+                return True
+
+            if readable(check_firmware):
+                firmware.append(
+                    {
+                        "firmware_revision_id": str(revision_id),
+                        "assembly_snapshot_id": str(snapshot_id) if snapshot_id else None,
+                        "path": list(path),
+                        "build_id": row["build_id"],
+                    }
+                )
     return {
         "root_revision_id": str(scope.root.id),
         "scene_drawings": drawings,
         "preparation_document_sets": document_sets,
         "test_plans": test_plans,
         "pcb_fabrication_builds": builds,
+        "firmware_builds": firmware,
         "limit": LIMIT,
         "listing": "latest_candidates_no_hidden_total",
     }

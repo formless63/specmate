@@ -17,6 +17,49 @@
       "title": "Acknowledgement",
       "type": "object"
     },
+    "CompileRef": {
+      "additionalProperties": false,
+      "properties": {
+        "assembly_snapshot_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assembly Snapshot Id"
+        },
+        "build_id": {
+          "format": "uuid",
+          "title": "Build Id",
+          "type": "string"
+        },
+        "firmware_revision_id": {
+          "format": "uuid",
+          "title": "Firmware Revision Id",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "firmware_revision_id",
+        "build_id"
+      ],
+      "title": "CompileRef",
+      "type": "object"
+    },
     "PcbBuildRef": {
       "additionalProperties": false,
       "properties": {
@@ -108,6 +151,14 @@
       ],
       "title": "Bom Purpose",
       "type": "string"
+    },
+    "firmware_builds": {
+      "items": {
+        "$ref": "#/$defs/CompileRef"
+      },
+      "maxItems": 64,
+      "title": "Firmware Builds",
+      "type": "array"
     },
     "name": {
       "maxLength": 200,

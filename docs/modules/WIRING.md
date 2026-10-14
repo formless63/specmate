@@ -112,7 +112,9 @@ terminations in contact order, assembly, test). Stages with no recorded data say
 no workshop procedure or soldering order is assumed.
 
 The same inspector offers full-scale and scaled print output of the formboard and fixed-size
-labels (PRE-005), derived from the frozen record and stored nowhere. Only the length axis is to
+labels (PRE-005), derived from the frozen record and stored nowhere by the browser. Coherent
+export packages carry a server-generated 1:1 formboard print of the same exact harness
+(a tested Python port of the renderer; see export-packages.md). Only the length axis is to
 scale, and only for sections with a recorded planned cut length; thickness, row spacing and
 text are fixed-size drawing aids, and unknown-length sections stay dashed placeholders. A plan
 states "1:1" only when the effective scale is exactly 1 and at least one length is recorded;
