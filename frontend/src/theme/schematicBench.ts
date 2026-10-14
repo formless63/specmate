@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Tabs, createTheme, defaultVariantColorsResolver, type CSSVariablesResolver, type MantineColorsTuple, type VariantColorsResolver } from "@mantine/core";
+import { Alert, Badge, Button, Group, Stack, Tabs, createTheme, defaultVariantColorsResolver, type CSSVariablesResolver, type MantineColorsTuple, type VariantColorsResolver } from "@mantine/core";
 import tokens from "./schematic-bench.tokens.json";
 
 // Every colour, size and duration below is derived from schematic-bench.tokens.json
@@ -136,6 +136,9 @@ export const schematicBench = createTheme({
         },
       }),
     }),
+    // Dense default rhythm (tokens.density); panels that pass an explicit gap keep it.
+    Stack: Stack.extend({ defaultProps: { gap: tokens.density.compact.gap } }),
+    Group: Group.extend({ defaultProps: { gap: tokens.density.compact.gap } }),
     Tabs: Tabs.extend({ defaultProps: { variant: "silk" } }),
   },
 });
