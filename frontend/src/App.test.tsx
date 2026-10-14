@@ -138,6 +138,7 @@ test("documents, interfaces and knowledge mount with scoped read controls", asyn
   fireEvent.click(screen.getByRole("tab", { name: "Notes & files" }));
   await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
   expect(screen.queryByRole("button", { name: "Create knowledge item" })).toBeNull();
+  await screen.findByRole("heading", { name: "Search notes and attachments" });
   await screen.findByRole("heading", { name: "Team changes" });
   expect((screen.getByRole("button", { name: "Open team review" }) as HTMLButtonElement).disabled).toBe(true);
 });

@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "bundle_revision_id": {
+      "format": "uuid",
+      "title": "Bundle Revision Id",
+      "type": "string"
+    },
+    "entry_id": {
+      "format": "uuid",
+      "title": "Entry Id",
+      "type": "string"
+    },
+    "item_id": {
+      "format": "uuid",
+      "title": "Item Id",
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "item_id",
+    "entry_id",
+    "bundle_revision_id",
+    "path"
+  ],
+  "title": "PreviewAttachment",
+  "type": "object"
+}
