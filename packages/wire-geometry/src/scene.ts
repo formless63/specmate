@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import type { TubePiece, WireModel } from './model';
 import { createMaterials } from './materials';
+import { XRAY_OPACITY } from './explode';
+import type { Vec3 } from './model';
 
 export function sweepPiece(piece: TubePiece): THREE.BufferGeometry {
   if (piece.points.length < 2 || piece.points.some(p => p.some(v => !Number.isFinite(v))) ||
@@ -139,6 +141,7 @@ export function buildWireObject(model: WireModel, options: { environment?: boole
     const mesh = new THREE.Mesh(geometry, material);
     if (piece.shape === 'web') mesh.position.set(...piece.center);
     mesh.name = piece.id;
+    mesh.userData.rest = mesh.position.toArray();
     mesh.userData.elementPath = piece.elementPath;
     group.add(mesh); geometries.push(geometry);
   }
@@ -148,4 +151,26 @@ export function buildWireObject(model: WireModel, options: { environment?: boole
     disposed = true;
     geometries.forEach(g => g.dispose()); palette.dispose(); group.clear();
   } };
+}
+
+/** Move meshes to their rest position plus an offset; geometry is never rebuilt. Missing ids stay at rest. */
+export function applyOffsets(group: THREE.Group, offsets: ReadonlyMap<string, Vec3>): void {
+  for (const child of group.children) {
+    const rest = child.userData.rest as [number, number, number] | undefined;
+    if (!rest) continue;
+    const o = offsets.get(child.name) ?? [0, 0, 0];
+    child.position.set(rest[0] + o[0], rest[1] + o[1], rest[2] + o[2]);
+  }
+}
+
+/** Translucent (non-depth-writing) outer layers, or restored opaque ones. Materials are owned by the object's palette. */
+export function applyXray(group: THREE.Group, outerPaths: ReadonlySet<string>, on: boolean): void {
+  for (const child of group.children) {
+    const mesh = child as THREE.Mesh;
+    const material = mesh.material as THREE.Material | undefined;
+    if (!material || !outerPaths.has(child.userData.elementPath as string)) continue;
+    const ghost = on;
+    material.transparent = ghost; material.opacity = ghost ? XRAY_OPACITY : 1; material.depthWrite = !ghost;
+    mesh.renderOrder = ghost ? 2 : 0; material.needsUpdate = true;
+  }
 }

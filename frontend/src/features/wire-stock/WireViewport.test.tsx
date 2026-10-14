@@ -19,7 +19,11 @@ beforeEach(() => { vi.clearAllMocks(); vi.spyOn(HTMLElement.prototype, 'clientWi
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 test('reuses one context across model edits, renders on demand, and cleans up on close', () => {
-  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect = lifecycle.disconnected; });
+  vi.stubGlobal('ResizeObserver', class {
+    target: Element | null = null;
+    observe(el: Element) { this.target = el; }
+    disconnect = () => { if (this.target?.classList.contains('sb-viewer-3d')) lifecycle.disconnected(); };
+  });
   const raf = vi.spyOn(window, 'requestAnimationFrame');
   const section = sectionLayout(stockPresets.coax!);
   const first = wireModel(section, 50, unpreparedProfile());
@@ -46,8 +50,9 @@ test('hidden tabs and documents suppress drawing and reveal renders the retained
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width);
   const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
   vi.stubGlobal('ResizeObserver', class {
-    constructor(callback: () => void) { resize = callback; }
-    observe() {} disconnect = lifecycle.disconnected;
+    constructor(private callback: () => void) {}
+    observe(el: Element) { if (el.classList.contains('sb-viewer-3d')) resize = this.callback; }
+    disconnect = lifecycle.disconnected;
   });
   const section = sectionLayout(stockPresets.coax!);
   const show = (length: number) => <MantineProvider><WireViewport model={wireModel(section, length, unpreparedProfile())} /></MantineProvider>;
@@ -89,4 +94,50 @@ test('top and front camera presets reframe the retained model on demand', async 
     expect(lifecycle.render.mock.calls.length).toBeGreaterThan(before);
   }
   expect(lifecycle.construct).toHaveBeenCalledTimes(1);
+});
+
+test('explode slider is stepped under reduced motion, offsets apply without a rebuild, x-ray toggles', async () => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect = lifecycle.disconnected; });
+  const { fireEvent, screen } = await import('@testing-library/react');
+  const raf = vi.spyOn(window, 'requestAnimationFrame');
+  const section = sectionLayout(stockPresets.coax!);
+  const view = render(<MantineProvider><WireViewport model={wireModel(section, 50, unpreparedProfile())} /></MantineProvider>);
+  const slider = screen.getByRole('slider');
+  expect(slider.getAttribute('aria-valuemax')).toBe('1');
+  const before = lifecycle.render.mock.calls.length;
+  fireEvent.keyDown(slider, { key: 'ArrowRight' });
+  expect(slider.getAttribute('aria-valuenow')).toBe('0.25');
+  expect(lifecycle.render.mock.calls.length).toBeGreaterThan(before);
+  expect(raf).not.toHaveBeenCalled();
+  expect(screen.getByText(/Explode: 25% \(stepped\)/)).toBeTruthy();
+  const afterExplode = lifecycle.render.mock.calls.length;
+  fireEvent.click(screen.getByRole('switch', { name: 'X-ray' }));
+  expect(lifecycle.render.mock.calls.length).toBeGreaterThan(afterExplode);
+  fireEvent.click(screen.getByLabelText('Radial'));
+  expect(lifecycle.construct).toHaveBeenCalledTimes(1);
+  view.unmount();
+  expect(lifecycle.dispose).toHaveBeenCalledTimes(1);
+});
+
+test('without reduced motion the slider is smooth and eases over the theme motion token, then settles', async () => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  const original = window.matchMedia;
+  window.matchMedia = ((q: string) => ({ ...original(q), matches: false })) as typeof window.matchMedia;
+  const real = window.getComputedStyle;
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(el => ({ ...real(el), getPropertyValue: (n: string) => (n === '--sb-motion-quick' ? '120ms' : '') }) as CSSStyleDeclaration);
+  const frames: FrameRequestCallback[] = [];
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => frames.push(cb));
+  const { fireEvent, screen } = await import('@testing-library/react');
+  try {
+    render(<MantineProvider><WireViewport model={wireModel(sectionLayout(stockPresets.coax!), 50, unpreparedProfile())} /></MantineProvider>);
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(slider.getAttribute('aria-valuenow')).toBe('0.01');
+    expect(screen.queryByText(/stepped/)).toBeNull();
+    expect(frames.length).toBe(1);
+    const before = lifecycle.render.mock.calls.length;
+    frames.shift()!(performance.now() + 1000);
+    expect(lifecycle.render.mock.calls.length).toBeGreaterThan(before);
+    expect(frames.length).toBe(0);
+  } finally { window.matchMedia = original; }
 });

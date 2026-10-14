@@ -72,6 +72,10 @@ stock and end preparation records using only the behavior of cab-stu's cable cut
 (packages/docs/src/drawing/cutaway.ts: layers stepped out of one another and called out)
 and bench strip figure (packages/docs/src/bench/figures.ts: an end as it leaves the jacket);
 no code, artwork, marking, font or colour table is copied.
+The 3D explode and x-ray controls (packages/wire-geometry/src/explode.ts) are written for Specmate's
+wire model using only the behavior of cab-stu's 3D wire view (packages/layout/src/wire-model.ts and
+packages/editor-react/src/wire-scene.ts: layers pulled apart radially or axially, outer layers drawn
+translucent without depth writes); no code, tuning constants or artwork is copied.
 No predecessor catalog data, real designs, fonts, vendor art or comments are included.
 
 MIT permission notice for those adaptations:
