@@ -1,7 +1,7 @@
 import { Alert, Button, Group, Popover, SegmentedControl, Select, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { usePermission } from "../../lib/permissions";
 import { probeMark, useProbe, useProbeOrLocal, useRelated } from "../probe";
 import { floatingKind, KNOWN_KINDS, type LibraryView as View } from "../shell/scope";
@@ -77,8 +77,9 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   principalKey: string;
   onOpenInProject: (projectId: string, record: LibraryRecord) => void;
 }) {
-  const [text, setText] = useState("");
-  const [query] = useDebouncedValue(text.trim(), 250);
+  // The typed text lives in FilterInput so a keystroke never re-renders the (possibly 250+ row) table;
+  // only the debounced query comes back here.
+  const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<string | null>(null);
   const [mode, setMode] = useState<"project" | "library">("project");
   // The selected row is the shared probe inside the shell, so other views and the URL follow it.
@@ -110,8 +111,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
         data={[{ value: "project", label: "This project" }, { value: "library", label: "Whole library" }]} />}
     </Group>
     <div className="sb-ws-toolbar" role="search" aria-label={`Filter ${view.title}`}>
-      <TextInput aria-label="Filter records" placeholder="filter by name" size="xs" className="sb-ws-filter"
-        leftSection={<span className="sb-mono" style={{ color: "var(--sb-accent)" }}>›</span>} value={text} onChange={(event) => setText(event.currentTarget.value)} />
+      <FilterInput onQuery={setQuery} />
       {showKindFilter && <Select aria-label="Kind filter" size="xs" w={200} searchable clearable placeholder="every kind"
         data={kindOptions} value={kindFilter} onChange={setKindFilter} />}
     </div>
@@ -168,6 +168,15 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
       {records.hasNextPage && <Button variant="quiet" size="xs" onClick={() => void records.fetchNextPage()} loading={records.isFetchingNextPage}>Load more</Button>}
     </Group>
   </section>;
+}
+
+/** Library name filter: keeps its own text state and reports the trimmed value after a short pause. */
+export function FilterInput({ onQuery, delay = 250 }: { onQuery: (query: string) => void; delay?: number }) {
+  const [text, setText] = useState("");
+  const [query] = useDebouncedValue(text.trim(), delay);
+  useEffect(() => { onQuery(query); }, [query, onQuery]);
+  return <TextInput aria-label="Filter records" placeholder="filter by name" size="xs" className="sb-ws-filter"
+    leftSection={<span className="sb-mono" style={{ color: "var(--sb-accent)" }}>›</span>} value={text} onChange={(event) => setText(event.currentTarget.value)} />;
 }
 
 const archivedGate = { allowed: false, reason: "Archived projects are read-only", props: { disabled: true as const, title: "Archived projects are read-only" } };
