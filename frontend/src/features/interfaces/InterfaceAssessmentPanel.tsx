@@ -8,6 +8,8 @@ import type { Definition, Identity } from "../identity/api";
 import { command, initialAssessment, operating, read, unknownEvidence, type Assessment, type AssessmentDraft, type Bond, type Dimension, type Inspection, type Result, type Status } from "./assessment-api";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
+import { recordInterfaceAssessment } from "../evidence/api";
+import { RecordResult } from "../evidence/RecordResult";
 
 const dimensions: { id: Dimension; label: string }[] = [
   { id: "mating", label: "Mating" }, { id: "pin_correspondence", label: "Pin correspondence" },
@@ -93,7 +95,7 @@ function Workspace({ isActive }: { isActive: boolean }) {
     {canEdit && <Button disabled={!ready} onClick={() => { setCreating(true); setDraftId(null); setRevisionId(null); }}>New assessment</Button>}
     {creating && <div hidden={!ready}><Author key="new" ready={ready} canFreeze={false} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); await refresh(); }} /></div>}
     {canEdit && draft.data && <div hidden={!ready}><Author key={draft.data.draft_id} initial={draft.data} ready={ready} canFreeze={canFreeze} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async () => { if (active.current) await refresh(); }} onFrozen={id => { if (active.current) { setRevisionId(id); void refresh(); } }} /></div>}
-    {ready && inspection.data && <><Text><RevisionLabel id={inspection.data.revision_id} snapshotId={inspection.data.snapshot_id} sha256={inspection.data.sha256} /></Text><AssessmentResults result={inspection.data.assessment} /></>}
+    {ready && inspection.data && <><Text><RevisionLabel id={inspection.data.revision_id} snapshotId={inspection.data.snapshot_id} sha256={inspection.data.sha256} /></Text><AssessmentResults result={inspection.data.assessment} /><RecordResult fingerprint={inspection.data.revision_id} record={key => recordInterfaceAssessment(inspection.data.revision_id, key)} /></>}
   </Stack>;
 }
 

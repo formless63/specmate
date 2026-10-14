@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "RecordedPinState": {
+      "additionalProperties": false,
+      "properties": {
+        "definition_id": {
+          "format": "uuid",
+          "title": "Definition Id",
+          "type": "string"
+        },
+        "latest_number": {
+          "title": "Latest Number",
+          "type": "integer"
+        },
+        "newer_revision_exists": {
+          "title": "Newer Revision Exists",
+          "type": "boolean"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "revision_id",
+        "definition_id",
+        "number",
+        "latest_number",
+        "newer_revision_exists"
+      ],
+      "title": "RecordedPinState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "algorithm_version": {
+      "title": "Algorithm Version",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "requirement",
+        "source_claim",
+        "calculation",
+        "generated_check",
+        "review",
+        "physical_measurement",
+        "physical_observation",
+        "preference"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "note": {
+      "title": "Note",
+      "type": "string"
+    },
+    "physical_qualification": {
+      "const": false,
+      "default": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "pins": {
+      "items": {
+        "$ref": "#/$defs/RecordedPinState"
+      },
+      "title": "Pins",
+      "type": "array"
+    },
+    "record_id": {
+      "format": "uuid",
+      "title": "Record Id",
+      "type": "string"
+    },
+    "recorded_at": {
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "recorded_by_id": {
+      "title": "Recorded By Id",
+      "type": "integer"
+    },
+    "request": {
+      "additionalProperties": true,
+      "title": "Request",
+      "type": "object"
+    },
+    "result": {
+      "additionalProperties": true,
+      "title": "Result",
+      "type": "object"
+    },
+    "result_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Result Sha256",
+      "type": "string"
+    },
+    "rewritten": {
+      "const": false,
+      "default": false,
+      "title": "Rewritten",
+      "type": "boolean"
+    },
+    "source": {
+      "enum": [
+        "interface_assessment",
+        "firmware_impact"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "stale": {
+      "title": "Stale",
+      "type": "boolean"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "workspace_id",
+    "source",
+    "kind",
+    "algorithm_version",
+    "request",
+    "result",
+    "result_sha256",
+    "note",
+    "recorded_at",
+    "recorded_by_id",
+    "pins",
+    "stale"
+  ],
+  "title": "RecordedResult",
+  "type": "object"
+}

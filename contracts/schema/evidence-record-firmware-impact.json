@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "CompareImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "assertion_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Assertion Ids",
+          "type": "array"
+        },
+        "baseline": {
+          "$ref": "#/$defs/FirmwareRef"
+        },
+        "candidate": {
+          "$ref": "#/$defs/FirmwareRef"
+        },
+        "observation_offset": {
+          "default": 0,
+          "maximum": 5000,
+          "minimum": 0,
+          "title": "Observation Offset",
+          "type": "integer"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "baseline",
+        "candidate"
+      ],
+      "title": "CompareImpact",
+      "type": "object"
+    },
+    "FirmwareRef": {
+      "additionalProperties": false,
+      "properties": {
+        "assembly_snapshot_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assembly Snapshot Id"
+        },
+        "firmware_revision_id": {
+          "format": "uuid",
+          "title": "Firmware Revision Id",
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Path",
+          "type": "array"
+        }
+      },
+      "required": [
+        "firmware_revision_id"
+      ],
+      "title": "FirmwareRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Record one exact firmware impact comparison as it was shown.",
+  "properties": {
+    "comparison": {
+      "$ref": "#/$defs/CompareImpact"
+    },
+    "expected_comparison_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Comparison Sha256"
+    },
+    "note": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "comparison"
+  ],
+  "title": "RecordFirmwareImpact",
+  "type": "object"
+}
