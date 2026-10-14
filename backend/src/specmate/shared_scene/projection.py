@@ -50,6 +50,7 @@ def list_scenes(user, workspace_id=None):
         {
             "snapshot_id": str(revision.snapshot_id),
             "revision_id": str(revision.id),
+            "definition_id": str(revision.definition_id),
             "name": revision.definition.name,
             "number": revision.number,
         }
