@@ -9,6 +9,7 @@ import { exactKey, sameOccurrence, selectedFeature, selectedNode } from './selec
 import { groupBomRows, readBom, validBomContext } from './reads';
 import type { LoadedBom } from './reads';
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useSceneMark } from '../probe';
 
 const Viewport = lazy(() => import('../shared-scene/SceneViewport'));
 const viewNames = ['tree', 'board', 'cable', 'scene', 'inspector', 'schematic', 'bom'] as const;
@@ -22,7 +23,7 @@ class ViewerBoundary extends Component<{ children: ReactNode }, { failed: boolea
 }
 
 export function ConnectedViews() {
-  const { state, controller } = useContextSelection();
+  const { state, controller, clearSelection } = useContextSelection();
   const [view, setView] = useState<View>('tree'), [visited, setVisited] = useState(() => new Set<View>(['tree']));
   if (!state.scene || state.status !== 'ready') return null;
   const selection = state.selection, node = selectedNode(state);
@@ -32,7 +33,7 @@ export function ConnectedViews() {
       {selection?.kind === 'occurrence' ? <><Text>Selected occurrence: {selection.address.path.join('/')}</Text><Text size="sm">Stable feature: {selection.address.feature_id ?? 'Whole occurrence'}</Text><Text size="xs">Context identity: {exactKey(selection.address)}</Text></>
         : selection?.kind === 'revision' ? <Text><RevisionLabel id={selection.revision_id} role="Independent reusable" />. No contextual occurrence is selected.</Text>
           : <Text>No contextual occurrence selected.</Text>}
-      <Group><Button variant="subtle" onClick={() => controller.clear()}>Clear shared selection</Button>
+      <Group><Button variant="subtle" onClick={clearSelection}>Clear shared selection</Button>
         {node && <Button variant="subtle" onClick={() => controller.selectRevision(node.revision_id)}>Select reusable revision independently</Button>}</Group>
     </Card>
     <Tabs keepMountedMode="display-none" value={view} onChange={next => { if (next) { setView(next as View); setVisited(prior => new Set([...prior, next as View])); } }}>
@@ -48,7 +49,8 @@ export function ConnectedViews() {
 function OccurrenceButton({ node, prefix }: { node: SceneNode; prefix: string }) {
   const { state, controller } = useContextSelection();
   const selected = state.selection?.kind === 'occurrence' && sameOccurrence(node.address, state.selection.address);
-  return <Button variant="light" aria-pressed={selected} onClick={() => controller.selectOccurrence(node.address)}>{prefix} {node.address.path.join('/')} · {node.display_ref || node.name}</Button>;
+  const mark = useSceneMark(state.scene!, node.address);
+  return <Button className="sb-probe-mark" data-probe={mark ?? undefined} variant="light" aria-pressed={selected} onClick={() => controller.selectOccurrence(node.address)}>{prefix} {node.address.path.join('/')} · {node.display_ref || node.name}{mark === 'related' && <span className="sb-tag" style={{ marginLeft: 6 }}>related</span>}</Button>;
 }
 function OccurrenceChoices({ nodes, prefix }: { nodes: SceneNode[]; prefix: string }) {
   const [page, setPage] = useState(0);
@@ -56,11 +58,15 @@ function OccurrenceChoices({ nodes, prefix }: { nodes: SceneNode[]; prefix: stri
     {nodes.length > 50 && <Group><Button disabled={!page} onClick={() => setPage(p => p - 1)}>Previous {prefix.toLowerCase()} uses</Button><Button disabled={(page + 1) * 50 >= nodes.length} onClick={() => setPage(p => p + 1)}>Next {prefix.toLowerCase()} uses</Button></Group>}
   </Stack>;
 }
-function FeatureButtons({ node, features = node.features }: { node: SceneNode; features?: Feature[] }) {
+function FeatureButton({ feature }: { feature: Feature }) {
   const { state, controller } = useContextSelection();
+  const mark = useSceneMark(state.scene!, feature.address);
+  return <Button className="sb-probe-mark" data-probe={mark ?? undefined} variant="light" aria-pressed={state.selection?.kind === 'occurrence' && exactKey(state.selection.address) === exactKey(feature.address)}
+    onClick={() => controller.selectOccurrence(feature.address)}>Select feature {feature.feature_id} · {feature.label}{mark === 'related' && <span className="sb-tag" style={{ marginLeft: 6 }}>related</span>}</Button>;
+}
+function FeatureButtons({ node, features = node.features }: { node: SceneNode; features?: Feature[] }) {
   const [page, setPage] = useState(0);
-  return <Stack>{features.slice(page * 50, (page + 1) * 50).map(feature => <Button key={feature.feature_id} variant="light" aria-pressed={state.selection?.kind === 'occurrence' && exactKey(state.selection.address) === exactKey(feature.address)}
-    onClick={() => controller.selectOccurrence(feature.address)}>Select feature {feature.feature_id} · {feature.label}</Button>)}
+  return <Stack>{features.slice(page * 50, (page + 1) * 50).map(feature => <FeatureButton key={feature.feature_id} feature={feature} />)}
     {features.length > 50 && <Group><Button disabled={!page} onClick={() => setPage(p => p - 1)}>Previous contextual features</Button><Button disabled={(page + 1) * 50 >= features.length} onClick={() => setPage(p => p + 1)}>Next contextual features</Button></Group>}
   </Stack>;
 }
