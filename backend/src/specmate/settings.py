@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     "specmate.mechanical_proposals.apps.MechanicalProposalsConfig",
     "specmate.pcb_disagreement",
     "specmate.pcb_fabrication",
+    "specmate.printing.apps.PrintingConfig",
     "specmate.passive_passages",
     "specmate.discovery.apps.DiscoveryConfig",
     "specmate.preferences.apps.PreferencesConfig",

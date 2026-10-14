@@ -96,8 +96,11 @@ def registration_refs(ctx, payload):
             raise NotFound("Not found.")
         if revision and revision.snapshot.sha256 != item.revision_sha256:
             raise ValidationFailed("Pack revision snapshot hash does not match its exact pin.")
-        if item.category == "profile" and revision.definition.kind != "workshop_profile":
-            raise ValidationFailed("Profile entries must pin workshop profile revisions.")
+        if item.category == "profile" and revision.definition.kind not in {
+            "workshop_profile",
+            "print_profile",
+        }:
+            raise ValidationFailed("Profile entries must pin workshop or print profile revisions.")
         pins.append((item, revision, source))
     dependencies = []
     for dependency_id in payload.manifest.dependencies:

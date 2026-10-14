@@ -72,7 +72,8 @@ python3 -m specmate.builds.tools --stack-dir "$HOME/stacks/specmate" disable kic
 
 `list` asks the local Docker daemon (never the registry) and reports each tool as
 `enabled`, `available` (image cached, not enabled), `missing`, `unsupported_architecture`,
-`enabled_image_missing`, `enabled_unverified` or `unknown`, with host architecture, sizes
+`enabled_image_missing`, `enabled_unverified`, `unknown` or `not_pinned` (a locally built
+tool listed before any installation built and pinned it), with host architecture, sizes
 and approved recipe counts. `enable` refuses a missing image and prints the exact acquire
 command and download size; `--pull` explicitly pulls a missing registry image, and
 locally built images are never pulled. `disable` removes the entry only: images and

@@ -62,5 +62,8 @@ baseline. Future integrations require distinct grants, operator awareness, compa
 hardware/safety conditions and actual outcome evidence. A compile/package handoff is not
 an executed device operation.
 
+Printing preparation (profiles, manufacturing variants and optional slicing) is described
+in [PRINTING.md](PRINTING.md); it is optional and never operates a printer.
+
 Licensing boundaries are documented in `LICENSING.md`; technical packaging is not a
 blanket proprietary-plugin exemption.

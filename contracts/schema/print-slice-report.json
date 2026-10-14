@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "Estimate": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "slicer_estimate",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "Estimate",
+      "type": "object"
+    },
+    "Estimates": {
+      "additionalProperties": false,
+      "properties": {
+        "filament_length_mm": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "filament_mass_g": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "print_time_s": {
+          "$ref": "#/$defs/Estimate"
+        }
+      },
+      "required": [
+        "print_time_s",
+        "filament_length_mm",
+        "filament_mass_g"
+      ],
+      "title": "Estimates",
+      "type": "object"
+    },
+    "OutputDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "exclusiveMinimum": 0,
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size"
+      ],
+      "title": "OutputDigest",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Registered slicer report. Generation is not printability or qualification.",
+  "properties": {
+    "adapter": {
+      "const": "print-slice-prusaslicer-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "estimates": {
+      "$ref": "#/$defs/Estimates"
+    },
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "model_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Model Sha256",
+      "type": "string"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/OutputDigest"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Outputs",
+      "type": "array"
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "printable": {
+      "const": "not_evaluated",
+      "title": "Printable",
+      "type": "string"
+    },
+    "printer_submission": {
+      "const": "not_performed",
+      "title": "Printer Submission",
+      "type": "string"
+    },
+    "slicer_exit_code": {
+      "const": 0,
+      "title": "Slicer Exit Code",
+      "type": "integer"
+    },
+    "source_unchanged": {
+      "const": true,
+      "title": "Source Unchanged",
+      "type": "boolean"
+    },
+    "tool": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Tool",
+      "type": "object"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "input_sha256",
+    "tool",
+    "model_sha256",
+    "source_unchanged",
+    "slicer_exit_code",
+    "outputs",
+    "estimates",
+    "printable",
+    "printer_submission",
+    "physical_qualification"
+  ],
+  "title": "SliceReport",
+  "type": "object"
+}

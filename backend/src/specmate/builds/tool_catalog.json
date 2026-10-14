@@ -36,6 +36,24 @@
       "rights": "GCC and binutils are GPL; avr-libc is BSD-style. Notices stay in the image under /usr/share/doc.",
       "qualification": "Synthetic C fixtures only; other ABIs, languages, PlatformIO and linux/arm64 are unsupported.",
       "acquire": "docker build --network=default --provenance=false --sbom=false --build-arg SOURCE_DATE_EPOCH=1791590400 -f toolpacks/firmware/Dockerfile -t specmate-firmware-check:avr-gcc-v1 toolpacks/firmware"
+    },
+    {
+      "id": "prusaslicer-2.5.0",
+      "title": "PrusaSlicer 2.5.0 (optional FDM slicing of exact frozen print preparations)",
+      "image": null,
+      "source": "local-build",
+      "platforms": ["linux/amd64"],
+      "download_bytes": null,
+      "installed_bytes": null,
+      "size_note": "Not built or measured by this release. Built locally from toolpacks/slicer/Dockerfile on the same pinned Debian bookworm base as the firmware pack; the package download happens at build time and neither its size nor the installed image size has been measured. The resulting image ID is installation-specific: record it as the digest of each approved slicer recipe.",
+      "capabilities": [
+        "FDM G-code export from an STL, OBJ or 3MF mesh with declared profile settings, orientation, supports and copies",
+        "prepared 3MF project export without slicer estimates",
+        "no printer connection, submission or control"
+      ],
+      "rights": "PrusaSlicer is AGPL-3.0-or-later; Debian package copyright notices stay in the image under /usr/share/doc. Generated outputs carry the rights derived from the staged source bundle.",
+      "qualification": "Unverified: no actual image build or slicing run is recorded for this release. Resin/SLA output, STEP import, linux/arm64, printability and physical qualification are not established.",
+      "acquire": "docker build -f toolpacks/slicer/Dockerfile -t specmate-slicer-check:prusaslicer-2.5.0-v1 toolpacks/slicer"
     }
   ]
 }

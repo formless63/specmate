@@ -74,7 +74,9 @@ def test_catalog_declares_capability_architecture_and_size_for_every_tool():
     catalog = tools.load_catalog()
     assert {"kicad-10.0.6", "avr-gcc-5.4.0"} <= {t["id"] for t in catalog}
     for tool in catalog:
-        assert tool["capabilities"] and tool["platforms"] and tool["installed_bytes"]
+        assert tool["capabilities"] and tool["platforms"]
+        # Only a never-built, unpinned local tool may leave its installed size unknown.
+        assert tool["installed_bytes"] or tool["image"] is None
         assert tool["download_bytes"] is None or tool["download_bytes"] > 0
         assert tool["size_note"]
     assert KICAD["download_bytes"] > 0 and KICAD["platforms"] == ["linux/amd64"]
@@ -186,3 +188,30 @@ def test_settings_reads_enabled_tools_file(tmp_path):
     path.write_text("not json")
     assert tools.read_enabled(path) == {}
     assert tools.read_enabled(Path(tmp_path / "absent.json")) == {}
+
+
+def test_unpinned_local_tool_reports_not_pinned_and_cannot_be_enabled(stack):
+    """An optional pack listed before any build: unknown sizes, no digest, never pulled."""
+    slicer = next(t for t in tools.load_catalog() if t["id"] == "prusaslicer-2.5.0")
+    assert slicer["image"] is None and slicer["source"] == "local-build"
+    assert slicer["download_bytes"] is None and slicer["installed_bytes"] is None
+    docker = FakeDocker()
+    (stack / "recipes.json").write_text(
+        json.dumps({"own": recipe("own", "specmate-slicer-check@sha256:" + "3" * 64)})
+    )
+    report = by_id(tools.build_reports(stack, docker))["prusaslicer-2.5.0"]
+    assert report["state"] == report["image_state"] == "not_pinned"
+    assert report["approved_recipe_ids"] == []
+    assert not [c for c in docker.calls if c[-1] is None]
+    with pytest.raises(tools.ToolError, match="no pinned image"):
+        tools.enable_tool(stack, "prusaslicer-2.5.0", pull=True, run=docker)
+    assert tools.read_enabled(stack / "tools-enabled.json") == {}
+    assert tools.tool_for_image("specmate-slicer-check@sha256:" + "3" * 64) is None
+
+
+def test_catalog_rejects_an_unpinned_registry_tool(tmp_path):
+    entry = {**KICAD, "image": None}
+    path = tmp_path / "catalog.json"
+    path.write_text(json.dumps({"format_version": 1, "tools": [entry]}))
+    with pytest.raises(tools.ToolError):
+        tools.load_catalog(path)

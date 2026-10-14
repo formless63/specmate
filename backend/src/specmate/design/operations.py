@@ -212,6 +212,10 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
 
         require_capturable(ctx.user, draft.definition, draft.content)
         derived = configuration_dependencies(ctx.user, draft.definition, draft.content)
+    if draft.definition.kind in {"print_profile", "print_preparation"}:
+        from specmate.printing.queries import dependency_revisions as print_dependencies
+
+        derived = print_dependencies(ctx.user, draft.definition, draft.content)
     if derived is not None:
         if dependencies and set(dependencies) != set(derived):
             raise ValidationFailed("Dependencies must match the exact typed content closure.")
@@ -375,6 +379,13 @@ def validate_content(kind, content):
         from specmate.bom.queries import validate_content as validate_bom
 
         content = validate_bom(kind, content)
+    if kind in {"print_profile", "print_preparation"} or {
+        "print_profile",
+        "print_preparation",
+    }.intersection(content):
+        from specmate.printing.queries import validate_content as validate_printing
+
+        content = validate_printing(kind, content)
     if "profile" in content and kind != "workshop_profile":
         raise ValidationFailed("Workshop profiles require a workshop_profile definition.")
     if "interface" in content:
@@ -469,6 +480,13 @@ def _authorize_design_content(user, definition, content):
         from specmate.bom.queries import dependency_revisions as bom_dependencies
 
         bom_dependencies(user, definition, content)
+    if definition.kind in {"print_profile", "print_preparation"} or {
+        "print_profile",
+        "print_preparation",
+    }.intersection(content):
+        from specmate.printing.queries import authorize_content as authorize_printing
+
+        authorize_printing(user, definition, content)
     if definition.kind == "workshop_profile":
         from specmate.workshop_profiles.queries import authorize_profile_content
 
