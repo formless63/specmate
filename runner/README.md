@@ -59,7 +59,9 @@ The runner refuses undeclared files, path traversal, links, special files, absen
 required output and excessive file counts/sizes. It hashes output after the container
 stops; the application independently verifies and accepts uploads with current fencing
 and source/rights checks. Nonzero exits and failed validation do not expose partial
-files as successful artifacts. Local receipts and bytes are retained for diagnosis;
+files as successful artifacts. The stopped tool container is removed once its receipt
+is accepted, and also after a fenced stop (revoked credential or stale lease), where no
+receipt is submitted. Local receipts and bytes are retained for diagnosis; their
 retention cleanup is an operator responsibility in this foundation.
 
 The output byte setting enforces a per-file `RLIMIT_FSIZE` and checks aggregate bytes

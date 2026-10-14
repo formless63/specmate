@@ -255,7 +255,10 @@ class Runner:
             self.stop(receipt)
             receipt["phase"] = "fenced"
             self.save(receipt)
-            # No result registration is attempted using refused authority.
+            # No result registration is attempted using refused authority. The stopped
+            # container is removed as after an accepted receipt; the durable local
+            # receipt and output bytes stay for diagnosis.
+            self.docker.remove(name, identity)
         except ToolUnavailable:
             self.stop(receipt)
             self.result(

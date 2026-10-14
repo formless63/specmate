@@ -185,10 +185,38 @@ class ReceiptTests(unittest.TestCase):
             "State": {"Running": True},
         }
         self.client.reconcile.side_effect = Rejected("stale")
+        events = []
+        self.docker.stop.side_effect = lambda *args: events.append("stopped")
+        self.docker.remove.side_effect = lambda *args: events.append("removed")
         self.runner.run_receipt(self.receipt, recovered=True)
         self.docker.stop.assert_called_once()
         self.client.complete.assert_not_called()
         self.assertEqual(self.persisted()["phase"], "fenced")
+        # The stopped container is removed after the fenced receipt is persisted.
+        self.assertEqual(events, ["stopped", "removed"])
+        self.docker.remove.assert_called_once_with(
+            self.receipt["name"], self.receipt["identity"]
+        )
+
+    def test_revoked_authority_during_supervision_stops_and_removes_container(self):
+        self.receipt["started_at"] = 1
+        self.receipt["phase"] = "running"
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "State": {"Running": True, "Status": "running"},
+        }
+        # The first heartbeat succeeds; the credential is revoked before the next one.
+        self.client.heartbeat.side_effect = [
+            {"cancellation_requested": False},
+            Rejected("Runner operation rejected (401)"),
+        ]
+        events = []
+        self.docker.stop.side_effect = lambda *args: events.append("stopped")
+        self.docker.remove.side_effect = lambda *args: events.append("removed")
+        self.runner.run_receipt(self.receipt, recovered=False)
+        self.client.complete.assert_not_called()
+        self.assertEqual(self.persisted()["phase"], "fenced")
+        self.assertEqual(events[-2:], ["stopped", "removed"])
 
     def test_lost_completion_ack_replays_without_restarting(self):
         self.docker.inspect.return_value = None
@@ -684,8 +712,8 @@ class DockerIntegrationTests(unittest.TestCase):
         self.client.reconcile.side_effect = Rejected("fenced")
         restarted = Runner(self.client, self.docker, self.temp.name, self.temp.name)
         restarted.tick()
-        container = self.docker.inspect(receipt["name"], receipt["identity"])
-        self.assertFalse(container["State"]["Running"])
+        # Stopped, then removed like after an accepted receipt; nothing is submitted.
+        self.assertIsNone(self.docker.inspect(receipt["name"], receipt["identity"]))
         self.client.complete.assert_not_called()
 
     def test_lost_success_ack_replays_receipt_after_one_actual_execution(self):
