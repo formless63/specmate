@@ -39,6 +39,11 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
 .mantine-Button-root[data-variant="risk"]:hover:not([data-disabled]) { background: var(--sb-invalid); color: var(--sb-surface-canvas); }
 .mantine-Button-root[data-variant="quiet"] { --button-bg: transparent; --button-color: var(--sb-text-primary); --button-bd: 1px solid var(--sb-border-control); --button-hover: var(--sb-text-primary); --button-hover-color: var(--sb-surface-canvas); }
 .mantine-Button-root[data-variant="quiet"]:hover:not([data-disabled]) { background: var(--sb-text-primary); color: var(--sb-surface-canvas); border-color: var(--sb-text-primary); }
+/* Existing Mantine variants map onto the single-accent system: amber stays reserved for primary actions. */
+.mantine-Button-root:is([data-variant="default"], [data-variant="light"], [data-variant="outline"]) { --button-bg: transparent; --button-color: var(--sb-text-primary); --button-bd: 1px solid var(--sb-border-control); --button-hover: var(--sb-text-primary); --button-hover-color: var(--sb-surface-canvas); }
+.mantine-Button-root:is([data-variant="default"], [data-variant="light"], [data-variant="outline"]):hover:not([data-disabled]) { background: var(--sb-text-primary); color: var(--sb-surface-canvas); border-color: var(--sb-text-primary); }
+.mantine-Button-root[data-variant="subtle"] { --button-bg: transparent; --button-color: var(--sb-text-secondary); --button-bd: 1px solid transparent; --button-hover: var(--sb-surface-raised); --button-hover-color: var(--sb-text-primary); }
+.mantine-Button-root[data-variant="subtle"]:hover:not([data-disabled]) { background: var(--sb-surface-raised); color: var(--sb-text-primary); }
 .mantine-Button-root[data-disabled], .mantine-Button-root:disabled { border-color: var(--sb-border-subtle); color: var(--sb-text-disabled); background: transparent; }
 
 /* ---- Identity tags (Badge variants) ---- */
