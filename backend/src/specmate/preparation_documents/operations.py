@@ -134,7 +134,9 @@ def generate(ctx: Context, p: Configuration):
                 for o in manifest["outputs"]
             ]
         )
-        return result(record)
+        # Rendering and filesystem promotion can outlast a concurrent access change.
+        # Recheck the complete stored closure before disclosing or committing it.
+        return result(authorized_set(ctx.user, record.id, Perm.DESIGN_EDIT))
     finally:
         for blob in staged:
             blobstore.discard(blob)

@@ -62,6 +62,79 @@ def test_mounted_document_routes_preserve_viewer_bytes_and_hide_outside_receipts
     assert response.json()["error"]["details"] == {}
 
 
+@pytest.mark.django_db(transaction=True)
+def test_source_revoked_during_promotion_rolls_back_receipt_and_key(users, project, monkeypatch):
+    from specmate.sources import blobstore
+
+    user = users["owner"]
+    value, root = cable(user, project)
+    foreign = op(user, "project.create", {"name": "Concurrent allowance evidence"})["project_id"]
+    data = b"Original synthetic allowance evidence for concurrent access checks.\n"
+    register(user, foreign, data)
+    source = op(
+        user,
+        "source.create_original_bundle",
+        {"project_id": foreign, "name": "Allowance", "files": source_files(data)},
+    )
+    rules = profile(value["stock_revision_id"])
+    rules["formulas"][0]["allowances"][0]["source"] = {
+        "kind": "source_file",
+        "bundle_revision_id": source["revision_id"],
+        "path": "src/source.txt",
+        "sha256": sha(data),
+        "rights": "synthetic-original",
+    }
+    recipe = freeze_cuts(user, create_cuts(user, project, rules))
+    config = configuration(
+        root, bindings=[{"cut_profiles": [{"profile_revision_id": recipe["revision_id"]}]}]
+    )
+    review = op(user, "preparation_documents.review", config)
+    original = blobstore.promote
+    revoked = False
+
+    def revoke_in_competing_connection():
+        close_old_connections()
+        try:
+            count, _ = Membership.objects.filter(user_id=user.pk, project_id=foreign).delete()
+            assert count == 1
+        finally:
+            close_old_connections()
+
+    def promote_then_revoke(staged):
+        nonlocal revoked
+        result = original(staged)
+        if not revoked:
+            revoked = True
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pool.submit(revoke_in_competing_connection).result(timeout=10)
+        return result
+
+    monkeypatch.setattr(blobstore, "promote", promote_then_revoke)
+    with pytest.raises(NotFound):
+        op(
+            user,
+            "preparation_documents.generate",
+            config,
+            expected_state=review["state"],
+            idempotency_key="promotion-recovery",
+        )
+    assert revoked
+    assert not Membership.objects.filter(user=user, project_id=foreign).exists()
+    assert DocumentSet.objects.count() == DocumentOutput.objects.count() == 0
+    assert not IdempotencyRecord.objects.filter(operation="preparation_documents.generate").exists()
+    Membership.objects.create(user=user, project_id=foreign, role="owner")
+    recovered = op(
+        user,
+        "preparation_documents.generate",
+        config,
+        expected_state=review["state"],
+        idempotency_key="promotion-recovery",
+    )
+    assert len(files(user, recovered)) == 6
+    assert DocumentSet.objects.count() == 1
+    assert DocumentOutput.objects.count() == 6
+
+
 def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users, project):
     user = users["owner"]
     value, root = cable(user, project)
