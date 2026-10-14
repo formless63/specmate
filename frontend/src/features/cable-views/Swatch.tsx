@@ -6,7 +6,7 @@ export function Swatch({ look, size = 14 }: { look: Appearance; size?: number })
   const unknown = look.fillSource === 'unknown';
   const edge = edgeColor(look.base);
   const background = unknown
-    ? `repeating-linear-gradient(45deg, ${look.base} 0 3px, #8a929a 3px 4px)`
+    ? `repeating-linear-gradient(45deg, ${look.base} 0 3px, #3d444b 3px 4px)`
     : look.stripe ? `linear-gradient(90deg, ${look.base} 0 62%, ${look.stripe} 62% 80%, ${look.base} 80%)` : look.base;
   return <span role="img" aria-label={`${look.colorLabel === 'Unknown' ? 'Colour unknown' : `Colour ${look.colorLabel}`}${look.fillSource === 'material-typical' ? ' (typical for material)' : ''}`}
     data-fill-source={look.fillSource}

@@ -142,6 +142,9 @@ const n = (v: number): string => String(Math.round(v * 100) / 100);
 const hash = (text: string): string => { let h = 5381; for (let i = 0; i < text.length; i += 1) h = ((h << 5) + h + text.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
 const niceLength = (target: number): number => { const p = 10 ** Math.floor(Math.log10(target)); const m = target / p; return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p; };
 
+/** On-screen size of a primary formboard label, in CSS pixels. */
+const LABEL_PX = 13;
+
 export interface FormboardSvgOptions { selected?: string | null; idPrefix?: string }
 export function renderFormboardSvg(board: Formboard, title: string, options: FormboardSvgOptions = {}): string {
   const fs = board.fontSize;
@@ -150,7 +153,7 @@ export function renderFormboardSvg(board: Formboard, title: string, options: For
   const vx = minX - pad, vy = minY - fs * 1.5, vw = maxX - minX + 2 * pad, vh = maxY - minY + fs * 6;
   const id = options.idPrefix ?? `fb${hash(title + board.bars.map(b => b.sectionId + b.x0 + b.x1).join())}`;
   const defs = `<linearGradient id="${id}-tube" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="0.35" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.4"/></linearGradient>`
-    + `<pattern id="${id}-unk" patternUnits="userSpaceOnUse" width="${n(fs * 0.5)}" height="${n(fs * 0.5)}"><path d="M0 ${n(fs * 0.5)}L${n(fs * 0.5)} 0" stroke="#5f6870" stroke-width="${n(fs * 0.07)}"/></pattern>`;
+    + `<pattern id="${id}-unk" patternUnits="userSpaceOnUse" width="${n(fs * 0.5)}" height="${n(fs * 0.5)}"><path d="M0 ${n(fs * 0.5)}L${n(fs * 0.5)} 0" stroke="#3d444b" stroke-width="${n(fs * 0.07)}"/></pattern>`;
   const parts: string[] = [];
   for (const l of board.links) parts.push(`<path data-link="${esc(l.breakoutId)}" d="M${n(l.x1)} ${n(l.y1)}V${n(l.y2)}" stroke="currentColor" stroke-width="${n(fs * 0.12)}" fill="none"/>`);
   for (const b of board.bars) {
@@ -158,7 +161,7 @@ export function renderFormboardSvg(board: Formboard, title: string, options: For
     const edge = edgeColor(b.look.base);
     const dash = b.lengthKnown ? '' : ` stroke-dasharray="${n(fs * 0.5)} ${n(fs * 0.3)}"`;
     const stripe = b.look.stripe ? `<rect x="${n(b.x0)}" y="${n(b.y - h * 0.12)}" width="${n(w)}" height="${n(h * 0.24)}" fill="${b.look.stripe}"/>` : '';
-    const sel = options.selected === b.sectionId ? `<rect data-selected="true" x="${n(b.x0 - fs * 0.4)}" y="${n(y - fs * 0.4)}" width="${n(w + fs * 0.8)}" height="${n(h + fs * 0.8)}" fill="none" stroke="#2f7df6" stroke-width="${n(fs * 0.14)}" stroke-dasharray="${n(fs * 0.5)} ${n(fs * 0.25)}"/>` : '';
+    const sel = options.selected === b.sectionId ? `<rect data-selected="true" x="${n(b.x0 - fs * 0.4)}" y="${n(y - fs * 0.4)}" width="${n(w + fs * 0.8)}" height="${n(h + fs * 0.8)}" fill="none" stroke="var(--sb-accent, #2f7df6)" stroke-width="${n(fs * 0.14)}" stroke-dasharray="${n(fs * 0.5)} ${n(fs * 0.25)}"/>` : '';
     parts.push(`<g data-section="${esc(b.sectionId)}" data-fill-source="${b.look.fillSource}" data-length-known="${b.lengthKnown}">`
       + `<rect x="${n(b.x0)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="${n(h * 0.45)}" fill="${b.look.base}"/>`
       + (b.look.fillSource === 'unknown' ? `<rect x="${n(b.x0)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="${n(h * 0.45)}" fill="url(#${id}-unk)"/>` : '')
@@ -177,7 +180,7 @@ export function renderFormboardSvg(board: Formboard, title: string, options: For
     const x2 = s.x + s.dir * board.rowHeight * 0.7;
     parts.push(`<g data-stub="${esc(s.breakoutId)}"><path d="M${n(s.x)} ${n(s.y)}L${n(x2)} ${n(s.y)}" stroke="currentColor" stroke-width="${n(fs * 0.14)}" stroke-dasharray="${n(fs * 0.35)} ${n(fs * 0.25)}" fill="none"/><text x="${n(x2 + s.dir * fs * 0.3)}" y="${n(s.y + fs * 0.32)}" font-size="${n(fs * 0.85)}" text-anchor="${s.dir > 0 ? 'start' : 'end'}" fill="currentColor">${esc(s.labels.join(', '))} (length not recorded)</text></g>`);
   }
-  for (const j of board.junctions) parts.push(`<g data-junction="${esc(j.breakoutId)}"><circle cx="${n(j.x)}" cy="${n(j.y)}" r="${n(fs * 0.55)}" fill="#ffffff" stroke="#14181d" stroke-width="${n(fs * 0.12)}"/><text x="${n(j.x)}" y="${n(j.y - fs * 0.9)}" font-size="${n(fs * 0.85)}" text-anchor="middle" fill="currentColor">${esc(j.breakoutId)}</text></g>`);
+  for (const j of board.junctions) parts.push(`<g data-junction="${esc(j.breakoutId)}"><circle cx="${n(j.x)}" cy="${n(j.y)}" r="${n(fs * 0.55)}" style="fill:var(--sb-surface-canvas,#fff);stroke:currentColor" stroke-width="${n(fs * 0.12)}"/><text x="${n(j.x)}" y="${n(j.y - fs * 0.9)}" font-size="${n(fs * 0.85)}" text-anchor="middle" fill="currentColor">${esc(j.breakoutId)}</text></g>`);
   const known = board.bars.filter(b => b.lengthKnown);
   if (known.length > 0) {
     const len = niceLength((maxX - minX) * 0.2);
@@ -185,5 +188,8 @@ export function renderFormboardSvg(board: Formboard, title: string, options: For
     parts.push(`<g data-scale="${len}"><path d="M${n(sx)} ${n(sy)}H${n(sx + len)}M${n(sx)} ${n(sy - fs * 0.4)}V${n(sy + fs * 0.4)}M${n(sx + len)} ${n(sy - fs * 0.4)}V${n(sy + fs * 0.4)}" stroke="currentColor" stroke-width="${n(fs * 0.12)}" fill="none"/><text x="${n(sx + len / 2)}" y="${n(sy - fs * 0.7)}" font-size="${n(fs * 0.9)}" text-anchor="middle" fill="currentColor">${len} mm</text></g>`);
   }
   const desc = `Formboard of ${board.bars.length} stock section${board.bars.length === 1 ? '' : 's'}; ${known.length} at recorded cut length, ${board.bars.length - known.length} with unknown length drawn at a placeholder length. Thickness is exaggerated and proportional to outer diameter.`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(vx)} ${n(vy)} ${n(vw)} ${n(vh + fs * 3)}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><desc>${esc(desc)}</desc><defs>${defs}</defs>${parts.join('')}</svg>`;
+  // Labels have a fixed on-screen size (LABEL_PX), so the drawing's pixel width follows its content;
+  // the host shrinks it only when it would overflow.
+  const k = LABEL_PX / fs, pxW = Math.min(vw * k, 2400), pxH = pxW * (vh + fs * 3) / vw;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(vx)} ${n(vy)} ${n(vw)} ${n(vh + fs * 3)}" width="${n(pxW)}" height="${n(pxH)}" style="font-family:var(--sb-font-data,ui-monospace,monospace);max-width:100%;height:auto" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><desc>${esc(desc)}</desc><defs>${defs}</defs>${parts.join('')}</svg>`;
 }

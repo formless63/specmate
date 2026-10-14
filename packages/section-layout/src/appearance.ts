@@ -148,6 +148,9 @@ function textureFor(feature: { kind: SectionFeature['kind']; construction?: Sect
   return spec.finish === 'unknown' ? 'unknown' : 'none';
 }
 
+/** Neutral matte mid-grey for an unrecorded colour: readable on dark and light surfaces, never a guessed hue. */
+export const UNKNOWN_FILL = '#7d838b';
+
 /** The resolved display appearance of one stock element. */
 export function appearanceOf(feature: { kind: SectionFeature['kind']; color?: string | null; material?: string | null } & { construction?: SectionFeature['construction'] }): Appearance {
   const family = classifyMaterial(feature.material);
@@ -169,7 +172,7 @@ export function appearanceOf(feature: { kind: SectionFeature['kind']; color?: st
     if (color.reason === 'unparseable') notes.push(`colour "${feature.color}" not understood`); else notes.push('colour not recorded');
     if (spec.metal && spec.typical) { base = spec.typical; fillSource = 'material-typical'; notes.push(`drawn in the typical colour of ${spec.label.toLowerCase()}`); }
     else if (metalLike) { base = '#a9afb6'; fillSource = 'kind-neutral'; notes.push('metal hue unknown; neutral metallic shown'); }
-    else { base = '#d9dde2'; fillSource = 'unknown'; }
+    else { base = UNKNOWN_FILL; fillSource = 'unknown'; }
   }
   const texture = textureFor(feature, spec, metalLike);
   return { base, fillSource, ...(stripe ? { stripe } : {}), family, finish: spec.finish, texture,

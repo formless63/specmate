@@ -22,7 +22,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
     if (!container) return;
     setProblem('');
     let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
     catch { setProblem('WebGL is unavailable. The section drawing and element dimensions remain available.'); return; }
     const element = renderer.domElement;
     element.setAttribute('aria-label', 'Interactive prepared wire preview');
@@ -30,7 +30,9 @@ export default function WireViewport({ model }: { model: WireModel }) {
     element.style.cssText = 'width:100%;height:360px;display:block;touch-action:none';
     container.appendChild(element);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    const scene = new THREE.Scene(); scene.background = new THREE.Color('#e9edf2');
+    // Transparent canvas: the host's themed surface (and dot grid) shows through.
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
+    const scene = new THREE.Scene();
     // Image-based light gives metals and glossy jackets something to reflect. Optional: absent in minimal contexts.
     let environment = false;
     try {
@@ -38,8 +40,9 @@ export default function WireViewport({ model }: { model: WireModel }) {
       scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
       pmrem.dispose(); environment = true;
     } catch { environment = false; }
-    scene.add(new THREE.HemisphereLight('#ffffff', '#606975', environment ? 1.2 : 3));
-    const light = new THREE.DirectionalLight('#ffffff', 3); light.position.set(-5, 10, 8); scene.add(light);
+    scene.environmentIntensity = 0.75;
+    scene.add(new THREE.HemisphereLight('#ffffff', '#606975', environment ? 0.35 : 1.6));
+    const light = new THREE.DirectionalLight('#ffffff', environment ? 1.4 : 1.8); light.position.set(-5, 10, 8); scene.add(light);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 10000);
     const controls = new OrbitControls(camera, element);
     controls.enableDamping = false;
@@ -97,7 +100,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
   return <Stack>
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
     <Group><Button variant="light" onClick={() => reset.current()}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button></Group>
-    <div ref={host} style={{ display: problem ? 'none' : 'block' }} />
+    <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block' }} />
     <Text size="xs" id={descriptionId} data-testid={descriptionId}>{description}</Text>
     <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Leads are illustrative; geometry establishes no fit or qualification.</Text>
   </Stack>;

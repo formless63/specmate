@@ -29,22 +29,16 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
 .sb-led[data-state="failed"] { background: var(--sb-invalid); border-radius: 0; }
 .sb-led[data-state="not-evaluated"] { border: 1px solid var(--sb-text-tertiary); }
 
-/* ---- Buttons ---- */
-.mantine-Button-root { font-family: var(--sb-font-ui); font-weight: 600; letter-spacing: 0; text-transform: none; transition: background-color var(--sb-motion-snap) linear, color var(--sb-motion-snap) linear, border-color var(--sb-motion-snap) linear; }
-.mantine-Button-root[data-variant="primary"] { --button-bg: transparent; --button-color: var(--sb-accent); --button-bd: 1px solid var(--sb-accent); --button-hover: var(--sb-accent); --button-hover-color: var(--sb-accent-ink); }
-.mantine-Button-root[data-variant="primary"]:hover:not([data-disabled]) { background: var(--sb-accent); color: var(--sb-accent-ink); }
-.mantine-Button-root[data-variant="commit"] { --button-bg: var(--sb-accent); --button-color: var(--sb-accent-ink); --button-bd: 1px solid var(--sb-accent); --button-hover: transparent; --button-hover-color: var(--sb-accent); }
-.mantine-Button-root[data-variant="commit"]:hover:not([data-disabled]) { background: transparent; color: var(--sb-accent); }
-.mantine-Button-root[data-variant="risk"] { --button-bg: transparent; --button-color: var(--sb-invalid); --button-bd: 1px solid var(--sb-invalid); --button-hover: var(--sb-invalid); --button-hover-color: var(--sb-surface-canvas); }
-.mantine-Button-root[data-variant="risk"]:hover:not([data-disabled]) { background: var(--sb-invalid); color: var(--sb-surface-canvas); }
-.mantine-Button-root[data-variant="quiet"] { --button-bg: transparent; --button-color: var(--sb-text-primary); --button-bd: 1px solid var(--sb-border-control); --button-hover: var(--sb-text-primary); --button-hover-color: var(--sb-surface-canvas); }
-.mantine-Button-root[data-variant="quiet"]:hover:not([data-disabled]) { background: var(--sb-text-primary); color: var(--sb-surface-canvas); border-color: var(--sb-text-primary); }
-/* Existing Mantine variants map onto the single-accent system: amber stays reserved for primary actions. */
-.mantine-Button-root:is([data-variant="default"], [data-variant="light"], [data-variant="outline"]) { --button-bg: transparent; --button-color: var(--sb-text-primary); --button-bd: 1px solid var(--sb-border-control); --button-hover: var(--sb-text-primary); --button-hover-color: var(--sb-surface-canvas); }
-.mantine-Button-root:is([data-variant="default"], [data-variant="light"], [data-variant="outline"]):hover:not([data-disabled]) { background: var(--sb-text-primary); color: var(--sb-surface-canvas); border-color: var(--sb-text-primary); }
-.mantine-Button-root[data-variant="subtle"] { --button-bg: transparent; --button-color: var(--sb-text-secondary); --button-bd: 1px solid transparent; --button-hover: var(--sb-surface-raised); --button-hover-color: var(--sb-text-primary); }
-.mantine-Button-root[data-variant="subtle"]:hover:not([data-disabled]) { background: var(--sb-surface-raised); color: var(--sb-text-primary); }
-.mantine-Button-root[data-disabled], .mantine-Button-root:disabled { border-color: var(--sb-border-subtle); color: var(--sb-text-disabled); background: transparent; }
+/* ---- Buttons ----
+ * Resting colours come from the theme variant resolver (schematicBench.ts), because Mantine
+ * sets --button-* inline. Hover inversion for the outline family is stated here as real properties. */
+.mantine-Button-root, .mantine-ActionIcon-root { font-family: var(--sb-font-ui); font-weight: 600; letter-spacing: 0; text-transform: none; transition: background-color var(--sb-motion-snap) linear, color var(--sb-motion-snap) linear, border-color var(--sb-motion-snap) linear; }
+.mantine-Button-root:is([data-variant="quiet"], [data-variant="default"], [data-variant="light"], [data-variant="outline"], [data-variant="filled"]):hover:not([data-disabled], :disabled) { border-color: var(--sb-text-primary); }
+.mantine-Button-root:is([data-variant="primary"], [data-variant="commit"]):hover:not([data-disabled], :disabled) { border-color: var(--sb-accent); }
+.mantine-Button-root[data-disabled], .mantine-Button-root:disabled, .mantine-ActionIcon-root[data-disabled], .mantine-ActionIcon-root:disabled { border-color: var(--sb-border-subtle); color: var(--sb-text-disabled); background: transparent; }
+.mantine-Button-root[data-variant="subtle"][data-disabled], .mantine-Button-root[data-variant="subtle"]:disabled { border-color: transparent; }
+.mantine-Button-label { white-space: normal; }
+@media (pointer: coarse) { .mantine-Button-root { min-height: 32px; } }
 
 /* ---- Identity tags (Badge variants) ---- */
 .mantine-Badge-root { font-family: var(--sb-font-data); font-size: 10px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; height: auto; line-height: 15px; padding: 1px 6px; --badge-bg: transparent; --badge-color: var(--sb-text-secondary); --badge-bd: 1px solid var(--sb-border-control); }
@@ -148,3 +142,154 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
   .sb-context-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sb-dash-start { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ======================================================================
+ * Component pass: everything inside the tools. Rules use the html[...] prefix so they
+ * outrank Mantine's own scheme-scoped selectors without !important.
+ * ====================================================================== */
+
+/* ---- Surfaces: hairline panes, no grey fill blocks, no nested shading ---- */
+html[data-mantine-color-scheme] :is(.mantine-Paper-root, .mantine-Card-root) { background: var(--sb-surface-panel); border: 1px solid var(--sb-border-subtle); box-shadow: none; color: var(--sb-text-primary); }
+html[data-mantine-color-scheme] :is(.mantine-Paper-root, .mantine-Card-root) :is(.mantine-Paper-root, .mantine-Card-root) { background: transparent; }
+html[data-mantine-color-scheme] .mantine-Card-section { border-color: var(--sb-border-subtle); }
+html[data-mantine-color-scheme] .mantine-Fieldset-root { background: transparent; border: 1px solid var(--sb-border-subtle); padding: 10px 12px; }
+html[data-mantine-color-scheme] .mantine-Fieldset-legend { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 400; color: var(--sb-text-tertiary); padding: 0 6px; }
+html[data-mantine-color-scheme] .mantine-Accordion-item { border: 0; border-bottom: 1px solid var(--sb-border-subtle); background: transparent; }
+html[data-mantine-color-scheme] .mantine-Accordion-control { padding: 6px 8px; background: transparent; }
+html[data-mantine-color-scheme] .mantine-Accordion-control:hover { background: var(--sb-surface-raised); }
+html[data-mantine-color-scheme] .mantine-Accordion-label { font-weight: 600; }
+html[data-mantine-color-scheme] .mantine-Divider-root { border-color: var(--sb-border-subtle); }
+html[data-mantine-color-scheme] .mantine-Modal-content { background: var(--sb-surface-raised); }
+html[data-mantine-color-scheme] .mantine-Modal-header { background: transparent; border-bottom: 1px solid var(--sb-border-subtle); min-height: 0; padding: 10px 14px; }
+html[data-mantine-color-scheme] .mantine-Modal-title { font-size: 15px; font-weight: 600; }
+html[data-mantine-color-scheme] .mantine-Modal-overlay { background: rgba(0, 0, 0, .6); backdrop-filter: none; }
+html[data-mantine-color-scheme] .mantine-Notification-root { background: var(--sb-surface-raised); border: 1px solid var(--sb-border-strong); box-shadow: var(--sb-overlay); border-radius: 0; }
+html[data-mantine-color-scheme] .mantine-Notification-root::before { border-radius: 0; background: var(--sb-text-primary); }
+html[data-mantine-color-scheme] .mantine-Notification-description { color: var(--sb-text-secondary); }
+
+/* ---- Fields: transparent, bottom rule, silk labels ---- */
+html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-PillsInput-input, .mantine-InputBase-input):not([data-variant="unstyled"]) {
+  background: var(--sb-surface-sunken); color: var(--sb-text-primary); border: 0; border-bottom: 1px solid var(--sb-border-control); border-radius: 0;
+  font-size: 12.5px; padding-inline-start: 8px; box-shadow: none; transition: border-color var(--sb-motion-snap) linear, box-shadow var(--sb-motion-snap) linear;
+}
+html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):not(textarea, [data-multiline]) { height: 26px; min-height: 26px; line-height: 24px; padding-top: 0; padding-bottom: 0; }
+html[data-mantine-color-scheme] .mantine-PillsInput-input { min-height: 26px; }
+html[data-mantine-color-scheme] .mantine-Input-wrapper[data-with-left-section] .mantine-Input-input, html[data-mantine-color-scheme] .mantine-InputBase-input[data-with-left-section] { padding-inline-start: 26px; }
+html[data-mantine-color-scheme] .mantine-Input-section { width: 26px; color: var(--sb-text-tertiary); }
+html[data-mantine-color-scheme] textarea.mantine-Input-input { padding: 4px 8px; line-height: 1.45; }
+html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input, .mantine-PillsInput-input)::placeholder { color: var(--sb-text-tertiary); }
+html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):hover:not(:disabled, [data-disabled]) { border-bottom-color: var(--sb-text-secondary); }
+html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input, .mantine-PillsInput-input):is(:focus, :focus-within) { border-bottom-color: var(--sb-accent); box-shadow: 0 1px 0 var(--sb-accent); outline: none; }
+html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):is([data-error], [aria-invalid="true"]) { border-bottom: 1px dashed var(--sb-invalid); color: var(--sb-text-primary); }
+html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):is(:disabled, [data-disabled]) { background: transparent; color: var(--sb-text-disabled); border-bottom-style: dotted; opacity: 1; cursor: not-allowed; }
+html[data-mantine-color-scheme] :is(.mantine-NumberInput-input, input[type="number"]) { font-family: var(--sb-font-data); font-variant-numeric: tabular-nums; }
+html[data-mantine-color-scheme] .mantine-NumberInput-controls { border: 0; }
+html[data-mantine-color-scheme] .mantine-NumberInput-control { border: 0; color: var(--sb-text-tertiary); background: transparent; }
+html[data-mantine-color-scheme] .mantine-NumberInput-control:hover { color: var(--sb-text-primary); background: var(--sb-surface-raised); }
+@media (pointer: coarse) {
+  html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):not(textarea, [data-multiline]) { height: 32px; min-height: 32px; line-height: 30px; }
+  html[data-mantine-color-scheme] .mantine-Input-section { width: 32px; }
+}
+
+html[data-mantine-color-scheme] :is(.mantine-InputWrapper-label, .mantine-Input-label, .mantine-Checkbox-label.mantine-InputWrapper-label) { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 400; line-height: 1.3; color: var(--sb-text-tertiary); margin-bottom: 2px; }
+html[data-mantine-color-scheme] :is(.mantine-InputWrapper-root, .mantine-Input-root):focus-within > :is(.mantine-InputWrapper-label, .mantine-Input-label) { color: var(--sb-text-secondary); }
+html[data-mantine-color-scheme] .mantine-InputWrapper-required { color: var(--sb-invalid); }
+html[data-mantine-color-scheme] .mantine-InputWrapper-description { font-size: 11px; line-height: 1.35; color: var(--sb-text-secondary); margin-bottom: 3px; }
+html[data-mantine-color-scheme] .mantine-InputWrapper-error { font-size: 11px; line-height: 1.35; color: var(--sb-invalid); margin-top: 3px; }
+html[data-mantine-color-scheme] .mantine-InputWrapper-error::before { content: "ERROR "; font-family: var(--sb-font-data); letter-spacing: .1em; font-size: 9.5px; }
+
+/* Checkbox, radio, switch: square, outlined, amber only when on */
+html[data-mantine-color-scheme] :is(.mantine-Checkbox-input, .mantine-Radio-radio) { background: transparent; border: 1px solid var(--sb-border-control); border-radius: 0; }
+html[data-mantine-color-scheme] .mantine-Radio-radio { border-radius: 50%; }
+html[data-mantine-color-scheme] :is(.mantine-Checkbox-input, .mantine-Radio-radio):checked { background: var(--sb-accent); border-color: var(--sb-accent); }
+html[data-mantine-color-scheme] .mantine-Checkbox-icon, html[data-mantine-color-scheme] .mantine-Radio-icon { color: var(--sb-accent-ink); }
+html[data-mantine-color-scheme] :is(.mantine-Checkbox-label, .mantine-Radio-label, .mantine-Switch-label) { font-size: 12.5px; color: var(--sb-text-primary); padding-inline-start: 8px; }
+html[data-mantine-color-scheme] :is(.mantine-Checkbox-description, .mantine-Radio-description, .mantine-Switch-description) { font-size: 11px; color: var(--sb-text-secondary); }
+html[data-mantine-color-scheme] .mantine-Switch-track { background: transparent; border: 1px solid var(--sb-border-control); border-radius: 0; }
+html[data-mantine-color-scheme] .mantine-Switch-thumb { background: var(--sb-text-secondary); border: 0; border-radius: 0; }
+html[data-mantine-color-scheme] .mantine-Switch-input:checked + .mantine-Switch-track { background: transparent; border-color: var(--sb-accent); }
+html[data-mantine-color-scheme] .mantine-Switch-input:checked + .mantine-Switch-track .mantine-Switch-thumb { background: var(--sb-accent); }
+html[data-mantine-color-scheme] .mantine-Switch-track-label { color: var(--sb-text-tertiary); }
+
+/* Segmented control: hairline strip, amber rule under the active segment */
+html[data-mantine-color-scheme] .mantine-SegmentedControl-root { background: transparent; border: 1px solid var(--sb-border-control); padding: 0; border-radius: 0; }
+html[data-mantine-color-scheme] .mantine-SegmentedControl-indicator { background: var(--sb-accent-glow); box-shadow: inset 0 -2px 0 var(--sb-accent); border-radius: 0; }
+html[data-mantine-color-scheme] .mantine-SegmentedControl-label { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .1em; font-size: 10.5px; color: var(--sb-text-secondary); padding: 4px 10px; }
+html[data-mantine-color-scheme] .mantine-SegmentedControl-label[data-active] { color: var(--sb-accent); }
+html[data-mantine-color-scheme] .mantine-SegmentedControl-control { border-color: var(--sb-border-subtle); }
+
+/* Pills / FileInput placeholder */
+html[data-mantine-color-scheme] .mantine-Pill-root { background: transparent; border: 1px solid var(--sb-border-control); color: var(--sb-text-primary); border-radius: 0; height: 18px; font-size: 11px; }
+html[data-mantine-color-scheme] .mantine-FileInput-input { padding-top: 0; }
+
+/* ---- Dropdowns, menus, popovers, tooltips ---- */
+html[data-mantine-color-scheme] :is(.mantine-Combobox-dropdown, .mantine-Select-dropdown, .mantine-MultiSelect-dropdown, .mantine-Autocomplete-dropdown) { background: var(--sb-surface-raised); border: 1px solid var(--sb-border-strong); box-shadow: var(--sb-overlay); border-radius: 0; padding: 0; }
+html[data-mantine-color-scheme] .mantine-Combobox-options { padding: 0; }
+html[data-mantine-color-scheme] .mantine-Combobox-option { min-height: 26px; padding: 4px 10px; font-size: 12.5px; border-radius: 0; color: var(--sb-text-primary); }
+html[data-mantine-color-scheme] .mantine-Combobox-option:is([data-combobox-active], [data-combobox-selected]):not([data-checked]) { background: var(--sb-surface-sunken); }
+html[data-mantine-color-scheme] .mantine-Combobox-option[data-checked] { background: var(--sb-accent-glow); color: var(--sb-accent); box-shadow: inset 2px 0 0 var(--sb-accent); }
+html[data-mantine-color-scheme] .mantine-Combobox-option:hover:not([data-combobox-disabled]) { background: var(--sb-surface-sunken); }
+html[data-mantine-color-scheme] .mantine-Combobox-empty { font-family: var(--sb-font-data); font-size: 11px; color: var(--sb-text-tertiary); }
+html[data-mantine-color-scheme] .mantine-Menu-item { min-height: 26px; padding: 4px 10px; font-size: 12.5px; border-radius: 0; color: var(--sb-text-primary); }
+html[data-mantine-color-scheme] .mantine-Menu-item:hover:not([data-disabled]), html[data-mantine-color-scheme] .mantine-Menu-item[data-hovered] { background: var(--sb-surface-sunken); }
+html[data-mantine-color-scheme] .mantine-Menu-label { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; color: var(--sb-text-tertiary); }
+html[data-mantine-color-scheme] .mantine-Menu-divider { border-color: var(--sb-border-subtle); }
+html[data-mantine-color-scheme] .mantine-Tooltip-tooltip { background: var(--sb-surface-raised); color: var(--sb-text-primary); border: 1px solid var(--sb-border-strong); border-radius: 0; font-size: 11px; padding: 3px 8px; box-shadow: var(--sb-overlay); }
+html[data-mantine-color-scheme] .mantine-Popover-dropdown { color: var(--sb-text-primary); }
+
+/* ---- Typography and tables ---- */
+html[data-mantine-color-scheme] :is(.mantine-Title-root) { color: var(--sb-text-primary); letter-spacing: 0; }
+html[data-mantine-color-scheme] .mantine-Text-root { overflow-wrap: anywhere; }
+html[data-mantine-color-scheme] .mantine-Text-root[data-size="xs"] { font-size: 11px; }
+html[data-mantine-color-scheme] :is(.mantine-Code-root, .mantine-Kbd-root) { font-family: var(--sb-font-data); background: var(--sb-surface-sunken); border: 1px solid var(--sb-border-subtle); border-radius: 0; color: var(--sb-text-primary); font-size: 11.5px; }
+html[data-mantine-color-scheme] .mantine-Anchor-root { color: var(--sb-accent); text-underline-offset: 2px; }
+
+html[data-mantine-color-scheme] .mantine-Table-table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; --table-border-color: var(--sb-border-subtle); }
+html[data-mantine-color-scheme] .mantine-Table-th { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .12em; font-size: 9.5px; font-weight: 400; color: var(--sb-text-tertiary); background: transparent; text-align: left; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--sb-border-strong); white-space: nowrap; vertical-align: bottom; }
+html[data-mantine-color-scheme] .mantine-Table-td { padding: 4px 8px; min-height: 26px; height: 26px; border: 0; border-bottom: 1px solid var(--sb-border-subtle); vertical-align: middle; color: var(--sb-text-primary); }
+html[data-mantine-color-scheme] .mantine-Table-tr { background: transparent; }
+html[data-mantine-color-scheme] .mantine-Table-tr:hover { background: var(--sb-surface-raised); }
+html[data-mantine-color-scheme] .mantine-Table-tr[data-selected], html[data-mantine-color-scheme] .mantine-Table-tr[aria-selected="true"] { background: var(--sb-accent-glow); }
+html[data-mantine-color-scheme] .mantine-Table-caption { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: var(--sb-text-tertiary); caption-side: top; text-align: left; padding: 4px 8px; }
+html[data-mantine-color-scheme] :is(td, th)[data-numeric], html[data-mantine-color-scheme] .sb-num { text-align: right; font-family: var(--sb-font-data); font-variant-numeric: tabular-nums; }
+html[data-mantine-color-scheme] .mantine-Table-scrollContainer, html[data-mantine-color-scheme] .mantine-ScrollArea-root { border: 0; }
+
+/* ---- Alerts: hairline pane, state rule and title, words not tint ---- */
+html[data-mantine-color-scheme] .mantine-Alert-root { border-radius: 0; padding: 8px 12px; border-left: 3px solid var(--sb-state, var(--sb-border-control)); }
+html[data-mantine-color-scheme] .mantine-Alert-title { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .1em; font-size: 10.5px; font-weight: 600; color: var(--sb-state, var(--sb-text-primary)); }
+html[data-mantine-color-scheme] .mantine-Alert-icon { color: var(--sb-state, var(--sb-text-primary)); }
+html[data-mantine-color-scheme] .mantine-Alert-message { font-size: 12.5px; color: var(--sb-text-primary); }
+html[data-mantine-color-scheme] .mantine-Alert-body { gap: 2px; }
+
+/* ---- Viewer surfaces: theme canvas with a faint dot grid in dark, paper in light ---- */
+.sb-viewer { padding: 8px; position: relative; background-color: var(--sb-surface-sunken); border: 1px solid var(--sb-border-subtle); overflow: hidden; }
+html[data-mantine-color-scheme="dark"] .sb-viewer { background-image: radial-gradient(circle, rgba(237, 237, 237, .09) 1px, transparent 1.2px); background-size: 16px 16px; }
+html[data-mantine-color-scheme="light"] .sb-viewer { background-color: var(--sb-surface-panel); }
+.sb-viewer > svg { display: block; height: auto; }
+.sb-viewer > svg:not([width]) { width: 100%; }
+.sb-viewer > svg[width] { margin-inline: auto; }
+.sb-viewer-3d canvas { display: block; background: transparent; }
+.sb-key-chip { padding: 2px 8px; border: 1px solid var(--sb-border-control); border-radius: 0; font-size: 11.5px; background: transparent; color: var(--sb-text-primary); cursor: pointer; }
+.sb-key-chip[aria-pressed="true"] { border-color: var(--sb-accent); color: var(--sb-accent); }
+.sb-key-chip:hover { border-color: var(--sb-text-primary); }
+
+/* ---- Phone top bar ---- */
+.sb-topbar > * { flex: none; }
+.sb-topbar > .sb-project-button { flex: 0 1 auto; min-width: 0; }
+.sb-project-button { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 2px 0; background: transparent; border: 0; border-bottom: 1px solid var(--sb-border-control); border-radius: 0; color: var(--sb-text-primary); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.sb-project-button:disabled { color: var(--sb-text-disabled); cursor: default; }
+span.sb-project-button { border-bottom-color: transparent; cursor: default; }
+.sb-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sb-search[data-compact="true"] { width: auto; max-width: none; margin-left: 0; gap: 4px; padding: 2px 6px; border: 1px solid var(--sb-border-control); }
+.sb-search[data-compact="true"] .sb-keycap { border: 0; padding: 0; }
+.sb-account-button { max-width: 9ch; }
+.sb-account-button .mantine-Button-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; font-family: var(--sb-font-data); font-size: 11px; font-weight: 400; }
+@media (max-width: 599px) {
+  .sb-topbar { gap: 8px; padding: 0 8px; }
+  .sb-view { padding: 0 12px 16px; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+}
+@media (max-width: 1100px) { .sb-status { display: none; } }
+html[data-mantine-color-scheme] .mantine-NumberInput-controls { width: 22px; }
+html[data-mantine-color-scheme] .mantine-NumberInput-control { min-height: 0; height: 50%; width: 22px; line-height: 0; }
+html[data-mantine-color-scheme] .mantine-NumberInput-control svg { width: 9px; height: 9px; }

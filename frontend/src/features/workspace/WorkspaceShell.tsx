@@ -1,5 +1,5 @@
 import { randomUUID } from "../../lib/random-id";
-import { Alert, Button, Group, PasswordInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Group, Menu, PasswordInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { HomeFrame } from "../home/HomeFrame";
@@ -13,6 +13,10 @@ export type ShellChrome = {
   projectControl: ReactNode;
   signOutControl: ReactNode;
   alert: ReactNode;
+  /** Compact project switcher for phone widths; falls back to hiding project switching when absent. */
+  projectMenu?: ReactNode;
+  /** Compact account menu (containing Sign out) for phone widths. */
+  accountMenu?: ReactNode;
 };
 
 /**
@@ -164,6 +168,20 @@ export function WorkspaceShell({ children }: {
         value={projectId} onChange={selectProject} disabled={busy} allowDeselect={false} />
         <Button variant="quiet" onClick={() => selectProject(null)} disabled={busy}>All projects</Button></Group>,
       signOutControl,
+      projectMenu: <Menu position="bottom-start" withinPortal>
+        <Menu.Target><button type="button" className="sb-project-button" aria-label={`Project ${selectedProject.name}: switch`} disabled={busy}><span className="sb-project-name">{selectedProject.name}</span><span aria-hidden="true" className="sb-mono">▾</span></button></Menu.Target>
+        <Menu.Dropdown mah={360} style={{ overflowY: "auto" }}>
+          <Menu.Item onClick={() => selectProject(null)}>All projects</Menu.Item>
+          <Menu.Divider />
+          {projects.map((project) => <Menu.Item key={project.project_id} aria-current={project.project_id === projectId ? "true" : undefined}
+            style={project.project_id === projectId ? { color: "var(--sb-accent)" } : undefined} onClick={() => selectProject(project.project_id)}>{project.name}</Menu.Item>)}
+        </Menu.Dropdown></Menu>,
+      accountMenu: <Menu position="bottom-end" withinPortal>
+        <Menu.Target><Button variant="quiet" aria-label={`Account menu, signed in as ${session.user.username}`} className="sb-account-button">{session.user.username}</Button></Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>Signed in as {session.user.username}</Menu.Label>
+          <Menu.Item onClick={() => void signOut()} disabled={busy}>Sign out</Menu.Item>
+        </Menu.Dropdown></Menu>,
       alert: error ? <Alert color="red" title="Unable to complete request">{error}</Alert> : null,
     };
     return <Fragment key={`${session.user.id}:${projectId}`}>{children(projectId, selectedProject, refresh, String(session.user.id), chrome)}</Fragment>;

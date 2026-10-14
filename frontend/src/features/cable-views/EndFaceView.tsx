@@ -13,7 +13,7 @@ export function EndFaceView({ section, end, labels = {}, selected }: { section: 
   const { face } = result;
   const svg = renderEndFaceSvg(face, `End ${end.toUpperCase()} face`, { selected });
   return <Stack gap="xs">
-    <div aria-label={`End ${end.toUpperCase()} face drawing`} style={{ maxWidth: 360, color: 'var(--mantine-color-text)' }} dangerouslySetInnerHTML={{ __html: svg }} />
+    <div aria-label={`End ${end.toUpperCase()} face drawing`} className="sb-viewer" style={{ maxWidth: 360, color: 'var(--sb-text-primary)' }} dangerouslySetInnerHTML={{ __html: svg }} />
     <Group align="flex-end">
       <NumberInput label={`End ${end.toUpperCase()} rotation, degrees counter-clockwise`} value={rotation} min={-360} max={360} step={15} w={260}
         onChange={v => typeof v === 'number' && setRotation(v)} />

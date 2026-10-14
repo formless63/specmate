@@ -13,7 +13,7 @@ export function StockSectionView({ section, title, label = 'Stock section drawin
   const choose = (path: string | null) => { setOwn(path); onSelect?.(path); };
   const svg = useMemo(() => renderSectionSvg(section, title, { selected: current }), [section, title, current]);
   return <Stack gap="xs">
-    <div aria-label={label} style={{ maxWidth: 440, color: 'var(--mantine-color-text)' }}
+    <div aria-label={label} className="sb-viewer" style={{ maxWidth: 440, color: 'var(--sb-text-primary)' }}
       onClick={event => { const hit = (event.target as Element).closest('[data-element]'); if (hit) choose(hit.getAttribute('data-element')); }}
       dangerouslySetInnerHTML={{ __html: svg }} />
     <Group gap="xs" role="group" aria-label="Section key">
@@ -21,8 +21,7 @@ export function StockSectionView({ section, title, label = 'Stock section drawin
         const look = rowLook(row);
         const on = current === row.path;
         return <UnstyledButton key={row.path} aria-pressed={on} onClick={() => choose(on ? null : row.path)}
-          title={look.notes.join('; ') || row.path}
-          style={{ padding: '2px 8px', border: `1px solid ${on ? '#2f7df6' : 'var(--mantine-color-default-border)'}`, borderRadius: 4, fontSize: 12 }}>
+          title={look.notes.join('; ') || row.path} className="sb-key-chip">
           <Swatch look={look} />{row.tag} {row.label}{look.fillSource === 'unknown' ? ' (colour unknown)' : ''}
         </UnstyledButton>;
       })}

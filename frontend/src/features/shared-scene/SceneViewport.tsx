@@ -30,13 +30,13 @@ function ScopedViewport({ scene: projection, arrangement, selected, onSelect, on
     const container = host.current;
     if (!container) return;
     let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+    try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
     catch { setProblem('WebGL is unavailable. Occurrences, exact pins and unknowns remain inspectable.'); return; }
     const element = renderer.domElement;
     element.setAttribute('aria-label', 'Interactive shared engineering scene');
     element.style.cssText = 'width:100%;height:420px;display:block;touch-action:none';
     container.appendChild(element); renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    const scene = new THREE.Scene(); scene.background = new THREE.Color('#edf0f4');
+    const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight('#ffffff', '#606975', 3));
     const light = new THREE.DirectionalLight('#ffffff', 3); light.position.set(-5, 10, 8); scene.add(light);
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.001, 10000);
@@ -116,7 +116,7 @@ function ScopedViewport({ scene: projection, arrangement, selected, onSelect, on
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
     <DisplayControls scene={projection} arrangement={arrangement} selected={selected} display={display} setDisplay={setDisplay} input={input} setInput={setInput} restore={() => { onRestoreCanonical?.(); setInput(openingInput()); setDisplay(closedDisplay()); reset.current('isometric'); }} />
     <Group><Button variant="light" onClick={() => reset.current()}>Fit scene</Button><Button variant="light" onClick={() => reset.current('isometric')}>Orthographic isometric</Button><Button variant="light" onClick={() => reset.current('top')}>Orthographic top</Button><Button variant="light" onClick={() => reset.current('front')}>Orthographic front</Button><Button variant="light" onClick={() => reset.current('end')}>Orthographic end</Button></Group>
-    <div ref={host} style={{ display: problem ? 'none' : 'block' }} />
+    <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block' }} />
     <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. Click geometry to select its contextual occurrence. All views are orthographic illustrations; display geometry provides no fit, clearance or manufacturing approval.</Text>
     {unknown.map((issue, i) => <Text size="sm" key={i}>{issue}</Text>)}
   </Stack>;

@@ -22,6 +22,8 @@ export function SbShell({ projectName, permissions, activeTool, onToolChange, ch
   const area = areaOfTool(activeTool);
   const wide = useMediaQuery(`(min-width: ${breakpoints.lg}px)`, false, { getInitialValueInEffect: false });
   const narrow = useMediaQuery(`(max-width: ${breakpoints.sm - 1}px)`, false, { getInitialValueInEffect: false });
+  // The top bar switches to its compact form (project menu, account menu) before the area rail disappears.
+  const compact = useMediaQuery("(max-width: 959px)", false, { getInitialValueInEffect: false });
   const lastTool = useRef<Record<string, string>>({});
   lastTool.current[area.id] = activeTool;
 
@@ -65,22 +67,24 @@ export function SbShell({ projectName, permissions, activeTool, onToolChange, ch
     <AppShell.Header className="sb-header" data-testid="sb-top-bar">
       <div className="sb-topbar">
         {narrow && <AreaMenu activeArea={area} onSelect={openArea} />}
-        <span className="sb-wordmark">SPECMATE</span>
-        {!narrow && chrome.projectControl}
-        <button type="button" className="sb-search" onClick={() => spotlight.open()} aria-label="Jump to a tool or area" aria-keyshortcuts="Control+K">
+        {!narrow && <span className="sb-wordmark">SPECMATE</span>}
+        {!compact && chrome.projectControl}
+        {compact && (chrome.projectMenu ?? <span className="sb-project-button"><span className="sb-project-name">{projectName}</span></span>)}
+        <button type="button" className="sb-search" data-compact={compact} onClick={() => spotlight.open()} aria-label="Jump to a tool or area" aria-keyshortcuts="Control+K">
           <span className="sb-mono" aria-hidden="true" style={{ color: "var(--sb-accent)" }}>›</span>
-          <span className="sb-search-hint">jump, search or command</span>
-          {!narrow && <span className="sb-keycap" aria-hidden="true">Ctrl K</span>}
+          {!compact && <span className="sb-search-hint">jump, search or command</span>}
+          {!compact && <span className="sb-keycap" aria-hidden="true">Ctrl K</span>}
+          {compact && <span className="sb-keycap" aria-hidden="true">K</span>}
         </button>
         <span style={{ flex: 1 }} />
         {!narrow && <span className="sb-status" role="status" aria-label="Job status">
           <span className="sb-led" data-state="not-evaluated" aria-hidden="true" />
           <span className="sb-silk">Status not evaluated</span>
         </span>}
-        <Group gap={6} wrap="nowrap" aria-label="Account">
+        {compact && chrome.accountMenu ? chrome.accountMenu : <Group gap={6} wrap="nowrap" aria-label="Account">
           <span className="sb-account" title={chrome.username}><VisuallyHidden>Signed in as {chrome.username}</VisuallyHidden><span aria-hidden="true">{chrome.username}</span></span>
           {chrome.signOutControl}
-        </Group>
+        </Group>}
       </div>
     </AppShell.Header>
 

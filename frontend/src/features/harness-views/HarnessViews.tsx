@@ -36,7 +36,7 @@ export function HarnessViews({ revisionId, harness, quantity = 1, title }: { rev
     <Tabs defaultValue="formboard" keepMounted={false}>
       <Tabs.List><Tabs.Tab value="formboard">Formboard</Tabs.Tab><Tabs.Tab value="sheet">Build sheet</Tabs.Tab></Tabs.List>
       <Tabs.Panel value="formboard" pt="sm"><Stack gap="xs">
-        <div aria-label="Formboard drawing" style={{ background: '#eef1f4', color: '#14181d', borderRadius: 6, padding: 8, overflowX: 'auto' }}
+        <div aria-label="Formboard drawing" className="sb-viewer" style={{ color: 'var(--sb-text-primary)', overflowX: 'auto' }}
           onClick={event => { const hit = (event.target as Element).closest('[data-section]'); setSelected(hit ? hit.getAttribute('data-section') : null); }}
           dangerouslySetInnerHTML={{ __html: svg }} />
         {board.notes.map(n => <Alert key={n} color="yellow">{n}</Alert>)}
@@ -50,7 +50,7 @@ export function HarnessViews({ revisionId, harness, quantity = 1, title }: { rev
       </Stack></Tabs.Panel>
       <Tabs.Panel value="sheet" pt="sm"><Stack gap="xs">
         <Group><Button variant="light" onClick={() => download(`build-sheet-${revisionId}.html`, html, 'text/html')}>Download build sheet (HTML)</Button></Group>
-        <iframe title="Build sheet" sandbox="" srcDoc={html} style={{ width: '100%', height: 620, border: '1px solid var(--mantine-color-default-border)', background: '#fff' }} />
+        <iframe title="Build sheet" sandbox="" srcDoc={html} style={{ width: '100%', height: 620, border: '1px solid var(--sb-border-strong)', background: '#fff' }} />
         <Text size="xs">The sheet is self-contained and prints one stage per page. Stages with no recorded data say so.</Text>
       </Stack></Tabs.Panel>
     </Tabs>

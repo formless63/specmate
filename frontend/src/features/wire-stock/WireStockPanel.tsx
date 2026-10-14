@@ -138,7 +138,7 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
     <Group align="flex-start" grow>
       <StockSectionView section={section} title={name} label="Stock section drawing" />
       <Stack style={{ maxWidth: 440 }}><NumberInput label="Preview extrusion length mm" value={length} min={1} onChange={v => typeof v === 'number' && v >= 1 && setLength(v)} />
-        <div aria-label="Stock geometry preview" dangerouslySetInnerHTML={{ __html: renderPreviewSvg(geometry, name) }} />
+        <div aria-label="Stock geometry preview" className="sb-viewer" style={{ color: 'var(--sb-text-primary)' }} dangerouslySetInnerHTML={{ __html: renderPreviewSvg(geometry, name) }} />
         <Text size="sm">Axial length is compressed in the preview. Display colors for unknown materials are illustrative.</Text>
       </Stack>
     </Group>

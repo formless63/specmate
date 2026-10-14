@@ -1,4 +1,4 @@
-import { Badge, Button, Tabs, createTheme, type CSSVariablesResolver, type MantineColorsTuple } from "@mantine/core";
+import { Alert, Badge, Button, Tabs, createTheme, defaultVariantColorsResolver, type CSSVariablesResolver, type MantineColorsTuple, type VariantColorsResolver } from "@mantine/core";
 import tokens from "./schematic-bench.tokens.json";
 
 // Every colour, size and duration below is derived from schematic-bench.tokens.json
@@ -52,7 +52,44 @@ export const breakpoints = tokens.layout.breakpoints;
 export const rail = tokens.layout.rail;
 export const topBarHeight = 38;
 
+/** Semantic state colour for a Mantine `color` prop; amber is never a state colour. */
+export function stateColor(color: string | undefined): string | null {
+  switch (color) {
+    case "red": return "var(--sb-invalid)";
+    case "yellow": case "orange": return "var(--sb-review)";
+    case "blue": case "cyan": return "var(--sb-info)";
+    case "green": case "teal": return "var(--sb-ok)";
+    default: return null;
+  }
+}
+
+/**
+ * Mantine sets --button-*, --badge-* and --alert-* inline from this resolver, so
+ * the Schematic Bench look is resolved here instead of overridden in CSS.
+ * Amber is reserved for primary, commit and selection.
+ */
+export const sbVariantColors: VariantColorsResolver = (input) => {
+  const state = stateColor(input.color);
+  switch (input.variant) {
+    case "primary":
+      return { background: "transparent", hover: "var(--sb-accent)", color: "var(--sb-accent)", hoverColor: "var(--sb-accent-ink)", border: "1px solid var(--sb-accent)" };
+    case "commit":
+      return { background: "var(--sb-accent)", hover: "transparent", color: "var(--sb-accent-ink)", hoverColor: "var(--sb-accent)", border: "1px solid var(--sb-accent)" };
+    case "risk":
+      return { background: "transparent", hover: "var(--sb-invalid)", color: "var(--sb-invalid)", hoverColor: "var(--sb-surface-canvas)", border: "1px solid var(--sb-invalid)" };
+    case "subtle": case "transparent": case "white":
+      return { background: "transparent", hover: "var(--sb-surface-raised)", color: state ?? "var(--sb-text-secondary)", hoverColor: state ?? "var(--sb-text-primary)", border: "1px solid transparent" };
+    case "quiet": case "default": case "light": case "outline": case "filled": {
+      const line = state ?? "var(--sb-border-control)";
+      return { background: "transparent", hover: state ?? "var(--sb-text-primary)", color: state ?? "var(--sb-text-primary)", hoverColor: "var(--sb-surface-canvas)", border: `1px solid ${line}` };
+    }
+    default:
+      return defaultVariantColorsResolver(input);
+  }
+};
+
 export const schematicBench = createTheme({
+  variantColorResolver: sbVariantColors,
   primaryColor: "kapton",
   primaryShade: { light: 7, dark: 4 },
   colors: { kapton, dark: ink, red: danger },
@@ -88,6 +125,17 @@ export const schematicBench = createTheme({
   components: {
     Button: Button.extend({ defaultProps: { variant: "primary", size: "compact-sm" } }),
     Badge: Badge.extend({ defaultProps: { variant: "frozen", radius: 0 } }),
+    // Alerts are hairline panes with a state-coloured rule and title; the words carry the state.
+    Alert: Alert.extend({
+      vars: (_theme, props) => ({
+        root: {
+          "--alert-bg": "transparent",
+          "--alert-color": "var(--sb-text-primary)",
+          "--alert-bd": `1px solid ${stateColor(props.color) ?? "var(--sb-border-control)"}`,
+          "--sb-state": stateColor(props.color) ?? "var(--sb-text-primary)",
+        },
+      }),
+    }),
     Tabs: Tabs.extend({ defaultProps: { variant: "silk" } }),
   },
 });
@@ -115,6 +163,7 @@ function roleVariables(role: typeof tokens.semantic.dark, scheme: "dark" | "ligh
     "--sb-info": status.informational,
     "--sb-review": status.review_required,
     "--sb-invalid": status.invalid,
+    "--sb-ok": role.text.primary,
     "--sb-hatch": scheme === "dark" ? "rgba(237,237,237,.10)" : "rgba(12,12,13,.10)",
     "--sb-overlay": overlay,
     // Native Mantine roles follow the same semantics.
