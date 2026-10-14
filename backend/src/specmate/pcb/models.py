@@ -40,6 +40,41 @@ class PcbInterpretation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class PcbUpgradeAttempt(models.Model):
+    """Explicit request to run the recorded native format upgrade on an intake's board."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    intake = models.ForeignKey(PcbIntake, on_delete=models.PROTECT, related_name="upgrades")
+    build = models.OneToOneField("builds.BuildAttempt", on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class PcbFormatUpgrade(models.Model):
+    """Immutable provenance of a derivative revision written by the native upgrade stage.
+
+    The original revision is never modified: the derivative bundle names it as ancestry
+    and carries the upgraded bytes. The canonical report retains each file's exact
+    source/output hashes, from/to format versions and the kicad-cli argv that ran.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    attempt = models.OneToOneField(PcbUpgradeAttempt, on_delete=models.PROTECT)
+    revision = models.OneToOneField(
+        "sources.SourceBundleRevision", on_delete=models.PROTECT, related_name="pcb_format_upgrade"
+    )
+    intake = models.OneToOneField(PcbIntake, on_delete=models.PROTECT, related_name="+")
+    report_output = models.OneToOneField("builds.StageOutput", on_delete=models.PROTECT)
+    canonical = models.BinaryField()
+    sha256 = models.CharField(max_length=64)
+    from_kicad_major = models.PositiveSmallIntegerField()
+    from_format_version = models.PositiveIntegerField()
+    to_format_version = models.PositiveIntegerField()
+    tool_version = models.CharField(max_length=40)
+    image = models.CharField(max_length=300)
+    accepted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class PropertyAuthority(models.Model):
     """One designated native owner for a governed property of a board source lineage.
 

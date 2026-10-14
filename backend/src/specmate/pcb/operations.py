@@ -55,6 +55,8 @@ def intake_for(ctx, intake_id, perm=Perm.WORKSPACE_READ):
 
 
 def intake_result(intake):
+    from specmate.pcb.upgrade import UPGRADABLE_MAJORS, provenance, upgrade_section
+
     interpretation = (
         PcbInterpretation.objects.filter(attempt__intake=intake).order_by("-created_at").first()
     )
@@ -101,9 +103,16 @@ def intake_result(intake):
         "support": {
             "tool_version": "10.0.6",
             "native_format_version": 20260206,
+            "upgradable_kicad_majors": UPGRADABLE_MAJORS,
             "platform": "linux/amd64",
             "version_verified": report is not None,
         },
+        "format_upgrade": (
+            provenance(intake.source_revision.pcb_format_upgrade)
+            if hasattr(intake.source_revision, "pcb_format_upgrade")
+            else None
+        ),
+        "upgrade": upgrade_section(intake),
         "native_execution": "explicit-request-and-installed-approved-recipe-required",
         "physical_qualification": False,
     }
@@ -286,14 +295,18 @@ def get_intake(ctx: Context, p: IntakeRef):
 
 def failure_diagnostic(attempt):
     """Only a bounded failed diagnostic, never failed geometry as accepted facts."""
-    if attempt.build.stage.state != "failed":
+    return failure_diagnostic_for(
+        attempt.build.stage, attempt.intake.source_revision_id, REPORT_PATH
+    )
+
+
+def failure_diagnostic_for(stage, source_revision_id, path):
+    if stage.state != "failed":
         return None
-    output = attempt.build.stage.outputs.filter(
-        path=REPORT_PATH, media_type="application/json"
-    ).first()
+    output = stage.outputs.filter(path=path, media_type="application/json").first()
     if output is None or output.size > MAX_REPORT_BYTES:
-        return "Native extraction failed without a diagnostic report."
-    if output.source_revision_id != attempt.intake.source_revision_id:
+        return "Native stage failed without a diagnostic report."
+    if output.source_revision_id != source_revision_id:
         return "Native diagnostic provenance is invalid."
     try:
         with blobstore.open_blob(output.sha256) as stream:
@@ -304,9 +317,9 @@ def failure_diagnostic(attempt):
     except (OSError, ValueError):
         return "Native diagnostic is unavailable."
     if not isinstance(diagnostic, dict) or diagnostic.get("status") != "failed":
-        return "Native extraction failed; partial output is not an accepted interpretation."
+        return "Native stage failed; partial output is not accepted evidence."
     message = diagnostic.get("error")
-    return message[:2000] if isinstance(message, str) else "Native extraction failed."
+    return message[:2000] if isinstance(message, str) else "Native stage failed."
 
 
 def authorize_pcb_replay(ctx: Context, payload: Payload, stored_result: dict):

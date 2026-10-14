@@ -42,6 +42,26 @@ against the unchanged independent geometry/net/resistor oracle, independent plac
 and malformed-source failure. It leaves no persistent service or enabled recipe.
 The fixture/checker below retains its original authoring/DRC/SVG behavior.
 
+## Recorded format upgrade pack
+
+`kicad-format-upgrade-v1` (`specmate.pcb.upgrade_script`) converts a released KiCad
+5-9 board, and every `.kicad_sch` schematic in the same bundle, to the KiCad 10 formats with the
+pinned `kicad-cli pcb upgrade` / `sch upgrade`. It works on copies in the container's
+private `/tmp` (bounded at 64 MiB by the runner), never on the read-only inputs, and
+writes `upgraded/<path>` files plus `kicad-upgrade.json`. Unrecognized, too-old or
+too-new formats fail with a specific diagnostic. See [PCB scope](../../docs/modules/PCB.md#recorded-kicad-format-upgrade).
+
+Print a proposed registry entry, listing every `.kicad_sch` in the bundle:
+
+```bash
+cd backend
+uv run python ../toolpacks/kicad/upgrade_recipe.py hw/board.kicad_pcb \
+  --schematic hw/board.kicad_sch --rights AGPL-3.0-only
+```
+
+The derivative keeps the board path, so the existing `kicad-intake-v1` recipe for that
+path and rights extracts it. Approving the upgrade recipe changes no other authority.
+
 ## Synthetic fixture checkpoint
 
 `manifest.json` pins KiCad 10.0.6 by its `linux/amd64` image digest, with the
@@ -124,7 +144,7 @@ licensing and publication review.
 
 `kicad-net-assertions-v1` is a separate, bounded source extraction program in
 `specmate.pcb_disagreement.native_script`. It exports a standalone schematic format
-20250114 with the pinned KiCad 10.0.6 CLI, or parses preserved KiCad XML version E.
+20250114 or 20260306 (KiCad 10, including upgraded derivatives) with the pinned KiCad 10.0.6 CLI, or parses preserved KiCad XML version E.
 The parser rejects DTDs/entities, namespaces, unsupported versions, oversized/deep XML,
 missing identity fields and conflicting repeated assignments. Unknown metadata remains
 in retained XML and is listed as unsupported. Missing net membership remains unknown.

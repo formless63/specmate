@@ -27,7 +27,7 @@ class NativeReport(StrictModel):
     method: Literal["native_schematic_export", "preserved_netlist_parser"]
     source_sha256: Digest
     xml_sha256: Digest
-    native_format_version: Literal["20250114", "E"]
+    native_format_version: Literal["20250114", "20260306", "E"]
     xml_version: Literal["E"]
     reported_source_tool: Text | None
     coverage: Literal["root_unit_pin_inventory"]
@@ -37,11 +37,16 @@ class NativeReport(StrictModel):
 
     @model_validator(mode="after")
     def source_method(self):
+        # Standalone schematic 20250114, or 20260306 as written by KiCad 10 itself
+        # (including a recorded format upgrade derivative).
         expected = {
-            "schematic": ("native_schematic_export", "20250114"),
-            "netlist": ("preserved_netlist_parser", "E"),
+            "schematic": {
+                ("native_schematic_export", "20250114"),
+                ("native_schematic_export", "20260306"),
+            },
+            "netlist": {("preserved_netlist_parser", "E")},
         }
-        if (self.method, self.native_format_version) != expected[self.source_role]:
+        if (self.method, self.native_format_version) not in expected[self.source_role]:
             raise ValueError("Extraction method and native format must match the source role")
         if len({t.local_id for t in self.terminals}) != len(self.terminals):
             raise ValueError("Extracted terminal occurrence IDs must be unique")

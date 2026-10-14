@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "UpgradedFile": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "title": "Argv",
+          "type": "array"
+        },
+        "from_format_version": {
+          "title": "From Format Version",
+          "type": "integer"
+        },
+        "from_kicad_major": {
+          "enum": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "title": "From Kicad Major",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "board",
+            "schematic"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "output_path": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Output Path",
+          "type": "string"
+        },
+        "output_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Output Sha256",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "to_format_version": {
+          "title": "To Format Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "kind",
+        "output_path",
+        "source_sha256",
+        "output_sha256",
+        "from_format_version",
+        "from_kicad_major",
+        "to_format_version",
+        "argv"
+      ],
+      "title": "UpgradedFile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "const": "kicad-format-upgrade-v1",
+      "title": "Adapter",
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/UpgradedFile"
+      },
+      "maxItems": 91,
+      "minItems": 1,
+      "title": "Files",
+      "type": "array"
+    },
+    "format_version": {
+      "const": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "physical_qualification": {
+      "const": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "tool_version": {
+      "const": "10.0.6",
+      "title": "Tool Version",
+      "type": "string"
+    },
+    "unsupported": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Unsupported",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format_version",
+    "adapter",
+    "tool_version",
+    "files",
+    "unsupported",
+    "physical_qualification"
+  ],
+  "title": "UpgradeReport",
+  "type": "object"
+}
