@@ -218,6 +218,7 @@ def request(ctx, p):
                 workspace_id=revision.definition.workspace_id,
                 source_revision_id=source.id,
                 recipe_id=p.recipe_id,
+                resolved_configuration_id=p.resolved_configuration_id,
             ),
         )
     finally:
@@ -358,7 +359,7 @@ def read(ctx, p):
     access=Perm.WORKSPACE_READ,
 )
 def options(ctx, p):
-    _, _, spec = inputs(ctx.user, p)
+    revision, _, spec = inputs(ctx.user, p)
     reason, available = None, None
     try:
         executable_inputs(ctx.user, p)
@@ -396,6 +397,7 @@ def options(ctx, p):
         "available_recipe_id": available,
         "unavailable_reason": reason,
         "inputs": spec,
+        "workspace_id": str(revision.definition.workspace_id),
         "builds": builds[:100],
         "truncated": len(builds) > 100,
         "hardware_compatibility": "not_evaluated",

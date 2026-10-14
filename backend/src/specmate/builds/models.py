@@ -23,10 +23,27 @@ class BuildAttempt(models.Model):
     retry_of = models.ForeignKey(
         "self", null=True, on_delete=models.PROTECT, related_name="retries"
     )
+    # Optional exact resolved configuration (CFG-001) the build consumes; the complete
+    # build input is retained verbatim as part of the staged inputs and reproducibility
+    # record, so later configuration reads can never change what this attempt used.
+    resolved_configuration = models.ForeignKey(
+        "configurations.ResolvedConfiguration",
+        null=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    configuration_input = models.JSONField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    resolved_configuration__isnull=True, configuration_input__isnull=True
+                )
+                | models.Q(resolved_configuration__isnull=False, configuration_input__isnull=False),
+                name="build_attempt_configuration_pinned",
+            ),
             models.CheckConstraint(
                 condition=~models.Q(retry_of=models.F("id")), name="build_attempt_not_own_retry"
             ),

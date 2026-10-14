@@ -7,13 +7,13 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { command } from '../sources/api';
 import { FirmwareBuildPanel } from './FirmwareBuildPanel';
 import { cancelBuild, readHistory, retryBuild, type BuildHistory } from '../builds/api';
-import { compileOptions, compileReview, type CompileOptions, type CompileReview } from './api';
+import { compileOptions, compileReview, listResolvedConfigurations, type CompileOptions, type CompileReview } from './api';
 
-vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), compileOptions: vi.fn(), compileReview: vi.fn() }));
+vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), compileOptions: vi.fn(), compileReview: vi.fn(), listResolvedConfigurations: vi.fn() }));
 vi.mock('../builds/api', () => ({ cancelBuild: vi.fn(), readHistory: vi.fn(), retryBuild: vi.fn() }));
 vi.mock('../sources/api', async original => ({ ...(await original<typeof import('../sources/api')>()), command: vi.fn() }));
 const options: CompileOptions = {
-  available_recipe_id: 'approved-compiler', unavailable_reason: null, builds: [{ build_id: 'build-one', state: 'succeeded', failure: null, retry_of: 'build-zero', requested_by_viewer: false, state_token: 'tok-0', cancel_available: false, retry_available: false }], truncated: false,
+  workspace_id: 'workspace-one', available_recipe_id: 'approved-compiler', unavailable_reason: null, builds: [{ build_id: 'build-one', state: 'succeeded', failure: null, retry_of: 'build-zero', requested_by_viewer: false, state_token: 'tok-0', cancel_available: false, retry_available: false }], truncated: false,
   inputs: { schema_version: '1', adapter: 'firmware-avr-gcc-v1', firmware_revision_id: 'firmware-one', firmware_snapshot_sha256: 'firmware-snapshot', occurrence: null,
     sources: [{ local_id: 'app', source_revision_id: 'source-one', source_manifest_sha256: 'source-manifest', files: [{ path: 'synthetic-main.c', sha256: 'source-hash', rights: 'MIT', role: 'application' }] }],
     configuration: [{ key: 'COUNT', status: 'known', value: '7' }], toolchain: { family: 'other', name: 'avr-gcc', version: '5.4.0', framework: 'baremetal', board_id: 'atmega328p' },
@@ -25,7 +25,8 @@ const evidence: CompileReview = {
   report: { compiler_version: '5.4.0', tool_packages: { 'gcc-avr': 'exact-package' }, flashing: 'not_performed', device_operation: 'not_observed', hardware_compatibility: 'not_evaluated', physical_qualification: false },
   outputs: [{ output_id: 'output-one', path: 'handoff.json', sha256: 'handoff-hash', rights: 'MIT', size: 100, media_type: 'application/json' }],
 };
-beforeEach(() => { vi.mocked(compileOptions).mockResolvedValue(options); vi.mocked(compileReview).mockResolvedValue(evidence); vi.mocked(command).mockResolvedValue({ build_id: 'new-one' }); });
+beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); vi.mocked(compileOptions).mockResolvedValue(options); vi.mocked(compileReview).mockResolvedValue(evidence); vi.mocked(command).mockResolvedValue({ build_id: 'new-one' });
+  vi.mocked(listResolvedConfigurations).mockResolvedValue({ truncated: false, resolved: [] }); });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 const panel = (canExecute = false, firmware = 'firmware-one') => <MantineProvider env="test"><PermissionsProvider permissions={grants({ execute: canExecute })}><FirmwareBuildPanel firmware_revision_id={firmware} /></PermissionsProvider></MantineProvider>;
 
@@ -156,4 +157,19 @@ test('only actions valid for the current state are offered', async () => {
   expect(readHistory).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: /cancellation of build-bad/ })).toBeNull();
   expect(screen.queryByRole('button', { name: /Retry build-bad/ })).toBeNull();
+});
+
+test('a complete resolved configuration can be pinned and incomplete ones cannot', async () => {
+  const row = (id: string, status: 'complete' | 'incomplete') => ({ resolved_configuration_id: id, status, snapshot_id: `snap-${id}`, resolution_sha256: 'h', draft_version: 1, basis: `Reviewed ${id}`, created_at: 't' });
+  vi.mocked(listResolvedConfigurations).mockResolvedValue({ truncated: false, resolved: [row('config-complete', 'complete'), row('config-partial', 'incomplete')] });
+  render(panel(true));
+  const picker = (await screen.findAllByLabelText('Resolved configuration (optional)'))[0]!;
+  fireEvent.click(picker);
+  expect(listResolvedConfigurations).toHaveBeenCalledWith('workspace-one');
+  expect(screen.getByRole('option', { name: /config-p.*incomplete, cannot be built/ }).getAttribute('data-combobox-disabled')).toBe('true');
+  fireEvent.click(screen.getByRole('option', { name: /config-c.*complete/ }));
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Reviewed synthetic source' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
+  await waitFor(() => expect(command).toHaveBeenCalledWith('firmware_build.request', expect.objectContaining({ resolved_configuration_id: 'config-complete' }), expect.anything()));
 });

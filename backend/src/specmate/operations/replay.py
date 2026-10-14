@@ -56,6 +56,7 @@ def authorize_builtin_replay(name, ctx, payload, stored):
             id=stored["build_id"],
             workspace=workspace,
             source_revision_id=payload.source_revision_id,
+            resolved_configuration_id=payload.resolved_configuration_id,
             requested_by=ctx.user,
         ).first()
         if build is None:

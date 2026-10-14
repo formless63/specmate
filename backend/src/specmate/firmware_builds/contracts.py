@@ -22,6 +22,7 @@ class RequestCompile(FirmwareRef):
     recipe_id: str = Field(min_length=1, max_length=128)
     source_execution_authorized: Literal[True]
     basis: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+    resolved_configuration_id: UUID | None = None
 
 
 class CompileRef(FirmwareRef):
