@@ -61,12 +61,13 @@ rewriting history or appending another entry.
 
 - `knowledge.create`, `knowledge.revise`, `knowledge.link`, `knowledge.unlink`
 - `knowledge.read`, `knowledge.for_target`, `knowledge.list`
+- `knowledge.search`, `knowledge.preview` (fresh reads without idempotency receipts)
+- `GET /api/v0/knowledge/search`, `GET /api/v0/knowledge/preview`
 - `GET /api/v0/knowledge/projects/{project_id}/items`, `GET /api/v0/knowledge/items/{item_id}`
 
 ## Limits
 
-Previews are not rendered; attachments download as inert bytes. Rich-text collaboration,
-search, notifications and review workflows are KNW-002/KNW-003 scope. The panel chooses
+Collaboration, notifications and review workflows are separate KNW-002 scope. The panel chooses
 targets with a picker; discipline views can embed `KnowledgePanel` with a fixed `target`
 for their current selection. The development workspace mounts it lazily in the
 Notes & files tab with the current principal and project permissions.
@@ -88,3 +89,54 @@ knowledge target and link results retain no cached target labels. A readable ite
 owned by another project can be inspected from a linked target, but content and
 link editing are offered only in that item's owning project workspace. Server
 permissions remain authoritative for each mutation and download.
+
+## Permitted search and safe previews (KNW-003)
+
+Search matches literal case-insensitive substrings in titles, note/decision bodies and
+attachment labels, paths, source bundle names, media types, rights and hashes. Registered
+file contents are not indexed. Current entries are the default; historical entries are
+an explicit option. Optional project, kind and exact target filters share the existing
+target resolver. Results identify the exact item and entry, current/historical state,
+visible links and registered source provenance. Plain snippets are bounded to 320
+characters plus ellipses, with at most five matching fields. Pages contain at most 50
+permitted entries and no totals. Cursors name only disclosed entries and are rechecked
+under current authority. Hidden entries supply no snippets, counts or cursor identity.
+Historical attachment closure is checked before deriving any result and again before
+returning the page. Access lost during rendering fails that request closed; the next
+search uses normal filtering. Foreign links are
+filtered independently without hiding an otherwise readable owned note.
+
+Preview resolves the exact item, entry, source revision and path under a fresh actor
+and full historical source authority. It reads at most 2 MiB and independently checks
+registered size and SHA-256 before interpreting bytes. Larger originals are explicitly
+`download_only` with integrity `not_read_for_preview`; supported-size originals report
+the verified original hash even when their format remains download-only. Preview never
+changes the original, its single blob registration, ownership, rights or entry history.
+
+- UTF-8 text, Markdown, CSV, JSON and log files use a narrow media-type/extension allowlist,
+  at most 128 KiB, with control-character rejection. They render as escaped plain text;
+  Markdown, HTML-like text and JSON are never interpreted or executed.
+- PNG preview accepts noninterlaced 8-bit grayscale/RGB with optional alpha channels,
+  at most 2048 pixels per axis and 1,048,576 pixels. Every chunk CRC and the complete
+  bounded decompressed scanline stream must validate. Palette, animation, keyed
+  transparency, unknown critical chunks and unsupported variants remain download-only.
+  The versioned preview derivative strips ancillary metadata and retains the pixel
+  stream in a fresh minimal PNG; it may therefore differ in color presentation. It
+  reports separate original and preview hashes, dimensions and transformation version.
+- Classic ZIP preview reuses source archive path and format safeguards, limits listing
+  to 100 members and 8 MiB total uncompressed bytes, and streams each member to verify
+  its size/CRC. Only inert paths and sizes are displayed; nothing is extracted, executed
+  or registered as another original.
+
+HTML, SVG, PDF, code, native files, unsupported images and oversized inputs are visibly
+download-only. These previews establish neither document trust nor engineering or
+physical qualification. The browser independently checks returned text/PNG byte sizes
+and preview hashes and verifies their exact selected attachment identity before display.
+The original download remains protected by the existing current source closure.
+
+`KnowledgeSearchPanel` takes `projectId`, `principalKey` and `active`; retained hosts
+must pass their actual active-tab state. Project/principal changes clear the workspace.
+Inactive, window-blurred and hidden states abort requests and hide protected results;
+return/focus performs fresh authorization. Pending or denied reads hide old metadata and
+previews while preserving the typed query. PNG object URLs are revoked when hidden,
+replaced or unmounted. The panel requires only read permissions.

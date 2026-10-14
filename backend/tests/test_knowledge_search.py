@@ -1,0 +1,471 @@
+"""Independent permitted-search/preview oracles with registered original source bytes."""
+
+import base64
+import binascii
+import hashlib
+import io
+import json
+import struct
+import zipfile
+import zlib
+from pathlib import Path
+
+import pytest
+from django.contrib.auth import get_user_model
+
+from specmate.access.models import Membership
+from specmate.knowledge.previews import preview_attachment
+from specmate.knowledge.search import search_knowledge
+from specmate.knowledge.search_contracts import PreviewAttachment, SearchKnowledge
+from specmate.operations import NotFound, Unauthenticated, ValidationFailed
+from specmate.sources import blobstore
+from specmate.sources.models import SourceBlob
+
+from .conftest import op
+from .test_knowledge import attachment_ref, create, preserve
+from .test_shared_read_authority import adopted_assembly  # noqa: F401
+from .test_transports import api, post_op
+
+
+def search(user, text, **extra):
+    return op(user, "knowledge.search", {"query": text, **extra})
+
+
+def attachment(users, project, raw, path="note.txt", media="text/plain"):
+    source = preserve(users["owner"], project, "Original attachment", raw, path, media)
+    item = create(
+        users["owner"],
+        project,
+        title="Inspection note",
+        attachments=[attachment_ref(source, path, "Original evidence")],
+    )
+    payload = {
+        "item_id": item["item_id"],
+        "entry_id": item["current"]["entry_id"],
+        "bundle_revision_id": source["revision_id"],
+        "path": path,
+    }
+    return item, payload
+
+
+def png_chunk(kind, body):
+    return (
+        struct.pack(">I", len(body)) + kind + body + struct.pack(">I", binascii.crc32(kind + body))
+    )
+
+
+def png(width=2, height=1, pixels=b"\x00\xff\x00\x00\x00\xff\x00", extra=b""):
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + extra
+        + png_chunk(b"IDAT", zlib.compress(pixels))
+        + png_chunk(b"IEND", b"")
+    )
+
+
+def test_text_metadata_history_pagination_and_shared_transports(users, project):
+    one = create(
+        users["owner"],
+        project,
+        kind="note",
+        title="First calibration",
+        body="Independent needle readings.",
+    )
+    create(
+        users["owner"],
+        project,
+        kind="decision",
+        title="Second calibration",
+        body="needle rationale",
+        decision_status="proposed",
+    )
+    changed = op(
+        users["owner"],
+        "knowledge.revise",
+        {
+            "item_id": one["item_id"],
+            "content": {"title": "Updated calibration", "body": "Replacement body"},
+        },
+        expected_state=one["state"],
+    )
+    assert search(users["viewer"], "Independent")["results"] == []
+    historic = search(users["viewer"], "Independent", include_history=True)["results"][0]
+    assert historic["entry_id"] == one["current"]["entry_id"] and historic["current"] is False
+    assert historic["matches"] == [{"field": "body", "text": "Independent needle readings."}]
+    first = search(users["viewer"], "calibration", limit=1)
+    second = search(users["viewer"], "calibration", limit=1, after=first["next_after"])
+    assert len(first["results"]) == len(second["results"]) == 1 and second["next_after"] is None
+    assert {r["item_id"] for r in first["results"] + second["results"]} >= {one["item_id"]}
+    assert all("total" not in page for page in (first, second))
+    assert changed["history"][0] == one["current"]
+    response = api(users["viewer"]).get(
+        "/api/v0/knowledge/search", {"query": "calibration", "limit": 1}
+    )
+    assert response.json() == first and "no-store" in response["Cache-Control"]
+    assert (
+        post_op(
+            api(users["viewer"]), "knowledge.search", {"query": "calibration", "limit": 1}
+        ).json()["result"]
+        == first
+    )
+    assert search(users["outsider"], "calibration")["results"] == []
+    with pytest.raises(NotFound):
+        search(users["outsider"], "calibration", project_id=project)
+
+
+def test_private_attachment_ancestry_never_supplies_snippet_cursor_or_preview(users, project):
+    remote = op(users["owner"], "project.create", {"name": "Private source ancestry"})["project_id"]
+    for key in ("editor", "viewer"):
+        Membership.objects.create(project_id=remote, user=users[key], role="editor")
+    baseline = preserve(
+        users["owner"],
+        remote,
+        "Original permitted source",
+        b"SECRET NEEDLE\n",
+        "note.txt",
+        "text/plain",
+    )
+    derived = op(
+        users["editor"],
+        "source.derive_bundle",
+        {"source_revision_id": baseline["revision_id"], "name": "Exact working source"},
+    )
+    hidden = create(
+        users["editor"],
+        remote,
+        kind="note",
+        title="SECRET NEEDLE",
+        attachments=[attachment_ref(derived, "note.txt", "NEEDLE attachment")],
+    )
+    clean = create(
+        users["editor"], project, kind="note", title="Public needle", body="Visible body"
+    )
+    before = search(users["viewer"], "needle", limit=1)
+    assert before["next_after"] is not None
+    payload = {
+        "item_id": hidden["item_id"],
+        "entry_id": hidden["current"]["entry_id"],
+        "bundle_revision_id": derived["revision_id"],
+        "path": "note.txt",
+    }
+    prior = op(users["viewer"], "knowledge.preview", payload)
+    assert prior["text"] == "SECRET NEEDLE\n"
+    # An old attachment remains protected even after the current entry drops it.
+    op(
+        users["editor"],
+        "knowledge.revise",
+        {
+            "item_id": hidden["item_id"],
+            "content": {"title": "SECRET NEEDLE current", "body": "Changed without attachment"},
+        },
+        expected_state=hidden["state"],
+    )
+    Membership.objects.filter(project_id=remote, user=users["viewer"]).delete()
+    page = search(users["viewer"], "needle", include_history=True, limit=1)
+    assert [r["item_id"] for r in page["results"]] == [clean["item_id"]]
+    assert page["next_after"] is None and "SECRET" not in json.dumps(page)
+    assert search(users["viewer"], "SECRET", include_history=True)["results"] == []
+    with pytest.raises(NotFound):
+        search(users["viewer"], "needle", after=hidden["current"]["entry_id"], include_history=True)
+    for data in (payload, {**payload, "path": "wrong.txt"}):
+        with pytest.raises(NotFound):
+            op(users["viewer"], "knowledge.preview", data)
+    Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
+    assert op(users["viewer"], "knowledge.preview", payload) == prior
+    assert len(search(users["viewer"], "needle", include_history=True)["results"]) == 3
+
+
+def test_catalog_origin_filters_links_without_hiding_local_note(users, project, adopted_assembly):  # noqa: F811
+    remote, adopted, frozen = adopted_assembly
+    target = {"kind": "revision", "revision_id": frozen["revision_id"]}
+    note = create(
+        users["owner"],
+        project,
+        kind="note",
+        title="Permitted own title",
+        body="Owned knowledge text",
+        links=[target],
+    )
+    before = search(users["viewer"], "Owned", target=target)
+    assert before["results"][0]["links"][0]["target"] == {**target, "feature_id": None}
+    Membership.objects.filter(project_id=remote, user=users["viewer"]).delete()
+    own = search(users["viewer"], "Owned")
+    assert own["results"][0]["title"] == note["current"]["title"]
+    assert own["results"][0]["links"] == []
+    assert frozen["revision_id"] not in json.dumps(own) and str(
+        adopted.definition_id
+    ) not in json.dumps(own)
+    with pytest.raises(NotFound):
+        search(users["viewer"], "Owned", target=target)
+    Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
+    assert search(users["viewer"], "Owned", target=target) == before
+
+
+def test_captured_inactive_actor_and_wrong_item_precede_preview_diagnostics(users, project):
+    _, payload = attachment(users, project, b"readable original")
+    actor = users["viewer"]
+    get_user_model().objects.filter(pk=actor.pk).update(is_active=False)
+    for read in (
+        lambda: search_knowledge(actor, SearchKnowledge(query="Inspection")),
+        lambda: preview_attachment(actor, PreviewAttachment(**payload)),
+    ):
+        with pytest.raises(Unauthenticated):
+            read()
+    get_user_model().objects.filter(pk=actor.pk).update(is_active=True)
+    assert op(actor, "knowledge.preview", payload)["text"] == "readable original"
+    other = create(users["owner"], project, kind="note", body="Not the attachment owner")
+    with pytest.raises(NotFound):
+        op(actor, "knowledge.preview", {**payload, "item_id": other["item_id"]})
+
+
+def test_inert_text_independent_hash_rights_and_readonly_preview(users, project):
+    raw = b"<script>window.bad=true</script>\nOriginal UTF-8 text.\n"
+    item, payload = attachment(users, project, raw)
+    before = SourceBlob.objects.count()
+    result = op(users["viewer"], "knowledge.preview", payload)
+    assert (
+        result["text"] == raw.decode()
+        and result["preview_sha256"] == hashlib.sha256(raw).hexdigest()
+    )
+    assert result["attachment"]["blob_project_id"] == project
+    assert result["attachment"]["rights"] == "synthetic-original"
+    assert result["qualification"] == "not_evaluated" and SourceBlob.objects.count() == before
+    metadata = search(users["viewer"], "note.txt")["results"][0]
+    assert (
+        metadata["item_id"] == item["item_id"]
+        and metadata["matches"][0]["field"] == "attachment.0.path"
+    )
+    client = api(users["viewer"])
+    response = client.get("/api/v0/knowledge/preview", payload)
+    assert response.json() == result and "no-store" in response["Cache-Control"]
+    assert post_op(client, "knowledge.preview", payload).json()["result"] == result
+    with blobstore.open_blob(result["attachment"]["sha256"]) as stream:
+        assert stream.read() == raw
+
+
+def test_png_normalization_preserves_independent_pixels_and_removes_metadata(users, project):
+    raw = png(extra=png_chunk(b"tEXt", b"Comment\x00<script>unsafe text</script>"))
+    _, payload = attachment(users, project, raw, "pixels.png", "image/png")
+    result = op(users["viewer"], "knowledge.preview", payload)
+    normalized = base64.b64decode(result["bytes_base64"])
+    assert normalized != raw and b"unsafe" not in normalized and b"tEXt" not in normalized
+    assert result["width"] == 2 and result["height"] == 1
+    assert hashlib.sha256(normalized).hexdigest() == result["preview_sha256"]
+    # Independent fixed chunk offsets: 33-byte signature/header followed by one IDAT.
+    size = struct.unpack(">I", normalized[33:37])[0]
+    assert normalized[37:41] == b"IDAT"
+    assert zlib.decompress(normalized[41 : 41 + size]) == b"\x00\xff\x00\x00\x00\xff\x00"
+    assert result["attachment"]["sha256"] == hashlib.sha256(raw).hexdigest()
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        png() + b"trailer",
+        png(width=5000),
+        png(pixels=b"x" * 100000),
+        png()[:-1] + b"x",
+        png(extra=png_chunk(b"acTL", b"animation")),
+        png(extra=png_chunk(b"tRNS", struct.pack(">HHH", 255, 0, 0))),
+        png(extra=png_chunk(b"texT", b"reserved bit")),
+    ],
+    ids=["trailing", "dimensions", "inflate", "crc", "animation", "transparency", "reserved-bit"],
+)
+def test_hostile_or_unsupported_png_is_download_only(users, project, raw):
+    _, payload = attachment(users, project, raw, "image.png", "image/png")
+    result = op(users["viewer"], "knowledge.preview", payload)
+    assert result["kind"] == "download_only" and "bytes_base64" not in result
+
+
+@pytest.mark.parametrize(
+    "path,media,raw",
+    [
+        ("active.svg", "image/svg+xml", b'<svg onload="alert(1)"/>'),
+        ("active.html", "text/html", b"<script>active()</script>"),
+        ("script.py", "text/plain", b"print('never execute')"),
+        ("manual.pdf", "application/pdf", b"%PDF-1.7"),
+        ("big.txt", "text/plain", b"A" * (128 * 1024 + 1)),
+    ],
+    ids=["svg", "html", "code", "pdf", "large-text"],
+)
+def test_unsupported_or_large_originals_are_explicit_download_only(
+    users, project, path, media, raw
+):
+    _, payload = attachment(users, project, raw, path, media)
+    result = op(users["viewer"], "knowledge.preview", payload)
+    assert (
+        result["kind"] == "download_only" and "text" not in result and "bytes_base64" not in result
+    )
+
+
+def test_zip_preview_reuses_bounded_parser_and_checks_member_crc(users, project):
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_STORED) as archive:
+        archive.writestr("readme.txt", b"Original README")
+        archive.writestr("never.py", b"raise RuntimeError('do not run')")
+    raw = out.getvalue()
+    _, payload = attachment(users, project, raw, "files.zip", "application/zip")
+    result = op(users["viewer"], "knowledge.preview", payload)
+    assert result["kind"] == "zip"
+    assert [(m["path"], m["size"]) for m in result["members"]] == [
+        ("readme.txt", 15),
+        ("never.py", 32),
+    ]
+    corrupt = raw.replace(b"Original README", b"Modified README")
+    _, bad = attachment(users, project, corrupt, "corrupt.zip", "application/zip")
+    assert op(users["viewer"], "knowledge.preview", bad)["kind"] == "download_only"
+
+
+def test_changed_registered_bytes_never_become_a_preview(users, project):
+    raw = b"Original registered text"
+    _, payload = attachment(users, project, raw)
+    with blobstore.open_blob(hashlib.sha256(raw).hexdigest()) as stream:
+        path = stream.name
+    # Corrupt only the disposable test artifact, preserving database identity.
+    Path(path).chmod(0o600)
+    with open(path, "wb") as stream:
+        stream.write(b"Corrupted registered text")
+    with pytest.raises(ValidationFailed, match="registered integrity"):
+        op(users["viewer"], "knowledge.preview", payload)
+
+
+@pytest.mark.parametrize(
+    "paths",
+    [["../escape.txt"], [f"member-{n}.txt" for n in range(101)]],
+    ids=["traversal", "member-limit"],
+)
+def test_unsafe_archive_listing_keeps_original_download_only(users, project, paths):
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_STORED) as archive:
+        for path in paths:
+            archive.writestr(path, b"original")
+    raw = out.getvalue()
+    _, payload = attachment(users, project, raw, "unsafe.zip", "application/zip")
+    result = op(users["viewer"], "knowledge.preview", payload)
+    assert result["kind"] == "download_only" and "members" not in result
+    assert result["attachment"]["sha256"] == hashlib.sha256(raw).hexdigest()
+    with blobstore.open_blob(result["attachment"]["sha256"]) as stream:
+        assert stream.read() == raw
+
+
+def test_oversize_preview_does_not_claim_unread_integrity(users, project, monkeypatch):
+    _, payload = attachment(users, project, b"A" * (2 * 1024 * 1024 + 1))
+
+    def unexpected_read(*args):
+        raise AssertionError("Oversize source bytes must not be read for preview")
+
+    monkeypatch.setattr(blobstore, "open_blob", unexpected_read)
+    result = op(users["viewer"], "knowledge.preview", payload)
+    assert result["kind"] == "download_only"
+    assert result["integrity"] == "not_read_for_preview"
+    assert result["attachment"]["size"] == 2 * 1024 * 1024 + 1
+
+
+def committed_revoke(project_id, user):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections, connections
+
+    def revoke():
+        close_old_connections()
+        try:
+            return Membership.objects.filter(project_id=project_id, user_id=user.pk).delete()[0]
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        assert pool.submit(revoke).result(timeout=5) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "oversized", [False, True], ids=["during-byte-inspection", "oversize-metadata"]
+)
+def test_preview_rechecks_independently_committed_revocation_before_return(
+    users, project, monkeypatch, oversized
+):
+    from specmate.knowledge import previews
+
+    raw = b"A" * (2 * 1024 * 1024 + 1) if oversized else b"Protected original bytes"
+    _, payload = attachment(users, project, raw)
+    prior = op(users["viewer"], "knowledge.preview", payload)
+    hook = "attachment_result" if oversized else "_inspect"
+    original = getattr(previews, hook)
+
+    def revoke_after_read(*args):
+        result = original(*args)
+        committed_revoke(project, users["viewer"])
+        return result
+
+    monkeypatch.setattr(previews, hook, revoke_after_read)
+    with pytest.raises(NotFound):
+        op(users["viewer"], "knowledge.preview", payload)
+    monkeypatch.setattr(previews, hook, original)
+    Membership.objects.create(project_id=project, user=users["viewer"], role="viewer")
+    assert op(users["viewer"], "knowledge.preview", payload) == prior
+
+
+@pytest.mark.django_db(transaction=True)
+def test_search_rechecks_independently_committed_revocation_after_snippet_render(
+    users, project, monkeypatch
+):
+    from specmate.knowledge import search as module
+
+    create(users["owner"], project, kind="note", title="Protected needle", body="Original body")
+    prior = search(users["viewer"], "needle")
+    original = module.snippet
+
+    def revoke_after_render(*args):
+        result = original(*args)
+        committed_revoke(project, users["viewer"])
+        return result
+
+    monkeypatch.setattr(module, "snippet", revoke_after_render)
+    with pytest.raises(NotFound):
+        search(users["viewer"], "needle")
+    monkeypatch.setattr(module, "snippet", original)
+    Membership.objects.create(project_id=project, user=users["viewer"], role="viewer")
+    assert search(users["viewer"], "needle") == prior
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    "exact_target", [False, True], ids=["owned-note-link-filter", "exact-target-denial"]
+)
+def test_catalog_revocation_during_search_keeps_owned_note_policy(
+    users, project, adopted_assembly, monkeypatch, exact_target  # noqa: F811
+):
+    from specmate.knowledge import search as module
+
+    remote, _, frozen = adopted_assembly
+    target = {"kind": "revision", "revision_id": frozen["revision_id"]}
+    create(
+        users["owner"],
+        project,
+        kind="note",
+        title="Owned needle",
+        body="Original body",
+        links=[target],
+    )
+    scope = {"target": target} if exact_target else {}
+    prior = search(users["viewer"], "needle", **scope)
+    original = module.snippet
+
+    def revoke_origin(*args):
+        result = original(*args)
+        committed_revoke(remote, users["viewer"])
+        return result
+
+    monkeypatch.setattr(module, "snippet", revoke_origin)
+    if exact_target:
+        with pytest.raises(NotFound):
+            search(users["viewer"], "needle", **scope)
+    else:
+        result = search(users["viewer"], "needle")
+        assert result["results"][0]["title"] == "Owned needle"
+        assert result["results"][0]["links"] == []
+        assert frozen["revision_id"] not in json.dumps(result)
+    monkeypatch.setattr(module, "snippet", original)
+    Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
+    assert search(users["viewer"], "needle", **scope) == prior
