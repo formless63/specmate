@@ -1,12 +1,26 @@
 import { Alert, Badge, Button, Card, Group, MultiSelect, Stack, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { KIND_ORDER, evidenceQuery, read, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription } from "./api";
+import { KIND_ORDER, evidenceQuery, read, recordedPath, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription, type RecordedResult } from "./api";
 
 function KindBadge({ item }: { item: EvidenceItem }) {
   // Only an actual-unit measurement carries the unit badge; every other kind is a distinct label.
   const variant = item.kind === "physical_measurement" ? "unit" : item.kind === "requirement" ? "draft" : "frozen";
   return <Badge variant={variant}>{item.kind_label}</Badge>;
+}
+
+function RecordedSnapshot({ recordId }: { recordId: string }) {
+  const [open, setOpen] = useState(false);
+  const snapshot = useQuery({ queryKey: ["evidence", "recorded", recordId], queryFn: () => read<RecordedResult>(recordedPath(recordId)), enabled: open, retry: false });
+  return <>
+    <Button variant="quiet" size="xs" onClick={() => setOpen(!open)}>{open ? "Hide recorded inputs" : "Show recorded inputs"}</Button>
+    {open && snapshot.isError && <Text size="xs" c="red">{snapshot.error.message}</Text>}
+    {open && snapshot.data && <Stack gap={2}>
+      <Text size="xs">Result SHA-256 {snapshot.data.result_sha256} · {snapshot.data.algorithm_version}</Text>
+      {snapshot.data.note && <Text size="xs">Note: {snapshot.data.note}</Text>}
+      {snapshot.data.pins.map((pin) => <Text size="xs" key={`${pin.role}:${pin.revision_id}`}>{pin.role.replaceAll("_", " ")}: revision {pin.number} ({pin.revision_id}){pin.newer_revision_exists ? ` · newer revision ${pin.latest_number} exists` : " · latest"}</Text>)}
+    </Stack>}
+  </>;
 }
 
 function Row({ item }: { item: EvidenceItem }) {
@@ -18,14 +32,17 @@ function Row({ item }: { item: EvidenceItem }) {
     method.tool && `Recipe: ${method.tool}`,
   ].filter(Boolean) as string[];
   return <Table.Tr>
-    <Table.Td><KindBadge item={item} /><Text size="xs">{item.source}</Text></Table.Td>
+    <Table.Td><KindBadge item={item} /><Text size="xs">{item.source.replaceAll("_", " ")}</Text>
+      {item.stale === true && <Badge color="orange" variant="draft">Stale: newer input revision</Badge>}
+      {item.stale === false && <Text size="xs">Recorded inputs are the latest revisions</Text>}</Table.Td>
     <Table.Td><Text>{item.statement}</Text><Text size="xs">Status: {item.status.replaceAll("_", " ")}</Text>
       {item.conditions.map((c) => <Text size="xs" key={c.property}>Condition {c.property}: {c.status === "known" ? JSON.stringify(c.value) : "unknown"}</Text>)}</Table.Td>
     <Table.Td><Text size="sm">{item.subject.label}</Text><Text size="xs">{item.subject.scope === "actual" ? "Actual unit" : item.subject.scope === "design" ? "Design scope" : "Project scope"}</Text></Table.Td>
     <Table.Td><Text size="sm">Method: {method.name.replaceAll("_", " ")}</Text>{details.map((line) => <Text size="xs" key={line}>{line}</Text>)}</Table.Td>
     <Table.Td><Text size="sm">Origin: {item.basis.origin.replaceAll("_", " ")}</Text>{item.basis.references.map((ref) => <Text size="xs" key={ref}>{ref}</Text>)}
       <Text size="xs">{item.basis.independently_verified ? "Independently verified" : "Not independently verified"}</Text>
-      <Text size="xs">Recorded {item.recorded_at}{item.observed_at ? ` · observed ${item.observed_at}` : ""}</Text></Table.Td>
+      <Text size="xs">Recorded {item.recorded_at}{item.observed_at ? ` · observed ${item.observed_at}` : ""}</Text>
+      {item.basis.origin === "recorded_result" && <RecordedSnapshot recordId={item.evidence_id.replace(/^recorded:/, "")} />}</Table.Td>
     <Table.Td>{item.does_not_establish.map((line) => <Text size="xs" key={line}>Does not establish: {line}</Text>)}
       {item.warnings.map((line) => <Text size="xs" c="orange" key={line}>{line}</Text>)}</Table.Td>
   </Table.Tr>;
@@ -43,7 +60,7 @@ function EvidenceWorkspace({ workspaceId }: { workspaceId: string }) {
   const labels = new Map((taxonomy.data?.kinds ?? []).map((kind) => [kind.kind, kind.label]));
   return <Stack>
     <Title order={2}>Evidence by kind</Title>
-    <Text>Requirements, declared claims, calculations, generated checks, reviews and physical measurements are separate kinds. Nothing here is a generic pass, and none of it is physical qualification.</Text>
+    <Text>Requirements, declared claims, calculations, generated checks, reviews and physical measurements are separate kinds. Nothing here is a generic pass, and none of it is physical qualification. Interface assessments and firmware impact reviews appear only after someone records them.</Text>
     <Card withBorder><Stack gap="xs">
       <Title order={3}>Evidence kinds</Title>
       {taxonomy.isError && <Alert color="red">{taxonomy.error.message}</Alert>}

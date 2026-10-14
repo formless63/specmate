@@ -7,10 +7,12 @@ import { operation } from '../firmware-occurrences/api';
 import { read } from '../identity/api';
 import { FirmwareImpactPanel } from './FirmwareImpactPanel';
 import { compareImpact, type ImpactInputs, type ImpactResult } from './api';
+import { recordFirmwareImpact } from '../evidence/api';
 
 vi.mock('./api', () => ({ compareImpact: vi.fn() }));
 vi.mock('../identity/api', () => ({ read: vi.fn() }));
 vi.mock('../firmware-occurrences/api', () => ({ operation: vi.fn() }));
+vi.mock('../evidence/api', () => ({ recordFirmwareImpact: vi.fn() }));
 const inputs: ImpactInputs = {
   firmware_revision_id: 'firmware-one', firmware_snapshot_sha256: 'exact-firmware-hash', occurrence: null,
   sources: [{ local_id: 'app', source_revision_id: 'source-one', source_manifest_sha256: 'manifest-one', files: [{ path: 'src/main.c', sha256: 'file-hash', rights: 'MIT', role: 'application' }] }],
@@ -321,4 +323,22 @@ test.each(['clear occurrence', 'replace firmware'])('pending optional metadata r
   expect(screen.queryByText('Detached firmware denial')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
   expect(compareImpact).toHaveBeenCalledWith(expect.objectContaining({ baseline: { firmware_revision_id: action === 'clear occurrence' ? 'firmware-one' : 'firmware-two' } }));
+});
+
+test('recording stores the exact shown comparison once, with one key per shown result', async () => {
+  vi.mocked(recordFirmwareImpact).mockRejectedValueOnce(new Error('Temporary failure.')).mockResolvedValue({
+    record_id: 'record-one', workspace_id: 'workspace-one', source: 'firmware_impact', kind: 'generated_check', algorithm_version: 'firmware_impact/1',
+    request: {}, result: {}, result_sha256: 'comparison-hash', note: '', recorded_at: '2026-01-02T00:00:00Z', recorded_by_id: 1, pins: [], stale: false, rewritten: false, physical_qualification: false });
+  render(panel()); await select(); fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
+  await screen.findByText('Exact change assessment');
+  expect(recordFirmwareImpact).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Record result as evidence' }));
+  expect(await screen.findByText('Temporary failure.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Record result as evidence' }));
+  expect(await screen.findByText(/record record-one/)).toBeTruthy();
+  const calls = vi.mocked(recordFirmwareImpact).mock.calls;
+  expect(calls[0]![0]).toEqual({ workspace_id: 'workspace-one', baseline: { firmware_revision_id: 'firmware-one' }, candidate: { firmware_revision_id: 'firmware-two' }, assertion_ids: [], observation_offset: 0 });
+  expect(calls[0]![1]).toBe('comparison-hash');
+  expect(calls[1]![2]).toBe(calls[0]![2]);
+  expect((screen.getByRole('button', { name: 'Record result as evidence' }) as HTMLButtonElement).disabled).toBe(true);
 });

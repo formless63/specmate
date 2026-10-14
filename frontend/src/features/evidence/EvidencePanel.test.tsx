@@ -66,3 +66,26 @@ test("kind filters query only the selected kinds from the first page", () => {
   expect(evidenceQuery("p", ["review", "calculation"], 50)).toBe("evidence/workspaces/p?kind=review&kind=calculation&offset=50&limit=50");
   void fireEvent; void waitFor;
 });
+
+test("a recorded result shows its stale state and exact pins on request", async () => {
+  const urls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    urls.push(url);
+    if (url.includes("taxonomy")) return new Response(JSON.stringify({ kinds }), { status: 200 });
+    if (url.includes("evidence/recorded/")) return new Response(JSON.stringify({ record_id: "rec-1", workspace_id: "ws-1", source: "interface_assessment", kind: "generated_check", algorithm_version: "interface_assessment/0.1",
+      request: {}, result: {}, result_sha256: "a".repeat(64), note: "", recorded_at: "2026-01-01T00:00:00Z", recorded_by_id: 1, stale: true, rewritten: false, physical_qualification: false,
+      pins: [{ role: "left_pinout", revision_id: "rev-left", definition_id: "def-left", number: 1, latest_number: 2, newer_revision_exists: true }] }), { status: 200 });
+    return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [
+      item({ evidence_id: "recorded:rec-1", kind: "generated_check", kind_label: "Generated check", source: "interface_assessment", statement: "Interface assessment: 1 satisfied by declarations, 0 invalid, 0 flagged, 8 unknown findings; no overall compatibility result",
+        status: "recorded", stale: true, warnings: ["Stale: pinned left pinout revision 1 has newer revision 2. The recorded result is kept unchanged."],
+        method: { name: "interface_assessment", algorithm_version: "interface_assessment/0.1" }, basis: { origin: "recorded_result", references: ["recorded:rec-1"], independently_verified: false } }),
+    ] }), { status: 200 });
+  }));
+  mount();
+  expect(await screen.findByText("Stale: newer input revision")).toBeTruthy();
+  expect(screen.getByText(/kept unchanged/)).toBeTruthy();
+  expect(urls.some((url) => url.includes("evidence/recorded/"))).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Show recorded inputs" }));
+  expect(await screen.findByText(/left pinout: revision 1 \(rev-left\) · newer revision 2 exists/)).toBeTruthy();
+  expect(urls).toContain("/api/v0/evidence/recorded/rec-1");
+});

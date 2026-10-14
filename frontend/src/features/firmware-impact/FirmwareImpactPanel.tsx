@@ -4,8 +4,10 @@ import { targetLabel, valueLabel, type Facts, type Subject } from '../facts/api'
 import type { FirmwareRead, FirmwareSummary } from '../firmware/api';
 import { operation, type OccurrenceInspection } from '../firmware-occurrences/api';
 import { read, type Definition, type Identity } from '../identity/api';
-import { compareImpact, type FirmwareReference, type ImpactResult } from './api';
+import { compareImpact, type FirmwareReference, type ImpactRequest, type ImpactResult } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { recordFirmwareImpact } from "../evidence/api";
+import { RecordResult } from "../evidence/RecordResult";
 
 /** Impact reviews are workspace-scoped; the project is navigation context only. */
 export function FirmwareImpactPanel({ workspaceId }: { workspaceId: string }) {
@@ -27,6 +29,8 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
   const [candidateContextPending, setCandidateContextPending] = useState(false);
   const [assertions, setAssertions] = useState<string[]>([]);
   const [result, setResult] = useState<ImpactResult | null>(null);
+  // The exact request behind the shown result, so recording stores what was reviewed.
+  const [shown, setShown] = useState<ImpactRequest | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [pickerKey, setPickerKey] = useState(0);
@@ -61,10 +65,11 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
     const token = ++generation.current;
     setResult(null); setError(''); setBusy(true);
     try {
-      const value = await compareImpact({ workspace_id: workspaceId,
+      const request: ImpactRequest = { workspace_id: workspaceId,
         baseline: { firmware_revision_id: baseline, ...baselineContext },
-        candidate: { firmware_revision_id: candidate, ...candidateContext }, assertion_ids: assertions, observation_offset: observationOffset });
-      if (token === generation.current) setResult(value);
+        candidate: { firmware_revision_id: candidate, ...candidateContext }, assertion_ids: assertions, observation_offset: observationOffset };
+      const value = await compareImpact(request);
+      if (token === generation.current) { setShown(request); setResult(value); }
     } catch (failure) { if (token === generation.current) deny((failure as Error).message); }
     finally { if (token === generation.current) setBusy(false); }
   }
@@ -88,6 +93,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <Button disabled={busy || baselineContextPending || candidateContextPending || !baseline || !candidate} onClick={() => { void inspect(); }}>Compare firmware impact</Button>
       {result && <>
         <ImpactReview result={result} />
+        {shown && <RecordResult fingerprint={result.comparison_sha256} record={key => recordFirmwareImpact(shown, result.comparison_sha256, key)} />}
         <Group><Button disabled={busy || result.observation_offset === 0} onClick={() => { void inspect(Math.max(0, result.observation_offset - 100)); }}>Previous impact observations</Button><Button disabled={busy || !result.observations_has_more} onClick={() => { void inspect(result.observation_offset + 100); }}>Next impact observations</Button></Group>
       </>}
     </>}

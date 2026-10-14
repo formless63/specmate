@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssessmentResults, InterfaceAssessmentPanel } from "./InterfaceAssessmentPanel";
 import { initialAssessment, operating, type AssessmentDraft, type Result } from "./assessment-api";
+import { PermissionsProvider } from "../../lib/permissions";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -257,4 +258,27 @@ test("fresh nested JSON key order after saving does not prevent freeze, while ch
   fireEvent.click(freeze());
   await screen.findByRole("heading", { name: "Separated assessment results" });
   expect(f.calls.at(-1)).toMatchObject({ operation: "interface.freeze", expected_state: "draft-v3" });
+});
+
+test("a frozen result is recorded only by an explicit contributor action", async () => {
+  const f = fixture();
+  render(wrap(<PermissionsProvider permissions={["workspace.read"]}>{panel("viewer", false)}</PermissionsProvider>));
+  await choose("Saved assessment", "Original separated review");
+  await choose("Frozen assessment revision", "Revision 1");
+  await screen.findByText("Declared mating pair with explicit basis");
+  const readOnly = screen.getByRole("button", { name: "Record result as evidence" }) as HTMLButtonElement;
+  expect(readOnly.disabled).toBe(true);
+  expect(readOnly.title).toMatch(/Contributor access/);
+  expect(f.calls.some(call => call.operation.startsWith("evidence."))).toBe(false);
+  cleanup();
+  const g = fixture();
+  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create"]}>{panel("contributor", false)}</PermissionsProvider>));
+  await choose("Saved assessment", "Original separated review");
+  await choose("Frozen assessment revision", "Revision 1");
+  await screen.findByText("Declared mating pair with explicit basis");
+  expect(g.calls.length).toBe(0);
+  fireEvent.click(screen.getByRole("button", { name: "Record result as evidence" }));
+  await waitFor(() => expect(g.calls.length).toBe(1));
+  expect(g.calls[0]).toMatchObject({ operation: "evidence.record_interface_assessment", payload: { revision_id: "frozen" } });
+  expect(g.calls[0]!.idempotency_key).toBeTruthy();
 });
