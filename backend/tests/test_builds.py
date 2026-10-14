@@ -24,6 +24,7 @@ from specmate.operations import (
     NotFound,
     PermissionDenied,
     Unauthenticated,
+    Unsupported,
     ValidationFailed,
     execute,
 )
@@ -776,3 +777,63 @@ def test_runner_credential_is_scoped_to_its_workspace_and_recipes(
             Context(user=users["owner"], via="internal", request_id="foreign-enroll"),
             {"workspace_id": other_workspace, "name": "x", "recipe_ids": ["synthetic-check-r1"]},
         )
+
+
+def test_disabled_adapter_refuses_new_builds_but_keeps_earlier_evidence(
+    users, workspace, build_payload, recipe, credential
+):
+    manifest = {
+        "kind": "adapter",
+        "package_key": "synthetic.adapter",
+        "label": "Synthetic adapter",
+        "version": "1.0",
+        "publisher": "Synthetic publisher",
+        "rights": RIGHTS,
+        "requested_authority": [
+            {"kind": "execution", "scope": "synthetic", "reason": "Run the check."}
+        ],
+        "entries": [
+            {
+                "key": "check",
+                "label": "Check recipe",
+                "category": "recipe_reference",
+                "recipe": {"recipe_id": recipe["id"], "version": "1", "digest": "a" * 64},
+                "rights": RIGHTS,
+            }
+        ],
+    }
+    version = op(
+        users["owner"],
+        "catalog_pack.register",
+        {"workspace_id": workspace_of(workspace), "manifest": manifest},
+    )
+    # Registered but never enabled: the adapter's recipe is refused.
+    with pytest.raises(Unsupported, match="Adapter disabled"):
+        op(users["owner"], "build.request", build_payload, idempotency_key="before-enable")
+    installed = op(
+        users["owner"],
+        "catalog_pack.install",
+        {"pack_id": version["pack_id"], "version_id": version["version_id"], "basis": "Enable."},
+        expected_state="pack-v0",
+    )
+    build = op(users["owner"], "build.request", build_payload, idempotency_key="enabled")
+    op(users["owner"], "build.dispatch", {"build_id": build["build_id"]})
+    lease = runner_op(credential, "runner.lease")["lease"]
+    output = upload(credential, lease)
+    runner_op(credential, "runner.complete", success_receipt(lease))
+
+    op(
+        users["owner"],
+        "catalog_pack.disable",
+        {"pack_id": version["pack_id"], "basis": "Stop."},
+        expected_state=installed["state"],
+    )
+    with pytest.raises(Unsupported, match="Adapter disabled"):
+        op(users["owner"], "build.request", build_payload, idempotency_key="after-disable")
+    # The earlier build and its output stay retrievable and downloadable.
+    client = Client()
+    client.force_login(users["viewer"])
+    base = f"/api/v0/builds/{lease['build_id']}"
+    response = client.get(f"{base}/outputs/{output['output_id']}")
+    assert response.status_code == 200
+    assert b"".join(response.streaming_content) == OUTPUT

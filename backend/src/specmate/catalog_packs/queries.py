@@ -289,3 +289,23 @@ def visible_adoptions(user, decision):
             except (NotFound, PermissionDenied):
                 continue
         yield adoption
+
+
+def adapter_disabled(workspace_id, recipe_id):
+    """True when adapter packs in the workspace reference the recipe but none has an enabled
+    version that does. A recipe no adapter pack references is gated by the registry alone."""
+    referenced = False
+    for pack in CatalogPack.objects.filter(workspace_id=workspace_id):
+        versions = list(pack.versions.all())
+        decisions = list(pack.decisions.order_by("sequence"))
+        enabled = enabled_version(versions, decisions)
+        for version in versions:
+            manifest = manifest_of(version)
+            if manifest.kind != "adapter" or not any(
+                entry.recipe and entry.recipe.recipe_id == recipe_id for entry in manifest.entries
+            ):
+                continue
+            referenced = True
+            if enabled is not None and version.id == enabled.id:
+                return False
+    return referenced
