@@ -11,7 +11,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const row = (operation: string, status: string, reasons: string[] = [], permission: string | null = "design.edit") => ({
   operation, summary: `Synthetic ${operation}`, requires_expected_state: true, supports_idempotency: true, attachments: [], async: false,
-  generic_http_invocation: true, access: { kind: "workspace", minimum_workspace_permission: permission, basis: "explicit" }, availability: { status, reasons },
+  generic_http_invocation: true, listed_by_operations_endpoint: operation !== "account.login", access: { kind: "workspace", minimum_workspace_permission: permission, basis: "explicit" }, availability: { status, reasons },
 });
 const body = {
   instance: { version: "0", registry_sha256: "abcdef0123456789" },
@@ -19,7 +19,7 @@ const body = {
   scope: { project_id: "project-a", role: "viewer", permissions: ["workspace.read"] },
   capabilities: { native_execution: { status: "unavailable", reasons: ["no_approved_recipe"], approved_recipes: 0 } },
   notes: ["Object-level authority is still checked."],
-  operations: [row("inventory.list", "available", [], "workspace.read"), row("draft.update", "not_permitted", ["missing_permission"]), row("build.request", "unavailable", ["no_approved_recipe"], "build.execute")],
+  operations: [row("inventory.list", "available", [], "workspace.read"), row("draft.update", "not_permitted", ["missing_permission"]), row("build.request", "unavailable", ["no_approved_recipe"], "build.execute"), row("account.login", "not_applicable", ["pre_authentication_operation"], null)],
 };
 
 test("shows the reported transports, native state and per-operation availability", async () => {
@@ -32,6 +32,8 @@ test("shows the reported transports, native state and per-operation availability
   expect(screen.getByText(/Native execution: unavailable \(no approved recipe\)/)).toBeTruthy();
   expect(screen.getAllByText("no approved recipe").length).toBeGreaterThan(0);
   expect(screen.getByText("missing permission")).toBeTruthy();
+  // The count states which operations GET /api/v0/operations lists and which are public endpoints.
+  expect(screen.getByText(/4 operations registered; 3 are listed by GET \/api\/v0\/operations, 1 are public pre-authentication endpoints/)).toBeTruthy();
 });
 
 test("without a project the library scope reads capabilities for the workspace alone", async () => {

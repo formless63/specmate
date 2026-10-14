@@ -5,7 +5,7 @@ import { requestJson } from "../workspace/api";
 type Availability = { status: string; reasons: string[]; missing?: string; requires?: string };
 type OperationRow = {
   operation: string; summary: string; requires_expected_state: boolean; supports_idempotency: boolean;
-  attachments: string[]; async: boolean; generic_http_invocation: boolean;
+  attachments: string[]; async: boolean; generic_http_invocation: boolean; listed_by_operations_endpoint?: boolean;
   access: { kind: string; minimum_workspace_permission: string | null; basis: string };
   availability: Availability;
 };
@@ -40,6 +40,7 @@ export function AgentCapabilitiesPanel({ workspaceId, projectId = null }: { work
     return () => { active = false; };
   }, [workspaceId, projectId]);
 
+  const listed = (data?.operations ?? []).filter((row) => row.listed_by_operations_endpoint !== false).length;
   const rows = useMemo(() => (data?.operations ?? []).filter((row) =>
     (status === "all" || row.availability.status === status) &&
     (!filter || row.operation.includes(filter.toLowerCase()) || row.summary.toLowerCase().includes(filter.toLowerCase()))), [data, filter, status]);
@@ -59,7 +60,7 @@ export function AgentCapabilitiesPanel({ workspaceId, projectId = null }: { work
         </Badge>
       </Group>
       <Text size="sm">Permissions: {data.scope?.permissions.join(", ") || "none"}</Text>
-      <Text size="sm" c="dimmed">Registry {data.instance.registry_sha256.slice(0, 12)} - {data.operations.length} operations</Text>
+      <Text size="sm" c="dimmed">Registry {data.instance.registry_sha256.slice(0, 12)} - {data.operations.length} operations registered; {listed} are listed by GET /api/v0/operations, {data.operations.length - listed} are public pre-authentication endpoints</Text>
       <Group align="end">
         <TextInput label="Find operation" value={filter} onChange={(event) => setFilter(event.currentTarget.value)} />
         <Select label="Availability" data={STATUS_FILTERS} value={status} onChange={setStatus} allowDeselect={false} />

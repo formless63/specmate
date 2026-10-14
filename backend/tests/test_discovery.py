@@ -202,6 +202,13 @@ def test_installation_owner_may_create_accounts(users):
     )
 
 
+def test_listed_flag_matches_the_operations_endpoint_set(users, project):
+    rows = by_name(discover(users["owner"], project))
+    listed = {name for name, row in rows.items() if row["listed_by_operations_endpoint"]}
+    assert listed == {name for name, spec in registry.items() if not spec.public}
+    assert len(listed) < len(rows)
+
+
 def test_non_user_operations_are_never_offered_to_an_account(users, project):
     rows = by_name(discover(users["owner"], project))
     for name in ("runner.lease", "runner.enroll", "runner.revoke", "build.dispatch", "build.poll"):

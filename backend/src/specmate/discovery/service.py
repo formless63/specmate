@@ -139,6 +139,8 @@ def describe(
             "attachments": list(spec.attachments),
             "async": spec.status == "accepted_async",
             "generic_http_invocation": not spec.public and not spec.attachments,
+            # GET /api/v0/operations omits public (pre-authentication) operations.
+            "listed_by_operations_endpoint": not spec.public,
             "access": {
                 "kind": requirement.kind if requirement else "undeclared",
                 "minimum_workspace_permission": (
