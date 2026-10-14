@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Select, Stack, Text } from '@mantine/core';
+import { Alert, Select, Stack, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { SbUnknown } from '../../components/sb';
 import { useProbe } from '../probe';
 import type { LibraryRecord } from '../workspace/api';
 import { read as readIdentity, type Identity } from '../identity/api';
 import { CableInspector } from '../cables/CablePanel';
+import { CableSummary } from '../cables/CableSummary';
 import type { Draft as CableDraft } from '../cables/api';
 import { HarnessInspector } from '../harnesses/HarnessPanel';
 import { read as readHarness, type Draft as HarnessDraft } from '../harnesses/api';
@@ -85,9 +86,10 @@ function CableDraftViews({ draftId, name }: { draftId: string; name: string }) {
   return <Stack gap="xs" aria-label="Cable draft views">
     {draft.isError && <Alert color="red" role="alert">{draft.error instanceof Error ? draft.error.message : 'The draft could not be read.'}</Alert>}
     {draft.data && <DraftNote state={draft.data.state} />}
-    {draft.data && !stockId && <Text role="status">No cable stock is chosen in this draft, so no section or 3D model can be drawn. <SbUnknown /></Text>}
+    {draft.data?.content.cable && <CableSummary cable={draft.data.content.cable} />}
+    {draft.data && !stockId && <Text role="status">No stock is chosen in this draft, so no section or 3D model can be drawn. <SbUnknown /></Text>}
     {stock.isError && <Alert color="red" role="alert">{stock.error instanceof Error ? stock.error.message : 'The stock could not be read.'}</Alert>}
-    {stock.data && !stock.isError && <CableViews stock={stock.data} name={`${name} (draft)`} revisionId={null} />}
+    {stock.data && !stock.isError && <Stack gap="xs"><Title order={4}>Stock used</Title><CableViews stock={stock.data} name={`${name} (draft)`} revisionId={null} /></Stack>}
   </Stack>;
 }
 

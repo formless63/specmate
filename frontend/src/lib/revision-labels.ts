@@ -3,7 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 
 /** Display identity of one exact revision, resolved through the scoped read contract. */
 export type RevisionLabelData =
-  | { readable: true; revision_id: string; name: string; kind: string; number: number }
+  | { readable: true; revision_id: string; name: string; kind: string; number: number; definition_id?: string }
   | { readable: false; revision_id: string };
 
 export type LabelKind = "design" | "source";

@@ -52,6 +52,8 @@ class CreateCable(StrictModel):
     workspace_id: UUID | None = None
     name: Text
     cable: Cable
+    # Navigation context: the project that will reference the new cable.
+    project_id: UUID | None = None
 
 
 class UpdateCable(StrictModel):
