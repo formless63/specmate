@@ -1,6 +1,5 @@
 import { Badge, Button, Group } from "@mantine/core";
 import { useEffect, useState } from "react";
-import { requestJson } from "../workspace/api";
 import { readPreferences, type Effective } from "./api";
 
 /**
@@ -12,10 +11,8 @@ import { readPreferences, type Effective } from "./api";
  */
 export const PREFILL_TARGETS = {
   wire_colours: "new stock element colour",
-  default_wire_gauge_system: "stock conductor size system",
   default_length_unit: "new BOM need quantity unit",
   connector_families: "cable connector body filter",
-  preferred_suppliers: "BOM supplier shortlist",
 } as const;
 
 export type Defaults = {
@@ -33,21 +30,15 @@ export function defaultsFrom(effective: Effective | null): Defaults {
 }
 
 /** Reads effective preferences once; any failure (or no access) simply means nothing is pre-filled. */
-export function usePreferenceDefaults(): Defaults {
+export function usePreferenceDefaults(workspaceId?: string | null): Defaults {
   const [effective, setEffective] = useState<Effective | null>(null);
   useEffect(() => {
+    if (!workspaceId) return;
     let live = true;
-    (async () => {
-      try {
-        const page = await requestJson<{ workspace_id?: string }>("/api/v0/workspace/projects?include_archived=true&limit=1");
-        if (!page?.workspace_id) return;
-        const prefs = await readPreferences(page.workspace_id);
-        if (live && prefs?.effective) setEffective(prefs.effective);
-      } catch { /* no preference defaults */ }
-    })();
+    readPreferences(workspaceId).then((prefs) => { if (live && prefs?.effective) setEffective(prefs.effective); }, () => { /* no preference defaults */ });
     return () => { live = false; };
-  }, []);
-  return defaultsFrom(effective);
+  }, [workspaceId]);
+  return defaultsFrom(workspaceId ? effective : null);
 }
 
 /** Marks a pre-filled value and lets the user clear it. */

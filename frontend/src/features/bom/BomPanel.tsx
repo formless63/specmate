@@ -1,5 +1,5 @@
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
-import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, TagsInput, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
@@ -11,8 +11,8 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const purposes = [{ value: "assembly_contents", label: "Assembly contents" }, { value: "procurement", label: "Procurement" }, { value: "pcb_fabrication", label: "PCB fabrication" }, { value: "pcb_population", label: "PCB population" }, { value: "consumables", label: "Consumables" }];
 const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembly";
-export function BomPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+export function BomPanel({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) { return <Workspace key={projectId} projectId={projectId} workspaceId={workspaceId} />; }
+function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const [name, setName] = useState("");
@@ -21,12 +21,6 @@ function Workspace({ projectId }: { projectId: string }) {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const preferences = usePreferenceDefaults();
-  const preferredSuppliers = preferences.list("preferred_suppliers").join("\u0000");
-  const [suppliers, setSuppliers] = useState<string[]>([]);
-  const [suppliersFromPreference, setSuppliersFromPreference] = useState(false);
-  const [suppliersTouched, setSuppliersTouched] = useState(false);
-  useEffect(() => { if (preferredSuppliers && !suppliersTouched) { setSuppliers(preferredSuppliers.split("\u0000")); setSuppliersFromPreference(true); } }, [preferredSuppliers, suppliersTouched]);
   const definitions = useQuery({ queryKey: ["bom-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["bom-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["bom-draft", draftId], queryFn: () => read<Draft>(`bom/drafts/${draftId}`), enabled: !!draftId });
@@ -39,9 +33,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
     <Card withBorder><Stack><Title order={3}>New BOM plan</Title>
       <InspectionScope permission="item.create"><TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <Group align="flex-end" gap="xs"><TagsInput label="Supplier shortlist" description="Planning aid only; not saved with the plan and never a sourcing decision." value={suppliers} onChange={v => { setSuppliersTouched(true); setSuppliersFromPreference(false); setSuppliers(v); }} />
-        {suppliersFromPreference && suppliers.length > 0 && <FromPreference what="supplier shortlist" onClear={() => { setSuppliersTouched(true); setSuppliersFromPreference(false); setSuppliers([]); }} />}</Group>
-      <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} /></InspectionScope>
+      <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} workspaceId={workspaceId} /></InspectionScope>
       <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...createGate.props}>Create BOM draft</Button><ReadOnlyNote permission="item.create">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
@@ -99,14 +91,14 @@ function WasteInput({ title, value, unit, onChange }: { title: string; value?: W
     {value ? <><DemandInput title={`${title} additive waste per root assembly`} value={value.quantity} onChange={quantity => onChange({ ...value, quantity })} /><TextInput label={`${title} waste basis`} value={value.basis} onChange={e => onChange({ ...value, basis: e.currentTarget.value })} /></> : <Text size="sm">Waste not evaluated. Gross required demand remains unknown; declare zero explicitly when justified.</Text>}</Stack>;
 }
 
-function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions: Definition[]; onChange: (value: Plan) => void }) {
+function PlanEditor({ value, definitions, onChange, workspaceId }: { value: Plan; definitions: Definition[]; onChange: (value: Plan) => void; workspaceId?: string | null }) {
   const root = useQuery({ queryKey: ["bom-root", value.assembly_revision_id], queryFn: () => read<{ snapshot_id: string }>(`revisions/${value.assembly_revision_id}`), enabled: !!value.assembly_revision_id });
   const tree = useQuery({ queryKey: ["bom-tree", root.data?.snapshot_id], queryFn: () => read<Projection>(`assemblies/snapshots/${root.data?.snapshot_id}`), enabled: !!root.data });
   const contexts = [{ path: [] as string[], revision_id: value.assembly_revision_id }, ...(tree.data?.occurrences ?? []).map(n => ({ path: n.address.path, revision_id: n.revision_id }))];
   const [context, setContext] = useState("[]");
   const [need, setNeed] = useState<Need>({ local_id: "", context_path: [], revision_id: "", purpose: "consumables", quantity: unknownDemand(), basis: "" });
   // The default length unit pre-fills only the unit of a new need; its amount stays unknown.
-  const preferredUnit = usePreferenceDefaults().text("default_length_unit");
+  const preferredUnit = usePreferenceDefaults(workspaceId).text("default_length_unit");
   const lengthUnit = (["m", "cm", "mm"] as const).find(unit => unit === preferredUnit) ?? null;
   const [unitFromPreference, setUnitFromPreference] = useState(false);
   const [unitTouched, setUnitTouched] = useState(false);

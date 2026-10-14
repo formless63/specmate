@@ -13,8 +13,8 @@ import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
 
-export function CablePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+export function CablePanel({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) { return <Workspace key={projectId} projectId={projectId} workspaceId={workspaceId} />; }
+function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
@@ -80,7 +80,7 @@ function Workspace({ projectId }: { projectId: string }) {
     {!authorityBlocked && <Card withBorder><Stack>
       <Title order={3}>New reusable definition</Title>
       <InspectionScope permission="item.create"><TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <CableEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} /></InspectionScope>
+      <CableEditor value={value} onChange={setValue} definitions={currentDefinitions} workspaceId={workspaceId} onAuthorityChange={setCreateSourceDenied} /></InspectionScope>
       <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => create.mutate()}>Create cable draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
     </Stack></Card>}
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
@@ -93,14 +93,14 @@ function Workspace({ projectId }: { projectId: string }) {
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && draftId && <DraftEditor key={draft.data.draft_id} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} />}
+    {draft.data && draftId && <DraftEditor key={draft.data.draft_id} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} workspaceId={workspaceId} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} />}
     {draft.data && !draft.isError && !workspaceDenied && <Button disabled={draftSourceDenied || !draftToken} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate()}>Freeze cable revision</Button>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
     {revisionId && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
   </Stack>;
 }
 
-function DraftEditor({ draft, committedDraft, hidden, definitions, onSaved, onAuthorityChange, onStateChange, onMutationError }: { draft: Draft; committedDraft: Draft | null; hidden: boolean; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void; onStateChange: (state: string) => void; onMutationError: (error: Error) => void }) {
+function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, onSaved, onAuthorityChange, onStateChange, onMutationError }: { workspaceId?: string | null; draft: Draft; committedDraft: Draft | null; hidden: boolean; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void; onStateChange: (state: string) => void; onMutationError: (error: Error) => void }) {
   const [sourceDenied, setSourceDenied] = useState(false);
   const editGate = usePermission('design.edit');
   // Refocus/access refreshes may read a newer server state. Keep the editing baseline
@@ -114,7 +114,7 @@ function DraftEditor({ draft, committedDraft, hidden, definitions, onSaved, onAu
   }, [committedDraft, base.draft_id]);
   const save = useMutation({ mutationFn: () => command<Draft>("cable.update", { draft_id: base.draft_id, cable: value }, base.state), onSuccess: async data => { setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }, onError: onMutationError });
   if (hidden) return null;
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor value={value} onChange={setValue} definitions={definitions} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor value={value} onChange={setValue} definitions={definitions} workspaceId={workspaceId} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
 function RevisionPicker({ label, kind, value, onChange, definitions, nameFilter }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[]; nameFilter?: string | null }) {
   const [definition, setDefinition] = useState<string | null>(null);
@@ -128,7 +128,7 @@ function elements(node: StockElement, prefix = ''): { value: string; label: stri
   if (node.kind === 'group') return node.children.flatMap(child => elements(child, path));
   return ['conductor', 'shield', 'drain'].includes(node.kind) ? [{ value: path, label: `${path} · ${node.label} (${node.kind})` }] : [];
 }
-export function CableEditor({ value, onChange, definitions, onAuthorityChange }: { value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
+export function CableEditor({ value, onChange, definitions, onAuthorityChange, workspaceId }: { workspaceId?: string | null; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
   const stock = useQuery({ queryKey: ['cable-stock', value.stock_revision_id], queryFn: () => loadFrozenStock(value.stock_revision_id), enabled: !!value.stock_revision_id });
   const references = [...new Map(value.endpoints.flatMap(endpoint => [
     { key: 'cable-body', id: endpoint.body_revision_id },
@@ -144,7 +144,7 @@ export function CableEditor({ value, onChange, definitions, onAuthorityChange }:
   useEffect(() => onAuthorityChange?.(denied), [denied, onAuthorityChange]);
   const choices = stock.data && !denied ? elements(stock.data.structure) : [];
   // A connector-family preference only narrows the body picker by name; it never selects a body or asserts compatibility.
-  const families = usePreferenceDefaults().list('connector_families');
+  const families = usePreferenceDefaults(workspaceId).list('connector_families');
   const familyKey = families.join('\u0000');
   const [family, setFamily] = useState<string | null>(null);
   const [familyFromPreference, setFamilyFromPreference] = useState(false);

@@ -244,7 +244,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="revision-upgrades" library={library("revision-upgrades")}>{visited.has("revision-upgrades") && <WorkspaceLens {...lens} toolId="revision-upgrades" />}</ToolPanel>
     <ToolPanel value="matching" library={library("matching")}>{visited.has("matching") && <WorkspaceLens {...lens} toolId="matching" />}</ToolPanel>
     <ToolPanel value="catalog-packs" library={library("catalog-packs")}>{visited.has("catalog-packs") && <WorkspaceLens {...lens} toolId="catalog-packs" />}</ToolPanel>
-    <ToolPanel value="wire-stock" library={library("wire-stock")}>{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="wire-stock" library={library("wire-stock")}>{visited.has("wire-stock") && <WireStockPanel projectId={projectId} workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="workshop-profiles" library={library("workshop-profiles")}>{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="material-accounting" library={library("material-accounting")}>{visited.has("material-accounting") && <MaterialAccountingPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="preparation" library={library("preparation")}>{visited.has("preparation") && <PreparationPanel projectId={projectId} />}</ToolPanel>
@@ -265,7 +265,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="scene-drawings" library={library("scene-drawings")}>{visited.has("scene-drawings") && <WorkspaceLens {...lens} toolId="scene-drawings" />}</ToolPanel>
     <ToolPanel value="preparation-documents" library={library("preparation-documents")}>{visited.has("preparation-documents") && <WorkspaceLens {...lens} toolId="preparation-documents" />}</ToolPanel>
     <ToolPanel value="interfaces" library={library("interfaces")}>{visited.has("interfaces") && <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>}</ToolPanel>
-    <ToolPanel value="cables" library={library("cables")}>{visited.has("cables") && <CablePanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="cables" library={library("cables")}>{visited.has("cables") && <CablePanel projectId={projectId} workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="cable-test-intent" library={library("cable-test-intent")}>{visited.has("cable-test-intent") && <CableTestIntentPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="harnesses" library={library("harnesses")}>{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="passive-passages" library={library("passive-passages")}>{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} />}</ToolPanel>
@@ -273,7 +273,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="pcb" library={library("pcb")}>{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="pcb-disagreement" library={library("pcb-disagreement")}>{visited.has("pcb-disagreement") && <PcbDisagreementPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="inventory" library={library("inventory")}>{visited.has("inventory") && <InventoryPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="bom" library={library("bom")}>{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
+    <ToolPanel value="bom" library={library("bom")}>{visited.has("bom") && <BomPanel projectId={projectId} workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="physical-units" library={library("physical-units")}>{visited.has("physical-units") && <PhysicalUnitsPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="agent-capabilities" library={library("agent-capabilities")}>{visited.has("agent-capabilities") && <WorkspaceLens {...lens} toolId="agent-capabilities" />}</ToolPanel>
     <ToolPanel value="agent-runs" library={library("agent-runs")}>{visited.has("agent-runs") && <WorkspaceLens {...lens} toolId="agent-runs" />}</ToolPanel>

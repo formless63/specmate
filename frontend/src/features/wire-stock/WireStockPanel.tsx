@@ -89,7 +89,7 @@ function ElementEditor({ node, path, onChange, colour, marks, setMarks }: { node
 }
 
 /** Library wire stock. `projectId` is optional context, never the stock's owner; no connector or PCB prerequisite. */
-export function WireStockPanel({ projectId }: { projectId?: string | null }) {
+export function WireStockPanel({ projectId, workspaceId }: { projectId?: string | null; workspaceId?: string | null }) {
   const [stocks, setStocks] = useState<StockRecord[]>([]);
   const [current, setCurrent] = useState<StockRecord | null>(null);
   const [name, setName] = useState('Synthetic coax');
@@ -102,13 +102,8 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
   const edit = usePermission('item.create');
   const [useHere, setUseHere] = useState(true);
   const freezeGate = usePermission('design.freeze');
-  const preferences = usePreferenceDefaults();
+  const preferences = usePreferenceDefaults(workspaceId);
   const [marks, setMarks] = useState<Marks>({});
-  const [gauge, setGauge] = useState<string | null>(null);
-  const [gaugeFromPreference, setGaugeFromPreference] = useState(false);
-  const [gaugeTouched, setGaugeTouched] = useState(false);
-  const preferredGauge = preferences.text('default_wire_gauge_system');
-  useEffect(() => { if (preferredGauge && !gaugeTouched) { setGauge(preferredGauge); setGaugeFromPreference(true); } }, [preferredGauge, gaugeTouched]);
   const section = useMemo(() => sectionLayout(stock), [stock]);
   const geometry = useMemo(() => stockGeometry(section, length), [section, length]);
   useEffect(() => {
@@ -153,8 +148,6 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
         if (key && stockPresets[key]) { setStock(clone(stockPresets[key])); setName(`Synthetic ${key}`); setCurrent(null); setDirty(true); setMessage(''); }
       }} />
       <TextInput label="Stock name" value={name} disabled={current !== null} onChange={e => setName(e.target.value)} />
-      <Group align="flex-end" gap="xs"><Select label="Conductor size system" description="Entry convention only; stored areas stay in mm²." clearable value={gauge} data={[{ value: 'awg', label: 'AWG' }, { value: 'mm2', label: 'mm²' }]} onChange={v => { setGaugeTouched(true); setGaugeFromPreference(false); setGauge(v); }} />
-        {gaugeFromPreference && gauge === preferredGauge && <FromPreference what="conductor size system" onClear={() => { setGaugeTouched(true); setGaugeFromPreference(false); setGauge(null); }} />}</Group>
       <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }); setDirty(true); } }} />
     </Group>
     {projectId && current === null && <Checkbox label="Use in this project" checked={useHere} onChange={e => setUseHere(e.currentTarget.checked)} />}
