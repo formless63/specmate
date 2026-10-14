@@ -61,7 +61,7 @@ test('create shared material and explicit uncut breakout, save with token, freez
   expect(await screen.findByText('Planned stock pieces: 1; segment spans: 2')).toBeTruthy();
   expect(calls[0]).toMatchObject({ operation: 'harness.create', payload: { harness: { sections: [{ local_id: 'shared', stock_revision_id: 'stock-rev', planned_cut_length_mm: '0.1000' }], segments: [{ local_id: 'trunk', section_id: 'shared' }, { local_id: 'leg', section_id: 'shared' }], breakouts: [{ local_id: 'split', fates: [{ kind: 'through', trunk: terminal('trunk', 'b', 'core'), leg: terminal('leg', 'a', 'core'), basis: 'Explicit uncut correspondence' }] }] } } });
   expect(calls[1]).toMatchObject({ operation: 'harness.update', expected_state: 'draft-v1' }); expect(calls[2]).toMatchObject({ operation: 'harness.freeze', expected_state: 'draft-v2' });
-}, 10_000);
+});
 
 test('joint editor records explicit exact members and never infers bonds from shared section', async () => {
   let latest: Harness = { ...branched(), joints: [], breakouts: [] };

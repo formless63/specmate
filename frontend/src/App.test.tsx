@@ -116,7 +116,7 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/projects/project-a/intakes", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
   openTool("Inventory");
-  await screen.findByRole("heading", { name: "Inventory" }, { timeout: 5000 });
+  await screen.findByRole("heading", { name: "Inventory" });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-a?offset=0&limit=50", expect.anything()));
 });
 
@@ -233,6 +233,6 @@ test.each([
   expect(save.title).toBe(off ? "Read-only access: requires Edit" : "");
   expect((screen.getByRole("button", { name: "Freeze saved stock" }) as HTMLButtonElement).disabled).toBe(true);
   openTool("Inventory");
-  await screen.findByRole("heading", { name: "Inventory" }, { timeout: 5000 });
+  await screen.findByRole("heading", { name: "Inventory" });
   expect((screen.getByRole("button", { name: "Create location" }) as HTMLButtonElement).title).toBe("Read-only access: requires Inventory management");
 });

@@ -77,7 +77,7 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   expect(await screen.findByText('stock.core · conductor')).toBeTruthy();
   expect(screen.getAllByText('unknown / unassigned')).toHaveLength(2);
   expect(screen.getAllByText('unknown to unknown').length).toBeGreaterThan(0);
-}, 10_000);
+});
 
 test('inaccessible frozen cable reveals no assignments or pins', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: { message: 'Project not found.' } }), { status: 404 })));
@@ -273,7 +273,7 @@ test.each([
   await screen.findByText('Original editing token conflicts with newer draft.');
   expect(commands.at(-1)).toMatchObject({ operation: 'cable.update', expected_state: 'saved-v2', payload: { cable: { lengths: { route: { amount_mm: '777.000001' } } } } });
   expect((draftEditor().getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('777.000001');
-}, 15_000);
+});
 
 test.each([
   ['read-only', ['project.read'], true, true],
