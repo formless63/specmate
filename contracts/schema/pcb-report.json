@@ -1,5 +1,128 @@
 {
   "$defs": {
+    "ArcEdge": {
+      "additionalProperties": false,
+      "description": "Exact arc: start, mid and end as authored, plus the derived circle.",
+      "properties": {
+        "center": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center",
+          "type": "array"
+        },
+        "end": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "kind": {
+          "const": "arc",
+          "title": "Kind",
+          "type": "string"
+        },
+        "mid": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Mid",
+          "type": "array"
+        },
+        "radius": {
+          "exclusiveMinimum": 0,
+          "title": "Radius",
+          "type": "number"
+        },
+        "start": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        },
+        "sweep_deg": {
+          "title": "Sweep Deg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "start",
+        "mid",
+        "end",
+        "center",
+        "radius",
+        "sweep_deg"
+      ],
+      "title": "ArcEdge",
+      "type": "object"
+    },
+    "CircleEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "center": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center",
+          "type": "array"
+        },
+        "kind": {
+          "const": "circle",
+          "title": "Kind",
+          "type": "string"
+        },
+        "radius": {
+          "exclusiveMinimum": 0,
+          "title": "Radius",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "center",
+        "radius"
+      ],
+      "title": "CircleEdge",
+      "type": "object"
+    },
     "Component": {
       "additionalProperties": false,
       "properties": {
@@ -93,6 +216,7 @@
         "outline": {
           "enum": [
             "closed-line-polygons",
+            "closed-polygons-with-arcs",
             "unsupported"
           ],
           "title": "Outline",
@@ -169,6 +293,51 @@
         "mounting_status"
       ],
       "title": "Hole",
+      "type": "object"
+    },
+    "LineEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "kind": {
+          "const": "line",
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "start",
+        "end"
+      ],
+      "title": "LineEdge",
       "type": "object"
     },
     "Pad": {
@@ -388,6 +557,45 @@
       "title": "Cutouts",
       "type": "array"
     },
+    "cutouts_exact": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "arc": "#/$defs/ArcEdge",
+                  "circle": "#/$defs/CircleEdge",
+                  "line": "#/$defs/LineEdge"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LineEdge"
+                },
+                {
+                  "$ref": "#/$defs/ArcEdge"
+                },
+                {
+                  "$ref": "#/$defs/CircleEdge"
+                }
+              ]
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cutouts Exact"
+    },
     "format_version": {
       "const": 1,
       "title": "Format Version",
@@ -426,6 +634,59 @@
       "maxItems": 10000,
       "title": "Outline",
       "type": "array"
+    },
+    "outline_exact": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "arc": "#/$defs/ArcEdge",
+                  "circle": "#/$defs/CircleEdge",
+                  "line": "#/$defs/LineEdge"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LineEdge"
+                },
+                {
+                  "$ref": "#/$defs/ArcEdge"
+                },
+                {
+                  "$ref": "#/$defs/CircleEdge"
+                }
+              ]
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outline Exact"
+    },
+    "outline_tolerance_mm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outline Tolerance Mm"
     },
     "pads": {
       "items": {

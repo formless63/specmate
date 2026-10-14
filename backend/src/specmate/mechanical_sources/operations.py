@@ -265,6 +265,9 @@ def evaluate(user, definition, declaration):
             row["board_geometry"] = {
                 "outline": report.model_dump(mode="json")["outline"],
                 "cutouts": report.model_dump(mode="json")["cutouts"],
+                "outline_exact": report.model_dump(mode="json")["outline_exact"],
+                "cutouts_exact": report.model_dump(mode="json")["cutouts_exact"],
+                "outline_tolerance_mm": report.outline_tolerance_mm,
                 "mounting_holes": [h.model_dump(mode="json") for h in report.mounting_holes],
                 "coverage": report.coverage.model_dump(mode="json"),
                 "unsupported": report.unsupported,

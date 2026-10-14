@@ -418,7 +418,7 @@ def board_choices(ctx: Context, p: ListProposals):
                 "sha256": interpretation.sha256,
                 "board_path": interpretation.attempt.intake.board_path,
                 "source_revision_id": str(interpretation.attempt.intake.source_revision_id),
-                "outline": "closed-line-polygons" if report.outline else "unavailable",
+                "outline": report.coverage.outline if report.outline else "unavailable",
                 "hole_candidates": len(report.mounting_holes),
                 "components": len(report.components),
             }

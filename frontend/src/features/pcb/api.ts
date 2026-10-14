@@ -12,6 +12,9 @@ export type NativeReport = {
   copper_nets: Record<string, string[]>;
   outline: Point[][];
   cutouts: Point[][];
+  /** Present with coverage 'closed-polygons-with-arcs'; polygons are then display tessellations. */
+  outline_exact?: { kind: 'line' | 'arc' | 'circle' }[][] | null;
+  outline_tolerance_mm?: number | null;
   mounting_holes: { pad_id: string; position: Point; drill: Point; mounting_status: string }[];
   coverage: Record<string, string>;
   unsupported: string[];

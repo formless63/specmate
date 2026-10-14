@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 from specmate.contracts import SHA256, FiniteNumber
+from specmate.pcb import outline_geometry as geometry
 
 Point = tuple[FiniteNumber, FiniteNumber]
 Label = Annotated[str, Field(max_length=1024)]
@@ -56,11 +57,64 @@ class Passage(Record):
     resistance_ohm: FiniteNumber = Field(ge=0)
 
 
+class LineEdge(Record):
+    kind: Literal["line"]
+    start: Point
+    end: Point
+
+
+class ArcEdge(Record):
+    """Exact arc: start, mid and end as authored, plus the derived circle."""
+
+    kind: Literal["arc"]
+    start: Point
+    mid: Point
+    end: Point
+    center: Point
+    radius: FiniteNumber = Field(gt=0)
+    sweep_deg: FiniteNumber
+
+
+class CircleEdge(Record):
+    kind: Literal["circle"]
+    center: Point
+    radius: FiniteNumber = Field(gt=0)
+
+
+Edge = Annotated[LineEdge | ArcEdge | CircleEdge, Field(discriminator="kind")]
+Loop = Annotated[list[Edge], Field(min_length=1, max_length=10000)]
+
+
+def _check_loop(loop) -> None:
+    raw = [e.model_dump() for e in loop]
+    if raw[0]["kind"] == "circle":
+        if len(raw) != 1:
+            raise ValueError("a circle is a loop by itself")
+        return
+    if any(e["kind"] == "circle" for e in raw):
+        raise ValueError("a circle cannot be chained with other edges")
+    for edge in raw:
+        if edge["kind"] == "arc":
+            try:
+                again = geometry.arc(edge["start"], edge["mid"], edge["end"])
+            except ValueError as exc:
+                raise ValueError("arc points disagree with its parameters") from exc
+            if (
+                geometry._dist(again["center"], edge["center"]) > 1e-4
+                or abs(again["radius"] - edge["radius"]) > 1e-4
+                or abs(again["sweep_deg"] - edge["sweep_deg"]) > 1e-4
+            ):
+                raise ValueError("arc centre, radius or sweep disagree with start, mid and end")
+    for a, b in zip(raw, [*raw[1:], raw[0]], strict=True):
+        if geometry._dist(a["end"], b["start"]) > geometry.CHAIN_EPSILON_MM:
+            raise ValueError("exact outline loop is not closed and continuous")
+
+
 class Coverage(Record):
     components: Literal["identity-reference-value-footprint-and-flags"]
     pads: Literal["identity-and-basic-geometry"]
     nets: Literal["pad-membership-not-connectivity-proof"]
-    outline: Literal["closed-line-polygons", "unsupported"]
+    outline: Literal["closed-line-polygons", "closed-polygons-with-arcs", "unsupported"]
     holes: Literal["nonplated-pad-drills-not-reviewed-mounts"]
     placements: Literal["native-absolute"]
 
@@ -78,6 +132,11 @@ class Report(Record):
     copper_nets: dict[Label, list[Label]]
     outline: list[list[Point]] = Field(max_length=10000)
     cutouts: list[list[Point]] = Field(max_length=10000)
+    # Exact geometry, present only with coverage "closed-polygons-with-arcs". The
+    # polygons above are then display tessellations within outline_tolerance_mm.
+    outline_exact: list[Loop] | None = Field(default=None, max_length=10000)
+    cutouts_exact: list[Loop] | None = Field(default=None, max_length=10000)
+    outline_tolerance_mm: FiniteNumber | None = Field(default=None, gt=0, le=1)
     mounting_holes: list[Hole] = Field(max_length=100000)
     component_passages: list[Passage] = Field(max_length=100000)
     coverage: Coverage
@@ -116,8 +175,71 @@ class Report(Record):
                 raise ValueError("hole disagrees with native pad drill")
         if {h.pad_id for h in self.mounting_holes} != {p.id for p in self.pads if p.type == "npth"}:
             raise ValueError("nonplated pad drill coverage is incomplete")
-        if bool(self.outline) != (self.coverage.outline == "closed-line-polygons") or any(
+        if bool(self.outline) != (self.coverage.outline != "unsupported") or any(
             len(polygon) < 3 for polygon in (*self.outline, *self.cutouts)
         ):
             raise ValueError("outline coverage disagrees with geometry")
+        exact = (self.outline_exact, self.cutouts_exact, self.outline_tolerance_mm)
+        if (self.coverage.outline == "closed-polygons-with-arcs") != all(
+            x is not None for x in exact
+        ) or (any(x is not None for x in exact) and any(x is None for x in exact)):
+            raise ValueError("exact outline fields disagree with outline coverage")
+        if self.outline_exact is not None:
+            if len(self.outline_exact) != len(self.outline) or len(self.cutouts_exact) != len(
+                self.cutouts
+            ):
+                raise ValueError("exact outline loops disagree with polygons")
+            for loops, polygons in (
+                (self.outline_exact, self.outline),
+                (self.cutouts_exact, self.cutouts),
+            ):
+                for loop, polygon in zip(loops, polygons, strict=True):
+                    _check_loop(loop)
+                    try:
+                        expected = geometry.tessellate(
+                            [e.model_dump() for e in loop], self.outline_tolerance_mm
+                        )
+                    except ValueError as exc:
+                        raise ValueError("exact outline cannot be tessellated") from exc
+                    if [list(p) for p in polygon] != expected:
+                        raise ValueError(
+                            "outline polygon is not the tessellation of exact geometry"
+                        )
         return self
+
+    def outline_metrics(self) -> dict | None:
+        """Bounding box and net area: exact when arcs are present, else from polygons."""
+        if not self.outline:
+            return None
+        if self.outline_exact is not None:
+            return geometry.metrics(
+                [[e.model_dump() for e in loop] for loop in self.outline_exact],
+                [[e.model_dump() for e in loop] for loop in self.cutouts_exact],
+            )
+        return polygon_metrics(self.outline, self.cutouts)
+
+
+def polygon_area(polygon) -> float:
+    return (
+        abs(
+            sum(
+                x1 * y2 - x2 * y1
+                for (x1, y1), (x2, y2) in zip(polygon, [*polygon[1:], polygon[0]], strict=True)
+            )
+        )
+        / 2
+    )
+
+
+def polygon_metrics(outline, cutouts) -> dict:
+    points = [p for polygon in outline for p in polygon]
+    return {
+        "bbox_mm": [
+            min(x for x, _ in points),
+            min(y for _, y in points),
+            max(x for x, _ in points),
+            max(y for _, y in points),
+        ],
+        "net_area_mm2": sum(polygon_area(p) for p in outline)
+        - sum(polygon_area(p) for p in cutouts),
+    }

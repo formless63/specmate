@@ -166,7 +166,7 @@ export function ReportView({ report }: { report: NativeReport }) {
       <Table.Tbody>{report.pads.map((pad) => <Table.Tr key={pad.id}><Table.Td>{pad.terminal}<Text size="xs">{pad.id}</Text></Table.Td><Table.Td>{pad.net || "Unassigned"}</Table.Td><Table.Td>{pad.position.join(", ")}</Table.Td><Table.Td>{pad.type}</Table.Td></Table.Tr>)}</Table.Tbody>
     </Table>
     {report.mounting_holes.map((hole) => <Text key={hole.pad_id}>Nonplated drill: {hole.position.join(", ")} mm; drill {hole.drill.join(" × ")} mm; mounting role requires review.</Text>)}
-    <Text>Outline: {report.outline.length ? `${report.outline.length} closed line polygon(s)` : "Unresolved"}. No physical qualification.</Text>
+    <Text>Outline: {report.outline.length ? report.outline_exact ? `${report.outline.length} closed polygon(s) with exact arcs/circles, displayed within ${report.outline_tolerance_mm} mm` : `${report.outline.length} closed line polygon(s)` : "Unresolved"}. No physical qualification.</Text>
     <Title order={4}>Parsed coverage and limitations</Title>
     {Object.entries(report.coverage).map(([category, coverage]) => <Text key={category}>{category}: {coverage}</Text>)}
     {report.unsupported.map((issue, i) => <Text key={i} size="sm">{issue}</Text>)}

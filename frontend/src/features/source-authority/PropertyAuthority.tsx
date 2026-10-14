@@ -17,7 +17,7 @@ function SummaryText({ summary }: { summary: OutlineSummary | null }) {
   if (!summary) return <Text size="sm">None</Text>;
   if (summary.status === 'unknown') return <Text size="sm">Unknown: {summary.reason.join('; ')}</Text>;
   const [x0, y0, x1, y1] = summary.bbox_mm;
-  return <Text size="sm">{summary.outline_polygons} outline polygon(s), {summary.cutouts} cutout(s), {summary.vertices} vertices · bounds {x0}, {y0} to {x1}, {y1} mm · net area {summary.net_area_mm2} mm²</Text>;
+  return <Text size="sm">{summary.outline_polygons} outline polygon(s), {summary.cutouts} cutout(s), {summary.vertices} vertices · bounds {x0}, {y0} to {x1}, {y1} mm · net area {summary.net_area_mm2} mm²{summary.geometry === 'exact-arcs' ? ` · exact geometry: ${summary.arcs} arc(s), ${summary.circles} circle(s); display tolerance ${summary.tolerance_mm} mm` : ''}</Text>;
 }
 
 export function OutlinePreview({ value, label }: { value: OutlineValue; label: string }) {
