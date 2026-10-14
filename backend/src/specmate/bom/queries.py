@@ -9,7 +9,8 @@ from pydantic import ValidationError
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import Closure as AssemblyClosure
 from specmate.bom.contracts import BomPlan, DemandQuantity
-from specmate.design.models import Revision
+from specmate.design.closure_reads import closure_reads
+from specmate.design.models import Revision, SnapshotDependency
 from specmate.design.operations import authorize_snapshot
 from specmate.design.pins import check_pin
 from specmate.inventory.contracts import (
@@ -58,6 +59,11 @@ def validate_content(kind, content):
 
 class Closure:
     def __init__(self, user, content, kind=None, dependencies=()):
+        # One membership read per workspace for the whole read-only closure walk.
+        with closure_reads():
+            self._build(user, content, kind, dependencies)
+
+    def _build(self, user, content, kind, dependencies):
         self.plan = parse_content(content, kind)
         self.revisions = {}
         if self.plan is None:
@@ -69,18 +75,28 @@ class Closure:
         ]
         pin_scope = None
         while pending:
-            rid = pending.pop()
-            if rid in self.revisions:
-                continue
-            if len(self.revisions) >= 2000:
-                raise ValidationFailed("BOM dependency limit exceeded.")
-            revision = (
-                Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
+            # Level by level: one query for the level's revisions, one for their pins.
+            level = [rid for rid in dict.fromkeys(pending) if rid not in self.revisions]
+            loaded = {
+                str(key): value
+                for key, value in Revision.objects.select_related(
+                    "definition", "snapshot__definition"
+                )
+                .in_bulk({str(rid) for rid in level})
+                .items()
+            }
+            for rid in level:
+                if len(self.revisions) >= 2000:
+                    raise ValidationFailed("BOM dependency limit exceeded.")
+                revision = loaded.get(str(rid))
+                # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+                pin_scope = check_pin(user, revision, pin_scope)
+                self.revisions[rid] = revision
+            pending = list(
+                SnapshotDependency.objects.filter(
+                    snapshot_id__in=[self.revisions[rid].snapshot_id for rid in level]
+                ).values_list("revision_id", flat=True)
             )
-            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
-            pin_scope = check_pin(user, revision, pin_scope)
-            self.revisions[rid] = revision
-            pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         # Project membership alone does not authorize typed source-file references,
         # which need not be represented by design SnapshotDependency rows.
         authorized_snapshots = set()

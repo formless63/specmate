@@ -23,8 +23,9 @@ from specmate.catalog.scope import (
     references_revision,
     searchable_workspaces,
 )
+from specmate.design.closure_reads import closure_reads
 from specmate.design.models import Definition, Revision, Snapshot
-from specmate.design.operations import authorize_snapshot
+from specmate.design.operations import authorize_snapshot, authorize_snapshots
 from specmate.inventory.models import StockAccount
 from specmate.operations import (
     Context,
@@ -364,10 +365,22 @@ def revision_labels(user, payload):
     revisions = Revision.objects.select_related("definition", "snapshot__definition").in_bulk(
         set(payload.revision_ids)
     )
-    for revision_id in payload.revision_ids:
-        entry = {"revision_id": str(revision_id), "readable": False}
-        revision = revisions.get(revision_id)
-        if revision is not None:
+    with closure_reads():
+        try:
+            # Common case: every label is readable, so one batched closure authorization
+            # covers them all. Any denial falls back to per-label authorization below,
+            # so one unreadable revision never hides or reveals another.
+            authorize_snapshots(
+                user, [r.snapshot for r in revisions.values()], _authorized=authorized
+            )
+        except (NotFound, PermissionDenied):
+            pass
+        for revision_id in payload.revision_ids:
+            entry = {"revision_id": str(revision_id), "readable": False}
+            revision = revisions.get(revision_id)
+            labels.append(entry)
+            if revision is None:
+                continue
             try:
                 # authorize_snapshot checks workspace read first.
                 authorize_snapshot(user, revision.snapshot, _authorized=authorized)
@@ -381,7 +394,6 @@ def revision_labels(user, payload):
                     kind=revision.definition.kind,
                     number=revision.number,
                 )
-        labels.append(entry)
     return {"labels": labels, "source_labels": source_revision_labels(user, payload)}
 
 

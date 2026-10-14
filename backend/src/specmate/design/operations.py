@@ -224,17 +224,21 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
     if len(dependencies) > 2000:
         raise ValidationFailed("Captured engineering and origin dependencies exceed the limit.")
     revisions = list(
-        Revision.objects.select_related("definition", "snapshot").filter(id__in=dependencies)
+        Revision.objects.select_related("definition", "snapshot__definition").filter(
+            id__in=dependencies
+        )
     )
     found = {r.id: r for r in revisions}
     pins = []
-    authorized_snapshots = set()
-    for rid in sorted(dependencies, key=str):
+    for rid in dependencies:
         revision = found.get(rid)
         if revision is None or revision.definition.workspace_id != draft.definition.workspace_id:
             # Pins never cross workspaces; a foreign revision reads as missing.
             raise NotFound(NOT_FOUND)
-        authorize_snapshot(ctx.user, revision.snapshot, _authorized=authorized_snapshots)
+    # One batched closure authorization for every pin, before any self-pin diagnostic.
+    authorize_snapshots(ctx.user, [found[rid].snapshot for rid in dependencies])
+    for rid in dependencies:
+        revision = found[rid]
         if revision.definition_id == draft.definition_id and derived is None:
             raise ValidationFailed("A definition cannot depend on its own revision.")
         pins.append({"revision_id": str(rid), "sha256": revision.snapshot.sha256})
@@ -484,23 +488,63 @@ def authorize_snapshot(user, snapshot, *, _authorized=None):
     request cache or retained object. Failed traversals publish no completed work.
     Typed content and retained origins remain checked for each new snapshot.
     """
-    workspace_id = snapshot.definition.workspace_id
-    authorize(user, workspace_id, Perm.WORKSPACE_READ)
-    pending = [snapshot]
-    visited = set() if _authorized is None else set(_authorized)
-    while pending:
-        current = pending.pop()
-        if current.pk in visited:
-            continue
-        visited.add(current.pk)
-        if current.definition.workspace_id != workspace_id:
-            # Unreachable while the same-workspace pin guard holds; never disclose.
-            raise NotFound("Not found.")
-        body = json.loads(bytes(current.canonical))
-        authorize_design_content(user, current.definition, body["content"])
-        for dependency in current.dependencies.select_related(
-            "revision__definition", "revision__snapshot__definition"
-        ):
-            pending.append(dependency.revision.snapshot)
+    authorize_snapshots(user, [snapshot], _authorized=_authorized)
+
+
+def authorize_snapshots(user, snapshots, *, _authorized=None):
+    """Authorize several snapshots and their exact pinned closures in batched levels.
+
+    One membership read per distinct root workspace, then per closure level one
+    dependency query and one catalog-origin presence query, however many nodes the
+    level holds. Typed content is still validated for every new snapshot. Each pin must
+    stay in its parent's workspace (unreachable while the database guard holds); a
+    violation reads as the same ``NotFound`` a non-member receives.
+
+    Returns ``{revision_id: Revision}`` for every dependency revision reached by this
+    traversal (snapshots already in ``_authorized`` are not walked again).
+    """
+    from specmate.design.closure_reads import closure_reads, prefetch_origins
+
+    snapshots = list(snapshots)
+    with closure_reads():
+        for workspace_id in sorted({s.definition.workspace_id for s in snapshots}, key=str):
+            authorize(user, workspace_id, Perm.WORKSPACE_READ)
+        visited = set() if _authorized is None else set(_authorized)
+        reached = {}
+        level = snapshots
+        while level:
+            fresh = {}
+            for current in level:
+                if current.pk not in visited and current.pk not in fresh:
+                    fresh[current.pk] = current
+            if not fresh:
+                break
+            visited.update(fresh)
+            prefetch_origins({current.definition_id for current in fresh.values()})
+            for current in fresh.values():
+                body = json.loads(bytes(current.canonical))
+                authorize_design_content(user, current.definition, body["content"])
+            level = []
+            for dependency in SnapshotDependency.objects.filter(
+                snapshot_id__in=list(fresh)
+            ).select_related("revision__definition", "revision__snapshot__definition"):
+                parent = fresh[dependency.snapshot_id]
+                revision = dependency.revision
+                if revision.definition.workspace_id != parent.definition.workspace_id:
+                    # Unreachable while the same-workspace pin guard holds; never disclose.
+                    raise NotFound("Not found.")
+                reached[revision.id] = revision
+                level.append(revision.snapshot)
     if _authorized is not None:
         _authorized.update(visited)
+    return reached
+
+
+def closure_revisions(user, snapshot):
+    """Authorize one snapshot's exact pinned closure and load every revision it reaches.
+
+    The prefetched loader for readers that need the closure's rows (export review,
+    release review): the same authorization as ``authorize_snapshot``, with the rows of
+    each level read in one query instead of one ``get_revision`` per node.
+    """
+    return authorize_snapshots(user, [snapshot])
