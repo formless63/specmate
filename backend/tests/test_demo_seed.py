@@ -145,3 +145,50 @@ def test_seed_content_covers_every_page(admin):
     kinds = {r.kind for r in ProjectReference.objects.all()}
     assert kinds == {"definition", "revision"}  # floating and pinned
     assert Definition.objects.filter(kind="development_need").count() == 1
+
+
+def test_seed_adds_a_file_integration_whose_import_matches_by_source_identifier(admin):
+    from specmate.integrations.models import ExternalObservation, ImportRun, Integration
+
+    out = seed(allow=True)
+    assert "integration" in out
+    integration = Integration.objects.get()
+    assert integration.ownership == {"supplier_offer": "external"}
+    run = ImportRun.objects.get()
+    assert run.integration_id == integration.id and run.field == "supplier_offer"
+    # Two rows resolve through their registered identifiers; the unknown one is rejected.
+    assert (run.row_count, run.accepted_count) == (3, 2)
+    assert [r["row"] for r in run.rejections] == [3]
+    observations = ExternalObservation.objects.all()
+    assert observations.count() == 2
+    assert all(o.revision_id is not None and o.kind == "supplier_offer" for o in observations)
+    # Matched only by identifier, so the demo reaches the report rows of the demo BOM plan.
+    from specmate.catalog.models import SourceIdentifier
+
+    matched = set(
+        SourceIdentifier.objects.filter(scheme="supplier-sku").values_list("revision_id", flat=True)
+    )
+    assert {o.revision_id for o in observations} == matched
+    # Observations are never reviewed offers.
+    from specmate.sourcing.models import SupplierOffer
+
+    assert SupplierOffer.objects.count() == 1
+
+    # Every observed item is a row of the demo BOM plan's sourcing report, so the
+    # Sourcing "External observations" section is populated for it.
+    from specmate.access.models import WorkspaceMember as Member
+    from specmate.integrations.queries import list_observations
+    from specmate.operations import Context, execute
+
+    owner = Installation.objects.get().owner
+    plan = Definition.objects.get(name="Demo bill of materials").revisions.get()
+    report = execute(
+        "sourcing.report",
+        Context(user=owner, via="internal", request_id="r"),
+        {"revision_id": str(plan.id)},
+    ).result
+    rows = {row["revision_id"] for row in report["rows"]}
+    assert {str(o.revision_id) for o in observations} == rows
+    workspace = str(Member.objects.get().workspace_id)
+    for row in rows:
+        assert list_observations(owner, workspace, row)
