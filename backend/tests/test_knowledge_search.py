@@ -188,6 +188,12 @@ def test_catalog_origin_filters_links_without_hiding_local_note(users, project, 
         links=[target],
     )
     before = search(users["viewer"], "Owned", target=target)
+    assert (
+        api(users["viewer"])
+        .get("/api/v0/knowledge/search", {"query": "Owned", "target": json.dumps(target)})
+        .json()
+        == before
+    )
     assert before["results"][0]["links"][0]["target"] == {**target, "feature_id": None}
     Membership.objects.filter(project_id=remote, user=users["viewer"]).delete()
     own = search(users["viewer"], "Owned")
@@ -198,6 +204,12 @@ def test_catalog_origin_filters_links_without_hiding_local_note(users, project, 
     ) not in json.dumps(own)
     with pytest.raises(NotFound):
         search(users["viewer"], "Owned", target=target)
+    assert (
+        api(users["viewer"])
+        .get("/api/v0/knowledge/search", {"query": "Owned", "target": json.dumps(target)})
+        .status_code
+        == 404
+    )
     Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
     assert search(users["viewer"], "Owned", target=target) == before
 
@@ -434,7 +446,11 @@ def test_search_rechecks_independently_committed_revocation_after_snippet_render
     "exact_target", [False, True], ids=["owned-note-link-filter", "exact-target-denial"]
 )
 def test_catalog_revocation_during_search_keeps_owned_note_policy(
-    users, project, adopted_assembly, monkeypatch, exact_target  # noqa: F811
+    users,
+    project,
+    adopted_assembly,  # noqa: F811
+    monkeypatch,
+    exact_target,
 ):
     from specmate.knowledge import search as module
 
@@ -469,3 +485,37 @@ def test_catalog_revocation_during_search_keeps_owned_note_policy(
     monkeypatch.setattr(module, "snippet", original)
     Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
     assert search(users["viewer"], "needle", **scope) == prior
+
+
+@pytest.mark.django_db(transaction=True)
+def test_revocation_during_mismatching_blob_read_precedes_integrity_diagnostics(
+    users, project, monkeypatch
+):
+    from contextlib import contextmanager
+
+    _, payload = attachment(users, project, b"Registered original")
+    original = blobstore.open_blob
+    revoke = True
+
+    @contextmanager
+    def mismatching_stream(sha256):
+        with original(sha256) as stream:
+
+            class ChangedRead:
+                def read(self, size):
+                    value = stream.read(size)
+                    if revoke:
+                        committed_revoke(project, users["viewer"])
+                    return value + b"changed"
+
+            yield ChangedRead()
+
+    monkeypatch.setattr(blobstore, "open_blob", mismatching_stream)
+    with pytest.raises(NotFound):
+        op(users["viewer"], "knowledge.preview", payload)
+    Membership.objects.create(project_id=project, user=users["viewer"], role="viewer")
+    revoke = False
+    with pytest.raises(ValidationFailed, match="registered integrity"):
+        op(users["viewer"], "knowledge.preview", payload)
+    monkeypatch.setattr(blobstore, "open_blob", original)
+    assert op(users["viewer"], "knowledge.preview", payload)["text"] == "Registered original"

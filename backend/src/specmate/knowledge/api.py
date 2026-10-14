@@ -4,8 +4,10 @@ from uuid import UUID
 
 from django.http import JsonResponse
 from ninja import Query, Router
+from pydantic import Json
 
 from specmate.catalog_matching.queries import current_actor
+from specmate.facts.contracts import Target
 from specmate.knowledge.previews import preview_attachment
 from specmate.knowledge.queries import project_items, read_item
 from specmate.knowledge.search import search_knowledge
@@ -34,8 +36,13 @@ def _fresh(value):
     return response
 
 
+class SearchQuery(SearchKnowledge):
+    # Query strings carry a structured target as JSON; shared operations use objects.
+    target: Json[Target] | None = None
+
+
 @router.get("/search")
-def search(request, payload: Query[SearchKnowledge]):
+def search(request, payload: Query[SearchQuery]):
     return _fresh(search_knowledge(request.user, payload))
 
 

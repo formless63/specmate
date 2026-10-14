@@ -199,6 +199,8 @@ def preview_attachment(user, payload):
         }
     with blobstore.open_blob(file.blob.sha256) as stream:
         data = stream.read(MAX_PREVIEW_BYTES + 1)
+    # Current source authority precedes even integrity diagnostics after I/O.
+    get_item(current_actor(user), item.id)
     if len(data) != file.blob.size or hashlib.sha256(data).hexdigest() != file.blob.sha256:
         raise ValidationFailed("Attachment bytes do not match their registered integrity.")
     try:
