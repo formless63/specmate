@@ -573,3 +573,184 @@ def test_final_source_reauthorization_rolls_back_after_real_external_revocation(
         idempotency_key="final-closure",
     )
     assert recovered["state"] == "team-review-v2"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_final_history_serialization_revocation_rolls_back_response_and_exact_retry(
+    users, project, pair, monkeypatch
+):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections, connections
+
+    from specmate.collaboration import queries
+
+    owner = users["owner"]
+    review = open_review(users, project, pair)
+    source_project = op(owner, "project.create", {"name": "Independent review history source"})[
+        "project_id"
+    ]
+    evidence = source_evidence(users, source_project)
+    before_notices = set(InternalNotification.objects.values_list("id", flat=True))
+    original = queries.evidence_result
+
+    def revoke():
+        close_old_connections()
+        try:
+            Membership.objects.filter(project_id=source_project, user=owner).delete()
+        finally:
+            connections.close_all()
+
+    def serialize_then_revoke(entry):
+        result = original(entry)
+        if entry.source_file_id:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pool.submit(revoke).result(timeout=15)
+        return result
+
+    monkeypatch.setattr(queries, "evidence_result", serialize_then_revoke)
+    payload = {
+        "review_id": review["review_id"],
+        "action": "comment",
+        "basis": "Exact retained source evidence",
+        "evidence": evidence,
+    }
+    with pytest.raises(NotFound):
+        op(
+            owner,
+            "collaboration.respond",
+            payload,
+            expected_state=review["state"],
+            idempotency_key="serialized-history",
+        )
+    assert not Membership.objects.filter(project_id=source_project, user=owner).exists()
+    assert ReviewEntry.objects.filter(review_id=review["review_id"]).count() == 1
+    assert ChangeReview.objects.get(id=review["review_id"]).version == 1
+    assert set(InternalNotification.objects.values_list("id", flat=True)) == before_notices
+    assert not IdempotencyRecord.objects.filter(
+        operation="collaboration.respond", key="serialized-history"
+    ).exists()
+    Membership.objects.create(project_id=source_project, user=owner, role="owner")
+    monkeypatch.setattr(queries, "evidence_result", original)
+    recovered = op(
+        owner,
+        "collaboration.respond",
+        payload,
+        expected_state=review["state"],
+        idempotency_key="serialized-history",
+    )
+    assert recovered["state"] == "team-review-v2"
+    assert recovered["entries"][-1]["evidence"]["source_path"] == evidence["source_path"]
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("operation", ["collaboration.list", "collaboration.inbox"])
+def test_serialization_revocation_omits_protected_review_and_notification_pages(
+    users, project, pair, monkeypatch, operation
+):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections, connections
+
+    from specmate.collaboration import queries
+
+    owner, recipient = users["owner"], users["editor"]
+    review = open_review(users, project, pair)
+    source_project = op(owner, "project.create", {"name": "Independent inbox evidence source"})[
+        "project_id"
+    ]
+    evidence = source_evidence(users, source_project)
+    Membership.objects.create(project_id=source_project, user=recipient, role="viewer")
+    op(
+        owner,
+        "collaboration.respond",
+        {
+            "review_id": review["review_id"],
+            "action": "comment",
+            "basis": "Protected evidence history",
+            "evidence": evidence,
+        },
+        expected_state=review["state"],
+    )
+    original = queries.evidence_result
+    revoked = False
+
+    def revoke():
+        close_old_connections()
+        try:
+            Membership.objects.filter(project_id=source_project, user=recipient).delete()
+        finally:
+            connections.close_all()
+
+    def serialize_then_revoke(entry):
+        nonlocal revoked
+        result = original(entry)
+        if entry.source_file_id and not revoked:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pool.submit(revoke).result(timeout=15)
+            revoked = True
+        return result
+
+    monkeypatch.setattr(queries, "evidence_result", serialize_then_revoke)
+    page = op(recipient, operation, {"project_id": project})
+    assert revoked and page == {"results": [], "next_after": None}
+    assert not Membership.objects.filter(project_id=source_project, user=recipient).exists()
+    Membership.objects.create(project_id=source_project, user=recipient, role="viewer")
+    recovered = op(recipient, operation, {"project_id": project})
+    assert recovered["results"] and all(
+        row["review_id"] == review["review_id"] for row in recovered["results"]
+    )
+
+
+def test_changed_review_id_cannot_bypass_denied_stored_receipt_closure(users, project, pair):
+    owner = users["owner"]
+    historical = open_review(users, project, pair)
+    independent = open_review(users, project, pair, title="Separate authorized review")
+    source_project = op(owner, "project.create", {"name": "Exact stored response source"})[
+        "project_id"
+    ]
+    evidence = source_evidence(users, source_project)
+    payload = {
+        "review_id": historical["review_id"],
+        "action": "comment",
+        "basis": "Stored exact evidence",
+        "evidence": evidence,
+    }
+    receipt = op(
+        owner,
+        "collaboration.respond",
+        payload,
+        expected_state=historical["state"],
+        idempotency_key="different-review-input",
+    )
+    Membership.objects.filter(project_id=source_project, user=owner).delete()
+    changed = {"review_id": independent["review_id"], "action": "comment", "basis": "New inputs"}
+    assert op(owner, "collaboration.read", {"review_id": independent["review_id"]})
+    with pytest.raises(NotFound):
+        op(
+            owner,
+            "collaboration.respond",
+            changed,
+            expected_state=independent["state"],
+            idempotency_key="different-review-input",
+        )
+    Membership.objects.create(project_id=source_project, user=owner, role="owner")
+    with pytest.raises(IdempotencyMismatch):
+        op(
+            owner,
+            "collaboration.respond",
+            changed,
+            expected_state=independent["state"],
+            idempotency_key="different-review-input",
+        )
+    assert (
+        op(
+            owner,
+            "collaboration.respond",
+            payload,
+            expected_state=historical["state"],
+            idempotency_key="different-review-input",
+        )
+        == receipt
+    )
+    assert ReviewEntry.objects.filter(review_id=independent["review_id"]).count() == 1

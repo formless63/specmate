@@ -202,7 +202,7 @@ def summary(user, review_id, *, permission=Perm.PROJECT_READ):
                 item_id=review.knowledge_entry.item_id, entry_number=review.knowledge_entry.number
             ),
         )[1]
-    return {
+    result = {
         "review_id": str(review.id),
         "project_id": str(review.project_id),
         "title": review.title,
@@ -236,6 +236,10 @@ def summary(user, review_id, *, permission=Perm.PROJECT_READ):
         "release_approval": "not_evaluated",
         "adoption": "separate_reviewed_upgrade_operation_required",
     }
+    # Rendering historic knowledge/evidence may outlive a competing source revoke.
+    # Recheck the same complete closure before disclosure or committing a write receipt.
+    review_rows(user, review_id, permission)
+    return result
 
 
 def inspect(user, review_id):
