@@ -2,10 +2,10 @@
 
 Downloads of export packages, selected packages and release archives call ``record_share``
 in the same operation, so every copy that leaves the workspace has a who/what/when row.
-Admins see every record; other members see only their own.
+Any workspace member sees every record.
 """
 
-from specmate.access.permissions import Perm, authorize, held_permissions
+from specmate.access.permissions import Perm, authorize
 from specmate.design.models import Revision
 from specmate.operations import Context, operation
 from specmate.sharing.contracts import ListShares
@@ -63,8 +63,6 @@ def view(row):
 def list_shares(ctx: Context, p: ListShares):
     workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ)
     rows = ShareRecord.objects.filter(workspace=workspace)
-    if Perm.WORKSPACE_ADMIN not in held_permissions(ctx.user, workspace.id):
-        rows = rows.filter(shared_by=ctx.user)
     total = rows.count()
     window = list(rows.order_by("-shared_at", "-id")[p.offset : p.offset + p.limit])
     return {
