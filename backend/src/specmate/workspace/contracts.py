@@ -15,7 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 LibraryFamily = Literal[
     "definition", "source_bundle", "physical_unit", "stock_account", "fact_subject"
 ]
-ReferenceKind = Literal["definition", "revision", "source_bundle", "physical_unit", "work_batch"]
+ReferenceKind = Literal[
+    "definition", "revision", "source_bundle", "physical_unit", "work_batch", "release"
+]
 KIND_PATTERN = r"^[a-z][a-z0-9_]{0,49}$"
 USED_IN_BOUND = 20
 

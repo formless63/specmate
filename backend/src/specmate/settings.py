@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "specmate.material_accounting",
     "specmate.selected_packages",
     "specmate.export_packages.apps.ExportPackagesConfig",
+    "specmate.releases.apps.ReleasesConfig",
     "specmate.firmware_occurrences.apps.FirmwareOccurrencesConfig",
     "specmate.firmware_builds.apps.FirmwareBuildsConfig",
     "specmate.firmware_impact.apps.FirmwareImpactConfig",

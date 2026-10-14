@@ -29,7 +29,9 @@ from specmate.operations import (
     operation,
 )
 
-ReferenceKind = Literal["definition", "revision", "source_bundle", "physical_unit", "work_batch"]
+ReferenceKind = Literal[
+    "definition", "revision", "source_bundle", "physical_unit", "work_batch", "release"
+]
 
 
 class Payload(BaseModel):
@@ -96,7 +98,7 @@ def reference_view(reference: ProjectReference) -> dict:
         "reference_id": str(reference.id),
         "kind": reference.kind,
         "target_id": str(reference.target_id),
-        "pin": "exact" if reference.kind == "revision" else "floating",
+        "pin": "exact" if reference.kind in ("revision", "release") else "floating",
         "role": reference.role,
         "note": reference.note,
         "added_by": reference.added_by.get_username(),
@@ -328,6 +330,11 @@ def _target(kind: str, target_id: UUID):
         return item, item and item.workspace_id
     if kind == "physical_unit":
         item = PhysicalUnit.objects.filter(id=target_id).first()
+        return item, item and item.workspace_id
+    if kind == "release":
+        from specmate.releases.models import Release
+
+        item = Release.objects.filter(id=target_id).first()
         return item, item and item.workspace_id
     item = WorkBatch.objects.select_related("revision__definition").filter(id=target_id).first()
     return item, item and item.revision.definition.workspace_id

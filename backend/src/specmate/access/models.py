@@ -114,7 +114,14 @@ class Project(models.Model):
         ]
 
 
-REFERENCE_TARGETS = ("definition", "revision", "source_bundle", "physical_unit", "work_batch")
+REFERENCE_TARGETS = (
+    "definition",
+    "revision",
+    "source_bundle",
+    "physical_unit",
+    "work_batch",
+    "release",
+)
 
 
 def _only(target: str) -> models.Q:
@@ -137,6 +144,7 @@ class ProjectReference(models.Model):
         SOURCE_BUNDLE = "source_bundle"
         PHYSICAL_UNIT = "physical_unit"
         WORK_BATCH = "work_batch"
+        RELEASE = "release"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="references")
@@ -155,6 +163,9 @@ class ProjectReference(models.Model):
     )
     work_batch = models.ForeignKey(
         "inventory.WorkBatch", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    release = models.ForeignKey(
+        "releases.Release", null=True, on_delete=models.PROTECT, related_name="+"
     )
     role = models.CharField(max_length=100)
     note = models.CharField(max_length=2000, blank=True)
@@ -176,7 +187,8 @@ class ProjectReference(models.Model):
                 | _only("revision")
                 | _only("source_bundle")
                 | _only("physical_unit")
-                | _only("work_batch"),
+                | _only("work_batch")
+                | _only("release"),
                 name="project_reference_target",
             ),
             models.CheckConstraint(condition=~models.Q(role=""), name="project_reference_role"),

@@ -908,6 +908,11 @@ def archive(ctx, p):
         raise ValidationFailed(
             "Included outputs cite different revisions or quantities; no package was produced."
         )
+    return zip_package(files), sha256, manifest
+
+
+def zip_package(files):
+    """Deterministic archive bytes for one reviewed file set (fixed time, read-only)."""
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as target:
         for path, data in sorted(files.items()):
@@ -916,4 +921,4 @@ def archive(ctx, p):
             info.external_attr = 0o100444 << 16
             info.compress_type = zipfile.ZIP_DEFLATED
             target.writestr(info, data)
-    return stream.getvalue(), sha256, manifest
+    return stream.getvalue()

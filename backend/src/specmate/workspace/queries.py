@@ -461,6 +461,7 @@ def _labels(references: list[ProjectReference]) -> dict:
     """Resolve every reference target in a fixed number of queries."""
     from specmate.inventory.models import WorkBatch
     from specmate.physical_units.models import PhysicalUnit
+    from specmate.releases.models import Release
     from specmate.sources.models import SourceBundle
 
     def ids(kind):
@@ -473,6 +474,7 @@ def _labels(references: list[ProjectReference]) -> dict:
         ids("physical_unit")
     )
     batches = WorkBatch.objects.select_related("revision__definition").in_bulk(ids("work_batch"))
+    releases = Release.objects.in_bulk(ids("release"))
     definition_ids = set(definitions) | {r.definition_id for r in revisions.values()}
     latest = dict(
         Revision.objects.filter(definition_id__in=definition_ids)
@@ -502,6 +504,8 @@ def _labels(references: list[ProjectReference]) -> dict:
         elif ref.kind == "work_batch" and target in batches:
             item = batches[target]
             label, item_kind, number = item.label, item.kind, item.revision.number
+        elif ref.kind == "release" and target in releases:
+            label, item_kind = releases[target].name, "release"
         result[ref.id] = {
             "label": label,
             "item_kind": item_kind,
