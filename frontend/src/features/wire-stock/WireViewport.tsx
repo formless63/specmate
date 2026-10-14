@@ -11,9 +11,31 @@ import { explodeOffsets, outerLayerPaths } from '../../../../packages/wire-geome
 import type { ExplodeMode } from '../../../../packages/wire-geometry/src/explode';
 import type { WireModel } from '../../../../packages/wire-geometry/src/model';
 
-/** Camera presets: end-on at A or B, looking down (top) or at the cable's length (front), as cab-stu's 3D wire offered. */
-export type CameraView = 'a' | 'b' | 'top' | 'front';
-const DIRECTIONS: Record<CameraView, [number, number, number]> = { a: [-1, 0.03, 0.02], b: [1, 0.03, 0.02], top: [0, 1, 0.02], front: [0, 0.03, 1] };
+import { DEFAULT_DIRECTION, frameBox, VIEW_DIRECTIONS } from '../../../../packages/wire-geometry/src/framing';
+import type { CameraView } from '../../../../packages/wire-geometry/src/framing';
+
+export type { CameraView };
+/** True when the themed surface behind the canvas is dark (read from the page, not assumed). */
+function isDark(element: Element): boolean {
+  const scheme = element.closest('[data-mantine-color-scheme]')?.getAttribute('data-mantine-color-scheme') ?? document.documentElement.getAttribute('data-mantine-color-scheme');
+  if (scheme === 'dark' || scheme === 'light') return scheme === 'dark';
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+/**
+ * Soft studio rig for small metal and plastic parts: a sky/ground hemisphere, a key from above and in
+ * front, a fill from the other side and a rim from behind, so a dark jacket keeps an edge on a dark
+ * canvas. The room environment does most of the work for metals; without it the lights carry more.
+ */
+function studioLights(dark: boolean, environment: boolean): THREE.Group {
+  const k = environment ? 1 : 1.6;
+  const rig = new THREE.Group();
+  rig.add(new THREE.HemisphereLight('#ffffff', dark ? '#30343a' : '#9a9690', (dark ? 0.35 : 0.55) * k));
+  const key = new THREE.DirectionalLight('#ffffff', (dark ? 2.2 : 1.6) * k); key.position.set(-0.6, 1.6, 1.2);
+  const fill = new THREE.DirectionalLight('#dfe8ff', (dark ? 0.55 : 0.4) * k); fill.position.set(1.2, 0.3, 0.8);
+  const rim = new THREE.DirectionalLight('#ffffff', (dark ? 1.1 : 0.6) * k); rim.position.set(0.2, 0.9, -1.4);
+  rig.add(key, fill, rim);
+  return rig;
+}
 const reducedMotion = (): boolean => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** Theme motion token (`--sb-motion-quick`) in ms; 0 when absent or unparsable, which means no tween. */
 export function motionMs(element: Element): number {
@@ -52,8 +74,9 @@ export default function WireViewport({ model }: { model: WireModel }) {
     element.style.cssText = 'width:100%;max-width:100%;height:360px;display:block;touch-action:none';
     container.appendChild(element);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    // Transparent canvas: the host's themed surface (and dot grid) shows through.
-    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
+    // Transparent canvas: the host's themed surface (and dot grid) shows through. Neutral tone mapping
+    // keeps recorded colours' hues while taming metal highlights.
+    renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1;
     const scene = new THREE.Scene();
     // Image-based light gives metals and glossy jackets something to reflect. Optional: absent in minimal contexts.
     let environment = false;
@@ -62,10 +85,10 @@ export default function WireViewport({ model }: { model: WireModel }) {
       scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
       pmrem.dispose(); environment = true;
     } catch { environment = false; }
-    scene.environmentIntensity = 0.75;
-    scene.add(new THREE.HemisphereLight('#ffffff', '#606975', environment ? 0.35 : 1.6));
-    const light = new THREE.DirectionalLight('#ffffff', environment ? 1.4 : 1.8); light.position.set(-5, 10, 8); scene.add(light);
-    const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 10000);
+    const dark = isDark(container);
+    scene.environmentIntensity = dark ? 0.65 : 0.85;
+    scene.add(studioLights(dark, environment));
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 10000);
     const controls = new OrbitControls(camera, element);
     controls.enableDamping = false;
     const render = () => {
@@ -73,23 +96,11 @@ export default function WireViewport({ model }: { model: WireModel }) {
     };
     const frame = (view?: CameraView, keep = false) => {
       const bounds = live.current?.object ? new THREE.Box3().setFromObject(live.current.object.group) : new THREE.Box3();
-      const center = bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3());
-      const radius = bounds.isEmpty() ? 1 : Math.max(bounds.getSize(new THREE.Vector3()).length() / 2, 0.001);
-      const direction = (view ? new THREE.Vector3(...DIRECTIONS[view]) : keep && camera.position.distanceToSquared(controls.target) > 0 ? camera.position.clone().sub(controls.target) : new THREE.Vector3(-0.35, 0.8, 1)).normalize();
-      const right = new THREE.Vector3(0, 1, 0).cross(direction).normalize();
-      const up = direction.clone().cross(right).normalize();
-      const tanV = Math.tan(camera.fov * Math.PI / 360), tanH = tanV * camera.aspect;
-      let distance = radius;
-      // Fit every box corner in camera space: a long stock need not fit its length
-      // into the viewport's height, and end-on views can show the actual cut face.
-      if (!bounds.isEmpty()) for (const x of [bounds.min.x, bounds.max.x])
-        for (const y of [bounds.min.y, bounds.max.y]) for (const z of [bounds.min.z, bounds.max.z]) {
-          const point = new THREE.Vector3(x, y, z).sub(center);
-          distance = Math.max(distance, point.dot(direction) + Math.max(Math.abs(point.dot(right)) / tanH, Math.abs(point.dot(up)) / tanV) * 1.15);
-        }
-      camera.position.copy(center).addScaledVector(direction, distance);
-      camera.near = Math.max(radius / 1000, 0.00001); camera.far = distance + radius * 10;
-      camera.updateProjectionMatrix(); controls.target.copy(center); controls.update(); render();
+      const direction = view ? new THREE.Vector3(...VIEW_DIRECTIONS[view])
+        : keep && camera.position.distanceToSquared(controls.target) > 0 ? camera.position.clone().sub(controls.target) : new THREE.Vector3(...DEFAULT_DIRECTION);
+      const f = frameBox(bounds, direction, camera.fov, camera.aspect);
+      camera.position.copy(f.position); camera.up.copy(f.up); camera.near = f.near; camera.far = f.far;
+      camera.updateProjectionMatrix(); controls.target.copy(f.target); controls.update(); render();
     };
     live.current = { scene, frame, environment, redraw: render };
     reset.current = frame;
@@ -110,6 +121,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
     return () => {
       reset.current = () => {};
       observer.disconnect(); document.removeEventListener('visibilitychange', render); element.removeEventListener('webglcontextlost', lost); element.removeEventListener('webglcontextrestored', restored); scene.environment?.dispose();
+      scene.traverse(o => { if ((o as THREE.Light).isLight) (o as THREE.Light).dispose(); });
       cancelAnimationFrame(shown.current.raf); shown.current.raf = 0;
       controls.removeEventListener('change', render); controls.dispose(); live.current?.object?.dispose(); live.current = null;
       renderer.dispose(); renderer.forceContextLoss(); element.remove();

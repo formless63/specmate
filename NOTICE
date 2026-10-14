@@ -76,6 +76,12 @@ The 3D explode and x-ray controls (packages/wire-geometry/src/explode.ts) are wr
 wire model using only the behavior of cab-stu's 3D wire view (packages/layout/src/wire-model.ts and
 packages/editor-react/src/wire-scene.ts: layers pulled apart radially or axially, outer layers drawn
 translucent without depth writes); no code, tuning constants or artwork is copied.
+The 3D viewer's camera framing and studio lighting (packages/wire-geometry/src/framing.ts and
+frontend/src/features/wire-stock/WireViewport.tsx) and its braid and strand surface shading
+(packages/wire-geometry/src/materials.ts) adapt cab-stu packages/editor-react/src/model-scene.ts
+(frameBox: every box corner fitted to both fields of view; makeLights: hemisphere, key, fill and
+rim lights) and packages/editor-react/src/wire-scene.ts (screenTexture: round-strand crowns and
+over-under braid carriers, also used as a bump map), with some light tuning values retained.
 No predecessor catalog data, real designs, fonts, vendor art or comments are included.
 
 MIT permission notice for those adaptations:

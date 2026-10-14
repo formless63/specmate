@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { endFaceLayout, layoutCallouts, renderEndFaceSvg, renderSectionSvg, sectionLayout, segmentsIntersect } from '../../../../packages/section-layout/src';
+import { END_FACE_LABEL_GAP, endFaceLayout, layoutCallouts, PICKUP_CLEARANCE, renderEndFaceSvg, renderSectionSvg, sectionLayout, segmentsIntersect } from '../../../../packages/section-layout/src';
 import type { CalloutItem, CalloutOptions } from '../../../../packages/section-layout/src';
-import { braidedCoax, shieldedPair } from './fixtures';
+import { braidedCoax, screenedTwinWithDrain, shieldedPair } from './fixtures';
 
 const parse = (svg: string) => new DOMParser().parseFromString(svg, 'image/svg+xml');
 const lcg = (seed: number) => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
@@ -88,5 +88,51 @@ describe('rendered callouts', () => {
     expect(groups).toHaveLength(4);
     expect(crossings(groups)).toBe(0);
     expect(renderEndFaceSvg(result.face, 'End')).toBe(renderEndFaceSvg(result.face, 'End'));
+  });
+});
+
+describe('end face terminal labels', () => {
+  const labels = (svg: Document) => [...svg.querySelectorAll('[data-terminal]')].map(g => {
+    const t = g.querySelector('text')!;
+    const [x1, y1, x2, y2] = g.querySelector('path')!.getAttribute('d')!.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    return { tag: g.getAttribute('data-terminal')!, x: Number(t.getAttribute('x')), y: Number(t.getAttribute('y')), size: Number(t.getAttribute('font-size')), a: { x: x1!, y: y1! }, b: { x: x2!, y: y2! } };
+  });
+  const faces = [['pair', shieldedPair], ['twin with drain', screenedTwinWithDrain]] as const;
+  const turns = [['a', 0], ['b', 0], ['a', 90], ['b', 200], ['a', 315]] as const;
+
+  it.each(faces.flatMap(([name, make]) => turns.map(([end, rotation]) => [name, make, end, rotation] as const)))('%s end %s at %i degrees: labels keep a minimum spacing and leaders stay apart', (_name, make, end, rotation) => {
+    const result = endFaceLayout(sectionLayout(make()), end, { rotationDeg: rotation });
+    if (result.status !== 'ok') throw new Error('face unavailable');
+    const ls = labels(parse(renderEndFaceSvg(result.face, 'End')));
+    expect(ls).toHaveLength(4);
+    for (let i = 0; i < ls.length; i += 1) for (let j = i + 1; j < ls.length; j += 1) {
+      const p = ls[i]!, q = ls[j]!;
+      // Label anchors sit on a ring; their straight-line distance is a chord, a little under the arc gap.
+      expect(Math.hypot(p.x - q.x, p.y - q.y), `${p.tag} / ${q.tag}`).toBeGreaterThan(p.size * END_FACE_LABEL_GAP * 0.9);
+      expect(segmentsIntersect(p.a, p.b, q.a, q.b)).toBe(false);
+    }
+  });
+
+  it('picks the screen up on its own ring, clear of the conductor beside it', () => {
+    const section = sectionLayout(screenedTwinWithDrain());
+    for (const end of ['a', 'b'] as const) {
+      const result = endFaceLayout(section, end);
+      if (result.status !== 'ok') throw new Error('face unavailable');
+      const screen = result.face.terminals.find(t => t.role === 'shield')!;
+      const mid = (2.9 + 2.7) / 4;
+      // On the ring wall, not on a conductor.
+      expect(Math.hypot(screen.x, screen.y)).toBeCloseTo(mid, 9);
+      for (const other of result.face.terminals.filter(t => t !== screen)) {
+        expect(Math.hypot(other.x - screen.x, other.y - screen.y)).toBeGreaterThanOrEqual(PICKUP_CLEARANCE * mid);
+        if (Math.hypot(other.x, other.y) > 0.3) {
+          const bearing = (p: { x: number; y: number }) => Math.atan2(p.y, p.x);
+          const d = Math.abs(Math.atan2(Math.sin(bearing(other) - bearing(screen)), Math.cos(bearing(other) - bearing(screen))));
+          expect(d).toBeGreaterThan(Math.PI / 8);
+        }
+      }
+      // Still on the side the end's connections leave toward, turned upward first.
+      expect(Math.sign(screen.x)).toBe(end === 'a' ? -1 : 1);
+      expect(screen.y).toBeLessThan(0);
+    }
   });
 });

@@ -113,6 +113,9 @@ function calloutRing(section: Section, mirrored: boolean, rotationDeg: number, s
   return { cx, cy, radius, fontSize };
 }
 
+/** Least spacing between end-face terminal labels, in font sizes: two labels never read as one stack. */
+export const END_FACE_LABEL_GAP = 2.2;
+
 /** Leader start: mid-wall of the element, on the side facing its label. */
 function featureAnchor(f: SectionFeature, angle: number): { x: number; y: number } {
   if (f.shape.type === 'web') return { x: f.x, y: f.y };
@@ -189,7 +192,7 @@ export function renderSectionSvg(section: Section, title: string, options: Secti
     ? `<g data-view="end-face" transform="rotate(${n(-options.view.rotationDeg)}) scale(${options.view.mirrored ? -1 : 1} 1)">${parts.join('')}</g>`
     : parts.join('');
   const markerR = span * 0.014;
-  const placed = layoutCallouts((options.markers ?? []).map(m => ({ key: m.tag, x: m.x, y: m.y, chars: m.tag.length })), ring);
+  const placed = layoutCallouts((options.markers ?? []).map(m => ({ key: m.tag, x: m.x, y: m.y, chars: m.tag.length })), { ...ring, minLabelGap: ring.fontSize * END_FACE_LABEL_GAP });
   const markers = (options.markers ?? []).map(m => {
     const fill = m.role === 'conductor' ? '#ffffff' : m.role === 'shield' ? '#cfd6dd' : '#e9d3b0';
     const c = placed.find(p => p.key === m.tag)!;

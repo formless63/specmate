@@ -28,6 +28,8 @@ export interface CalloutOptions {
   /** Radius of a circle that contains every element. Labels sit just outside it. */
   radius: number;
   fontSize: number;
+  /** Least distance between neighbouring labels along the ring, drawing units. Defaults to 1.3 font sizes. */
+  minLabelGap?: number;
 }
 
 const TAU = Math.PI * 2;
@@ -97,7 +99,7 @@ export function layoutCallouts(items: CalloutItem[], o: CalloutOptions): Callout
   order.sort((a, b) => pref[a]! - pref[b]! || cmp(items[a]!.key, items[b]!.key));
   const ringR = o.radius + o.fontSize * 0.9;
   const chars = Math.max(...items.map(i => i.chars ?? 2));
-  const gap = Math.min(TAU / n, Math.max(o.fontSize * 1.3, o.fontSize * 0.62 * chars) / ringR);
+  const gap = Math.min(TAU / n, Math.max(o.minLabelGap ?? o.fontSize * 1.3, o.fontSize * 0.62 * chars) / ringR);
   const slots = relax(order.map(i => pref[i]!), gap);
   // Slot k is the k-th label position; assign[k] is the item index placed there. Start in angular order.
   // Rotate so slot angles line up with the sorted preference as closely as possible.

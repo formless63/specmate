@@ -18,6 +18,7 @@
  */
 import { appearanceOf, edgeColor, mixHex } from './appearance';
 import type { Appearance } from './appearance';
+import { segmentsIntersect } from './callouts';
 import type { Section, SectionFeature } from './model';
 
 export type SideMode = 'cutaway' | 'prepared';
@@ -169,6 +170,112 @@ export function sideViewLayout(section: Section, options: SideViewOptions): Side
   return { mode: options.mode, bands, notDrawn, windows: { a: window('a'), b: window('b') }, gapMm: Math.max(unit * 1.4, 2), minY, maxY, sizeMm: size };
 }
 
+/* ---- Callouts ---- */
+
+/** Tag callout size relative to the drawing's annotation unit. */
+export const CALLOUT_SCALE = 1;
+export interface SideCallout {
+  path: string;
+  tag: string;
+  /** Leader start on the element, drawing coordinates. */
+  anchor: { x: number; y: number };
+  /** Leader end under the label: label centre x on the row above end A, and the leader's top. */
+  label: { x: number; y: number };
+  /** True when the element is wholly covered by a nearer one in this view: the leader points at where it lies. */
+  occluded: boolean;
+}
+
+/** Baseline of the tag label row above the cable. */
+export const sideLabelBaseline = (view: SideView, fs: number): number => view.minY - fs * 1.4;
+
+/** Spread sorted preferred positions so neighbours are at least `gap` apart, starting no lower than `lo`. */
+function spread(pref: number[], gap: number, lo: number, hi: number): number[] {
+  const out = pref.map(v => Math.max(v, lo));
+  for (let i = 1; i < out.length; i += 1) out[i] = Math.max(out[i]!, out[i - 1]! + gap);
+  // Pull back from the right edge as far as the left edge allows; any remainder overflows right.
+  const over = out.length ? out[out.length - 1]! - hi : 0;
+  if (over > 0) {
+    for (let i = out.length - 1; i >= 0; i -= 1) out[i] = Math.min(out[i]!, i === out.length - 1 ? hi : out[i + 1]! - gap);
+    const under = lo - out[0]!;
+    if (under > 0) for (let i = 0; i < out.length; i += 1) out[i] = out[i]! + under;
+  }
+  return out;
+}
+
+/**
+ * End A tag callouts: labels in one row above the cable, ordered along the cable by where each
+ * element can be seen (ties in tag order) and at least a label width apart; each leader starts on
+ * the element's own visible band, straight below its label where it can, so leaders never cross.
+ * Pure and deterministic.
+ */
+export function sideCallouts(view: SideView, fs: number): SideCallout[] {
+  const wa = view.windows.a;
+  const rect = (band: SideBand) => ({ x0: band.a.status === 'known' ? band.a.cutbackMm : 0, x1: wa, y0: band.y - band.half, y1: band.y + band.half });
+  const rects = view.bands.map(rect);
+  // Painter order: a later band covers an earlier one where they overlap.
+  const covers = (i: number, x: number, y: number): number => rects.filter((r, j) => j > i && x > r.x0 && x < r.x1 && y > r.y0 && y < r.y1).length;
+  const samplesX = 48, samplesY = 12;
+  type Seen = { x: number; y: number };
+  const tagOrder = (a: string, b: string): number => a.localeCompare(b, undefined, { numeric: true });
+  const runs = view.bands.map((band, i) => ({ band, i, r: rects[i]! })).filter(({ band, r }) => band.tag && r.x1 - r.x0 > 1e-9).map(({ band, i, r }) => {
+    const step = (r.x1 - r.x0) / samplesX;
+    const xs = Array.from({ length: samplesX }, (_, k) => r.x0 + step * (k + 0.5));
+    // Top to bottom: the first visible sample at each station is the band's edge nearest the labels.
+    let seen: Seen[] = [];
+    for (const x of xs) for (let m = 0; m < samplesY; m += 1) {
+      const y = r.y0 + (r.y1 - r.y0) * (m + 0.5) / samplesY;
+      if (covers(i, x, y) === 0) { seen.push({ x, y }); break; }
+    }
+    // A wholly covered element is pointed at where the fewest layers lie over its centre line.
+    const occluded = seen.length === 0;
+    if (occluded) {
+      const depth = xs.map(x => covers(i, x, band.y));
+      const least = Math.min(...depth);
+      seen = xs.filter((_, k) => depth[k] === least).map(x => ({ x, y: band.y }));
+    }
+    // Preferred label position: the middle of the widest run of stations where it can be pointed at.
+    let best: [number, number] = [seen[0]!.x, seen[0]!.x], start = seen[0]!.x;
+    for (let k = 1; k <= seen.length; k += 1) {
+      const prev = seen[k - 1]!.x, cur = seen[k]?.x;
+      if (cur === undefined || cur - prev > step * 1.5) {
+        if (prev - start > best[1] - best[0]) best = [start, prev];
+        if (cur !== undefined) start = cur;
+      }
+    }
+    return { band, r, seen, occluded, pref: (best[0] + best[1]) / 2 };
+  });
+  const chars = Math.max(1, ...runs.map(it => it.band.tag.length));
+  const gap = fs * Math.max(1.6, 0.62 * CALLOUT_SCALE * chars + 0.9);
+  // Elements that can be pointed at in about the same place are labelled in tag order.
+  const items = runs.sort((p, q) => Math.round(p.pref / (gap * 2)) - Math.round(q.pref / (gap * 2)) || tagOrder(p.band.tag, q.band.tag) || p.pref - q.pref);
+  const slots = spread(items.map(it => it.pref), gap, fs * 0.6, wa - fs * 0.6);
+  const anchorAt = (it: typeof items[number], x: number): { anchor: Seen; occluded: boolean } => {
+    let best = it.seen[0]!;
+    for (const p of it.seen) if (Math.abs(p.x - x) < Math.abs(best.x - x) - 1e-12) best = p;
+    return { anchor: best, occluded: it.occluded };
+  };
+  const assign = items.map((_, k) => k);
+  const top = sideLabelBaseline(view, fs) + fs * 0.3;
+  const place = (): SideCallout[] => slots.map((x, k) => {
+    const it = items[assign[k]!]!;
+    const { anchor, occluded } = anchorAt(it, x);
+    return { path: it.band.path, tag: it.band.tag, anchor, label: { x, y: top }, occluded };
+  });
+  // Safety net: swapping two crossing leaders' labels shortens their total length, so this terminates.
+  let placed = place();
+  for (let guard = 0; guard < items.length * items.length * 4; guard += 1) {
+    let hit: [number, number] | null = null;
+    for (let a = 0; a < placed.length && !hit; a += 1) for (let b = a + 1; b < placed.length; b += 1) {
+      const p = placed[a]!, q = placed[b]!;
+      if (segmentsIntersect(p.anchor, p.label, q.anchor, q.label)) { hit = [a, b]; break; }
+    }
+    if (!hit) break;
+    [assign[hit[0]], assign[hit[1]]] = [assign[hit[1]]!, assign[hit[0]]!];
+    placed = place();
+  }
+  return placed;
+}
+
 /* ---- SVG ---- */
 
 const esc = (text: string): string => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -225,13 +332,18 @@ function shadeDefs(prefix: string): string {
     + `<pattern id="${prefix}-unknown" patternUnits="userSpaceOnUse" width="0.6" height="0.6" patternTransform="rotate(45)"><rect width="0.18" height="0.6" style="fill:${TOKEN.review}" fill-opacity="0.75"/></pattern>`;
 }
 
+/** Annotation unit (font size, mm of drawing) for a side view: scales with the drawn length. */
+export function sideAnnotationUnit(view: SideView): number {
+  const total = view.windows.a + view.gapMm + view.windows.b;
+  return Math.max(Math.min(total / 48, (view.maxY - view.minY) * 0.5), 0.25);
+}
+
 export interface SideSvgOptions { selected?: string | null; idPrefix?: string }
 
 export function renderSideViewSvg(view: SideView, title: string, options: SideSvgOptions = {}): string {
   const { a: wa, b: wb } = view.windows;
   const total = wa + view.gapMm + wb;
-  const height = view.maxY - view.minY;
-  const fs = Math.max(Math.min(total / 48, height * 0.5), 0.25);
+  const fs = sideAnnotationUnit(view);
   const prefix = options.idPrefix ?? `sv${hash(`${title}|${view.mode}|${view.bands.map(b => `${b.path}${b.y}${b.half}${JSON.stringify(b.a)}${JSON.stringify(b.b)}`).join(',')}`)}`;
   const defs: string[] = [shadeDefs(prefix)];
   const parts: string[] = [];
@@ -288,16 +400,12 @@ export function renderSideViewSvg(view: SideView, title: string, options: SideSv
     parts.push(`<g data-break="true" fill="none" stroke="currentColor" stroke-width="${n(fs * 0.07)}"><path d="${zig(wa + view.gapMm * 0.25)}"/><path d="${zig(wa + view.gapMm * 0.75)}"/><path d="M${n(wa)} ${n(view.minY)}H${n(wa + view.gapMm)}M${n(wa)} ${n(view.maxY)}H${n(wa + view.gapMm)}" style="stroke:${TOKEN.muted}" stroke-dasharray="${n(fs * 0.3)} ${n(fs * 0.3)}"/></g>`);
   }
   // End labels and tag callouts (end A, above the cable).
-  const labelY = view.minY - fs * 1.4;
-  parts.push(`<text x="0" y="${n(labelY - fs * 1.3)}" font-size="${n(fs)}" fill="currentColor" font-weight="600">END A</text><text x="${n(total)}" y="${n(labelY - fs * 1.3)}" font-size="${n(fs)}" fill="currentColor" font-weight="600" text-anchor="end">END B</text>`);
-  let nextX = -Infinity;
-  const tagged = view.bands.map(b => ({ b, x: b.a.status === 'known' ? b.a.cutbackMm + Math.min(fs * 0.8, (wa - b.a.cutbackMm) / 2) : fs * 0.6 }))
-    .sort((p, q) => p.x - q.x);
-  for (const { b, x } of tagged) {
-    if (!b.tag) continue;
-    const lx = Math.max(x, nextX + fs * 1.1);
-    nextX = lx;
-    parts.push(`<g data-callout="${esc(b.path)}"><path d="M${n(x)} ${n(b.y - b.half * 0.5)}L${n(lx)} ${n(labelY + fs * 0.25)}" stroke="currentColor" stroke-width="${n(fs * 0.05)}" fill="none"/><text x="${n(lx)}" y="${n(labelY)}" font-size="${n(fs * 0.85)}" fill="currentColor" text-anchor="middle">${esc(b.tag)}</text></g>`);
+  const labelY = sideLabelBaseline(view, fs);
+  parts.push(`<text x="0" y="${n(labelY - fs * 1.5)}" font-size="${n(fs)}" fill="currentColor" font-weight="600">END A</text><text x="${n(total)}" y="${n(labelY - fs * 1.5)}" font-size="${n(fs)}" fill="currentColor" font-weight="600" text-anchor="end">END B</text>`);
+  for (const c of sideCallouts(view, fs)) {
+    parts.push(`<g data-callout="${esc(c.path)}"${c.occluded ? ' data-occluded="true"' : ''}><path d="M${n(c.anchor.x)} ${n(c.anchor.y)}L${n(c.label.x)} ${n(c.label.y)}" stroke="currentColor" stroke-width="${n(fs * 0.06)}" fill="none"/>`
+      + `<circle cx="${n(c.anchor.x)}" cy="${n(c.anchor.y)}" r="${n(fs * 0.13)}" ${c.occluded ? `fill="none" stroke="currentColor" stroke-width="${n(fs * 0.05)}"` : 'fill="currentColor"'}/>`
+      + `<text x="${n(c.label.x)}" y="${n(labelY)}" font-size="${n(fs * CALLOUT_SCALE)}" font-weight="600" fill="currentColor" text-anchor="middle">${esc(c.tag)}</text></g>`);
   }
   // Prepared mode: dimension lines from each cut end; unknowns listed in the review colour.
   let rowY = view.maxY + fs * 1.6;
@@ -329,7 +437,7 @@ export function renderSideViewSvg(view: SideView, title: string, options: SideSv
   const bottom = rowY + fs * (1.2 + notes.length * 1.2) + fs;
   parts.push(`<text x="${n(total / 2)}" y="${n(bottom - fs * 0.2)}" font-size="${n(fs * 0.7)}" style="fill:${TOKEN.muted}" text-anchor="middle">${modeText} · LENGTH BETWEEN ENDS OMITTED</text>`);
   const pad = fs;
-  const minY = labelY - fs * 2.6;
+  const minY = labelY - fs * 2.8;
   const description = `${view.mode === 'cutaway' ? 'Illustrative cutaway; axial steps are a display arrangement.' : 'Prepared ends from end preparation instructions.'} ${view.bands.length} drawn elements.`
     + (notes.length ? ` ${notes.join('. ')}.` : '');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(-pad)} ${n(minY)} ${n(total + 2 * pad)} ${n(bottom + pad - minY)}" role="img" aria-label="${esc(title)}" data-view="side" data-mode="${view.mode}"><title>${esc(title)}</title><desc>${esc(description)}</desc><defs>${defs.join('')}</defs>${parts.join('')}</svg>`;

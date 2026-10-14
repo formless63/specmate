@@ -1,7 +1,7 @@
-import { expect, test } from 'vitest';
-import { elementExtent, formatExtent, renderSideViewSvg, sectionLayout, sideViewLayout } from '../../../../packages/section-layout/src';
+import { describe, expect, test } from 'vitest';
+import { CALLOUT_SCALE, elementExtent, formatExtent, renderSideViewSvg, sectionLayout, segmentsIntersect, sideAnnotationUnit, sideCallouts, sideViewLayout } from '../../../../packages/section-layout/src';
 import type { PrepInstruction, PrepProfile, RoundElement } from '../../../../packages/section-layout/src';
-import { braidedCoax, shieldedPair } from './fixtures';
+import { braidedCoax, screenedTwinWithDrain, shieldedPair } from './fixtures';
 
 // Expected values below are worked by hand from the synthetic fixtures, not read back from the code.
 const strip = (element_path: string, nominal: string | null, extra: Partial<PrepInstruction> = {}, datum = 'from_stock_cut_end', tol: [string | null, string | null] = [null, null]): PrepInstruction =>
@@ -103,4 +103,82 @@ test('selection adds a reticle and never changes a fill', () => {
   expect(picked.querySelectorAll('[data-selected]').length).toBe(2);
   const fill = (doc: Document) => doc.querySelector('[data-element="stock.braid"] rect')!.getAttribute('fill');
   expect(fill(picked)).toBe(fill(plain));
+});
+
+describe('end A tag callouts', () => {
+  const unknownScreen: PrepProfile = { a: { instructions: [
+    strip('stock.jacket', '15', {}, 'from_stock_cut_end', ['0.2', '0.3']),
+    { kind: 'shield_lead', element_path: 'stock.screen', treatment: 'form_lead', length: { nominal_mm: '8', datum: 'along_finished_lead' } },
+    { kind: 'drain_treatment', element_path: 'stock.drain', treatment: 'trim', length: { nominal_mm: '0', datum: 'from_stock_cut_end' } },
+  ] }, b: { instructions: [] } };
+  const stepped: PrepProfile = { a: { instructions: [
+    strip('stock.jacket', '20'), strip('stock.screen', '14'), strip('stock.drain', '14'),
+    strip('stock.pair.core-a.insulation', '5'), strip('stock.pair.core-b.insulation', '5'),
+  ] }, b: { instructions: [] } };
+  const cases = [
+    ['twin, screen lead unknown', () => sideViewLayout(sectionLayout(screenedTwinWithDrain()), { mode: 'prepared', preparation: unknownScreen })],
+    ['twin, stepped strip', () => sideViewLayout(sectionLayout(screenedTwinWithDrain()), { mode: 'prepared', preparation: stepped })],
+    ['twin cutaway', () => sideViewLayout(sectionLayout(screenedTwinWithDrain()), { mode: 'cutaway' })],
+    ['pair cutaway', () => sideViewLayout(sectionLayout(shieldedPair()), { mode: 'cutaway' })],
+    ['coax cutaway', () => sideViewLayout(sectionLayout(braidedCoax()), { mode: 'cutaway' })],
+  ] as const;
+  const leaders = (svg: Document) => [...svg.querySelectorAll('[data-callout]')].map(g => {
+    const [x1, y1, x2, y2] = g.querySelector('path')!.getAttribute('d')!.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    const text = g.querySelector('text')!;
+    return { path: g.getAttribute('data-callout')!, a: { x: x1!, y: y1! }, b: { x: x2!, y: y2! }, x: Number(text.getAttribute('x')), size: Number(text.getAttribute('font-size')), tag: text.textContent! };
+  });
+
+  test.each(cases)('%s: leaders never cross and labels are ordered, spaced and readable', (_name, make) => {
+    const view = make();
+    const fs = sideAnnotationUnit(view);
+    const ls = leaders(parse(renderSideViewSvg(view, 'Side')));
+    expect(ls.length).toBe(view.bands.filter(b => b.tag).length);
+    for (let i = 0; i < ls.length; i += 1) for (let j = i + 1; j < ls.length; j += 1)
+      expect(segmentsIntersect(ls[i]!.a, ls[i]!.b, ls[j]!.a, ls[j]!.b), `${ls[i]!.tag} x ${ls[j]!.tag}`).toBe(false);
+    const xs = ls.map(l => l.x).sort((p, q) => p - q);
+    for (let i = 1; i < xs.length; i += 1) expect(xs[i]! - xs[i - 1]!).toBeGreaterThanOrEqual(fs * 1.5);
+    // Readable: the tags are set at the drawing's annotation size, not shrunk below it.
+    for (const l of ls) expect(l.size).toBeGreaterThanOrEqual(fs * CALLOUT_SCALE - 1e-3);
+    expect(CALLOUT_SCALE).toBeGreaterThanOrEqual(1);
+  });
+
+  test.each(cases)('%s: each leader starts on its own element at end A', (_name, make) => {
+    const view = make();
+    for (const c of sideCallouts(view, sideAnnotationUnit(view))) {
+      const band = view.bands.find(b => b.path === c.path)!;
+      const x0 = band.a.status === 'known' ? band.a.cutbackMm : 0;
+      expect(c.anchor.x).toBeGreaterThanOrEqual(x0);
+      expect(c.anchor.x).toBeLessThanOrEqual(view.windows.a);
+      expect(c.anchor.y).toBeGreaterThanOrEqual(band.y - band.half);
+      expect(c.anchor.y).toBeLessThanOrEqual(band.y + band.half);
+    }
+  });
+
+  test('visible layers are pointed at where they show; covered ones are marked, never placed on top', () => {
+    // Stepped strip: insulation shows from 5 mm, screen and drain from 14 mm, jacket from 20 mm.
+    const view = sideViewLayout(sectionLayout(screenedTwinWithDrain()), { mode: 'prepared', preparation: stepped });
+    const placed = new Map(sideCallouts(view, sideAnnotationUnit(view)).map(c => [c.path, c]));
+    expect(placed.get('stock.jacket')!.anchor.x).toBeGreaterThan(20);
+    expect(placed.get('stock.screen')!.anchor.x).toBeGreaterThan(14);
+    expect(placed.get('stock.screen')!.anchor.x).toBeLessThan(20);
+    expect(placed.get('stock.pair.core-b.insulation')!.anchor.x).toBeGreaterThan(5);
+    expect(placed.get('stock.pair.core-b.insulation')!.anchor.x).toBeLessThan(14);
+    expect(placed.get('stock.pair.core-b.wire')!.anchor.x).toBeLessThan(5);
+    expect(placed.get('stock.pair.core-b.wire')!.occluded).toBe(false);
+    // Core A lies exactly behind core B in this view: it is called out as covered, at its centre line.
+    expect(placed.get('stock.pair.core-a.wire')).toMatchObject({ occluded: true, anchor: { y: 0 } });
+    const svg = parse(renderSideViewSvg(view, 'Side'));
+    expect(svg.querySelector('[data-callout="stock.pair.core-a.wire"]')!.getAttribute('data-occluded')).toBe('true');
+    expect(svg.querySelector('[data-callout="stock.pair.core-b.wire"]')!.hasAttribute('data-occluded')).toBe(false);
+  });
+
+  test('elements that show in the same place are labelled in tag order, and layout is deterministic', () => {
+    const view = sideViewLayout(sectionLayout(screenedTwinWithDrain()), { mode: 'prepared', preparation: unknownScreen });
+    const fs = sideAnnotationUnit(view);
+    const order = [...sideCallouts(view, fs)].sort((p, q) => p.label.x - q.label.x).map(c => c.tag);
+    // Everything under the screen and the screen itself can only be pointed at ahead of the jacket.
+    expect(order.slice(0, 5)).toEqual(['1', '2', '3', '4', '5']);
+    expect(order.at(-1)).toBe('7');
+    expect(sideCallouts(view, fs)).toEqual(sideCallouts(view, fs));
+  });
 });

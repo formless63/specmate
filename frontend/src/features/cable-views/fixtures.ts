@@ -44,3 +44,23 @@ export const unrecordedCoax = (): StockSpecification => {
   for (const child of stock.structure.children) if (child.kind !== 'group' && child.kind !== 'web') { child.material = null; child.color = null; }
   return stock;
 };
+
+/** Two cores side by side inside a braid screen, a drain outside the screen and a jacket. Outer diameter 4.2 mm. */
+export const screenedTwinWithDrain = (): StockSpecification => ({
+  schema_version: '1', construction: 'bundle', viewed_from: 'a', facts: {},
+  structure: group('stock', [
+    group('pair', [
+      group('core-a', [
+        round('conductor', 'wire', 0.5, 0, { material: 'Bare copper', construction: 'stranded' }),
+        round('insulation', 'insulation', 1.3, 0.5, { material: 'Polyethylene', color: 'red' }),
+      ], { x_mm: -0.7 }),
+      group('core-b', [
+        round('conductor', 'wire', 0.5, 0, { material: 'Bare copper', construction: 'stranded' }),
+        round('insulation', 'insulation', 1.3, 0.5, { material: 'Polyethylene', color: 'yellow' }),
+      ], { x_mm: 0.7 }),
+    ], { role: 'pair' }),
+    round('shield', 'screen', 2.9, 2.7, { material: 'Tinned copper', construction: 'braid' }),
+    round('drain', 'drain', 0.4, 0, { material: 'Tinned copper', construction: 'stranded', y_mm: 1.5 }),
+    round('jacket', 'jacket', 4.2, 3.4, { material: 'PVC', color: '#303030' }),
+  ]),
+});
