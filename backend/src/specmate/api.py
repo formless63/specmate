@@ -50,6 +50,7 @@ from specmate.revision_upgrades.api import router as upgrades_router
 from specmate.selected_packages.api import create_router as selected_packages_router
 from specmate.shared_scene.api import router as shared_scene_router
 from specmate.sources.api import router as sources_router
+from specmate.sourcing.api import router as sourcing_router
 from specmate.wire_stock.api import router as stock_router
 from specmate.workshop_profiles.api import router as workshop_profile_router
 from specmate.workspace.api import router as workspace_router
@@ -68,6 +69,7 @@ api.add_router("/v0/knowledge", knowledge_router)
 api.add_router("/v0/collaboration", collaboration_router)
 api.add_router("/v0/session", session_router)
 api.add_router("/v0/inventory", inventory_router)
+api.add_router("/v0/sourcing", sourcing_router)
 api.add_router("/v0/physical-units", physical_units_router)
 api.add_router("/v0/bom", bom_router)
 api.add_router("/v0/assemblies", assemblies_router)

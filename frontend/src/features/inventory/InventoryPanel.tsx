@@ -5,6 +5,7 @@ import { useState } from "react";
 import { WorkPanel, UsageForm } from "./WorkPanel";
 import { command, read, request, type Account, type Command, type Detail, type Inventory, type WorkBatch } from "./api";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { SourcingPanel } from "./SourcingPanel";
 
 const units: Record<string, string[]> = { count: ["ea"], length: ["m", "cm", "mm"], mass: ["kg", "g"] };
 
@@ -74,6 +75,7 @@ function Workspace({ workspaceId, projectId }: { workspaceId: string; projectId?
     </Stack></Card>
     {projectId && <Switch label="Only work filed under this project" checked={projectOnly} onChange={(event) => { setProjectOnly(event.currentTarget.checked); setOffset(0); }} />}
     <WorkPanel workspaceId={workspaceId} projectId={projectId} batches={data?.work_batches ?? []} pending={mutation.isPending} submit={submit} />
+    <SourcingPanel workspaceId={workspaceId} />
     <Title order={3}>Current stock</Title>
     <Table><Table.Thead><Table.Tr><Table.Th>Lot / location</Table.Th><Table.Th>Physical</Table.Th><Table.Th>Reserved</Table.Th><Table.Th>Available</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>{data?.accounts.map((account) => <Table.Tr key={account.account_id}><Table.Td>{account.lot_label} / {account.location_name}</Table.Td><Table.Td>{account.physical_quantity ?? "Unknown"} {account.unit}</Table.Td><Table.Td>{account.reserved_quantity} {account.unit}</Table.Td><Table.Td>{account.available_quantity ?? "Unknown"} {account.unit}</Table.Td><Table.Td><Button size="xs" onClick={() => setSelected(account.account_id)}>Manage {account.lot_label}</Button></Table.Td></Table.Tr>)}</Table.Tbody></Table>
     <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous inventory</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={Math.max(data?.accounts.length ?? 0, data?.lots.length ?? 0, data?.locations.length ?? 0, data?.work_batches?.length ?? 0) < 50} onClick={() => setOffset(offset + 50)}>Next inventory</Button></Group>
