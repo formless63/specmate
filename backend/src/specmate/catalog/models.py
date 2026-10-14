@@ -47,10 +47,16 @@ class Representation(models.Model):
         DRAWING = "drawing"
         DATASHEET = "datasheet"
 
+    class RightsStatus(models.TextChoices):
+        CLEARED = "cleared"
+        RESTRICTED = "restricted"
+        UNKNOWN = "unknown"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     revision = models.ForeignKey(
         "design.Revision", on_delete=models.PROTECT, related_name="representations"
     )
+    rights_status = models.CharField(max_length=20, choices=RightsStatus.choices)
     kind = models.CharField(max_length=20, choices=Kind.choices)
     label = models.CharField(max_length=200)
     source_file = models.ForeignKey("sources.SourceBundleFile", on_delete=models.PROTECT)
@@ -71,6 +77,10 @@ class Representation(models.Model):
             models.CheckConstraint(
                 condition=~models.Q(label=""), name="catalog_representation_label"
             ),
+            models.CheckConstraint(
+                condition=models.Q(rights_status__in=["cleared", "restricted", "unknown"]),
+                name="catalog_representation_rights_status",
+            ),
         ]
 
 
@@ -81,10 +91,16 @@ class SourceIdentifier(models.Model):
     Rights are always stated, though the statement may be an explicit "unknown".
     """
 
+    class RightsStatus(models.TextChoices):
+        CLEARED = "cleared"
+        RESTRICTED = "restricted"
+        UNKNOWN = "unknown"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     revision = models.ForeignKey(
         "design.Revision", on_delete=models.PROTECT, related_name="source_identifiers"
     )
+    rights_status = models.CharField(max_length=20, choices=RightsStatus.choices)
     scheme = models.CharField(max_length=60)
     identifier = models.CharField(max_length=512)
     label = models.CharField(max_length=200)
@@ -103,6 +119,10 @@ class SourceIdentifier(models.Model):
                 & ~models.Q(label="")
                 & ~models.Q(rights=""),
                 name="catalog_source_identifier_nonempty",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(rights_status__in=["cleared", "restricted", "unknown"]),
+                name="catalog_source_identifier_rights_status",
             ),
         ]
 

@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 RepresentationKind = Literal["symbol", "footprint", "model", "drawing", "datasheet"]
+RightsStatus = Literal["cleared", "restricted", "unknown"]
 
 
 class RegisterVariant(BaseModel):
@@ -23,6 +24,8 @@ class RegisterRepresentation(BaseModel):
     source_path: Annotated[str, StringConstraints(strip_whitespace=False)] = Field(
         min_length=1, max_length=512
     )
+    # Required; "unknown" is an explicit choice. The file's own rights text is retained.
+    rights_status: RightsStatus
 
 
 class RegisterSourceIdentifier(BaseModel):
@@ -36,6 +39,7 @@ class RegisterSourceIdentifier(BaseModel):
     scheme: str = Field(min_length=1, max_length=60, pattern=r"^[a-z0-9][a-z0-9._-]*$")
     identifier: str = Field(min_length=1, max_length=512)
     label: str = Field(min_length=1, max_length=200)
+    rights_status: RightsStatus
     rights: str = Field(min_length=1, max_length=200)
 
 
@@ -49,7 +53,7 @@ class SourceIdentifierResult(BaseModel):
     identifier: str
     label: str
     rights: str
-    rights_known: bool
+    rights_status: RightsStatus
 
 
 class VariantResult(BaseModel):
@@ -75,7 +79,7 @@ class RepresentationResult(BaseModel):
     sha256: str
     media_type: str
     rights: str
-    rights_known: bool
+    rights_status: RightsStatus
 
 
 class RegisterLot(BaseModel):

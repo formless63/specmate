@@ -269,3 +269,27 @@ def test_http_queries_validate_page_and_share_authority(users, project, definiti
     params = {"revision_id": target["revision_id"], "limit": "1"}
     assert client.get("/api/v0/catalog/where-used", params).json()["results"] == []
     assert outsider.get("/api/v0/catalog/where-used", params).status_code == 404
+
+
+def test_search_finds_source_identifiers_by_identifier_text_within_workspace(users, project):
+    owner = users["owner"]
+    part = create_part(owner, project, "Identifier part")
+    revision = freeze(owner, part["draft_id"], part["state"])
+    item = op(
+        owner,
+        "catalog.register_source_identifier",
+        {
+            "revision_id": revision["revision_id"],
+            "scheme": "library-id",
+            "identifier": "Synthetic:Widget-42",
+            "label": "Library id",
+            "rights_status": "restricted",
+            "rights": "Vendor terms",
+        },
+    )
+    found = search(users["viewer"], "source_identifier", "widget-42")["results"]
+    assert [r["record_id"] for r in found] == [item["source_identifier_id"]]
+    assert found[0]["rights_status"] == "restricted"
+    assert found[0]["revision_id"] == revision["revision_id"]
+    assert search(users["viewer"], "source_identifier", "absent-text")["results"] == []
+    assert search(users["outsider"], "source_identifier", "widget-42")["results"] == []

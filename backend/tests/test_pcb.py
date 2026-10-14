@@ -681,6 +681,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["editor"],
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": part_revision,
             "kind": "model",
             "label": "Candidate STEP",

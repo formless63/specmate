@@ -15,6 +15,27 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.AddField(
+            model_name="representation",
+            name="rights_status",
+            field=models.CharField(
+                choices=[
+                    ("cleared", "Cleared"),
+                    ("restricted", "Restricted"),
+                    ("unknown", "Unknown"),
+                ],
+                default="unknown",
+                max_length=20,
+            ),
+            preserve_default=False,
+        ),
+        migrations.AddConstraint(
+            model_name="representation",
+            constraint=models.CheckConstraint(
+                condition=models.Q(("rights_status__in", ["cleared", "restricted", "unknown"])),
+                name="catalog_representation_rights_status",
+            ),
+        ),
         migrations.CreateModel(
             name="SourceIdentifier",
             fields=[
@@ -27,6 +48,17 @@ class Migration(migrations.Migration):
                 ("scheme", models.CharField(max_length=60)),
                 ("identifier", models.CharField(max_length=512)),
                 ("label", models.CharField(max_length=200)),
+                (
+                    "rights_status",
+                    models.CharField(
+                        choices=[
+                            ("cleared", "Cleared"),
+                            ("restricted", "Restricted"),
+                            ("unknown", "Unknown"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
                 ("rights", models.CharField(max_length=200)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
@@ -58,6 +90,12 @@ class Migration(migrations.Migration):
                             models.Q(("rights", ""), _negated=True),
                         ),
                         name="catalog_source_identifier_nonempty",
+                    ),
+                    models.CheckConstraint(
+                        condition=models.Q(
+                            ("rights_status__in", ["cleared", "restricted", "unknown"])
+                        ),
+                        name="catalog_source_identifier_rights_status",
                     ),
                 ],
             },

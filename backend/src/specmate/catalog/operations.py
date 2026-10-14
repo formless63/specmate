@@ -115,6 +115,7 @@ def register_representation(ctx: Context, p: RegisterRepresentation) -> dict:
         revision=revision,
         kind=p.kind,
         label=p.label,
+        rights_status=p.rights_status,
         source_file=source_file,
         registered_by=ctx.user,
     )
@@ -140,6 +141,7 @@ def register_source_identifier(ctx: Context, p: RegisterSourceIdentifier) -> dic
         scheme=p.scheme,
         identifier=p.identifier,
         label=p.label,
+        rights_status=p.rights_status,
         rights=p.rights,
         registered_by=ctx.user,
     )

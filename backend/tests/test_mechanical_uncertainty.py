@@ -81,6 +81,7 @@ def mesh_declaration(users, workspace, mec_target):  # noqa: F811
         users["owner"],
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": represented["revision_id"],
             "kind": "model",
             "label": "Original illustration",

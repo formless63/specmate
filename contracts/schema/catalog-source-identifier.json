@@ -30,9 +30,14 @@
       "title": "Rights",
       "type": "string"
     },
-    "rights_known": {
-      "title": "Rights Known",
-      "type": "boolean"
+    "rights_status": {
+      "enum": [
+        "cleared",
+        "restricted",
+        "unknown"
+      ],
+      "title": "Rights Status",
+      "type": "string"
     },
     "scheme": {
       "title": "Scheme",
@@ -54,7 +59,7 @@
     "identifier",
     "label",
     "rights",
-    "rights_known"
+    "rights_status"
   ],
   "title": "SourceIdentifierResult",
   "type": "object"

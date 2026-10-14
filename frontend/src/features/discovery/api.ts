@@ -1,6 +1,6 @@
 import { read } from "../identity/api";
 
-export type SearchKind = "project" | "definition" | "source_bundle" | "variant" | "lot" | "stock";
+export type SearchKind = "project" | "definition" | "source_bundle" | "variant" | "lot" | "stock" | "source_identifier";
 
 export type SearchRecord = {
   record_id: string; workspace_id: string; project_id?: string; label: string; in_project?: boolean;

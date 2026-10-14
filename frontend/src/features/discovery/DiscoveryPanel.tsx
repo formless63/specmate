@@ -9,6 +9,7 @@ const kinds: { value: SearchKind; label: string }[] = [
   { value: "project", label: "Projects" },
   { value: "source_bundle", label: "Source bundles and paths" },
   { value: "variant", label: "Manufacturer variants" },
+  { value: "source_identifier", label: "Source identifiers" },
   { value: "lot", label: "Physical lots" },
   { value: "stock", label: "Stock accounts" },
 ];

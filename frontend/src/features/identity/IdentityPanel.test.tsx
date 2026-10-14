@@ -114,8 +114,8 @@ test.each([
 const bundleId = "00000000-0000-0000-0000-000000000009";
 const repCatalog = {
   revision_id: revisionId, variants: [], lots: [],
-  representations: [{ representation_id: "r1", kind: "datasheet", label: "Datasheet", revision_id: revisionId, revision_number: 1, definition_id: definitionId, definition_name: "Synthetic part", definition_kind: "part", source_bundle_revision_id: bundleId, source_path: "docs/sheet.pdf", sha256: "ab".repeat(32), media_type: "application/pdf", rights: "unknown", rights_known: false }],
-  source_identifiers: [{ source_identifier_id: "s1", revision_id: revisionId, revision_number: 1, definition_name: "Synthetic part", scheme: "library-id", identifier: "Synthetic:Part", label: "Library symbol", rights: "CC0-1.0", rights_known: true }],
+  representations: [{ representation_id: "r1", kind: "datasheet", label: "Datasheet", revision_id: revisionId, revision_number: 1, definition_id: definitionId, definition_name: "Synthetic part", definition_kind: "part", source_bundle_revision_id: bundleId, source_path: "docs/sheet.pdf", sha256: "ab".repeat(32), media_type: "application/pdf", rights: "vendor note", rights_status: "unknown" }],
+  source_identifiers: [{ source_identifier_id: "s1", revision_id: revisionId, revision_number: 1, definition_name: "Synthetic part", scheme: "library-id", identifier: "Synthetic:Part", label: "Library symbol", rights: "CC0-1.0", rights_status: "restricted" }],
 };
 
 test("shows the exact model revision, flags unknown rights and registers a linked file and identifier", async () => {
@@ -133,24 +133,29 @@ test("shows the exact model revision, flags unknown rights and registers a linke
   renderPanel();
   await pick("Definition", "Synthetic part (part)");
   await pick("Exact revision", "Revision 1");
-  expect(await screen.findByText("unknown · not cleared")).toBeTruthy();
-  expect(screen.getByText("CC0-1.0")).toBeTruthy();
+  expect(await screen.findByText("not cleared · vendor note")).toBeTruthy();
+  expect(screen.getByText("restricted · CC0-1.0")).toBeTruthy();
   expect(screen.getAllByText("Revision 1").length).toBeGreaterThan(0);
   expect(screen.getByText(/not an orderable part or a physical lot/)).toBeTruthy();
   fireEvent.change(screen.getByLabelText("Representation label"), { target: { value: "Sheet" } });
   await pick("Source bundle revision", "Vendor docs · revision 1 (original)");
   await pick("Source file", "docs/sheet.pdf");
-  fireEvent.click(screen.getByRole("button", { name: "Register representation" }));
+  const registerRep = screen.getByRole("button", { name: "Register representation" }) as HTMLButtonElement;
+  expect(registerRep.disabled).toBe(true);
+  await pick("Rights status", "Unknown (not cleared)");
+  fireEvent.click(registerRep);
   await waitFor(() => expect(calls).toHaveLength(1));
-  expect(calls[0]).toMatchObject({ operation: "catalog.register_representation", payload: { revision_id: revisionId, kind: "datasheet", source_bundle_revision_id: bundleId, source_path: "docs/sheet.pdf" } });
+  expect(calls[0]).toMatchObject({ operation: "catalog.register_representation", payload: { revision_id: revisionId, kind: "datasheet", source_bundle_revision_id: bundleId, source_path: "docs/sheet.pdf", rights_status: "unknown" } });
   const register = screen.getByRole("button", { name: "Register source identifier" }) as HTMLButtonElement;
   expect(register.disabled).toBe(true);
   fireEvent.change(screen.getByLabelText("Identifier scheme"), { target: { value: "url" } });
   fireEvent.change(screen.getByLabelText("Source identifier"), { target: { value: "https://example.invalid/p" } });
   fireEvent.change(screen.getByLabelText("Source identifier label"), { target: { value: "Page" } });
   expect(register.disabled).toBe(true);
-  fireEvent.change(screen.getByLabelText(/Rights statement/), { target: { value: "unknown" } });
+  fireEvent.change(screen.getByLabelText(/Rights note/), { target: { value: "n/a" } });
+  expect(register.disabled).toBe(true);
+  await pick("Source identifier rights status", "Restricted");
   fireEvent.click(register);
   await waitFor(() => expect(calls).toHaveLength(2));
-  expect(calls[1]).toMatchObject({ operation: "catalog.register_source_identifier", payload: { scheme: "url", identifier: "https://example.invalid/p", label: "Page", rights: "unknown" } });
+  expect(calls[1]).toMatchObject({ operation: "catalog.register_source_identifier", payload: { scheme: "url", identifier: "https://example.invalid/p", label: "Page", rights_status: "restricted", rights: "n/a" } });
 });

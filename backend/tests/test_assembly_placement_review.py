@@ -63,6 +63,7 @@ def test_model_source_authority_is_rechecked_for_exact_repeated_contexts(
         users["owner"],
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": target["revision_id"],
             "kind": "model",
             "label": "source-secret model",

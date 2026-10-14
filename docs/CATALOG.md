@@ -12,12 +12,12 @@ A `Representation` links a revision to an exact immutable source bundle file. Sy
 footprints, models, drawings and datasheets are supported roles. The source must belong
 to the definition's workspace. Original file hash, media type and rights are retained;
 registration does not execute, parse, render or redistribute source content. Results name
-the exact revision number and definition and carry `rights_known`, which is false when the
-file's recorded rights are an explicit unknown. A representation is never a variant or lot.
+the exact revision number and definition and carry a required `rights_status` (cleared, restricted or unknown; unknown is an explicit choice)
+alongside the free-text rights note. A representation is never a variant or lot.
 
 A `SourceIdentifier` references an external source (library id, URL, standard number) by
-scheme and identifier for an exact revision, with a mandatory rights statement that may be
-an explicit `unknown`. Nothing is fetched or stored. Registration is immutable and additive
+scheme and identifier for an exact revision, with a mandatory rights status and note; the status may be
+an explicit `unknown`. `catalog.search` finds them by identifier text (kind `source_identifier`). Nothing is fetched or stored. Registration is immutable and additive
 (`catalog.register_source_identifier`, `item.create`).
 
 A `PhysicalLot` identifies a physical batch with a label, revision and optional variant.

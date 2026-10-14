@@ -137,6 +137,7 @@ def test_all_disciplines_known_length_unknown_routes_and_inert_models(
         user,
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": mec_target["revision_id"],
             "kind": "model",
             "label": "Inert model",
@@ -376,6 +377,7 @@ def test_model_revision_authority_is_independent_from_mechanical_target(
         user,
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": represented["revision_id"],
             "kind": "model",
             "label": "Source model",

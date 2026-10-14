@@ -4,14 +4,18 @@ import { useState } from "react";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { SbIdentityBadge, SbStatus, SbUnknown } from "../../components/sb";
 import { request, type RevisionDetail, type SourcePage } from "../sources/api";
-import type { Catalog, Representation, SourceIdentifier } from "./api";
+import type { Catalog, Representation, RightsStatus, SourceIdentifier } from "./api";
 
 const KINDS = ["datasheet", "symbol", "footprint", "model", "drawing"];
 
-/** Rights are shown as their recorded text; an explicit unknown is flagged, never read as cleared. */
-function Rights({ text, known }: { text: string; known: boolean }) {
-  return known ? <SbStatus led="info" dimension="rights" value={text} /> : <SbStatus led="review" dimension="rights" value={`${text} · not cleared`} />;
+/** Cleared is a recorded status, not an approval; restricted and unknown are never shown as OK. */
+function Rights({ text, status }: { text: string; status: RightsStatus }) {
+  if (status === "cleared") return <SbStatus led="info" dimension="rights" value={`cleared · ${text}`} />;
+  if (status === "restricted") return <SbStatus led="review" dimension="rights" value={`restricted · ${text}`} />;
+  return <SbStatus led="review" dimension="rights" value={`not cleared · ${text}`} />;
 }
+
+const RIGHTS_OPTIONS = [{ value: "unknown", label: "Unknown (not cleared)" }, { value: "restricted", label: "Restricted" }, { value: "cleared", label: "Cleared" }];
 
 function RevisionPin({ revisionNumber, name }: { revisionNumber: number; name: string }) {
   return <Group gap={6} wrap="nowrap"><SbIdentityBadge kind="frozen">{`Revision ${revisionNumber}`}</SbIdentityBadge><Text size="sm">{name}</Text></Group>;
@@ -33,6 +37,8 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register }:
   const [identifier, setIdentifier] = useState("");
   const [idLabel, setIdLabel] = useState("");
   const [rights, setRights] = useState("");
+  const [repStatus, setRepStatus] = useState<string | null>(null);
+  const [idStatus, setIdStatus] = useState<string | null>(null);
   const bundles = useQuery({ queryKey: ["source-revisions", workspaceId], enabled: !!workspaceId, queryFn: () => request<SourcePage>(`sources/workspaces/${workspaceId}/revisions`) });
   const detail = useQuery({ queryKey: ["source-revision", bundleId], enabled: !!bundleId, queryFn: () => request<RevisionDetail>(`sources/revisions/${bundleId}`) });
   const file = detail.data?.manifest.files.find((f) => f.path === path);
@@ -44,13 +50,13 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register }:
         <Table.Td>{r.label} ({r.kind})</Table.Td>
         <Table.Td><RevisionPin revisionNumber={r.revision_number} name={r.definition_name} /></Table.Td>
         <Table.Td><Text size="xs" className="sb-mono">{r.source_path}</Text><Text size="xs" className="sb-mono">SHA-256: {r.sha256}</Text></Table.Td>
-        <Table.Td><Rights text={r.rights} known={r.rights_known} /></Table.Td>
+        <Table.Td><Rights text={r.rights} status={r.rights_status} /></Table.Td>
       </Table.Tr>)}
       {catalog?.source_identifiers.map((i: SourceIdentifier) => <Table.Tr key={i.source_identifier_id}>
         <Table.Td>{i.label} (source identifier)</Table.Td>
         <Table.Td><RevisionPin revisionNumber={i.revision_number} name={i.definition_name} /></Table.Td>
         <Table.Td><Text size="xs" className="sb-mono">{i.scheme}: {i.identifier}</Text><Text size="xs" c="dimmed">Reference only; nothing fetched.</Text></Table.Td>
-        <Table.Td><Rights text={i.rights} known={i.rights_known} /></Table.Td>
+        <Table.Td><Rights text={i.rights} status={i.rights_status} /></Table.Td>
       </Table.Tr>)}
     </Table.Tbody></Table>
     {catalog && !catalog.representations.length && !catalog.source_identifiers.length && <SbUnknown what="Linked representations" />}
@@ -62,20 +68,22 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register }:
         data={(bundles.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} (${r.role})` }))} />
       <Select label="Source file" placeholder="Choose an exact file" searchable value={path} onChange={setPath} disabled={!detail.data}
         data={(detail.data?.manifest.files ?? []).map((f) => ({ value: f.path, label: f.path }))} />
-      {file && <Group gap="xs"><Text size="xs" className="sb-mono">SHA-256: {file.sha256}</Text><Rights text={file.rights} known={!/^(unknown|unspecified)$/i.test(file.rights.trim())} /></Group>}
+      {file && <Group gap="xs"><Text size="xs" className="sb-mono">SHA-256: {file.sha256}</Text><Text size="xs">File rights note: {file.rights}</Text></Group>}
+      <Select label="Rights status" description="Required; choose Unknown explicitly if not established." placeholder="Choose a status" value={repStatus} onChange={setRepStatus} data={RIGHTS_OPTIONS} allowDeselect={false} />
       {(bundles.isError || detail.isError) && <Alert color="red">{((bundles.error ?? detail.error) as Error).message}</Alert>}
     </InspectionScope>
-    <Button disabled={!label.trim() || !bundleId || !path} loading={pending} {...gate.props}
-      onClick={() => register("representation", { label, kind, source_bundle_revision_id: bundleId, source_path: path })}>Register representation</Button>
+    <Button disabled={!label.trim() || !bundleId || !path || !repStatus} loading={pending} {...gate.props}
+      onClick={() => register("representation", { label, kind, source_bundle_revision_id: bundleId, source_path: path, rights_status: repStatus })}>Register representation</Button>
     <InspectionScope permission="item.create">
       <Title order={4}>Add an external source identifier</Title>
       <TextInput label="Identifier scheme" description="Lowercase, e.g. library-id, url, standard" value={scheme} onChange={(e) => setScheme(e.currentTarget.value)} />
       <TextInput label="Source identifier" value={identifier} onChange={(e) => setIdentifier(e.currentTarget.value)} />
       <TextInput label="Source identifier label" value={idLabel} onChange={(e) => setIdLabel(e.currentTarget.value)} />
-      <TextInput label="Rights statement" description='Required. Enter "unknown" if not established.' value={rights} onChange={(e) => setRights(e.currentTarget.value)} />
+      <Select label="Source identifier rights status" description="Required; choose Unknown explicitly if not established." placeholder="Choose a status" value={idStatus} onChange={setIdStatus} data={RIGHTS_OPTIONS} allowDeselect={false} />
+      <TextInput label="Rights note" value={rights} onChange={(e) => setRights(e.currentTarget.value)} />
     </InspectionScope>
-    <Button disabled={!scheme.trim() || !identifier.trim() || !idLabel.trim() || !rights.trim()} loading={pending} {...gate.props}
-      onClick={() => register("source_identifier", { scheme, identifier, label: idLabel, rights })}>Register source identifier</Button>
+    <Button disabled={!scheme.trim() || !identifier.trim() || !idLabel.trim() || !rights.trim() || !idStatus} loading={pending} {...gate.props}
+      onClick={() => register("source_identifier", { scheme, identifier, label: idLabel, rights_status: idStatus, rights })}>Register source identifier</Button>
     <ReadOnlyNote permission="item.create">Linking representations is unavailable.</ReadOnlyNote>
   </Stack></Card>;
 }

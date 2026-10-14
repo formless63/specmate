@@ -257,6 +257,7 @@ def test_exact_model_revision_source_target_pins(users, workspace, mec_sources, 
         users["editor"],
         "catalog.register_representation",
         {
+            "rights_status": "unknown",
             "revision_id": mec_target["revision_id"],
             "kind": "model",
             "label": "Unvalidated synthetic model",

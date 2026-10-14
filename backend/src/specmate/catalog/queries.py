@@ -28,14 +28,6 @@ def variant_result(variant):
     ).model_dump(mode="json")
 
 
-UNKNOWN_RIGHTS = {"unknown", "unspecified", "not recorded", "n/a", "none recorded"}
-
-
-def rights_known(rights):
-    """Rights are known only when a statement other than an explicit unknown is recorded."""
-    return rights.strip().lower() not in UNKNOWN_RIGHTS
-
-
 def source_identifier_result(item):
     revision = item.revision
     return SourceIdentifierResult(
@@ -48,7 +40,7 @@ def source_identifier_result(item):
         identifier=item.identifier,
         label=item.label,
         rights=item.rights,
-        rights_known=rights_known(item.rights),
+        rights_status=item.rights_status,
     ).model_dump(mode="json")
 
 
@@ -69,7 +61,7 @@ def representation_result(representation):
         sha256=source.blob.sha256,
         media_type=source.media_type,
         rights=source.rights,
-        rights_known=rights_known(source.rights),
+        rights_status=representation.rights_status,
     ).model_dump(mode="json")
 
 

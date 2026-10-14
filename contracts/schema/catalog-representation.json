@@ -50,9 +50,14 @@
       "title": "Rights",
       "type": "string"
     },
-    "rights_known": {
-      "title": "Rights Known",
-      "type": "boolean"
+    "rights_status": {
+      "enum": [
+        "cleared",
+        "restricted",
+        "unknown"
+      ],
+      "title": "Rights Status",
+      "type": "string"
     },
     "sha256": {
       "title": "Sha256",
@@ -82,7 +87,7 @@
     "sha256",
     "media_type",
     "rights",
-    "rights_known"
+    "rights_status"
   ],
   "title": "RepresentationResult",
   "type": "object"
