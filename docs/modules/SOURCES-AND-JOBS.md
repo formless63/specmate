@@ -22,8 +22,11 @@ An expired lease becomes interrupted and requires reconciliation of the original
 execution. The foundation does not reassign it or automatically rerun a tool; a new
 build request creates a distinct attempt while prior evidence remains immutable.
 Successful output is available only after verified terminal acceptance and a current
-workspace membership check. Mixed source-rights policies and artifact caching remain future
-capabilities; matching hashes alone grant no disclosure permission.
+workspace membership check. Mixed source-rights policies remain a future capability.
+Result reuse is explicit: `build.find_reusable` offers a succeeded same-workspace attempt
+with identical staged inputs, recipe and configuration pin, and `build.reuse` records a
+`BuildReuse` link instead of building. Reads through the link (`build.reuse_output`) recheck
+current workspace authority; matching hashes alone grant no disclosure permission.
 
 ## Cancellation, recovery and retry
 

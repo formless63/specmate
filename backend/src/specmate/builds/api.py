@@ -142,3 +142,18 @@ def download_output(request, build_id: UUID, output_id: UUID):
         as_attachment=True,
         filename=result.result["path"].rsplit("/", 1)[-1],
     )
+
+
+@artifacts_router.get("/reuse/{reuse_id}/outputs/{output_id}")
+def download_reused_output(request, reuse_id: UUID, output_id: UUID):
+    result = execute(
+        "build.reuse_output",
+        Context(user=request.user, via="api", request_id="download-reused-output"),
+        {"reuse_id": reuse_id, "output_id": output_id},
+    )
+    return FileResponse(
+        blobstore.open_blob(result.result["sha256"]),
+        content_type="application/octet-stream",
+        as_attachment=True,
+        filename=result.result["path"].rsplit("/", 1)[-1],
+    )

@@ -25,6 +25,7 @@ from specmate.access.permissions import Perm, authorize, context_project
 from specmate.builds.models import (
     BuildAttempt,
     BuildOutbox,
+    BuildReuse,
     BuildStage,
     RunnerCredential,
     StageEvent,
@@ -790,3 +791,152 @@ def complete(ctx: Context, p: CompleteStage) -> dict:
     _save(stage)
     _event(stage, "completed", outcome=p.outcome, exit_code=p.exit_code)
     return stage_result(stage)
+
+
+# --- Explicit result reuse (BLD-005) ------------------------------------------------
+# Additive: request-time lookup and a recorded reuse link. Nothing here changes how
+# build.request creates attempts, and a reuse link is never an authority of its own.
+
+
+class ReusableLookup(RequestBuild):
+    """Same shape as a build request; identifies the exact build being asked for."""
+
+
+class ReuseBuild(ReusableLookup):
+    result_build_id: UUID
+
+
+def _request_context(ctx: Context, p: ReusableLookup):
+    """Authorize like build.request (without creating anything) and resolve the request."""
+    workspace = authorize(ctx.user, p.workspace_id, Perm.BUILD_EXECUTE)
+    project = context_project(p.project_id, workspace)
+    source = SourceBundleRevision.objects.filter(
+        id=p.source_revision_id, bundle__workspace=workspace
+    ).first()
+    if source is None:
+        raise NotFound("Source revision not found.")
+    recipe = approved_recipe(p.recipe_id)
+    configuration = configuration_input(ctx, workspace, p.resolved_configuration_id)
+    from specmate.firmware_builds.operations import authorize_request
+
+    # Compiler recipes keep their separate explicit-consent request path.
+    authorize_request(ctx, p, recipe)
+    return workspace, project, source, recipe, configuration
+
+
+def _reuse_candidates(ctx: Context, workspace, source, recipe, configuration):
+    """Succeeded same-workspace attempts whose exact inputs and recipe match, newest first.
+
+    Partial, failed, cancelled, interrupted or still-running attempts never qualify, and
+    each candidate must be readable by the caller right now.
+    """
+    staged = staged_input_record(source.files.select_related("blob"))
+    recipe_json = recipe.model_dump(mode="json")
+    wanted_paths = sorted(output.path for output in recipe.outputs)
+    candidates = (
+        BuildAttempt.objects.select_related("stage")
+        .filter(
+            workspace=workspace,
+            recipe_id=recipe.id,
+            stage__state="succeeded",
+            resolved_configuration_id=configuration["resolved_configuration_id"]
+            if configuration
+            else None,
+        )
+        .order_by("-created_at")
+    )
+    for build in candidates:
+        if (
+            build.recipe != recipe_json
+            or build.staged_inputs != staged
+            or build.configuration_input != configuration
+        ):
+            continue
+        stage = build.stage
+        if sorted(stage.outputs.values_list("path", flat=True)) != wanted_paths:
+            continue
+        try:
+            _authorize_compiler_read(ctx, stage)
+        except OperationError:
+            continue
+        yield build
+
+
+def _reuse_result(build: BuildAttempt) -> dict:
+    stage = build.stage
+    return {
+        **stage_result(stage),
+        "outputs": [
+            {**_output_result(o), "media_type": o.media_type, "rights": o.rights}
+            for o in stage.outputs.order_by("path")
+        ],
+    }
+
+
+@operation(
+    "build.find_reusable",
+    ReusableLookup,
+    summary="Offer an earlier succeeded same-workspace result for an identical build request.",
+    supports_idempotency=False,
+    access=Perm.BUILD_EXECUTE,
+)
+def find_reusable(ctx: Context, p: ReusableLookup) -> dict:
+    workspace, _, source, recipe, configuration = _request_context(ctx, p)
+    build = next(_reuse_candidates(ctx, workspace, source, recipe, configuration), None)
+    return {"reusable": _reuse_result(build) if build else None}
+
+
+@operation(
+    "build.reuse",
+    ReuseBuild,
+    summary="Reuse an offered result instead of building, recording an explicit reuse link.",
+    supports_idempotency=False,
+    access=Perm.BUILD_EXECUTE,
+)
+def reuse_build(ctx: Context, p: ReuseBuild) -> dict:
+    workspace, project, source, recipe, configuration = _request_context(ctx, p)
+    build = next(
+        (
+            b
+            for b in _reuse_candidates(ctx, workspace, source, recipe, configuration)
+            if b.id == p.result_build_id
+        ),
+        None,
+    )
+    if build is None:
+        raise NotFound("No reusable result matches this exact request.")
+    reuse, _ = BuildReuse.objects.get_or_create(
+        requested_by=ctx.user,
+        reused_build=build,
+        source_revision=source,
+        defaults={"workspace": workspace, "project": project},
+    )
+    return {"reuse_id": str(reuse.id), **_reuse_result(build)}
+
+
+class ReuseArtifactRef(Payload):
+    reuse_id: UUID
+    output_id: UUID
+
+
+@operation(
+    "build.reuse_output",
+    ReuseArtifactRef,
+    summary="Authorize reused result bytes; rechecks current workspace authority.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def get_reused_output(ctx: Context, p: ReuseArtifactRef) -> dict:
+    reuse = BuildReuse.objects.filter(id=p.reuse_id).first()
+    if reuse is None:
+        raise NotFound("Accepted output not found.")
+    stage = _stage_for_build(reuse.reused_build_id)
+    if stage.build.workspace_id != reuse.workspace_id:
+        raise NotFound("Accepted output not found.")
+    # Current authority, never the authority held when the link was recorded.
+    authorize(ctx.user, stage.build.workspace_id, Perm.WORKSPACE_READ)
+    _authorize_compiler_read(ctx, stage)
+    output = stage.outputs.filter(id=p.output_id).first() if stage.state == "succeeded" else None
+    if output is None:
+        raise NotFound("Accepted output not found.")
+    return {**_output_result(output), "media_type": output.media_type, "rights": output.rights}
