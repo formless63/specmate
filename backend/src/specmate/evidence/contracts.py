@@ -163,5 +163,71 @@ class RecordedResult(StrictModel):
     recorded_by_id: int
     pins: list[RecordedPinState]
     stale: bool
+    # Firmware impact records: fact assertions arrived in the compared scope after recording.
+    # None for records with no assertion scope.
+    newer_assertions: bool | None = None
     rewritten: Literal[False] = False
     physical_qualification: Literal[False] = False
+
+
+class ReadApplicability(StrictModel):
+    """Evidence about a revision's definition, read against one exact selected revision."""
+
+    workspace_id: UUID
+    revision_id: UUID
+    offset: int = Field(default=0, ge=0, le=10000)
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+ApplicabilityStatus = Literal[
+    "exact_revision",
+    "exact_unit_only",
+    "definition_scope_unverified",
+    "stale_earlier_revision",
+    "inapplicable_later_revision",
+]
+
+
+class DesignChange(StrictModel):
+    """What differs between the evidence's revision and the selected revision."""
+
+    from_number: int
+    to_number: int
+    content_changed: bool
+    changed_sections: list[str]
+    sections_truncated: bool = False
+
+
+class Applicability(StrictModel):
+    status: ApplicabilityStatus
+    reason: str
+    # The revision the evidence is attached to; None for a definition-wide subject.
+    evidence_revision_id: UUID | None = None
+    evidence_revision_number: int | None = None
+    change: DesignChange | None = None
+    observation_preserved: Literal[True] = True
+    qualifies_selected_revision: Literal[False] = False
+
+
+class ApplicabilityItem(StrictModel):
+    item: EvidenceItem
+    applicability: Applicability
+
+
+class RevisionRef(StrictModel):
+    revision_id: UUID
+    definition_id: UUID
+    number: int
+    latest_number: int
+    is_latest: bool
+
+
+class ApplicabilityList(StrictModel):
+    workspace_id: UUID
+    revision: RevisionRef
+    items: list[ApplicabilityItem]
+    offset: int
+    limit: int
+    has_more: bool
+    scan_limit_reached: bool = False
+    historical_results_modified: Literal[False] = False

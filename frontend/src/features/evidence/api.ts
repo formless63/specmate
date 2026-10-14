@@ -30,7 +30,7 @@ export type RecordedPin = { role: string; revision_id: string; definition_id: st
 export type RecordedResult = {
   record_id: string; workspace_id: string; source: "interface_assessment" | "firmware_impact"; kind: EvidenceKind; algorithm_version: string;
   request: Record<string, unknown>; result: Record<string, unknown>; result_sha256: string; note: string; recorded_at: string; recorded_by_id: number;
-  pins: RecordedPin[]; stale: boolean; rewritten: false; physical_qualification: false;
+  pins: RecordedPin[]; stale: boolean; newer_assertions?: boolean | null; rewritten: false; physical_qualification: false;
 };
 
 export const recordedPath = (recordId: string) => `evidence/recorded/${recordId}`;
@@ -52,3 +52,15 @@ export function observationRange(result: { observations: unknown[]; observations
   const first = result.observation_offset + 1;
   return shown ? `${first}–${first + shown - 1} of ${total}` : `none of ${total}`;
 }
+
+export type ApplicabilityStatus = "exact_revision" | "exact_unit_only" | "definition_scope_unverified" | "stale_earlier_revision" | "inapplicable_later_revision";
+export type Applicability = {
+  status: ApplicabilityStatus; reason: string; evidence_revision_id?: string | null; evidence_revision_number?: number | null;
+  change?: { from_number: number; to_number: number; content_changed: boolean; changed_sections: string[]; sections_truncated: boolean } | null;
+  observation_preserved: true; qualifies_selected_revision: false;
+};
+export type ApplicabilityList = {
+  workspace_id: string; revision: { revision_id: string; definition_id: string; number: number; latest_number: number; is_latest: boolean };
+  items: { item: EvidenceItem; applicability: Applicability }[]; offset: number; limit: number; has_more: boolean; scan_limit_reached: boolean;
+};
+export const applicabilityPath = (workspaceId: string, revisionId: string, offset: number) => `evidence/workspaces/${workspaceId}/applicability/${revisionId}?offset=${offset}&limit=50`;

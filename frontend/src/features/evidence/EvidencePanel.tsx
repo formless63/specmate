@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Card, Group, MultiSelect, Stack, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { ApplicabilityPanel } from "./ApplicabilityPanel";
 import { KIND_ORDER, evidenceQuery, observationRange, read, recordedPath, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription, type RecordedResult } from "./api";
 
 function KindBadge({ item }: { item: EvidenceItem }) {
@@ -24,6 +25,7 @@ function RecordedSnapshot({ recordId }: { recordId: string }) {
     {open && snapshot.data && <Stack gap={2}>
       <Text size="xs">Result SHA-256 {snapshot.data.result_sha256} · {snapshot.data.algorithm_version}</Text>
       {snapshot.data.note && <Text size="xs">Note: {snapshot.data.note}</Text>}
+      {snapshot.data.newer_assertions === true && <Text size="xs" c="orange">New fact assertions arrived in this comparison's scope after it was recorded.</Text>}
       {snapshot.data.source === "firmware_impact" && <RecordedObservations result={snapshot.data.result} />}
       {snapshot.data.pins.map((pin) => <Text size="xs" key={`${pin.role}:${pin.revision_id}`}>{pin.role.replaceAll("_", " ")}: revision {pin.number} ({pin.revision_id}){pin.newer_revision_exists ? ` · newer revision ${pin.latest_number} exists` : " · latest"}</Text>)}
     </Stack>}
@@ -73,6 +75,7 @@ function EvidenceWorkspace({ workspaceId }: { workspaceId: string }) {
       {taxonomy.isError && <Alert color="red">{taxonomy.error.message}</Alert>}
       {(taxonomy.data?.kinds ?? []).map((kind) => <Text size="sm" key={kind.kind}><strong>{kind.label}</strong>: {kind.summary} Never establishes: {kind.does_not_establish.join(" ")}</Text>)}
     </Stack></Card>
+    <ApplicabilityPanel workspaceId={workspaceId} />
     <MultiSelect label="Show evidence kinds" placeholder="All kinds" clearable data={KIND_ORDER.map((kind) => ({ value: kind, label: labels.get(kind) ?? kind }))} value={kinds} onChange={(value) => { setKinds(value as EvidenceKind[]); setOffset(0); }} />
     {evidence.isError && <Alert color="red">{evidence.error.message}</Alert>}
     {evidence.data && !evidence.isError && <>

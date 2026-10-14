@@ -63,6 +63,33 @@ def authorize_evidence(user, rows):
         )
 
 
+def scope_filter(workspace_id, baseline_ref, population_id, assertion_ids):
+    """The assertions a comparison considers; shared with recorded-result staleness reads.
+
+    Revision evidence belongs to the exact baseline revision subjects. Unit and occurrence
+    evidence belongs to the exact baseline context; reuse never imports unrelated units'
+    results or unrelated assertions unless deliberately selected.
+    """
+    revision_ids = [baseline_ref.firmware_revision_id, *([population_id] if population_id else [])]
+    revision_evidence = Q(subject__kind="revision", subject__revision_id__in=revision_ids)
+    contextual_evidence = Q(
+        subject__kind="physical_unit", subject__physical_unit__revision_id__in=revision_ids
+    )
+    if baseline_ref.assembly_snapshot_id:
+        contextual_evidence |= Q(
+            subject__kind="occurrence",
+            subject__snapshot_id=baseline_ref.assembly_snapshot_id,
+            subject__path=baseline_ref.path,
+        )
+        contextual_evidence |= Q(
+            subject__kind="physical_unit",
+            subject__physical_unit__revision__snapshot_id=baseline_ref.assembly_snapshot_id,
+        )
+    return revision_evidence | (
+        Q(subject__workspace_id=workspace_id) & (contextual_evidence | Q(id__in=assertion_ids))
+    )
+
+
 def authorized_inputs(ctx, p):
     user = current_actor(ctx.user)
     workspace_id = authorize(user, p.workspace_id, Perm.WORKSPACE_READ).id
@@ -91,34 +118,12 @@ def authorized_inputs(ctx, p):
     baseline_content = json.loads(bytes(revisions[0].snapshot.canonical))["content"]
     target = baseline_content.get("firmware", {}).get("target", {})
     population_id = target.get("population_revision_id")
-    revision_ids = [revisions[0].id, *([population_id] if population_id else [])]
-    # Revision evidence belongs to the exact baseline revision subjects. Unit and
-    # occurrence evidence belongs to the exact baseline context; reuse never imports
-    # unrelated units' results or unrelated assertions unless deliberately selected.
-    revision_evidence = Q(subject__kind="revision", subject__revision_id__in=revision_ids)
-    contextual_evidence = Q(
-        subject__kind="physical_unit", subject__physical_unit__revision_id__in=revision_ids
-    )
-    if snapshots[0]:
-        contextual_evidence |= Q(
-            subject__kind="occurrence",
-            subject__snapshot=snapshots[0],
-            subject__path=p.baseline.path,
-        )
-        contextual_evidence |= Q(
-            subject__kind="physical_unit", subject__physical_unit__revision__snapshot=snapshots[0]
-        )
+    scope = scope_filter(workspace_id, p.baseline, population_id, p.assertion_ids)
     # Bound database materialization as well as closure traversal. The extra row
     # detects overflow; oversized scopes return no partial comparison or labels.
     rows = list(
         FactAssertion.objects.select_related("subject", "subject__physical_unit")
-        .filter(
-            revision_evidence
-            | (
-                Q(subject__workspace_id=workspace_id)
-                & (contextual_evidence | Q(id__in=p.assertion_ids))
-            )
-        )
+        .filter(scope)
         .order_by("recorded_at", "id")[: MAX_ASSERTIONS + 1]
     )
     authorize_evidence(user, rows)

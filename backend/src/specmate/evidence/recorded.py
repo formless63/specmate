@@ -190,9 +190,28 @@ def pin_states(records):
     return states
 
 
+def newer_assertions(record):
+    """Whether fact assertions arrived in a firmware record's scope after it was recorded.
+
+    The scope is the one the comparison itself used (exact baseline revision subjects and
+    contexts plus the deliberately selected assertions). Only a boolean is derived; nothing
+    stored is touched. None for sources that carry no assertion scope.
+    """
+    if record.source != RecordedResult.Source.FIRMWARE_IMPACT:
+        return None
+    from specmate.facts.models import FactAssertion
+    from specmate.firmware_impact.operations import scope_filter
+
+    request = CompareImpact.model_validate(record.request)
+    population = record.result["baseline"]["inputs"].get("target", {}).get("population_revision_id")
+    scope = scope_filter(record.workspace_id, request.baseline, population, request.assertion_ids)
+    return FactAssertion.objects.filter(scope, recorded_at__gt=record.recorded_at).exists()
+
+
 def view(record, pins=None):
     if pins is None:
         pins = pin_states([record]).get(record.id, [])
+    fresh = newer_assertions(record)
     return RecordedResultView(
         record_id=record.id,
         workspace_id=record.workspace_id,
@@ -206,7 +225,8 @@ def view(record, pins=None):
         recorded_at=record.recorded_at.isoformat(),
         recorded_by_id=record.recorded_by_id,
         pins=pins,
-        stale=any(pin["newer_revision_exists"] for pin in pins),
+        stale=any(pin["newer_revision_exists"] for pin in pins) or bool(fresh),
+        newer_assertions=fresh,
     ).model_dump(mode="json")
 
 

@@ -89,3 +89,23 @@ test("a recorded result shows its stale state and exact pins on request", async 
   expect(await screen.findByText(/left pinout: revision 1 \(rev-left\) · newer revision 2 exists/)).toBeTruthy();
   expect(urls).toContain("/api/v0/evidence/recorded/rec-1");
 });
+
+test("evidence recorded against an earlier revision reads as stale with the preserved change", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("taxonomy")) return new Response(JSON.stringify({ kinds }), { status: 200 });
+    if (url.includes("/applicability/")) return new Response(JSON.stringify({
+      workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false,
+      revision: { revision_id: "11111111-1111-4111-8111-111111111111", definition_id: "d", number: 2, latest_number: 2, is_latest: true },
+      items: [{ item: item({ evidence_id: "fact:9", kind: "source_claim", kind_label: "Declared claim", statement: "continuity checked = true" }),
+        applicability: { status: "stale_earlier_revision", reason: "Recorded against revision 1. Revision 2 is selected.", evidence_revision_id: "r1", evidence_revision_number: 1,
+          change: { from_number: 1, to_number: 2, content_changed: true, changed_sections: ["termination.style"], sections_truncated: false }, observation_preserved: true, qualifies_selected_revision: false } }],
+    }), { status: 200 });
+    return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [] }), { status: 200 });
+  }));
+  mount();
+  fireEvent.change(screen.getByLabelText("Revision ID"), { target: { value: "11111111-1111-4111-8111-111111111111" } });
+  fireEvent.click(screen.getByText("Check applicability"));
+  expect(await screen.findByText("stale: earlier revision")).toBeTruthy();
+  expect(screen.getByText("Changed since revision 1: termination.style")).toBeTruthy();
+  expect(screen.getByText("continuity checked = true")).toBeTruthy();
+});
