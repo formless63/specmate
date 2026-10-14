@@ -1,21 +1,22 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { readScene } from './reads';
 import { scopeKey, SelectionController } from './selection';
+import { sceneAddress, sceneRelations, sceneTarget, useProbe, useRelationContributor } from '../probe';
 import type { Scope, SelectionState } from './selection';
 
-type ContextValue = { state: SelectionState; controller: SelectionController; refresh: () => Promise<void> };
+type ContextValue = { state: SelectionState; controller: SelectionController; refresh: () => Promise<void>; clearSelection: () => void };
 const SelectionContext = createContext<ContextValue | null>(null);
 
 /** Mount beneath the signed-in project boundary. Principal/root/project changes remount
  * the scope, immediately clearing retained data, selections and old asynchronous readers.
  */
-export function ContextSelectionProvider({ scope, children, onUnavailable, authorityPending = false }: {
-  scope: Scope; children: ReactNode; onUnavailable?: () => void; authorityPending?: boolean;
+export function ContextSelectionProvider({ scope, children, onUnavailable, authorityPending = false, revision = null }: {
+  scope: Scope; children: ReactNode; onUnavailable?: () => void; authorityPending?: boolean; revision?: number | null;
 }) {
-  return <ScopeProvider key={scopeKey(scope)} scope={scope} onUnavailable={onUnavailable} authorityPending={authorityPending}>{children}</ScopeProvider>;
+  return <ScopeProvider key={scopeKey(scope)} scope={scope} onUnavailable={onUnavailable} authorityPending={authorityPending} revision={revision}>{children}</ScopeProvider>;
 }
-function ScopeProvider({ scope, children, onUnavailable, authorityPending }: { scope: Scope; children: ReactNode; onUnavailable?: () => void; authorityPending: boolean }) {
+function ScopeProvider({ scope, children, onUnavailable, authorityPending, revision }: { scope: Scope; children: ReactNode; onUnavailable?: () => void; authorityPending: boolean; revision: number | null }) {
   const [controller] = useState(() => new SelectionController(scope));
   const pending = useRef(authorityPending); pending.current = authorityPending;
   const wasPending = useRef(authorityPending);
@@ -43,7 +44,40 @@ function ScopeProvider({ scope, children, onUnavailable, authorityPending }: { s
     if (authorityPending || previous) void refresh();
   }, [authorityPending, refresh]);
   useEffect(() => { if (state.status === 'unavailable') unavailable.current?.(); }, [state.status, state.read_epoch]);
-  return <SelectionContext.Provider value={{ state: authorityPending ? { ...state, status: 'checking', scene: null, selection: null, error: '' } : state, controller, refresh }}>{children}</SelectionContext.Provider>;
+  // The shared probe (and so the URL) follows this controller's occurrence selection and vice versa.
+  // Each side acts only when the other differs, so the two cannot echo. Selection is navigation
+  // only; the scene was already read under current authority and the probe grants nothing.
+  const shared = useProbe();
+  const probe = shared?.probe ?? null, setProbe = shared?.setProbe;
+  const contributor = useMemo(() => (state.scene ? sceneRelations(state.scene) : null), [state.scene]);
+  useRelationContributor(contributor);
+  const latest = useRef({ state, probe, setProbe, revision }); latest.current = { state, probe, setProbe, revision };
+  useEffect(() => {
+    const { state: current, probe: shown, setProbe: set, revision: rev } = latest.current;
+    const selection = current.selection;
+    if (!set || current.status !== 'ready' || !current.scene || selection?.kind !== 'occurrence') return;
+    const target = sceneTarget(current.scene, selection.address, rev);
+    const same = shown && shown.object === target.object && shown.path.length === target.path.length && shown.path.every((part, index) => part === target.path[index]);
+    if (!same) set(target);
+  }, [state.selection]);
+  const previous = useRef(probe);
+  useEffect(() => {
+    const before = previous.current; previous.current = probe;
+    const { state: current } = latest.current;
+    if (!probe) { if (before) controller.clear(); return; }
+    if (current.status !== 'ready' || !current.scene) return;
+    const address = sceneAddress(current.scene, probe);
+    const selection = current.selection;
+    if (!address) return;
+    if (selection?.kind === 'occurrence' && JSON.stringify([selection.address.path, selection.address.feature_id ?? null]) === JSON.stringify([address.path, address.feature_id ?? null])) return;
+    controller.selectOccurrence(address);
+  }, [probe, state.status, state.scene, controller]);
+  const clearSelection = useCallback(() => {
+    controller.clear();
+    const { state: current, probe: shown, setProbe: set } = latest.current;
+    if (set && shown && current.scene && shown.object === current.scene.root.definition_id) set(null);
+  }, [controller]);
+  return <SelectionContext.Provider value={{ state: authorityPending ? { ...state, status: 'checking', scene: null, selection: null, error: '' } : state, controller, refresh, clearSelection }}>{children}</SelectionContext.Provider>;
 }
 export function useContextSelection(): ContextValue {
   const value = useContext(SelectionContext);

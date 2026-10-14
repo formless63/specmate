@@ -42,8 +42,9 @@ reachable at both scopes. Scope changes navigation and filtering only, never acc
 
 ## Links and selection
 
-Status: implemented for the shell and library lists; discipline views join by contributing
-relations and reading the probe.
+Status: implemented for the shell, library lists and the scene-based discipline views (shared
+scene, and the contextual tree, board, cable, scene, inspector, schematic and BOM views); other
+panels join by contributing relations and reading the probe.
 
 Items are addressed in the workspace, never through an owning project. One URL carries the
 area, lens, optional project context and the probe (the shared selection):
@@ -80,6 +81,12 @@ area, lens, optional project context and the probe (the shared selection):
   ancestors and its item; an exact revision belongs to its item). A view marks related
   targets with a rule and a "related" tag, not color alone. Contributors describe records
   already read; they never fetch or authorize.
+- Scene uses are probe targets: the object is the assembly the scene was frozen from, the path is
+  the occurrence path, and a stable feature (component, pad, endpoint) is one last segment marked
+  `#`. Each repeated use keeps its own path, so selecting the second of two identical boards
+  selects only that use in every connected view and in the URL, and opening the link selects it
+  back. The scene contributes the other end of declared relationships (electrical, mating,
+  mounting, ...) and nested uses as related; a selected feature relates only exact feature ends.
 - The Design area's PCB lens lists boards and board populations from the workspace library;
   PCB intake (one native source) stays below the list at project scope.
 
