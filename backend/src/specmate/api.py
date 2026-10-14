@@ -28,6 +28,7 @@ from specmate.diagnostics.api import router as diagnostics_router
 from specmate.discovery.api import router as discovery_router
 from specmate.end_preparation.api import router as end_preparation_router
 from specmate.evidence.api import router as evidence_router
+from specmate.export_packages.api import create_router as export_packages_router
 from specmate.facts.api import router as facts_router
 from specmate.firmware_builds.api import router as firmware_builds_router
 from specmate.firmware_impact.api import router as firmware_impact_router
@@ -91,6 +92,7 @@ api.add_router("/v0/firmware-builds", firmware_builds_router)
 api.add_router("/v0/firmware-impact", firmware_impact_router)
 api.add_router("/v0/shared-scenes", shared_scene_router)
 api.add_router("/v0/selected-packages", selected_packages_router())
+api.add_router("/v0/export-packages", export_packages_router())
 api.add_router("/v0/preparation", preparation_router)
 api.add_router("/v0/preparation-documents", preparation_documents_router)
 api.add_router("/v0/end-preparation", end_preparation_router)

@@ -53,6 +53,7 @@ const EndPreparationPanel = lazy(() => import("./features/end-preparation/EndPre
 const SourcesPanel = lazy(() => import("./features/sources/SourcesPanel").then((module) => ({ default: module.SourcesPanel })));
 
 const SelectedPackagesPanel = lazy(() => import("./features/selected-packages/SelectedPackagesPanel").then((module) => ({ default: module.SelectedPackagesPanel })));
+const ExportPackagesPanel = lazy(() => import("./features/export-packages/ExportPackagesPanel").then((module) => ({ default: module.ExportPackagesPanel })));
 const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
 const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/FirmwareImpactPanel").then((module) => ({ default: module.FirmwareImpactPanel })));
 const ConfigurationsPanel = lazy(() => import("./features/configurations/ConfigurationsPanel").then((module) => ({ default: module.ConfigurationsPanel })));
@@ -177,7 +178,7 @@ type ProjectToolsProps = {
 
 /** Lenses whose data lives in the workspace; a project is optional context, never a requirement. */
 const WORKSPACE_LENSES = new Set(["knowledge", "agent-capabilities", "diagnostics", "discovery", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
-  "mechanical-proposals", "builds", "evidence-kinds", "shared-scene", "context-selection", "scene-drawings", "preparation-documents", "selected-packages", "copper"]);
+  "mechanical-proposals", "builds", "evidence-kinds", "shared-scene", "context-selection", "scene-drawings", "preparation-documents", "selected-packages", "export-packages", "copper"]);
 
 type LensContext = {
   scope: WorkspaceScope; projectId: string | null; active: string; setActive: (value: string) => void; onStatusChanged: () => void;
@@ -206,6 +207,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "scene-drawings": return <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />;
     case "preparation-documents": return <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} onAccessLost={onAccessChanged} />;
     case "selected-packages": return <SelectedPackagesPanel projectId={projectId} />;
+    case "export-packages": return <ExportPackagesPanel projectId={projectId} />;
     case "copper": return <CopperPanel projectId={projectId} />;
     default: return null;
   }
@@ -242,6 +244,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="preparation" library={library("preparation")}>{visited.has("preparation") && <PreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="end-preparation" library={library("end-preparation")}>{visited.has("end-preparation") && <EndPreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="selected-packages" library={library("selected-packages")}>{visited.has("selected-packages") && <WorkspaceLens {...lens} toolId="selected-packages" />}</ToolPanel>
+    <ToolPanel value="export-packages" library={library("export-packages")}>{visited.has("export-packages") && <WorkspaceLens {...lens} toolId="export-packages" />}</ToolPanel>
     <ToolPanel value="occurrence-firmware" library={library("occurrence-firmware")}>{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="firmware-impact" library={library("firmware-impact")}>{visited.has("firmware-impact") && <WorkspaceLens {...lens} toolId="firmware-impact" />}</ToolPanel>
     <ToolPanel value="configurations" library={library("configurations")}>{visited.has("configurations") && <ConfigurationsPanel projectId={projectId} />}</ToolPanel>
