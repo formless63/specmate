@@ -62,6 +62,7 @@ export const AREAS: AreaDef[] = [
     { id: "facts", label: "Facts" },
     { id: "evidence-kinds", label: "Evidence kinds" },
     { id: "cable-test-intent", label: "Cable test intent" },
+    { id: "releases", label: "Releases" },
   ] },
 ];
 

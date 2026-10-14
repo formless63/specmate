@@ -59,7 +59,7 @@ export function toolForKind(kind: string | null): string {
 /** The lens that lists a reference target. */
 export function toolForReference(kind: ReferenceKind, itemKind: string | null): string {
   if (kind === "definition" || kind === "revision") return toolForKind(itemKind);
-  return { source_bundle: "sources", physical_unit: "physical-units", work_batch: "inventory" }[kind];
+  return { source_bundle: "sources", physical_unit: "physical-units", work_batch: "inventory", release: "releases" }[kind];
 }
 
 /** The reference kind a library row is used through, or null when projects cannot reference it. */
