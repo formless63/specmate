@@ -675,3 +675,129 @@ def test_api_uses_the_same_operations(users, project, option_set):
     )
     assert allowed.status_code == 200
     assert allowed.json()["result"]["status"] == "incomplete"
+
+
+def firmware_target_results(users, project, target, first, population_choices, select=None):
+    options = [
+        {
+            "key": "right-firmware",
+            "label": "Right controller firmware",
+            "domain": "firmware",
+            "path": ["right", "board"],
+            "choices": [{"key": "slow", "label": "Slow", "revision_id": first["revision_id"]}],
+        }
+    ]
+    if population_choices:
+        options.append(
+            {
+                "key": "right-population",
+                "label": "Right board population",
+                "domain": "population",
+                "path": ["right", "board"],
+                "default_choice": population_choices[0]["key"],
+                "choices": population_choices,
+            }
+        )
+    content = {"option_set": {"target_revision_id": target["revision_id"], "options": options}}
+    created = frozen(users["owner"], project, "Synthetic firmware options", "option_set", content)
+    selections = [{"option_key": "right-firmware", "choice_key": "slow"}]
+    if select:
+        selections.append({"option_key": "right-population", "choice_key": select})
+    draft = configuration(users["editor"], project, created["revision_id"], selections)
+    preview = op(users["viewer"], "configuration.resolve", {"draft_id": draft["draft_id"]})
+    rule = {r["key"]: r for r in preview["resolution"]["constraints"]["results"]}
+    return rule["firmware-target-right-firmware"], preview
+
+
+def test_firmware_target_rule_compares_declared_and_chosen_population(
+    users,
+    project,
+    sources,  # noqa: F811
+    board,  # noqa: F811
+    pair,  # noqa: F811
+):
+    assembly, first, _ = pair
+    target = op(
+        users["owner"],
+        "assembly.freeze",
+        {"draft_id": assembly["draft_id"]},
+        expected_state=assembly["state"],
+    )
+    revision = board[0]["revision_id"]
+    choices = [
+        {
+            "key": "fitted",
+            "label": "Fitted",
+            "revision_id": revision,
+            "population_option_id": "default",
+        },
+        {"key": "bare", "label": "Bare", "revision_id": revision, "population_option_id": "no-mcu"},
+    ]
+    rule, preview = firmware_target_results(users, project, target, first, choices)
+    assert rule["kind"] == "firmware_target" and rule["outcome"] == "valid"
+    assert [r["code"] for r in rule["reasons"] if r["level"] == "fact"][-1] == "target_matches"
+    assert preview["resolution"]["constraints"]["outcome"] == "valid"
+
+    rule, _ = firmware_target_results(users, project, target, first, choices, "bare")
+    assert rule["outcome"] == "invalid"
+    assert [r["code"] for r in rule["reasons"] if r["level"] == "fact"][
+        -1
+    ] == "target_option_mismatch"
+
+    # No population choice: the occurrence's population revision matches, but the option in
+    # use is not stated while the firmware declares one, so the outcome is unknown.
+    rule, _ = firmware_target_results(users, project, target, first, [])
+    assert rule["outcome"] == "unknown"
+    assert [r["code"] for r in rule["reasons"] if r["level"] == "fact"][-1] == (
+        "population_option_unknown"
+    )
+
+
+def decision(**changes):
+    base = {
+        "option_key": "fw",
+        "label": "Firmware",
+        "domain": "firmware",
+        "path": ["board"],
+        "status": "resolved",
+        "source": "selected",
+        "choice": {
+            "key": "a",
+            "revision": {"revision_id": "r1"},
+            "declared_target": {"population_revision_id": "p1", "option_id": None},
+        },
+        "base": {"population_revision_id": "p1"},
+    }
+    return {**base, **changes}
+
+
+def test_firmware_target_rule_reports_mismatch_and_undeclared_sides():
+    from specmate.configurations.constraints import _firmware_target_rule
+
+    def run(firmware, population=None):
+        by_key = {"fw": firmware, **({"pop": population} if population else {})}
+        return _firmware_target_rule(firmware, by_key)[0]
+
+    assert run(decision()) == "valid"
+    assert run(decision(base={"population_revision_id": "p2"})) == "invalid"
+    undeclared = decision()
+    undeclared["choice"]["declared_target"] = {"population_revision_id": None, "option_id": None}
+    assert run(undeclared) == "unknown"
+    assert run(decision(base=None)) == "unknown"
+    assert run(decision(status="unresolved", choice=None)) == "unknown"
+    assert run(decision(status="none", choice=None)) == "not_evaluated"
+    population = {
+        "option_key": "pop",
+        "label": "Population",
+        "domain": "population",
+        "path": ["board"],
+        "status": "resolved",
+        "source": "selected",
+        "choice": {
+            "key": "x",
+            "revision": {"revision_id": "p2"},
+            "population_option_id": "default",
+        },
+    }
+    assert run(decision(), population) == "invalid"
+    assert run(decision(), {**population, "status": "unresolved", "choice": None}) == "unknown"

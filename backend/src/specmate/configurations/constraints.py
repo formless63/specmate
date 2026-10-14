@@ -14,15 +14,19 @@ import json
 from decimal import Decimal
 
 from specmate.facts.models import FactSubject
-from specmate.facts.queries import assessments, subject_with_assertions
+from specmate.facts.queries import assessments, canonical_conditions, subject_with_assertions
 from specmate.operations import NotFound, PermissionDenied
 
 OUTCOMES = ("valid", "invalid", "unknown", "not_evaluated")
 SCOPE = "declared_rules_and_recorded_facts_of_exact_revisions"
 LIMITATIONS = [
     "Only rules declared by the pinned option-set revision are evaluated.",
-    "Facts are read from the exact chosen revision's ledger; definition-level facts, "
-    "feature facts and condition-scoped facts are not applied to an unconditioned rule.",
+    "Facts are read from the exact chosen revision's ledger first, then from its "
+    "definition's ledger; an exact-revision fact for the same purpose, role and conditions "
+    "overrides the definition-level one. Feature facts apply only to a rule naming that "
+    "feature; condition-scoped facts apply only to a rule stating the same conditions.",
+    "The built-in firmware target check compares declarations only: the firmware's declared "
+    "target population against the population chosen in the same configuration.",
     "A valid outcome is a declaration check, not physical qualification.",
 ]
 
@@ -131,9 +135,19 @@ def _bound(value, comparison):
     return (lower, upper) if comparison == "at_least" else (upper, lower)
 
 
-def _ledger(reader, revision_id):
+LEVELS = {
+    ("revision", False): "exact-revision",
+    ("definition", False): "definition-level",
+    ("revision", True): "exact-revision feature",
+    ("definition", True): "definition-level feature",
+}
+
+
+def _ledger(reader, kind, owner_id, feature_id):
+    """The fact subject and assertions of one level, or (None, []) when none is recorded."""
+    key = {"revision_id": owner_id} if kind == "revision" else {"definition_id": owner_id}
     subject = FactSubject.objects.filter(
-        kind="revision", revision_id=revision_id, feature_id__isnull=True
+        kind=kind, feature_id=feature_id, feature_id__isnull=feature_id is None, **key
     ).first()
     if subject is None:
         return None, []
@@ -181,28 +195,44 @@ def _fact_rule(rule, decisions, reader):
             )
         )
         return "not_evaluated", reasons, []
+    feature = rule.feature_id
+    wanted = canonical_conditions(rule)
+    levels = []
     try:
-        subject, rows = _ledger(reader, revision["revision_id"])
+        for kind, owner in (
+            ("revision", revision["revision_id"]),
+            ("definition", revision["definition_id"]),
+        ):
+            subject, rows = _ledger(reader, kind, owner, feature)
+            label = LEVELS[(kind, feature is not None)]
+            groups = [
+                group
+                for group in (assessments(rows, rule.property) if rows else [])
+                if group.get("purpose") == rule.purpose and group.get("role") == rule.role
+            ]
+            levels.append((kind, label, subject, groups))
     except (NotFound, PermissionDenied):
         reasons.append(
             reason(
                 "fact",
                 "evidence_unavailable",
-                "Fact evidence for the chosen revision is not readable under current authority.",
+                "Fact evidence for the chosen revision or its definition is not readable "
+                "under current authority.",
             )
         )
         return "unknown", reasons, []
-    groups = [
-        group
-        for group in (assessments(rows, rule.property) if rows else [])
-        if group.get("purpose") == rule.purpose and group.get("role") == rule.role
-    ]
-    unconditioned = [group for group in groups if not group["conditions"]]
+    chosen = None
+    for kind, label, _subject, groups in levels:
+        match = [group for group in groups if group["conditions"] == wanted]
+        if match and chosen is None:
+            chosen = (kind, label, match[0])
     evidence = [
         {
             "subject_id": str(subject.id) if subject else None,
             "subject_state": subject.state_token if subject else None,
             "revision_id": revision["revision_id"],
+            "fact_level": label,
+            "applied": chosen is not None and chosen[2] is group,
             "property": rule.property,
             "purpose": rule.purpose,
             "role": rule.role,
@@ -211,39 +241,44 @@ def _fact_rule(rule, decisions, reader):
             "value": group["value"],
             "assertion_ids": group["assertion_ids"],
         }
+        for kind, label, subject, groups in levels
         for group in groups
     ]
     name = f"{revision['name']} rev {revision['number']}"
-    if not groups:
+    where = " or ".join(label for _, label, _, _ in levels)
+    if not any(groups for _, _, _, groups in levels):
         reasons.append(
             reason(
                 "fact",
                 "fact_missing",
-                f"{name} records no {rule.property} ({rule.purpose}, {rule.role}); "
-                "compatibility is not assumed.",
+                f"{name} records no {rule.property} ({rule.purpose}, {rule.role}) at the "
+                f"{where} level; compatibility is not assumed.",
             )
         )
         return "unknown", reasons, evidence
-    if not unconditioned:
+    if chosen is None:
+        stated = "the stated conditions" if wanted else "no conditions"
         reasons.append(
             reason(
                 "fact",
-                "conditions_only",
-                f"{name} records {rule.property} only under stated conditions; the rule "
-                "declares none, so the recorded values are not applied.",
+                "conditions_unmatched" if wanted else "conditions_only",
+                f"{name} records {rule.property} only under other conditions; the rule "
+                f"states {stated}, so the recorded values are not applied.",
             )
         )
         return "unknown", reasons, evidence
-    group = unconditioned[0]
+    _, level, group = chosen
+    name = f"{name} ({level} fact)"
     ids = group["assertion_ids"]
     status = group["status"]
+    extra = {"assertion_ids": ids, "fact_level": level}
     if status in {"unknown", "conflicting", "not_evaluated"}:
         reasons.append(
             reason(
                 "fact",
                 f"fact_{status}",
                 f"{name} records {rule.property} as {status.replace('_', ' ')}.",
-                assertion_ids=ids,
+                **extra,
             )
         )
         return "unknown", reasons, evidence
@@ -253,7 +288,7 @@ def _fact_rule(rule, decisions, reader):
                 "fact",
                 "fact_not_applicable",
                 f"{name} declares {rule.property} not applicable; the rule is not evaluated.",
-                assertion_ids=ids,
+                **extra,
             )
         )
         return "not_evaluated", reasons, evidence
@@ -267,7 +302,7 @@ def _fact_rule(rule, decisions, reader):
                 "incomparable",
                 f"{name} records {rule.property} in a form that cannot be compared with a "
                 f"{rule.limit.dimension} limit.",
-                assertion_ids=ids,
+                **extra,
             )
         )
         return "not_evaluated", reasons, evidence
@@ -290,10 +325,113 @@ def _fact_rule(rule, decisions, reader):
             code,
             f"{name} records {rule.property} {shown}; required {relation} "
             f"{limit['magnitude']} {limit['unit']}.",
-            assertion_ids=ids,
+            **extra,
         )
     )
     return outcome, reasons, evidence
+
+
+def _firmware_target_rule(option, by_key):
+    """Built-in: the firmware's declared target population must match the chosen one."""
+    reasons = [
+        reason(
+            "rule",
+            "firmware_target",
+            f"Firmware chosen for {option['option_key']} must declare the population "
+            "chosen in this configuration as its target.",
+        ),
+        _decision_fact(option),
+    ]
+    if option["status"] in {"unresolved", "invalid"}:
+        reasons.append(
+            reason("rule", "input_unknown", f"{option['option_key']} has no resolved choice yet.")
+        )
+        return "unknown", reasons
+    if option["status"] == "none":
+        reasons.append(
+            reason("rule", "no_subject", f"{option['option_key']} is left without a choice.")
+        )
+        return "not_evaluated", reasons
+    declared = option["choice"]["declared_target"]
+    population = next(
+        (d for d in by_key.values() if d["domain"] == "population" and d["path"] == option["path"]),
+        None,
+    )
+    if population is not None and population["status"] in {"unresolved", "invalid"}:
+        reasons.append(_decision_fact(population))
+        reasons.append(
+            reason(
+                "rule",
+                "input_unknown",
+                f"{population['option_key']} has no resolved population choice yet.",
+            )
+        )
+        return "unknown", reasons
+    if population is not None and population["status"] == "resolved":
+        reasons.append(_decision_fact(population))
+        revision_id = population["choice"]["revision"]["revision_id"]
+        option_id = population["choice"].get("population_option_id")
+        origin = f"chosen by {population['option_key']}"
+    else:
+        revision_id = (option["base"] or {}).get("population_revision_id")
+        option_id = None
+        origin = "of the target assembly occurrence (no population choice)"
+    want = declared.get("population_revision_id")
+    if want is None:
+        reasons.append(
+            reason(
+                "fact",
+                "target_undeclared",
+                "The chosen firmware declares no target population; compatibility is not assumed.",
+            )
+        )
+        return "unknown", reasons
+    if revision_id is None:
+        reasons.append(
+            reason("fact", "population_undeclared", "No population is known for this occurrence.")
+        )
+        return "unknown", reasons
+    if want != revision_id:
+        reasons.append(
+            reason(
+                "fact",
+                "target_mismatch",
+                f"Firmware declares population revision {want}; the population {origin} is "
+                f"revision {revision_id}.",
+            )
+        )
+        return "invalid", reasons
+    declared_option = declared.get("option_id")
+    if declared_option is not None and option_id is None:
+        reasons.append(
+            reason(
+                "fact",
+                "population_option_unknown",
+                f"Firmware declares population option {declared_option}; the option in use "
+                f"{origin} is not stated.",
+            )
+        )
+        return "unknown", reasons
+    if declared_option is not None and declared_option != option_id:
+        reasons.append(
+            reason(
+                "fact",
+                "target_option_mismatch",
+                f"Firmware declares population option {declared_option}; the chosen option "
+                f"is {option_id}.",
+            )
+        )
+        return "invalid", reasons
+    reasons.append(
+        reason(
+            "fact",
+            "target_matches",
+            f"Firmware declares population revision {want}"
+            + (f" option {declared_option}" if declared_option else "")
+            + f", matching the population {origin}.",
+        )
+    )
+    return "valid", reasons
 
 
 def evaluate(reader, option_set, decisions):
@@ -315,6 +453,26 @@ def evaluate(reader, option_set, decisions):
                 "outcome": outcome,
                 "reasons": reasons,
                 "facts": facts,
+            }
+        )
+    for decision in decisions:
+        if decision["domain"] != "firmware":
+            continue
+        outcome, reasons = _firmware_target_rule(decision, by_key)
+        results.append(
+            {
+                "key": f"firmware-target-{decision['option_key']}",
+                "label": f"Firmware target population for {decision['label']}",
+                "kind": "firmware_target",
+                "basis": "Built-in: firmware is built for one declared target population.",
+                "rule": {
+                    "kind": "firmware_target",
+                    "builtin": True,
+                    "option_key": decision["option_key"],
+                },
+                "outcome": outcome,
+                "reasons": reasons,
+                "facts": [],
             }
         )
     counts = {outcome: sum(1 for r in results if r["outcome"] == outcome) for outcome in OUTCOMES}

@@ -138,6 +138,19 @@ with reasons and applicability. An option-set revision may declare constraint ru
 `requires`/`excludes` relate one option's resolved choice to another's, optionally only
 when a stated choice is resolved; `fact_limit` requires the exact revision chosen for an
 option to record a property (purpose, role) at least or at most a dimensioned limit.
+A `fact_limit` reads the exact chosen revision's ledger first and then its definition's
+ledger: a definition-level fact applies to every revision unless an exact-revision fact
+with the same purpose, role and conditions overrides it (even an explicit unknown
+overrides). A rule naming a `feature_id` reads only that feature's ledgers; a rule
+without one never applies feature facts. A condition-scoped fact applies only when the
+rule states exactly matching `conditions`; otherwise it stays unknown. Fact reasons and
+evidence name the level used (exact-revision, definition-level, or the feature variants).
+A built-in `firmware_target` rule is evaluated for every firmware option: the chosen
+firmware's declared target population (and option, when declared) must match the
+population chosen for the same occurrence path, or the target assembly occurrence's
+population when no population option is declared; a mismatch is `invalid`, an
+undeclared side or unresolved input is `unknown`, and no firmware choice is
+`not_evaluated`.
 Resolution evaluates every rule with rule-level and fact-level reasons and the exact
 fact assertion IDs used. A missing, unknown or conflicting fact, a range straddling the
 limit, condition-scoped facts only, or an unresolved input choice is `unknown`, never

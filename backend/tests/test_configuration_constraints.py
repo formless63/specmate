@@ -416,3 +416,105 @@ def test_invalid_outcome_is_captured_but_refused_as_build_input(
         invalid["resolved_configuration_id"]: "invalid",
         unknown["resolved_configuration_id"]: "unknown",
     }
+
+
+def definition_ledger(user, revision_id):
+    from specmate.design.models import Revision
+
+    definition_id = str(Revision.objects.get(id=revision_id).definition_id)
+    return op(
+        user,
+        "facts.register_subject",
+        {"target": {"kind": "definition", "definition_id": definition_id}},
+    )
+
+
+def test_definition_level_facts_apply_unless_the_exact_revision_overrides(users, project, parts):
+    rule = {**CURRENT, "key": "actual-current", "role": "actual"}
+    revision = constrained(users["owner"], project, parts, [rule])
+    draft = configuration(users["editor"], project, revision)
+    editor = users["editor"]
+
+    append(editor, definition_ledger(editor, parts[0]["revision_id"]), rating("3", role="actual"))
+    current = results(resolve(users["viewer"], draft))["actual-current"]
+    assert current["outcome"] == "valid"
+    last = current["reasons"][-1]
+    assert last["code"] == "fact_satisfies" and last["fact_level"] == "definition-level"
+    assert "definition-level fact" in last["message"]
+    assert [f["fact_level"] for f in current["facts"]] == ["definition-level"]
+    assert current["facts"][0]["applied"] is True
+
+    # An exact-revision fact for the same purpose, role and conditions overrides it.
+    ledger_a = ledger(editor, parts[0]["revision_id"])
+    append(editor, ledger_a, rating("1", role="actual"))
+    current = results(resolve(users["viewer"], draft))["actual-current"]
+    assert current["outcome"] == "invalid"
+    assert current["reasons"][-1]["fact_level"] == "exact-revision"
+    applied = [f for f in current["facts"] if f["applied"]]
+    assert [f["fact_level"] for f in applied] == ["exact-revision"]
+
+    # An explicit unknown at revision level also overrides; it is never skipped.
+    b = ledger(editor, parts[1]["revision_id"])
+    append(editor, definition_ledger(editor, parts[1]["revision_id"]), rating("3", role="actual"))
+    append(editor, b, rating(role="actual", status="unknown"))
+    select(editor, draft, [{"option_key": "sensor", "choice_key": "b"}])
+    current = results(resolve(users["viewer"], draft))["actual-current"]
+    assert current["outcome"] == "unknown"
+    assert current["reasons"][-1]["code"] == "fact_unknown"
+    assert current["reasons"][-1]["fact_level"] == "exact-revision"
+
+
+def test_feature_facts_apply_only_to_a_rule_naming_the_feature(users, project, parts):
+    editor = users["editor"]
+    feature = {"kind": "revision", "revision_id": parts[0]["revision_id"], "feature_id": "pin-1"}
+    subject = op(editor, "facts.register_subject", {"target": feature})
+    append(editor, subject, rating("3", role="actual"))
+    plain = {**CURRENT, "key": "actual-current", "role": "actual"}
+    featured = {**plain, "key": "pin-current", "feature_id": "pin-1"}
+    revision = constrained(users["owner"], project, parts, [plain, featured])
+    draft = configuration(editor, project, revision)
+    found = results(resolve(users["viewer"], draft))
+    assert found["actual-current"]["outcome"] == "unknown"
+    assert codes(found["actual-current"], "fact")[-1] == "fact_missing"
+    assert found["pin-current"]["outcome"] == "valid"
+    assert found["pin-current"]["reasons"][-1]["fact_level"] == "exact-revision feature"
+
+
+def test_conditioned_facts_apply_only_under_matching_stated_conditions(users, project, parts):
+    editor = users["editor"]
+    temperature = {
+        "property": "temperature",
+        "status": "known",
+        "value": {
+            "kind": "quantity",
+            "dimension": "temperature",
+            "unit": "degC",
+            "magnitude": "25",
+        },
+    }
+    hot = {**temperature, "value": {**temperature["value"], "magnitude": "85"}}
+    subject = ledger(editor, parts[0]["revision_id"])
+    subject = append(editor, subject, rating("3", role="actual", conditions=[temperature]))
+    plain = {**CURRENT, "key": "plain", "role": "actual"}
+    at25 = {**plain, "key": "at25", "conditions": [temperature]}
+    at85 = {**plain, "key": "at85", "conditions": [hot]}
+    revision = constrained(users["owner"], project, parts, [plain, at25, at85])
+    draft = configuration(editor, project, revision)
+    found = results(resolve(users["viewer"], draft))
+    assert found["at25"]["outcome"] == "valid"
+    assert found["plain"]["outcome"] == "unknown"
+    assert codes(found["plain"], "fact")[-1] == "conditions_only"
+    assert found["at85"]["outcome"] == "unknown"
+    assert codes(found["at85"], "fact")[-1] == "conditions_unmatched"
+
+
+def test_invalid_conditions_in_a_rule_are_rejected(users, project, parts):
+    duplicate = {
+        **CURRENT,
+        "conditions": [
+            {"property": "temperature", "status": "unknown"},
+            {"property": "temperature", "status": "unknown"},
+        ],
+    }
+    with pytest.raises(ValidationFailed):
+        constrained(users["owner"], project, parts, [duplicate])
