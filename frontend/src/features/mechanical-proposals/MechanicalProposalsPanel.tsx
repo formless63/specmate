@@ -1,9 +1,9 @@
-import { Alert, Badge, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, SegmentedControl, Select, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ReadOnlyNote, usePermission, InspectionScope } from '../../lib/permissions';
 import { randomUUID } from '../../lib/random-id';
 import { SourceError } from '../sources/api';
-import { boardInputs, createDraft, listBoards, listDrafts, readDraft, readRetained, retainDraft, updateDraft, type BoardChoice, type BoardInputs, type Draft, type DraftRow, type Feature, type Proposal, type Retained, type Side } from './api';
+import { boardInputs, createDraft, decideRetained, listDraftTargets, listBoards, listDrafts, readDraft, readRetained, retainDraft, updateDraft, type BoardChoice, type BoardInputs, type DecidePayload, type DraftTarget, type Decision, type Draft, type DraftRow, type Feature, type Proposal, type Retained, type Side } from './api';
 import { emptyForm, fromForm, toForm, type Choice, type FormState } from './form';
 import { PlanPreview } from './PlanPreview';
 
@@ -110,6 +110,17 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
     try { const record = await readRetained(id, workspaceId); if (mounted.current) setRetained(record); }
     catch (reason) { setRetained(null); outcome(reason); } finally { if (mounted.current) setBusy(false); }
   }
+  async function decide(revisionId: string, state: string, payload: DecidePayload) {
+    setBusy(true); setError('');
+    try {
+      await decideRetained(revisionId, payload, state, keyFor(JSON.stringify(['decide', revisionId, state, payload])));
+      intent.current = null;
+      if (!mounted.current) return;
+      setRetained(await readRetained(revisionId, workspaceId));
+      if (!dirty && draft) { const next = await readDraft(draft.draft_id); if (mounted.current) setDraft(next); }
+    } catch (reason) { if (reason instanceof SourceError && reason.status === 409) throw reason; outcome(reason); }
+    finally { if (mounted.current) setBusy(false); }
+  }
   const change = (apply: (current: FormState) => FormState) => { setForm(apply); setDirty(true); intent.current = null; };
   const readOnly = !edit.allowed;
   const component = (id: string) => inputs?.components.find(c => c.component_id === id);
@@ -200,15 +211,70 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <ProposalReview proposal={draft.proposal} label="Saved proposal" saved />
       <Card withBorder><Stack><Title order={3}>Retained records</Title>
         {draft.revisions.length === 0 ? <Text>None retained. A retained record is an immutable derived copy of the saved proposal, incomplete or not.</Text> :
-          draft.revisions.map(r => <Group key={r.revision_id}><Badge variant="frozen">Record {r.number}</Badge><Text size="xs">{r.status} · {r.sha256}</Text><Button variant="quiet" disabled={busy} onClick={() => void showRetained(r.revision_id)} aria-label={`Inspect retained record ${r.number}`}>Inspect</Button></Group>)}
+          draft.revisions.map(r => <Group key={r.revision_id}><Badge variant="frozen">Record {r.number}</Badge><Text size="xs">{r.status} · {r.sha256}</Text>{r.current_decision ? <Badge variant="frozen">{r.current_decision}</Badge> : <Badge variant="draft">no decision</Badge>}<Button variant="quiet" disabled={busy} onClick={() => void showRetained(r.revision_id)} aria-label={`Inspect retained record ${r.number}`}>Inspect</Button></Group>)}
       </Stack></Card>
     </>}
     {retained?.document && <Card withBorder><Stack>
       <Group><Title order={3}>Retained record {retained.number}</Title><Badge variant="frozen">{retained.status}</Badge></Group>
       <Text size="xs">SHA-256 {retained.sha256} · draft version {retained.draft_version} · board {retained.interpretation_sha256}</Text>
       <ProposalReview proposal={retained.document.proposal} label="Retained proposal" />
+      <DecisionReview workspaceId={workspaceId} key={`${retained.revision_id}:${retained.decision_state}`} retained={retained} allowed={edit.allowed} reason={edit.props.title} busy={busy} onDecide={decide} onReload={() => showRetained(retained.revision_id)} />
     </Stack></Card>}
   </Stack>;
+}
+
+function DecisionReview({ workspaceId, retained, allowed, reason: gateReason, busy, onDecide, onReload }: { workspaceId: string; retained: Retained; allowed: boolean; reason?: string; busy: boolean; onDecide: (revisionId: string, state: string, payload: DecidePayload) => Promise<void>; onReload: () => void }) {
+  const [decision, setDecision] = useState<DecidePayload['decision']>('deferred');
+  const [reason, setReason] = useState('');
+  const [mode, setMode] = useState<'create' | 'link'>('create');
+  const [target, setTarget] = useState('');
+  const [conflict, setConflict] = useState('');
+  const [targets, setTargets] = useState<DraftTarget[]>([]);
+  const [targetError, setTargetError] = useState('');
+  const linking = allowed && decision === 'accepted' && mode === 'link';
+  useEffect(() => {
+    if (!linking) return;
+    const controller = new AbortController();
+    listDraftTargets(workspaceId, controller.signal).then(result => { setTargets(result.drafts); setTargetError(''); }).catch(error => { if (!controller.signal.aborted) { setTargets([]); setTargetError(error instanceof Error ? error.message : 'Could not load drafts.'); } });
+    return () => controller.abort();
+  }, [linking, workspaceId]);
+  const [failure, setFailure] = useState('');
+  const history: Decision[] = retained.decisions ?? [];
+  const state = retained.decision_state;
+  const final = retained.current_decision?.decision === 'accepted';
+  const accepting = decision === 'accepted';
+  const ready = !!state && reason.trim() !== '' && (!accepting || target.trim() !== '');
+  async function submit() {
+    if (!state || !ready) return;
+    setConflict(''); setFailure('');
+    const payload: DecidePayload = { decision, reason: reason.trim(), ...(accepting ? (mode === 'create' ? { draftName: target.trim() } : { linkDraftId: target.trim() }) : {}) };
+    try { await onDecide(retained.revision_id, state, payload); }
+    catch (error) {
+      if (error instanceof SourceError && error.status === 409) setConflict('Decisions changed since you loaded this record; nothing was recorded. Your text is kept.');
+      else setFailure(error instanceof Error ? error.message : 'Request failed.');
+    }
+  }
+  return <Card withBorder aria-label="Review decision"><Stack gap="xs">
+    <Group><Title order={4}>Review decision</Title>{retained.current_decision ? <Badge variant="frozen">{retained.current_decision.decision}</Badge> : <Badge variant="draft">undecided</Badge>}</Group>
+    <Text size="xs">A decision is a separate append-only record. It never edits this retained proposal or any frozen item. Accepting creates a design draft, or links one you name, and is final.</Text>
+    {history.length === 0 ? <Text size="sm">No decisions recorded.</Text> : <Table><Table.Thead><Table.Tr><Table.Th>#</Table.Th><Table.Th>Decision</Table.Th><Table.Th>Reason</Table.Th><Table.Th>Draft</Table.Th><Table.Th>When</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+      {history.map(d => <Table.Tr key={d.decision_id}><Table.Td>{d.version}</Table.Td><Table.Td>{d.decision}</Table.Td><Table.Td>{d.reason}</Table.Td><Table.Td>{d.draft_id ? `${d.link_mode} ${d.draft_id}` : 'none'}</Table.Td><Table.Td>{d.created_at}</Table.Td></Table.Tr>)}
+    </Table.Tbody></Table>}
+    {final ? <Text size="sm">Accepted decisions are final.</Text> : <>
+      <SegmentedControl aria-label="Decision" value={decision} onChange={value => setDecision(value as DecidePayload['decision'])} disabled={!allowed} data={[{ value: 'accepted', label: 'Accept' }, { value: 'rejected', label: 'Reject' }, { value: 'deferred', label: 'Defer' }]} />
+      <Textarea label="Reason (required)" value={reason} onChange={event => setReason(event.currentTarget.value)} disabled={!allowed} rows={3} maxLength={4000} />
+      {accepting && <>
+        <SegmentedControl aria-label="Draft target" value={mode} onChange={value => { setMode(value as 'create' | 'link'); setTarget(''); }} disabled={!allowed} data={[{ value: 'create', label: 'Create design draft' }, { value: 'link', label: 'Link existing draft' }]} />
+        {mode === 'create'
+          ? <TextInput label="New draft name" value={target} onChange={event => setTarget(event.currentTarget.value)} disabled={!allowed} maxLength={200} />
+          : <Select label="Existing design draft" searchable placeholder={targets.length ? 'Choose a draft' : 'No drafts available'} value={target || null} onChange={value => setTarget(value ?? '')} disabled={!allowed} nothingFoundMessage="No matching drafts" error={targetError || undefined}
+              data={targets.map(t => ({ value: t.draft_id, label: `${t.name} (${t.kind}) · ${t.draft_id.slice(0, 8)}` }))} />}
+      </>}
+      {conflict && <Alert color="yellow" role="alert">{conflict} <Button variant="quiet" onClick={onReload}>Load latest decisions</Button></Alert>}
+      {failure && <Alert color="red" role="alert">{failure}</Alert>}
+      <Group><Button variant="commit" disabled={!allowed || busy || !ready} title={allowed ? undefined : gateReason} onClick={() => void submit()}>Record decision</Button></Group>
+    </>}
+  </Stack></Card>;
 }
 
 function Section({ title, children, onAdd, addLabel, addDisabled }: { title: string; children: ReactNode; onAdd?: () => void; addLabel: string; addDisabled?: boolean }) {

@@ -136,3 +136,29 @@ class ListProposals(Strict):
 class BoardInputs(Strict):
     workspace_id: UUID
     interpretation_id: UUID
+
+
+class DecideProposal(Strict):
+    """Append one review decision on a retained proposal.
+
+    Acceptance either creates a new design definition with its draft (``draft_name``) or
+    links an existing design draft (``link_draft_id``); exactly one is required, and neither
+    is allowed for reject or defer. The reason is mandatory.
+    """
+
+    revision_id: UUID
+    decision: Literal["accepted", "rejected", "deferred"]
+    reason: str = Field(min_length=1, max_length=4000)
+    draft_name: str | None = Field(default=None, min_length=1, max_length=200)
+    link_draft_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def link_shape(self):
+        if not self.reason.strip():
+            raise ValueError("a reason is required")
+        targets = (self.draft_name is not None) + (self.link_draft_id is not None)
+        if self.decision == "accepted" and targets != 1:
+            raise ValueError("accepting needs exactly one of draft_name or link_draft_id")
+        if self.decision != "accepted" and targets:
+            raise ValueError("only an acceptance creates or links a draft")
+        return self

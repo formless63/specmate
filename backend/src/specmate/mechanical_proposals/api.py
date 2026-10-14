@@ -13,6 +13,7 @@ from specmate.mechanical_proposals.contracts import (
 from specmate.mechanical_proposals.operations import (
     board_choices,
     board_inputs,
+    draft_targets,
     list_proposals,
     read,
     read_retained,
@@ -58,4 +59,11 @@ def revision(request, revision_id: UUID, workspace_id: UUID | None = None):
     return read_retained(
         context(request, "proposal-retained"),
         RetainedRef(revision_id=revision_id, workspace_id=workspace_id),
+    )
+
+
+@router.get("/workspaces/{workspace_id}/draft-targets")
+def targets(request, workspace_id: UUID):
+    return draft_targets(
+        context(request, "proposal-targets"), ListProposals(workspace_id=workspace_id)
     )

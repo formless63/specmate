@@ -58,11 +58,20 @@ snapshot, placement or source and cannot change a frozen revision. Solid CAD, ST
 output and native build123d or FreeCAD generation remain separate approved tool stages;
 this planar generator is original code.
 
+`mechanical_proposal.decide` appends an accept, reject or defer decision (mandatory reason)
+to a retained proposal under `design.edit`, compare-and-set on `decision-v<N>`. Decisions are
+append-only rows (database triggers reject update/delete, enforce sequence and workspace);
+the retained bytes and any frozen item never change. Accepting either creates a design
+definition of kind `enclosure_proposal` through `definition.create` logic (its content pins the
+retained id and hash, `physical_qualification: false`) or links an existing design draft in the
+same workspace without editing it; an accepted decision is final. Reject and defer can be
+revisited. `read_retained` returns the decision history and current decision.
+
 The Parametric proposals tool (Design area) lists drafts, creates one from an accepted
 board, edits blank-is-unknown declarations with per-hole mount decisions, saves under the
 draft token (a stale save keeps the unsaved text and offers an explicit reload), shows the
 saved proposal with a plan view, unresolved inputs, checks, facts and remaining physical
-checks, and retains or inspects immutable records. Mutating controls follow the project's
+checks, retains or inspects immutable records, and records review decisions on them. Mutating controls follow the project's
 edit permission, and an access change clears every retained board identity and proposal.
 
 ## Scene
