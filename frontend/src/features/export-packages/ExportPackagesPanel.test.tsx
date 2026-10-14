@@ -20,7 +20,9 @@ function wrap() {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ExportPackagesPanel projectId="project" /></QueryClientProvider></MantineProvider>;
 }
 function response(data: unknown, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
-function reviewed(coherence: 'coherent' | 'incoherent', quantity: number | null): Review {
+const CLEARED = { items: [], counts: { cleared: 0, restricted: 0, unknown: 0 }, undeclared_revision_ids: [], acknowledgement_required: false };
+const RESTRICTED = { items: [{ subject: 'source_identifier:one', revision_id: 'cable-rev', definition_name: 'Synthetic cable', record: 'library-id', label: 'Library id', rights_status: 'restricted' as const, declared_rights: 'Vendor terms' }], counts: { cleared: 0, restricted: 1, unknown: 0 }, undeclared_revision_ids: ['stock-rev'], acknowledgement_required: true };
+function reviewed(coherence: 'coherent' | 'incoherent', quantity: number | null, rights: Review['manifest']['rights'] = CLEARED): Review {
   const scope = (count: number) => quantity === null ? { status: 'unknown' as const, amount: null, per_root: count } : { status: 'known' as const, amount: count * quantity, per_root: count };
   return { sha256: 'review-hash', manifest: {
     scope: { root: { revision_id: ROOT, definition_id: 'root-def', kind: 'assembly', name: 'Synthetic root', number: 1, sha256: 'root-hash' }, quantity, quantity_status: quantity === null ? 'unknown' : 'known' },
@@ -29,7 +31,8 @@ function reviewed(coherence: 'coherent' | 'incoherent', quantity: number | null)
     sections: { system: { status: 'included' } },
     outputs: [{ id: 'preparation_document_set:set', section: 'cable', kind: 'preparation_document_set', coherence, cited_revisions: [], scope_quantity: scope(2), findings: coherence === 'incoherent' ? [{ status: 'incoherent', reason: 'document_quantity_differs' }] : [], files: [] }],
     coherence, completeness: coherence === 'coherent' ? 'complete' : 'limited', unresolved: [],
-    unsupported: [{ id: 'spreadsheet.xlsx', section: 'spreadsheet', reason: 'Spreadsheets are RFC 4180 CSV; no XLSX workbook is generated.' }], files: [],
+    unsupported: [{ id: 'test.results', section: 'test', reason: 'No physical test was performed.' }], files: [],
+    rights,
   } };
 }
 async function choose(label: string, option: string) {
@@ -37,7 +40,7 @@ async function choose(label: string, option: string) {
   fireEvent.focus(input); fireEvent.keyDown(input, { key: 'ArrowDown' });
   fireEvent.click(await screen.findByRole('option', { name: option, hidden: true }));
 }
-function fixture(coherence: 'coherent' | 'incoherent' = 'coherent') {
+function fixture(coherence: 'coherent' | 'incoherent' = 'coherent', rights: Review['manifest']['rights'] = CLEARED) {
   const calls: { operation: string; payload: Record<string, unknown>; idempotency_key?: string }[] = [];
   let downloadBody: Record<string, unknown> | null = null;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -45,7 +48,7 @@ function fixture(coherence: 'coherent' | 'incoherent' = 'coherent') {
       const body = JSON.parse(String(options?.body));
       if (body.operation === 'export_package.candidates') return response({ result: CANDIDATES });
       calls.push(body);
-      return response({ result: reviewed(coherence, body.payload.quantity) });
+      return response({ result: reviewed(coherence, body.payload.quantity, rights) });
     }
     if (url.endsWith('/export-packages/download')) { downloadBody = JSON.parse(String(options?.body)); return new Response('synthetic-zip'); }
     if (url.includes('/catalog/definitions/')) return response({ definition_id: 'root-def', name: 'Synthetic root', kind: 'assembly', revisions: [{ revision_id: ROOT, number: 1 }] });
@@ -69,7 +72,7 @@ test('unknown root quantity is sent as null and shown as unknown, never zero', a
   expect(f.calls[0]?.idempotency_key).toBeUndefined();
   expect(screen.getByText('Root quantity unknown')).toBeTruthy();
   expect(screen.queryByText(/^0$/)).toBeNull();
-  expect(screen.getByText(/no XLSX workbook/)).toBeTruthy();
+  expect(screen.getByText(/No physical test was performed/)).toBeTruthy();
 });
 
 test('known quantity review downloads with the reviewed hash; edits require rereview', async () => {
@@ -109,4 +112,20 @@ test('retained outputs are chosen from root candidates and sent as exact referen
     preparation_document_set_ids: ['set-one'], test_plan_revision_ids: ['plan-one'],
     pcb_fabrication_builds: [{ intake_id: 'intake-0001', build_id: 'build-0001' }], scene_drawing_ids: ['drawing-one'],
   });
+});
+
+test('restricted or unknown rights require an explicit acknowledgement before download', async () => {
+  const f = fixture('coherent', RESTRICTED);
+  vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:synthetic'); static revokeObjectURL = vi.fn(); });
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+  await selectRoot();
+  fireEvent.click(screen.getByRole('button', { name: 'Review export package' }));
+  await screen.findByText('Vendor terms');
+  expect(screen.getByText(/1 pinned revisions have no rights declaration/)).toBeTruthy();
+  const button = screen.getByRole('button', { name: 'Download export package' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  fireEvent.click(screen.getByRole('checkbox'));
+  expect(button.disabled).toBe(false);
+  fireEvent.click(button);
+  await waitFor(() => expect(f.body()).toMatchObject({ reviewed_sha256: 'review-hash', rights_acknowledged: true }));
 });

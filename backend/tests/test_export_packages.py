@@ -161,7 +161,6 @@ def test_package_pins_every_output_to_identical_revisions_and_independent_quanti
     assert tests["anchor"]["occurrence_paths"] == [["left"]]
     assert tests["scope_quantity"] == {"status": "known", "amount": QUANTITY, "per_root": 1}
     assert {u["id"] for u in manifest["unsupported"]} >= {
-        "spreadsheet.xlsx",
         "mechanical.native_cad_export",
         "pcb.assembly_outputs",
         "test.results",

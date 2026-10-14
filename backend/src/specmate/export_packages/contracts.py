@@ -42,6 +42,8 @@ class ExportRequest(StrictModel):
 
 class Download(ExportRequest):
     reviewed_sha256: str = Field(pattern=SHA256)
+    # Required true when the reviewed rights include any unknown or restricted record.
+    rights_acknowledged: bool = False
 
 
 class Candidates(StrictModel):

@@ -13,12 +13,17 @@ import io
 import json
 import zipfile
 from collections import Counter, defaultdict
+from datetime import datetime
+
+from openpyxl import Workbook
+from openpyxl.writer.excel import ExcelWriter
 
 from specmate.assemblies.queries import get_snapshot, occurrence_result
 from specmate.bom.queries import inspect_revision as inspect_bom
 from specmate.cable_test_intent.queries import portable_package as test_package
 from specmate.cable_test_intent.queries import result as test_result
 from specmate.cables.queries import inspect_revision as inspect_cable
+from specmate.catalog.models import Representation, SourceIdentifier
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
 from specmate.design.operations import canonical_bytes
@@ -36,18 +41,16 @@ from specmate.sources import blobstore
 FORMAT = "specmate.coherent-export-package"
 SCHEMA_VERSION = "0.1"
 GENERATOR = "specmate.export-packages/1"
+XLSX_PATH = "spreadsheet/package.xlsx"
+XLSX_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 MAX_BYTES = 16 * 1024 * 1024
 MAX_FILES = 4000
 MAX_REVISIONS = 2000
 EPOCH = (1980, 1, 1, 0, 0, 0)
+WORKBOOK_TIME = datetime(1980, 1, 1)
 
 # Output semantics this package does not generate. They are stated, never faked.
 UNSUPPORTED = [
-    {
-        "id": "spreadsheet.xlsx",
-        "section": "spreadsheet",
-        "reason": "Spreadsheets are RFC 4180 CSV; no XLSX workbook is generated.",
-    },
     {
         "id": "cable.formboard_print",
         "section": "cable",
@@ -86,12 +89,12 @@ UNSUPPORTED = [
     {
         "id": "distribution",
         "section": "package",
-        "reason": "Only authorized internal review is supported; distribution rights are "
-        "not reviewed for composite packages (see selected assembly packages).",
+        "reason": "Only authorized internal review is supported. The rights review lists "
+        "declared catalog rights; it is not a distribution grant or legal clearance.",
     },
 ]
 
-SECTIONS = ("system", "cable", "pcb", "mechanical", "spreadsheet", "test")
+SECTIONS = ("system", "cable", "pcb", "mechanical", "spreadsheet", "test", "rights")
 
 
 def digest(data):
@@ -113,6 +116,54 @@ def table(header, rows):
     for row in rows:
         writer.writerow([cell(value) for value in row])
     return stream.getvalue().encode()
+
+
+def plain(value):
+    return value if value is None or isinstance(value, bool | int | float) else str(value)
+
+
+def workbook(sheets):
+    """Deterministic XLSX of `(name, header, rows)`; same input gives identical bytes.
+
+    Text is always stored as a string cell, so it can never become a formula. Unknown
+    values are empty cells. The core-properties timestamps are fixed and the zip members
+    are rewritten with a fixed timestamp in sorted order.
+    """
+    book = Workbook()
+    book.remove(book.active)
+    book.properties.creator = GENERATOR
+    book.properties.lastModifiedBy = None
+    book.properties.created = WORKBOOK_TIME
+    book.properties.modified = WORKBOOK_TIME
+    for name, header, rows in sheets:
+        sheet = book.create_sheet(name[:31])
+        sheet.append(list(header))
+        for row in rows:
+            sheet.append(
+                [
+                    None if v is None else v if isinstance(v, bool | int | float) else str(v)
+                    for v in row
+                ]
+            )
+        for line in sheet.iter_rows():
+            for item in line:
+                if isinstance(item.value, str):
+                    item.data_type = "s"
+        sheet.freeze_panes = "A2"
+    raw = io.BytesIO()
+    # openpyxl's `save_workbook` stamps `modified` with the current time; its writer does not.
+    with zipfile.ZipFile(raw, "w", zipfile.ZIP_DEFLATED) as archive:
+        ExcelWriter(book, archive).save()
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(raw.getvalue())) as source:
+        with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as target:
+            for name in sorted(source.namelist()):
+                info = zipfile.ZipInfo(name, date_time=EPOCH)
+                info.create_system = 3
+                info.external_attr = 0o100644 << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                target.writestr(info, source.read(name))
+    return out.getvalue()
 
 
 def pin(revision):
@@ -297,7 +348,53 @@ def system_section(scope, package):
     }
 
 
+OCCURRENCE_HEADER = [
+    "path",
+    "display_ref",
+    "kind",
+    "name",
+    "definition_id",
+    "revision_number",
+    "revision_id",
+    "snapshot_sha256",
+    "per_root_count",
+    "scope_quantity",
+    "scope_quantity_status",
+]
+QUANTITY_HEADER = [
+    "revision_id",
+    "definition_id",
+    "kind",
+    "name",
+    "revision_number",
+    "snapshot_sha256",
+    "role",
+    "per_root_occurrences",
+    "scope_quantity",
+    "scope_quantity_status",
+]
+BOM_HEADER = [
+    "path",
+    "name",
+    "revision_id",
+    "reason",
+    "need_id",
+    "quantity",
+    "quantity_unit",
+    "quantity_status",
+    "required_quantity",
+    "required_unit",
+    "required_status",
+]
+
+
 def spreadsheet_section(scope, package, p):
+    sheets = []
+
+    def add_table(path, name, header, rows, origin="generated"):
+        package.add(path, table(header, rows), "text/csv", "spreadsheet", origin)
+        sheets.append((name, header, rows))
+
     rows = []
     if scope.closure:
         for path, node in scope.closure.nodes.items():
@@ -318,28 +415,7 @@ def spreadsheet_section(scope, package, p):
                     quantity["status"],
                 ]
             )
-    package.add(
-        "spreadsheet/occurrences.csv",
-        table(
-            [
-                "path",
-                "display_ref",
-                "kind",
-                "name",
-                "definition_id",
-                "revision_number",
-                "revision_id",
-                "snapshot_sha256",
-                "per_root_count",
-                "scope_quantity",
-                "scope_quantity_status",
-            ],
-            rows,
-        ),
-        "text/csv",
-        "spreadsheet",
-        "generated",
-    )
+    add_table("spreadsheet/occurrences.csv", "occurrences", OCCURRENCE_HEADER, rows)
     rows = []
     for rid in sorted(scope.revisions, key=str):
         revision = scope.revisions[rid]
@@ -360,28 +436,8 @@ def spreadsheet_section(scope, package, p):
                 quantity["status"],
             ]
         )
-    package.add(
-        "spreadsheet/revision-quantities.csv",
-        table(
-            [
-                "revision_id",
-                "definition_id",
-                "kind",
-                "name",
-                "revision_number",
-                "snapshot_sha256",
-                "role",
-                "per_root_occurrences",
-                "scope_quantity",
-                "scope_quantity_status",
-            ],
-            rows,
-        ),
-        "text/csv",
-        "spreadsheet",
-        "generated",
-    )
-    section = {"status": "included", "bom": "not_included"}
+    add_table("spreadsheet/revision-quantities.csv", "revision-quantities", QUANTITY_HEADER, rows)
+    section = {"status": "included", "bom": "not_included", "workbook": XLSX_PATH}
     if p.bom_plan_revision_id:
         bom = inspect_bom(scope.user, p.bom_plan_revision_id, p.bom_purpose)
         plan = get_revision(scope.user, p.bom_plan_revision_id)
@@ -407,41 +463,26 @@ def spreadsheet_section(scope, package, p):
                 }
             )
         path = f"spreadsheet/bom-{p.bom_purpose}.csv"
-        package.add(
+        add_table(
             path,
-            table(
+            f"bom-{p.bom_purpose}"[:31],
+            BOM_HEADER,
+            [
                 [
-                    "path",
-                    "name",
-                    "revision_id",
-                    "reason",
-                    "need_id",
-                    "quantity",
-                    "quantity_unit",
-                    "quantity_status",
-                    "required_quantity",
-                    "required_unit",
-                    "required_status",
-                ],
-                [
-                    [
-                        "/".join(row["address"]["path"]),
-                        row["name"],
-                        row["revision_id"],
-                        row["reason"],
-                        row["need_id"],
-                        row["quantity"]["amount"],
-                        row["quantity"]["unit"],
-                        row["quantity"]["status"],
-                        row["required_quantity"]["amount"],
-                        row["required_quantity"]["unit"],
-                        row["required_quantity"]["status"],
-                    ]
-                    for row in bom["rows"]
-                ],
-            ),
-            "text/csv",
-            "spreadsheet",
+                    "/".join(row["address"]["path"]),
+                    row["name"],
+                    row["revision_id"],
+                    row["reason"],
+                    row["need_id"],
+                    row["quantity"]["amount"],
+                    row["quantity"]["unit"],
+                    row["quantity"]["status"],
+                    row["required_quantity"]["amount"],
+                    row["required_quantity"]["unit"],
+                    row["required_quantity"]["status"],
+                ]
+                for row in bom["rows"]
+            ],
             "bom_projection",
         )
         package.add(
@@ -468,6 +509,7 @@ def spreadsheet_section(scope, package, p):
             )
         )
         section["bom"] = "included"
+    package.add(XLSX_PATH, workbook(sheets), XLSX_MEDIA, "spreadsheet", "workbook")
     package.sections["spreadsheet"] = section
 
 
@@ -795,6 +837,99 @@ def mechanical_section(scope, package, p):
     }
 
 
+RIGHTS_HEADER = [
+    "subject",
+    "revision_id",
+    "definition_name",
+    "record",
+    "label",
+    "rights_status",
+    "declared_rights",
+    "source_path",
+    "sha256",
+]
+
+
+def rights_section(scope, package):
+    """Declared catalog rights of every representation and source identifier in the closure.
+
+    Rights status is read as recorded (cleared, restricted, unknown). Nothing is inferred
+    and a revision without any declaration is listed as undeclared, never as cleared.
+    """
+    ids = list(scope.revisions)
+    representations = (
+        Representation.objects.select_related(
+            "revision__definition", "source_file__blob", "source_file__revision__bundle"
+        )
+        .filter(revision_id__in=ids)
+        .order_by("id")
+    )
+    items = []
+    for item in representations:
+        # Same workspace boundary as the catalog read: a file of another workspace is hidden.
+        if item.source_file.revision.bundle.workspace_id != item.revision.definition.workspace_id:
+            continue
+        items.append(
+            {
+                "subject": f"representation:{item.id}",
+                "revision_id": str(item.revision_id),
+                "definition_name": item.revision.definition.name,
+                "record": item.kind,
+                "label": item.label,
+                "rights_status": item.rights_status,
+                "declared_rights": item.source_file.rights,
+                "source_path": item.source_file.path,
+                "sha256": item.source_file.blob.sha256,
+            }
+        )
+    identifiers = (
+        SourceIdentifier.objects.select_related("revision__definition")
+        .filter(revision_id__in=ids)
+        .order_by("id")
+    )
+    for item in identifiers:
+        items.append(
+            {
+                "subject": f"source_identifier:{item.id}",
+                "revision_id": str(item.revision_id),
+                "definition_name": item.revision.definition.name,
+                "record": item.scheme,
+                "label": item.label or item.identifier,
+                "rights_status": item.rights_status,
+                "declared_rights": item.rights,
+                "source_path": None,
+                "sha256": None,
+            }
+        )
+    items.sort(key=lambda row: row["subject"])
+    counts = Counter(row["rights_status"] for row in items)
+    declared = {row["revision_id"] for row in items}
+    undeclared = sorted(str(rid) for rid in ids if str(rid) not in declared)
+    review = {
+        "items": items,
+        "counts": {name: counts.get(name, 0) for name in ("cleared", "restricted", "unknown")},
+        "undeclared_revision_ids": undeclared,
+        "acknowledgement_required": any(row["rights_status"] != "cleared" for row in items),
+        "distribution": "not_authorized",
+    }
+    package.add(
+        "rights/review.json", canonical_bytes(review), "application/json", "rights", "generated"
+    )
+    package.add(
+        "rights/review.csv",
+        table(RIGHTS_HEADER, [[row[name] for name in RIGHTS_HEADER] for row in items]),
+        "text/csv",
+        "rights",
+        "generated",
+    )
+    package.sections["rights"] = {
+        "status": "included",
+        **review["counts"],
+        "undeclared_revisions": len(undeclared),
+    }
+    return review
+
+
 def review_document(manifest):
     # Static escaped HTML; no scripts, remote resources or executable templates.
     def block(title, value):
@@ -812,6 +947,7 @@ def review_document(manifest):
         + block("Exact root and scope", manifest["scope"])
         + block("Sections", manifest["sections"])
         + block("Included outputs and coherence", manifest["outputs"])
+        + block("Rights and distribution review", manifest["rights"])
         + block("Unresolved items", manifest["unresolved"])
         + block("Unsupported output semantics", manifest["unsupported"])
         + block("Pinned revisions", manifest["pins"])
@@ -829,6 +965,7 @@ def build_package(ctx, p):
     pcb_section(ctx, scope, package, p)
     mechanical_section(scope, package, p)
     test_section(scope, package, p)
+    rights = rights_section(scope, package)
     statuses = {o["coherence"] for o in package.outputs}
     # Coherence: do outputs agree on revisions and quantities? Completeness is separate:
     # agreeing outputs can still carry unresolved items or an unknown scope quantity.
@@ -845,7 +982,7 @@ def build_package(ctx, p):
         "schema_version": SCHEMA_VERSION,
         "generator": GENERATOR,
         "purpose": p.purpose,
-        "request": p.model_dump(mode="json", exclude={"reviewed_sha256"}),
+        "request": p.model_dump(mode="json", exclude={"reviewed_sha256", "rights_acknowledged"}),
         "scope": {
             "root": pin(scope.root),
             "quantity": p.quantity,
@@ -866,6 +1003,7 @@ def build_package(ctx, p):
         "completeness": completeness,
         "unresolved": package.unresolved,
         "unsupported": UNSUPPORTED,
+        "rights": rights,
         "distribution": "not_authorized",
         "manufacturing_approval": False,
         "physical_qualification": "not_evaluated",
@@ -907,6 +1045,10 @@ def archive(ctx, p):
     if manifest["coherence"] == "incoherent":
         raise ValidationFailed(
             "Included outputs cite different revisions or quantities; no package was produced."
+        )
+    if manifest["rights"]["acknowledgement_required"] and not p.rights_acknowledged:
+        raise ValidationFailed(
+            "Some declared rights are unknown or restricted; acknowledge them to download."
         )
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as target:

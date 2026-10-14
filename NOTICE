@@ -2,6 +2,9 @@ Specmate
 
 Original application code is AGPL-3.0-only. Third-party material retains its terms.
 
+openpyxl 3.1.5 (MIT, copyright openpyxl contributors) and its dependency et-xmlfile
+2.0.0 (MIT) write export package XLSX workbooks; both are pinned in backend/uv.lock.
+
 Wire stock geometry includes adaptations of WireHub by formless63, commit
 cbf919edf30a9d906a791971d3a40e22cb78b67e:
 - packages/layout/src/cross-section.ts: deterministic ring placement.

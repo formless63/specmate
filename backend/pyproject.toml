@@ -11,6 +11,7 @@ dependencies = [
   "psycopg[binary]>=3.3,<4",
   "uvicorn>=0.40,<1",
   "temporalio>=1.30,<2",
+  "openpyxl==3.1.5",
 ]
 
 [dependency-groups]
