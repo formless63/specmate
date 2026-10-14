@@ -7,6 +7,7 @@ from specmate.export_packages.candidates import candidates as list_candidates
 from specmate.export_packages.contracts import Candidates, Download, ExportRequest
 from specmate.export_packages.queries import archive, build_package, digest
 from specmate.operations import Context, operation
+from specmate.sharing.operations import record_share
 
 
 @operation(
@@ -31,6 +32,14 @@ def review(ctx: Context, p: ExportRequest):
 )
 def download(ctx: Context, p: Download):
     data, manifest_sha256, _ = archive(ctx, p)
+    record_share(
+        ctx,
+        kind="export_package",
+        root_revision_id=p.root_revision_id,
+        purpose=p.purpose,
+        archive_sha256=digest(data),
+        manifest_sha256=manifest_sha256,
+    )
     return {
         "archive_base64": base64.b64encode(data).decode(),
         "sha256": digest(data),

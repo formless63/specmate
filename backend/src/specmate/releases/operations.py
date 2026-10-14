@@ -25,6 +25,7 @@ from specmate.queries import get_revision
 from specmate.releases.closure import review_digest, review_release
 from specmate.releases.contracts import CreateRelease, ListReleases, ReleaseRef, ReleaseReview
 from specmate.releases.models import Release, ReleaseConfiguration, ReleasePin
+from specmate.sharing.operations import record_share
 from specmate.sources import blobstore
 
 RECORD_FORMAT = "specmate.release"
@@ -341,6 +342,15 @@ def download(ctx: Context, p: ReleaseRef):
     data = stored_archive(release)
     if data is None or digest(data) != release.archive_sha256:
         raise ValidationFailed("The retained release archive is unavailable or altered.")
+    record_share(
+        ctx,
+        kind="release",
+        root_revision_id=release.root_revision_id,
+        release_id=release.id,
+        purpose="release",
+        archive_sha256=release.archive_sha256,
+        manifest_sha256=release.manifest_sha256,
+    )
     return {
         "archive_base64": base64.b64encode(data).decode(),
         "sha256": release.archive_sha256,
