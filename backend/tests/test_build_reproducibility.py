@@ -15,7 +15,7 @@ from specmate.builds.models import BuildAttempt, BuildStage, ReproducibilityComp
 from specmate.operations import Conflict, NotFound, PermissionDenied, Unsupported
 
 from .conftest import op
-from .test_build_recovery import retry
+from .test_build_recovery import retry, revoke
 from .test_builds import (  # noqa: F401 - shared fixtures
     OUTPUT,
     RIGHTS,
@@ -153,6 +153,58 @@ def test_resolved_image_id_sent_over_the_runner_http_route_is_stored(
     output_id = str(stage.outputs.get().id)
     read = op(users["viewer"], "build.output", {"build_id": first, "output_id": output_id})
     assert read["pinned"]["resolved_image_id"] == IMAGE_ID
+
+
+def _http_heartbeat(credential, lease, **extra):
+    return Client().post(
+        f"/api/v0/runner/stages/{lease['stage_id']}/heartbeat",
+        {"request_id": "http-heartbeat", "fencing_token": lease["fencing_token"], **extra},
+        content_type="application/json",
+        HTTP_AUTHORIZATION=f"Bearer {credential['token']}",
+    )
+
+
+def test_image_reported_by_heartbeat_survives_a_revoked_credential(
+    users, build_payload, credential
+):
+    first = request(users, build_payload)
+    op(users["owner"], "build.dispatch", {"build_id": first})
+    lease = runner_op(credential, "runner.lease")["lease"]
+    before = runner_op(credential, "runner.heartbeat", fence(lease))
+    response = _http_heartbeat(credential, lease, image_id=IMAGE_ID)
+    assert response.status_code == 200, response.content
+    # Evidence about the same execution is not a state change for user commands.
+    assert response.json()["result"]["state_token"] == before["state_token"]
+    # The runner's authority is withdrawn before any receipt can be submitted.
+    revoke(users, credential)
+    read = history(users["viewer"], first)
+    assert read["receipt"] is None
+    assert read["pinned"]["resolved_image_id"] == IMAGE_ID
+    assert (
+        op(users["viewer"], "build.get", {"build_id": first})["pinned"]["resolved_image_id"]
+        == IMAGE_ID
+    )
+
+
+def test_a_different_image_for_the_same_execution_is_refused_and_fixed(
+    users, build_payload, credential
+):
+    first = request(users, build_payload)
+    op(users["owner"], "build.dispatch", {"build_id": first})
+    lease = runner_op(credential, "runner.lease")["lease"]
+    runner_op(credential, "runner.heartbeat", {**fence(lease), "image_id": IMAGE_ID})
+    other = "sha256:" + "d" * 64
+    with pytest.raises(Conflict):
+        runner_op(credential, "runner.heartbeat", {**fence(lease), "image_id": other})
+    with pytest.raises(Conflict):
+        runner_op(
+            credential,
+            "runner.complete",
+            {**fence(lease), "outcome": "failed", "exit_code": 1, "image_id": other},
+        )
+    with pytest.raises(DatabaseError), transaction.atomic():
+        BuildStage.objects.filter(build_id=first).update(resolved_image_id=other)
+    assert BuildStage.objects.get(build_id=first).resolved_image_id == IMAGE_ID
 
 
 def test_malformed_resolved_image_identity_is_refused(users, build_payload, credential):

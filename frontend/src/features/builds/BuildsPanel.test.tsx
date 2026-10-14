@@ -238,3 +238,11 @@ test('an interrupted build is described as not final, since its runner can still
   expect(screen.getByText(/report its real outcome, including success/)).toBeTruthy();
   expect(screen.queryByText(/never relabelled/)).toBeNull();
 });
+
+test('a runner-reported resolved image ID is shown with the pin, even without a receipt', async () => {
+  const image = `sha256:${'d'.repeat(64)}`;
+  vi.mocked(readHistory).mockResolvedValue(history({ state: 'interrupted', pinned: { ...pinned, resolved_image_id: image } }));
+  await open();
+  expect(screen.getByText(/resolved image sha256:dddddddddddd…/)).toBeTruthy();
+  expect(screen.queryByText(/resolved image not reported/)).toBeNull();
+});

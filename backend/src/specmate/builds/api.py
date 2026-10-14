@@ -29,9 +29,14 @@ class LeaseRequest(Request):
     fencing_token: UUID
 
 
+class HeartbeatRequest(LeaseRequest):
+    image_id: str | None = None
+
+
 class ReconcileRequest(LeaseRequest):
     container_id: str
     observed: str
+    image_id: str | None = None
 
 
 class CompleteRequest(LeaseRequest):
@@ -56,12 +61,12 @@ def lease(request, body: Request):
 
 
 @router.post("/stages/{stage_id}/heartbeat")
-def heartbeat(request, stage_id: UUID, body: LeaseRequest):
+def heartbeat(request, stage_id: UUID, body: HeartbeatRequest):
     return _execute(
         request,
         "runner.heartbeat",
         body.request_id,
-        {"stage_id": stage_id, "fencing_token": body.fencing_token},
+        {"stage_id": stage_id, **body.model_dump(exclude={"request_id"}, exclude_none=True)},
     )
 
 
@@ -71,7 +76,7 @@ def reconcile(request, stage_id: UUID, body: ReconcileRequest):
         request,
         "runner.reconcile",
         body.request_id,
-        {"stage_id": stage_id, **body.model_dump(exclude={"request_id"})},
+        {"stage_id": stage_id, **body.model_dump(exclude={"request_id"}, exclude_none=True)},
     )
 
 

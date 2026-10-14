@@ -103,27 +103,21 @@ class Client:
             raise Rejected("Invalid lease response")
         return result["lease"]
 
-    def heartbeat(self, lease):
-        return self.control(
-            self.post(
-                self.stage_path(lease) + "/heartbeat",
-                {
-                    "fencing_token": lease["fencing_token"],
-                },
-            )
-        )
+    def heartbeat(self, lease, image_id=None):
+        payload = {"fencing_token": lease["fencing_token"]}
+        if image_id is not None:
+            payload["image_id"] = image_id
+        return self.control(self.post(self.stage_path(lease) + "/heartbeat", payload))
 
-    def reconcile(self, lease, container_id, observed):
-        return self.control(
-            self.post(
-                self.stage_path(lease) + "/reconcile",
-                {
-                    "fencing_token": lease["fencing_token"],
-                    "container_id": container_id,
-                    "observed": observed,
-                },
-            )
-        )
+    def reconcile(self, lease, container_id, observed, image_id=None):
+        payload = {
+            "fencing_token": lease["fencing_token"],
+            "container_id": container_id,
+            "observed": observed,
+        }
+        if image_id is not None:
+            payload["image_id"] = image_id
+        return self.control(self.post(self.stage_path(lease) + "/reconcile", payload))
 
     def download(self, lease, item, target):
         query = urllib.parse.urlencode({"fencing_token": lease["fencing_token"]})

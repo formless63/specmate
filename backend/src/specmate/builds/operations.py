@@ -146,8 +146,22 @@ def pinned_tool(build: BuildAttempt, stage: BuildStage) -> dict:
         "argv": recipe["argv"],
         "limits": recipe["limits"],
         "network": recipe.get("network", "none"),
-        "resolved_image_id": receipt.get("image_id"),
+        "resolved_image_id": stage.resolved_image_id or receipt.get("image_id"),
     }
+
+
+IMAGE_ID = r"^sha256:[0-9a-f]{64}$"
+
+
+def _observe_image(stage: BuildStage, image_id: str | None) -> None:
+    """Record the runner-reported image of this execution once; it cannot change."""
+    if not image_id or stage.resolved_image_id == image_id:
+        return
+    if stage.resolved_image_id:
+        raise Conflict("The execution already reported a different resolved image.")
+    stage.resolved_image_id = image_id
+    # Evidence about the same execution, not a state change: the state token stays.
+    stage.save(update_fields=["resolved_image_id", "updated_at"])
 
 
 def _lease_expiry():
@@ -628,16 +642,22 @@ def _runner_stage(ctx: Context, p: StageLease, *, allow_expired=False, allow_ter
     return stage
 
 
+class Heartbeat(StageLease):
+    # Reported once the runner has inspected the created container.
+    image_id: str | None = Field(default=None, pattern=IMAGE_ID)
+
+
 @operation(
     "runner.heartbeat",
-    StageLease,
+    Heartbeat,
     summary="Renew a stage lease and read cancellation.",
     public=True,
     supports_idempotency=False,
     access=ACCESS_RUNNER,
 )
-def heartbeat(ctx: Context, p: StageLease) -> dict:
+def heartbeat(ctx: Context, p: Heartbeat) -> dict:
     stage = _runner_stage(ctx, p)
+    _observe_image(stage, p.image_id)
     if not _execution_allowed(stage.build):
         _cancel(stage, "execution_authority_revoked")
     elif stage.state == "leased":
@@ -652,6 +672,7 @@ def heartbeat(ctx: Context, p: StageLease) -> dict:
 class ReconcileLease(StageLease):
     container_id: str = Field(max_length=128)
     observed: Literal["running", "stopped", "absent"]
+    image_id: str | None = Field(default=None, pattern=IMAGE_ID)
 
 
 def _reconciliation_result(stage: BuildStage) -> dict:
@@ -673,6 +694,7 @@ def reconcile(ctx: Context, p: ReconcileLease) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)
     if stage.state in TERMINAL:
         return _reconciliation_result(stage)
+    _observe_image(stage, p.image_id)
     if p.observed == "running" and not p.container_id:
         raise ValidationFailed("A running observation requires its container identity.")
     if not _execution_allowed(stage.build) and stage.cancellation_requested_at is None:
@@ -810,7 +832,7 @@ class CompleteStage(StageLease):
     outputs: list[ReceiptOutput] = Field(default_factory=list, max_length=1000)
     message: str = Field(default="", max_length=2000)
     # Local content-addressed image ID the runner observed for this execution, if reported.
-    image_id: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    image_id: str | None = Field(default=None, pattern=IMAGE_ID)
 
 
 @operation(
@@ -832,6 +854,7 @@ def complete(ctx: Context, p: CompleteStage) -> dict:
         return stage_result(stage)
     if stage.lease_expires_at <= timezone.now():
         raise Conflict("Stage lease expired; reconcile before completing.")
+    _observe_image(stage, p.image_id)
     if p.outcome == "cancelled" and stage.cancellation_requested_at is None:
         # Work that nobody asked to cancel is never labelled cancelled by a receipt.
         raise ValidationFailed("A cancelled receipt requires an earlier cancellation request.")

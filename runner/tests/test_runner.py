@@ -510,6 +510,30 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual((sent["outcome"], sent["exit_code"]), ("cancelled", 0))
         self.assertIn("Cancellation was requested", sent["message"])
 
+    def test_running_container_image_is_reported_with_liveness_and_cancellation(self):
+        image = "sha256:" + "d" * 64
+        self.receipt["started_at"] = time.time()
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "Image": image,
+            "State": {"Running": True, "Status": "running"},
+        }
+        self.client.heartbeat.side_effect = [
+            {"cancellation_requested": False},
+            {"cancellation_requested": False},
+            {"cancellation_requested": True},
+        ]
+        self.runner.supervise(self.receipt)
+        first, second, third = self.client.heartbeat.call_args_list
+        # Unknown before the first inspection; reported once observed.
+        self.assertEqual(first.kwargs, {})
+        self.assertEqual(second.kwargs, {"image_id": image})
+        self.assertEqual(third.kwargs, {"image_id": image})
+        self.assertEqual(self.persisted()["image_id"], image)
+        self.runner.finish(self.receipt)
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual((sent["outcome"], sent["image_id"]), ("cancelled", image))
+
     def test_runner_shutdown_is_failure_not_cancellation(self):
         self.receipt["started_at"] = time.time()
         self.docker.inspect.return_value = {

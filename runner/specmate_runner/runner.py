@@ -101,9 +101,28 @@ class Runner:
                 raise Invalid("Input digest mismatch")
             target.chmod(0o444)
 
+    def observe_image(self, receipt, container):
+        """Persist the local content-addressed image ID of this execution's container."""
+        image_id = container.get("Image") if isinstance(container, dict) else None
+        if (
+            isinstance(image_id, str)
+            and IMAGE_ID.fullmatch(image_id)
+            and receipt.get("image_id") != image_id
+        ):
+            receipt["image_id"] = image_id
+            self.save(receipt)
+
+    @staticmethod
+    def image_report(receipt):
+        """Report the observed image with liveness, so it survives a refused receipt."""
+        image_id = receipt.get("image_id")
+        return {"image_id": image_id} if image_id else {}
+
     def result(
         self, receipt, outcome, exit_code, message, outputs=None, image_id=None
     ):
+        # Any stopped, cancelled or timed-out execution reports the image it ran, too.
+        image_id = image_id or receipt.get("image_id")
         receipt["result"] = {
             "outcome": outcome,
             "exit_code": exit_code,
@@ -154,6 +173,7 @@ class Runner:
         try:
             validate_manifest(lease)
             container = self.docker.inspect(name, identity)
+            self.observe_image(receipt, container)
             orphaned = receipt.get("orphaned", False) or (
                 container is not None
                 and receipt["started_at"] is None
@@ -168,10 +188,13 @@ class Runner:
                     else ("running" if container["State"]["Running"] else "stopped")
                 )
                 control = self.client.reconcile(
-                    lease, container["Id"] if container else name, observed
+                    lease,
+                    container["Id"] if container else name,
+                    observed,
+                    **self.image_report(receipt),
                 )
             else:
-                control = self.client.heartbeat(lease)
+                control = self.client.heartbeat(lease, **self.image_report(receipt))
             if (
                 receipt["result"]
                 and control["cancellation_requested"]
@@ -237,6 +260,7 @@ class Runner:
                     host_directory / "outputs",
                 )
                 container = self.docker.inspect(name, identity)
+                self.observe_image(receipt, container)
             if container["State"]["Status"] == "created":
                 if receipt["started_at"] is not None:
                     self.result(
@@ -290,7 +314,7 @@ class Runner:
         recipe = lease["recipe"]
         output_root = self.root / receipt["identity"] / "outputs"
         while True:
-            control = self.client.heartbeat(lease)
+            control = self.client.heartbeat(lease, **self.image_report(receipt))
             if self.stopping or control["cancellation_requested"]:
                 self.stop(receipt)
                 if control["cancellation_requested"]:
@@ -322,6 +346,7 @@ class Runner:
                 self.result(receipt, "failed", None, "Started container disappeared")
                 return
             running = container["State"]["Running"]
+            self.observe_image(receipt, container)
             image_id = container.get("Image")
             inspect_outputs(
                 output_root,

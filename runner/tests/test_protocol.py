@@ -66,6 +66,18 @@ class ProtocolTests(unittest.TestCase):
                 with self.assertRaises(Rejected):
                     self.client.heartbeat(self.lease)
 
+    def test_heartbeat_reports_the_resolved_image_only_when_observed(self):
+        image = "sha256:" + "c" * 64
+        for kwargs, expected in (({}, None), ({"image_id": image}, image)):
+            with self.subTest(kwargs=kwargs):
+                self.client.opener.open.return_value = Response(
+                    b'{"result":{"cancellation_requested":false}}'
+                )
+                self.client.heartbeat(self.lease, **kwargs)
+                body = json.loads(self.client.opener.open.call_args.args[0].data)
+                self.assertEqual(body.get("image_id"), expected)
+                self.assertEqual(body["fencing_token"], "fence-1")
+
     def test_interrupted_response_becomes_recoverable_unavailability(self):
         response = Mock()
         response.read.side_effect = TimeoutError()

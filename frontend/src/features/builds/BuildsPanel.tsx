@@ -34,7 +34,7 @@ const bytes = (value: number) => value >= 1024 ** 2 ? `${(value / 1024 ** 2).toF
 function ToolPin({ pinned }: { pinned: PinnedTool | undefined }) {
   if (!pinned) return <Text size="xs">The tool pin was not reported for this build.</Text>;
   const l = pinned.limits;
-  return <SbProvenance label='Tool pin' summary={`${pinned.image_digest.slice(0, 19)}… · ${l.cpus} CPU · ${bytes(l.memory_bytes)} · ${l.timeout_seconds}s · network ${pinned.network} · ${pinned.resolved_image_id ? 'resolved image reported' : 'resolved image not reported'}`}
+  return <SbProvenance label='Tool pin' summary={`${pinned.image_digest.slice(0, 19)}… · ${l.cpus} CPU · ${bytes(l.memory_bytes)} · ${l.timeout_seconds}s · network ${pinned.network} · ${pinned.resolved_image_id ? `resolved image ${pinned.resolved_image_id.slice(0, 19)}…` : 'resolved image not reported'}`}
     pins={[{ label: 'Image', value: pinned.image }, { label: 'Image digest', value: pinned.image_digest },
       { label: 'Resolved image ID', value: pinned.resolved_image_id ?? 'not reported by the runner' },
       { label: 'Arguments', value: JSON.stringify(pinned.argv) },

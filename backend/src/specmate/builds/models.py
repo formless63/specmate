@@ -107,6 +107,9 @@ class BuildStage(models.Model):
     fencing_token = models.UUIDField(null=True)
     lease_expires_at = models.DateTimeField(null=True)
     cancellation_requested_at = models.DateTimeField(null=True)
+    # Local content-addressed image ID the runner observed for this execution's container
+    # (``docker inspect`` ``Image``). Evidence only; the recipe digest remains the pin.
+    resolved_image_id = models.CharField(max_length=71, blank=True, default="")
     receipt = models.JSONField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
