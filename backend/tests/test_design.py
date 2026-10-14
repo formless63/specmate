@@ -156,15 +156,15 @@ def test_contributor_edits_only_drafts_of_items_they_created(users, workspace, d
         )
 
 
-def test_viewer_cannot_create_and_creation_takes_no_project(users, workspace, project):
+def test_viewer_cannot_create_and_creation_is_workspace_scoped(users, workspace, project):
     with pytest.raises(PermissionDenied):
         op(
             users["viewer"],
             "definition.create",
             {"workspace_id": workspace, "kind": "p", "name": "x"},
         )
-    # Creation never takes a project: neither as context nor as the scope.
-    for scope in ({}, {"project_id": project}, {"workspace_id": workspace, "project_id": project}):
+    # A project is never the scope: the workspace is always required.
+    for scope in ({}, {"project_id": project}):
         with pytest.raises(ValidationFailed):
             op(users["owner"], "definition.create", {**scope, "kind": "part", "name": "x"})
     with pytest.raises(NotFound):
@@ -180,6 +180,16 @@ def test_viewer_cannot_create_and_creation_takes_no_project(users, workspace, pr
     )
     assert created["workspace_id"] == workspace
     assert op(users["owner"], "project.references", {"project_id": project})["references"] == []
+    # Creating with a project context stores the item in the workspace and only
+    # adds a reference from that project.
+    in_project = op(
+        users["owner"],
+        "definition.create",
+        {"workspace_id": workspace, "project_id": project, "kind": "part", "name": "x"},
+    )
+    assert in_project["workspace_id"] == workspace
+    refs = op(users["owner"], "project.references", {"project_id": project})["references"]
+    assert len(refs) == 1
 
 
 def test_viewer_cannot_edit(users, definition):
