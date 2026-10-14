@@ -221,16 +221,15 @@ def adopt(ctx: Context, p: AdoptOccurrence):
     assembly["assignments"] = [
         record for record in assembly.get("assignments", []) if record["path"] != list(p.path)
     ]
-    assembly["assignments"].append(
-        {
-            "path": list(p.path),
-            "assignments": {
-                "firmware_revision_id": str(p.firmware_revision_id)
-                if p.firmware_revision_id
-                else None
-            },
-        }
-    )
+    record = {
+        "firmware_revision_id": str(p.firmware_revision_id) if p.firmware_revision_id else None
+    }
+    # A contextual record replaces the occurrence's assignments; keep its fitted option.
+    node = closure.nodes[tuple(p.path)]
+    kept = closure.assignments.get(tuple(p.path)) or node.occurrence.assignments
+    if kept.population_option_id is not None:
+        record["population_option_id"] = kept.population_option_id
+    assembly["assignments"].append({"path": list(p.path), "assignments": record})
     result = update_draft(ctx, UpdateDraft(draft_id=draft.id, changes={"assembly": assembly}))
     draft.refresh_from_db()
     evidence = FirmwareAdoption.objects.create(

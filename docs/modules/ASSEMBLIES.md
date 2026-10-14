@@ -12,7 +12,11 @@ the design operation layer. Updates require the draft concurrency token. Capture
 discovers and pins the complete exact revision closure, including nested occurrences,
 firmware and referenced revisions. Child drafts or newer child revisions never replace
 those pins. Contextual firmware assignments can distinguish two uses of a shared nested
-board revision without changing its copper.
+board revision without changing its copper. An assignment may also record
+`population_option_id`, one option declared by the occurrence's exact board population
+revision; it is rejected on any other occurrence kind or for an undeclared option. A
+contextual record replaces the occurrence's assignments as a whole, so writers keep the
+fields they do not change.
 
 Relationships have distinct contracts for containment, electrical connection, mating,
 mounting, source derivation, documentation and procurement. Structural occurrence edges

@@ -2,7 +2,7 @@
   "$defs": {
     "Assignments": {
       "additionalProperties": false,
-      "description": "Only occurrence-owned assignments; revision-owned geometry and wiring are excluded.",
+      "description": "Only occurrence-owned assignments; revision-owned geometry and wiring are excluded.\n\n`population_option_id` names one declared option of the occurrence's exact board\npopulation revision (a fitted variant chosen in this context, e.g. by adopting a\nresolved configuration); it never edits the population revision itself.",
       "properties": {
         "firmware_revision_id": {
           "anyOf": [
@@ -16,6 +16,19 @@
           ],
           "default": null,
           "title": "Firmware Revision Id"
+        },
+        "population_option_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Population Option Id"
         }
       },
       "title": "Assignments",

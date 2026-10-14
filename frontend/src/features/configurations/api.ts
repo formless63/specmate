@@ -52,21 +52,37 @@ export type AuthoringContext = {
   target: (Pin & { occurrences: { path: string[]; display_ref: string; revision: Described; firmware_revision_id: string | null }[] }) | null;
   revisions: Described[];
 };
-export type AdoptionAction = 'replace_revision' | 'assign_firmware' | 'unchanged' | 'not_applicable' | 'blocked';
+export type AdoptionAction = 'replace_revision' | 'propagate_revision' | 'assign_population_option' | 'assign_firmware' | 'unchanged' | 'not_applicable' | 'blocked';
 export type AdoptionRow = {
   option_key: string; label: string; domain: string; path: string[] | null; decision_status: DecisionStatus; source: Decision['source'];
   choice: { key: string; label: string; revision: Pin | null; population_option_id: string | null; value: string | null } | null;
   action: AdoptionAction; reason: string; selected: boolean; before: Pin | null; display_ref: string | null;
+  /** The occurrence's recorded population option before adoption; null when none is recorded. */
+  population_option_before: string | null;
 };
-export type AdoptionChange = { option_key: string; path: string[]; display_ref: string | null; field: 'revision_id' | 'firmware'; before: Pin | null; after: Pin };
-export type AdoptionHistory = { adoption_id: string; draft_id: string; draft_version: number; created_draft: boolean; option_keys: string[]; basis: string; created_at: string };
+/** A containing sub-assembly revision that adoption freezes from a new draft; it has no ID until then. */
+export type ProposedRevision = { proposed: true; definition_id: string; kind: string; name: string; path: string[] };
+export type AdoptionValue = Pin | ProposedRevision | string | null;
+export type AdoptionChange = {
+  option_keys: string[]; path: string[]; display_ref: string | null; field: 'revision_id' | 'population_option_id' | 'firmware';
+  before: AdoptionValue; after: AdoptionValue;
+};
+export type AdoptionLevelChange = { local_id: string; path: string[]; display_ref: string; field: 'revision_id'; before: Pin; after: Pin | ProposedRevision };
+/** One containing level of a nested choice: a new draft of its exact pinned revision, frozen and re-pinned by its parent. */
+export type AdoptionLevel = {
+  path: string[]; display_ref: string; pinned: Pin; option_keys: string[];
+  draft: { mode: 'new_draft'; base_revision_id: string; content_sha256: string }; result: 'freeze_new_revision'; changes: AdoptionLevelChange[];
+};
+export type Propagated = { path: string[]; definition_id: string; draft_id: string; base_revision_id: string; revision_id: string; number: number; snapshot_sha256: string };
+export type AdoptionHistory = { adoption_id: string; draft_id: string; draft_version: number; created_draft: boolean; option_keys: string[]; propagated: Propagated[]; basis: string; created_at: string };
 export type AdoptionReview = {
   resolved_configuration_id: string; resolution_sha256: string; resolution_status: 'complete' | 'incomplete'; configuration_snapshot_sha256: string; target: Pin;
   owner: { mode: 'new_draft' | 'existing_draft'; definition_id: string; draft_id: string | null; state: string | null; base_revision_id: string | null; content_sha256: string };
-  option_keys: string[]; rows: AdoptionRow[]; changes: AdoptionChange[]; warnings: { path: string[]; message: string }[];
+  option_keys: string[]; rows: AdoptionRow[]; changes: AdoptionChange[]; propagation: AdoptionLevel[]; requires: string[];
+  warnings: { path: string[]; message: string }[];
   eligible: boolean; message: string; review_sha256: string; adoptions: AdoptionHistory[]; history_truncated: boolean;
 };
-export type AdoptionResult = { draft_id: string; state: string; definition_id: string; adoption_id: string; created_draft: boolean; changes: AdoptionChange[] };
+export type AdoptionResult = { draft_id: string; state: string; definition_id: string; adoption_id: string; created_draft: boolean; changes: AdoptionChange[]; propagated: Propagated[] };
 
 export async function operation<T>(name: string, payload: object, submission?: { state?: string | null; key?: string }): Promise<T> {
   const csrf = document.cookie.split('; ').find((cookie) => cookie.startsWith('csrftoken='))?.split('=')[1];
