@@ -57,6 +57,7 @@ export function App() {
 
 function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChanged }: { projectId: string; principalKey: string; permissions: string[]; onAccessChanged: () => Promise<void> }) {
   const [active, setActive] = useState<string | null>("identity");
+  const [upgradeProposalId, setUpgradeProposalId] = useState<string | null>(null);
   const [visited, setVisited] = useState(() => new Set(["identity"]));
   return <Tabs keepMountedMode="display-none" value={active} onChange={(value) => {
     if (value) { setActive(value); setVisited((current) => new Set([...current, value])); }
@@ -98,10 +99,10 @@ function ProjectWorkspace({ projectId, principalKey, permissions, onAccessChange
       <Tabs.Tab value="access">Project access</Tabs.Tab>
     </Tabs.List>
     <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
-    <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /></Stack>}</ToolPanel>
+    <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setVisited((current) => new Set([...current, "revision-upgrades"])); setActive("revision-upgrades"); }} /></Stack>}</ToolPanel>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery">{visited.has("discovery") && <DiscoveryPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="revision-upgrades">{visited.has("revision-upgrades") && <RevisionUpgradeWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} />}</ToolPanel>
+    <ToolPanel value="revision-upgrades">{visited.has("revision-upgrades") && <RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active === "revision-upgrades"} initialProposalId={upgradeProposalId} canEdit={permissions.includes("design.edit")} />}</ToolPanel>
     <ToolPanel value="matching">{visited.has("matching") && <MatchingWorkspace projectId={projectId} />}</ToolPanel>
     <ToolPanel value="catalog-packs">{visited.has("catalog-packs") && <CatalogPacksWorkspace projectId={projectId} />}</ToolPanel>
     <ToolPanel value="wire-stock">{visited.has("wire-stock") && <WireStockPanel projectId={projectId} />}</ToolPanel>
