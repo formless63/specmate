@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "description": "One operation call inside a run. ``step_key`` makes it safe to retry or resume.",
+  "properties": {
+    "expected_state": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected State"
+    },
+    "note": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Note",
+      "type": "string"
+    },
+    "operation": {
+      "maxLength": 100,
+      "pattern": "^[a-z][a-z_]*(\\.[a-z][a-z_]*)+$",
+      "title": "Operation",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Payload",
+      "type": "object"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "step_key": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "title": "Step Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "step_key",
+    "operation"
+  ],
+  "title": "ActInRun",
+  "type": "object"
+}

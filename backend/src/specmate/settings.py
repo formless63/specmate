@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     "specmate.passive_passages",
     "specmate.discovery.apps.DiscoveryConfig",
     "specmate.configurations.apps.ConfigurationsConfig",
+    "specmate.agent_runs.apps.AgentRunsConfig",
 ]
 
 MIDDLEWARE = [
