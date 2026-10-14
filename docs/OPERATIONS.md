@@ -126,6 +126,29 @@ preservation and current backup/restore from the beginning. At v1.0.0 define sup
 schema/API and retained workflow baselines; subsequent upgrades use tested migrations.
 Pin images and dependencies. Unattended floating-tag upgrades are not the default.
 
+### Disposable reset (OPS-007)
+
+`manage.py reset_disposable --confirm <installation-id>` recreates the database baseline
+(drop and recreate the `public` schema, migrate, restore the installation row) and clears
+the children of the artifact root. It runs only when all of these agree, and otherwise
+refuses without changing anything:
+
+- `SPECMATE_ENVIRONMENT=development` and an application version below 1.0.0;
+- `SPECMATE_DISPOSABLE_MARKER` (or `--marker`) names an absolute regular file, kept in the
+  disposable stack's own state directory, with `schema: 1`, `policy: "pre-1.0-disposable"`,
+  an `installation_id` UUID, the exact database `host`/`port`/`name`, an absolute
+  `state_root` (not a home or top-level directory, no links or `..`) and an `artifact_root`
+  strictly inside it that equals the configured `SPECMATE_ARTIFACT_ROOT`;
+- an existing installation row carries the marker's installation ID; a database holding
+  tables but no installation row is refused;
+- no build stage is active and no unrevoked runner credential exists (stop and reconcile
+  work first); `--confirm` equals the installation ID. `--check` verifies and stops.
+
+It never touches containers, volumes, Temporal, other paths or the private tracker, and
+it unlinks rather than follows links under the artifact root. Normal installations have no
+marker and therefore refuse. Backup (OPS-006) is independent: a reset does not take or
+require a backup, so take one first if the synthetic state matters.
+
 ## Organizational path
 
 Add remote authenticated runners first, including architecture/GPU/specialized packs.
