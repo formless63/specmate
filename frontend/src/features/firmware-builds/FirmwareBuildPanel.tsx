@@ -4,6 +4,7 @@ import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
 import { compileOptions, compileOutputUrl, compileReview, type CompileOptions, type CompileReview, type FirmwareBuildRef } from './api';
 import { Lineage } from '../builds/BuildsPanel';
+import { cancelBuild, readHistory, retryBuild, type BuildHistory } from '../builds/api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = FirmwareBuildRef & { canExecute?: boolean };
@@ -78,7 +79,8 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
       <TextInput label="Source execution review basis" value={basis} onChange={event => setBasis(event.currentTarget.value)} />
       <Button disabled={busy || !consent || !basis.trim()} onClick={() => void compile()}>Request firmware compile</Button>
     </Stack>}
-    {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}{build.retry_of ? ` · retry of ${build.retry_of}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button></Group>)}
+    {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}{build.retry_of ? ` · retry of ${build.retry_of}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button>
+      {build.state !== 'succeeded' && <BuildControls buildId={build.build_id} canExecute={canExecute} requestedByViewer={build.requested_by_viewer} onChanged={() => refresh(null)} />}</Group>)}
     {available?.truncated && <Text>Showing the latest 100 builds; earlier history is retained.</Text>}
     {review && <Stack><Title order={4}>Registered compiler handoff</Title>
       <Lineage lineage={review.lineage} retryOf={review.retry_of} /><CompilerPins inputs={review.inputs} />
@@ -97,4 +99,31 @@ function CompilerPins({ inputs }: { inputs: CompileOptions['inputs'] }) {
     <Text size="sm">Configuration: {inputs.configuration.map(entry => `${entry.key}: ${entry.status === 'known' ? entry.value : entry.status}`).join(', ') || 'none declared'}</Text>
     <Text size="sm">Pin assumptions: {inputs.pins.map(pin => `${pin.signal}: ${pin.pad_id ?? 'unknown pad'} / ${pin.function}`).join(', ') || 'none declared'}</Text>
   </Stack>;
+}
+
+/** Cancel for the requester or build.execute; retry for build.execute only. The server remains the authority. */
+function BuildControls({ buildId, canExecute, requestedByViewer, onChanged }: { buildId: string; canExecute: boolean; requestedByViewer: boolean; onChanged: () => Promise<void> }) {
+  const [history, setHistory] = useState<BuildHistory>();
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const key = useRef<{ name: string; value: string } | null>(null);
+  const run = async (action: 'cancel' | 'retry') => {
+    setBusy(true); setError('');
+    try {
+      const current = await readHistory(buildId); setHistory(current);
+      const name = `${action}:${current.state_token}`;
+      if (key.current?.name !== name) key.current = { name, value: randomUUID() };
+      if (action === 'cancel') await cancelBuild(buildId, current.state_token, key.current.value);
+      else await retryBuild(buildId, current.state_token, key.current.value);
+      key.current = null; setHistory(undefined); await onChanged();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Build action failed.'); }
+    finally { setBusy(false); }
+  };
+  const canCancel = canExecute || requestedByViewer;
+  return <Group gap="xs">
+    {canCancel && <Button variant="subtle" disabled={busy} onClick={() => void run('cancel')}>Request cancellation of {buildId}</Button>}
+    {canExecute && <Button variant="subtle" disabled={busy} onClick={() => void run('retry')}>Retry {buildId} as a new attempt</Button>}
+    {history && !history.cancel_available && !history.retry_available && <Text size="xs">No action is available in state {history.state.replaceAll('_', ' ')}.</Text>}
+    {error && <Text size="xs" c="red">{error}</Text>}
+  </Group>;
 }

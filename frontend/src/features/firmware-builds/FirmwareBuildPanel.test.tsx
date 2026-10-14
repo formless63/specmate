@@ -4,9 +4,11 @@ import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { command } from '../sources/api';
 import { FirmwareBuildPanel } from './FirmwareBuildPanel';
+import { cancelBuild, readHistory, retryBuild, type BuildHistory } from '../builds/api';
 import { compileOptions, compileReview, type CompileOptions, type CompileReview } from './api';
 
 vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), compileOptions: vi.fn(), compileReview: vi.fn() }));
+vi.mock('../builds/api', () => ({ cancelBuild: vi.fn(), readHistory: vi.fn(), retryBuild: vi.fn() }));
 vi.mock('../sources/api', async original => ({ ...(await original<typeof import('../sources/api')>()), command: vi.fn() }));
 const options: CompileOptions = {
   available_recipe_id: 'approved-compiler', unavailable_reason: null, builds: [{ build_id: 'build-one', state: 'succeeded', failure: null, retry_of: 'build-zero', requested_by_viewer: false }], truncated: false,
@@ -121,4 +123,26 @@ test('firmware builds show their retry chain in the list and the handoff', async
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect firmware handoff build-one' }));
   await screen.findByText('Retry of #1 (build-zero)');
   expect(screen.getByText('Attempt #2 · build-one (this) · succeeded')).toBeTruthy();
+});
+
+const failed = (viewer: boolean) => ({ ...options, builds: [{ build_id: 'build-bad', state: 'failed', failure: 'x', retry_of: null, requested_by_viewer: viewer }] });
+const hist = (over: object) => ({ state: 'failed', state_token: 'tok-1', cancel_available: false, retry_available: true, ...over }) as BuildHistory;
+test('retry needs the grant and calls the generic build.retry with the exact state token', async () => {
+  vi.mocked(compileOptions).mockResolvedValue(failed(true));
+  vi.mocked(readHistory).mockResolvedValue(hist({}));
+  vi.mocked(retryBuild).mockResolvedValue({ build_id: 'build-new' });
+  const { unmount } = render(panel(false)); await screen.findByText(/build-bad · failed/);
+  expect(screen.queryByRole('button', { name: /Retry build-bad/ })).toBeNull(); unmount();
+  render(panel(true)); fireEvent.click(await screen.findByRole('button', { name: 'Retry build-bad as a new attempt' }));
+  await waitFor(() => expect(retryBuild).toHaveBeenCalledWith('build-bad', 'tok-1', expect.any(String)));
+});
+test('the requester can cancel without the grant; others cannot', async () => {
+  vi.mocked(readHistory).mockResolvedValue(hist({ state: 'running', cancel_available: true, retry_available: false }));
+  vi.mocked(cancelBuild).mockResolvedValue({});
+  vi.mocked(compileOptions).mockResolvedValue(failed(false));
+  const { unmount } = render(panel(false)); await screen.findByText(/build-bad · failed/);
+  expect(screen.queryByRole('button', { name: /cancellation of build-bad/ })).toBeNull(); unmount();
+  vi.mocked(compileOptions).mockResolvedValue(failed(true));
+  render(panel(false)); fireEvent.click(await screen.findByRole('button', { name: 'Request cancellation of build-bad' }));
+  await waitFor(() => expect(cancelBuild).toHaveBeenCalledWith('build-bad', 'tok-1', expect.any(String)));
 });
