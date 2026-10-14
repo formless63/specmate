@@ -106,3 +106,10 @@ test("unknown outline stays unresolved and receives no invented preview", () => 
   expect(screen.getByText(/Outline: Unresolved/)).toBeTruthy();
   expect(screen.queryByRole("img")).toBeNull();
 });
+
+test("board preview uses theme tokens, never hard-coded light colors", () => {
+  render(<MantineProvider><ReportView report={report} /></MantineProvider>);
+  const svg = screen.getByRole("img", { name: /Extracted board outline/ });
+  expect(svg.getAttribute("style")).toContain("var(--sb-surface-sunken)");
+  expect(svg.outerHTML).not.toMatch(/#[0-9a-f]{3,6}\b|"white"/i);
+});
