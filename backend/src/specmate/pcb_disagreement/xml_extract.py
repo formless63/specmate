@@ -55,6 +55,46 @@ ATTRIBUTES = {
 }
 
 
+class ExtractionError(ValueError):
+    """A named, bounded diagnostic; the code prefix is stable for display and tests."""
+
+    def __init__(self, code, message):
+        super().__init__(f"[{code}] {message}")
+        self.code = code
+
+
+def unit_identities(ref, native_text, unit_names):
+    """Map KiCad's space-separated per-unit tstamps onto units, in unit order.
+
+    One UUID is shared by every unit; otherwise there must be exactly one per unit.
+    """
+    tokens = (native_text or "").split()
+    if len(tokens) > 200:
+        raise ExtractionError(
+            "component-uuid-unit-mismatch", f"Component {ref} lists too many UUIDs."
+        )
+    if not tokens:
+        raise ExtractionError("component-uuid-missing", f"Component {ref} has no UUID.")
+    for token in tokens:
+        try:
+            canonical = str(UUID(token)) == token
+        except ValueError:
+            canonical = False
+        if not canonical:
+            raise ExtractionError(
+                "component-uuid-invalid",
+                f"Component {ref} has a UUID that is not canonical: {token[:60]!r}.",
+            )
+    if len(tokens) == 1:
+        return {name: tokens[0] for name in unit_names}
+    if len(tokens) != len(unit_names):
+        raise ExtractionError(
+            "component-uuid-unit-mismatch",
+            f"Component {ref} lists {len(tokens)} UUIDs for {len(unit_names)} units.",
+        )
+    return dict(zip(unit_names, tokens, strict=True))
+
+
 def exact_one(parent, name):
     matches = parent.findall(name)
     if len(matches) != 1:
@@ -117,18 +157,28 @@ def normalize_xml(raw, source_sha256):
     identities = set()
     for component in components.findall("comp"):
         ref = bounded(component.get("ref"))
-        native_id = bounded(exact_one(component, "tstamps").text)
-        if str(UUID(native_id)) != native_id or native_id in component_ids:
-            raise ValueError("Component UUID missing, noncanonical or duplicated")
-        component_ids.add(native_id)
+        raw_ids = exact_one(component, "tstamps").text
         path = exact_one(component, "sheetpath")
         if path.get("names") != "/" or path.get("tstamps") != "/":
             raise ValueError("Hierarchical component occurrence is unsupported")
         units = exact_one(component, "units")
         if not units.findall("unit"):
             raise ValueError("Component unit pin inventory is absent")
+        unit_names = [bounded(u.get("name")) for u in units.findall("unit")]
+        if len(set(unit_names)) != len(unit_names):
+            raise ExtractionError(
+                "component-unit-duplicated", f"Component {ref} repeats a unit name."
+            )
+        unit_ids = unit_identities(ref, raw_ids, unit_names)
+        for native_id in set(unit_ids.values()):
+            if native_id in component_ids:
+                raise ExtractionError(
+                    "component-uuid-duplicated", f"Component UUID is duplicated: {native_id}."
+                )
+            component_ids.add(native_id)
         for unit in units.findall("unit"):
             unit_name = bounded(unit.get("name"))
+            native_id = unit_ids[unit_name]
             for pin in exact_one(unit, "pins").findall("pin"):
                 number = bounded(pin.get("num"))
                 identity = (source_sha256, native_id, path.get("tstamps"), unit_name, number)

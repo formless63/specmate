@@ -61,7 +61,8 @@ SCRIPT = (
 except Exception as exc:
     import json,sys
     from pathlib import Path
-    Path(sys.argv[3]).write_text(json.dumps({"status":"failed","error":str(exc)})+"\\n")
+    named=str(exc) if getattr(exc,"code",None) else "[net-extraction-failed] "+str(exc)[:1500]
+    Path(sys.argv[3]).write_text(json.dumps({"status":"failed","error":named})+"\\n")
     raise SystemExit(1)
 """
 )

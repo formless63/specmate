@@ -1,12 +1,13 @@
 """Synthetic parser oracles; these tests do not claim native execution."""
 
 import hashlib
+import json
 from uuid import UUID
 
 import pytest
 
 from specmate.pcb_disagreement.pack import recipe_for
-from specmate.pcb_disagreement.xml_extract import MAX_XML_BYTES, normalize_xml
+from specmate.pcb_disagreement.xml_extract import MAX_XML_BYTES, ExtractionError, normalize_xml
 
 SOURCE_SHA = "a" * 64
 
@@ -67,6 +68,62 @@ def test_duplicate_labels_and_multiunit_pin_numbers_never_guess_node_assignment(
         assert len({t["local_id"] for t in report["terminals"]}) == 2
         assert all(t["net_state"] == "unknown" for t in report["terminals"])
         assert "Ambiguous or missing net node: J1.1" in report["unsupported"]
+
+
+def multiunit(ref, uuids, units=("A", "B", "C")):
+    body = "".join(
+        f'<unit name="{u}"><pins><pin num="{n}"/></pins></unit>'
+        for u, n in zip(units, "123", strict=False)
+    )
+    return (
+        f'<comp ref="{ref}"><tstamps>{" ".join(uuids)}</tstamps>'
+        f'<sheetpath names="/" tstamps="/"/><units>{body}</units></comp>'
+    )
+
+
+def test_multiunit_space_separated_uuids_map_one_per_unit_with_stable_identities():
+    ids = [str(UUID(int=0x100 + i)) for i in range(3)]
+    raw = document(
+        component("J1", 1) + multiunit("RN1", ids),
+        '<net code="1" name="N1"><node ref="RN1" pin="2"/><node ref="J1" pin="1"/></net>',
+    )
+    report = normalize_xml(raw, SOURCE_SHA)
+    rn = {t["unit"]: t for t in report["terminals"] if t["component_ref"] == "RN1"}
+    assert {u: t["native_component_id"] for u, t in rn.items()} == dict(
+        zip("ABC", ids, strict=True)
+    )
+    # Independently derived: identity is sha256 of the JSON tuple of exact source facts.
+    for unit, number in zip("ABC", "123", strict=True):
+        tup = [SOURCE_SHA, ids["ABC".index(unit)], "/", unit, number]
+        assert (
+            rn[unit]["local_id"]
+            == "terminal-" + hashlib.sha256(json.dumps(tup).encode()).hexdigest()
+        )
+    assert rn["B"]["net_name"] == "N1" and rn["A"]["net_state"] == "unknown"
+    again = normalize_xml(raw.replace(b"<tstamps>", b"<tstamps> "), SOURCE_SHA)
+    assert {t["local_id"] for t in again["terminals"]} == {
+        t["local_id"] for t in report["terminals"]
+    }
+
+
+@pytest.mark.parametrize(
+    ("uuids", "code"),
+    [
+        ([str(UUID(int=5)), str(UUID(int=6))], "component-uuid-unit-mismatch"),
+        ([str(UUID(int=5)), "not-a-uuid", str(UUID(int=7))], "component-uuid-invalid"),
+        ([], "component-uuid-missing"),
+    ],
+)
+def test_malformed_multiunit_uuid_lists_fail_with_named_diagnostic(uuids, code):
+    with pytest.raises(ExtractionError, match=rf"^\[{code}\]") as caught:
+        normalize_xml(document(multiunit("RN1", uuids)), SOURCE_SHA)
+    assert caught.value.code == code
+
+
+def test_uuid_shared_between_components_is_a_named_duplicate():
+    ids = [str(UUID(int=0x200 + i)) for i in range(3)]
+    with pytest.raises(ExtractionError, match="component-uuid-duplicated"):
+        normalize_xml(document(multiunit("RN1", ids) + multiunit("RN2", ids)), SOURCE_SHA)
 
 
 @pytest.mark.parametrize(

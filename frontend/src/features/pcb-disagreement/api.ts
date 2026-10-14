@@ -22,4 +22,4 @@ export const terminalLabel = (t: Terminal) => `${t.component_ref} / ${t.pin} · 
 export const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 export type NativeAccepted = { interpretation_id: string; attempt_id: string; report_sha256: string; source: FilePin; report: { method: string; source_role: string; coverage: string; xml_sha256: string; adapter: string; tool_version: string; reported_source_tool: string | null; terminals: Terminal[]; unsupported: string[] } };
-export type NativeAttempts = { attempts: { attempt_id: string; build_id: string; source: FilePin; source_role: string; state: string; interpretation: { interpretation_id: string; report_sha256: string } | null }[]; limit: number };
+export type NativeAttempts = { attempts: { attempt_id: string; build_id: string; source: FilePin; source_role: string; state: string; diagnostic?: string | null; interpretation: { interpretation_id: string; report_sha256: string } | null }[]; limit: number };
