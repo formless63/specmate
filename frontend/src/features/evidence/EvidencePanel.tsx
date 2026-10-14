@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Card, Group, MultiSelect, Stack, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { SubjectTestForm } from "./SubjectTestForm";
 import { KIND_ORDER, evidenceQuery, observationRange, read, recordedPath, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription, type RecordedResult } from "./api";
 
 function KindBadge({ item }: { item: EvidenceItem }) {
@@ -44,7 +45,7 @@ function Row({ item }: { item: EvidenceItem }) {
       {item.stale === false && <Text size="xs">Recorded inputs are the latest revisions</Text>}</Table.Td>
     <Table.Td><Text>{item.statement}</Text><Text size="xs">Status: {item.status.replaceAll("_", " ")}</Text>
       {item.conditions.map((c) => <Text size="xs" key={c.property}>Condition {c.property}: {c.status === "known" ? JSON.stringify(c.value) : "unknown"}</Text>)}</Table.Td>
-    <Table.Td><Text size="sm">{item.subject.label}</Text><Text size="xs">{item.subject.scope === "actual" ? "Actual unit" : item.subject.scope === "design" ? "Design scope" : "Project scope"}</Text></Table.Td>
+    <Table.Td><Text size="sm">{item.subject.label}</Text><Text size="xs">{item.subject.kind === "work_batch" ? "Actual work batch, as a whole" : item.subject.scope === "actual" ? "Actual unit" : item.subject.scope === "design" ? "Design scope" : "Project scope"}</Text></Table.Td>
     <Table.Td><Text size="sm">Method: {method.name.replaceAll("_", " ")}</Text>{details.map((line) => <Text size="xs" key={line}>{line}</Text>)}</Table.Td>
     <Table.Td><Text size="sm">Origin: {item.basis.origin.replaceAll("_", " ")}</Text>{item.basis.references.map((ref) => <Text size="xs" key={ref}>{ref}</Text>)}
       <Text size="xs">{item.basis.independently_verified ? "Independently verified" : "Not independently verified"}</Text>
@@ -73,6 +74,7 @@ function EvidenceWorkspace({ workspaceId }: { workspaceId: string }) {
       {taxonomy.isError && <Alert color="red">{taxonomy.error.message}</Alert>}
       {(taxonomy.data?.kinds ?? []).map((kind) => <Text size="sm" key={kind.kind}><strong>{kind.label}</strong>: {kind.summary} Never establishes: {kind.does_not_establish.join(" ")}</Text>)}
     </Stack></Card>
+    <Card withBorder><SubjectTestForm workspaceId={workspaceId} /></Card>
     <MultiSelect label="Show evidence kinds" placeholder="All kinds" clearable data={KIND_ORDER.map((kind) => ({ value: kind, label: labels.get(kind) ?? kind }))} value={kinds} onChange={(value) => { setKinds(value as EvidenceKind[]); setOffset(0); }} />
     {evidence.isError && <Alert color="red">{evidence.error.message}</Alert>}
     {evidence.data && !evidence.isError && <>

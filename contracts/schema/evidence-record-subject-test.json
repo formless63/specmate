@@ -1,0 +1,487 @@
+{
+  "$defs": {
+    "BatchSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "work_batch",
+          "title": "Kind",
+          "type": "string"
+        },
+        "sample_size": {
+          "anyOf": [
+            {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Size"
+        },
+        "work_batch_id": {
+          "format": "uuid",
+          "title": "Work Batch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "work_batch_id"
+      ],
+      "title": "BatchSubject",
+      "type": "object"
+    },
+    "BooleanValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "boolean",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "BooleanValue",
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "properties": {
+        "property": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Property",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "boolean": "#/$defs/BooleanValue",
+                  "quantity": "#/$defs/NumericValue",
+                  "range": "#/$defs/NumericValue",
+                  "text": "#/$defs/TextValue",
+                  "tolerance": "#/$defs/NumericValue"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/NumericValue"
+                },
+                {
+                  "$ref": "#/$defs/TextValue"
+                },
+                {
+                  "$ref": "#/$defs/BooleanValue"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "property",
+        "status"
+      ],
+      "title": "Condition",
+      "type": "object"
+    },
+    "Instrument": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "calibrated",
+            "uncalibrated"
+          ],
+          "title": "Calibration",
+          "type": "string"
+        },
+        "calibration_reference": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calibration Reference"
+        },
+        "identifier": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identifier"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Instrument",
+      "type": "object"
+    },
+    "NumericValue": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Dimension",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "quantity",
+            "range",
+            "tolerance"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lower": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lower"
+        },
+        "magnitude": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Magnitude"
+        },
+        "minus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minus"
+        },
+        "plus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plus"
+        },
+        "unit": {
+          "enum": [
+            "mm",
+            "cm",
+            "m",
+            "in",
+            "mg",
+            "g",
+            "kg",
+            "ms",
+            "s",
+            "min",
+            "V",
+            "mV",
+            "A",
+            "mA",
+            "ohm",
+            "kohm",
+            "F",
+            "uF",
+            "nF",
+            "pF",
+            "H",
+            "mH",
+            "Hz",
+            "kHz",
+            "MHz",
+            "K",
+            "degC",
+            "deg",
+            "ea",
+            "1",
+            "%"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "upper": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upper"
+        }
+      },
+      "required": [
+        "kind",
+        "dimension",
+        "unit"
+      ],
+      "title": "NumericValue",
+      "type": "object"
+    },
+    "TextValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "TextValue",
+      "type": "object"
+    },
+    "UnitSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "physical_unit",
+          "title": "Kind",
+          "type": "string"
+        },
+        "unit_id": {
+          "format": "uuid",
+          "title": "Unit Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "unit_id"
+      ],
+      "title": "UnitSubject",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/Condition"
+      },
+      "maxItems": 30,
+      "title": "Conditions",
+      "type": "array"
+    },
+    "configuration_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Configuration Id"
+    },
+    "criterion": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Criterion",
+      "type": "string"
+    },
+    "finding": {
+      "enum": [
+        "criterion_met",
+        "criterion_not_met",
+        "inconclusive"
+      ],
+      "title": "Finding",
+      "type": "string"
+    },
+    "instruments": {
+      "items": {
+        "$ref": "#/$defs/Instrument"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Instruments",
+      "type": "array"
+    },
+    "note": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Note",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "procedure": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Procedure",
+      "type": "string"
+    },
+    "subject": {
+      "discriminator": {
+        "mapping": {
+          "physical_unit": "#/$defs/UnitSubject",
+          "work_batch": "#/$defs/BatchSubject"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/UnitSubject"
+        },
+        {
+          "$ref": "#/$defs/BatchSubject"
+        }
+      ],
+      "title": "Subject"
+    },
+    "summary": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Summary",
+      "type": "string"
+    },
+    "test_kind": {
+      "pattern": "^[a-z][a-z0-9_]{0,79}$",
+      "title": "Test Kind",
+      "type": "string"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "discriminator": {
+            "mapping": {
+              "boolean": "#/$defs/BooleanValue",
+              "quantity": "#/$defs/NumericValue",
+              "range": "#/$defs/NumericValue",
+              "text": "#/$defs/TextValue",
+              "tolerance": "#/$defs/NumericValue"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NumericValue"
+            },
+            {
+              "$ref": "#/$defs/TextValue"
+            },
+            {
+              "$ref": "#/$defs/BooleanValue"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value"
+    }
+  },
+  "required": [
+    "subject",
+    "test_kind",
+    "procedure",
+    "instruments",
+    "observed_at",
+    "criterion",
+    "finding"
+  ],
+  "title": "RecordSubjectTest",
+  "type": "object"
+}

@@ -19,7 +19,8 @@
             "plan_declaration",
             "unit_declaration",
             "declared_preference",
-            "recorded_result"
+            "recorded_result",
+            "test_record"
           ],
           "title": "Origin",
           "type": "string"
@@ -132,7 +133,8 @@
             "cable_test_plan",
             "physical_units",
             "interface_assessment",
-            "firmware_impact"
+            "firmware_impact",
+            "subject_tests"
           ],
           "title": "Source",
           "type": "string"

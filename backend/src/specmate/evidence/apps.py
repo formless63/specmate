@@ -17,6 +17,7 @@ class EvidenceConfig(AppConfig):
             RecordInterfaceAssessment,
             Taxonomy,
         )
+        from specmate.evidence.subject_tests import RecordSubjectTest
 
         SCHEMAS.update(
             {
@@ -25,6 +26,7 @@ class EvidenceConfig(AppConfig):
                 "evidence-taxonomy": Taxonomy,
                 "evidence-record-interface-assessment": RecordInterfaceAssessment,
                 "evidence-record-firmware-impact": RecordFirmwareImpact,
+                "evidence-record-subject-test": RecordSubjectTest,
                 "evidence-recorded-read": ReadRecordedResult,
                 "evidence-recorded-result": RecordedResult,
             }

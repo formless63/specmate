@@ -13,6 +13,14 @@ from specmate.evidence.recorded import (
     record_firmware_impact,
     record_interface_assessment,
 )
+from specmate.evidence.subject_tests import (
+    ReadSubjectTest,
+    RecordSubjectTest,
+    authorize_test_replay,
+    read_subject_test,
+    record_subject_test,
+    test_scope,
+)
 from specmate.evidence.taxonomy import taxonomy
 from specmate.operations import Context, operation
 from specmate.operations.core import ACCESS_AUTHENTICATED
@@ -91,3 +99,26 @@ def record_impact(ctx: Context, p: RecordFirmwareImpact):
 )
 def read_recorded_result(ctx: Context, p: ReadRecordedResult):
     return read_recorded(ctx.user, p)
+
+
+@operation(
+    "evidence.record_test",
+    RecordSubjectTest,
+    summary="Record an immutable physical test of one exact unit or work batch.",
+    authorize_replay=authorize_test_replay,
+    access=Perm.INVENTORY_MANAGE,
+    idempotency_scope=test_scope,
+)
+def record_test(ctx: Context, p: RecordSubjectTest):
+    return record_subject_test(ctx, p)
+
+
+@operation(
+    "evidence.read_test",
+    ReadSubjectTest,
+    summary="Read one test record with its procedure, instruments, conditions and subject.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def read_test(ctx: Context, p: ReadSubjectTest):
+    return read_subject_test(ctx.user, p)

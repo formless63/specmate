@@ -1,6 +1,19 @@
 {
   "additionalProperties": false,
   "properties": {
+    "actual_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Actual Id"
+    },
     "kinds": {
       "anyOf": [
         {

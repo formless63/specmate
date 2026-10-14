@@ -8,6 +8,8 @@ from collections import Counter
 from heapq import merge
 from itertools import islice
 
+from django.db.models import Q
+
 from specmate.access.permissions import Perm, authorize
 from specmate.builds.models import BuildAttempt
 from specmate.design.models import Revision
@@ -442,23 +444,50 @@ def recorded_items(user, p, scan):
     scan.limit_reached = True
 
 
+def test_items(user, p, scan):
+    from specmate.evidence.models import SubjectTest
+    from specmate.evidence.subject_tests import evidence_item, readable_test
+
+    rows = SubjectTest.objects.filter(workspace_id=p.workspace_id)
+    if p.actual_id:
+        rows = rows.filter(Q(unit_id=p.actual_id) | Q(work_batch_id=p.actual_id))
+    rows = rows.select_related("unit", "work_batch").order_by("-recorded_at", "-id")
+    for index in range(0, SCAN_LIMIT, CHUNK):
+        chunk = list(rows[index : index + CHUNK])
+        for row in chunk:
+            try:
+                readable_test(user, row)
+            except OperationError:
+                continue
+            yield (row.recorded_at, str(row.id)), evidence_item(row, describe)
+        if len(chunk) < CHUNK:
+            return
+    scan.limit_reached = True
+
+
 def list_evidence(user, p: ListEvidence):
     authorize(user, p.workspace_id, Perm.WORKSPACE_READ)
     kinds = set(p.kinds) if p.kinds else None
     scan = Scan()
     sources = []
-    if kinds is None or kinds & FACT_KINDS:
-        sources.append(fact_items(user, p, kinds, scan))
-    if p.subject_id is None:
-        if kinds is None or "generated_check" in kinds:
-            sources.append(build_items(user, p, scan))
-            sources.append(recorded_items(user, p, scan))
-        if kinds is None or "requirement" in kinds:
-            sources.append(plan_items(user, p, scan))
-        if kinds is None or kinds & {"source_claim", "physical_observation"}:
-            sources.append(unit_items(user, p, kinds, scan))
-    elif not sources:
-        raise NotFound("Evidence subject unavailable.")
+    if p.actual_id is not None:
+        if kinds is None or "physical_measurement" in kinds:
+            sources.append(test_items(user, p, scan))
+    else:
+        if kinds is None or kinds & FACT_KINDS:
+            sources.append(fact_items(user, p, kinds, scan))
+        if p.subject_id is None:
+            if kinds is None or "physical_measurement" in kinds:
+                sources.append(test_items(user, p, scan))
+            if kinds is None or "generated_check" in kinds:
+                sources.append(build_items(user, p, scan))
+                sources.append(recorded_items(user, p, scan))
+            if kinds is None or "requirement" in kinds:
+                sources.append(plan_items(user, p, scan))
+            if kinds is None or kinds & {"source_claim", "physical_observation"}:
+                sources.append(unit_items(user, p, kinds, scan))
+        elif not sources:
+            raise NotFound("Evidence subject unavailable.")
     window = list(
         islice(
             merge(*sources, key=lambda pair: pair[0], reverse=True),

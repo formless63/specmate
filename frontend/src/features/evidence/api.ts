@@ -52,3 +52,18 @@ export function observationRange(result: { observations: unknown[]; observations
   const first = result.observation_offset + 1;
   return shown ? `${first}–${first + shown - 1} of ${total}` : `none of ${total}`;
 }
+
+export type TestCalibration = "unknown" | "calibrated" | "uncalibrated";
+export type TestInstrument = { name: string; identifier?: string; calibration: TestCalibration; calibration_reference?: string };
+export type TestCondition = { property: string; status: "known" | "unknown"; value?: { kind: "text"; text: string } };
+export type SubjectTestInput = {
+  subject: { kind: "physical_unit"; unit_id: string } | { kind: "work_batch"; work_batch_id: string; sample_size?: number };
+  configuration_id?: string; test_kind: string; procedure: string; instruments: TestInstrument[]; conditions: TestCondition[];
+  observed_at: string; criterion: string; finding: "criterion_met" | "criterion_not_met" | "inconclusive"; summary?: string;
+};
+export type SubjectTestRecord = { test_id: string; recorded_at: string; applies_to: "this_subject_only"; physical_qualification: false };
+
+/** Record one immutable physical test of exactly one unit, or of one batch as a whole. */
+export function recordSubjectTest(input: SubjectTestInput, idempotencyKey: string): Promise<SubjectTestRecord> {
+  return command<SubjectTestRecord>("evidence.record_test", input, { idempotencyKey });
+}

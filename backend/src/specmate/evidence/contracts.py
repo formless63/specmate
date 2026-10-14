@@ -13,6 +13,7 @@ Source = Literal[
     "physical_units",
     "interface_assessment",
     "firmware_impact",
+    "subject_tests",
 ]
 RecordedSource = Literal["interface_assessment", "firmware_impact"]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
@@ -27,6 +28,8 @@ class ListEvidence(StrictModel):
     workspace_id: UUID
     kinds: list[Kind] | None = Field(default=None, max_length=8)
     subject_id: UUID | None = None
+    # An actual physical unit or work batch: lists only the test records made on it.
+    actual_id: UUID | None = None
     offset: int = Field(default=0, ge=0, le=10000)
     limit: int = Field(default=50, ge=1, le=100)
 
@@ -34,6 +37,8 @@ class ListEvidence(StrictModel):
     def distinct_kinds(self):
         if self.kinds is not None and len(set(self.kinds)) != len(self.kinds):
             raise ValueError("Evidence kinds must be distinct.")
+        if self.subject_id is not None and self.actual_id is not None:
+            raise ValueError("Filter by a fact subject or an actual subject, not both.")
         return self
 
 
@@ -83,6 +88,7 @@ class Basis(StrictModel):
         "unit_declaration",
         "declared_preference",
         "recorded_result",
+        "test_record",
     ]
     references: list[str] = Field(default_factory=list)
     independently_verified: bool = False
