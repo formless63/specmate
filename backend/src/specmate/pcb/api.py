@@ -5,7 +5,8 @@ from django.http import FileResponse
 from django.utils.http import content_disposition_header
 from ninja import Router
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.models import ProjectReference
+from specmate.access.permissions import Perm, authorize, context_project
 from specmate.catalog.models import Representation
 from specmate.design.models import Definition, Draft, Revision
 from specmate.design.operations import authorize_design_content, authorize_snapshot
@@ -20,12 +21,33 @@ router = Router(tags=["pcb"])
 
 
 @router.get("/workspaces/{workspace_id}/intakes")
-def list_intakes(request, workspace_id: UUID):
+def list_intakes(request, workspace_id: UUID, project_id: UUID | None = None):
+    """Workspace intakes with navigation hints; nothing is hidden or filtered.
+
+    `referenced_by_project` is true when the optional context project actively references
+    the intake's source bundle (always false without a context). `superseded_by_intake_id`
+    names the accepted upgraded derivative of an original intake, if any.
+    """
     workspace = authorize(request.user, workspace_id, Perm.WORKSPACE_READ)
+    project = context_project(project_id, workspace)
     upgraded = dict(
         PcbFormatUpgrade.objects.filter(revision__bundle__workspace=workspace).values_list(
             "revision_id", "from_kicad_major"
         )
+    )
+    superseded = dict(
+        PcbFormatUpgrade.objects.filter(revision__bundle__workspace=workspace).values_list(
+            "attempt__intake_id", "intake_id"
+        )
+    )
+    referenced = (
+        set(
+            ProjectReference.objects.filter(
+                project=project, kind=ProjectReference.Kind.SOURCE_BUNDLE, removed_at__isnull=True
+            ).values_list("source_bundle_id", flat=True)
+        )
+        if project
+        else set()
     )
     return [
         {
@@ -33,10 +55,12 @@ def list_intakes(request, workspace_id: UUID):
             "board_path": i.board_path,
             "source_revision_id": str(i.source_revision_id),
             "upgraded_from_kicad": upgraded.get(i.source_revision_id),
+            "referenced_by_project": i.source_revision.bundle_id in referenced,
+            "superseded_by_intake_id": str(superseded[i.id]) if i.id in superseded else None,
         }
-        for i in PcbIntake.objects.filter(source_revision__bundle__workspace=workspace).order_by(
-            "created_at"
-        )
+        for i in PcbIntake.objects.filter(source_revision__bundle__workspace=workspace)
+        .select_related("source_revision")
+        .order_by("created_at")
     ]
 
 

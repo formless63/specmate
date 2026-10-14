@@ -341,6 +341,41 @@ def test_accepted_upgrade_is_a_derivative_with_original_ancestry(
     assert listed == {intake["intake_id"]: None, result["intake_id"]: 7}
 
 
+def test_listing_marks_referenced_and_superseded_intakes_without_hiding_any(
+    users, workspace, project, source, intake, requested
+):
+    finish(requested)
+    result = accept(users, requested)
+    op(
+        users["owner"],
+        "project.add_reference",
+        {
+            "project_id": project,
+            "kind": "source_bundle",
+            "target_id": source["bundle_id"],
+            "role": "board",
+        },
+        expected_state=op(users["owner"], "project.references", {"project_id": project})["state"],
+    )
+    client = Client()
+    client.force_login(users["viewer"])
+    base = f"/api/v0/pcb/workspaces/{workspace}/intakes"
+
+    def listed(**query):
+        return {i["intake_id"]: i for i in client.get(base, query).json()}
+
+    plain = listed()
+    assert set(plain) == {intake["intake_id"], result["intake_id"]}
+    assert plain[intake["intake_id"]]["superseded_by_intake_id"] == result["intake_id"]
+    assert plain[result["intake_id"]]["superseded_by_intake_id"] is None
+    assert not any(i["referenced_by_project"] for i in plain.values())
+    scoped = listed(project_id=project)
+    assert set(scoped) == set(plain)
+    assert scoped[intake["intake_id"]]["referenced_by_project"] is True
+    assert scoped[result["intake_id"]]["referenced_by_project"] is False
+    assert client.get(base, {"project_id": str(uuid4())}).status_code == 404
+
+
 def test_upgrade_evidence_is_immutable(users, requested):
     finish(requested)
     accept(users, requested)

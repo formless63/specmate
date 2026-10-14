@@ -276,7 +276,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="harnesses" library={library("harnesses")}>{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="passive-passages" library={library("passive-passages")}>{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} />}</ToolPanel>
     <ToolPanel value="copper" library={library("copper")}>{visited.has("copper") && <WorkspaceLens {...lens} toolId="copper" />}</ToolPanel>
-    <ToolPanel value="pcb" library={library("pcb")}>{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} />}</ToolPanel>
+    <ToolPanel value="pcb" library={library("pcb")}>{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="pcb-disagreement" library={library("pcb-disagreement")}>{visited.has("pcb-disagreement") && <PcbDisagreementPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="inventory" library={library("inventory")}>{visited.has("inventory") && <InventoryPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="bom" library={library("bom")}>{visited.has("bom") && <BomPanel projectId={projectId} workspaceId={workspaceId} />}</ToolPanel>

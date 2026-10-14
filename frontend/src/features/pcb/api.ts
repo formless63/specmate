@@ -1,6 +1,10 @@
 import { sha256Hex } from "../../lib/sha256";
 import { randomUUID } from "../../lib/random-id";
-export type IntakeSummary = { intake_id: string; board_path: string; source_revision_id: string; upgraded_from_kicad?: number | null };
+export type IntakeSummary = { intake_id: string; board_path: string; source_revision_id: string; upgraded_from_kicad?: number | null;
+  /** True when the optional context project actively references this intake's source bundle. */
+  referenced_by_project?: boolean;
+  /** The accepted upgraded derivative of this original intake; the original stays reachable. */
+  superseded_by_intake_id?: string | null };
 type Point = [number, number];
 export type NativeReport = {
   source_sha256: string;
@@ -119,8 +123,9 @@ async function request<T>(url: string, init: RequestInit, signal?: AbortSignal):
   return data as T;
 }
 
-export function listIntakes(workspaceId: string, signal?: AbortSignal) {
-  return request<IntakeSummary[]>(`/api/v0/pcb/workspaces/${encodeURIComponent(workspaceId)}/intakes`, {}, signal);
+export function listIntakes(workspaceId: string, signal?: AbortSignal, projectId?: string | null) {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return request<IntakeSummary[]>(`/api/v0/pcb/workspaces/${encodeURIComponent(workspaceId)}/intakes${query}`, {}, signal);
 }
 export function getIntake(id: string, signal?: AbortSignal) {
   return request<Intake>(`/api/v0/pcb/intakes/${encodeURIComponent(id)}`, {}, signal);

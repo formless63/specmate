@@ -2,7 +2,7 @@ import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { PcbPanel, ReportView } from "./PcbPanel";
+import { orderIntakes, PcbPanel, ReportView } from "./PcbPanel";
 import { associationTargets, command, getIntake, listIntakes, listPopulations, PcbRequestError, type Intake, type NativeReport } from "./api";
 
 vi.mock("./api", async (original) => ({
@@ -40,8 +40,8 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
-function panel(workspaceId = "project-a", permissions = ["workspace.read"]) {
-  return <MantineProvider env="test"><PermissionsProvider permissions={permissions}><PcbPanel workspaceId={workspaceId} /></PermissionsProvider></MantineProvider>;
+function panel(workspaceId = "project-a", permissions = ["workspace.read"], projectId?: string) {
+  return <MantineProvider env="test"><PermissionsProvider permissions={permissions}><PcbPanel workspaceId={workspaceId} projectId={projectId} /></PermissionsProvider></MantineProvider>;
 }
 async function selectIntake() {
   await waitFor(() => expect(listIntakes).toHaveBeenCalled());
@@ -119,4 +119,30 @@ test("bridged outline gaps get a count and one marker each in the 2D preview", (
   render(<MantineProvider><ReportView report={{ ...report, outline_exact: [], outline_tolerance_mm: 0.01, outline_bridged_gaps: gaps } as NativeReport} /></MantineProvider>);
   expect(screen.getAllByTestId("bridged-gap-marker")).toHaveLength(2);
   expect(screen.getByText(/2 outline gaps bridged \(max 1.5 mm\)/)).toBeTruthy();
+});
+
+const summary = (id: string, extra: object = {}) => ({ intake_id: id, board_path: `${id}.kicad_pcb`, source_revision_id: `${id}-revision-xyz`, ...extra });
+
+test("intake ordering puts project-referenced first and superseded originals last, hiding none", () => {
+  const ordered = orderIntakes([
+    summary("old", { superseded_by_intake_id: "new", referenced_by_project: true }),
+    summary("other"), summary("mine", { referenced_by_project: true }), summary("other2"),
+  ]);
+  expect(ordered.map((i) => i.intake_id)).toEqual(["mine", "other", "other2", "old"]);
+});
+
+test("selector asks for the project context, ranks used intakes first and keeps superseded ones reachable", async () => {
+  vi.mocked(listIntakes).mockResolvedValue([
+    summary("original", { superseded_by_intake_id: "derived", referenced_by_project: true }),
+    summary("elsewhere"), summary("derived", { upgraded_from_kicad: 7, referenced_by_project: true }),
+  ]);
+  render(panel("project-a", ["workspace.read"], "project-1"));
+  await waitFor(() => expect(listIntakes).toHaveBeenCalledWith("project-a", expect.anything(), "project-1"));
+  fireEvent.click(screen.getByRole("combobox", { name: "Preserved PCB intake" }));
+  const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+  expect(options).toEqual([
+    "derived.kicad_pcb · derived- · upgraded from KiCad 7 · used by this project",
+    "elsewhere.kicad_pcb · elsewher",
+    "original.kicad_pcb · original · used by this project · superseded by upgraded derivative",
+  ]);
 });
