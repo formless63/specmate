@@ -59,7 +59,7 @@ test('frozen inspection keeps declaration, modeled suggestion, mismatch and unkn
 test('same revision impact refresh removes retained sensitive results on current denial', async () => {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let denied = false;
-  const result: Impact = { before_revision_id: 'old', after_revision_id: 'new', before_sha256: 'before-hash', after_sha256: 'after-hash', route_changed: true, preparation_review_required: true, document_review_required: true, stock_revision_changed: false, changes: [{ target: 'route', before: row('route'), after: row('route', '1100') }] };
+  const result: Impact = { before_revision_id: 'old', after_revision_id: 'new', before_sha256: 'before-hash', after_sha256: 'after-hash', route_changed: true, preparation_review_required: true, document_review_required: true, stock_revision_changed: false, changes: [{ target: 'route', before: row('route'), after: row('route', '1100') }], sections: [{ section: 'lengths', status: 'changed', reviews: ['documents', 'preparation'], summary: 'Length declarations or model suggestions changed.', details: [{ target: 'route' }] }] };
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(denied ? { error: { message: 'Length source access denied.' } } : result), { status: denied ? 404 : 200 })));
   render(wrap(<LengthImpactView afterRevision="new" revisions={[{ revision_id: 'old', number: 1 }, { revision_id: 'new', number: 2 }]} />, cache));
   await select('Compare lengths from frozen revision', 'Revision 1');
@@ -72,4 +72,16 @@ test('same revision impact refresh removes retained sensitive results on current
   denied = false;
   await act(async () => { await cache.refetchQueries({ queryKey: ['cable-length-impact', 'old', 'new'] }); });
   await waitFor(() => expect(screen.getByText(/route: declared/)).toBeTruthy());
+});
+
+test('termination-only impact lists the changed section and requires document review', async () => {
+  const result: Impact = { before_revision_id: 'old', after_revision_id: 'new', before_sha256: 'before-hash', after_sha256: 'after-hash', route_changed: false, preparation_review_required: true, document_review_required: true, stock_revision_changed: false, changes: [], sections: [{ section: 'terminations', status: 'changed', reviews: ['documents', 'preparation'], summary: 'Conductor-to-contact terminations changed.', details: [{ element_path: 'stock.screen', endpoint_id: 'b', before_contact_id: 'shell', after_contact_id: 'b' }] }] };
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(result), { status: 200 })));
+  render(wrap(<LengthImpactView afterRevision="new" revisions={[{ revision_id: 'old', number: 1 }, { revision_id: 'new', number: 2 }]} />));
+  await select('Compare lengths from frozen revision', 'Revision 1');
+  expect(await screen.findByText(/Document review required: true/)).toBeTruthy();
+  expect(screen.getByText('No length-plan changes.')).toBeTruthy();
+  expect(screen.getByRole('table', { name: 'Changed document sections' })).toBeTruthy();
+  expect(screen.getByText('terminations')).toBeTruthy();
+  expect(screen.getByText('stock.screen at b: contact shell → b')).toBeTruthy();
 });

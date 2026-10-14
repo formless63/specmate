@@ -6,6 +6,7 @@ import type { Definition } from '../identity/api';
 import { ApiError, authority, references, download, emptyConfiguration, generate, receipt, requestJson, review, saveFile, type Binding, type Configuration, type ContextPin, type Manifest, type Output, type Receipt, type Review } from './api';
 import { RevisionChoice } from './RevisionChoice';
 import { svgSize } from './svg-size';
+import { NewerRevisionNotice } from './NewerRevisionNotice';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = { projectId?: string | null; principalKey: string; active?: boolean; onAccessLost?: () => void };
@@ -137,8 +138,9 @@ function Workspace({ active = true, onAccessLost }: Props) {
         <ReadOnlyNote permission="design.edit">Review and retained downloads are available; generation needs engineering edit authority.</ReadOnlyNote>
       </Stack></Fieldset>
     {visible && <>
-      <Select label="Retained document history" searchable clearable disabled={busy} value={selectedId} data={history.map(r => ({ value: r.document_set_id, label: `${r.manifest.inputs.root.name} · ${r.created_at} · ${r.document_set_id}` }))} onChange={chooseSet} />
+      <Select label="Retained document history" searchable clearable disabled={busy} value={selectedId} data={history.map(r => ({ value: r.document_set_id, label: `${r.manifest.inputs.root.name}${r.root_currency?.newer_revision ? ` · r${r.root_currency.root_revision_number}, newer r${r.root_currency.newer_revision.number} exists` : ''} · ${r.created_at} · ${r.document_set_id}` }))} onChange={chooseSet} />
       {reviewed && reviewVisible && <ManifestView manifest={reviewed.manifest} heading="Current reviewed document inputs" />}
+      {retained && <NewerRevisionNotice currency={retained.root_currency} />}
       {retained && <ManifestView manifest={retained.manifest} heading="Retained coordinated provenance" />}
       {retained && <Card withBorder><Stack><Title order={3}>Retained immutable document set</Title><Text>Set {retained.document_set_id} · input SHA-256 {retained.sha256}</Text><Text>History bytes are retained; current inputs are freshly authorized before each download.</Text>{retained.manifest.outputs.map(output => <Group key={output.filename}><Button disabled={busy} onClick={() => void getFile(output)}>Download {output.filename}</Button><Text size="sm">{output.sha256} · {output.size} bytes · rights {output.rights}</Text>{output.filename === 'schematic.svg' && <Button disabled={busy} variant="light" onClick={() => void getFile(output, true)}>Preview declared schematic</Button>}</Group>)}</Stack></Card>}
       {preview && <><Button onClick={() => setPreview(null)}>Close declared schematic</Button><iframe title="Declared schematic preview" sandbox="" srcDoc={preview.svg} style={{ width: '100%', aspectRatio: `${preview.width} / ${preview.height}`, minHeight: 300, maxHeight: 700, border: '1px solid #ddd' }} /></>}

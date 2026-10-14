@@ -375,6 +375,12 @@ denial also gates retained editors and frozen results while affected reads are
 rechecked. Unsaved text and its original editing token survive that gate; a newer
 server read does not silently adopt a new token for the unsaved edit. Stock-pin
 changes are reported separately from changes to the actual route declaration.
+The comparison also lists every changed document-affecting section: lengths, pinned
+stock, endpoint connector body/pinout, conductor-to-contact terminations, endpoint
+labels and declared review. Each section names whether preparation and/or documents
+need review; a label or review-only change affects documents only. Content that
+differs outside the known sections is reported as uncomparable and requires both
+reviews, so an unknown difference never reports "no review required".
 
 This length model is an explicitly reviewed arithmetic relationship, not a geometric
 routing solver or a measurement. It does not derive physical conductor length from a

@@ -222,6 +222,162 @@ def inspect_revision(user, revision_id):
     }
 
 
+# Cable content sections whose change alters generated documents (specifications, schematic,
+# terminations, cut/end preparation lists, build sheet, test intent). Each section names
+# whether preparation must also be re-reviewed; label/review-only edits change documents only.
+_PREPARATION = "preparation"
+_DOCUMENTS = "documents"
+
+
+def _keyed(rows, key):
+    return {key(row): row for row in rows}
+
+
+def _section_changes(before, after):
+    """Per-section differences between two inspected cable revisions.
+
+    A section that cannot be compared (an unknown schema or content field) is reported as
+    ``uncomparable`` and requires review: an unknown difference is never "no change".
+    """
+    old, new = before["cable"], after["cable"]
+    sections = []
+
+    def add(section, reviews, summary, details):
+        sections.append(
+            {
+                "section": section,
+                "status": "changed",
+                "reviews": sorted(reviews),
+                "summary": summary,
+                "details": details,
+            }
+        )
+
+    if old.get("schema_version") != new.get("schema_version"):
+        sections.append(
+            {
+                "section": "cable",
+                "status": "uncomparable",
+                "reviews": sorted({_PREPARATION, _DOCUMENTS}),
+                "summary": "Cable content versions differ; every generated section needs review.",
+                "details": [
+                    {
+                        "field": "schema_version",
+                        "before": old.get("schema_version"),
+                        "after": new.get("schema_version"),
+                    }
+                ],
+            }
+        )
+        return sections
+
+    if old["stock_revision_id"] != new["stock_revision_id"]:
+        add(
+            "stock",
+            {_PREPARATION, _DOCUMENTS},
+            "Pinned wire stock revision changed; conductor identities, labels and cut "
+            "material may differ.",
+            [{"before": old["stock_revision_id"], "after": new["stock_revision_id"]}],
+        )
+
+    def endpoint_key(row):
+        return row["local_id"]
+
+    old_ends = _keyed(old["endpoints"], endpoint_key)
+    new_ends = _keyed(new["endpoints"], endpoint_key)
+    labels, connectors = [], []
+    for local_id in sorted(old_ends.keys() | new_ends.keys()):
+        a, b = old_ends.get(local_id), new_ends.get(local_id)
+        if a is None or b is None:
+            connectors.append({"endpoint_id": local_id, "before": a, "after": b})
+            continue
+        if (a["body_revision_id"], a["pinout_revision_id"]) != (
+            b["body_revision_id"],
+            b["pinout_revision_id"],
+        ):
+            connectors.append({"endpoint_id": local_id, "before": a, "after": b})
+        if a.get("label") != b.get("label"):
+            labels.append(
+                {"endpoint_id": local_id, "before": a.get("label"), "after": b.get("label")}
+            )
+    if connectors:
+        add(
+            "connectors",
+            {_PREPARATION, _DOCUMENTS},
+            "Endpoint connector body or pinout changed; end preparation profiles bound to "
+            "these ends must be re-applied.",
+            connectors,
+        )
+
+    def termination_key(row):
+        return (row["element_path"], row["endpoint_id"])
+
+    old_terms = _keyed(old["assignments"], termination_key)
+    new_terms = _keyed(new["assignments"], termination_key)
+    terminations = []
+    for key in sorted(old_terms.keys() | new_terms.keys()):
+        a, b = old_terms.get(key), new_terms.get(key)
+        if a != b:
+            terminations.append(
+                {
+                    "element_path": key[0],
+                    "endpoint_id": key[1],
+                    "before_contact_id": a and a["contact_id"],
+                    "after_contact_id": b and b["contact_id"],
+                    "before_basis": a and a["basis"],
+                    "after_basis": b and b["basis"],
+                }
+            )
+    if terminations:
+        add(
+            "terminations",
+            {_PREPARATION, _DOCUMENTS},
+            "Conductor-to-contact terminations changed; terminations, schematic, build sheet, "
+            "test intent and end preparation must be re-reviewed.",
+            terminations,
+        )
+
+    if labels:
+        add("labels", {_DOCUMENTS}, "Endpoint labels changed.", labels)
+
+    if (old.get("review"), old.get("review_basis")) != (new.get("review"), new.get("review_basis")):
+        add(
+            "review",
+            {_DOCUMENTS},
+            "Declared cable review status or basis changed.",
+            [
+                {
+                    "before": {"review": old.get("review"), "basis": old.get("review_basis")},
+                    "after": {"review": new.get("review"), "basis": new.get("review_basis")},
+                }
+            ],
+        )
+
+    covered = {
+        "schema_version",
+        "stock_revision_id",
+        "lengths",
+        "endpoints",
+        "assignments",
+        "review",
+        "review_basis",
+    }
+    other = sorted(
+        field for field in (old.keys() | new.keys()) - covered if old.get(field) != new.get(field)
+    )
+    if other:
+        sections.append(
+            {
+                "section": "other",
+                "status": "uncomparable",
+                "reviews": sorted({_PREPARATION, _DOCUMENTS}),
+                "summary": "Other cable content changed without a known document mapping.",
+                "details": [{"field": field} for field in other],
+            }
+        )
+    return sections
+
+
 def length_impact(user, before_id, after_id):
     before = inspect_revision(user, before_id)
     after = inspect_revision(user, after_id)
@@ -235,6 +391,29 @@ def length_impact(user, before_id, after_id):
         if old.get(target) != new.get(target)
     ]
     route_changed = old["route"]["declaration"] != new["route"]["declaration"]
+    sections = []
+    if changes:
+        sections.append(
+            {
+                "section": "lengths",
+                "status": "changed",
+                "reviews": sorted({_PREPARATION, _DOCUMENTS}),
+                "summary": "Length declarations or model suggestions changed.",
+                "details": [{"target": change["target"]} for change in changes],
+            }
+        )
+    sections.extend(_section_changes(before, after))
+    if before["cable"] != after["cable"] and not sections:
+        # Different frozen content with no recognized difference cannot be called unchanged.
+        sections.append(
+            {
+                "section": "cable",
+                "status": "uncomparable",
+                "reviews": sorted({_PREPARATION, _DOCUMENTS}),
+                "summary": "Frozen content differs outside the compared sections.",
+                "details": [],
+            }
+        )
     return {
         "before_revision_id": before["revision_id"],
         "after_revision_id": after["revision_id"],
@@ -242,8 +421,9 @@ def length_impact(user, before_id, after_id):
         "after_sha256": after["sha256"],
         "route_changed": route_changed,
         "changes": changes,
-        "preparation_review_required": bool(changes),
-        "document_review_required": bool(changes),
+        "sections": sections,
+        "preparation_review_required": any(_PREPARATION in s["reviews"] for s in sections),
+        "document_review_required": any(_DOCUMENTS in s["reviews"] for s in sections),
         "stock_revision_changed": before["cable"]["stock_revision_id"]
         != after["cable"]["stock_revision_id"],
         "stock_facts_written": False,

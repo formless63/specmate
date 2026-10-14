@@ -70,6 +70,12 @@ Legacy server/catalog loading and workshop bench derivations are reference only.
 The Specmate Python projection uses immutable typed declarations instead. No
 predecessor models, fonts, workshop defaults or private fixture inputs are retained.
 
+Each receipt read reports `root_currency`: the retained root revision number and, when
+its definition has a later frozen revision, that newer revision (`status: superseded`).
+This is read-only; the retained set, manifest and bytes are never changed. The panel
+shows a "Newer revision rN exists" notice with a link to that revision, and the history
+list marks superseded sets.
+
 The reusable `PreparationDocumentsPanel` takes project, principal and explicit
 engineering-generation permission props. It offers authorized frozen choices,
 exact contextual bindings and independent physical-end selection. Changing input

@@ -12,7 +12,26 @@ export type Prepared = { declaration: Declaration; model: Model | null };
 export type LengthPlan = { route: Declaration; finished: Prepared; stock_cut: Prepared; conductor_cuts: (Prepared & { element_path: string })[] };
 export type LengthRow = { target: string; declaration: Declaration; model: Model | null; suggested_mm: string | null; status: string; declaration_matches_suggestion: boolean | null; stock_revision_id: string; element_path?: string; element_kind?: string };
 export type Projection = { rows: LengthRow[] };
-export type Impact = { before_revision_id: string; after_revision_id: string; before_sha256: string; after_sha256: string; route_changed: boolean; preparation_review_required: boolean; document_review_required: boolean; stock_revision_changed: boolean; changes: { target: string; before: LengthRow | null; after: LengthRow | null }[] };
+export type Impact = { before_revision_id: string; after_revision_id: string; before_sha256: string; after_sha256: string; route_changed: boolean; preparation_review_required: boolean; document_review_required: boolean; stock_revision_changed: boolean; changes: { target: string; before: LengthRow | null; after: LengthRow | null }[]; sections: ImpactSection[] };
+export type ImpactSection = { section: string; status: 'changed' | 'uncomparable'; reviews: ('preparation' | 'documents')[]; summary: string; details: Record<string, unknown>[] };
+const shown = (value: unknown) => value == null ? 'none' : String(value);
+function sectionDetail(section: ImpactSection, detail: Record<string, unknown>): string {
+  if (section.section === 'terminations') return `${shown(detail.element_path)} at ${shown(detail.endpoint_id)}: contact ${shown(detail.before_contact_id)} → ${shown(detail.after_contact_id)}`;
+  if (section.section === 'labels') return `${shown(detail.endpoint_id)}: ${shown(detail.before)} → ${shown(detail.after)}`;
+  if (section.section === 'connectors') return `End ${shown(detail.endpoint_id)}: body or pinout pin changed`;
+  if (section.section === 'lengths') return shown(detail.target);
+  if ('field' in detail) return `Field ${shown(detail.field)}`;
+  return '';
+}
+export function ImpactSections({ sections }: { sections: ImpactSection[] }) {
+  if (!sections.length) return <Text>No document-affecting section changed between these revisions.</Text>;
+  return <Table.ScrollContainer minWidth={560}><Table aria-label="Changed document sections"><Table.Thead><Table.Tr><Table.Th>Section</Table.Th><Table.Th>Comparison</Table.Th><Table.Th>Review required</Table.Th><Table.Th>Change</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{sections.map(section => <Table.Tr key={section.section}>
+    <Table.Td>{section.section}</Table.Td>
+    <Table.Td>{section.status}</Table.Td>
+    <Table.Td>{section.reviews.join(', ')}</Table.Td>
+    <Table.Td><Text size="sm">{section.summary}</Text>{section.details.map((detail, index) => { const text = sectionDetail(section, detail); return text ? <Text key={index} size="xs">{text}</Text> : null; })}</Table.Td>
+  </Table.Tr>)}</Table.Tbody></Table></Table.ScrollContainer>;
+}
 const unknown = (): Declaration => ({ amount_mm: null, basis: 'unknown', explanation: null });
 const prepared = (): Prepared => ({ declaration: unknown(), model: null });
 export const emptyLengths = (): LengthPlan => ({ route: unknown(), finished: prepared(), stock_cut: prepared(), conductor_cuts: [] });
@@ -77,6 +96,7 @@ export function LengthImpactView({ afterRevision, name, revisions }: { afterRevi
     {result.data && !result.isError && !result.isFetching && <><Text>Route changed: {String(result.data.route_changed)}. Preparation review required: {String(result.data.preparation_review_required)}. Document review required: {String(result.data.document_review_required)}.</Text><Text>Stock revision changed: {String(result.data.stock_revision_changed)}. No stock facts or cut declarations were written by this comparison.</Text><Text size="xs"><RevisionLabel id={result.data.before_revision_id} role="Before" sha256={result.data.before_sha256} />; <RevisionLabel id={result.data.after_revision_id} role="after" sha256={result.data.after_sha256} /></Text>
       {result.data.changes.map(change => <Text key={change.target}>{change.target}: declared {amount(change.before?.declaration.amount_mm)} → {amount(change.after?.declaration.amount_mm)}; suggestion {amount(change.before?.suggested_mm)} → {amount(change.after?.suggested_mm)}</Text>)}
       {!result.data.changes.length && <Text>No length-plan changes.</Text>}
+      <ImpactSections sections={result.data.sections} />
     </>}
   </Stack></Card>;
 }
