@@ -13,6 +13,8 @@ class WorkControl(models.Model):
         RUNNING = "running"
         DRAINING = "draining"  # accepted work finishes; nothing new is accepted
         INTERRUPTING = "interrupting"  # unstarted work cancelled; active work asked to stop
+        # Entered only by a restore: no requests, leases or dispatch until an operator resumes.
+        MAINTENANCE = "maintenance"
 
     singleton = models.BooleanField(primary_key=True, default=True)
     mode = models.CharField(max_length=16, choices=Mode.choices, default=Mode.RUNNING)
@@ -29,7 +31,7 @@ class WorkControl(models.Model):
                 condition=models.Q(singleton=True), name="work_control_singleton"
             ),
             models.CheckConstraint(
-                condition=models.Q(mode__in=["running", "draining", "interrupting"]),
+                condition=models.Q(mode__in=["running", "draining", "interrupting", "maintenance"]),
                 name="work_control_mode",
             ),
             models.CheckConstraint(

@@ -33,5 +33,10 @@ def require_accepting_work() -> None:
 
 
 def leasing_allowed() -> bool:
-    """Draining lets accepted work finish; interrupting hands out no new leases."""
-    return _mode(lock=False) != WorkControl.Mode.INTERRUPTING
+    """Draining lets accepted work finish; interrupting or maintenance hands out no leases."""
+    return _mode(lock=False) not in (WorkControl.Mode.INTERRUPTING, WorkControl.Mode.MAINTENANCE)
+
+
+def dispatch_allowed() -> bool:
+    """A restored installation starts no workflows until an operator resumes it."""
+    return _mode(lock=False) != WorkControl.Mode.MAINTENANCE

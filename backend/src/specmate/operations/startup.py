@@ -9,6 +9,7 @@ from django.db.migrations.exceptions import InconsistentMigrationHistory
 from django.db.migrations.executor import MigrationExecutor
 
 from specmate.access.models import Installation
+from specmate.backups.marker import restore_in_progress
 
 # A stable, application-specific session lock, held across Django's migration transactions.
 STARTUP_LOCK = 0x535045434D415445
@@ -16,6 +17,8 @@ STARTUP_LOCK = 0x535045434D415445
 
 def schema_ready() -> bool:
     """A reachable database alone is insufficient for admitting requests or jobs."""
+    if restore_in_progress():
+        return False
     try:
         executor = MigrationExecutor(connection)
         executor.loader.check_consistent_history(connection)
@@ -33,6 +36,9 @@ def initialize(*, timeout: float, check_only: bool = False, stdout=None) -> None
         if check_only:
             if schema_ready():
                 return
+        elif restore_in_progress():
+            # Never migrate a database that a restore is loading or abandoned midway.
+            pass
         else:
             try:
                 connection.ensure_connection()
@@ -56,5 +62,10 @@ def initialize(*, timeout: float, check_only: bool = False, stdout=None) -> None
                         with connection.cursor() as cursor:
                             cursor.execute("SELECT pg_advisory_unlock(%s)", [STARTUP_LOCK])
         if time.monotonic() >= deadline:
+            if restore_in_progress():
+                raise CommandError(
+                    "A restore is in progress or was interrupted; the schema is not used. "
+                    "Complete the restore into a new empty target."
+                )
             raise CommandError("Timed out waiting for application schema readiness/initializer.")
         time.sleep(min(1, max(0, deadline - time.monotonic())))

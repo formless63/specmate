@@ -18,9 +18,13 @@ class OutboxDelivery:
 
 
 def ready_outbox(limit: int = 20) -> list[OutboxDelivery]:
+    from specmate.diagnostics.guards import dispatch_allowed
+
+    if not dispatch_allowed():
+        return []
     return [
         OutboxDelivery(row.id, row.build_id, row.build.workflow_id, row.build.requested_by_id)
-        for row in BuildOutbox.objects.filter(delivered_at__isnull=True)
+        for row in BuildOutbox.objects.filter(delivered_at__isnull=True, withheld_at__isnull=True)
         .select_related("build")
         .order_by("created_at")[:limit]
     ]

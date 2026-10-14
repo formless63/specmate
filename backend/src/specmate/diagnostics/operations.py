@@ -238,6 +238,12 @@ def safe_stop(ctx: Context, p: SafeStop) -> dict[str, Any]:
     control = _control()
     _check_state(ctx, control)
     target = WorkControl.Mode.DRAINING if p.mode == "drain" else WorkControl.Mode.INTERRUPTING
+    if control.mode == WorkControl.Mode.MAINTENANCE:
+        raise Conflict(
+            "The installation is in post-restore maintenance; resume work once execution "
+            "has been deliberately re-authorized.",
+            details=_summary(control),
+        )
     if control.mode == WorkControl.Mode.INTERRUPTING and target == WorkControl.Mode.DRAINING:
         raise Conflict(
             "Interruption was already requested; resume work instead of relaxing it.",

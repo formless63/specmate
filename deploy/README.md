@@ -83,8 +83,75 @@ Migration failures remain visible and prevent readiness; startup never generates
 migrations or deletes state to recover. Inspect bounded diagnostics with
 `docker compose logs --tail 100 app temporal jobs`. Ordinary restarts reuse the same
 databases, installation identity and artifacts. Keep the `.env`, recipe registry,
-database/artifact volumes and any runner state; this foundation does not provide a
-qualified backup/restore procedure or an automatic destructive reset.
+database/artifact volumes and any runner state. There is no automatic destructive reset.
+
+## Backup and same-version restore
+
+One bundle holds a consistent application database dump, every stored source and
+artifact byte, the approved recipe registry and the installation `.env`. It contains
+credentials: store it privately with the same care as the `.env`. From the stack
+directory of a running installation:
+
+```bash
+docker compose exec -T app python manage.py work_control drain --reason backup
+docker compose exec -T app python manage.py backup create --secrets-env - --output - \
+  < .env > specmate-backup.tar
+docker compose exec -T app python manage.py work_control resume
+```
+
+`backup create` reads the database through one exported snapshot with the image's
+version-matched `pg_dump`, then copies the content-addressed byte store, verifying the
+hash of every byte object the snapshot references. It refuses while builds are queued,
+leased or running, or dispatch is undelivered; drain first, or pass
+`--allow-active-work` to accept that a restore will cancel or interrupt that work. The
+JSON report goes to standard error; the bundle goes to the output. `--output` with a
+path writes a new mode-0600 file and never replaces an existing one.
+
+Restore into a new, empty environment with the **same application version**. From the
+checkout root, prepare a new stack directory from the bundle:
+
+```bash
+restore_stack="$HOME/stacks/specmate-restored"
+install -d -m 0700 "$restore_stack"
+cp compose.example.yaml "$restore_stack/compose.yaml"
+PYTHONPATH=backend/src python3 -m specmate.backups.bundle extract-config \
+  --input specmate-backup.tar --output-dir "$restore_stack"
+cd "$restore_stack"
+# Review SPECMATE_SOURCE_DIR and SPECMATE_RUNNER_HOST_STATE_DIR in .env for this host.
+docker compose build
+docker compose up -d --wait postgres
+docker compose run --rm -T --no-deps app python manage.py backup restore --input - \
+  < specmate-backup.tar
+docker compose up -d --wait
+docker compose exec app python manage.py work_control diagnose
+```
+
+`extract-config` verifies every bundle hash with only the Python standard library,
+writes the `.env` (never over an existing one), an empty live `recipes.json` and the
+backed-up registry as `recipes.restored.json`. `backup restore` refuses unless the
+target database and byte store are empty and the bundle's migration set equals the
+installed version's; it never deletes or merges state. It loads the dump with
+`pg_restore` in one transaction (extensions come from PostgreSQL's own initialization),
+places the verified bytes and then fences the restored state before anything can start:
+
+- the installation enters `maintenance`: no build requests, runner leases or workflow
+  dispatch;
+- every restored runner credential is revoked;
+- undelivered dispatch is withheld permanently, so it is never sent, even after resume;
+- unstarted stages are cancelled with a not-started receipt, and leased or running
+  stages become `interrupted` (their outcome after the backup point is unknown).
+
+A restore marker beside the byte store keeps the app and jobs from becoming ready until
+all of this has finished. If a restore stops midway, discard that target and restore
+again into a new empty one; partial state is never resumed. Temporal histories are not
+part of the bundle: the restored stack starts a fresh namespace, and the application
+database is the authority for build state.
+
+Re-enable execution deliberately: copy reviewed entries from `recipes.restored.json`
+into `recipes.json`, recreate `app` and `jobs`, enroll new scoped runner credentials,
+then run `docker compose exec app python manage.py work_control resume`. Interrupted
+builds stay interrupted; request them again. A bundle can be checked at any time with
+`python3 -m specmate.backups.bundle verify --input specmate-backup.tar`.
 
 ## Deliberate network exposure
 
