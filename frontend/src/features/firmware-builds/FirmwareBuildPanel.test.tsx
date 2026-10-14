@@ -8,9 +8,10 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { command } from '../sources/api';
 import { FirmwareBuildPanel } from './FirmwareBuildPanel';
 import { cancelBuild, readHistory, retryBuild, type BuildHistory } from '../builds/api';
+import { reproduceCompile, retryCompile } from './api';
 import { compileOptions, compileReview, listResolvedConfigurations, type CompileOptions, type CompileReview } from './api';
 
-vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), compileOptions: vi.fn(), compileReview: vi.fn(), listResolvedConfigurations: vi.fn() }));
+vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), compileOptions: vi.fn(), compileReview: vi.fn(), listResolvedConfigurations: vi.fn(), retryCompile: vi.fn(), reproduceCompile: vi.fn() }));
 vi.mock('../builds/api', () => ({ cancelBuild: vi.fn(), readHistory: vi.fn(), retryBuild: vi.fn() }));
 vi.mock('../sources/api', async original => ({ ...(await original<typeof import('../sources/api')>()), command: vi.fn() }));
 const options: CompileOptions = {
@@ -131,14 +132,36 @@ test('firmware builds show their retry chain in the list and the handoff', async
 
 const failed = (viewer: boolean, cancel = false) => ({ ...options, builds: [{ build_id: 'build-bad', state: 'failed', failure: 'x', retry_of: null, requested_by_viewer: viewer, state_token: 'tok-1', cancel_available: cancel, retry_available: !cancel }] });
 const hist = (over: object) => ({ state: 'failed', state_token: 'tok-1', cancel_available: false, retry_available: true, ...over }) as BuildHistory;
-test('retry needs the grant and calls the generic build.retry with the exact state token', async () => {
+const consent = () => {
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Reviewed synthetic source' } });
+};
+test('retry needs the grant and source consent and calls firmware_build.retry, never the generic retry', async () => {
   vi.mocked(compileOptions).mockResolvedValue(failed(true));
   vi.mocked(readHistory).mockResolvedValue(hist({}));
-  vi.mocked(retryBuild).mockResolvedValue({ build_id: 'build-new' });
+  vi.mocked(retryCompile).mockResolvedValue({ build_id: 'build-new' });
   const { unmount } = render(panel(false)); await screen.findByText("build-bad");
   expect(screen.queryByRole('button', { name: /Retry build-bad/ })).toBeNull(); unmount();
-  render(panel(true)); fireEvent.click(await screen.findByRole('button', { name: 'Retry build-bad as a new attempt' }));
-  await waitFor(() => expect(retryBuild).toHaveBeenCalledWith('build-bad', 'tok-1', expect.any(String)));
+  render(panel(true));
+  const button = await screen.findByRole('button', { name: 'Retry build-bad as a new attempt' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  consent();
+  expect(button.disabled).toBe(false);
+  fireEvent.click(button);
+  await waitFor(() => expect(retryCompile).toHaveBeenCalledWith(expect.objectContaining({ firmware_revision_id: expect.any(String) }), 'build-bad', 'Reviewed synthetic source', 'tok-1', expect.any(String)));
+  expect(retryBuild).not.toHaveBeenCalled();
+});
+test('an accepted compile offers a consented reproducibility check', async () => {
+  vi.mocked(compileOptions).mockResolvedValue({ ...options, builds: [{ build_id: 'build-ok', state: 'succeeded', failure: null, retry_of: null, requested_by_viewer: true, state_token: 'tok-5', cancel_available: false, retry_available: false }] });
+  vi.mocked(readHistory).mockResolvedValue(hist({ state: 'succeeded', state_token: 'tok-5', retry_available: false, reproduce_available: true }));
+  vi.mocked(reproduceCompile).mockResolvedValue({ build_id: 'build-check' });
+  const { unmount } = render(panel(false)); await screen.findByText('build-ok');
+  expect(screen.queryByRole('button', { name: /reproducibility check/ })).toBeNull(); unmount();
+  render(panel(true));
+  const button = await screen.findByRole('button', { name: 'Request reproducibility check of build-ok' }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  consent(); fireEvent.click(button);
+  await waitFor(() => expect(reproduceCompile).toHaveBeenCalledWith(expect.anything(), 'build-ok', 'Reviewed synthetic source', 'tok-5', expect.any(String)));
 });
 test('the requester can cancel without the grant; others cannot', async () => {
   vi.mocked(readHistory).mockResolvedValue(hist({ state: 'running', cancel_available: true, retry_available: false }));

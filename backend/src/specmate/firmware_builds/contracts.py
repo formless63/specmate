@@ -30,7 +30,7 @@ class CompileRef(FirmwareRef):
 
 
 class ReproduceCompile(CompileRef):
-    """Re-run an accepted compile; the same explicit source-execution consent is required."""
+    """Retry or re-run a compile; the same explicit source-execution consent is required."""
 
     source_execution_authorized: Literal[True]
     basis: str = Field(min_length=1, max_length=2000, pattern=r"\S")

@@ -140,3 +140,79 @@ def test_release_cutoff_excludes_comparison_recorded_during_create(
     fresh = op(users["viewer"], "export_package.review", payload)["manifest"]
     output = next(o for o in fresh["outputs"] if o["kind"] == "firmware_build")
     assert output["reproducibility"]["level"] == "byte_reproducible"
+
+
+def test_firmware_retry_uses_consent_path(users, project, firmware, board, settings):
+    """The generic retry is refused by the compiler consent hook; the firmware one works."""
+    from specmate.firmware_builds.contracts import FirmwareRef
+    from specmate.firmware_builds.pack import recipe_for
+
+    from .test_firmware_builds import IMAGE
+
+    root = firmware_root(users, project, firmware, board)
+    ref = FirmwareRef(
+        firmware_revision_id=firmware["revision_id"],
+        assembly_snapshot_id=root["snapshot_id"],
+        path=["right"],
+    )
+    from specmate.firmware_builds import operations as firmware_operations
+
+    _, _, spec = firmware_operations.inputs(users["owner"], ref)
+    item = recipe_for(spec, IMAGE)
+    settings.SPECMATE_APPROVED_RECIPES = {item["id"]: item}
+    failed = op(
+        users["owner"],
+        "firmware_build.request",
+        {
+            **ref.model_dump(mode="json"),
+            "recipe_id": item["id"],
+            "source_execution_authorized": True,
+            "basis": BASIS,
+        },
+        idempotency_key="compile",
+    )["build_id"]
+    stage = BuildStage.objects.get(build_id=failed)
+    stage.cancellation_requested_at = None
+    stage.state, stage.receipt = "failed", {"outcome": "failed", "exit_code": 1, "outputs": []}
+    stage.save()
+    before = BuildAttempt.objects.count()
+    with pytest.raises(PermissionDenied):
+        op(
+            users["owner"],
+            "build.retry",
+            {"build_id": failed},
+            expected_state=token(failed),
+            idempotency_key="generic",
+        )
+    with pytest.raises(PermissionDenied):
+        retry(users["viewer"], ref, failed, key="viewer")
+    with pytest.raises(ValidationFailed):
+        retry(users["owner"], ref, failed, key="no-consent", source_execution_authorized=False)
+    assert BuildAttempt.objects.count() == before
+    result = retry(users["owner"], ref, failed)
+    assert result["retry_of"] == failed and result["reference"]["build_id"] == result["build_id"]
+    assert retry(users["owner"], ref, failed) == result
+    attempt = BuildAttempt.objects.get(id=result["build_id"])
+    assert attempt.retry_of_id == stage.build_id
+    assert attempt.input_key == stage.build.input_key
+    # A reproducibility check is refused for a build that was never accepted.
+    from specmate.operations import Conflict
+
+    with pytest.raises(Conflict):
+        reproduce(users["owner"], ref, failed, key="not-accepted")
+
+
+def retry(user, ref, build_id, key="fw-retry", **extra):
+    return op(
+        user,
+        "firmware_build.retry",
+        {
+            **ref.model_dump(mode="json"),
+            "build_id": build_id,
+            "source_execution_authorized": True,
+            "basis": BASIS,
+            **extra,
+        },
+        expected_state=token(build_id),
+        idempotency_key=key,
+    )

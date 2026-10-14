@@ -82,9 +82,10 @@ derived from those rows: `provenance` (no comparison; every single success), the
 `rerun_recorded`, `semantic_equality` and `byte_reproducible`. A build's level is its weakest
 output's level; unaccepted outputs have none. `build.reproduce` (state token, idempotency
 key, `build.execute`) starts a new independent attempt over the exact staged inputs and
-configuration of an accepted build, refused if the approval changed. Compiler builds use
-`firmware_build.reproduce` instead, with the same explicit source-execution consent and
-basis as `firmware_build.request`. Export package manifests carry the level of each
+configuration of an accepted build, refused if the approval changed. The consent hook
+refuses the generic `build.retry` and `build.reproduce` for compiler builds; they use
+`firmware_build.retry` and `firmware_build.reproduce`, with the same explicit
+source-execution consent and basis as `firmware_build.request`. Export package manifests carry the level of each
 included firmware and fabrication build. `release.create` fixes `reproducibility_as_of`
 before building its manifest and stores it; `release.verify` rebuilds with that stored
 cutoff, so comparisons recorded later never alter a release's reconstruction. Simulated
