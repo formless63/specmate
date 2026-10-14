@@ -96,3 +96,22 @@ test('unknown world frame or local inspection cannot invent an opening pivot', (
   view.rerender(show('inspection'));
   expect((screen.getByRole('button', { name: 'Open displayed occurrence branch' }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+test('theme changes redraw in place via media query and color-scheme attribute, and listeners are removed on unmount', () => {
+  const listeners = new Set<() => void>(), remove = vi.fn();
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, addEventListener: (_: string, fn: () => void) => { if (query.includes('prefers-color-scheme')) listeners.add(fn); }, removeEventListener: (_: string, fn: () => void) => { if (listeners.delete(fn)) remove(); } }));
+  const view = render(show()); expect(listeners.size).toBeGreaterThan(0);
+  let before = lifecycle.draw.mock.calls.length;
+  act(() => listeners.forEach(fn => fn())); expect(lifecycle.draw.mock.calls.length).toBeGreaterThan(before);
+  before = lifecycle.draw.mock.calls.length;
+  return Promise.resolve().then(async () => {
+    document.documentElement.setAttribute('data-mantine-color-scheme', 'dark');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(lifecycle.draw.mock.calls.length).toBeGreaterThan(before); expect(lifecycle.construct).toHaveBeenCalledTimes(1);
+    view.unmount(); expect(remove).toHaveBeenCalled(); expect(listeners.size).toBe(0);
+    const after = lifecycle.draw.mock.calls.length;
+    document.documentElement.setAttribute('data-mantine-color-scheme', 'light');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(lifecycle.draw.mock.calls.length).toBe(after); document.documentElement.removeAttribute('data-mantine-color-scheme');
+  });
+});

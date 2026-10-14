@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import * as THREE from 'three';
-import { buildSceneObject } from './geometry';
+import { applySceneTheme, buildSceneObject } from './geometry';
 import { selectionKey } from './api';
 import { syntheticScene, syntheticStock } from './test-fixtures';
 
@@ -87,4 +87,18 @@ test('bridged outline gaps get one marker point each at the chord midpoint', () 
   expect(color).toBe('112233'); themed.dispose(); document.documentElement.style.removeProperty('--sb-review');
   expect([position.getX(0), position.getY(0)]).toEqual([40, -11]);
   object.dispose();
+});
+
+test('applySceneTheme recolours tagged materials in place without rebuilding geometry', () => {
+  document.documentElement.style.setProperty('--sb-review', '#112233');
+  const fixture = syntheticScene(); const board = fixture.geometry.find(g => g.type === 'pcb_planar')!;
+  if (board.type === 'pcb_planar') board.outline_bridged_gaps = [{ at: [40, -10, 0], to: [40, -12, 0], size_mm: 2 }];
+  const object = buildSceneObject(fixture, 'canonical'); const points: THREE.Points[] = [];
+  object.group.traverse(child => { if (child instanceof THREE.Points) points.push(child); });
+  const geometry = points[0]!.geometry, material = points[0]!.material as THREE.PointsMaterial;
+  document.documentElement.style.setProperty('--sb-review', '#445566');
+  applySceneTheme(object.group);
+  expect(points[0]!.geometry).toBe(geometry); expect(points[0]!.material).toBe(material);
+  expect(material.color.getHexString()).toBe('445566');
+  object.dispose(); document.documentElement.style.removeProperty('--sb-review');
 });

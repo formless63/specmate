@@ -18,9 +18,24 @@ export interface SceneObject {
 }
 
 /** Theme token read at build time (three.js materials cannot use CSS variables); the fallback covers a missing token. */
-function tokenColor(name: string, fallback: string): string {
+export function tokenColor(name: string, fallback: string): string {
   const value = typeof document === 'undefined' ? '' : getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return value || fallback;
+}
+
+/** Tag a material with its theme token so applySceneTheme can recolour it in place. */
+export function themedMaterial<T extends THREE.Material & { color: THREE.Color }>(material: T, token: string, fallback: string): T {
+  material.userData.sbToken = [token, fallback]; return material;
+}
+/** Re-read theme tokens into every tagged material under the roots; geometry is untouched. */
+export function applySceneTheme(...roots: THREE.Object3D[]): void {
+  for (const root of roots) root.traverse(child => {
+    const materials = (child as THREE.Mesh).material;
+    for (const material of Array.isArray(materials) ? materials : materials ? [materials] : []) {
+      const tag = material.userData?.sbToken as [string, string] | undefined;
+      if (tag) (material as THREE.LineBasicMaterial).color.set(tokenColor(tag[0], tag[1]));
+    }
+  });
 }
 
 function geometryObject(resource: Geometry): { group: THREE.Group; unknown: string[]; dispose: () => void } {
@@ -38,7 +53,7 @@ function geometryObject(resource: Geometry): { group: THREE.Group; unknown: stri
     const gaps = resource.outline_bridged_gaps ?? [];
     if (gaps.length) {
       const geometry = new THREE.BufferGeometry().setFromPoints(gaps.map(g => new THREE.Vector3(...g.at).lerp(new THREE.Vector3(...g.to), 0.5)));
-      const material = new THREE.PointsMaterial({ color: tokenColor('--sb-review', '#d4881f'), size: 7, sizeAttenuation: false });
+      const material = themedMaterial(new THREE.PointsMaterial({ color: tokenColor('--sb-review', '#d4881f'), size: 7, sizeAttenuation: false }), '--sb-review', '#d4881f');
       geometries.push(geometry); materials.push(material);
       const points = new THREE.Points(geometry, material); points.name = 'bridged-outline-gaps'; group.add(points);
     }
