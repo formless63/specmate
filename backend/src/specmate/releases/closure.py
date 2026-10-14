@@ -11,7 +11,8 @@ The closure reuses the existing shared reads instead of reimplementing them:
 
 Required blockers (incoherent outputs, invalid or conflicting configurations) prevent a
 release. Everything else that is not established (unknown quantities, missing outputs,
-stale or unverified evidence, uncleared rights) is listed as an unresolved item that a
+stale or unverified evidence, uncleared rights, unknown or restricted declared catalog
+rights from the export package's rights section) is listed as an unresolved item that a
 release may carry only with an explicit acknowledgement. Nothing here writes state.
 """
 
@@ -249,6 +250,35 @@ def source_section(user, revisions, p, unresolved):
     return {"sources": sources, "opaque_source_revision_ids": sorted(opaque)}, rights
 
 
+def catalog_rights(manifest, unresolved):
+    """The export package's declared catalog rights (representations and source identifiers).
+
+    Read as recorded by the coherent export package; anything not cleared (unknown or
+    restricted) is an unresolved item the release must acknowledge, never a silent pass.
+    """
+    review = manifest["rights"]
+    for row in review["items"]:
+        if row["rights_status"] == "cleared":
+            continue
+        unresolved.append(
+            item(
+                "rights",
+                row["subject"],
+                f"Declared catalog rights for {row['definition_name']} ({row['record']}: "
+                f"{row['label']}) are {row['rights_status']}.",
+                subject=row["subject"],
+                revision_id=row["revision_id"],
+                rights_status=row["rights_status"],
+            )
+        )
+    return {
+        "items": review["items"],
+        "counts": review["counts"],
+        "undeclared_revision_ids": review["undeclared_revision_ids"],
+        "unresolved": sum(1 for row in review["items"] if row["rights_status"] != "cleared"),
+    }
+
+
 def evidence_section(user, workspace_id, revisions, unresolved):
     ordered = sorted(revisions.values(), key=lambda r: str(r.id))
     evaluated, skipped = ordered[:EVIDENCE_REVISION_LIMIT], ordered[EVIDENCE_REVISION_LIMIT:]
@@ -348,6 +378,7 @@ def review_release(ctx, p):
     package_items(manifest, unresolved, blockers)
     configurations = configuration_section(ctx, p, revisions, unresolved, blockers)
     dependencies, rights = source_section(user, revisions, p, unresolved)
+    rights["catalog"] = catalog_rights(manifest, unresolved)
     evidence = evidence_section(user, workspace_id, revisions, unresolved)
     pins = revision_section(manifest, revisions)
     review = {

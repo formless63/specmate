@@ -21,6 +21,9 @@ The review composes existing shared reads and does not reimplement them:
   `design:<revision>` for every pinned revision and `source:<revision>:<path>` for every
   exact source file a pinned revision names, each with its declared rights and an
   explicit `permitted`, `withheld` or `unknown` decision with a stated basis.
+- The export package's rights section (declared catalog `rights_status` of every
+  representation and source identifier in the closure) is carried as `rights.catalog`,
+  read as recorded; nothing is inferred and undeclared revisions are listed separately.
 - [Evidence applicability](EVIDENCE.md) (EVD-003) classifies observations against every
   pinned revision. The review records evidence identifiers and statuses only; evidence
   never qualifies the release.
@@ -58,7 +61,7 @@ Unresolved items are listed explicitly, each with a stable identifier and catego
 | `configuration` | Unresolved required choices, unknown or not-evaluated constraints, undeclared target. |
 | `dependencies` | A source bundle revision named without an exact file. |
 | `evidence` | Evidence recorded against an earlier revision (stale), attached only to the definition (unverified), or not reviewed because of scan limits. |
-| `rights` | Any subject whose decision is not `permitted`. |
+| `rights` | Any subject whose decision is not `permitted`; any declared catalog representation or source identifier whose rights status is `unknown` or `restricted`. |
 
 A release with unresolved items requires an `acknowledgement` with a non-blank reason;
 the record keeps that reason with the exact acknowledged identifiers. A database check

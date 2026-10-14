@@ -12,6 +12,9 @@ export type ReleasedRevision = {
   role: 'root' | 'occurrence' | 'dependency'; per_root_occurrences: number | null; scope_quantity: ScopeQuantity; later_revision_number: number | null;
 };
 export type RightsSubject = { subject: string; kind: 'design' | 'source_file'; revision_id: string; path?: string; declared_rights: string | null; review: RightsReview };
+/** Declared catalog rights read from the export package (representations and source identifiers). */
+export type CatalogRightsItem = { subject: string; revision_id: string; definition_name: string; record: string; label: string; rights_status: 'cleared' | 'restricted' | 'unknown'; declared_rights: string | null };
+export type CatalogRights = { items: CatalogRightsItem[]; counts: Record<'cleared' | 'restricted' | 'unknown', number>; undeclared_revision_ids: string[]; unresolved: number };
 export type ReleaseReviewBody = {
   root: { revision_id: string; name: string; kind: string; number: number; sha256: string };
   quantity: { status: 'known' | 'unknown'; amount: number | null };
@@ -19,7 +22,7 @@ export type ReleaseReviewBody = {
   configurations: { resolved_configuration_id: string; status: string; constraint_outcome: string; target_revision_id: string | null; resolution_sha256: string }[];
   dependencies: { revisions: ReleasedRevision[]; sources: { source_revision_id: string; path: string; sha256: string; declared_rights: string }[]; opaque_source_revision_ids: string[] };
   artifacts: { package_manifest_sha256: string; coherence: 'coherent' | 'incoherent' | 'unknown'; completeness: 'complete' | 'limited'; outputs: ExportOutput[]; files: { path: string; sha256: string; bytes: number }[]; unsupported: { id: string; section: string; reason: string }[] };
-  rights: { subjects: RightsSubject[]; cleared: number; uncleared: number };
+  rights: { subjects: RightsSubject[]; cleared: number; uncleared: number; catalog?: CatalogRights };
   evidence: { items: { revision_id: string; evidence_id: string; kind: string; status: string }[]; counts: Record<string, number>; evaluated_revisions: number; not_evaluated_revisions: number };
   unresolved: UnresolvedItem[];
   blockers: UnresolvedItem[];

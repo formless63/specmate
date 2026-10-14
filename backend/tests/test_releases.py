@@ -21,6 +21,7 @@ from .scope_helpers import workspace_of
 from .test_assemblies import create as create_assembly
 from .test_assemblies import freeze as freeze_assembly
 from .test_assemblies import occ
+from .test_catalog import identifier_payload
 from .test_configurations import capture, option_set_content, select
 from .test_configurations import configuration as create_configuration
 from .test_facts import append, fact, subject
@@ -211,6 +212,45 @@ def test_unresolved_items_need_explicit_acknowledgement_with_reason(users, closu
     created = release(users["editor"], payload, reviewed, **ACK)
     assert created["unresolved_count"] == len(reviewed["review"]["unresolved"])
     assert created["record"]["acknowledgement"]["reason"] == ACK["acknowledgement"]["reason"]
+
+
+def test_declared_catalog_rights_from_the_export_package_are_unresolved_unless_cleared(
+    users, closure
+):
+    sensor = closure["sensor_r2"]
+    ids = {
+        status: op(
+            users["editor"],
+            "catalog.register_source_identifier",
+            identifier_payload(sensor, f"Synthetic:{status}", f"Synthetic {status}", status),
+        )["source_identifier_id"]
+        for status in ("cleared", "restricted", "unknown")
+    }
+    payload = request(closure)
+    reviewed = review(users["viewer"], payload)
+    catalog = reviewed["review"]["rights"]["catalog"]
+    assert {row["subject"]: row["rights_status"] for row in catalog["items"]} == {
+        f"source_identifier:{ident}": status for status, ident in ids.items()
+    }
+    assert catalog["counts"] == {"cleared": 1, "restricted": 1, "unknown": 1}
+    assert catalog["unresolved"] == 2
+    assert closure["root"]["revision_id"] in catalog["undeclared_revision_ids"]
+    open_items = {
+        row["id"]: row["rights_status"]
+        for row in reviewed["review"]["unresolved"]
+        if row["category"] == "rights"
+    }
+    # Design subjects were reviewed as permitted; only restricted and unknown catalog
+    # declarations stay unresolved, and the cleared one is not listed.
+    assert open_items == {
+        f"rights:source_identifier:{ids['restricted']}": "restricted",
+        f"rights:source_identifier:{ids['unknown']}": "unknown",
+    }
+    assert reviewed["review"]["status"] == "unresolved"
+    with pytest.raises(ValidationFailed, match="acknowledgement"):
+        release(users["editor"], payload, reviewed)
+    created = release(users["editor"], payload, reviewed, **ACK)
+    assert created["unresolved_count"] == len(reviewed["review"]["unresolved"])
 
 
 def test_release_cannot_silently_adopt_a_later_model_revision(users, closure):

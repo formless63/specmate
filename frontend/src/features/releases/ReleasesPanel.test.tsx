@@ -31,7 +31,10 @@ function body(quantity: number | null): ReleaseReviewBody {
     rights: { subjects: [
       { subject: `design:${ROOT}`, kind: 'design', revision_id: ROOT, declared_rights: null, review: { subject: `design:${ROOT}`, decision: 'permitted', basis: 'Synthetic original' } },
       { subject: `design:${SENSOR}`, kind: 'design', revision_id: SENSOR, declared_rights: null, review: { subject: `design:${SENSOR}`, decision: 'unknown', basis: '' } },
-    ], cleared: 1, uncleared: 1 },
+    ], cleared: 1, uncleared: 1, catalog: {
+      items: [{ subject: 'source_identifier:7', revision_id: SENSOR, definition_name: 'Synthetic sensor', record: 'library-id', label: 'Synthetic:Restricted', rights_status: 'restricted', declared_rights: 'Vendor terms' }],
+      counts: { cleared: 0, restricted: 1, unknown: 0 }, undeclared_revision_ids: [ROOT], unresolved: 1,
+    } },
     evidence: { items: [], counts: { stale_earlier_revision: 1 }, evaluated_revisions: 2, not_evaluated_revisions: 0 },
     unresolved, blockers: [], status: 'unresolved',
   };
@@ -124,4 +127,9 @@ test('read-only members review the closure but cannot decide rights or release',
   expect(screen.getByText(STALE.reason)).toBeTruthy();
   expect(screen.queryByRole('button', { name: /release$/i })).toBeNull();
   expect(screen.getByText(/Read-only access: requires Freeze/)).toBeTruthy();
+  // Declared catalog rights from the export package are shown as recorded, not as cleared.
+  expect(screen.getByText('Declared catalog rights')).toBeTruthy();
+  expect(screen.getByText('library-id: Synthetic:Restricted')).toBeTruthy();
+  expect(screen.getByText('Vendor terms')).toBeTruthy();
+  expect(screen.getByText(/0 cleared, 1 restricted, 0 unknown; 1 revisions declare none/)).toBeTruthy();
 });

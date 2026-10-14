@@ -9,7 +9,7 @@ import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissi
 import { randomUUID } from '../../lib/random-id';
 import {
   ApiError, candidates, createRelease, downloadRelease, listConfigurations, listReleases, readRelease, requestJson, reviewRelease, verifyRelease,
-  type ReleaseRecord, type ReleaseRequest, type ReleaseReview, type ReleaseReviewBody, type RightsReview, type UnresolvedItem, type Verification,
+  type CatalogRights, type ReleaseRecord, type ReleaseRequest, type ReleaseReview, type ReleaseReviewBody, type RightsReview, type UnresolvedItem, type Verification,
 } from './api';
 
 const ROOT_KINDS = ['assembly', 'cable', 'harness'];
@@ -51,6 +51,24 @@ function Unresolved({ items, title }: { items: UnresolvedItem[]; title: string }
     <Table withTableBorder><Table.Thead><Table.Tr><Table.Th>Category</Table.Th><Table.Th>Item</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
       {items.map(row => <Table.Tr key={row.id}><Table.Td>{CATEGORY[row.category] ?? row.category}</Table.Td><Table.Td><Text size="sm">{row.reason}</Text><Text size="xs" c="dimmed">{row.id}</Text></Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
+  </Stack>;
+}
+
+const RIGHTS_LED = { cleared: 'active', restricted: 'review', unknown: 'not-evaluated' } as const;
+
+/** Read-only: declared catalog rights as recorded; anything not cleared is listed as unresolved. */
+function CatalogRightsTable({ catalog }: { catalog: CatalogRights }) {
+  return <Stack gap="xs">
+    <Title order={5}>Declared catalog rights</Title>
+    <Text size="sm">{catalog.counts.cleared} cleared, {catalog.counts.restricted} restricted, {catalog.counts.unknown} unknown; {catalog.undeclared_revision_ids.length} revisions declare none.</Text>
+    {catalog.items.length > 0 && <Table withTableBorder><Table.Thead><Table.Tr><Table.Th>Revision</Table.Th><Table.Th>Record</Table.Th><Table.Th>Declared rights</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+      {catalog.items.map(row => <Table.Tr key={row.subject}>
+        <Table.Td><RevisionLabel id={row.revision_id} /></Table.Td>
+        <Table.Td>{row.record}: {row.label}</Table.Td>
+        <Table.Td>{row.declared_rights ?? <SbUnknown what="Declared rights" />}</Table.Td>
+        <Table.Td><SbStatus led={RIGHTS_LED[row.rights_status]} dimension="rights" value={row.rights_status} /></Table.Td>
+      </Table.Tr>)}
+    </Table.Tbody></Table>}
   </Stack>;
 }
 
@@ -189,6 +207,7 @@ function ReleaseReviewForm({ workspaceId, projectId, onReleased }: { workspaceId
       <ClosureSummary body={body} />
       <Unresolved title="Blockers" items={body.blockers} />
       <Unresolved title="Unresolved items" items={body.unresolved} />
+      {body.rights.catalog && <CatalogRightsTable catalog={body.rights.catalog} />}
       <Title order={5}>Rights for exact subjects</Title>
       <InspectionScope permission="design.freeze">
         <Table withTableBorder><Table.Thead><Table.Tr><Table.Th>Subject</Table.Th><Table.Th>Declared rights</Table.Th><Table.Th>Decision</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
