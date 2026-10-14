@@ -2,6 +2,7 @@ import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { ProbeProvider } from "../probe";
 import { EvidencePanel } from "./EvidencePanel";
 import { evidenceQuery, type EvidenceItem } from "./api";
 
@@ -108,4 +109,35 @@ test("evidence recorded against an earlier revision reads as stale with the pres
   expect(await screen.findByText("stale: earlier revision")).toBeTruthy();
   expect(screen.getByText("Changed since revision 1: termination.style")).toBeTruthy();
   expect(screen.getByText("continuity checked = true")).toBeTruthy();
+});
+
+test("the stale badge says whether a revision, new assertions or both went stale", async () => {
+  const base = { kind: "generated_check" as const, kind_label: "Generated check", stale: true };
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("taxonomy")) return new Response(JSON.stringify({ kinds }), { status: 200 });
+    return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [
+      item({ ...base, evidence_id: "recorded:a", statement: "A", warnings: ["Stale: new fact assertions arrived in this comparison's scope."] }),
+      item({ ...base, evidence_id: "recorded:b", statement: "B", warnings: ["Stale: new fact assertions arrived.", "Stale: pinned left pinout revision 1 has newer revision 2."] }),
+    ] }), { status: 200 });
+  }));
+  mount();
+  expect(await screen.findByText("Stale: new fact assertions")).toBeTruthy();
+  expect(screen.getByText("Stale: newer input revision and new fact assertions")).toBeTruthy();
+});
+
+test("the applicability revision defaults to the shared selection and is picked from its revisions", async () => {
+  const urls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    urls.push(url);
+    if (url.includes("taxonomy")) return new Response(JSON.stringify({ kinds }), { status: 200 });
+    if (url.includes("catalog/definitions/")) return new Response(JSON.stringify({ revisions: [{ revision_id: "r-1", number: 1 }, { revision_id: "r-2", number: 2 }] }), { status: 200 });
+    if (url.includes("/applicability/")) return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false,
+      revision: { revision_id: "r-1", definition_id: "d", number: 1, latest_number: 2, is_latest: false }, items: [] }), { status: 200 });
+    return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [] }), { status: 200 });
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={client}><ProbeProvider probe={{ object: "def-1", rev: 1, path: [] }} onProbe={() => {}}><EvidencePanel workspaceId="ws-1" /></ProbeProvider></QueryClientProvider></MantineProvider>);
+  expect(await screen.findByText(/Selected revision 1; latest is revision 2/)).toBeTruthy();
+  expect(urls.some((u) => u.includes("/applicability/r-1"))).toBe(true);
+  expect(screen.queryByLabelText("Revision ID")).toBeNull();
 });

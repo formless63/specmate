@@ -32,6 +32,14 @@ function RecordedSnapshot({ recordId }: { recordId: string }) {
   </>;
 }
 
+/** Says what went stale: a newer input revision, new fact assertions in scope, or both. */
+function staleText(item: EvidenceItem): string {
+  const assertions = item.warnings.some((w) => w.startsWith("Stale: new fact assertions"));
+  const revision = item.warnings.some((w) => w.startsWith("Stale: pinned"));
+  if (assertions && revision) return "Stale: newer input revision and new fact assertions";
+  return assertions ? "Stale: new fact assertions" : "Stale: newer input revision";
+}
+
 function Row({ item }: { item: EvidenceItem }) {
   const method = item.method;
   const details = [
@@ -42,7 +50,7 @@ function Row({ item }: { item: EvidenceItem }) {
   ].filter(Boolean) as string[];
   return <Table.Tr>
     <Table.Td><KindBadge item={item} /><Text size="xs">{item.source.replaceAll("_", " ")}</Text>
-      {item.stale === true && <Badge color="orange" variant="draft">Stale: newer input revision</Badge>}
+      {item.stale === true && <Badge color="orange" variant="draft">{staleText(item)}</Badge>}
       {item.stale === false && <Text size="xs">Recorded inputs are the latest revisions</Text>}</Table.Td>
     <Table.Td><Text>{item.statement}</Text><Text size="xs">Status: {item.status.replaceAll("_", " ")}</Text>
       {item.conditions.map((c) => <Text size="xs" key={c.property}>Condition {c.property}: {c.status === "known" ? JSON.stringify(c.value) : "unknown"}</Text>)}</Table.Td>

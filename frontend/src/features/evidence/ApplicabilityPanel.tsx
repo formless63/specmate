@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Group, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useProbe } from "../probe";
 import { SbStatus, type SbLed } from "../../components/sb";
 import { applicabilityPath, read, type Applicability, type ApplicabilityList, type ApplicabilityStatus } from "./api";
 
@@ -22,18 +23,33 @@ function Change({ applicability }: { applicability: Applicability }) {
 
 /** Reads evidence for a revision's definition against that one revision. Nothing is rewritten or re-attached. */
 export function ApplicabilityPanel({ workspaceId }: { workspaceId: string }) {
+  const probe = useProbe()?.probe ?? null;
   const [draft, setDraft] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-  const result = useQuery({ queryKey: ["evidence-applicability", workspaceId, revisionId, offset], queryFn: () => read<ApplicabilityList>(applicabilityPath(workspaceId, revisionId ?? "", offset)), enabled: revisionId !== null, retry: false });
+  // The shared selection names a definition (and maybe a revision); its revisions fill the picker.
+  const definition = useQuery({ queryKey: ["evidence-applicability-revisions", probe?.object], queryFn: () => read<{ revisions: { revision_id: string; number: number }[] }>(`catalog/definitions/${probe?.object}?limit=100`), enabled: !!probe, retry: false });
+  const options = (definition.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number}` }));
+  const fromProbe = definition.data?.revisions.find((r) => r.number === probe?.rev) ?? definition.data?.revisions.at(-1);
+  const selected = picked && options.some((o) => o.value === picked) ? picked : fromProbe?.revision_id ?? null;
+  const usePicker = !!probe && options.length > 0;
+  const target = usePicker ? selected : revisionId;
+  const result = useQuery({ queryKey: ["evidence-applicability", workspaceId, target, offset], queryFn: () => read<ApplicabilityList>(applicabilityPath(workspaceId, target ?? "", offset)), enabled: target !== null, retry: false });
   const valid = UUID.test(draft.trim());
   return <Card withBorder><Stack gap="xs">
     <Title order={3}>Applicability to a revision</Title>
-    <Text size="sm">Choose a frozen revision to see which evidence is exact for it, stale because it was recorded against an earlier revision, or inapplicable. Old results and observations stay attached to what they were recorded against; nothing here qualifies the selected revision.</Text>
-    <Group align="end">
-      <TextInput label="Revision ID" value={draft} onChange={(event) => setDraft(event.currentTarget.value)} error={draft && !valid ? "Enter a revision UUID." : undefined} style={{ flex: 1 }} />
-      <Button disabled={!valid} onClick={() => { setOffset(0); setRevisionId(draft.trim()); }}>Check applicability</Button>
-    </Group>
+    <Text size="sm">Using the selected item, choose a frozen revision to see which evidence is exact for it, stale because it was recorded against an earlier revision, or inapplicable. Old results and observations stay attached to what they were recorded against; nothing here qualifies the selected revision.</Text>
+    {usePicker
+      ? <Select label="Revision" data={options} value={selected} allowDeselect={false} onChange={(value) => { setPicked(value); setOffset(0); }} />
+      : <>
+        {probe && definition.isError && <Text size="xs">The selected object has no readable revisions here; enter a revision ID instead.</Text>}
+        {!probe && <Text size="xs">Nothing is selected. Select an item, or enter a revision ID.</Text>}
+        <Group align="end">
+          <TextInput label="Revision ID" value={draft} onChange={(event) => setDraft(event.currentTarget.value)} error={draft && !valid ? "Enter a revision UUID." : undefined} style={{ flex: 1 }} />
+          <Button disabled={!valid} onClick={() => { setOffset(0); setRevisionId(draft.trim()); }}>Check applicability</Button>
+        </Group>
+      </>}
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {result.data && <>
       <Text size="sm">Selected revision {result.data.revision.number}{result.data.revision.is_latest ? " (latest)" : `; latest is revision ${result.data.revision.latest_number}`}</Text>
