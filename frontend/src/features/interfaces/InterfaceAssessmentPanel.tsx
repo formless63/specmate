@@ -1,13 +1,15 @@
-import { Alert, Badge, Button, Card, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { EvidenceEditor, OperatingNumberInput } from "./declaration-inputs";
+import { TemperatureEditor, RatingScopeFacts } from "./InterfaceConditions";
 import { randomUUID } from "../../lib/random-id";
 import type { Definition, Identity } from "../identity/api";
-import { command, initialAssessment, operating, read, unknownEvidence, type Assessment, type AssessmentDraft, type Bond, type Dimension, type Evidence, type Inspection, type Result, type Status } from "./assessment-api";
+import { command, initialAssessment, operating, read, unknownEvidence, type Assessment, type AssessmentDraft, type Bond, type Dimension, type Inspection, type Result, type Status } from "./assessment-api";
 
 const dimensions: { id: Dimension; label: string }[] = [
   { id: "mating", label: "Mating" }, { id: "pin_correspondence", label: "Pin correspondence" },
-  { id: "levels", label: "Levels" }, { id: "current", label: "Current" }, { id: "protocol", label: "Protocol" },
+  { id: "polarity", label: "Polarity" }, { id: "levels", label: "Levels" }, { id: "current", label: "Current" }, { id: "protocol", label: "Protocol" },
   { id: "shielding", label: "Shielding" }, { id: "grounding", label: "Grounding" }, { id: "fit", label: "Fit" },
 ];
 const choices = [{ value: "unknown", label: "Unknown" }, { value: "satisfied", label: "Declared satisfied" }, { value: "invalid", label: "Declared conflict" }];
@@ -127,32 +129,6 @@ function Author({ projectId, initial, ready, canFreeze, current, onChecking, onC
   </Stack></Card>;
 }
 
-/** Keep decimal points and signs while editing; persisted inputs remain finite numbers or null. */
-function OperatingNumberInput({ value, onChange, ...props }: { label: string; min?: number; value: number | string; onChange: (value: number | null) => void }) {
-  const numeric = typeof value === "number" ? value : null;
-  const [input, setInput] = useState<number | string>(value);
-  const reported = useRef<number | null>(numeric);
-  useEffect(() => {
-    if (!Object.is(numeric, reported.current)) {
-      reported.current = numeric;
-      setInput(numeric ?? "");
-    }
-  }, [numeric]);
-  return <NumberInput {...props} value={input} onChange={raw => {
-    setInput(raw);
-    const parsed = raw === "" ? null : typeof raw === "number" ? raw : Number(raw);
-    const next = parsed !== null && Number.isFinite(parsed) ? parsed : null;
-    reported.current = next;
-    onChange(next);
-  }} />;
-}
-
-function EvidenceEditor({ label, value, onChange }: { label: string; value: Evidence; onChange: (value: Evidence) => void }) {
-  return <Stack gap="xs"><Select label={`${label} evidence`} value={value.status} data={[{ value: "unknown", label: "Unknown" }, { value: "unverified_citation", label: "Unverified citation" }, { value: "registered_file", label: "Exact registered file" }]} onChange={status => onChange({ status: status as Evidence["status"] })} />
-    {value.status === "unverified_citation" && <TextInput label={`${label} citation`} value={value.citation ?? ""} onChange={e => onChange({ ...value, citation: e.currentTarget.value })} />}
-    {value.status === "registered_file" && <Group><TextInput label={`${label} evidence bundle revision`} value={value.source_bundle_revision_id ?? ""} onChange={e => onChange({ ...value, source_bundle_revision_id: e.currentTarget.value })} /><TextInput label={`${label} evidence file path`} value={value.source_path ?? ""} onChange={e => onChange({ ...value, source_path: e.currentTarget.value })} /></Group>}
-  </Stack>;
-}
 export function AssessmentEditor({ value, onChange }: { value: Assessment; onChange: (value: Assessment) => void }) {
   const [rowId, setRowId] = useState("");
   return <Stack>
@@ -167,6 +143,8 @@ export function AssessmentEditor({ value, onChange }: { value: Assessment; onCha
       </Group><TextInput label={`${pair.local_id} correspondence basis`} value={pair.basis} onChange={e => update({ basis: e.currentTarget.value })} /><EvidenceEditor label={`${pair.local_id} correspondence`} value={pair.evidence} onChange={evidence => update({ evidence })} />
       <Group>{(["voltage_min_v", "voltage_max_v", "demand_a"] as const).map(key => <OperatingNumberInput key={key} label={`${pair.local_id} ${key === "demand_a" ? "current demand A" : key === "voltage_min_v" ? "operating minimum V" : "operating maximum V"} (blank = unknown)`} value={pair.operating[key] ?? ""} min={key === "demand_a" ? 0 : undefined} onChange={n => update({ operating: { ...pair.operating, [key]: n } })} />)}</Group>
       {(["required_protocol", "condition", "basis"] as const).map(key => <TextInput key={key} label={`${pair.local_id} operating ${key.replaceAll("_", " ")}`} value={pair.operating[key] ?? ""} onChange={e => update({ operating: { ...pair.operating, [key]: e.currentTarget.value || null } })} />)}
+      <TemperatureEditor label={`${pair.local_id} operating temperature`} value={pair.operating.temperature ?? null} onChange={temperature => update({ operating: { ...pair.operating, temperature } })} />
+      <TextInput label={`${pair.local_id} operating mode (blank = unknown)`} value={pair.operating.mode ?? ""} onChange={e => update({ operating: { ...pair.operating, mode: e.currentTarget.value || null } })} />
       <EvidenceEditor label={`${pair.local_id} operating`} value={pair.operating.evidence} onChange={evidence => update({ operating: { ...pair.operating, evidence } })} /><Button variant="subtle" onClick={() => onChange({ ...value, pairs: value.pairs.filter((_, j) => j !== i) })}>Remove row {pair.local_id}</Button></Stack></Card>;
     })}
     <Group><TextInput label="New correspondence row ID" value={rowId} onChange={e => setRowId(e.currentTarget.value)} /><Button disabled={!/^[a-z][a-z0-9_-]{0,79}$/.test(rowId) || value.pairs.some(p => p.local_id === rowId)} onClick={() => { onChange({ ...value, pairs: [...value.pairs, { local_id: rowId, left_contact_id: "", right_contact_id: "", expected_signal: null, basis: "", evidence: unknownEvidence(), operating: operating() }] }); setRowId(""); }}>Add correspondence row</Button></Group>
@@ -181,8 +159,9 @@ export function AssessmentResults({ result }: { result: Result }) {
   return <Stack><Title order={3}>Separated assessment results</Title><Text>Exact left pinout {result.left_pinout_revision_id} · exact right pinout {result.right_pinout_revision_id}</Text>
     {dimensions.map(d => <Card key={d.id} withBorder><Stack><Title order={4}>{d.label}</Title>{result.findings.filter(f => f.dimension === d.id).map((f, i) => <Stack gap="xs" key={`${f.pair_id}:${i}`}>
       <Group><Badge color={f.status === "invalid" ? "red" : f.status === "unknown" ? "gray" : "blue"}>{f.status === "satisfied" ? "Satisfied by declarations" : f.status === "invalid" ? "Invalid / conflicting declaration" : "Unknown"}</Badge><Text>{f.pair_id ? `Contact row ${f.pair_id}` : "Exact pinout pair"} · {f.basis.replaceAll("_", " ")}</Text></Group><Text>{f.explanation}</Text>
-      {Object.entries(f.facts).filter(([key]) => !["pair", "left", "right", "evidence"].includes(key)).map(([key, fact]) => <Text size="sm" key={key}>{key.replaceAll("_", " ")}: {fact == null ? "unknown" : String(fact)}</Text>)}
+      {Object.entries(f.facts).filter(([key]) => !["pair", "left", "right", "evidence", "rating_scope"].includes(key)).map(([key, fact]) => <Text size="sm" key={key}>{key.replaceAll("_", " ")}: {fact == null ? "unknown" : String(fact)}</Text>)}
       {f.pair_id && <ContactFacts facts={f.facts} />}
+      <RatingScopeFacts value={f.facts.rating_scope} />
       {f.evidence.map((e, j) => <Text size="sm" key={j}>Evidence: {e.status.replaceAll("_", " ")}{e.citation ? ` · ${e.citation}` : ""}{e.source_path ? ` · ${e.source_bundle_revision_id} / ${e.source_path} · SHA-256 ${e.sha256} · rights ${e.rights ?? "unknown"}` : ""}</Text>)}
     </Stack>)}</Stack></Card>)}
     {result.limitations.map(text => <Text key={text}>{text}</Text>)}<Text>Physical qualification: not established.</Text>
@@ -190,7 +169,7 @@ export function AssessmentResults({ result }: { result: Result }) {
 }
 function ContactFacts({ facts }: { facts: Record<string, unknown> }) {
   const pair = facts.pair as { left_contact_id: string; right_contact_id: string; expected_signal: string | null; basis: string; operating: Record<string, unknown> } | undefined;
-  return <>{pair && <><Text>{pair.left_contact_id} → {pair.right_contact_id} · expected signal {pair.expected_signal ?? "unknown"} · {pair.basis}</Text><Text>Operating inputs: {Object.entries(pair.operating).filter(([key]) => key !== "evidence").map(([key, value]) => `${key.replaceAll("_", " ")}: ${value ?? "unknown"}`).join(" · ")}</Text></>}
-    <Table><Table.Thead><Table.Tr><Table.Th>Retained electrical declaration</Table.Th><Table.Th>Left</Table.Th><Table.Th>Right</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{["signal", "role", "direction", "voltage_min_v", "voltage_max_v", "current_max_a", "protocol", "condition", "basis"].map(key => <Table.Tr key={key}><Table.Td>{key.replaceAll("_", " ")}</Table.Td>{["left", "right"].map(side => <Table.Td key={side}>{String((facts[side] as Record<string, unknown> | null)?.[key] ?? "unknown")}</Table.Td>)}</Table.Tr>)}</Table.Tbody></Table>
+  return <>{pair && <><Text>{pair.left_contact_id} → {pair.right_contact_id} · expected signal {pair.expected_signal ?? "unknown"} · {pair.basis}</Text><Text>Operating inputs: {Object.entries(pair.operating).filter(([key]) => key !== "evidence").map(([key, value]) => `${key.replaceAll("_", " ")}: ${value == null ? "unknown" : typeof value === "object" ? JSON.stringify(value) : value}`).join(" · ")}</Text></>}
+    <Table><Table.Thead><Table.Tr><Table.Th>Retained electrical declaration</Table.Th><Table.Th>Left</Table.Th><Table.Th>Right</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{["signal", "role", "direction", "polarity", "polarity_basis", "voltage_min_v", "voltage_max_v", "current_max_a", "protocol", "condition", "basis"].map(key => <Table.Tr key={key}><Table.Td>{key.replaceAll("_", " ")}</Table.Td>{["left", "right"].map(side => <Table.Td key={side}>{String((facts[side] as Record<string, unknown> | null)?.[key] ?? "unknown")}</Table.Td>)}</Table.Tr>)}</Table.Tbody></Table>
   </>;
 }

@@ -12,7 +12,8 @@ from pydantic import ValidationError
 from specmate.access.models import Membership
 from specmate.design.models import Snapshot
 from specmate.interfaces.condition_contracts import ConditionalRating, TemperatureEnvelope
-from specmate.interfaces.contracts import ElectricalContract
+from specmate.interfaces.contracts import ConnectorBody, ElectricalContract, Orientation
+from specmate.interfaces.orientation import project_contacts
 from specmate.interfaces.queries import inspect_revision
 from specmate.operations import Conflict, NotFound, PermissionDenied
 
@@ -297,3 +298,50 @@ def test_polarity_and_rating_ids_require_explicit_declarations():
         ElectricalContract(polarity="positive")
     with pytest.raises(ValidationError):
         ElectricalContract(conditional_ratings=[rating(), rating()])
+
+
+@pytest.mark.parametrize(
+    "source_side,source_rotation,target_side,target_rotation,expected,reason",
+    [
+        ("mating", 90, "mating", 90, [-2, 1], None),
+        ("termination", 90, "mating", 0, [1, -2], None),
+        ("termination", None, "mating", None, None, "rotations"),
+        ("termination", 0, "unknown", None, None, "viewing side"),
+    ],
+)
+def test_declared_rotation_and_unknown_orientation_oracles(
+    source_side, source_rotation, target_side, target_rotation, expected, reason
+):
+    body = ConnectorBody(
+        contacts=[{"contact_id": "stable", "number": "1", "position_mm": [-2, 1]}],
+        drawing_orientation=Orientation(
+            viewing_side=source_side,
+            rotation_degrees=source_rotation,
+            datum="origin" if source_rotation is not None else None,
+        ),
+    )
+    target = Orientation(
+        viewing_side=target_side,
+        rotation_degrees=target_rotation,
+        datum="origin" if target_rotation is not None else None,
+    )
+    row = project_contacts(body, target)["contacts"][0]
+    assert row["contact_id"] == "stable" and row["number"] == "1"
+    if expected is not None:
+        assert row["display_position_mm"] == pytest.approx(expected)
+        assert row["reason"] is None
+    else:
+        assert row["display_position_mm"] is None and reason in row["reason"]
+
+
+def test_finite_source_coordinates_cannot_emit_nonfinite_display_geometry():
+    orientation = Orientation(viewing_side="mating", rotation_degrees=45, datum="origin")
+    body = ConnectorBody(
+        contacts=[{"contact_id": "large", "position_mm": [1.7e308, 1.7e308]}],
+        drawing_orientation=orientation,
+    )
+    row = project_contacts(body, orientation.model_copy(update={"rotation_degrees": 0}))[
+        "contacts"
+    ][0]
+    assert row["source_position_mm"] == (1.7e308, 1.7e308)
+    assert row["display_position_mm"] is None and "finite" in row["reason"]

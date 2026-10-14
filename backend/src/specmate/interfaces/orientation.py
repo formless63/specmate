@@ -1,6 +1,6 @@
 """Display projection only: stable physical identity never follows screen order."""
 
-from math import cos, radians, sin
+from math import cos, isfinite, radians, sin
 
 
 def project_contacts(body, target):
@@ -17,6 +17,7 @@ def project_contacts(body, target):
     for contact in body.contacts:
         position = contact.position_mm
         displayed = None
+        contact_reason = reason
         if reason is None and position is not None:
             # Screen x points right, y down; positive rotation is screen-CCW.
             # Undo source rotation, mirror across vertical datum, apply target rotation.
@@ -27,6 +28,9 @@ def project_contacts(body, target):
                 x = -x
             a = radians(target.rotation_degrees)
             displayed = [x * cos(a) + y * sin(a), -x * sin(a) + y * cos(a)]
+            if not all(isfinite(v) for v in displayed):
+                displayed = None
+                contact_reason = "Declared transform exceeds finite display coordinate bounds."
         rows.append(
             {
                 "contact_id": contact.contact_id,
@@ -35,7 +39,7 @@ def project_contacts(body, target):
                 "physical_role": contact.physical_role,
                 "source_position_mm": position,
                 "display_position_mm": displayed,
-                "reason": reason
+                "reason": contact_reason
                 or ("Contact coordinates are unknown." if position is None else None),
             }
         )
