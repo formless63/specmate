@@ -13,6 +13,7 @@ from specmate.operations import Conflict, NotFound
 from specmate.queries import get_draft
 
 from .conftest import ensure_member, member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_bom import assembly, capture, create, part
 from .test_catalog_packs import adopt, install, manifest, registered
 from .test_sources import files, register, sha
@@ -31,7 +32,11 @@ def source_origin(users, project):
     source = op(
         users["owner"],
         "source.create_original_bundle",
-        {"project_id": remote, "name": "Independent original source", "files": files(data)},
+        {
+            "workspace_id": workspace_of(remote),
+            "name": "Independent original source",
+            "files": files(data),
+        },
     )
     original = part(users["owner"], project, "Independent reusable part")
     entries = manifest(original)["entries"] + [

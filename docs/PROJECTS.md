@@ -45,6 +45,14 @@ collection family at a time with no owning project. Each row reports where it is
 the projects whose active references name it, floating or pinned to an exact revision.
 With a project as navigation context the project's referenced items come first. Every
 read is one bounded page served by a fixed number of queries; non-members get NotFound.
+`/api/v0/workspace/definitions` (or `/api/v0/workspaces/{id}/definitions`) is the flat
+definition list pickers use.
+
+A project id is never a scope. Operations and reads take `workspace_id`; where a module
+accepts an optional `project_id` (builds, reviews, knowledge, reservations, work batches,
+library and search ordering) it is navigation context inside that workspace, and a
+project of another workspace is not found. An omitted `workspace_id` on a library read
+means the actor's only workspace.
 
 The Workspace access panel creates local accounts where permitted and manages members,
 roles and explicit `build.execute`/`inventory.manage` grants. Losing membership clears

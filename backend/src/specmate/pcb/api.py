@@ -19,9 +19,6 @@ from specmate.sources import blobstore
 router = Router(tags=["pcb"])
 
 
-@router.get(
-    "/projects/{workspace_id}/intakes", operation_id="pcb_intakes_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/intakes")
 def list_intakes(request, workspace_id: UUID):
     workspace = authorize(request.user, workspace_id, Perm.WORKSPACE_READ)
@@ -134,10 +131,6 @@ def read_population_revision(request, revision_id: UUID):
     }
 
 
-@router.get(
-    "/projects/{workspace_id}/association-targets",
-    operation_id="pcb_association_targets_via_project",
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/association-targets")
 def association_targets(request, workspace_id: UUID):
     """Offer exact selectable revisions/representations from the authorized workspace."""
@@ -206,10 +199,6 @@ def association_targets(request, workspace_id: UUID):
     }
 
 
-@router.get(
-    "/projects/{workspace_id}/property-authorities",
-    operation_id="pcb_property_authorities_via_project",
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/property-authorities")
 def list_property_authorities(request, workspace_id: UUID):
     from specmate.catalog_matching.queries import current_actor
@@ -228,9 +217,6 @@ def read_property_authority(request, authority_id: UUID):
     return read_authority(user, authority_for(context, authority_id))
 
 
-@router.get(
-    "/projects/{workspace_id}/firmware", operation_id="pcb_firmware_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/firmware")
 def list_project_firmware(request, workspace_id: UUID):
     from specmate.catalog_matching.queries import current_actor
@@ -265,9 +251,6 @@ def read_firmware_assignment_review(request, snapshot_id: UUID):
     return assignment_review(current_actor(request.user), snapshot_id)
 
 
-@router.get(
-    "/projects/{workspace_id}/firmware-targets", operation_id="pcb_firmware_targets_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/firmware-targets")
 def list_firmware_targets(request, workspace_id: UUID):
     from specmate.catalog_matching.queries import current_actor

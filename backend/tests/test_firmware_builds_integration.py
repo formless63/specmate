@@ -43,6 +43,7 @@ def test_registered_generic_build_cannot_bypass_source_execution_consent(
             users["owner"],
             "build.request",
             {
+                "workspace_id": workspace_of(project),
                 "project_id": project,
                 "source_revision_id": spec["sources"][0]["source_revision_id"],
                 "recipe_id": compiler_recipe["id"],

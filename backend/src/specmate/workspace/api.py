@@ -8,6 +8,7 @@ from uuid import UUID
 
 from ninja import Query, Router
 
+from specmate.queries import list_definitions
 from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects
 from specmate.workspace.queries import list_library, list_projects, project_detail
 
@@ -17,6 +18,12 @@ router = Router(tags=["workspace"])
 @router.get("/library")
 def library(request, payload: Query[ListLibrary]):
     return list_library(request.user, payload)
+
+
+@router.get("/definitions")
+def definitions(request, workspace_id: UUID | None = None):
+    """The flat definition list of the workspace collection, for pickers."""
+    return list_definitions(request.user, workspace_id)
 
 
 @router.get("/projects")

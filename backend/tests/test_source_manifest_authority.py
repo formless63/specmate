@@ -13,6 +13,7 @@ from specmate.queries import get_bundle_revision
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleFile, SourceBundleRevision
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_sources import ORIGINAL, files, register
 
 
@@ -21,7 +22,11 @@ def original(users, workspace):
     return op(
         users["owner"],
         "source.create_original_bundle",
-        {"workspace_id": workspace, "name": "Manifest authority", "files": files(ORIGINAL)},
+        {
+            "workspace_id": workspace_of(workspace),
+            "name": "Manifest authority",
+            "files": files(ORIGINAL),
+        },
     )
 
 

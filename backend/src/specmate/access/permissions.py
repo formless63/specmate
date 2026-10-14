@@ -84,21 +84,8 @@ def visible_projects(user: Any):
     return Project.objects.filter(workspace__members__user=user)
 
 
-def workspace_for_project(project_id: Any):
-    """TRANSITIONAL (workspace collections P0-P3): resolve a payload project id.
-
-    Modules that still accept ``project_id`` as their scope resolve it to the project's
-    workspace through ``authorize``. A project id is navigation context, never
-    authority; module phases replace these payloads and P3 deletes this resolver.
-    """
-    return Project.objects.filter(id=project_id).values_list("workspace_id", flat=True).first()
-
-
-def _resolve(user: Any, scope_id: Any) -> WorkspaceMember:
-    member = membership(user, scope_id)
-    if member is None:
-        # TRANSITIONAL: a project id resolves to its workspace (see workspace_for_project).
-        member = membership(user, workspace_for_project(scope_id))
+def _resolve(user: Any, workspace_id: Any) -> WorkspaceMember:
+    member = membership(user, workspace_id)
     if member is None:
         # One message for missing and unreadable scopes, so existence never leaks.
         raise NotFound("Not found.")
@@ -149,12 +136,16 @@ def authorize_project(user: Any, project_id: Any, perm: Perm, *, lock: bool = Fa
     return project
 
 
-def transitional_project(scope_id: Any, workspace: Workspace | Any) -> Project | None:
-    """TRANSITIONAL (workspace collections P0-P3): the optional project context.
+def context_project(project_id: Any, workspace: Workspace | Any) -> Project | None:
+    """The optional navigation project of a workspace request; it must be in the workspace.
 
-    When a module still receives a payload ``project_id`` as its scope, the project it
-    names (in the already authorized workspace) becomes the record's optional project
-    context. Context is navigation only; it never grants or limits access.
+    Context never grants or limits access: it only filters or labels. A project outside
+    the (already authorized) workspace is indistinguishable from a missing one.
     """
+    if project_id is None:
+        return None
     workspace_id = getattr(workspace, "id", workspace)
-    return Project.objects.filter(id=scope_id, workspace_id=workspace_id).first()
+    project = Project.objects.filter(id=project_id, workspace_id=workspace_id).first()
+    if project is None:
+        raise NotFound("Project not found.")
+    return project

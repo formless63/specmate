@@ -6,7 +6,7 @@ foundation operations; payload fields alone never authorize a namespace.
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 
 from specmate.access.permissions import Perm, authorize
 from specmate.operations import NotFound, PermissionDenied
@@ -15,49 +15,25 @@ GLOBAL_SCOPE = "global"
 
 
 class WorkspacePayload(BaseModel):
-    """Payload base for operations scoped to a workspace.
-
-    ``workspace_id`` is the scope. TRANSITIONAL (workspace collections P0-P3): a payload
-    ``project_id`` is accepted instead and resolves to the project's workspace, so callers
-    that have not been converted keep working. P3 removes the alias. Exactly one is given.
-    """
+    """Payload base for operations scoped to a workspace: ``workspace_id`` is the scope."""
 
     model_config = ConfigDict(extra="forbid")
-    workspace_id: UUID | None = None
-    project_id: UUID | None = None
-
-    @model_validator(mode="after")
-    def one_scope(self):
-        if (self.workspace_id is None) == (self.project_id is None):
-            raise ValueError("Provide exactly one of workspace_id or project_id.")
-        return self
-
-    @property
-    def scope_id(self) -> UUID:
-        return self.workspace_id or self.project_id
+    workspace_id: UUID
 
 
 class WorkspaceProjectPayload(WorkspacePayload):
     """Workspace scope plus an optional project as navigation context only.
 
-    The project never grants or limits access; when both ids are given the project must be
-    in the workspace. ``project_id`` alone still resolves its workspace (transitional).
+    The project never grants or limits access; it must be in the workspace
+    (``specmate.access.permissions.context_project``).
     """
 
-    @model_validator(mode="after")
-    def one_scope(self):
-        if self.workspace_id is None and self.project_id is None:
-            raise ValueError("Provide workspace_id.")
-        return self
+    project_id: UUID | None = None
 
 
-def workspace_scope(ctx, scope_id, permission=Perm.WORKSPACE_READ) -> str:
-    """``workspace:<id>`` after checking current membership and permission.
-
-    ``scope_id`` is a workspace id, or (transitionally) a payload project id that the
-    shared resolver maps to its workspace.
-    """
-    workspace = authorize(ctx.user, scope_id, permission)
+def workspace_scope(ctx, workspace_id, permission=Perm.WORKSPACE_READ) -> str:
+    """``workspace:<id>`` after checking current membership and permission."""
+    workspace = authorize(ctx.user, workspace_id, permission)
     return f"workspace:{workspace.id}"
 
 
@@ -86,10 +62,10 @@ def validated_scope(value: str) -> str:
 
 def builtin_scope(name, ctx, payload) -> str:
     if name == "definition.create":
-        scope = workspace_scope(ctx, payload.scope_id)
+        scope = workspace_scope(ctx, payload.workspace_id)
         return _authorize_retained_design(name, ctx, payload, scope)
     if name in {"source.register_blob", "source.create_original_bundle", "build.request"}:
-        return workspace_scope(ctx, payload.scope_id)
+        return workspace_scope(ctx, payload.workspace_id)
     if name in {"draft.update", "draft.snapshot", "draft.freeze"}:
         from specmate.design.operations import scoped_draft
 

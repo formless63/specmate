@@ -71,7 +71,7 @@ def file_pin(user, pin):
 
 def registration_workspace(ctx, payload):
     """Registering an inert pack version imports new immutable records (item.create)."""
-    return creation_workspace(ctx.user, payload.workspace_id, payload.project_id)
+    return creation_workspace(ctx.user, payload.workspace_id)
 
 
 def registration_refs(ctx, payload):

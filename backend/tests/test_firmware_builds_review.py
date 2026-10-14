@@ -101,7 +101,7 @@ def test_compiler_rejects_unpinned_sibling_even_when_firmware_subset_is_valid(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Compiler input with an unselected sibling",
             "files": [
                 {
@@ -128,7 +128,11 @@ def test_compiler_rejects_unpinned_sibling_even_when_firmware_subset_is_valid(
     created = op(
         users["owner"],
         "firmware.create",
-        {"project_id": project, "name": "Deliberate subset declaration", "firmware": spec},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Deliberate subset declaration",
+            "firmware": spec,
+        },
     )
     frozen = op(
         users["owner"],

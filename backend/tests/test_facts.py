@@ -63,7 +63,9 @@ def append(user, ledger, content, **context):
 
 def design_revision(user, project, kind="part"):
     draft = op(
-        user, "definition.create", {"project_id": project, "kind": kind, "name": "Synthetic part"}
+        user,
+        "definition.create",
+        {"workspace_id": workspace_of(project), "kind": kind, "name": "Synthetic part"},
     )
     revision = op(
         user, "draft.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]
@@ -469,7 +471,11 @@ def test_registered_source_and_transitive_assertion_revoke_before_counts_replay_
     source = op(
         users["outsider"],
         "source.create_original_bundle",
-        {"project_id": remote, "name": "Synthetic evidence", "files": files(ORIGINAL)},
+        {
+            "workspace_id": workspace_of(remote),
+            "name": "Synthetic evidence",
+            "files": files(ORIGINAL),
+        },
     )
     ensure_member(users["editor"], "viewer", project=remote)
     content = fact(
@@ -518,7 +524,11 @@ def test_database_enforces_immutable_assertions_and_provenance_links(users, proj
     source = op(
         users["editor"],
         "source.create_original_bundle",
-        {"project_id": project, "name": "Synthetic evidence", "files": files(ORIGINAL)},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic evidence",
+            "files": files(ORIGINAL),
+        },
     )
     first = append(
         users["editor"],
@@ -666,7 +676,11 @@ def test_source_paths_preserve_whitespace_and_bind_distinct_registered_bytes_and
     source = op(
         users["editor"],
         "source.create_original_bundle",
-        {"project_id": project, "name": "Distinct synthetic source paths", "files": entries},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Distinct synthetic source paths",
+            "files": entries,
+        },
     )
     current = ledger
     for index, path in enumerate(("drawing.txt", " drawing.txt", "drawing.txt ")):

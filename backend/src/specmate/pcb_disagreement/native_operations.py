@@ -45,7 +45,7 @@ def authorize_bundle(user, revision_id):
 
 
 def request_source(ctx, p):
-    workspace = authorize(ctx.user, p.scope_id, Perm.BUILD_EXECUTE)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.BUILD_EXECUTE)
     revision = authorize_bundle(ctx.user, p.source.source_revision_id)
     if revision.bundle.workspace_id != workspace.id:
         raise ValidationFailed("Native extraction workspace must hold the source revision.")
@@ -117,7 +117,7 @@ def check_recipe(file, role, recipe):
 def scope(ctx, p):
     if isinstance(p, RequestNative):
         request_source(ctx, p)
-        namespace = workspace_scope(ctx, p.scope_id, Perm.BUILD_EXECUTE)
+        namespace = workspace_scope(ctx, p.workspace_id, Perm.BUILD_EXECUTE)
         name = "pcb_disagreement.request_native"
     else:
         attempt = scoped_attempt(ctx.user, p.attempt_id, Perm.SOURCE_REGISTER)

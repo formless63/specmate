@@ -10,6 +10,7 @@ from specmate.operations import NotFound, ValidationFailed
 from specmate.queries import get_draft, get_revision
 
 from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_interfaces import BODY, create, freeze, pinout
 
 
@@ -18,7 +19,7 @@ def test_present_typed_interface_cannot_bypass_validation_through_generic_comman
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "pinout",
             "name": "Unfinished pinout",
         },
@@ -45,7 +46,7 @@ def test_present_typed_interface_cannot_bypass_validation_through_generic_comman
             users["owner"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "kind": "part",
                 "name": "Wrong typed owner",
                 "content": {"interface": BODY},
@@ -60,7 +61,7 @@ def test_generic_freeze_derives_pinned_body_and_rejects_wrong_dependency_list(us
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "pinout",
             "name": "Generic pinout",
             "content": {"interface": pinout(body)},
@@ -96,7 +97,7 @@ def test_revoked_exact_body_blocks_generic_reads_stale_conflicts_and_retained_re
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "pinout",
             "name": "Scoped pinout",
             "content": {"interface": pinout(body)},
@@ -139,7 +140,7 @@ def test_revoked_exact_body_blocks_generic_reads_stale_conflicts_and_retained_re
             users["owner"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "kind": "pinout",
                 "name": "Scoped pinout",
                 "content": {"interface": pinout(body)},
@@ -158,7 +159,11 @@ def test_generic_dependency_capture_rechecks_transitive_exact_scope(
     parent = op(
         editor,
         "definition.create",
-        {"project_id": project, "kind": "part", "name": "Generic dependency parent"},
+        {
+            "workspace_id": workspace_of(project),
+            "kind": "part",
+            "name": "Generic dependency parent",
+        },
     )
     remove_member(editor)
     before = Snapshot.objects.count()
@@ -180,7 +185,7 @@ def test_generic_dependency_capture_rechecks_transitive_exact_scope(
     owned = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "part", "name": "Generic foreign parent"},
+        {"workspace_id": workspace_of(project), "kind": "part", "name": "Generic foreign parent"},
     )
     before = Snapshot.objects.count()
     with pytest.raises(NotFound, match=r"^Not found\.$"):

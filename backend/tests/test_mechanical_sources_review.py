@@ -17,6 +17,7 @@ from specmate.mechanical_sources.operations import require_freezable
 from specmate.operations import Context, NotFound, Unauthenticated, ValidationFailed, execute
 
 from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_firmware import MCU, attempt, board, intake, recipe, source  # noqa: F401
 from .test_mechanical_sources import (  # noqa: F401
     DATA,
@@ -37,7 +38,7 @@ def second_source(users, workspace):
         users["owner"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Original recipe",
             "files": [
                 {

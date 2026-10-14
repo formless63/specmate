@@ -85,17 +85,9 @@ class PackManifest(Contract):
 class RegisterPackVersion(Contract):
     # Omitted: the actor's workspace. A pack installs into the workspace library.
     workspace_id: UUID | None = None
-    # TRANSITIONAL (P3 removes): a project id only selects its workspace.
-    project_id: UUID | None = None
     pack_id: UUID | None = None
     manifest: PackManifest
     manifest_source: FilePin | None = None
-
-    @model_validator(mode="after")
-    def one_scope(self) -> Self:
-        if self.workspace_id is not None and self.project_id is not None:
-            raise ValueError("Provide at most one of workspace_id or project_id.")
-        return self
 
 
 class InstallPack(Contract):

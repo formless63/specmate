@@ -21,6 +21,7 @@ from specmate.queries import get_draft
 from specmate.sources.models import SourceBundleFile
 
 from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_copper import board_population
 from .test_pcb import attempt as pcb_attempt  # noqa: F401
 from .test_pcb import intake, recipe, source  # noqa: F401
@@ -32,14 +33,19 @@ def source_pin(user, workspace, role="schematic"):
     op(
         user,
         "source.register_blob",
-        {"workspace_id": workspace, "sha256": sha, "size": len(data), "media_type": "text/plain"},
+        {
+            "workspace_id": workspace_of(workspace),
+            "sha256": sha,
+            "size": len(data),
+            "media_type": "text/plain",
+        },
         attachments={"content": io.BytesIO(data)},
     )
     result = op(
         user,
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": f"Synthetic {role}",
             "files": [
                 {
@@ -86,7 +92,11 @@ def create(user, workspace, value, **ctx):
     return op(
         user,
         "pcb_disagreement.create",
-        {"workspace_id": workspace, "name": "Synthetic source review", "value": value},
+        {
+            "workspace_id": workspace_of(workspace),
+            "name": "Synthetic source review",
+            "value": value,
+        },
         **ctx,
     )
 

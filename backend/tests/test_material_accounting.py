@@ -227,7 +227,7 @@ def consumable(user, project, plan, amount="0.25", waste="0.05"):
         user,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "material",
             "name": "Synthetic process flux",
             "content": {},
@@ -272,7 +272,9 @@ def test_actual_inventory_reconciliation_returns_independent_batch_observations(
         {"revision_id": value["stock_revision_id"], "label": "Synthetic material lot"},
     )
     location = op(
-        user, "inventory.create_location", {"project_id": project, "name": "Synthetic bench"}
+        user,
+        "inventory.create_location",
+        {"workspace_id": workspace_of(project), "name": "Synthetic bench"},
     )
     account = open_account(users, lot, location, dimension="length", amount="10", unit="m")
     reservation = reserve(user, account, "3", unit="m")
@@ -344,7 +346,7 @@ def test_authority_diagnostics_generic_operations_and_rollback(users, project):
         user,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "material_plan",
             "name": "Generic material sheet",
             "content": {"material_plan": plan},
@@ -414,7 +416,7 @@ def test_generic_material_facts_are_not_inferred_design_references(users, projec
         user,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "material",
             "name": "Synthetic process material",
             "content": {"revision_id": "vendor-label-revision-2"},

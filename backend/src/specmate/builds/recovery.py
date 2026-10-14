@@ -11,8 +11,7 @@ from __future__ import annotations
 from django.utils import timezone
 from pydantic import Field, field_validator
 
-from specmate.access.models import Project
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm, authorize, context_project
 from specmate.builds.models import BuildAttempt, BuildStage
 from specmate.builds.operations import (
     ACTIVE,
@@ -266,11 +265,9 @@ class ListBuilds(WorkspaceProjectPayload):
 def list_builds(ctx, p: ListBuilds) -> dict:
     from specmate.firmware_builds.pack import ADAPTER
 
-    workspace = authorize(ctx.user, p.scope_id, Perm.WORKSPACE_READ)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ)
     builds = BuildAttempt.objects.filter(workspace=workspace)
-    if p.workspace_id is not None and p.project_id is not None:
-        if not Project.objects.filter(id=p.project_id, workspace=workspace).exists():
-            raise NotFound("Project not found.")
+    if context_project(p.project_id, workspace) is not None:
         builds = builds.filter(project_id=p.project_id)
     rows = list(
         builds.exclude(recipe_id__startswith=ADAPTER + "-")

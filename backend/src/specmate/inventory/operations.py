@@ -99,7 +99,7 @@ def append_entry(ctx, account, p, kind, after, **causes):
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
 )
 def create_location(ctx: Context, p: CreateLocation):
-    workspace = authorize(ctx.user, p.scope_id, Perm.INVENTORY_MANAGE)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.INVENTORY_MANAGE)
     Workspace.objects.select_for_update().get(id=workspace.id)
     if Location.objects.filter(workspace=workspace, name=p.name).exists():
         raise Conflict("This location name is already registered.")
@@ -300,7 +300,7 @@ def inventory_workspace_scope(ctx: Context, p) -> str:
         workspace_id = account.location.workspace_id
         authorize(ctx.user, workspace_id, Perm.INVENTORY_MANAGE)
     elif isinstance(p, CreateLocation):
-        workspace_id = authorize(ctx.user, p.scope_id, Perm.INVENTORY_MANAGE).id
+        workspace_id = authorize(ctx.user, p.workspace_id, Perm.INVENTORY_MANAGE).id
     elif isinstance(p, OpenStock):
         lot = get_lot(ctx.user, p.lot_id)
         location = get_location(ctx.user, p.location_id)

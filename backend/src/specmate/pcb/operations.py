@@ -117,7 +117,7 @@ def intake_result(intake):
     summary="Preserve a source revision for PCB intake without parsing or executing it.",
 )
 def register_intake(ctx: Context, p: RegisterIntake):
-    workspace = authorize(ctx.user, p.scope_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.SOURCE_REGISTER)
     source = SourceBundleRevision.objects.filter(
         id=p.source_revision_id, bundle__workspace=workspace
     ).first()
@@ -308,7 +308,7 @@ def failure_diagnostic(attempt):
 def authorize_pcb_replay(ctx: Context, payload: Payload, stored_result: dict):
     """Recheck scope before the shared layer returns a saved command response."""
     if isinstance(payload, RegisterIntake):
-        workspace = authorize(ctx.user, payload.scope_id, Perm.SOURCE_REGISTER)
+        workspace = authorize(ctx.user, payload.workspace_id, Perm.SOURCE_REGISTER)
         if not SourceBundleRevision.objects.filter(
             id=payload.source_revision_id, bundle__workspace=workspace
         ).exists():
@@ -372,7 +372,7 @@ def pcb_scope(ctx, payload):
     from specmate.operations.scope import workspace_scope
 
     if isinstance(payload, RegisterIntake):
-        scope = workspace_scope(ctx, payload.scope_id, Perm.SOURCE_REGISTER)
+        scope = workspace_scope(ctx, payload.workspace_id, Perm.SOURCE_REGISTER)
         if not SourceBundleRevision.objects.filter(
             id=payload.source_revision_id, bundle__workspace_id=scope.removeprefix("workspace:")
         ).exists():

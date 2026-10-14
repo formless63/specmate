@@ -216,7 +216,7 @@ def test_typed_freeze_requires_stock_but_generic_draft_can_be_incomplete(users, 
     record = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "wire_stock", "name": "Unfinished"},
+        {"workspace_id": workspace_of(project), "kind": "wire_stock", "name": "Unfinished"},
     )
     with pytest.raises(ValidationFailed):
         op(
@@ -291,7 +291,7 @@ def test_generic_mutations_cannot_bypass_present_stock_validation(users, project
             users["owner"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "kind": "wire_stock",
                 "name": "Invalid",
                 "content": {"stock": invalid},
@@ -327,7 +327,7 @@ def test_stock_freeze_preserves_existing_exact_dependency_pins(users, project):
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "part",
             "name": "Declared stock evidence",
         },

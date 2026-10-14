@@ -44,7 +44,7 @@ def frozen_firmware(users, project, sources, board, *, value="500"):  # noqa: F8
         users["owner"],
         "firmware.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": f"Synthetic blink {value}",
             "firmware": content,
         },

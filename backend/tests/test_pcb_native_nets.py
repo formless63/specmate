@@ -29,6 +29,7 @@ from specmate.sources import blobstore
 from specmate.sources.models import SourceBundleFile
 
 from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_pcb_disagreement import assertion, create, freeze, update
 from .test_pcb_disagreement import source_pin as manual_source
 from .test_pcb_net_xml import document
@@ -42,7 +43,7 @@ def native_request(users, workspace, settings):
         users["owner"],
         "source.register_blob",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "sha256": sha,
             "size": len(raw),
             "media_type": "application/xml",
@@ -53,7 +54,7 @@ def native_request(users, workspace, settings):
         users["owner"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Original synthetic XML",
             "files": [
                 {
@@ -71,7 +72,7 @@ def native_request(users, workspace, settings):
     recipe = recipe_for(file.path, file.rights, "netlist")
     settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: recipe}
     return {
-        "workspace_id": workspace,
+        "workspace_id": workspace_of(workspace),
         "source": source_pin(file),
         "source_role": "netlist",
         "recipe_id": recipe["id"],

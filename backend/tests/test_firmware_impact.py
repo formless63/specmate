@@ -37,7 +37,7 @@ def freeze_firmware(users, project, content):
         users["owner"],
         "firmware.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic revised controller",
             "firmware": content,
         },
@@ -310,7 +310,7 @@ def test_selected_fact_input_source_closure_is_authorized_before_diagnostics(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic observation source",
             "files": [
                 {

@@ -259,7 +259,7 @@ def test_generic_design_guards_and_exact_dependency_capture(users, project, plan
         owner,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic generic plan",
             "kind": "cable_test_plan",
             "content": {"test_plan": plan},
@@ -298,7 +298,7 @@ def test_generic_design_guards_and_exact_dependency_capture(users, project, plan
             owner,
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "name": "Wrong kind",
                 "kind": "part",
                 "content": {"test_plan": plan},

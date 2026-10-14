@@ -28,6 +28,7 @@ from specmate.pcb.report import Report
 from specmate.sources import blobstore
 
 from .conftest import op
+from .scope_helpers import workspace_of
 
 ROOT = Path(__file__).resolve().parents[2]
 RIGHTS = "AGPL-3.0-only"
@@ -50,7 +51,7 @@ def source(users, workspace):
             users["editor"],
             "source.register_blob",
             {
-                "workspace_id": workspace,
+                "workspace_id": workspace_of(workspace),
                 "sha256": digest(content),
                 "size": len(content),
                 "media_type": "application/octet-stream",
@@ -69,7 +70,7 @@ def source(users, workspace):
         users["editor"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Synthetic PCB package",
             "files": files,
         },
@@ -82,7 +83,7 @@ def intake(users, workspace, source):
         users["editor"],
         "pcb.register_intake",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "source_revision_id": source["revision_id"],
             "board_path": "board.kicad_pcb",
         },

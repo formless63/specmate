@@ -19,6 +19,7 @@ from specmate.operations import (
 from specmate.sources.models import SourceBundleRevision
 
 from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_firmware import component
 from .test_pcb import (  # noqa: F401
     attempt,
@@ -56,7 +57,7 @@ def mec_sources(users, workspace):
         users["editor"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Synthetic mechanical original",
             "files": files,
         },
@@ -69,7 +70,7 @@ def mec_target(users, workspace):
         users["owner"],
         "definition.create",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "kind": "hardware",
             "name": "Synthetic mounting hardware",
             "content": {"unknown_dimensions": True},
@@ -159,7 +160,7 @@ def create(user, workspace, content, **ctx):
         user,
         "mechanical_source.create",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Reusable synthetic enclosure",
             "mechanical_source": content,
         },

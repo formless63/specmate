@@ -394,7 +394,11 @@ def source_backed_stock(users, project):
     practice = op(
         owner,
         "workshop_profile.create",
-        {"project_id": project, "name": "Synthetic practice", "profile": documented},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic practice",
+            "profile": documented,
+        },
     )
     practice_revision = op(
         owner,
@@ -405,7 +409,7 @@ def source_backed_stock(users, project):
     stock_draft = op(
         owner,
         "wire_stock.create",
-        {"project_id": project, "name": "Referenced stock", "stock": stock},
+        {"workspace_id": workspace_of(project), "name": "Referenced stock", "stock": stock},
     )
     frozen = op(
         owner,
@@ -518,7 +522,7 @@ def test_generic_commands_derive_exact_closure_and_reject_wrong_kind_or_pins(use
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Generic harness",
             "kind": "harness",
             "content": {"harness": harness},
@@ -546,7 +550,7 @@ def test_generic_commands_derive_exact_closure_and_reject_wrong_kind_or_pins(use
             users["owner"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "name": "Wrong kind",
                 "kind": "cable",
                 "content": {"harness": harness},

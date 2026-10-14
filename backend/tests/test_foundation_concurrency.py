@@ -14,6 +14,7 @@ from specmate.operations import Conflict, registry
 from specmate.operations.models import IdempotencyRecord
 
 from .conftest import op
+from .scope_helpers import workspace_of
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -43,7 +44,11 @@ def concurrent_definition(users, project):
     return op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "part", "name": "Concurrent synthetic part"},
+        {
+            "workspace_id": workspace_of(project),
+            "kind": "part",
+            "name": "Concurrent synthetic part",
+        },
     )
 
 
@@ -109,7 +114,11 @@ def test_parallel_freezes_leave_one_revision_and_no_orphan_snapshot(users, proje
 def test_parallel_keyed_creates_roll_back_duplicate_and_retry_the_exact_winner(
     users, project, monkeypatch
 ):
-    payload = {"project_id": project, "kind": "part", "name": "Keyed synthetic part"}
+    payload = {
+        "workspace_id": workspace_of(project),
+        "kind": "part",
+        "name": "Keyed synthetic part",
+    }
     original = registry["definition.create"]
     ready = Barrier(2)
 

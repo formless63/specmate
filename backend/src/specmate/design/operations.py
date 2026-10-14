@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from django.db.models import Max
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from specmate.access.permissions import Perm, authorize, authorize_item
 from specmate.design.models import Definition, Draft, Revision, Snapshot, SnapshotDependency
@@ -52,23 +52,10 @@ def check_state(ctx: Context, draft: Draft) -> None:
 
 class CreateDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    workspace_id: UUID | None = None
-    # TRANSITIONAL (workspace collections): a project id only selects its workspace. The
-    # definition is a workspace item; no project reference is created. P3 removes it.
-    project_id: UUID | None = None
+    workspace_id: UUID
     kind: str = Field(pattern=KIND_PATTERN)
     name: str = Field(min_length=1, max_length=200)
     content: dict[str, JsonValue] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def one_scope(self):
-        if (self.workspace_id is None) == (self.project_id is None):
-            raise ValueError("Provide exactly one of workspace_id or project_id.")
-        return self
-
-    @property
-    def scope_id(self) -> UUID:
-        return self.workspace_id or self.project_id
 
 
 @operation(
@@ -77,7 +64,7 @@ class CreateDefinition(BaseModel):
     summary="Create a reusable definition with an initial editable draft.",
 )
 def create_definition(ctx: Context, p: CreateDefinition) -> dict:
-    workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
     definition = Definition.objects.create(
         workspace=workspace, kind=p.kind, name=p.name, created_by=ctx.user
     )

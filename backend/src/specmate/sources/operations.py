@@ -36,7 +36,7 @@ class RegisterBlob(WorkspacePayload):
     attachments=("content",),
 )
 def register_blob(ctx: Context, p: RegisterBlob) -> dict:
-    workspace = authorize(ctx.user, p.scope_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.SOURCE_REGISTER)
     if p.size > settings.SPECMATE_MAX_SOURCE_BYTES:
         raise ValidationFailed("Declared size exceeds the configured limit.")
     try:
@@ -151,7 +151,7 @@ class CreateBundle(WorkspacePayload):
     summary="Preserve an imported original bundle as revision 1 of a new bundle.",
 )
 def create_original_bundle(ctx: Context, p: CreateBundle) -> dict:
-    workspace = authorize(ctx.user, p.scope_id, Perm.SOURCE_REGISTER)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.SOURCE_REGISTER)
     bundle = SourceBundle.objects.create(
         workspace=workspace, name=p.name, role=SourceBundle.Role.ORIGINAL, created_by=ctx.user
     )

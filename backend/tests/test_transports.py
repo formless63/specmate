@@ -51,16 +51,25 @@ def test_unknown_and_dedicated_operations_are_not_generic(users):
     assert post_op(client, "source.register_blob", {}).status_code == 404
 
 
-def test_uninvited_user_cannot_enumerate_projects_or_contents(users, project, definition):
+def test_uninvited_user_cannot_enumerate_projects_or_contents(
+    users, project, workspace, definition
+):
     outsider = api(users["outsider"])
     assert outsider.get("/api/v0/projects").json() == []
-    missing = outsider.get(f"/api/v0/projects/{project}/definitions")
-    nonexistent = outsider.get("/api/v0/projects/00000000-0000-0000-0000-000000000000/definitions")
+    missing = outsider.get(f"/api/v0/workspaces/{workspace}/definitions")
+    nonexistent = outsider.get(
+        "/api/v0/workspaces/00000000-0000-0000-0000-000000000000/definitions"
+    )
+    # A project id is never a scope.
+    assert outsider.get(f"/api/v0/projects/{project}/definitions").status_code == 404
     assert missing.status_code == nonexistent.status_code == 404
     assert missing.json() == nonexistent.json()
     assert outsider.get(f"/api/v0/drafts/{definition['draft_id']}").status_code == 404
     member = api(users["viewer"])
     assert [p["project_id"] for p in member.get("/api/v0/projects").json()] == [project]
+    listed = member.get(f"/api/v0/workspaces/{workspace}/definitions").json()
+    assert definition["definition_id"] in {row["definition_id"] for row in listed}
+    assert member.get("/api/v0/workspace/definitions").json() == listed
 
 
 def test_revision_snapshot_bytes_are_served_exactly(users, definition):

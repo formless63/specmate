@@ -29,7 +29,11 @@ from .scope_helpers import workspace_of
 def part(user, project, kind="board", name="Synthetic board"):
     if kind == "firmware":
         return firmware_part(user, project, name)
-    draft = op(user, "definition.create", {"project_id": project, "kind": kind, "name": name})
+    draft = op(
+        user,
+        "definition.create",
+        {"workspace_id": workspace_of(project), "kind": kind, "name": name},
+    )
     return draft, op(
         user, "draft.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]
     )
@@ -64,7 +68,7 @@ def firmware_part(user, project, name):
         user,
         "firmware.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": name,
             "firmware": declaration(inputs, target),
         },

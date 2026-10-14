@@ -17,9 +17,6 @@ from specmate.sources.models import SourceArchiveExpansion, SourceBundleRevision
 router = Router(tags=["sources"])
 
 
-@router.get(
-    "/projects/{workspace_id}/revisions", operation_id="sources_revisions_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/revisions")
 def list_revisions(request, workspace_id: UUID, after: UUID | None = None):
     user = current_actor(request.user)

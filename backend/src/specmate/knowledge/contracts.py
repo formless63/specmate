@@ -43,10 +43,9 @@ class Content(StrictModel):
 
 
 class CreateItem(StrictModel):
-    # Optional when project_id names the holding project (its workspace is implied).
-    workspace_id: UUID | None = None
-    # Set: a note or decision held by that project. Unset: a library note about the items
-    # it links.
+    workspace_id: UUID
+    # Optional navigation context: the project the note or decision was written for. The
+    # item is a workspace item either way.
     project_id: UUID | None = None
     kind: Kind
     content: Content
@@ -54,8 +53,6 @@ class CreateItem(StrictModel):
 
     @model_validator(mode="after")
     def coherent(self):
-        if self.workspace_id is None and self.project_id is None:
-            raise ValueError("Provide workspace_id, or the holding project_id.")
         self.content.check_kind(self.kind)
         return self
 

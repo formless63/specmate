@@ -11,8 +11,8 @@ from uuid import UUID
 
 from django.db.models import Exists, OuterRef, Q
 
-from specmate.access.models import ProjectReference
-from specmate.access.permissions import Perm, authorize, authorize_project, member_workspaces
+from specmate.access.models import Project, ProjectReference
+from specmate.access.permissions import Perm, authorize, member_workspaces
 from specmate.access.workspaces import actor_workspace_id
 from specmate.operations import NotFound
 
@@ -20,17 +20,17 @@ from specmate.operations import NotFound
 def library_scope(user, workspace_id: UUID | None = None, project_id: UUID | None = None):
     """Return ``(workspace, project)`` after a current workspace-read check.
 
-    Non-members receive the same NotFound for a workspace or a project context. A
-    project from another workspace than the one named is indistinguishable from a
-    missing project.
+    An omitted ``workspace_id`` means the actor's workspace. ``project_id`` is navigation
+    context only and must be in that workspace; a project elsewhere is indistinguishable
+    from a missing one, and non-members receive the same NotFound.
     """
-    if project_id is not None:
-        project = authorize_project(user, project_id, Perm.WORKSPACE_READ)
-        if workspace_id is not None and project.workspace_id != workspace_id:
-            raise NotFound("Not found.")
-        return project.workspace, project
     workspace = authorize(user, actor_workspace_id(user, workspace_id), Perm.WORKSPACE_READ)
-    return workspace, None
+    if project_id is None:
+        return workspace, None
+    project = Project.objects.filter(id=project_id, workspace=workspace).first()
+    if project is None:
+        raise NotFound("Not found.")
+    return workspace, project
 
 
 def searchable_workspaces(user, workspace_id: UUID | None = None, project_id: UUID | None = None):
@@ -103,11 +103,9 @@ def context_first(queryset, referenced, after, *, cursor_error: str):
     return ordered
 
 
-def creation_workspace(user, workspace_id=None, project_id=None, permission=Perm.ITEM_CREATE):
+def creation_workspace(user, workspace_id=None, permission=Perm.ITEM_CREATE):
     """The workspace a new collection item is added to, after a current permission check.
 
-    TRANSITIONAL (workspace collections P1-P3): ``project_id`` only selects its workspace
-    for callers that have not moved to ``workspace_id``; the item is never owned by the
-    project and no reference is created. P3 removes it.
+    An omitted ``workspace_id`` means the actor's own workspace.
     """
-    return authorize(user, actor_workspace_id(user, workspace_id or project_id), permission)
+    return authorize(user, actor_workspace_id(user, workspace_id), permission)

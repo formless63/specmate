@@ -13,6 +13,7 @@ from specmate.design.models import Draft
 from specmate.operations import Context, NotFound, Unauthenticated
 
 from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ, part
 from .test_catalog_packs import adopt, install, registered
 from .test_mechanical_sources import declaration, mec_sources, mec_target  # noqa: F401
@@ -45,7 +46,7 @@ def test_model_source_authority_is_rechecked_for_exact_repeated_contexts(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": pid,
+            "workspace_id": workspace_of(pid),
             "name": "source-secret synthetic model",
             "files": [
                 {
@@ -103,7 +104,7 @@ def test_model_source_authority_is_rechecked_for_exact_repeated_contexts(
         users["owner"],
         "mechanical_source.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic exact source assembly child",
             "mechanical_source": content,
         },

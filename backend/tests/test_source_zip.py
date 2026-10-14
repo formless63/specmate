@@ -21,6 +21,7 @@ from specmate.sources.api import download_file, list_revisions, read_revision
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleRevision
 
 from .conftest import op, remove_member, set_role
+from .scope_helpers import workspace_of
 from .test_sources import files, register, sha
 
 
@@ -38,7 +39,7 @@ def preserve(users, workspace, content):
         users["editor"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Preserved synthetic archive",
             "files": files(content, "source.zip"),
         },

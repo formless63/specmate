@@ -21,8 +21,6 @@ from specmate.workshop_profiles.schemas import (
 class CreateProfile(StrictModel):
     # Omitted: the actor's workspace. Profiles are library definitions.
     workspace_id: UUID | None = None
-    # TRANSITIONAL (P3 removes): a project id only selects its workspace; no reference.
-    project_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
     profile: WorkshopProfile
 
@@ -38,7 +36,7 @@ class FreezeProfile(StrictModel):
 
 def profile_scope(ctx, p) -> str:
     if isinstance(p, CreateProfile):
-        workspace = creation_workspace(ctx.user, p.workspace_id, p.project_id)
+        workspace = creation_workspace(ctx.user, p.workspace_id)
         return workspace_scope(ctx, workspace.id, Perm.ITEM_CREATE)
     permission = Perm.DESIGN_FREEZE if isinstance(p, FreezeProfile) else Perm.DESIGN_EDIT
     draft = scoped_draft(ctx, p.draft_id, permission)
@@ -77,7 +75,7 @@ def authorize_profile_replay(ctx, p, stored) -> None:
     authorize_replay=authorize_profile_replay,
 )
 def create_profile(ctx: Context, p: CreateProfile) -> dict:
-    workspace = creation_workspace(ctx.user, p.workspace_id, p.project_id)
+    workspace = creation_workspace(ctx.user, p.workspace_id)
     content = validate_profile_content({"profile": p.profile.model_dump(mode="json")})
     definition = Definition(
         workspace=workspace, kind="workshop_profile", name=p.name, created_by=ctx.user

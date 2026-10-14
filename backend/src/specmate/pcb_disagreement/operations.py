@@ -38,7 +38,7 @@ def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateReview):
         # Creating a review is an additive workspace item, open to contributors.
         permission = Perm.ITEM_CREATE
-        scope_id = p.scope_id
+        scope_id = p.workspace_id
     else:
         scope_id = review_draft(ctx, p.draft_id, permission).definition.workspace_id
     namespace = workspace_scope(ctx, scope_id, permission)
@@ -87,7 +87,7 @@ def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     idempotency_scope=scope,
 )
 def create(ctx: Context, p: CreateReview):
-    workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
     authorize_value(ctx.user, p.value)
     return create_definition(
         ctx,

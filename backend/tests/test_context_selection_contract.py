@@ -72,7 +72,7 @@ def test_repeated_native_features_agree_with_resolve_and_frozen_bom_uses(
     assert client.get(f"/api/v0/shared-scenes/snapshots/{frozen['snapshot_id']}").json() == scene
     pin = client.get(f"/api/v0/revisions/{frozen['revision_id']}").json()
     assert pin["snapshot_id"] == scene["snapshot_id"] and pin["sha256"] == scene["sha256"]
-    definitions = client.get(f"/api/v0/projects/{project}/definitions").json()
+    definitions = client.get("/api/v0/workspace/definitions").json()
     assert scene["root"]["definition_id"] in {row["definition_id"] for row in definitions}
     assert (
         client.get(f"/api/v0/bom/revisions/{bom['revision_id']}?purpose=assembly_contents").json()

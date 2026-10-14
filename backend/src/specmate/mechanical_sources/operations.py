@@ -416,7 +416,7 @@ def _scope_inputs(ctx, payload, permission):
 
     user = current_actor(ctx.user)
     if isinstance(payload, CreateMechanicalSource):
-        workspace = authorize(user, payload.scope_id, permission)
+        workspace = authorize(user, payload.workspace_id, permission)
         definition = Definition(workspace=workspace, kind=KIND)
         contents = []
     else:
@@ -505,7 +505,6 @@ def create(ctx: Context, payload: CreateMechanicalSource):
         ctx,
         CreateDefinition(
             workspace_id=payload.workspace_id,
-            project_id=payload.project_id,
             kind=KIND,
             name=payload.name,
             content=_content(payload.mechanical_source),

@@ -8,6 +8,7 @@ from specmate.access.models import WorkspaceMember
 from specmate.operations import ValidationFailed
 
 from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_catalog_discovery import create_foreign_part, create_part
 from .test_design import freeze
 from .test_transports import api
@@ -104,7 +105,11 @@ def test_source_revision_names_follow_source_read_authority(users, project):
     original = op(
         owner,
         "source.create_original_bundle",
-        {"project_id": project, "name": "Labelled source", "files": files(ORIGINAL)},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Labelled source",
+            "files": files(ORIGINAL),
+        },
     )
     revision_id = original["revision_id"]
     row = source_label_rows(users["viewer"], revision_id)[0]

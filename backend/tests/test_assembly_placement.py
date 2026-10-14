@@ -182,7 +182,7 @@ def test_lost_membership_hides_mechanical_source_choices_and_saved_mounting(
         users["owner"],
         "mechanical_source.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic enclosure source",
             "mechanical_source": declaration(mec_sources, mec_target),
         },

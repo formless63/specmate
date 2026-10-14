@@ -524,34 +524,14 @@
     "parameters": {
       "$ref": "#/$defs/Parameters"
     },
-    "project_id": {
-      "anyOf": [
-        {
-          "format": "uuid",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Project Id"
-    },
     "workspace_id": {
-      "anyOf": [
-        {
-          "format": "uuid",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Workspace Id"
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
+    "workspace_id",
     "interpretation_id",
     "name"
   ],

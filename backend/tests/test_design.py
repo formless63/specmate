@@ -14,6 +14,7 @@ from specmate.operations import (
 )
 
 from .conftest import member, op
+from .scope_helpers import workspace_of
 
 
 def freeze(user, draft_id, state, deps=()):
@@ -65,7 +66,7 @@ def test_frozen_revision_and_pins_survive_later_edits_byte_for_byte(users, proje
     dep_def = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "part", "name": "Dependency"},
+        {"workspace_id": workspace_of(project), "kind": "part", "name": "Dependency"},
     )
     dep = freeze(users["owner"], dep_def["draft_id"], dep_def["state"])
     frozen = freeze(users["owner"], definition["draft_id"], "draft-v1", [dep["revision_id"]])
@@ -162,13 +163,20 @@ def test_viewer_cannot_create_and_creation_takes_no_project(users, workspace, pr
             "definition.create",
             {"workspace_id": workspace, "kind": "p", "name": "x"},
         )
-    for scope in ({}, {"workspace_id": workspace, "project_id": project}):
+    # Creation never takes a project: neither as context nor as the scope.
+    for scope in ({}, {"project_id": project}, {"workspace_id": workspace, "project_id": project}):
         with pytest.raises(ValidationFailed):
             op(users["owner"], "definition.create", {**scope, "kind": "part", "name": "x"})
+    with pytest.raises(NotFound):
+        op(
+            users["owner"],
+            "definition.create",
+            {"workspace_id": project, "kind": "part", "name": "x"},
+        )
     created = op(
         users["contributor"],
         "definition.create",
-        {"project_id": project, "kind": "part", "name": "Transitional scope"},
+        {"workspace_id": workspace, "kind": "part", "name": "Workspace item"},
     )
     assert created["workspace_id"] == workspace
     assert op(users["owner"], "project.references", {"project_id": project})["references"] == []
@@ -196,7 +204,7 @@ def test_outsider_sees_not_found_not_denied(users, project, definition):
         op(
             users["outsider"],
             "definition.create",
-            {"project_id": project, "kind": "part", "name": "x"},
+            {"workspace_id": workspace_of(project), "kind": "part", "name": "x"},
         )
 
 
@@ -205,7 +213,7 @@ def test_cannot_pin_a_revision_from_an_unreadable_project(users, definition):
     hidden = op(
         users["outsider"],
         "definition.create",
-        {"project_id": other["project_id"], "kind": "part", "name": "Hidden"},
+        {"workspace_id": workspace_of(other["project_id"]), "kind": "part", "name": "Hidden"},
     )
     hidden_rev = freeze(users["outsider"], hidden["draft_id"], hidden["state"])
     with pytest.raises(NotFound):

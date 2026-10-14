@@ -23,6 +23,7 @@ from specmate.operations import (
 )
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_mechanical_proposal_generators import FULL, HOLES, J1, board_report
 from .test_pcb import BOARD, digest, recipe, source, successful_output  # noqa: F401
 
@@ -33,7 +34,7 @@ def board(users, workspace, source, recipe):  # noqa: F811
         users["editor"],
         "pcb.register_intake",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "source_revision_id": source["revision_id"],
             "board_path": "board.kicad_pcb",
         },
@@ -55,7 +56,7 @@ def create(user, workspace, board, parameters=None, name="Enclosure proposal", *
         user,
         "mechanical_proposal.create",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "interpretation_id": board["interpretation_id"],
             "name": name,
             "parameters": parameters or {},

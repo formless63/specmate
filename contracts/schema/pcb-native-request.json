@@ -75,20 +75,13 @@
       "type": "string"
     },
     "workspace_id": {
-      "anyOf": [
-        {
-          "format": "uuid",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Workspace Id"
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
     }
   },
   "required": [
+    "workspace_id",
     "source",
     "source_role",
     "recipe_id"

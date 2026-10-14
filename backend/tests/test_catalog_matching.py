@@ -20,6 +20,7 @@ from specmate.operations import (
 )
 
 from .conftest import ensure_member, op, remove_member, set_role
+from .scope_helpers import workspace_of
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
@@ -32,7 +33,7 @@ def pair(users, project, definition):
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "part",
             "name": "Candidate model",
         },
@@ -70,7 +71,7 @@ def source_evidence(
         users[actor],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Correspondence evidence",
             "files": [{**files(ORIGINAL, path=path)[0], "rights": rights}],
         },
@@ -274,7 +275,7 @@ def test_target_requires_read_not_edit_authority(users, pair):
         users["owner"],
         "definition.create",
         {
-            "project_id": other,
+            "workspace_id": workspace_of(other),
             "kind": "part",
             "name": "Shared target",
         },
@@ -299,7 +300,7 @@ def test_target_retained_dependency_closure_reauthorized(users, project, pair):
         users["owner"],
         "definition.create",
         {
-            "project_id": other,
+            "workspace_id": workspace_of(other),
             "kind": "part",
             "name": "Hidden dependency",
         },
@@ -309,7 +310,7 @@ def test_target_retained_dependency_closure_reauthorized(users, project, pair):
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "part",
             "name": "Target with closure",
         },

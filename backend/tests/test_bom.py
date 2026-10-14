@@ -28,7 +28,12 @@ def capture(user, draft, operation="draft.freeze", **kwargs):
 
 def part(user, project, name):
     return capture(
-        user, op(user, "definition.create", {"project_id": project, "kind": "part", "name": name})
+        user,
+        op(
+            user,
+            "definition.create",
+            {"workspace_id": workspace_of(project), "kind": "part", "name": name},
+        ),
     )
 
 
@@ -333,10 +338,17 @@ def test_generic_mutations_cannot_bypass_bom_kind_validation_or_pin_capture(user
         op(
             user,
             "definition.create",
-            {"project_id": project, "name": "Bad kind", "kind": "part", "content": {"bom": plan}},
+            {
+                "workspace_id": workspace_of(project),
+                "name": "Bad kind",
+                "kind": "part",
+                "content": {"bom": plan},
+            },
         )
     empty = op(
-        user, "definition.create", {"project_id": project, "name": "Unfinished", "kind": "bom_plan"}
+        user,
+        "definition.create",
+        {"workspace_id": workspace_of(project), "name": "Unfinished", "kind": "bom_plan"},
     )
     with pytest.raises(ValidationFailed):
         capture(user, empty)
@@ -448,7 +460,7 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
         owner,
         "workshop_profile.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic referenced profile",
             "profile": documented,
         },

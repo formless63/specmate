@@ -25,6 +25,7 @@ from specmate.selected_packages.verification import verify_files
 from specmate.sources import blobstore
 
 from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_cables import capture as freeze_cable
 from .test_cables import create as create_cable
@@ -245,7 +246,7 @@ def source_profile(users, project, stock, evidence):
         users["owner"],
         "workshop_profile.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic profile",
             "profile": {
                 "stock_revision_id": stock["revision_id"],
@@ -284,7 +285,7 @@ def test_exact_source_file_metadata_rights_review_and_no_unrelated_bundle_member
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "SOURCE_BUNDLE_SECRET",
             "files": [
                 {**source_entries(ORIGINAL, path="required.txt")[0], "rights": "unknown"},
@@ -542,7 +543,7 @@ def test_context_external_parent_dependency_blocks_instead_of_flattened_data_lea
         owner,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "board",
             "name": "Synthetic selected record",
         },

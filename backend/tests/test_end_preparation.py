@@ -240,7 +240,7 @@ def test_missing_facts_never_come_from_workshop_display_defaults(users, project)
         user,
         "workshop_profile.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic display defaults",
             "profile": {
                 "stock_revision_id": stock["revision_id"],
@@ -359,7 +359,7 @@ def test_shared_generic_paths_pins_cas_idempotency_and_role_denial(users, projec
     _, _, stock, _, _, _ = fixture(user, project)
     rules = profile(stock["revision_id"])
     payload = {
-        "project_id": project,
+        "workspace_id": workspace_of(project),
         "kind": "end_preparation_profile",
         "name": "Synthetic generic profile",
         "content": {"end_preparation_profile": rules},
@@ -526,7 +526,7 @@ def test_exact_hierarchical_feature_paths_do_not_alias_repeated_labels(users, pr
     stock_draft = op(
         user,
         "wire_stock.create",
-        {"project_id": project, "name": "Synthetic nested stock", "stock": stock},
+        {"workspace_id": workspace_of(project), "name": "Synthetic nested stock", "stock": stock},
     )
     stock_revision = capture(user, stock_draft, "wire_stock.freeze")
     cable["stock_revision_id"] = stock_revision["revision_id"]

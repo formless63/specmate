@@ -208,30 +208,6 @@ def register_blob(
     )
 
 
-@api.post("/v0/projects/{project_id}/blobs", response=OperationResult, tags=["sources"])
-def register_blob_in_project_workspace(
-    request,
-    project_id: UUID,
-    request_id: Form[str],
-    sha256: Form[str],
-    size: Form[int],
-    media_type: Form[str],
-    content: File[UploadedFile],
-    idempotency_key: Form[str | None] = None,
-):
-    """TRANSITIONAL (workspace collections): the project id selects its workspace; P3 removes."""
-    return _register_blob(
-        request,
-        {"project_id": project_id},
-        request_id,
-        sha256,
-        size,
-        media_type,
-        content,
-        idempotency_key,
-    )
-
-
 def _register_blob(request, scope, request_id, sha256, size, media_type, content, idempotency_key):
     envelope = OperationEnvelope(
         operation="source.register_blob", request_id=request_id, idempotency_key=idempotency_key
@@ -246,9 +222,9 @@ def list_projects(request, include_archived: bool = False):
     return queries.list_projects(request.user, include_archived=include_archived)
 
 
-@api.get("/v0/projects/{project_id}/definitions", tags=["design"])
-def list_definitions(request, project_id: UUID):
-    return queries.list_definitions(request.user, project_id)
+@api.get("/v0/workspaces/{workspace_id}/definitions", tags=["design"])
+def list_definitions(request, workspace_id: UUID):
+    return queries.list_definitions(request.user, workspace_id)
 
 
 @api.get("/v0/drafts/{draft_id}", tags=["design"])

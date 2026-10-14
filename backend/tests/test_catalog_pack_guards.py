@@ -22,6 +22,7 @@ from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_catalog_packs import (
     adopt,
     install,
@@ -231,7 +232,11 @@ def test_direct_inert_entry_cannot_claim_a_materialized_draft(users, project, re
     source = op(
         users["owner"],
         "source.create_original_bundle",
-        {"project_id": project, "name": "Inert category source", "files": files(ORIGINAL)},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Inert category source",
+            "files": files(ORIGINAL),
+        },
     )
     entry = {"key": "part", "label": "Inert asset", "category": category, "rights": "unknown"}
     if category == "recipe_reference":
@@ -264,7 +269,7 @@ def test_direct_inert_entry_cannot_claim_a_materialized_draft(users, project, re
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": Definition.objects.get(id=revision_definition(revision)).kind,
             "name": "Fresh identity",
             "content": {"a": 1},
@@ -315,7 +320,7 @@ def test_supplementary_pins_remain_authorized_even_for_inert_adoption(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": file_project,
+            "workspace_id": workspace_of(file_project),
             "name": "Exact supporting file",
             "files": files(ORIGINAL, path="support/source.txt "),
         },
@@ -346,7 +351,11 @@ def test_supplementary_pins_remain_authorized_even_for_inert_adoption(
         draft = op(
             users["owner"],
             "definition.create",
-            {"project_id": other, "kind": "part", "name": "Supplementary engineering identity"},
+            {
+                "workspace_id": workspace_of(other),
+                "kind": "part",
+                "name": "Supplementary engineering identity",
+            },
         )
         revision = freeze(users["owner"], draft["draft_id"], draft["state"])
     if category == "recipe_reference":

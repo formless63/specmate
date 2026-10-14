@@ -23,11 +23,12 @@ from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import revision_scope, workspace_scope
 
 from .conftest import member, op
+from .scope_helpers import workspace_of
 from .test_transports import api, post_op
 
 
 def payload(workspace, name="Synthetic component"):
-    return {"workspace_id": workspace, "kind": "part", "name": name}
+    return {"workspace_id": workspace_of(workspace), "kind": "part", "name": name}
 
 
 def keyed_context(user, key="same-key"):
@@ -61,16 +62,23 @@ def test_same_actor_operation_key_is_independent_per_workspace(
 
 
 def test_projects_of_one_workspace_share_its_namespace(users, workspace, project):
+    from specmate.knowledge.models import KnowledgeItem
+
     user = users["owner"]
     other = op(user, "project.create", {"name": "Other synthetic scope"})["project_id"]
-    legacy_payload = {"project_id": project, "kind": "part", "name": "Synthetic component"}
-    first = execute("definition.create", keyed_context(user), legacy_payload).result
+    note = {
+        "workspace_id": workspace,
+        "project_id": project,
+        "kind": "note",
+        "content": {"title": "Synthetic note", "body": "Synthetic."},
+    }
+    first = execute("knowledge.create", keyed_context(user), note).result
     assert first["workspace_id"] == workspace
     # Another project in the same workspace is context, not a separate namespace.
     with pytest.raises(IdempotencyMismatch):
-        execute("definition.create", keyed_context(user), {**legacy_payload, "project_id": other})
+        execute("knowledge.create", keyed_context(user), {**note, "project_id": other})
     assert IdempotencyRecord.objects.get().scope == f"workspace:{workspace}"
-    assert Definition.objects.count() == 1
+    assert KnowledgeItem.objects.count() == 1
 
 
 def test_same_workspace_changed_payload_still_mismatches(users, workspace):
@@ -227,7 +235,7 @@ def test_derived_source_and_build_targets_use_their_workspace(users, workspace, 
         user,
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Scope source",
             "files": files(ORIGINAL),
         },
@@ -247,6 +255,7 @@ def test_derived_source_and_build_targets_use_their_workspace(users, workspace, 
     recipe = build_tests.recipe.__wrapped__(settings)
     recipe["outputs"][0]["rights"] = "synthetic-original"
     build_payload = {
+        "workspace_id": workspace,
         "project_id": project,
         "source_revision_id": source["revision_id"],
         "recipe_id": recipe["id"],
@@ -281,7 +290,7 @@ def test_operator_credential_scope_does_not_add_workspace_membership_requirement
         "runner.enroll",
         ctx,
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Scoped credential",
             "recipe_ids": [recipe["id"]],
         },

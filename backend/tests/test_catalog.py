@@ -17,6 +17,7 @@ from specmate.operations import (
 )
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
@@ -34,7 +35,7 @@ def source(users, project):
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Symbol source",
             "files": files(ORIGINAL),
         },
@@ -67,7 +68,7 @@ def test_representation_preserves_exact_source_path_including_spaces(users, proj
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Exact path fixture",
             "files": files(ORIGINAL) + files(ORIGINAL, path=exact_path),
         },
@@ -145,7 +146,7 @@ def test_same_part_number_does_not_merge_definitions(users, project, revision):
     other = op(
         users["editor"],
         "definition.create",
-        {"project_id": project, "kind": "part", "name": "Second"},
+        {"workspace_id": workspace_of(project), "kind": "part", "name": "Second"},
     )
     other_rev = freeze(users["owner"], other["draft_id"], other["state"])
     a = op(users["editor"], "catalog.register_variant", variant_payload(revision))
@@ -233,7 +234,7 @@ def test_representation_requires_exact_file_and_scoped_source(users, revision, s
         users["outsider"],
         "source.create_original_bundle",
         {
-            "project_id": other,
+            "workspace_id": workspace_of(other),
             "name": "Hidden",
             "files": files(ORIGINAL),
         },
@@ -287,7 +288,7 @@ def test_two_consumers_reuse_one_definition_revision(users, project, revision, d
             users["editor"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "kind": "assembly",
                 "name": name,
             },
@@ -322,7 +323,7 @@ def test_accessible_cross_workspace_source_still_rejected_by_service_and_databas
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": other,
+            "workspace_id": workspace_of(other),
             "name": "Other scope",
             "files": files(ORIGINAL),
         },
@@ -375,7 +376,7 @@ def test_draft_dependency_disclosure_rechecks_current_access(users, project, def
         users["owner"],
         "definition.create",
         {
-            "project_id": other_project,
+            "workspace_id": workspace_of(other_project),
             "kind": "part",
             "name": "Shared dependency",
         },

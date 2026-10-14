@@ -24,6 +24,7 @@ from specmate.operations import (
 from specmate.pcb.models import PropertyAuthority, PropertyOwnerChange, PropertyProjection
 
 from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_pcb import BOARD, digest, recipe, report_payload, source, successful_output  # noqa: F401
 from .test_sources import register
 
@@ -44,7 +45,7 @@ def accepted(users, workspace, revision_id, board, outline=(SQUARE,), key="x", c
         users["editor"],
         "pcb.register_intake",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "source_revision_id": revision_id,
             "board_path": "board.kicad_pcb",
         },

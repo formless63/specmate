@@ -10,6 +10,7 @@ from specmate.operations import NotFound, ValidationFailed
 from specmate.queries import get_draft, get_revision
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_assemblies import create, occ, part
 
 
@@ -83,7 +84,7 @@ def test_generic_create_cannot_capture_an_inaccessible_child(users, project):
             users["owner"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "kind": "assembly",
                 "name": "Unauthorized assembly",
                 "content": {"assembly": {"occurrences": [occ("board", child)]}},

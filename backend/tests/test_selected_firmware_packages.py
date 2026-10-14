@@ -15,6 +15,7 @@ from specmate.selected_packages.verification import verify_files
 from specmate.sources import blobstore
 
 from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, firmware_part, freeze, occ
 from .test_selected_packages import package, request
 from .test_sources import register
@@ -40,7 +41,7 @@ def preserved(user, project, name, entries):
         user,
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": name,
             "files": files,
         },
@@ -99,7 +100,7 @@ def firmware_context(users, project):
             owner,
             "firmware.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "name": "Exact firmware declaration",
                 "firmware": value,
             },
@@ -160,7 +161,7 @@ def test_typed_file_boundary_is_explicit_and_arbitrary_native_shapes_stay_opaque
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "unknown_native",
             "name": "Opaque declaration",
             "content": opaque,

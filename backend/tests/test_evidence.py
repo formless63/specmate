@@ -7,6 +7,7 @@ from specmate.facts.models import FactAssertion, FactSubject
 from specmate.operations import NotFound, ValidationFailed
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_builds import build, build_payload, recipe, source  # noqa: F401
 from .test_cable_test_intent import (  # noqa: F401
     cable,
@@ -24,7 +25,7 @@ from .test_transports import api
 
 
 def listing(user, workspace, **changes):
-    return op(user, "evidence.list", {"workspace_id": workspace, **changes})
+    return op(user, "evidence.list", {"workspace_id": workspace_of(workspace), **changes})
 
 
 def by_id(result):

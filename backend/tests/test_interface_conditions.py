@@ -18,6 +18,7 @@ from specmate.interfaces.queries import inspect_revision
 from specmate.operations import Conflict, NotFound, PermissionDenied
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_interface_assessments import assessment
 from .test_interface_assessments import pair as base_pair
 from .test_interfaces import create, freeze
@@ -263,7 +264,7 @@ def test_rating_evidence_rechecks_current_full_historic_scope_before_diagnostics
     source = op(
         owner,
         "source.create_original_bundle",
-        {"project_id": remote, "name": "Synthetic limits", "files": files(data)},
+        {"workspace_id": workspace_of(remote), "name": "Synthetic limits", "files": files(data)},
     )
     declared = rating()
     declared["evidence"] = {

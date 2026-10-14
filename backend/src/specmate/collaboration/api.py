@@ -67,17 +67,3 @@ def inbox(
 @router.get("/notifications/{notification_id}")
 def notification(request, notification_id: UUID):
     return private_json(queries.notification_result(request.user, notification_id))
-
-
-# TRANSITIONAL (workspace collections, P3 removes): project-path aliases for callers that
-# have not moved to the workspace routes above. The project is ordering context only.
-@router.get("/projects/{project_id}/reviews")
-def project_reviews_alias(request, project_id: UUID, after: UUID | None = None, limit: int = 25):
-    return reviews(request, project_id=project_id, after=after, limit=limit)
-
-
-@router.get("/projects/{project_id}/inbox")
-def project_inbox_alias(
-    request, project_id: UUID, after: UUID | None = None, limit: int = 25, unread_only: bool = False
-):
-    return inbox(request, project_id=project_id, after=after, limit=limit, unread_only=unread_only)

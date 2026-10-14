@@ -16,8 +16,6 @@ from specmate.wire_stock.schemas import StockSpecification, StrictModel
 class CreateStock(StrictModel):
     # Omitted: the actor's workspace. Stock is a library definition, never project-owned.
     workspace_id: UUID | None = None
-    # TRANSITIONAL (P3 removes): a project id only selects its workspace; no reference.
-    project_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
     stock: StockSpecification
 
@@ -30,7 +28,7 @@ class CreateStock(StrictModel):
     authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
 )
 def create_stock(ctx: Context, p: CreateStock) -> dict:
-    workspace = creation_workspace(ctx.user, p.workspace_id, p.project_id)
+    workspace = creation_workspace(ctx.user, p.workspace_id)
     definition = Definition.objects.create(
         workspace=workspace, kind="wire_stock", name=p.name, created_by=ctx.user
     )
@@ -109,7 +107,7 @@ def stock_scope(ctx, payload):
 
     permission = Perm.DESIGN_FREEZE if isinstance(payload, FreezeStock) else Perm.DESIGN_EDIT
     if isinstance(payload, CreateStock):
-        workspace = creation_workspace(ctx.user, payload.workspace_id, payload.project_id)
+        workspace = creation_workspace(ctx.user, payload.workspace_id)
         return workspace_scope(ctx, workspace.id, Perm.ITEM_CREATE)
     draft = scoped_draft(ctx, payload.draft_id, permission)
     if draft.definition.kind != "wire_stock":

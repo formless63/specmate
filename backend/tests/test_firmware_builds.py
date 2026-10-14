@@ -31,6 +31,7 @@ from specmate.operations import (
 from specmate.sources import blobstore
 
 from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_firmware import (  # noqa: F401
     attempt,
     board,
@@ -56,7 +57,7 @@ def sources(users, project):
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Original synthetic compile input",
             "files": [
                 {
@@ -82,7 +83,7 @@ def firmware(users, project, sources, board):  # noqa: F811
         users["owner"],
         "firmware.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic baremetal compiler declaration",
             "firmware": content,
         },
@@ -232,7 +233,7 @@ def test_generic_request_hook_rejects_consent_bypass(users, firmware, compiler_r
         operations.authorize_request(
             Context(user=users["owner"], via="job", request_id="hook"),
             RequestBuild(
-                project_id=operations.inputs(
+                workspace_id=operations.inputs(
                     users["owner"], FirmwareRef(firmware_revision_id=firmware["revision_id"])
                 )[0].definition.workspace_id,
                 source_revision_id=source_id,

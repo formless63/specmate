@@ -13,6 +13,7 @@ from specmate.mechanical_sources.contracts import MechanicalSource
 from specmate.operations import Conflict, NotFound, ValidationFailed
 
 from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_mechanical_sources import mec_target  # noqa: F401
 from .test_sources import register
 from .test_transports import api
@@ -49,7 +50,7 @@ def mesh_declaration(users, workspace, mec_target):  # noqa: F811
         users["owner"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Original closed illustration tetrahedron",
             "files": [
                 {
@@ -65,7 +66,7 @@ def mesh_declaration(users, workspace, mec_target):  # noqa: F811
         users["owner"],
         "definition.create",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "kind": "hardware",
             "name": "Original model owner",
         },
@@ -185,7 +186,11 @@ def create(user, workspace, content):
     return op(
         user,
         "mechanical_source.create",
-        {"workspace_id": workspace, "name": "Declared uncertainty", "mechanical_source": content},
+        {
+            "workspace_id": workspace_of(workspace),
+            "name": "Declared uncertainty",
+            "mechanical_source": content,
+        },
     )
 
 

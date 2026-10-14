@@ -62,7 +62,7 @@ def fixture(user, project):
     stock_draft = op(
         user,
         "wire_stock.create",
-        {"project_id": project, "name": "Synthetic stock", "stock": STOCK},
+        {"workspace_id": workspace_of(project), "name": "Synthetic stock", "stock": STOCK},
     )
     stock = capture(user, stock_draft, "wire_stock.freeze")
     body_draft = create_interface(user, project)
@@ -200,7 +200,7 @@ def test_generic_hooks_derive_pins_validate_content_and_recheck_reads(users, pro
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Generic cable",
             "kind": "cable",
             "content": {"cable": cable},
@@ -213,7 +213,7 @@ def test_generic_hooks_derive_pins_validate_content_and_recheck_reads(users, pro
             users["owner"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "name": "Wrong kind",
                 "kind": "board",
                 "content": {"cable": cable},
@@ -229,7 +229,7 @@ def test_generic_hooks_derive_pins_validate_content_and_recheck_reads(users, pro
     unfinished = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "name": "Incomplete", "kind": "cable"},
+        {"workspace_id": workspace_of(project), "name": "Incomplete", "kind": "cable"},
     )
     with pytest.raises(ValidationFailed):
         capture(users["owner"], unfinished, "draft.freeze")
@@ -361,7 +361,11 @@ def test_deep_source_revocation_precedes_diagnostics_replay_and_stale_state(user
     practice = op(
         owner,
         "workshop_profile.create",
-        {"project_id": project, "name": "Synthetic practice", "profile": documented},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic practice",
+            "profile": documented,
+        },
     )
     practice_revision = capture(owner, practice, "workshop_profile.freeze")
     stock_draft, _, stock, _, _, cable = fixture(owner, project)

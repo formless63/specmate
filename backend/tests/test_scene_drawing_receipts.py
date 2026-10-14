@@ -14,6 +14,7 @@ from specmate.shared_scene import drawing_operations, drawing_render
 from specmate.shared_scene.models import SceneDrawing
 
 from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ
 from .test_preparation import cable, profile
 from .test_preparation import create as create_cuts
@@ -55,7 +56,11 @@ def test_changed_key_retains_old_scene_authority_when_proposed_scene_drops_it(
         source = op(
             user,
             "source.create_original_bundle",
-            {"project_id": remote, "name": "Source instruction", "files": files(data)},
+            {
+                "workspace_id": workspace_of(remote),
+                "name": "Source instruction",
+                "files": files(data),
+            },
         )
         value, _ = cable(user, project)
         rules = profile(value["stock_revision_id"])

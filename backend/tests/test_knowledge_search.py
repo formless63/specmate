@@ -22,6 +22,7 @@ from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob
 
 from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_knowledge import attachment_ref, create, part, preserve
 from .test_transports import api, post_op
 
@@ -609,7 +610,7 @@ def test_missing_and_forbidden_exact_search_targets_have_identical_error_respons
     private = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "part", "name": "Protected search target"},
+        {"workspace_id": workspace_of(project), "kind": "part", "name": "Protected search target"},
     )
     client = api(users["outsider"])
     target = {"kind": "definition", "definition_id": private["definition_id"]}

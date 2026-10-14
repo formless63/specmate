@@ -7,6 +7,7 @@ from specmate.catalog.queries import get_identity
 from specmate.operations import NotFound
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_interfaces import create, freeze, pinout
 from .test_transports import api
 
@@ -21,7 +22,7 @@ def test_catalog_draft_summary_hides_revoked_reference_closure(users, project, k
         user,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "pinout",
             "name": "Referenced pinout",
             "content": {"interface": pinout(body)},
@@ -35,7 +36,7 @@ def test_catalog_draft_summary_hides_revoked_reference_closure(users, project, k
         target = op(
             user,
             "definition.create",
-            {"project_id": project, "kind": "part", "name": "Pinned document"},
+            {"workspace_id": workspace_of(project), "kind": "part", "name": "Pinned document"},
         )
         op(
             user,

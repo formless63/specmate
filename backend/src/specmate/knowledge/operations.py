@@ -5,7 +5,7 @@ from specmate.access.permissions import (
     Perm,
     authorize,
     authorize_item,
-    authorize_project,
+    context_project,
 )
 from specmate.facts.contracts import Target
 from specmate.facts.queries import resolve_target, source_file
@@ -112,13 +112,9 @@ def _item_scope(ctx, item_id):
 
 
 def _holder(ctx, p):
-    """The authorized workspace and the optional holding project of a new item."""
-    if p.project_id is None:
-        return authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE), None
-    project = authorize_project(ctx.user, p.project_id, Perm.ITEM_CREATE)
-    if p.workspace_id is not None and project.workspace_id != p.workspace_id:
-        raise NotFound("Project not found.")
-    return project.workspace, project
+    """The authorized workspace and the optional project context of a new item."""
+    workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
+    return workspace, context_project(p.project_id, workspace)
 
 
 def _authorize_stored_item(ctx, stored):

@@ -126,7 +126,7 @@ def test_update_downgrade_disable_retains_owned_copies_originals_and_consumer_pi
     consumer = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "assembly", "name": "Pinned consumer"},
+        {"workspace_id": workspace_of(project), "kind": "assembly", "name": "Pinned consumer"},
     )
     consumer_rev = freeze(
         users["owner"], consumer["draft_id"], consumer["state"], [local["revision_id"]]
@@ -135,7 +135,7 @@ def test_update_downgrade_disable_retains_owned_copies_originals_and_consumer_pi
         users["editor"],
         "catalog_pack.register",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "pack_id": v1["pack_id"],
             "manifest": manifest(
                 revision,
@@ -241,7 +241,7 @@ def test_inert_rule_model_and_recipe_references_do_not_execute(users, project, r
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Inert sources",
             "files": files(ORIGINAL, path="assets/model.step "),
         },
@@ -304,7 +304,7 @@ def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
     source = op(
         users["owner"],
         "definition.create",
-        {"project_id": other, "kind": "part", "name": "Library source"},
+        {"workspace_id": workspace_of(other), "kind": "part", "name": "Library source"},
     )
     shared = freeze(users["owner"], source["draft_id"], source["state"])
     v1 = registered(users, project, shared)
@@ -387,7 +387,7 @@ def test_optional_registered_manifest_checks_actual_bytes_and_preserves_rights(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Pack manifest",
             "files": files(raw, path="packs/catalog.json "),
         },
@@ -401,7 +401,11 @@ def test_optional_registered_manifest_checks_actual_bytes_and_preserves_rights(
     result = op(
         users["editor"],
         "catalog_pack.register",
-        {"project_id": project, "manifest": manifest(revision), "manifest_source": pin},
+        {
+            "workspace_id": workspace_of(project),
+            "manifest": manifest(revision),
+            "manifest_source": pin,
+        },
     )
     assert result["sha256"] == hashlib.sha256(raw).hexdigest()
     assert result["manifest_source"]["source_path"] == pin["source_path"]
@@ -410,7 +414,7 @@ def test_optional_registered_manifest_checks_actual_bytes_and_preserves_rights(
             users["editor"],
             "catalog_pack.register",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "pack_id": result["pack_id"],
                 "manifest": manifest(revision, version="2.0"),
                 "manifest_source": pin,
@@ -448,7 +452,7 @@ def test_source_selector_adapter_preserves_exact_files_and_current_scope(users, 
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Pack sources",
             "files": files(ORIGINAL, path="models/source.step "),
         },
@@ -624,7 +628,7 @@ def test_later_edit_of_adopted_copy_keeps_version_and_initial_history(users, pro
     dependency = op(
         users["owner"],
         "definition.create",
-        {"project_id": other, "kind": "part", "name": "Library child"},
+        {"workspace_id": workspace_of(other), "kind": "part", "name": "Library child"},
     )
     child = freeze(users["owner"], dependency["draft_id"], dependency["state"])
     draft = get_draft(users["owner"], copied.draft_id)
@@ -665,7 +669,7 @@ def test_nested_origin_bounds_and_cleanup_after_failure(users, project, revision
         users["editor"],
         "catalog_pack.register",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "pack_id": v1["pack_id"],
             "manifest": manifest(frozen, version="2.0"),
         },

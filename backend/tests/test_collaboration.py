@@ -20,6 +20,7 @@ from specmate.operations import (
 from specmate.operations.models import IdempotencyRecord
 
 from .conftest import ensure_member, member, membership, op, remove_member, set_role
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ
 from .test_catalog_matching import source_evidence
 from .test_transports import api, post_op
@@ -32,7 +33,7 @@ def pair(users, project):
         owner,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "wire_stock",
             "name": "Original synthetic declared comparison",
             "content": {"length": "12.5", "unknown": None, "typed": True, "removed": "old"},
@@ -130,7 +131,7 @@ def test_cross_identity_comparison_never_infers_feature_correspondence(users, pr
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "wire_stock",
             "name": "Different identity",
             "content": {"unknown": None},
@@ -325,6 +326,7 @@ def test_knowledge_pin_reuses_exact_entry_and_source_owner(users, project, pair)
         owner,
         "knowledge.create",
         {
+            "workspace_id": workspace_of(project),
             "project_id": project,
             "kind": "note",
             "content": {"title": "Original comparison basis", "body": "Declared review only"},

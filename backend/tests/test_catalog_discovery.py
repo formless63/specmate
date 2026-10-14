@@ -5,6 +5,7 @@ import pytest
 from specmate.operations import NotFound, ValidationFailed
 
 from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_catalog import variant_payload
 from .test_design import freeze
 from .test_inventory import assertion
@@ -14,7 +15,11 @@ from .test_transports import api
 
 
 def create_part(user, project, name):
-    return op(user, "definition.create", {"project_id": project, "kind": "part", "name": name})
+    return op(
+        user,
+        "definition.create",
+        {"workspace_id": workspace_of(project), "kind": "part", "name": name},
+    )
 
 
 def search(user, kind, query, **options):
@@ -35,7 +40,11 @@ def test_search_sources_catalog_and_stock_with_current_authority(users, project)
             "label": "Batch Copper",
         },
     )
-    location = op(owner, "inventory.create_location", {"project_id": project, "name": "Drawer B"})
+    location = op(
+        owner,
+        "inventory.create_location",
+        {"workspace_id": workspace_of(project), "name": "Drawer B"},
+    )
     stock = op(
         owner,
         "inventory.open_stock",
@@ -48,7 +57,7 @@ def test_search_sources_catalog_and_stock_with_current_authority(users, project)
         owner,
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Bracket source",
             "files": files(ORIGINAL),
         },
@@ -177,7 +186,7 @@ def create_foreign_part(users, other_workspace):
     part = op(
         outsider,
         "definition.create",
-        {"workspace_id": other_workspace, "kind": "part", "name": "Caliper foreign"},
+        {"workspace_id": workspace_of(other_workspace), "kind": "part", "name": "Caliper foreign"},
     )
     return {
         **freeze(outsider, part["draft_id"], part["state"]),

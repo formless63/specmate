@@ -141,7 +141,7 @@ def test_generic_authoring_obeys_typed_kind_capture_and_reference_guards(users, 
             owner,
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "name": "Wrong typed kind",
                 "kind": "part",
                 "content": {"passages": model},

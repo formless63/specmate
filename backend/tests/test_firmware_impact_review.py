@@ -9,6 +9,7 @@ from specmate.firmware_impact import operations
 from specmate.operations import NotFound, ValidationFailed
 
 from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_facts import append, fact, subject
 from .test_firmware import attempt, board, digest, intake, recipe, source, sources  # noqa: F401
 from .test_firmware_impact import compare, observation, payload
@@ -37,7 +38,7 @@ def test_automatic_fact_input_ancestor_denial_precedes_assignment_diagnostic(
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Original evidence",
             "files": [
                 {

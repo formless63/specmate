@@ -90,21 +90,8 @@ class Quantity(Payload):
 
 
 class CreateLocation(Payload):
-    workspace_id: UUID | None = None
-    # TRANSITIONAL (workspace collections): a project id only selects its workspace; the
-    # location is a workspace record. P3 removes it.
-    project_id: UUID | None = None
+    workspace_id: UUID
     name: str = Field(min_length=1, max_length=200)
-
-    @model_validator(mode="after")
-    def one_scope(self):
-        if (self.workspace_id is None) == (self.project_id is None):
-            raise ValueError("Provide exactly one of workspace_id or project_id.")
-        return self
-
-    @property
-    def scope_id(self) -> UUID:
-        return self.workspace_id or self.project_id
 
 
 class Assertion(Payload):

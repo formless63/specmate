@@ -10,6 +10,7 @@ from specmate.design.models import Draft, Snapshot
 from specmate.operations import NotFound, Unauthenticated, ValidationFailed
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_design import freeze
 from .test_transports import api, post_op
 
@@ -21,7 +22,7 @@ def pair(users, project, definition):
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Independent supplier target",
             "kind": "part",
         },
@@ -161,7 +162,7 @@ def test_same_workspace_reuse_and_foreign_workspace_never_suggested(
     reused = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "name": "Library reuse target", "kind": "part"},
+        {"workspace_id": workspace_of(project), "name": "Library reuse target", "kind": "part"},
     )
     reused_revision = freeze(users["owner"], reused["draft_id"], reused["state"])
     second = variant(users, reused_revision)

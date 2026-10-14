@@ -11,6 +11,7 @@ from specmate.operations.models import IdempotencyRecord
 from specmate.queries import list_projects
 
 from .conftest import member, op
+from .scope_helpers import workspace_of
 
 
 def read(user, project, **extra):
@@ -19,7 +20,9 @@ def read(user, project, **extra):
 
 def part(user, workspace, name="Shared connector", freeze=False):
     created = op(
-        user, "definition.create", {"workspace_id": workspace, "kind": "part", "name": name}
+        user,
+        "definition.create",
+        {"workspace_id": workspace_of(workspace), "kind": "part", "name": name},
     )
     if not freeze:
         return created

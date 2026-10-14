@@ -8,6 +8,7 @@ from uuid import UUID
 
 from specmate.access.models import Project, WorkspaceMember
 from specmate.access.permissions import Perm, authorize, permissions_for
+from specmate.access.workspaces import actor_workspace_id
 from specmate.design.models import Definition, Draft, Revision
 from specmate.design.operations import authorize_design_content, authorize_snapshot, draft_state
 from specmate.design.pins import check_pin
@@ -39,9 +40,9 @@ def list_projects(user: Any, *, include_archived: bool = False) -> list[dict]:
     ]
 
 
-def list_definitions(user: Any, scope_id: UUID) -> list[dict]:
-    """Definitions in the workspace collection (a project id selects its workspace)."""
-    workspace = authorize(user, scope_id, Perm.WORKSPACE_READ)
+def list_definitions(user: Any, workspace_id: UUID | None) -> list[dict]:
+    """Every definition in a workspace collection (omitted: the actor's workspace)."""
+    workspace = authorize(user, actor_workspace_id(user, workspace_id), Perm.WORKSPACE_READ)
     return [
         {"definition_id": str(d.id), "kind": d.kind, "name": d.name}
         for d in Definition.objects.filter(workspace=workspace).order_by("created_at")

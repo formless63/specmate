@@ -157,7 +157,7 @@ def revision_view(revision, with_proposal=True):
 
 def create_scope(ctx, p: CreateProposal):
     user = current_actor(ctx.user)
-    scope = workspace_scope(ctx, p.scope_id, Perm.ITEM_CREATE)
+    scope = workspace_scope(ctx, p.workspace_id, Perm.ITEM_CREATE)
     board_report(user, scope.removeprefix("workspace:"), p.interpretation_id)
     return scope
 
@@ -188,7 +188,7 @@ def draft_replay(ctx, p, stored):
 )
 def create(ctx: Context, p: CreateProposal):
     user = current_actor(ctx.user)
-    workspace = authorize(user, p.scope_id, Perm.ITEM_CREATE)
+    workspace = authorize(user, p.workspace_id, Perm.ITEM_CREATE)
     compute(user, workspace.id, p.interpretation_id, p.parameters)  # validates references
     draft = ProposalDraft.objects.create(
         workspace=workspace,

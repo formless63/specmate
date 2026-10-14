@@ -80,7 +80,7 @@ def test_source_revoked_during_promotion_rolls_back_receipt_and_key(users, proje
     source = op(
         user,
         "source.create_original_bundle",
-        {"project_id": foreign, "name": "Allowance", "files": source_files(data)},
+        {"workspace_id": workspace_of(foreign), "name": "Allowance", "files": source_files(data)},
     )
     rules = profile(value["stock_revision_id"])
     rules["formulas"][0]["allowances"][0]["source"] = {
@@ -152,7 +152,11 @@ def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users
     source = op(
         user,
         "source.create_original_bundle",
-        {"project_id": foreign, "name": "Allowance basis", "files": source_files(data)},
+        {
+            "workspace_id": workspace_of(foreign),
+            "name": "Allowance basis",
+            "files": source_files(data),
+        },
     )
     pin = {
         "kind": "source_file",

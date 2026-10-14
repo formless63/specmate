@@ -21,7 +21,7 @@ from django.utils import timezone
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from specmate.access.models import Installation
-from specmate.access.permissions import Perm, authorize, transitional_project
+from specmate.access.permissions import Perm, authorize, context_project
 from specmate.builds.models import (
     BuildAttempt,
     BuildOutbox,
@@ -173,8 +173,8 @@ class RequestBuild(WorkspaceProjectPayload):
     status="accepted_async",
 )
 def request_build(ctx: Context, p: RequestBuild) -> dict:
-    workspace = authorize(ctx.user, p.scope_id, Perm.BUILD_EXECUTE)
-    context = project_context(p, workspace)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.BUILD_EXECUTE)
+    context = context_project(p.project_id, workspace)
     if not ctx.idempotency_key:
         raise ValidationFailed("build.request requires an idempotency key.")
     from specmate.diagnostics.guards import require_accepting_work
@@ -187,20 +187,6 @@ def request_build(ctx: Context, p: RequestBuild) -> dict:
         raise NotFound("Source revision not found.")
     recipe = approved_recipe(p.recipe_id)
     return _create_attempt(ctx, workspace, source, recipe, p, project=context)
-
-
-def project_context(p, workspace):
-    """The optional navigation project of a request, which must be in the workspace.
-
-    A project never grants or limits build authority. An id that names no project of the
-    workspace is a navigation-free request when it is the (transitional) scope alias itself.
-    """
-    if p.project_id is None:
-        return None
-    project = transitional_project(p.project_id, workspace)
-    if project is None and p.workspace_id is not None:
-        raise NotFound("Project not found.")
-    return project
 
 
 def _create_attempt(
@@ -394,7 +380,7 @@ def enroll_runner(ctx: Context, p: EnrollRunner) -> dict:
     _operator(ctx)
     if ctx.idempotency_key:
         raise ValidationFailed("Credential issuance cannot retain an idempotent token response.")
-    workspace = authorize(ctx.user, p.scope_id, Perm.WORKSPACE_ADMIN)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_ADMIN)
     for recipe_id in p.recipe_ids:
         approved_recipe(recipe_id)
     token = secrets.token_urlsafe(48)

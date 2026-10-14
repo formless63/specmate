@@ -12,6 +12,7 @@ from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob, SourceBundle
 
 from .conftest import op
+from .scope_helpers import workspace_of
 
 ORIGINAL = b"synthetic source bytes\n"
 EDITED = b"synthetic source bytes, edited\n"
@@ -23,7 +24,7 @@ def sha(data):
 
 def register(user, workspace, data, declared=None, size=None):
     payload = {
-        "workspace_id": workspace,
+        "workspace_id": workspace_of(workspace),
         "sha256": declared or sha(data),
         "size": len(data) if size is None else size,
         "media_type": "text/plain",
@@ -322,10 +323,10 @@ def test_workspace_source_listing_reports_workspace_and_hides_it_from_non_member
     assert listed.status_code == 200
     assert listed.json()["workspace_id"] == workspace
     assert [r["revision_id"] for r in listed.json()["revisions"]] == [bundle["revision_id"]]
-    # TRANSITIONAL alias: a project id of the same workspace lists the same records.
+    # A project id is not a scope: the former project-path alias is gone.
     project = op(users["owner"], "project.create", {"name": "Navigation only"})["project_id"]
-    aliased = client.get(f"/api/v0/sources/projects/{project}/revisions")
-    assert aliased.json()["revisions"] == listed.json()["revisions"]
+    assert client.get(f"/api/v0/sources/projects/{project}/revisions").status_code == 404
+    assert client.get(f"/api/v0/sources/workspaces/{project}/revisions").status_code == 404
     client.force_login(users["outsider"])
     assert client.get(f"/api/v0/sources/workspaces/{workspace}/revisions").status_code == 404
 

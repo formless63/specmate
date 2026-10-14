@@ -23,6 +23,7 @@ from specmate.sources import blobstore
 
 from . import test_builds as build_tests
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_transports import api, post_op
 
 
@@ -46,7 +47,7 @@ def request_for(name, user, project, definition):
     if name == "project.create":
         payload = {"name": "Cached synthetic project"}
     elif name == "definition.create":
-        payload = {"project_id": project, "kind": "part", "name": "Cached part"}
+        payload = {"workspace_id": workspace_of(project), "kind": "part", "name": "Cached part"}
     elif name == "source.create_original_bundle":
         content = b"synthetic original\n"
         digest = hashlib.sha256(content).hexdigest()
@@ -54,7 +55,7 @@ def request_for(name, user, project, definition):
             user,
             "source.register_blob",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "sha256": digest,
                 "size": len(content),
                 "media_type": "text/plain",
@@ -62,7 +63,7 @@ def request_for(name, user, project, definition):
             attachments={"content": io.BytesIO(content)},
         )
         payload = {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Cached source",
             "files": [
                 {
@@ -145,7 +146,7 @@ def test_replay_rechecks_pinned_dependency_read_scope(users, project, definition
         owner,
         "definition.create",
         {
-            "project_id": other["project_id"],
+            "workspace_id": workspace_of(other["project_id"]),
             "kind": "part",
             "name": "Pinned part",
         },
@@ -162,7 +163,7 @@ def test_replay_rechecks_pinned_dependency_read_scope(users, project, definition
 
 def test_current_account_status_overrides_stale_authenticated_object(users, project):
     owner = users["owner"]
-    payload = {"project_id": project, "kind": "part", "name": "Stale actor part"}
+    payload = {"workspace_id": workspace_of(project), "kind": "part", "name": "Stale actor part"}
     ctx = Context(user=owner, via="internal", request_id="old-actor", idempotency_key="actor")
     execute("definition.create", ctx, payload)
     get_user_model().objects.filter(pk=owner.pk).update(is_active=False)
@@ -181,7 +182,7 @@ def test_replayed_upload_verifies_actual_stream_without_promoting_damaged_bytes(
     content = b"unchanged original\n"
     digest = hashlib.sha256(content).hexdigest()
     payload = {
-        "project_id": project,
+        "workspace_id": workspace_of(project),
         "sha256": digest,
         "size": len(content),
         "media_type": "text/plain",
@@ -245,7 +246,7 @@ def test_cached_operator_action_cannot_replay_through_jobs(users, project, recip
         "runner.enroll",
         ctx,
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic scoped runner",
             "recipe_ids": [recipe["id"]],
         },
@@ -267,10 +268,10 @@ def test_new_operation_without_replay_guard_fails_closed(users, project, monkeyp
         replace(
             registry["definition.create"],
             name=name,
-            idempotency_scope=lambda ctx, parsed: workspace_scope(ctx, parsed.scope_id),
+            idempotency_scope=lambda ctx, parsed: workspace_scope(ctx, parsed.workspace_id),
         ),
     )
-    payload = {"project_id": project, "kind": "part", "name": "Guarded scope"}
+    payload = {"workspace_id": workspace_of(project), "kind": "part", "name": "Guarded scope"}
     ctx = Context(user=users["owner"], via="job", request_id="custom", idempotency_key="custom")
     execute(name, ctx, payload)
     with pytest.raises(PermissionDenied, match="replay policy"):

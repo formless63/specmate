@@ -31,7 +31,7 @@ def test_pack_authority_hides_root_and_nested_adoption_then_restores_identical_s
         users["owner"],
         "catalog_pack.register",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "manifest": manifest(external, package_key="synthetic.dependency"),
         },
     )

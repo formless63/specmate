@@ -84,7 +84,11 @@ def test_profile_requires_typed_frozen_stock_before_writing(users, project):
     draft = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "wire_stock", "name": "Unspecified construction"},
+        {
+            "workspace_id": workspace_of(project),
+            "kind": "wire_stock",
+            "name": "Unspecified construction",
+        },
     )
     revision = op(
         users["owner"],
@@ -258,7 +262,7 @@ def test_generic_commands_keep_profile_validation_and_exact_dependency(users, pr
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "workshop_profile",
             "name": "Incomplete",
             "content": {},
@@ -327,7 +331,7 @@ def test_generic_commands_keep_profile_validation_and_exact_dependency(users, pr
             users["owner"],
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "kind": "generic",
                 "name": "Wrong kind",
                 "content": {"profile": profile(stock_id)},

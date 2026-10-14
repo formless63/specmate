@@ -39,7 +39,7 @@ def preserve(user, project, name, data, path, media_type, rights="synthetic-orig
         user,
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": name,
             "files": [
                 {"path": path, "sha256": sha(data), "media_type": media_type, "rights": rights}
@@ -49,7 +49,11 @@ def preserve(user, project, name, data, path, media_type, rights="synthetic-orig
 
 
 def part(user, project, name):
-    draft = op(user, "definition.create", {"project_id": project, "kind": "part", "name": name})
+    draft = op(
+        user,
+        "definition.create",
+        {"workspace_id": workspace_of(project), "kind": "part", "name": name},
+    )
     first = op(user, "draft.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"])
     second = op(
         user,
@@ -136,7 +140,12 @@ def create_library(user, workspace, kind="note", links=(), key=None, **content):
     return op(
         user,
         "knowledge.create",
-        {"workspace_id": workspace, "kind": kind, "content": body, "links": list(links)},
+        {
+            "workspace_id": workspace_of(workspace),
+            "kind": kind,
+            "content": body,
+            "links": list(links),
+        },
         idempotency_key=key,
     )
 

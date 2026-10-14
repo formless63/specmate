@@ -26,6 +26,7 @@ from specmate.sources.models import (
 )
 
 from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_sources import register, sha
 
 ORIGINAL = {
@@ -70,7 +71,7 @@ def original(users, workspace, contents=ORIGINAL, rights="synthetic-original"):
         users["editor"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Synthetic native bundle",
             "files": [
                 {"path": p, "sha256": sha(d), "media_type": "text/plain", "rights": rights}
@@ -105,7 +106,7 @@ def preserve_zip(users, workspace, data):
         users["editor"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Edited upload",
             "files": [
                 {

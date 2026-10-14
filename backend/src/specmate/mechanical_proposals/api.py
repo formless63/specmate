@@ -26,9 +26,6 @@ def context(request, name):
     return Context(user=request.user, via="api", request_id=name)
 
 
-@router.get(
-    "/projects/{workspace_id}/boards", operation_id="mechanical_proposals_boards_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/boards")
 def boards(request, workspace_id: UUID):
     return board_choices(
@@ -44,9 +41,6 @@ def board(request, workspace_id: UUID, interpretation_id: UUID):
     )
 
 
-@router.get(
-    "/projects/{workspace_id}/drafts", operation_id="mechanical_proposals_drafts_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/drafts")
 def drafts(request, workspace_id: UUID):
     return list_proposals(

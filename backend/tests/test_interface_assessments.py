@@ -19,6 +19,7 @@ from specmate.operations import (
 )
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_interfaces import create, freeze
 from .test_shared_read_authority import adopt_with_remote_origin, restore, revoke
 from .test_sources import files, register
@@ -300,7 +301,7 @@ def test_registered_evidence_denial_before_pin_diagnostics_and_replay_recovery(
         owner,
         "source.create_original_bundle",
         {
-            "project_id": remote,
+            "workspace_id": workspace_of(remote),
             "name": "Original synthetic declaration",
             "files": files(b"Original inert mating declaration"),
         },

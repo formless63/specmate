@@ -605,7 +605,7 @@ def _content(firmware: Firmware) -> dict:
 def _scope_closure(ctx, p, permission) -> str:
     if isinstance(p, CreateFirmware):
         # Creating a firmware item is additive: contributors may create.
-        workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
+        workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
         probe = Definition(workspace=workspace, kind=KIND)
         closure(ctx.user, probe, _content(p.firmware))
         return f"workspace:{workspace.id}"
@@ -659,7 +659,7 @@ def _scope(name, permission=Perm.DESIGN_EDIT):
     authorize_replay=_replay,
 )
 def create_firmware(ctx: Context, p: CreateFirmware) -> dict:
-    workspace = authorize(ctx.user, p.scope_id, Perm.ITEM_CREATE)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
     closure(ctx.user, Definition(workspace=workspace, kind=KIND), _content(p.firmware))
     return create_definition(
         ctx,

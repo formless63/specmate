@@ -16,6 +16,7 @@ from specmate.operations import NotFound, Unauthenticated, ValidationFailed
 from specmate.queries import get_bundle_revision, get_draft
 
 from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ, part
 from .test_catalog_packs import adopt, install, manifest, registered
 from .test_design import freeze as freeze_design
@@ -163,7 +164,11 @@ def test_valid_derived_source_facts_deny_on_membership_loss_and_restore(users, p
     original = op(
         users["owner"],
         "source.create_original_bundle",
-        {"project_id": source_project, "name": "Original observation", "files": files(ORIGINAL)},
+        {
+            "workspace_id": workspace_of(source_project),
+            "name": "Original observation",
+            "files": files(ORIGINAL),
+        },
     )
     derived = op(
         users["owner"],

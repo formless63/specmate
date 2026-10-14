@@ -8,6 +8,7 @@ from specmate.operations import IdempotencyMismatch, NotFound, PermissionDenied
 from specmate.operations.models import IdempotencyRecord
 
 from .conftest import member, op
+from .scope_helpers import workspace_of
 from .test_catalog import rep_payload, variant_payload
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
@@ -25,7 +26,7 @@ def make_inputs(user, project, definition=None):
             user,
             "definition.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "kind": "part",
                 "name": "Scoped catalog part",
             },
@@ -36,7 +37,7 @@ def make_inputs(user, project, definition=None):
         user,
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Scoped source",
             "files": files(ORIGINAL),
         },

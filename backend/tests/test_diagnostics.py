@@ -32,6 +32,7 @@ from specmate.operations import (
 )
 
 from .conftest import op
+from .scope_helpers import workspace_of
 
 SOURCE = b"synthetic source\n"
 RIGHTS = "synthetic-original"
@@ -66,7 +67,7 @@ def make_source(users, project, content=SOURCE):
         users["owner"],
         "source.register_blob",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "sha256": digest(content),
             "size": len(content),
             "media_type": "text/plain",
@@ -77,7 +78,7 @@ def make_source(users, project, content=SOURCE):
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic input",
             "files": [
                 {
@@ -104,7 +105,12 @@ def request_one(users, project, source, recipe):
         return op(
             users["owner"],
             "build.request",
-            {"project_id": project, "source_revision_id": source, "recipe_id": recipe["id"]},
+            {
+                "workspace_id": workspace_of(project),
+                "project_id": project,
+                "source_revision_id": source,
+                "recipe_id": recipe["id"],
+            },
             idempotency_key=f"build-{next(counter)}",
         )
 
@@ -148,7 +154,11 @@ def credential(users, project, recipe, operator):
     return internal(
         operator,
         "runner.enroll",
-        {"project_id": project, "name": "Synthetic runner", "recipe_ids": [recipe["id"]]},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic runner",
+            "recipe_ids": [recipe["id"]],
+        },
     ).result
 
 
@@ -161,7 +171,7 @@ def runner_op(credential, name, payload=None):
 
 
 def status(user, workspace):
-    return op(user, "diagnostics.workspace_status", {"workspace_id": workspace})
+    return op(user, "diagnostics.workspace_status", {"workspace_id": workspace_of(workspace)})
 
 
 def codes(report):
@@ -401,7 +411,12 @@ def test_drain_refuses_new_requests_but_lets_accepted_work_finish(
         op(
             users["owner"],
             "build.request",
-            {"project_id": project, "source_revision_id": source, "recipe_id": recipe["id"]},
+            {
+                "workspace_id": workspace_of(project),
+                "project_id": project,
+                "source_revision_id": source,
+                "recipe_id": recipe["id"],
+            },
             idempotency_key="after-drain",
         )
     assert refused.value.http_status == 503
@@ -421,7 +436,12 @@ def test_drain_refuses_new_requests_but_lets_accepted_work_finish(
             request_id="again",
             idempotency_key="build-0",
         ),
-        {"project_id": project, "source_revision_id": source, "recipe_id": recipe["id"]},
+        {
+            "workspace_id": workspace_of(project),
+            "project_id": project,
+            "source_revision_id": source,
+            "recipe_id": recipe["id"],
+        },
     )
     assert replay.replayed is True
 
@@ -575,7 +595,12 @@ def test_resume_accepts_work_again_without_restarting_cancelled_work(
     new = op(
         users["owner"],
         "build.request",
-        {"project_id": project, "source_revision_id": source, "recipe_id": recipe["id"]},
+        {
+            "workspace_id": workspace_of(project),
+            "project_id": project,
+            "source_revision_id": source,
+            "recipe_id": recipe["id"],
+        },
         idempotency_key="after-resume",
     )
     assert new["state"] == "waiting_dispatch"

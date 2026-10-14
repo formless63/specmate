@@ -21,6 +21,7 @@ from specmate.operations import (
 )
 
 from .conftest import op, remove_member, set_grants, set_role
+from .scope_helpers import workspace_of
 from .test_design import freeze
 from .test_transports import api, post_op
 
@@ -28,7 +29,9 @@ from .test_transports import api, post_op
 @pytest.fixture
 def location(users, workspace):
     return op(
-        users["owner"], "inventory.create_location", {"workspace_id": workspace, "name": "Shelf A"}
+        users["owner"],
+        "inventory.create_location",
+        {"workspace_id": workspace_of(workspace), "name": "Shelf A"},
     )
 
 

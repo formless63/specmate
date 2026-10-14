@@ -154,7 +154,11 @@ def sources(users, project):
     return op(
         users["editor"],
         "source.create_original_bundle",
-        {"project_id": project, "name": "Synthetic firmware sources", "files": files},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic firmware sources",
+            "files": files,
+        },
     )
 
 
@@ -225,7 +229,11 @@ def create(users, project, firmware, **ctx):
     return op(
         users["editor"],
         "firmware.create",
-        {"project_id": project, "name": "Synthetic controller firmware", "firmware": firmware},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic controller firmware",
+            "firmware": firmware,
+        },
         **ctx,
     )
 
@@ -400,7 +408,9 @@ def test_exact_source_pins_and_contract_shape_are_enforced(users, project, sourc
         create(users, project, firmware)
     # A design revision of another kind is not a board target.
     other = op(
-        users["owner"], "definition.create", {"project_id": project, "kind": "board", "name": "x"}
+        users["owner"],
+        "definition.create",
+        {"workspace_id": workspace_of(project), "kind": "board", "name": "x"},
     )
     revision = op(
         users["owner"],
@@ -488,7 +498,7 @@ def test_assembly_assignment_review_detects_wrong_target(users, project, workspa
     placeholder = op(
         users["owner"],
         "definition.create",
-        {"project_id": project, "kind": "board", "name": "Unreviewed board"},
+        {"workspace_id": workspace_of(project), "kind": "board", "name": "Unreviewed board"},
     )
     placeholder = op(
         users["owner"],
@@ -561,7 +571,7 @@ def test_all_source_authority_precedes_pin_diagnostics(users, project, sources, 
         users["outsider"],
         "source.create_original_bundle",
         {
-            "project_id": other,
+            "workspace_id": workspace_of(other),
             "name": "Hidden sources",
             "files": [
                 {
@@ -642,7 +652,7 @@ def test_replay_authorizes_old_result_after_draft_moves_to_new_sources(
         users["editor"],
         "source.create_original_bundle",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Replacement source",
             "files": [
                 {
@@ -686,7 +696,7 @@ def test_generic_capture_rejects_empty_firmware_and_invalid_typed_target(
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "firmware",
             "name": "Pending declaration",
         },

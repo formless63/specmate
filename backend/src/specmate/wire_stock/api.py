@@ -15,9 +15,3 @@ def stocks(request, workspace_id: UUID | None = None, project_id: UUID | None = 
 @router.get("/stocks/{draft_id}")
 def stock(request, draft_id: UUID):
     return get_stock(request.user, draft_id)
-
-
-# TRANSITIONAL (workspace collections, P3 removes): the project path is ordering context.
-@router.get("/projects/{project_id}/stocks")
-def project_stocks_alias(request, project_id: UUID):
-    return list_stocks(request.user, None, project_id)

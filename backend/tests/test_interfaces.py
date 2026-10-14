@@ -75,7 +75,7 @@ def setup_mapping(user, project, internal_kind="board"):
         board_draft = op(
             user,
             "definition.create",
-            {"project_id": project, "name": "Synthetic board", "kind": "board"},
+            {"workspace_id": workspace_of(project), "name": "Synthetic board", "kind": "board"},
         )
         board = op(
             user,
@@ -424,7 +424,7 @@ def test_incomplete_interface_reads_keep_kind_but_cannot_capture(users, project,
         user,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Unfinished interface",
             "kind": kind,
         },
@@ -449,7 +449,7 @@ def test_incomplete_pinout_can_resume_through_typed_update_and_freeze(users, pro
         user,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Unfinished pinout",
             "kind": "pinout",
         },

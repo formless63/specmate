@@ -34,9 +34,6 @@ def read_frozen(request, revision_id: UUID):
     return read_revision(current_actor(request.user), revision_id)
 
 
-@router.get(
-    "/projects/{workspace_id}/records", operation_id="mechanical_sources_records_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/records")
 def list_records(request, workspace_id: UUID, after: UUID | None = None):
     ctx = context(request)
@@ -127,9 +124,6 @@ def read_target(request, revision_id: UUID):
     return target_result(user, get_revision(user, revision_id))
 
 
-@router.get(
-    "/projects/{workspace_id}/targets", operation_id="mechanical_sources_targets_via_project"
-)  # TRANSITIONAL alias (P3 removes)
 @router.get("/workspaces/{workspace_id}/targets")
 def list_targets(request, workspace_id: UUID, after: UUID | None = None):
     user = current_actor(request.user)

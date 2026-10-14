@@ -22,6 +22,7 @@ from specmate.physical_units.models import PhysicalUnit, WorkUnitLink
 from specmate.physical_units.queries import list_units, unit_detail, work_units
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_design import freeze
 from .test_inventory import assertion, open_account, reserve
 from .test_transports import api, post_op
@@ -180,7 +181,7 @@ def test_scope_revision_and_sql_immutability(users, project, revision, actual, w
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "part",
             "name": "Other item",
         },

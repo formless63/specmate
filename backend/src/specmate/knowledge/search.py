@@ -2,7 +2,8 @@
 
 from django.db.models import F, Q
 
-from specmate.access.permissions import Perm, authorize, authorize_project, member_workspaces
+from specmate.access.permissions import Perm, authorize, context_project, member_workspaces
+from specmate.access.workspaces import actor_workspace_id
 from specmate.catalog.discovery import visible_page
 from specmate.catalog_matching.queries import current_actor
 from specmate.knowledge.models import KnowledgeEntry
@@ -29,16 +30,14 @@ def snippet(text, query):
 
 
 def _scope(user, payload):
-    """The optional workspace and project filters, authorized against current membership."""
-    workspace = project = None
-    if payload.project_id:
-        project = authorize_project(user, payload.project_id, Perm.WORKSPACE_READ)
-        workspace = project.workspace
-        if payload.workspace_id and payload.workspace_id != workspace.id:
-            raise NotFound("Project not found.")
-    elif payload.workspace_id:
-        workspace = authorize(user, payload.workspace_id, Perm.WORKSPACE_READ)
-    return workspace, project
+    """The optional workspace filter and project context, checked against current membership.
+
+    A project is context inside the workspace (omitted: the actor's workspace).
+    """
+    if payload.workspace_id is None and payload.project_id is None:
+        return None, None
+    workspace = authorize(user, actor_workspace_id(user, payload.workspace_id), Perm.WORKSPACE_READ)
+    return workspace, context_project(payload.project_id, workspace)
 
 
 def _search_knowledge(user, payload):

@@ -306,7 +306,7 @@ def test_library_revision_fact_input_source_authority_precedes_missing_context_d
         users["owner"],
         "source.create_original_bundle",
         {
-            "project_id": other,
+            "workspace_id": workspace_of(other),
             "name": "Synthetic dependency evidence",
             "files": [
                 {

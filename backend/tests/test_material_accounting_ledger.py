@@ -24,7 +24,9 @@ def setup(user, users, project, stock, subject):
         user, "catalog.register_lot", {"revision_id": stock, "label": "Synthetic ledger stock"}
     )
     location = op(
-        user, "inventory.create_location", {"project_id": project, "name": "Synthetic ledger bench"}
+        user,
+        "inventory.create_location",
+        {"workspace_id": workspace_of(project), "name": "Synthetic ledger bench"},
     )
     account = open_account(users, lot, location, dimension="length", amount="10", unit="m")
     issued = use(

@@ -31,6 +31,7 @@ from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleRevision
 
 from .conftest import member, op
+from .scope_helpers import workspace_of
 
 SOURCE = b"synthetic source\n"
 OUTPUT = b"synthetic result\n"
@@ -67,7 +68,7 @@ def source(users, workspace):
         users["owner"],
         "source.register_blob",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "sha256": digest(SOURCE),
             "size": len(SOURCE),
             "media_type": "text/plain",
@@ -78,7 +79,7 @@ def source(users, workspace):
         users["owner"],
         "source.create_original_bundle",
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Synthetic input",
             "files": [
                 {
@@ -94,7 +95,11 @@ def source(users, workspace):
 
 @pytest.fixture
 def build_payload(workspace, source, recipe):
-    return {"workspace_id": workspace, "source_revision_id": source, "recipe_id": recipe["id"]}
+    return {
+        "workspace_id": workspace_of(workspace),
+        "source_revision_id": source,
+        "recipe_id": recipe["id"],
+    }
 
 
 @pytest.fixture
@@ -109,7 +114,7 @@ def credential(users, workspace, recipe):
         "runner.enroll",
         Context(user=users["owner"], via="internal", request_id="enroll"),
         {
-            "workspace_id": workspace,
+            "workspace_id": workspace_of(workspace),
             "name": "Synthetic runner",
             "recipe_ids": [recipe["id"]],
         },

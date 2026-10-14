@@ -20,6 +20,7 @@ from specmate.operations import (
 )
 
 from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_firmware import (  # noqa: F401
     CONFIG,
     MAIN,
@@ -40,7 +41,12 @@ def frozen(user, project, name, kind="component", content=None):
     created = op(
         user,
         "definition.create",
-        {"project_id": project, "kind": kind, "name": name, "content": content or {}},
+        {
+            "workspace_id": workspace_of(project),
+            "kind": kind,
+            "name": name,
+            "content": content or {},
+        },
     )
     revision = op(
         user, "draft.freeze", {"draft_id": created["draft_id"]}, expected_state=created["state"]
@@ -96,7 +102,7 @@ def option_set(users, project, parts):
         users["owner"],
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "option_set",
             "name": "Synthetic sensor node options",
             "content": option_set_content(parts),
@@ -116,7 +122,7 @@ def configuration(user, project, option_set_revision, selections=()):
         user,
         "definition.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "kind": "configuration",
             "name": "Synthetic build configuration",
             "content": {
@@ -316,7 +322,12 @@ def test_invalid_selections_and_content_are_rejected(users, project, parts, opti
         return op(
             users["owner"],
             "definition.create",
-            {"project_id": project, "kind": kind, "name": "Synthetic invalid", "content": content},
+            {
+                "workspace_id": workspace_of(project),
+                "kind": kind,
+                "name": "Synthetic invalid",
+                "content": content,
+            },
         )
 
     both = option_set_content(parts)
@@ -634,7 +645,7 @@ def test_population_and_firmware_choices_pin_exact_occurrence_revisions(
                 users["owner"],
                 "definition.create",
                 {
-                    "project_id": project,
+                    "workspace_id": workspace_of(project),
                     "kind": "option_set",
                     "name": "Invalid",
                     "content": invalid,

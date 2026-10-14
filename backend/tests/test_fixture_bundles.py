@@ -13,6 +13,7 @@ from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleRevision
 
 from .conftest import op
+from .scope_helpers import workspace_of
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests/fixtures"
 PACKAGES = [
@@ -55,7 +56,7 @@ def register(user, project, entry, content, *, key=None):
         user,
         "source.register_blob",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "sha256": entry.sha256,
             "size": entry.bytes,
             "media_type": entry.media_type,
@@ -82,7 +83,11 @@ def test_package_registers_replays_and_reconstructs_with_ancestry(
     user = users["editor"]
     for entry in manifest.files:
         register(user, project, entry, (root / entry.path).read_bytes())
-    payload = {"project_id": project, "name": manifest.bundle_id, "files": file_refs(manifest)}
+    payload = {
+        "workspace_id": workspace_of(project),
+        "name": manifest.bundle_id,
+        "files": file_refs(manifest),
+    }
     original = op(user, "source.create_original_bundle", payload, idempotency_key="import-package")
     # Retrying after a lost response returns the same immutable source revision.
     replay = op(user, "source.create_original_bundle", payload, idempotency_key="import-package")
@@ -149,7 +154,11 @@ def test_partial_package_intake_can_retry_without_replacing_original_bytes(
     assert not blobstore.blob_path(retry.sha256).exists()
     assert list((artifact_root / "staging").iterdir()) == []
 
-    payload = {"project_id": project, "name": "Recovered package", "files": file_refs(manifest)}
+    payload = {
+        "workspace_id": workspace_of(project),
+        "name": "Recovered package",
+        "files": file_refs(manifest),
+    }
     with pytest.raises(ValidationFailed, match="not registered"):
         op(user, "source.create_original_bundle", payload, idempotency_key="retry-package")
     assert not SourceBundle.objects.exists()
@@ -188,7 +197,7 @@ def test_package_path_rejection_rolls_back_and_allows_corrected_retry(users, pro
         invalid = [*refs, {**refs[0], "path": refs[0]["path"].upper()}]
     else:
         invalid = [{**refs[0], "path": bad_path}, *refs[1:]]
-    payload = {"project_id": project, "name": "Validated package", "files": invalid}
+    payload = {"workspace_id": workspace_of(project), "name": "Validated package", "files": invalid}
     with pytest.raises(ValidationFailed):
         op(user, "source.create_original_bundle", payload, idempotency_key="validated-package")
     assert not SourceBundle.objects.exists()
