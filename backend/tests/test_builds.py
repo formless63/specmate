@@ -465,6 +465,67 @@ def test_cancel_is_requested_until_real_runner_confirmation(users, build, creden
     )
 
 
+def test_heartbeats_renew_liveness_without_moving_the_cancel_state_token(
+    users, build, credential, lease
+):
+    runner_op(credential, "runner.heartbeat", fence(lease))  # leased -> running
+    seen = op(users["owner"], "build.get", {"build_id": build["build_id"]})
+    assert seen["state"] == "running"
+    expires = BuildStage.objects.get(id=lease["stage_id"]).lease_expires_at
+    for _ in range(3):
+        renewed = runner_op(credential, "runner.heartbeat", fence(lease))
+        assert renewed["state_token"] == seen["state_token"]
+    assert BuildStage.objects.get(id=lease["stage_id"]).lease_expires_at >= expires
+    cancelled = op(
+        users["owner"],
+        "build.cancel",
+        {"build_id": build["build_id"]},
+        expected_state=seen["state_token"],
+    )
+    assert cancelled["state"] == "cancellation_requested"
+    assert cancelled["state_token"] != seen["state_token"]
+    # The runner learns of the request on its next heartbeat; repeats add no state change.
+    first = runner_op(credential, "runner.heartbeat", fence(lease))
+    again = runner_op(credential, "runner.heartbeat", fence(lease))
+    assert first["cancellation_requested"] is True
+    assert again["state_token"] == first["state_token"] == cancelled["state_token"]
+
+
+def test_cancel_with_a_token_from_before_completion_still_conflicts(
+    users, build, credential, lease
+):
+    runner_op(credential, "runner.heartbeat", fence(lease))
+    seen = op(users["owner"], "build.get", {"build_id": build["build_id"]})
+    upload(credential, lease)
+    runner_op(credential, "runner.complete", success_receipt(lease))
+    with pytest.raises(Conflict):
+        op(
+            users["owner"],
+            "build.cancel",
+            {"build_id": build["build_id"]},
+            expected_state=seen["state_token"],
+        )
+    stage = BuildStage.objects.get(id=lease["stage_id"])
+    assert stage.state == "succeeded" and stage.cancellation_requested_at is None
+
+
+def test_revoked_authority_requests_cancellation_once_across_heartbeats(
+    users, workspace, build, credential, lease
+):
+    runner_op(credential, "runner.heartbeat", fence(lease))
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=users["owner"]).update(
+        role="viewer"
+    )
+    tokens = {
+        runner_op(credential, "runner.heartbeat", fence(lease))["state_token"] for _ in range(3)
+    }
+    assert len(tokens) == 1
+    assert (
+        StageEvent.objects.filter(stage_id=lease["stage_id"], kind="cancellation_requested").count()
+        == 1
+    )
+
+
 def test_cancel_after_lost_upload_receipt_preserves_verified_incomplete_outputs(
     users,
     build,

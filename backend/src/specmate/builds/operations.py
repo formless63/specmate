@@ -106,8 +106,15 @@ def _event(stage: BuildStage, kind: str, **detail) -> None:
 
 
 def _save(stage: BuildStage) -> None:
+    """Persist a state change; the user-command state token moves with it."""
     stage.version += 1
     stage.save()
+
+
+def _renew(stage: BuildStage) -> None:
+    """Persist liveness only. Lease renewal never moves the user-command state token."""
+    stage.lease_expires_at = _lease_expiry()
+    stage.save(update_fields=["lease_expires_at", "updated_at"])
 
 
 def stage_result(stage: BuildStage) -> dict:
@@ -161,6 +168,9 @@ def _execution_allowed(build: BuildAttempt) -> bool:
 
 def _cancel(stage: BuildStage, reason: str) -> None:
     if stage.state in TERMINAL:
+        return
+    if stage.state == "cancellation_requested":
+        # Already requested: repeating the request is not a new state change.
         return
     stage.cancellation_requested_at = stage.cancellation_requested_at or timezone.now()
     if stage.state in {"waiting_dispatch", "queued"}:
@@ -630,8 +640,10 @@ def heartbeat(ctx: Context, p: StageLease) -> dict:
         _cancel(stage, "execution_authority_revoked")
     elif stage.state == "leased":
         stage.state = "running"
-    stage.lease_expires_at = _lease_expiry()
-    _save(stage)
+        _save(stage)
+    # Renewal is liveness, not a state change: a user holding the current state token can
+    # still cancel while the runner keeps heartbeating.
+    _renew(stage)
     return stage_result(stage)
 
 
