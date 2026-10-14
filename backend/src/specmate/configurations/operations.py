@@ -9,7 +9,12 @@ and no frozen consumer (assembly, population, firmware) is rewritten.
 import json
 
 from specmate.access.permissions import Perm, authorize
-from specmate.configurations.contracts import CaptureResolution, ResolveConfiguration, ResolvedRef
+from specmate.configurations.contracts import (
+    CaptureResolution,
+    ListResolved,
+    ResolveConfiguration,
+    ResolvedRef,
+)
 from specmate.configurations.models import ResolvedConfiguration
 from specmate.configurations.queries import (
     NOT_EVALUATED,
@@ -255,3 +260,16 @@ def build_input(ctx: Context, p: ResolvedRef):
         ],
         **NOT_EVALUATED,
     }
+
+
+@operation(
+    "configuration.list_resolved",
+    ListResolved,
+    summary="List the latest resolved configurations of a workspace for selection.",
+    supports_idempotency=False,
+)
+def list_resolved(ctx: Context, p: ListResolved):
+    workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ)
+    rows = ResolvedConfiguration.objects.filter(workspace=workspace).select_related("snapshot")
+    summaries, truncated = history(ctx, rows.order_by("-created_at", "-id"))
+    return {"workspace_id": str(workspace.id), "resolved": summaries, "truncated": truncated}

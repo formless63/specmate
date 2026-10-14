@@ -225,6 +225,7 @@ def history(ctx, p: HistoryRead) -> dict:
         "receipt": stage.receipt,
         "recipe_id": build.recipe_id,
         "source_revision_id": str(build.source_revision_id),
+        "configuration": build.configuration_input,
         "requested_at": build.created_at.isoformat(),
         "retry_of": str(build.retry_of_id) if build.retry_of_id else None,
         "retried_by": str(retried.id) if retried else None,

@@ -138,3 +138,7 @@ class CaptureResolution(StrictModel):
 
 class ResolvedRef(StrictModel):
     resolved_configuration_id: UUID
+
+
+class ListResolved(StrictModel):
+    workspace_id: UUID

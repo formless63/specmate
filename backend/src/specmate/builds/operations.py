@@ -164,6 +164,23 @@ class RequestBuild(WorkspaceProjectPayload):
 
     source_revision_id: UUID
     recipe_id: str = Field(min_length=1, max_length=128)
+    # Optional exact, complete resolved configuration (CFG-001) this build consumes.
+    resolved_configuration_id: UUID | None = None
+
+
+def configuration_input(ctx: Context, workspace, configuration_id: UUID | None) -> dict | None:
+    """The exact build input of a same-workspace resolved configuration, or None."""
+    if configuration_id is None:
+        return None
+    from specmate.configurations.contracts import ResolvedRef
+    from specmate.configurations.models import ResolvedConfiguration
+    from specmate.configurations.operations import build_input
+
+    # Cross-workspace ids are NotFound here, before any database guard can fire.
+    if not ResolvedConfiguration.objects.filter(id=configuration_id, workspace=workspace).exists():
+        raise NotFound("Resolved configuration unavailable.")
+    # Authorizes the snapshot closure and refuses incomplete resolutions.
+    return build_input(ctx, ResolvedRef(resolved_configuration_id=configuration_id))
 
 
 @operation(
@@ -186,11 +203,21 @@ def request_build(ctx: Context, p: RequestBuild) -> dict:
     if source is None:
         raise NotFound("Source revision not found.")
     recipe = approved_recipe(p.recipe_id)
-    return _create_attempt(ctx, workspace, source, recipe, p, project=context)
+    configuration = configuration_input(ctx, workspace, p.resolved_configuration_id)
+    return _create_attempt(
+        ctx, workspace, source, recipe, p, project=context, configuration=configuration
+    )
 
 
 def _create_attempt(
-    ctx, workspace, source, recipe, p, retry_of: BuildAttempt | None = None, project=None
+    ctx,
+    workspace,
+    source,
+    recipe,
+    p,
+    retry_of: BuildAttempt | None = None,
+    project=None,
+    configuration: dict | None = None,
 ) -> dict:
     """Shared by first requests and deliberate retries; every attempt gets a new identity."""
     from specmate.firmware_builds.operations import authorize_request
@@ -210,6 +237,9 @@ def _create_attempt(
     source_rights = set(source.files.values_list("rights", flat=True))
     if any(source_rights != {output.rights} for output in recipe.outputs):
         raise ValidationFailed("Output rights must preserve the declared source rights.")
+    if retry_of is not None:
+        # A retry reuses the original attempt's exact retained configuration input.
+        configuration = retry_of.configuration_input
     build_id = uuid.uuid4()
     build = BuildAttempt.objects.create(
         id=build_id,
@@ -222,6 +252,10 @@ def _create_attempt(
         recipe=recipe.model_dump(mode="json"),
         workflow_id=f"specmate-build-{build_id}",
         retry_of=retry_of,
+        resolved_configuration_id=(
+            configuration["resolved_configuration_id"] if configuration else None
+        ),
+        configuration_input=configuration,
     )
     stage = BuildStage.objects.create(build=build)
     BuildOutbox.objects.create(build=build)
@@ -431,6 +465,7 @@ def _manifest(stage: BuildStage) -> dict:
         "source_revision_id": str(stage.build.source_revision_id),
         "recipe": stage.build.recipe,
         "inputs": source["files"],
+        "configuration": stage.build.configuration_input,
         "reconciliation_required": stage.state != "leased",
         "cancellation_requested": stage.cancellation_requested_at is not None,
     }

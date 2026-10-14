@@ -1,8 +1,8 @@
-import { Alert, Anchor, Button, Card, Checkbox, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
-import { compileOptions, compileOutputUrl, compileReview, type CompileOptions, type CompileReview, type FirmwareBuildRef } from './api';
+import { compileOptions, compileOutputUrl, compileReview, listResolvedConfigurations, type CompileOptions, type CompileReview, type FirmwareBuildRef, type ResolvedChoices } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = FirmwareBuildRef & { canExecute?: boolean };
@@ -17,6 +17,8 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
   const [consent, setConsent] = useState(false);
   const [basis, setBasis] = useState('');
   const [busy, setBusy] = useState(false);
+  const [choices, setChoices] = useState<ResolvedChoices>();
+  const [configurationId, setConfigurationId] = useState<string | null>(null);
   const alive = useRef(true);
   const generation = useRef(0);
   const active = useRef<AbortController | null>(null);
@@ -36,7 +38,7 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
       selected.current = buildId; setAvailable(options); setReview(evidence);
     } catch (reason) {
       if (!alive.current || token !== generation.current || controller.signal.aborted) return;
-      selected.current = null; setConsent(false);
+      selected.current = null; setConsent(false); setChoices(undefined); setConfigurationId(null);
       // Retain an uncertain submitted request for an exact keyed retry after
       // authority is restored; the hidden payload never grants execution access.
       setError(reason instanceof Error ? reason.message : 'Compiler review unavailable.');
@@ -49,10 +51,19 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
     window.addEventListener('focus', focus);
     return () => { alive.current = false; generation.current += 1; active.current?.abort(); window.removeEventListener('focus', focus); };
   }, [refresh]);
+  const workspaceId = available?.workspace_id;
+  useEffect(() => {
+    // Only complete, same-workspace captures are offered; a failed read offers none rather than guessing.
+    setChoices(undefined); setConfigurationId(null);
+    if (!canExecute || !workspaceId) return;
+    let current = true;
+    listResolvedConfigurations(workspaceId).then(found => { if (current) setChoices(found); }, () => undefined);
+    return () => { current = false; };
+  }, [canExecute, workspaceId]);
   async function compile() {
     const recipeId = available?.available_recipe_id;
     if (!recipeId || !consent || !basis.trim()) return;
-    const payload = { ...reference, recipe_id: recipeId, source_execution_authorized: true, basis: basis.trim() };
+    const payload = { ...reference, recipe_id: recipeId, source_execution_authorized: true, basis: basis.trim(), ...(configurationId ? { resolved_configuration_id: configurationId } : {}) };
     if (!retry.current || JSON.stringify(retry.current.payload) !== JSON.stringify(payload)) retry.current = { key: randomUUID(), payload };
     const token = ++generation.current; active.current?.abort();
     setBusy(true); setError(''); setReview(undefined);
@@ -74,6 +85,9 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
     {available && <CompilerPins inputs={available.inputs} />}
     {canExecute && available?.available_recipe_id && <Stack>
       <Checkbox label="Authorize isolated compiler processing of these exact source files" checked={consent} onChange={event => setConsent(event.currentTarget.checked)} />
+      {choices && <Select label="Resolved configuration (optional)" placeholder="None: build without a pinned configuration" clearable value={configurationId} onChange={setConfigurationId} nothingFoundMessage="No resolved configurations in this workspace"
+        data={choices.resolved.map(row => ({ value: row.resolved_configuration_id, disabled: row.status !== 'complete', label: `${row.resolved_configuration_id.slice(0, 8)} · ${row.status === 'complete' ? 'complete' : 'incomplete, cannot be built'} · ${row.basis}` }))}
+        description={choices.truncated ? 'Showing the latest 100 captures.' : 'The exact capture is pinned to the build; later option changes never alter it.'} />}
       <TextInput label="Source execution review basis" value={basis} onChange={event => setBasis(event.currentTarget.value)} />
       <Button disabled={busy || !consent || !basis.trim()} onClick={() => void compile()}>Request firmware compile</Button>
     </Stack>}
