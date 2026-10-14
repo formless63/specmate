@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     "specmate.pcb_fabrication",
     "specmate.passive_passages",
     "specmate.discovery.apps.DiscoveryConfig",
+    "specmate.preferences.apps.PreferencesConfig",
     "specmate.configurations.apps.ConfigurationsConfig",
 ]
 

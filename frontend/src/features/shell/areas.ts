@@ -12,6 +12,7 @@ export const AREAS: AreaDef[] = [
     { id: "knowledge", label: "Notes & files" },
     { id: "access", label: "Workspace access" },
     { id: "agent-capabilities", label: "Agent access" },
+    { id: "preferences", label: "Preferences" },
     { id: "diagnostics", label: "Status & recovery" },
   ] },
   { id: "library", label: "Library", key: "2", tools: [

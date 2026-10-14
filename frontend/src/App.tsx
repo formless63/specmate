@@ -29,6 +29,7 @@ const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").
 const PcbPanel = lazy(() => import("./features/pcb/PcbPanel").then((module) => ({ default: module.PcbPanel })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
+const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPanel").then((module) => ({ default: module.PreferencesPanel })));
 const DiscoveryPanel = lazy(() => import("./features/discovery/DiscoveryPanel").then((module) => ({ default: module.DiscoveryPanel })));
 const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/PhysicalUnitsPanel").then((module) => ({ default: module.PhysicalUnitsPanel })));
 const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
@@ -177,7 +178,7 @@ type ProjectToolsProps = {
 };
 
 /** Lenses whose data lives in the workspace; a project is optional context, never a requirement. */
-const WORKSPACE_LENSES = new Set(["knowledge", "agent-capabilities", "diagnostics", "discovery", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
+const WORKSPACE_LENSES = new Set(["knowledge", "agent-capabilities", "preferences", "diagnostics", "discovery", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
   "mechanical-proposals", "builds", "evidence-kinds", "shared-scene", "context-selection", "scene-drawings", "preparation-documents", "selected-packages", "export-packages", "copper"]);
 
 type LensContext = {
@@ -193,6 +194,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
   switch (toolId) {
     case "knowledge": return <Stack><KnowledgePanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>;
     case "agent-capabilities": return <AgentCapabilitiesPanel workspaceId={workspaceId} projectId={projectId} />;
+    case "preferences": return <PreferencesPanel workspaceId={workspaceId} />;
     case "diagnostics": return <DiagnosticsPanel workspaceId={workspaceId} active={active === "diagnostics"} onChanged={onStatusChanged} />;
     case "discovery": return <DiscoveryPanel projectId={projectId} />;
     case "revision-upgrades": return <RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active === "revision-upgrades"} initialProposalId={upgradeProposalId} />;
@@ -269,6 +271,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="bom" library={library("bom")}>{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="physical-units" library={library("physical-units")}>{visited.has("physical-units") && <PhysicalUnitsPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="agent-capabilities" library={library("agent-capabilities")}>{visited.has("agent-capabilities") && <WorkspaceLens {...lens} toolId="agent-capabilities" />}</ToolPanel>
+    <ToolPanel value="preferences" library={library("preferences")}>{visited.has("preferences") && <WorkspaceLens {...lens} toolId="preferences" />}</ToolPanel>
     <ToolPanel value="diagnostics" library={library("diagnostics")}>{visited.has("diagnostics") && <WorkspaceLens {...lens} toolId="diagnostics" />}</ToolPanel>
     <ToolPanel value="access" library={library("access")}>{visited.has("access") && <WorkspaceAccessPanel onAccessChanged={onAccessChanged} />}</ToolPanel>
   </>;

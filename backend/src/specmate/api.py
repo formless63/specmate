@@ -45,6 +45,7 @@ from specmate.pcb.api import router as pcb_router
 from specmate.pcb_disagreement.api import router as disagreement_router
 from specmate.pcb_fabrication.api import router as fabrication_router
 from specmate.physical_units.api import router as physical_units_router
+from specmate.preferences.api import router as preferences_router
 from specmate.preparation.api import router as preparation_router
 from specmate.preparation_documents.api import router as preparation_documents_router
 from specmate.revision_upgrades.api import router as upgrades_router
@@ -60,6 +61,7 @@ api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_
 api.add_router("/v0/access", access_router)
 api.add_router("/v0/workspace", workspace_router)
 api.add_router("/v0/discovery", discovery_router)
+api.add_router("/v0/preferences", preferences_router)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/sources", sources_router)
 api.add_router("/v0/catalog-matching", matching_router)
