@@ -18,7 +18,7 @@ import { rowLook, Swatch } from '../cable-views/Swatch';
 const clone = <T,>(value: T): T => structuredClone(value);
 const dimension = (value: number | null) => <SbQuantity value={value === null ? null : Number(value.toFixed(4))} unit="mm" />;
 /** Editable millimetre entry. Keeps the raw text so a trailing decimal point survives; only valid numbers or a cleared field reach the draft. */
-function MmEntry({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number | null) => void }) {
+export function MmEntry({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number | null) => void }) {
   const [raw, setRaw] = useState(value === null ? '' : String(value));
   const parsed = raw.trim() === '' ? null : Number(raw);
   const invalid = parsed !== null && (!Number.isFinite(parsed) || parsed < 0);

@@ -3,11 +3,19 @@ import { useState } from "react";
 import { evidenceLabel, scopeLabel, type Graph } from "../copper/api";
 import { CopperProvenance } from "../copper/CopperProvenance";
 import type { Evidence, Interpretation } from "./api";
-import { SbQuantity, SbStatus } from "../../components/sb";
+import { SbQuantity, SbStatus, type SbLed } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const readable = (value: string) => value.replaceAll("_", " ");
 const PAGE_SIZE = 20;
+/** One LED per result state: unknown and not-evaluated stay distinct, blocked/invalid/conflicting fail, a modeled result is active. */
+export function queryLed(status: string): SbLed {
+  if (status === "unknown") return "review";
+  if (status === "not_evaluated") return "not-evaluated";
+  if (status === "modeled_blocked" || /invalid|conflict|blocked/.test(status)) return "failed";
+  if (status.startsWith("modeled_")) return "active";
+  return "review";
+}
 const queryMeaning: Record<string, string> = {
   dc_continuity: "Declared resistors allow resistive DC paths; ideal capacitors block steady-state DC. Missing parameters and unsupported operating behavior remain unknown.",
   shortness: "Ideal shortness requires exactly zero resistance for a supported path. Any positive resistor remains resistive; this is not a measured short-circuit result.",
@@ -47,7 +55,7 @@ export function PathExplanation({ result, graph }: { result: Interpretation; gra
     </Stack>;
   }
   return <Stack style={{ overflowWrap: "anywhere" }}><Title order={3}>Declared model query result</Title>
-    <SbStatus dimension="query result" led={result.status === "unknown" ? "not-evaluated" : "info"} value={`${readable(result.status)} · ${readable(result.reason)}`} />
+    <SbStatus dimension="query result" led={queryLed(result.status)} value={`${readable(result.status)} · ${readable(result.reason)}`} />
     <Text>Query semantics: {readable(result.query)}. Candidate reachability is a declared model result; no returned path is physical proof. No candidate path does not prove physical disconnection.</Text>
     <Text>{queryMeaning[result.query] ?? "This query has no supported explanation of its semantics; no behavior is inferred."}</Text>
     <Text><RevisionLabel id={result.revision_id} role="Model" sha256={result.sha256} /> · review {result.review_id ?? "not accepted"}</Text><Text size="sm">Review state: {result.review_state}</Text>
