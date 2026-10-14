@@ -36,9 +36,13 @@ def main():
         with recipes.open("x") as output:
             output.write("{}\n")
         recipes.chmod(0o644)
-    print(
-        f"Created {args.output}; keep this file private and retain it across restarts."
-    )
+    tools = args.output.parent / "tools-enabled.json"
+    if not tools.exists():
+        # Operator decisions about optional native tools; nothing is enabled by default.
+        with tools.open("x") as output:
+            output.write('{"format_version": 1, "enabled": {}}\n')
+        tools.chmod(0o644)
+    print(f"Created {args.output}; keep this file private and retain it across restarts.")
 
 
 if __name__ == "__main__":

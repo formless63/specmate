@@ -123,6 +123,14 @@ _recipes_file = env("APPROVED_RECIPES_FILE")
 SPECMATE_APPROVED_RECIPES = json.loads(
     Path(_recipes_file).read_text() if _recipes_file else (env("APPROVED_RECIPES", "{}") or "{}")
 )
+# Optional catalog-tool gate. Unset: no gating. Set: a recipe whose image is a catalog tool
+# needs that tool in this operator-owned file (a missing or unreadable file enables none).
+_tools_file = env("ENABLED_TOOLS_FILE")
+SPECMATE_ENABLED_TOOLS = None
+if _tools_file:
+    from specmate.builds.tools import read_enabled
+
+    SPECMATE_ENABLED_TOOLS = sorted(read_enabled(Path(_tools_file)))
 # PostgreSQL client tools used by the backup command; they must match the server's major.
 SPECMATE_PG_DUMP = env("PG_DUMP", "pg_dump")
 SPECMATE_PG_RESTORE = env("PG_RESTORE", "pg_restore")

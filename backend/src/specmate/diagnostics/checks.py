@@ -25,7 +25,7 @@ from specmate.builds.models import (
     StageEvent,
     StageOutput,
 )
-from specmate.builds.recipes import approved_recipe
+from specmate.builds.recipes import ToolNotEnabled, approved_recipe
 from specmate.diagnostics.models import WorkControl
 from specmate.operations import OperationError
 from specmate.sources import blobstore
@@ -55,6 +55,15 @@ CATALOG: dict[str, tuple[str, str, str, str, str]] = {
         "the recipe, then request the build again; this one will not run by itself.",
         "Add the digest-pinned recipe to the approved registry, restart app and jobs, "
         "and confirm the runner can load the pinned image.",
+    ),
+    "tool_not_enabled": (
+        "tool_unavailable",
+        "blocking",
+        "The tool this recipe uses is installed in the catalog but not enabled.",
+        "Your sources and designs are unaffected. Ask the installation operator to enable "
+        "the tool, then request the build again; this one will not run by itself.",
+        "Enable the tool with the host tool console (python -m specmate.builds.tools "
+        "enable), recreate app and jobs, then request the work again.",
     ),
     "recipe_changed": (
         "tool_unavailable",
@@ -417,9 +426,34 @@ def tools(workspace_ids: list | None) -> list[dict[str, Any]]:
         try:
             current = approved_recipe(stage.build.recipe_id).model_dump(mode="json")
             entry["status"] = "approved" if current == stage.build.recipe else "changed"
+        except ToolNotEnabled:
+            entry["status"] = "tool_not_enabled"
         except OperationError:
             entry["status"] = "not_approved"
     return sorted(seen.values(), key=lambda e: e["recipe_id"])
+
+
+def tool_catalog() -> dict[str, Any]:
+    """Catalog tools with enablement from the registry files only.
+
+    The application has no Docker access, so image availability is not evaluated here;
+    the host console (``python -m specmate.builds.tools list``) checks cached images.
+    """
+    from django.conf import settings
+
+    from specmate.builds.tools import load_catalog, tool_report
+
+    enabled = settings.SPECMATE_ENABLED_TOOLS
+    gated = enabled is not None
+    entries = []
+    for tool in load_catalog():
+        report = tool_report(
+            tool, {t: {} for t in enabled or []}, settings.SPECMATE_APPROVED_RECIPES
+        )
+        report["enabled"] = report["enabled"] if gated else None
+        report["state"] = report["state"] if gated else "not_gated"
+        entries.append(report)
+    return {"gated": gated, "tools": entries}
 
 
 def _stale(workspace_ids: list | None) -> dict[str, list[str]]:
@@ -473,6 +507,8 @@ def findings(
     for tool in tool_states:
         if tool["status"] == "not_approved":
             out.append(finding("recipe_not_approved", audience, recipe_id=tool["recipe_id"]))
+        elif tool["status"] == "tool_not_enabled":
+            out.append(finding("tool_not_enabled", audience, recipe_id=tool["recipe_id"]))
         elif tool["status"] == "changed":
             out.append(finding("recipe_changed", audience, recipe_id=tool["recipe_id"]))
     if queue_state["pending"]:

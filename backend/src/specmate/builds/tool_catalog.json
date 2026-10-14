@@ -1,0 +1,40 @@
+{
+  "format_version": 1,
+  "tools": [
+    {
+      "id": "kicad-10.0.6",
+      "title": "KiCad 10.0.6 (PCB checks, fabrication export, schematic net extraction)",
+      "image": "kicad/kicad:10.0.6@sha256:40568bc95527f3a673a31a9b59badf512e71046c2d5068a364503c525f946a4e",
+      "source": "registry",
+      "platforms": ["linux/amd64"],
+      "download_bytes": 808797538,
+      "installed_bytes": 3504468291,
+      "size_note": "Compressed linux/amd64 layers plus config from the registry manifest; installed size is the unpacked image on disk.",
+      "capabilities": [
+        "kicad_pcb intake, inspection and DRC (JSON)",
+        "fixed-layer Gerber X2 and circular Excellon export",
+        "schematic export and net extraction (XML, version E)"
+      ],
+      "rights": "KiCad is GPL-3.0-or-later; library and notice terms stay in the image under /usr/share/doc.",
+      "qualification": "Synthetic original fixtures only; linux/arm64, other KiCad versions, ERC/parity and assembly outputs are unverified.",
+      "acquire": "docker pull kicad/kicad:10.0.6@sha256:40568bc95527f3a673a31a9b59badf512e71046c2d5068a364503c525f946a4e"
+    },
+    {
+      "id": "avr-gcc-5.4.0",
+      "title": "AVR GCC 5.4.0 (baremetal C11 firmware compile, atmega328p ABI)",
+      "image": "specmate-firmware-check@sha256:98278a045a5ca870c5843f01e28f1902be69510d0a95695f2f7ca83d0bad7bc0",
+      "source": "local-build",
+      "platforms": ["linux/amd64"],
+      "download_bytes": null,
+      "installed_bytes": 331939626,
+      "size_note": "Built locally from toolpacks/firmware/Dockerfile on a pinned Debian base; the package download happens at build time and its size is not recorded. A rebuild produces a different image ID that must be re-pinned here.",
+      "capabilities": [
+        "firmware compile to ELF32 AVR and Intel HEX (C only, explicit atmega328p ABI)",
+        "no flashing, device access or hardware compatibility claim"
+      ],
+      "rights": "GCC and binutils are GPL; avr-libc is BSD-style. Notices stay in the image under /usr/share/doc.",
+      "qualification": "Synthetic C fixtures only; other ABIs, languages, PlatformIO and linux/arm64 are unsupported.",
+      "acquire": "docker build -f toolpacks/firmware/Dockerfile -t specmate-firmware-check:avr-gcc-v1 toolpacks/firmware"
+    }
+  ]
+}

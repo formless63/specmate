@@ -176,7 +176,9 @@ enabling its profile. Only this controller receives the Docker socket; app, jobs
 tool containers receive no socket. The runner has no database credentials. This is
 explicit execution authority, not a requirement for storing engineering sources.
 
-First approve a recipe and a workspace for execution. `recipes.json` is an object
+Enable the tool first with the tool console described under "Tool enablement" in
+[the operations guide](../docs/OPERATIONS.md) (`tools-enabled.json` is created beside
+`recipes.json`). Then approve a recipe and a workspace for execution. `recipes.json` is an object
 mapping each approved recipe ID to a matching [Recipe manifest](../backend/src/specmate/builds/recipes.py):
 an exact image digest, absolute executable/argument vector, fixed input/output mounts,
 network policy `none`, resource/time limits, and output declarations with media types

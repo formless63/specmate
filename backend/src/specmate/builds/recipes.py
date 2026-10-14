@@ -6,6 +6,7 @@ from django.conf import settings
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
+from specmate.builds.tools import tool_for_image
 from specmate.contracts import IDENT, check_file_tree, check_package_path
 from specmate.operations import Unsupported, ValidationFailed
 
@@ -60,6 +61,10 @@ class Recipe(BaseModel):
         return self
 
 
+class ToolNotEnabled(Unsupported):
+    """The recipe's image is a catalog tool the operator has not enabled."""
+
+
 def approved_recipe(recipe_id: str) -> Recipe:
     raw = settings.SPECMATE_APPROVED_RECIPES.get(recipe_id)
     if raw is None:
@@ -70,4 +75,9 @@ def approved_recipe(recipe_id: str) -> Recipe:
         raise ValidationFailed("Approved recipe configuration is invalid.") from None
     if recipe.id != recipe_id:
         raise ValidationFailed("Approved recipe identifier does not match registry key.")
+    enabled = settings.SPECMATE_ENABLED_TOOLS
+    if enabled is not None:
+        tool = tool_for_image(recipe.image)
+        if tool is not None and tool["id"] not in enabled:
+            raise ToolNotEnabled(f"Tool {tool['id']} is not enabled on this installation.")
     return recipe

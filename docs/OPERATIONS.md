@@ -57,6 +57,33 @@ requirements before enabling. Ship pinned tool images and optional offline bundl
 Do not install packages from the internet on each startup or stage. Record pack/image
 versions in results; unsupported operations return a clear boundary.
 
+The catalog of optional tools is `backend/src/specmate/builds/tool_catalog.json`: pinned
+image, platforms, download and installed size, capabilities, rights and qualification
+limits. A tool is enabled by an operator decision recorded in `tools-enabled.json` beside
+`recipes.json`; nothing is enabled by default and no signing or trust ceremony is involved.
+From a checkout, with the stack directory holding both files:
+
+```bash
+export PYTHONPATH=backend/src
+python3 -m specmate.builds.tools --stack-dir "$HOME/stacks/specmate" list
+python3 -m specmate.builds.tools --stack-dir "$HOME/stacks/specmate" enable kicad-10.0.6
+python3 -m specmate.builds.tools --stack-dir "$HOME/stacks/specmate" disable kicad-10.0.6
+```
+
+`list` asks the local Docker daemon (never the registry) and reports each tool as
+`enabled`, `available` (image cached, not enabled), `missing`, `unsupported_architecture`,
+`enabled_image_missing`, `enabled_unverified` or `unknown`, with host architecture, sizes
+and approved recipe counts. `enable` refuses a missing image and prints the exact acquire
+command and download size; `--pull` explicitly pulls a missing registry image, and
+locally built images are never pulled. `disable` removes the entry only: images and
+recipes stay. Recreate `app` and `jobs` afterwards, as for recipes. When
+`SPECMATE_ENABLED_TOOLS_FILE` is set (the example Compose file sets it), a recipe whose
+image belongs to a disabled catalog tool is refused (`tool_not_enabled`); images outside
+the catalog are the operator's own responsibility and are not gated. Installations
+without the variable keep the earlier behavior and report `not_gated`. The application
+has no Docker access, so its diagnostics show enablement and recipes from files and mark
+image availability `not_evaluated`. Import and viewing never need any of this.
+
 Stage inputs are scoped and immutable. Cancellation reaches the subprocess; forceful
 termination records incomplete status. Restart reconciles stage leases/container receipts.
 Expired work is not all blindly restarted. Closing a browser does not cancel work unless

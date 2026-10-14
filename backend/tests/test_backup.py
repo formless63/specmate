@@ -170,6 +170,7 @@ def test_extract_config_recovers_secrets_and_starts_with_an_empty_registry(tmp_p
     assert (target / ".env").read_bytes() == b"SPECMATE_SECRET_KEY=s\n"
     assert (target / ".env").stat().st_mode & 0o777 == 0o600
     assert (target / "recipes.json").read_text() == "{}\n"
+    assert json.loads((target / "tools-enabled.json").read_text())["enabled"] == {}
     assert json.loads((target / "recipes.restored.json").read_text()) == {"synthetic-r1": {}}
     # Existing secrets are never overwritten.
     assert bundle.main(argv) == 1
