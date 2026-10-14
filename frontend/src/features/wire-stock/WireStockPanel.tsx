@@ -12,6 +12,7 @@ import { WirePreparationPreview } from './WirePreparationPreview';
 import { FrozenWirePreview } from './FrozenWirePreview';
 import { CableViews } from '../cable-views/CableViews';
 import { StockSectionView } from '../cable-views/StockSectionView';
+import { SbQuantity } from '../../components/sb';
 import { rowLook, Swatch } from '../cable-views/Swatch';
 
 const clone = <T,>(value: T): T => structuredClone(value);
@@ -152,7 +153,7 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
     </Group>
     <WirePreparationPreview key={current?.draft_id ?? name} section={section} lengthMm={length} />
     <Table><Table.Thead><Table.Tr><Table.Th>Tag / element</Table.Th><Table.Th>Material / color</Table.Th><Table.Th>Dimensions</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-      {section.rows.map(row => <Table.Tr key={row.path}><Table.Td>{row.tag} · {row.path}<br />{row.label} ({row.kind})</Table.Td><Table.Td><Swatch look={rowLook(row)} />{row.material ?? 'Unknown'} / {row.color ?? 'Unknown'}</Table.Td><Table.Td>{dimension(row.widthMm)} × {dimension(row.heightMm)}{row.outerDiameterMm !== null && ` · bore ${dimension(row.innerDiameterMm)}`}</Table.Td><Table.Td>{row.source ?? 'Unknown'}</Table.Td></Table.Tr>)}
+      {section.rows.map(row => <Table.Tr key={row.path}><Table.Td>{row.tag} · {row.path}<br />{row.label} ({row.kind})</Table.Td><Table.Td><Swatch look={rowLook(row)} />{row.material ?? 'Unknown'} / {row.color ?? 'Unknown'}</Table.Td><Table.Td><SbQuantity value={row.widthMm === null ? null : Number(row.widthMm.toFixed(4))} unit="mm" /> × <SbQuantity value={row.heightMm === null ? null : Number(row.heightMm.toFixed(4))} unit="mm" />{row.outerDiameterMm !== null && <> · bore <SbQuantity value={row.innerDiameterMm === null ? null : Number(row.innerDiameterMm.toFixed(4))} unit="mm" /></>}</Table.Td><Table.Td>{row.source ?? 'Unknown'}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
     <Text>{Object.entries(stock.facts).map(([key, fact]) => `${key}: ${fact.value ?? 'Unknown'}${fact.unit ? ` ${fact.unit}` : ''} (${fact.status})`).join(' · ')}</Text>
     <Title order={3}>End faces and information</Title>

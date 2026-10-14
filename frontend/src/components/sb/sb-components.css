@@ -1,0 +1,47 @@
+/* Schematic Bench semantic components. Theme tokens only. */
+.sb-unknown { display: inline-flex; align-items: baseline; gap: 6px; padding: 1px 6px; border: 1px dashed var(--sb-border-control); font-family: var(--sb-font-data); font-size: 12px; color: var(--sb-text-secondary); background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 6px); }
+.sb-unknown-next { color: var(--sb-accent); font-family: var(--sb-font-ui); }
+
+.sb-q { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sb-q-box { display: flex; align-items: baseline; gap: 6px; min-height: 26px; padding: 2px 8px; background: var(--sb-surface-sunken); border-bottom: 1px solid var(--sb-border-control); }
+.sb-q-box:focus-within { border-bottom-color: var(--sb-accent); box-shadow: 0 1px 0 var(--sb-accent); }
+.sb-q-value { flex: 1; min-width: 0; font-family: var(--sb-font-data); font-size: 12.5px; background: transparent; border: 0; color: var(--sb-text-primary); outline: none; padding: 0; }
+.sb-q-unit { font-family: var(--sb-font-data); font-size: 11px; color: var(--sb-text-secondary); }
+.sb-q[data-state="unknown"] .sb-q-box { border-bottom-style: dashed; background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 6px); }
+.sb-q[data-state="unknown"] .sb-q-value { color: var(--sb-text-secondary); }
+.sb-q[data-state="na"] .sb-q-box { background: transparent; border-bottom-style: dotted; }
+.sb-q[data-state="na"] .sb-q-value { color: var(--sb-text-tertiary); }
+.sb-q[data-state="invalid"] .sb-q-box { border-bottom: 1px dashed var(--sb-invalid); }
+.sb-q-note { font-size: 11px; color: var(--sb-text-tertiary); font-family: var(--sb-font-data); }
+.sb-q[data-state="invalid"] .sb-q-note { color: var(--sb-invalid); font-family: var(--sb-font-ui); }
+.sb-q-inline { font-family: var(--sb-font-data); }
+.sb-q-inline[data-state="unknown"] { color: var(--sb-text-tertiary); }
+.sb-q-inline[data-state="na"] { color: var(--sb-text-tertiary); }
+.sb-q-inline[data-state="invalid"] { color: var(--sb-invalid); text-decoration: underline dashed; }
+
+.sb-led[data-state="info"] { background: var(--sb-info); }
+.sb-led[data-state="stale"] { border: 1px dashed var(--sb-review); }
+.sb-led[data-state="off"] { background: var(--sb-border-strong); opacity: .6; }
+.sb-led[data-pulse="breathe"] { animation: sb-breathe 2.4s ease-in-out infinite; }
+.sb-led[data-pulse="blink"] { animation: sb-blink 1.2s steps(2, jump-none) infinite; }
+@keyframes sb-breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes sb-blink { 0% { opacity: 1; } 100% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .sb-led[data-pulse] { animation: none; } }
+.sb-st { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.sb-st-dim { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .1em; font-size: 10px; color: var(--sb-text-tertiary); }
+.sb-st-value { color: var(--sb-text-primary); }
+
+.sb-prov { display: flex; flex-direction: column; gap: 4px; }
+.sb-prov-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 12px; }
+
+.sb-job { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--sb-border-control); border-left: 2px solid var(--sb-border-control); }
+.sb-job[data-state="queued"], .sb-job[data-state="running"] { border-left-color: var(--sb-accent); }
+.sb-job[data-state="succeeded"] { border-left-color: var(--sb-info); }
+.sb-job[data-state="failed"] { border-left-color: var(--sb-invalid); }
+.sb-job[data-state="review"] { border-left-color: var(--sb-review); }
+.sb-job[data-state="cancelled"] .sb-job-title { color: var(--sb-text-secondary); }
+.sb-job-title { font-weight: 500; overflow-wrap: anywhere; }
+.sb-job-detail { grid-column: 1; font-family: var(--sb-font-data); font-size: 10.5px; color: var(--sb-text-tertiary); overflow-wrap: anywhere; }
+.sb-job-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; align-items: center; }
+
+.mantine-Badge-root[data-variant="definition"] { --badge-color: var(--sb-text-secondary); --badge-bd: 1px solid var(--sb-border-control); }
