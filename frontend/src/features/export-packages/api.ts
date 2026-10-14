@@ -22,6 +22,12 @@ export type Manifest = {
   coherence: 'coherent' | 'incoherent' | 'unknown'; completeness: 'complete' | 'limited';
   unresolved: { output: string; reason: string }[]; unsupported: { id: string; section: string; reason: string }[];
   files: { path: string; sha256: string; bytes: number; section: string }[];
+  rights: RightsReview;
+};
+export type RightsStatus = 'cleared' | 'restricted' | 'unknown';
+export type RightsReview = {
+  items: { subject: string; revision_id: string; definition_name: string; record: string; label: string; rights_status: RightsStatus; declared_rights: string }[];
+  counts: Record<RightsStatus, number>; undeclared_revision_ids: string[]; acknowledgement_required: boolean;
 };
 export type Review = { manifest: Manifest; sha256: string };
 
@@ -34,10 +40,10 @@ function csrfToken() {
   return decodeURIComponent(document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('csrftoken='))?.slice(10) ?? '');
 }
 
-export async function download(request: ExportRequest, sha256: string) {
+export async function download(request: ExportRequest, sha256: string, rightsAcknowledged = false) {
   const response = await fetch('/api/v0/export-packages/download', {
     method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-    body: JSON.stringify({ ...request, reviewed_sha256: sha256 }),
+    body: JSON.stringify({ ...request, reviewed_sha256: sha256, rights_acknowledged: rightsAcknowledged }),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);

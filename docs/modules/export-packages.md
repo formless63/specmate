@@ -60,8 +60,11 @@ build make the package `limited`, never silently complete.
 - `designs/<revision>.json`: unchanged canonical snapshots of every pin.
 - `system/structure.json`: occurrences, declared relationships and pinned firmware.
 - `spreadsheet/occurrences.csv`, `spreadsheet/revision-quantities.csv` and, with a BOM
-  plan, `spreadsheet/bom-<purpose>.csv/.json`. CSV is RFC 4180; text never becomes a
-  spreadsheet formula and unknown amounts are empty cells with an explicit status.
+  plan, `spreadsheet/bom-<purpose>.csv/.json`, plus `spreadsheet/package.xlsx` holding the
+  same tables as sheets. CSV is RFC 4180; text never becomes a
+  spreadsheet formula (XLSX text is always a string cell) and unknown amounts are empty
+  cells with an explicit status.
+- `rights/review.json` and `rights/review.csv`: declared rights review (below).
 - `cable/<revision>/cable.json`, `conductors.csv`, `harness.json`, and retained
   preparation document bytes under `cable/preparation/<set>/`.
 - `test/<plan revision>/cable-test-package.json`.
@@ -70,17 +73,32 @@ build make the package `limited`, never silently complete.
 - `review.html` (escaped static HTML, no scripts or remote resources) and `README.txt`.
 
 The archive uses the standard-library `zipfile` and `csv` modules, fixed timestamps and
-sorted entries, so an unchanged review yields identical bytes. Bounds: 2,000 revisions,
+sorted entries, so an unchanged review yields identical bytes. The workbook is written by
+openpyxl 3.1.5 (MIT; dependency et-xmlfile, MIT) with fixed creator and created/modified
+properties, and its zip members are rewritten with a fixed timestamp in sorted order, so
+the same review gives a byte-identical `.xlsx`. Bounds: 2,000 revisions,
 4,000 files and 16 MiB.
+
+## Rights review
+
+The manifest `rights` block and `rights/review.*` list, for every revision in the closure,
+each catalog representation and source identifier with its recorded `rights_status`
+(`cleared`, `restricted`, `unknown`), declared rights text, and for representations the
+exact file path and SHA-256. Representations whose file belongs to another workspace are
+hidden as in the catalog. Revisions with no declaration are listed as undeclared, never as
+cleared. Nothing is inferred and the review is not a distribution grant.
+
+When any record is `restricted` or `unknown`, `acknowledgement_required` is true and
+`export_package.download` (and the HTTP download) refuses unless `rights_acknowledged` is
+true. The acknowledgement is not part of the manifest, so the reviewed hash is unchanged.
 
 ## Unsupported output semantics
 
-The manifest lists these explicitly rather than approximating them: XLSX workbooks;
-browser-rendered harness formboard prints; pick-and-place, population BOM and assembly
+The manifest lists these explicitly rather than approximating them: browser-rendered harness formboard prints; pick-and-place, population BOM and assembly
 drawings; native CAD/STEP or toleranced manufacturing drawings (preserved mechanical
 sources are cited by pin, not re-exported); scaled mechanical drawings; compiled firmware
-outputs; physical test results; and distribution (see
-[selected assembly packages](selected-packages.md) for reviewed distribution rights).
+outputs; physical test results; and distribution (the rights review below records declarations
+only; see [selected assembly packages](selected-packages.md) for reviewed distribution).
 
 ## Offline verification
 

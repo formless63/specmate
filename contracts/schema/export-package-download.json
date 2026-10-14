@@ -91,6 +91,11 @@
       "title": "Reviewed Sha256",
       "type": "string"
     },
+    "rights_acknowledged": {
+      "default": false,
+      "title": "Rights Acknowledged",
+      "type": "boolean"
+    },
     "root_revision_id": {
       "format": "uuid",
       "title": "Root Revision Id",

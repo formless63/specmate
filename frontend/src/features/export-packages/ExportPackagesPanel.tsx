@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Group, MultiSelect, Stack, Table, Text, Title } from '@mantine/core';
+import { Alert, Button, Card, Checkbox, Group, MultiSelect, Stack, Table, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type { Definition } from '../identity/api';
@@ -32,6 +32,7 @@ function ExportWorkspace() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const generation = useRef(0);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current += 1; }; }, []);
@@ -43,7 +44,7 @@ function ExportWorkspace() {
   const hidden = blocked || definitions.isError;
 
   // Any input change invalidates the reviewed hash; the manifest stays visible until rereview.
-  function changed() { generation.current += 1; setRetained(previous => previous ? { ...previous, sha256: '' } : null); setError(null); }
+  function changed() { generation.current += 1; setAcknowledged(false); setRetained(previous => previous ? { ...previous, sha256: '' } : null); setError(null); }
   const payload = (): ExportRequest => ({
     root_revision_id: rootId!, quantity: amount, bom_plan_revision_id: bomId, bom_purpose: 'procurement',
     preparation_document_set_ids: documentSets, test_plan_revision_ids: testPlans,
@@ -56,7 +57,7 @@ function ExportWorkspace() {
   async function inspect() {
     const current = ++generation.current;
     setBusy(true); setError(null);
-    try { const checked = await review(payload()); if (current === generation.current && alive.current) { setRetained(checked); setBlocked(false); } }
+    try { const checked = await review(payload()); if (current === generation.current && alive.current) { setRetained(checked); setBlocked(false); setAcknowledged(false); } }
     catch (e) { if (current === generation.current) { setRetained(null); denied(e); } }
     finally { if (current === generation.current) setBusy(false); }
   }
@@ -64,12 +65,13 @@ function ExportWorkspace() {
     if (!retained) return;
     const current = generation.current;
     setBusy(true); setError(null);
-    try { const blob = await download(payload(), retained.sha256); if (current === generation.current && alive.current) saveArchive(blob); }
+    try { const blob = await download(payload(), retained.sha256, acknowledged); if (current === generation.current && alive.current) saveArchive(blob); }
     catch (e) { if (current === generation.current) { setRetained(null); denied(e); } }
     finally { if (current === generation.current) setBusy(false); }
   }
   const manifest = !hidden ? retained?.manifest : undefined;
   const incoherent = manifest?.coherence === 'incoherent';
+  const needsAcknowledgement = !!manifest?.rights.acknowledgement_required;
   return <Stack gap="sm">
     <Title order={2}>Coherent export packages</Title>
     <Text size="sm">One package pins system, cable, PCB, mechanical, spreadsheet and test outputs to the exact revisions of one frozen root, with independently counted scope quantities. Not a release, manufacturing approval or physical qualification.</Text>
@@ -105,9 +107,16 @@ function ExportWorkspace() {
           {manifest.pins.map(row => <Table.Tr key={row.revision_id}><Table.Td><RevisionLabel id={row.revision_id} /></Table.Td><Table.Td>{row.kind}</Table.Td><Table.Td>{row.per_root_occurrences === null ? <SbQuantity value={null} state="na" /> : <SbQuantity value={row.per_root_occurrences} />}</Table.Td><Table.Td><Quantity value={row.scope_quantity} /></Table.Td></Table.Tr>)}
         </Table.Tbody></Table>
         {manifest.unresolved.map((row, index) => <Alert key={index} color="yellow">{row.output} · {row.reason}</Alert>)}
+        <Title order={4}>Declared rights</Title>
+        <Group gap="md">{(['cleared', 'restricted', 'unknown'] as const).map(status => <Text key={status} size="sm">{status}: {manifest.rights.counts[status]}</Text>)}</Group>
+        {manifest.rights.items.length > 0 && <Table striped withTableBorder><Table.Thead><Table.Tr><Table.Th>Revision</Table.Th><Table.Th>Record</Table.Th><Table.Th>Rights status</Table.Th><Table.Th>Declared rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+          {manifest.rights.items.map(row => <Table.Tr key={row.subject}><Table.Td><RevisionLabel id={row.revision_id} /></Table.Td><Table.Td>{row.record} · {row.label}</Table.Td><Table.Td><SbStatus led={row.rights_status === 'cleared' ? 'active' : row.rights_status === 'restricted' ? 'review' : 'not-evaluated'} dimension="rights" value={row.rights_status} /></Table.Td><Table.Td>{row.declared_rights || <SbUnknown what="Declared rights" />}</Table.Td></Table.Tr>)}
+        </Table.Tbody></Table>}
+        {manifest.rights.undeclared_revision_ids.length > 0 && <Text size="sm">{manifest.rights.undeclared_revision_ids.length} pinned revisions have no rights declaration.</Text>}
         <Title order={4}>Unsupported output semantics</Title>
         {manifest.unsupported.map(row => <Text key={row.id} size="sm">{row.section} · {row.reason}</Text>)}
-        <Group><Button disabled={busy || !retained?.sha256 || incoherent} onClick={() => void getArchive()}>Download export package</Button></Group>
+        {needsAcknowledgement && <Checkbox label="Some declared rights are unknown or restricted. I acknowledge this package is for authorized internal review only." checked={acknowledged} disabled={busy} onChange={e => setAcknowledged(e.currentTarget.checked)} />}
+        <Group><Button disabled={busy || !retained?.sha256 || incoherent || (needsAcknowledgement && !acknowledged)} onClick={() => void getArchive()}>Download export package</Button></Group>
         {incoherent && <Text size="sm">Included outputs cite different revisions or quantities; correct the selection before download.</Text>}
         {!retained?.sha256 && <Text size="sm">Inputs changed. Review the export package again before download.</Text>}
       </Stack></Card>}
