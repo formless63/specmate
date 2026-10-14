@@ -3,6 +3,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useMemo, useState } from "react";
 import { usePermission } from "../../lib/permissions";
+import { probeMark, useProbe, useProbeOrLocal, useRelated } from "../probe";
 import { floatingKind, KNOWN_KINDS, type LibraryView as View } from "../shell/scope";
 import { addReference, listLibrary, readProjectDetail, removeReference, type LibraryRecord, type Project } from "../workspace/api";
 import { ReferenceForm, type ReferenceChoice } from "./ReferenceForm";
@@ -80,7 +81,10 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   const [query] = useDebouncedValue(text.trim(), 250);
   const [kindFilter, setKindFilter] = useState<string | null>(null);
   const [mode, setMode] = useState<"project" | "library">("project");
-  const [selected, setSelected] = useState<string | null>(null);
+  // The selected row is the shared probe inside the shell, so other views and the URL follow it.
+  const [selected, setSelected] = useProbeOrLocal();
+  const probe = useProbe()?.probe ?? null;
+  const related = useRelated();
   const kinds = kindFilter ? [kindFilter] : view.kinds;
   const referencedOnly = !!projectId && mode === "project";
   const records = useInfiniteQuery({
@@ -131,11 +135,12 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
       </Table.Tr></Table.Thead>
       <Table.Tbody>{rows.map((row) => {
         const open = selected === row.record_id;
+        const mark = probeMark(probe, related, { object: row.record_id, rev: null, path: [] }, "object");
         const here = projectId ? row.used_in.filter((use) => use.project_id === projectId) : [];
         return <Fragment key={`${row.family}:${row.record_id}`}>
-          <Table.Tr data-referenced={row.referenced || undefined} data-selected={open || undefined}>
+          <Table.Tr data-referenced={row.referenced || undefined} data-selected={open || undefined} data-probe={mark ?? undefined}>
             <Table.Td><button type="button" className="sb-ws-open" aria-expanded={open} aria-label={`${open ? "Hide" : "Show"} uses of ${row.label}`} onClick={() => setSelected(open ? null : row.record_id)}>
-              <span className="sb-home-name">{row.label}</span></button></Table.Td>
+              <span className="sb-home-name">{row.label}</span></button>{mark === "related" && <span className="sb-tag" style={{ marginLeft: 6 }}>related</span>}</Table.Td>
             <Table.Td className="sb-mono">{words(row.kind)}</Table.Td>
             <Table.Td className="sb-mono" data-unknown={row.latest_revision === null || undefined}>
               {row.latest_revision !== null ? `r${row.latest_revision}` : row.family === "definition" ? <span className="sb-tag" title="No frozen revision yet">draft</span> : "–"}</Table.Td>

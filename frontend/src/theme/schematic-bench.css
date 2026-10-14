@@ -167,6 +167,13 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
 .sb-choose-list .sb-home-row { border-right: 1px solid var(--sb-border-subtle); }
 .sb-choose-list .sb-dash-empty { grid-column: 1 / -1; }
 .sb-focus-note { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding: 6px 10px; border: 1px solid var(--sb-border-subtle); border-left: 2px solid var(--sb-accent); background: var(--sb-surface-panel); }
+/* Probe: the shared selection header and its marks in tables (selected = accent fill, related = rule + tag). */
+.sb-probe { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 6px 10px; border: 1px solid var(--sb-border-subtle); border-left: 2px solid var(--sb-accent); background: var(--sb-surface-panel); }
+.sb-probe[data-state="access-lost"] { border-left-color: var(--sb-border-strong); flex-direction: column; align-items: flex-start; }
+.sb-probe-cells { flex: 1; min-width: 0; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0; border-bottom: 0; }
+.sb-ws-table tr[data-probe="related"] td:first-child { box-shadow: inset 2px 0 0 var(--sb-border-strong); }
+@media (max-width: 959px) { .sb-probe-cells { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 599px) { .sb-probe-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @keyframes sb-reveal { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1100px) { .sb-dash-grid { grid-template-columns: minmax(0, 1fr); } .sb-dash-start { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) {

@@ -11,8 +11,8 @@ from specmate.knowledge.models import KnowledgeItem
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 from specmate.physical_units.models import PhysicalUnit
 from specmate.sources.models import SourceBundle
-from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects
-from specmate.workspace.queries import list_library, list_projects, project_detail
+from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects, ResolveLibraryRecord
+from specmate.workspace.queries import library_record, list_library, list_projects, project_detail
 
 from .conftest import op
 from .test_project_references import add, part, read
@@ -305,3 +305,46 @@ def test_workspace_routes_serve_the_same_reads(users, workspace, project):
     outsider = api(users["outsider"])
     assert outsider.get(f"/api/v0/workspace/projects/{project}").status_code == 404
     assert outsider.get(f"/api/v0/workspace/library?workspace_id={workspace}").status_code == 404
+
+
+def resolve(user, record_id, **payload):
+    return library_record(user, record_id, ResolveLibraryRecord(**payload))
+
+
+def test_one_record_resolves_by_id_in_any_family_without_an_existence_signal(
+    users, workspace, other_workspace, project
+):
+    item = part(users["owner"], workspace, "Linked board", freeze=True)
+    bundle = SourceBundle.objects.create(
+        workspace_id=workspace, name="Linked sources", role="original", created_by=users["owner"]
+    )
+    add(users["owner"], project, "definition", item["definition_id"])
+    row = resolve(users["viewer"], item["definition_id"])
+    assert (row["label"], row["family"], row["latest_revision"]) == (
+        "Linked board",
+        "definition",
+        1,
+    )
+    assert row["referenced"] is None and row["used_in_total"] == 1
+    assert resolve(users["viewer"], item["definition_id"], project_id=project)["referenced"] is True
+    assert resolve(users["viewer"], bundle.id)["family"] == "source_bundle"
+    # Another workspace's member and a random id get the same answer; so does a foreign context.
+    with pytest.raises(NotFound) as hidden:
+        resolve(users["outsider"], item["definition_id"])
+    with pytest.raises(NotFound) as missing:
+        resolve(users["viewer"], uuid.uuid4())
+    assert str(hidden.value) == str(missing.value)
+    with pytest.raises(NotFound):
+        resolve(users["outsider"], item["definition_id"], workspace_id=workspace)
+    foreign = op(
+        users["outsider"], "project.create", {"name": "Foreign", "workspace_id": other_workspace}
+    )["project_id"]
+    with pytest.raises(NotFound):
+        resolve(users["viewer"], item["definition_id"], project_id=foreign)
+    viewer = api(users["viewer"])
+    routed = viewer.get(f"/api/v0/workspace/library/{item['definition_id']}?project_id={project}")
+    assert routed.status_code == 200 and routed.json()["referenced"] is True
+    outsider = api(users["outsider"])
+    assert outsider.get(f"/api/v0/workspace/library/{item['definition_id']}").status_code == 404
+    assert outsider.get(f"/api/v0/workspace/library/{uuid.uuid4()}").status_code == 404
+    assert viewer.get("/api/v0/workspace/library/not-a-uuid").status_code in (404, 422)
