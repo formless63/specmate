@@ -123,7 +123,9 @@ def stage_result(stage: BuildStage) -> dict:
         "stage_id": str(stage.id),
         "state": stage.state,
         "state_token": f"stage-v{stage.version}",
-        "terminal": stage.state in TERMINAL or stage.state == "interrupted",
+        # Interrupted is not final: the owning runner may still reconcile the same
+        # execution and report its real outcome, or a person resolves it deliberately.
+        "terminal": stage.state in TERMINAL,
         "lease_expires_at": stage.lease_expires_at.isoformat() if stage.lease_expires_at else None,
         "cancellation_requested": stage.cancellation_requested_at is not None,
     }

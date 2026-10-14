@@ -12,7 +12,7 @@ const EXPLAIN: Record<string, string> = {
   leased: 'Leased to a runner; no process activity has been observed yet.',
   running: 'A runner reports the process is running.',
   cancellation_requested: 'Cancellation requested. This is not cancelled until the runner confirms the process stopped.',
-  interrupted: 'The lease was lost. The tool is not rerun automatically; the original runner can reconcile the same execution.',
+  interrupted: 'The lease was lost. This is not final: the tool is not rerun automatically, and the original runner can still reconcile the same execution and report its real outcome, including success.',
   succeeded: 'Verified outputs were accepted. This is not engineering or physical qualification.',
   failed: 'Ended without success. Failure details and any verified partial outputs are retained.',
   cancelled: 'A runner confirmed the process stopped after a cancellation request.',
@@ -114,7 +114,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
 
   return <Card withBorder><Stack>
     <Title order={3}>Builds, cancellation and recovery</Title>
-    <Text size="sm">Cancellation is a request until the runner confirms the process stopped. Interrupted work is never rerun automatically and is never relabelled cancelled or successful. A retry is a new attempt over the same exact source revision and approved recipe.</Text>
+    <Text size="sm">Cancellation is a request until the runner confirms the process stopped. Interrupted work is not final and is never rerun automatically: its original runner can still reconcile the same execution and report how it really ended, or a person resolves it deliberately. A retry is a new attempt over the same exact source revision and approved recipe.</Text>
     <ReadOnlyNote permission="build.execute">Builds can be inspected but not changed</ReadOnlyNote>
     <Group><Button variant="quiet" loading={busy} onClick={() => void load()}>Refresh builds</Button></Group>
     {error && <Alert color="red">{error}</Alert>}

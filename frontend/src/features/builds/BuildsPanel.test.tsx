@@ -230,3 +230,11 @@ test('a failed build shows a reusable identical result with its level, never its
   await waitFor(() => expect(findReusable).toHaveBeenCalledTimes(2));
   expect(screen.queryByText('Reusable result available')).toBeNull();
 });
+
+test('an interrupted build is described as not final, since its runner can still reconcile it', async () => {
+  vi.mocked(readHistory).mockResolvedValue(history({ state: 'interrupted' }));
+  await open();
+  expect(screen.getByText(/This is not final/)).toBeTruthy();
+  expect(screen.getByText(/report its real outcome, including success/)).toBeTruthy();
+  expect(screen.queryByText(/never relabelled/)).toBeNull();
+});

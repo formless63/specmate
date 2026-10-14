@@ -408,9 +408,10 @@ def test_expiry_interrupts_never_requeues_and_reconciliation_recovers_same_execu
     )
     with pytest.raises(Conflict):
         upload(credential, lease)
-    assert (
-        op(users["owner"], "build.poll", {"build_id": build["build_id"]})["state"] == "interrupted"
-    )
+    interrupted = op(users["owner"], "build.poll", {"build_id": build["build_id"]})
+    # Not final: the owning runner may still reconcile and report the real outcome.
+    assert interrupted["state"] == "interrupted" and interrupted["terminal"] is False
+    assert op(users["owner"], "build.get", {"build_id": build["build_id"]})["terminal"] is False
     recovered = runner_op(credential, "runner.lease")["lease"]
     assert recovered["fencing_token"] == lease["fencing_token"]
     assert recovered["reconciliation_required"] is True
@@ -425,7 +426,8 @@ def test_expiry_interrupts_never_requeues_and_reconciliation_recovers_same_execu
     )
     assert reconciliation["state"] == "interrupted"
     upload(credential, lease)
-    assert runner_op(credential, "runner.complete", success_receipt(lease))["state"] == "succeeded"
+    done = runner_op(credential, "runner.complete", success_receipt(lease))
+    assert done["state"] == "succeeded" and done["terminal"] is True
 
 
 def test_stale_fence_cannot_heartbeat_read_upload_or_complete(credential, lease):
