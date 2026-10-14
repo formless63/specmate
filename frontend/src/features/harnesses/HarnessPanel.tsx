@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { authorityDenied } from '../cables/api';
 import { HarnessEditor } from './HarnessEditor';
 import { HarnessViews } from '../harness-views/HarnessViews';
+import { useProbedSelection } from '../cable-views/useProbedSelection';
+import { useProbe } from '../probe';
 import { command, read, initialHarness, terminalKey, terminalLabel, type Harness, type Definition, type Draft, type Identity, type Inspection } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -72,6 +74,12 @@ function Workspace({ projectId }: { projectId: string }) {
   }
   const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
   const workspaceDenied = definitions.isError || identity.isError;
+  // The Library row for the probed definition already shows these views; show them once.
+  const probedObject = useProbe()?.probe?.object ?? null;
+  const shownAbove = !!definitionId && probedObject === definitionId;
+  useProbedSelection({ kind: 'harness', definitions: definitions.isError ? undefined : definitions.data, definitionId,
+    revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined,
+    pickDefinition: id => { replaceEditor(); setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }, pickRevision: setRevisionId });
   return <Stack>
     <Button variant="subtle" onClick={() => { replaceEditor(); setDraftId(null); setRevisionId(null); }}>Discard retained Harness editor</Button><Text>Discarding closes the selected draft and its unsaved declarations.</Text>
     <Title order={2}>Branched harnesses</Title>
@@ -101,7 +109,8 @@ function Workspace({ projectId }: { projectId: string }) {
     {(workspaceDenied || draft.isError) && <Button onClick={() => { void cache.refetchQueries({ queryKey: ["harness-definitions", projectId] }); void cache.refetchQueries({ queryKey: ["harness-identity", definitionId] }); void cache.refetchQueries({ queryKey: ["harness-draft", draftId] }); }}>Refresh Harness workspace access</Button>}
     {draft.data && <><DraftEditor onControlChange={setDraftControl} acceptedFreeze={acceptedFreeze} externalDenied={freezeDenied || inspectorDenied} onRestoreAuthority={recheckWorkspace} onRestored={() => setFreezeDenied(false)} hidden={draft.isError || workspaceDenied} key={draft.data.draft_id} draft={draft.data} definitions={currentDefinitions} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["harness-draft", draftId] }); }} />{!draft.isError && !workspaceDenied && <Button disabled={draftSourceDenied || draftControl?.busy} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate({ generation: editorGeneration.current })}>Freeze harness revision</Button>}</>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-    {revisionId && !workspaceDenied && !draft.isError && !draftSourceDenied && !freezeDenied && !inspectorDenied && <HarnessInspector key={revisionId} revisionId={revisionId} authorityScope={editorGeneration.current} onDenied={inspectorFailure} />}
+    {revisionId && shownAbove && !workspaceDenied && <Text role="status" data-testid="views-shown-above">Frozen harness views are shown above, in the selected library row.</Text>}
+    {revisionId && !shownAbove && !workspaceDenied && !draft.isError && !draftSourceDenied && !freezeDenied && !inspectorDenied && <HarnessInspector key={revisionId} revisionId={revisionId} authorityScope={editorGeneration.current} onDenied={inspectorFailure} />}
   </Stack>;
 }
 

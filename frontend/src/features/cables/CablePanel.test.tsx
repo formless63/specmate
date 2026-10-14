@@ -6,6 +6,7 @@ import { CableEditor, CableInspector, CablePanel } from './CablePanel';
 import { initialCable, type Cable } from './api';
 import { PermissionsProvider } from '../../lib/permissions';
 import { unknownElectrical, unknownOrientation } from '../interfaces/api';
+import { ProbeProvider } from '../probe';
 
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -287,4 +288,25 @@ test.each([
   expect(screen.getByRole('button', { name: 'Create cable draft' }).hasAttribute('data-readonly-reason')).toBe(saveOff);
   expect(screen.getByRole('button', { name: 'Save cable draft' }).getAttribute('title')).toBe(saveOff ? 'Read-only access: requires Edit' : null);
   expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+});
+
+test('a probe on a cable revision selects that definition and shows its views once, in the library row', async () => {
+  const cable = { ...initialCable(), stock_revision_id: 'stock-rev' };
+  const urls: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    urls.push(url);
+    let data: unknown;
+    if (url.includes('cables/revisions')) data = inspected(cable);
+    else if (url.includes('/snapshot')) data = { content: { stock } };
+    else if (url.includes('catalog/definitions/cable')) data = { definition_id: 'cable', name: 'Synthetic cable', kind: 'cable', drafts: [], revisions: [{ revision_id: 'cable-r1', number: 1 }, { revision_id: 'cable-r2', number: 2 }] };
+    else if (url.includes('revision-labels')) data = { labels: [], source_labels: [] };
+    else data = [{ definition_id: 'cable', name: 'Synthetic cable', kind: 'cable' }];
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  render(wrap(<ProbeProvider probe={{ object: 'cable', rev: 1, path: [] }} onProbe={() => {}}><CablePanel projectId="project" /></ProbeProvider>));
+  // The Library row owns the views for the probed definition; the panel points to it instead of repeating them.
+  expect(await screen.findByTestId('views-shown-above')).toBeTruthy();
+  expect(screen.queryByText('Frozen cable inspection')).toBeNull();
+  expect(screen.queryByLabelText('Cable section drawing')).toBeNull();
+  expect(urls.some(url => url.includes('cables/revisions/'))).toBe(false);
 });

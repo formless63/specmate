@@ -6,6 +6,8 @@ import { useMutation, useQueries, useQuery, useQueryClient, type Query, type Use
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
 import { CableViews } from '../cable-views/CableViews';
+import { useProbedSelection } from '../cable-views/useProbedSelection';
+import { useProbe } from '../probe';
 import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
 import { authorityDenied, command, read, initialCable, type Cable, type Definition, type Draft, type Identity, type Inspection } from './api';
@@ -72,6 +74,12 @@ function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?
     await cache.invalidateQueries({ queryKey: ["cable-identity", definitionId] });
   }, onError: mutationError });
   const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
+  const pickDefinition = useCallback((id: string) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setDraftToken(undefined); setCommittedDraft(null); setOffset(0); }, []);
+  useProbedSelection({ kind: 'cable', definitions: definitions.isError ? undefined : definitions.data, definitionId,
+    revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined, pickDefinition, pickRevision: setRevisionId });
+  // The Library row for the probed definition already shows these views; show them once.
+  const probedObject = useProbe()?.probe?.object ?? null;
+  const shownAbove = !!definitionId && probedObject === definitionId;
   const workspaceDenied = authorityBlocked || definitions.isError || identity.isError;
   return <Stack>
     <Title order={2}>Cable endpoints and terminations</Title>
@@ -96,7 +104,8 @@ function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?
     {draft.data && draftId && <DraftEditor key={draft.data.draft_id} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} workspaceId={workspaceId} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} />}
     {draft.data && !draft.isError && !workspaceDenied && <Button disabled={draftSourceDenied || !draftToken} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate()}>Freeze cable revision</Button>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-    {revisionId && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
+    {revisionId && shownAbove && !workspaceDenied && <Text role="status" data-testid="views-shown-above">Frozen cable views are shown above, in the selected library row.</Text>}
+    {revisionId && !shownAbove && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
   </Stack>;
 }
 
