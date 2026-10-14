@@ -1,7 +1,7 @@
 import { Alert, Button, Checkbox, Group, Popover, Select, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { gateFor, type PermissionName } from "../../lib/permissions";
+import { usePermission, type PermissionName } from "../../lib/permissions";
 import { DeleteControl } from "../home/WorkspaceHome";
 import { deleteBlocker, deleteProject, describeDependents, setArchived } from "../home/projectLifecycle";
 import { ReferenceForm, type ReferenceChoice } from "../scope/ReferenceForm";
@@ -48,6 +48,14 @@ function value<T>(read: WorkRead<T> | undefined): T | null {
  * A project's overview: its purpose, open work and the library items it references, grouped by
  * the area that opens them. Counts are counts of references, not of owned records.
  */
+function StartTile({ point, onOpenTool }: { point: (typeof START_POINTS)[number]; onOpenTool: (tool: string) => void }) {
+  const gate = usePermission(point.permission);
+  return <button type="button" className="sb-dash-card" aria-label={`Start: ${point.title}`} onClick={() => onOpenTool(point.tool)} {...gate.props}>
+    <span className="sb-dash-card-head"><b>{point.title}</b><span className="sb-mono" aria-hidden="true" style={{ color: "var(--sb-accent)" }}>+</span></span>
+    <span className="sb-dash-note">{point.hint}</span>
+  </button>;
+}
+
 export function ProjectOverview({ projectId, projectName, permissions, role = null, active, onOpenTool, onAccessLost, onProjectChanged, onLeave }: Props) {
   const [work, setWork] = useState<ProjectWork | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,7 +100,7 @@ export function ProjectOverview({ projectId, projectName, permissions, role = nu
   const reviews = value(work?.reviews);
   const access = describeAccess(permissions, role);
   const readOnly = isReadOnly(permissions);
-  const edit = gateFor(permissions, "project.edit");
+  const edit = usePermission("project.edit");
   const archived = !!detail?.archived;
   const editGate = archived ? { allowed: false, props: { disabled: true as const, title: "Archived projects are read-only; unarchive first" } } : edit;
   const more = (flag: boolean | undefined) => flag ? "+" : "";
@@ -158,11 +166,7 @@ export function ProjectOverview({ projectId, projectName, permissions, role = nu
 
         <h3 className="sb-dash-h">Start something on its own <span className="sb-silk">no complete device required</span></h3>
         <div className="sb-dash-start" role="group" aria-label="Start something">
-          {START_POINTS.map((point) => <button key={point.tool} type="button" className="sb-dash-card"
-            aria-label={`Start: ${point.title}`} onClick={() => onOpenTool(point.tool)} {...gateFor(permissions, point.permission).props}>
-            <span className="sb-dash-card-head"><b>{point.title}</b><span className="sb-mono" aria-hidden="true" style={{ color: "var(--sb-accent)" }}>+</span></span>
-            <span className="sb-dash-note">{point.hint}</span>
-          </button>)}
+          {START_POINTS.map((point) => <StartTile key={point.tool} point={point} onOpenTool={onOpenTool} />)}
         </div>
         {readOnly && <Text className="sb-dash-note" mt="xs">You have read-only access here: starting something that creates records is unavailable. Open the tools from their areas to inspect existing records.</Text>}
       </div>

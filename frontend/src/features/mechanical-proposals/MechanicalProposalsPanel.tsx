@@ -264,10 +264,10 @@ function DecisionReview({ workspaceId, retained, busy, onDecide, onReload }: { w
     </Table.Tbody></Table>}
     {final ? <Text size="sm">Accepted decisions are final.</Text> : <>
       <InspectionScope permission="design.edit">
-      <SegmentedControl aria-label="Decision" value={decision} onChange={value => { if (allowed) setDecision(value as DecidePayload['decision']); }} data={[{ value: 'accepted', label: 'Accept' }, { value: 'rejected', label: 'Reject' }, { value: 'deferred', label: 'Defer' }]} />
+      <Choice label="Decision" value={decision} readOnly={!allowed} onChange={value => setDecision(value as DecidePayload['decision'])} data={[{ value: 'accepted', label: 'Accept' }, { value: 'rejected', label: 'Reject' }, { value: 'deferred', label: 'Defer' }]} />
       <Textarea label="Reason (required)" value={reason} onChange={event => setReason(event.currentTarget.value)} rows={3} maxLength={4000} />
       {accepting && <>
-        <SegmentedControl aria-label="Draft target" value={mode} onChange={value => { if (!allowed) return; setMode(value as 'create' | 'link'); setTarget(''); }} data={[{ value: 'create', label: 'Create design draft' }, { value: 'link', label: 'Link existing draft' }]} />
+        <Choice label="Draft target" value={mode} readOnly={!allowed} onChange={value => { setMode(value as 'create' | 'link'); setTarget(''); }} data={[{ value: 'create', label: 'Create design draft' }, { value: 'link', label: 'Link existing draft' }]} />
         {mode === 'create'
           ? <TextInput label="New draft name" value={target} onChange={event => setTarget(event.currentTarget.value)} maxLength={200} />
           : <Select label="Existing design draft" searchable placeholder={targets.length ? 'Choose a draft' : 'No drafts available'} value={target || null} onChange={value => setTarget(value ?? '')} nothingFoundMessage="No matching drafts" error={targetError || undefined}
@@ -311,4 +311,10 @@ export function ProposalReview({ proposal, label, saved = false }: { proposal: P
     {proposal.remaining_physical_checks.map((text, index) => <Text size="sm" key={index}>{text}</Text>)}
     <Text size="sm">Fit, clearance, printability, manufacturing and physical qualification: not evaluated. Board interpretation {proposal.board.interpretation_sha256}.</Text>
   </Stack></Card>;
+}
+
+/** A segmented choice that, without permission, shows the current value as plain text instead of an operable control. */
+function Choice({ label, value, data, readOnly, onChange }: { label: string; value: string; data: { value: string; label: string }[]; readOnly: boolean; onChange: (value: string) => void }) {
+  if (readOnly) return <Text size="sm"><span className="sb-silk">{label}</span> {data.find(d => d.value === value)?.label ?? value}</Text>;
+  return <SegmentedControl aria-label={label} value={value} onChange={onChange} data={data} />;
 }
