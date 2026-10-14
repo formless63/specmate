@@ -36,7 +36,7 @@ export function StockInfo({ stock, section, name, revisionId }: { stock: StockSp
           <Table.Td>{look.materialLabel}{look.family !== 'unrecorded' && look.family !== 'unrecognized' ? <Text span size="xs"> · {look.family}</Text> : null}</Table.Td>
           <Table.Td><Swatch look={look} />{look.colorLabel}{look.fillSource === 'material-typical' ? <Text span size="xs"> (drawn typical)</Text> : null}</Table.Td>
           <Table.Td>{row.construction ?? 'Unknown'}</Table.Td>
-          <Table.Td>{row.kind === 'web' ? `${mm(row.widthMm)} × ${mm(row.heightMm)}` : `${mm(row.outerDiameterMm)} / ${mm(row.innerDiameterMm)}`}</Table.Td>
+          <Table.Td>{row.kind === 'web' ? <>{mm(row.widthMm)} × {mm(row.heightMm)}</> : <>{mm(row.outerDiameterMm)} / {mm(row.innerDiameterMm)}</>}</Table.Td>
         </Table.Tr>;
       })}</Table.Tbody></Table></Table.ScrollContainer>
     {facts.length > 0 && <Table aria-label="Stock facts"><Table.Thead><Table.Tr><Table.Th>Fact</Table.Th><Table.Th>Value</Table.Th><Table.Th>Status</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>

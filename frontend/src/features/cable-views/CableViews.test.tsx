@@ -95,3 +95,15 @@ test('a frozen end preparation is applied only when pinned to this exact stock r
   await waitFor(() => expect(screen.getByLabelText('Cable side drawing').querySelector('svg')!.getAttribute('data-mode')).toBe('prepared'));
   expect(screen.getByRole('table', { name: 'Side view layers' }).textContent).toContain('Stops 18 mm from the cut end');
 });
+
+test('information tab renders unknown element dimensions as Unknown, never [object Object]', () => {
+  const stock = shieldedPair();
+  const jacket = stock.structure.children.find(c => c.kind === 'jacket')!;
+  (jacket as { outer_diameter_mm: number | null; inner_diameter_mm: number | null }).outer_diameter_mm = null;
+  (jacket as { outer_diameter_mm: number | null; inner_diameter_mm: number | null }).inner_diameter_mm = null;
+  show(stock);
+  fireEvent.click(screen.getByRole('tab', { name: 'Information' }));
+  const text = screen.getByRole('table', { name: 'Layer information' }).textContent ?? '';
+  expect(text).not.toContain('[object Object]');
+  expect(text).toContain("unknown / – – – unknown");
+});
