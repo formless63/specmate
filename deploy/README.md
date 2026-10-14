@@ -1,7 +1,10 @@
 # Run the development foundation
 
 This is an early source-built installation, not a prebuilt release or the complete
-Specmate product. It runs the application/API foundation, durable jobs, PostgreSQL,
+Specmate product. Images are currently built locally from this source (`*:local` tags);
+publishing prebuilt release images is release engineering and remains a follow-up.
+
+It runs the application/API foundation, durable jobs, PostgreSQL,
 Temporal and its operator UI. Native tool authoring screens and qualified native tool
 packs are not included. A successful container or synthetic process test does not
 establish CAD compatibility or engineering validity.
@@ -66,8 +69,8 @@ before starting jobs.
 The operator command displays a single-use owner setup token valid for 30 minutes.
 Claim ownership through `POST /api/v0/setup/owner` with `request_id`, `token`,
 `username` and `password`; the API schema is available at `/api/docs`. No default
-owner/password or email service is required. The current frontend does not provide
-the full ownership and engineering workflows. Treat the token and authenticated
+owner/password or email service is required. The web frontend provides the first-owner
+setup and sign-in flow; the full engineering workflows are not all present. Treat the token and authenticated
 session cookies as credentials. Issuing another token revokes older unused tokens;
 issuing one after ownership is established is refused.
 

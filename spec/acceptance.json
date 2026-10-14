@@ -1811,9 +1811,9 @@
       ],
       "kind": "scenario-specification",
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
-      "when": "Separate source execution, inventory, release, sharing, purchase, flash and print permissions.",
+      "when": "Keep source execution and inventory as separate grants; release shares design.freeze; export and download are workspace reads with recorded sharing; purchase, flash and print are not baseline capabilities.",
       "expect": [
-        "Coding-agent reset privileges never become runtime PCB/CAD agent privileges; device operations remain separately authorized."
+        "Coding-agent reset privileges never become runtime PCB/CAD agent privileges; disposable reset and other management commands are not registered operations and cannot be granted to runs; no purchase, flash or print authority exists in the baseline."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

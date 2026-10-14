@@ -678,3 +678,35 @@ def test_referenced_created_definition_is_not_discarded(users, workspace, projec
     with pytest.raises(Conflict, match="reference it"):
         _revert(users, run, change)
     assert Definition.objects.filter(id=created["definition_id"]).exists()
+
+
+def test_management_commands_are_not_operations_and_cannot_be_granted(users, workspace):
+    """AGT-005: disposable reset and other deployment/management commands are
+    operator-only. They are not in the shared registry, so no run grant can name them."""
+    from pathlib import Path
+
+    import specmate
+    from specmate.agent_runs.grants import classify
+    from specmate.operations import registry
+
+    commands = {
+        path.stem
+        for path in Path(specmate.__file__).parent.glob("*/management/commands/*.py")
+        if path.stem != "__init__"
+    }
+    assert {"reset_disposable", "backup", "startup", "runner_credential"} <= commands
+    names = {spec.name for spec in registry.values()}
+    for command in commands:
+        for candidate in (command, command.replace("_", "."), f"operations.{command}"):
+            assert candidate not in names, candidate
+    assert not any("disposable" in name or "reset" in name for name in names)
+    for name in ["reset_disposable", "disposable.reset", "operations.reset_disposable", "backup"]:
+        assert classify(name) == {
+            "operation": name,
+            "grantable": False,
+            "reason": "unknown_operation",
+        }
+        for field in ("allowed_actions", "boundary_actions"):
+            with pytest.raises(ValidationFailed):
+                start(users, workspace, sponsor="owner", **{field: [name]})
+    assert not AgentRun.objects.exists()
