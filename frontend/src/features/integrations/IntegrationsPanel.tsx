@@ -1,6 +1,7 @@
 import { Alert, Button, Checkbox, Group, NativeSelect, Select, Stack, Table, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { InspectionScope, ReadOnlyNote, useCan, usePermission } from "../../lib/permissions";
+import { Chooser, useRevisionChoice } from "../inventory/SourcingPanel";
 import { listIntegrations, readHistory, run, type ExportResult, type History, type ImportRun, type Integration } from "./api";
 
 const FIELDS = [
@@ -47,7 +48,7 @@ export function IntegrationsPanel({ workspaceId }: { workspaceId: string }) {
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState("pasted");
   const [last, setLast] = useState<ImportRun | null>(null);
-  const [plan, setPlan] = useState("");
+  const plan = useRevisionChoice(workspaceId, ["bom_plan", "material_plan"]);
   const [purpose, setPurpose] = useState("procurement");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,10 +130,10 @@ export function IntegrationsPanel({ workspaceId }: { workspaceId: string }) {
 
       <Title order={3} size="h5">Export needs</Title>
       {!canExport ? <Text size="sm">Exporting needs inventory management.</Text> : <Group align="flex-end">
-        <TextInput label="Frozen plan revision id" size="xs" value={plan} onChange={(e) => setPlan(e.currentTarget.value.trim())} />
+        <Chooser label="Plan" choice={plan} />
         <NativeSelect label="Purpose" size="xs" value={purpose} onChange={(e) => setPurpose(e.currentTarget.value)} data={["procurement", "pcb_fabrication", "pcb_population", "consumables"]} />
-        <Button size="xs" loading={busy} disabled={!plan} onClick={() => void act(async () => {
-          const result = await run<ExportResult>("integration.export_needs", { integration_id: current.integration_id, revision_id: plan, purpose, file_format: format });
+        <Button size="xs" loading={busy} disabled={!plan.revision} onClick={() => void act(async () => {
+          const result = await run<ExportResult>("integration.export_needs", { integration_id: current.integration_id, revision_id: plan.revision, purpose, file_format: format });
           download(result); setHistory(await readHistory(current.integration_id));
           setNotice(`Exported ${result.row_count} rows${result.unresolved.length ? `; ${result.unresolved.length} plan decision(s) unresolved` : ""}. The exact file is recorded.`);
         })}>Export needs</Button>

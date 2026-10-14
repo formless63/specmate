@@ -19,6 +19,7 @@ function fake(observations: unknown[] = []) {
       const body = JSON.parse(String(options.body)); posts.push(body);
       return new Response(JSON.stringify({ result: body.operation === "integration.import" ? importResult : {} }), { status: 200 });
     }
+    if (url.includes("/definitions")) return new Response("[]", { status: 200 });
     if (url.includes("/observations")) return new Response(JSON.stringify({ label: "External observations (not reviewed)", observations }), { status: 200 });
     if (url.includes("/history")) return new Response(JSON.stringify({ runs: [], exports: [] }), { status: 200 });
     return new Response(JSON.stringify({ integrations: [integration] }), { status: 200 });
@@ -75,4 +76,23 @@ test("a viewer cannot promote", async () => {
   mount(["workspace.read"], <ExternalObservations workspaceId="w" revisionId="r" name="Board" />);
   expect(await screen.findByText(/promotion needs contributor access/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: /Promote/ })).toBeNull();
+});
+
+test("export needs offers a plan picker, not a pasted id", async () => {
+  const posts: { operation: string; payload: Record<string, unknown> }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === "POST") { posts.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: { content: "a", file_format: "csv", export_id: "e", row_count: 1, unresolved: [] } }), { status: 200 }); }
+    if (url.includes("catalog/definitions/")) return new Response(JSON.stringify({ definition_id: "d-bom", name: "Plan", kind: "bom_plan", revisions: [{ revision_id: "rev-bom", number: 1 }], drafts: [] }), { status: 200 });
+    if (url.includes("/definitions")) return new Response(JSON.stringify([{ definition_id: "d-bom", name: "Plan", kind: "bom_plan" }, { definition_id: "d-p", name: "Part", kind: "part" }]), { status: 200 });
+    if (url.includes("/history")) return new Response(JSON.stringify({ runs: [], exports: [] }), { status: 200 });
+    return new Response(JSON.stringify({ integrations: [integration] }), { status: 200 });
+  }));
+  vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: () => {} }));
+  mount(["workspace.read", "inventory.manage", "item.create"]);
+  await waitFor(() => expect(screen.getByLabelText("Plan definition").querySelectorAll("option").length).toBe(2));
+  fireEvent.change(screen.getByLabelText("Plan definition"), { target: { value: "d-bom" } });
+  await waitFor(() => expect(screen.getByLabelText("Plan exact revision").querySelectorAll("option").length).toBeGreaterThan(1));
+  fireEvent.change(screen.getByLabelText("Plan exact revision"), { target: { value: "rev-bom" } });
+  fireEvent.click(screen.getByRole("button", { name: "Export needs" }));
+  await waitFor(() => expect(posts.find((p) => p.operation === "integration.export_needs")?.payload.revision_id).toBe("rev-bom"));
 });

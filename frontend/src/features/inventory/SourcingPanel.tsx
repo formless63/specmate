@@ -51,7 +51,7 @@ function ReportView({ report, workspaceId }: { report: SourcingReport; workspace
   </Stack>;
 }
 
-function useRevisionChoice(workspaceId: string, kinds: string[] | null) {
+export function useRevisionChoice(workspaceId: string, kinds: string[] | null) {
   const [definition, setDefinition] = useState("");
   const [revision, setRevision] = useState("");
   const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`workspaces/${workspaceId}/definitions`) });
@@ -60,7 +60,7 @@ function useRevisionChoice(workspaceId: string, kinds: string[] | null) {
   return { definition, setDefinition, revision, setRevision, options, identity, error: definitions.error ?? identity.error };
 }
 
-function Chooser({ label, choice }: { label: string; choice: ReturnType<typeof useRevisionChoice> }) {
+export function Chooser({ label, choice }: { label: string; choice: ReturnType<typeof useRevisionChoice> }) {
   return <>
     <NativeSelect label={`${label} definition`} value={choice.definition} onChange={(e) => { choice.setDefinition(e.currentTarget.value); choice.setRevision(""); }} data={[{ value: "", label: "Choose definition" }, ...choice.options.map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))]} />
     <NativeSelect label={`${label} exact revision`} value={choice.revision} onChange={(e) => choice.setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...(choice.identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(choice.identity.data?.name, r.number) }))]} />
