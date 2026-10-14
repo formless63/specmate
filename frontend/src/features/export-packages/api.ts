@@ -6,8 +6,11 @@ export type ExportRequest = {
   bom_purpose: 'procurement' | 'assembly_contents' | 'pcb_fabrication' | 'pcb_population' | 'consumables';
   preparation_document_set_ids: string[]; test_plan_revision_ids: string[];
   pcb_fabrication_builds: { intake_id: string; build_id: string }[]; scene_drawing_ids: string[];
+  /** Optional so request builders that do not offer firmware (releases) stay valid; the server defaults to none. */
+  firmware_builds?: FirmwareBuildRef[];
   purpose: 'authorized_review';
 };
+export type FirmwareBuildRef = { firmware_revision_id: string; assembly_snapshot_id: string | null; path: string[]; build_id: string };
 export type ScopeQuantity = { status: 'known' | 'unknown' | 'not_applicable'; amount: number | null; per_root?: number };
 export type Pin = { revision_id: string; definition_id: string; kind: string; name: string; number: number; sha256: string; per_root_occurrences: number | null; scope_quantity: ScopeQuantity };
 export type Finding = { status: 'incoherent' | 'unknown'; reason: string; [key: string]: unknown };
@@ -65,6 +68,7 @@ export type Candidates = {
   preparation_document_sets: { document_set_id: string; root_revision_id: string; name: string; quantity: number | null; created_at: string }[];
   test_plans: { revision_id: string; name: string; number: number; root_revision_id: string; occurrence_path: string[] }[];
   pcb_fabrication_builds: { intake_id: string; build_id: string }[];
+  firmware_builds: FirmwareBuildRef[];
 };
 
 /** Currently readable retained outputs that may belong to the root's closure; review still decides coherence. */

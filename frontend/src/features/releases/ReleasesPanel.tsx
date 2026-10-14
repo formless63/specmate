@@ -194,6 +194,7 @@ function ReleaseReviewForm({ workspaceId, projectId, onReleased }: { workspaceId
   const [documentSets, setDocumentSets] = useState<string[]>([]);
   const [drawings, setDrawings] = useState<string[]>([]);
   const [builds, setBuilds] = useState<string[]>([]);
+  const [firmwareBuilds, setFirmwareBuilds] = useState<string[]>([]);
   const [rights, setRights] = useState<RightsReview[]>([]);
   const [reviewed, setReviewed] = useState<ReleaseReview | null>(null);
   const [name, setName] = useState('');
@@ -216,6 +217,7 @@ function ReleaseReviewForm({ workspaceId, projectId, onReleased }: { workspaceId
     root_revision_id: rootId!, quantity: amount, bom_plan_revision_id: null, bom_purpose: 'procurement',
     preparation_document_set_ids: documentSets, test_plan_revision_ids: testPlans,
     pcb_fabrication_builds: (choices.data?.pcb_fabrication_builds ?? []).filter(row => builds.includes(row.build_id)),
+    firmware_builds: (choices.data?.firmware_builds ?? []).filter(row => firmwareBuilds.includes(row.build_id)),
     scene_drawing_ids: drawings, purpose: 'authorized_review', resolved_configuration_ids: configurations, rights_reviews: rights,
   });
   async function inspect() {
@@ -249,13 +251,14 @@ function ReleaseReviewForm({ workspaceId, projectId, onReleased }: { workspaceId
 
   return <Card withBorder padding="sm"><Stack gap="xs">
     <Title order={3}>Review a release closure</Title>
-    <RevisionChoice label="Release root" kinds={ROOT_KINDS} definitions={definitions.data ?? []} value={rootId} disabled={busy} onChange={id => { changed(); setRootId(id); setTestPlans([]); setDocumentSets([]); setDrawings([]); setBuilds([]); setRights([]); }} onDenied={e => setError(message(e, 'Root unavailable.'))} />
+    <RevisionChoice label="Release root" kinds={ROOT_KINDS} definitions={definitions.data ?? []} value={rootId} disabled={busy} onChange={id => { changed(); setRootId(id); setTestPlans([]); setDocumentSets([]); setDrawings([]); setBuilds([]); setFirmwareBuilds([]); setRights([]); }} onDenied={e => setError(message(e, 'Root unavailable.'))} />
     <SbQuantityField label="Root quantity in scope" unit="ea" value={quantity} state={quantityValid ? undefined : 'invalid'} note="A whole number from 1 to 1,000,000" onChange={raw => { changed(); setQuantity(raw); }} next="Leave empty to keep every scope quantity unknown." />
     <MultiSelect label="Resolved configurations" disabled={busy} data={(resolved.data?.resolved ?? []).map(row => ({ value: row.resolved_configuration_id, label: `${row.basis} · ${row.status} · ${row.created_at}` }))} value={configurations} onChange={value => { changed(); setConfigurations(value); }} />
     {rootId && choices.data && <>
       <MultiSelect label="Preparation document sets" disabled={busy} data={choices.data.preparation_document_sets.map(row => ({ value: row.document_set_id, label: `${row.name} · quantity ${row.quantity ?? 'unknown'} · ${row.created_at}` }))} value={documentSets} onChange={value => { changed(); setDocumentSets(value); }} />
       <MultiSelect label="Cable test plans" disabled={busy} data={choices.data.test_plans.map(row => ({ value: row.revision_id, label: `${row.name} · r${row.number} · ${row.occurrence_path.join('/') || 'standalone'}` }))} value={testPlans} onChange={value => { changed(); setTestPlans(value); }} />
       <MultiSelect label="PCB fabrication builds" disabled={busy} data={choices.data.pcb_fabrication_builds.map(row => ({ value: row.build_id, label: `Build ${row.build_id.slice(0, 8)} · intake ${row.intake_id.slice(0, 8)}` }))} value={builds} onChange={value => { changed(); setBuilds(value); }} />
+      <MultiSelect label="Firmware builds" disabled={busy} data={choices.data.firmware_builds.map(row => ({ value: row.build_id, label: `Build ${row.build_id.slice(0, 8)} · firmware ${row.firmware_revision_id.slice(0, 8)} · ${row.path.join('/') || 'any board'}` }))} value={firmwareBuilds} onChange={value => { changed(); setFirmwareBuilds(value); }} />
       <MultiSelect label="Scene drawings" disabled={busy} data={choices.data.scene_drawings.map(row => ({ value: row.drawing_id, label: `${row.name} · ${row.renderer_version} · ${row.created_at}` }))} value={drawings} onChange={value => { changed(); setDrawings(value); }} />
     </>}
     <Group><Button disabled={busy || !rootId || !quantityValid} loading={busy} onClick={() => void inspect()}>Review release closure</Button></Group>

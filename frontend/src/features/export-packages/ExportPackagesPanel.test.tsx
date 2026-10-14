@@ -15,6 +15,7 @@ const CANDIDATES = {
   preparation_document_sets: [{ document_set_id: 'set-one', root_revision_id: 'cable-rev', name: 'Synthetic cable', quantity: 6, created_at: '2026-10-14' }],
   test_plans: [{ revision_id: 'plan-one', name: 'Synthetic plan', number: 2, root_revision_id: ROOT, occurrence_path: ['left'] }],
   pcb_fabrication_builds: [{ intake_id: 'intake-0001', build_id: 'build-0001' }],
+  firmware_builds: [{ firmware_revision_id: 'firmware-rev-0001', assembly_snapshot_id: 'snapshot-0001', path: ['right'], build_id: 'fwbuild-0001' }],
 };
 function wrap() {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ExportPackagesPanel projectId="project" /></QueryClientProvider></MantineProvider>;
@@ -111,10 +112,12 @@ test('retained outputs are chosen from root candidates and sent as exact referen
   await choose('Preparation document sets', 'Synthetic cable · quantity 6 · 2026-10-14');
   await choose('Cable test plans', 'Synthetic plan · r2 · left');
   await choose('PCB fabrication builds', 'Build build-00 · intake intake-0');
+  await choose('Firmware builds', 'Build fwbuild- · firmware firmware · right');
   await choose('Scene drawings', 'Synthetic root · scene-line-svg-v1 · 2026-10-14');
   fireEvent.click(screen.getByRole('button', { name: 'Review export package' }));
   await screen.findByText('Export package review');
   expect(f.calls[0]?.payload).toMatchObject({
+    firmware_builds: [{ firmware_revision_id: 'firmware-rev-0001', assembly_snapshot_id: 'snapshot-0001', path: ['right'], build_id: 'fwbuild-0001' }],
     preparation_document_set_ids: ['set-one'], test_plan_revision_ids: ['plan-one'],
     pcb_fabrication_builds: [{ intake_id: 'intake-0001', build_id: 'build-0001' }], scene_drawing_ids: ['drawing-one'],
   });

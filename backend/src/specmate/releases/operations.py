@@ -306,7 +306,7 @@ def verify(ctx: Context, p: ReleaseRef):
     # the same manifest under current authority. Rebuilding never adopts newer revisions.
     try:
         request = ExportRequest.model_validate(
-            {key: release.request[key] for key in ExportRequest.model_fields}
+            {k: release.request[k] for k in ExportRequest.model_fields if k in release.request}
         )
         get_revision(ctx.user, release.root_revision_id)
         _, _, rebuilt = build_package(ctx, request)

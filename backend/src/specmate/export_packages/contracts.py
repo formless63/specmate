@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 from specmate.assemblies.contracts import StrictModel
 from specmate.bom.contracts import Purpose
 from specmate.contracts import SHA256
+from specmate.firmware_builds.contracts import CompileRef
 
 
 class PcbBuildRef(StrictModel):
@@ -25,6 +26,7 @@ class ExportRequest(StrictModel):
     test_plan_revision_ids: list[UUID] = Field(default_factory=list, max_length=256)
     pcb_fabrication_builds: list[PcbBuildRef] = Field(default_factory=list, max_length=64)
     scene_drawing_ids: list[UUID] = Field(default_factory=list, max_length=64)
+    firmware_builds: list[CompileRef] = Field(default_factory=list, max_length=64)
     purpose: Literal["authorized_review"] = "authorized_review"
 
     @model_validator(mode="after")
@@ -34,6 +36,7 @@ class ExportRequest(StrictModel):
             self.test_plan_revision_ids,
             self.scene_drawing_ids,
             [b.build_id for b in self.pcb_fabrication_builds],
+            [b.build_id for b in self.firmware_builds],
         ):
             if len(set(values)) != len(values):
                 raise ValueError("Include each exact retained output once.")

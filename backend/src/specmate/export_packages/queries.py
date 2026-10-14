@@ -28,6 +28,7 @@ from specmate.catalog_matching.queries import current_actor
 from specmate.design.closure_reads import closure_reads
 from specmate.design.models import Revision
 from specmate.design.operations import canonical_bytes, closure_revisions
+from specmate.export_packages.outputs import firmware_build, formboard_print
 from specmate.harnesses.queries import inspect_revision as inspect_harness
 from specmate.operations import Conflict, ValidationFailed
 from specmate.pcb.models import PcbInterpretation
@@ -53,16 +54,11 @@ WORKBOOK_TIME = datetime(1980, 1, 1)
 # Output semantics this package does not generate. They are stated, never faked.
 UNSUPPORTED = [
     {
-        "id": "cable.formboard_print",
-        "section": "cable",
-        "reason": "Harness formboard/print views are rendered in the browser and are not "
-        "retained server outputs; they are not embedded.",
-    },
-    {
         "id": "pcb.assembly_outputs",
         "section": "pcb",
         "reason": "Pick-and-place, population BOM and assembly drawings are not produced by "
-        "the registered fabrication pack.",
+        "the registered fabrication pack, so no included build carries them and none are "
+        "generated or approximated.",
     },
     {
         "id": "mechanical.native_cad_export",
@@ -77,12 +73,6 @@ UNSUPPORTED = [
         "calibration are not established.",
     },
     {
-        "id": "firmware.build_outputs",
-        "section": "system",
-        "reason": "Firmware revisions are pinned; compiled firmware outputs are not "
-        "packaged by this generator.",
-    },
-    {
         "id": "test.results",
         "section": "test",
         "reason": "Packages carry authored test intent only; no physical test was performed.",
@@ -95,7 +85,7 @@ UNSUPPORTED = [
     },
 ]
 
-SECTIONS = ("system", "cable", "pcb", "mechanical", "spreadsheet", "test", "rights")
+SECTIONS = ("system", "cable", "pcb", "firmware", "mechanical", "spreadsheet", "test", "rights")
 
 
 def digest(data):
@@ -255,6 +245,7 @@ class Package:
         self.sections = {}
         self.outputs = []
         self.unresolved = []
+        self.rights_items = []
 
     def add(self, path, data, media_type, section, origin):
         if path in self.files:
@@ -545,6 +536,7 @@ def cable_section(scope, package, p):
             "cable",
             "harness",
         )
+        formboard_output(scope, package, revision)
     for set_id in p.preparation_document_set_ids:
         record = authorized_set(scope.user, set_id)
         inputs = record.manifest["inputs"]
@@ -607,6 +599,170 @@ def cable_section(scope, package, p):
         "cables": len(cables),
         "harnesses": len(harnesses),
         "document_sets": len(p.preparation_document_set_ids),
+    }
+
+
+def formboard_output(scope, package, revision):
+    """Server-generated full-size formboard print of one exact pinned harness revision."""
+    printed = formboard_print(scope.user, revision.id)
+    stock_cites = [
+        scope.cite(row["revision_id"], row["definition_id"]) for row in printed["stock_pins"]
+    ]
+    cited = [scope.cite(revision.id, revision.definition_id), *stock_cites]
+    if printed["unavailable"]:
+        package.unresolved.append(
+            {
+                "output": "cable",
+                "revision_id": str(revision.id),
+                "reason": f"formboard_print_{printed['unavailable']}",
+                "detail": printed.get("detail", []),
+            }
+        )
+        return
+    base = f"cable/{revision.id}"
+    package.add(
+        f"{base}/formboard-print.html",
+        printed["html"],
+        "text/html",
+        "cable",
+        "generated_formboard_print",
+    )
+    package.add(
+        f"{base}/formboard-plan.json",
+        printed["plan"],
+        "application/json",
+        "cable",
+        "generated_formboard_print",
+    )
+    summary = printed["summary"]
+    package.outputs.append(
+        output_record(
+            "cable",
+            "harness_formboard_print",
+            revision.id,
+            {
+                "harness_revision_id": str(revision.id),
+                "harness_snapshot_sha256": revision.snapshot.sha256,
+                "stock_revisions": printed["stock_pins"],
+                "print_sha256": digest(printed["html"]),
+                "plan_sha256": digest(printed["plan"]),
+            },
+            cited,
+            conflicts(cited),
+            scope.scope_quantity(revision.id),
+            scale=summary["scale"],
+            full_scale_claim=summary["full_scale_claim"],
+            scaled_axis="length_only",
+            calibration="uncalibrated",
+            pages=printed["pages"],
+            sections_with_unknown_length=printed["unknown_lengths"],
+            files=[f"{base}/formboard-print.html", f"{base}/formboard-plan.json"],
+        )
+    )
+
+
+def firmware_section(ctx, scope, package, p):
+    """Accepted compiler outputs (ELF/HEX, report, handoff, log) of registered builds.
+
+    Only the retained bytes of fully validated builds are packaged. A build's firmware
+    revision must be pinned in the closure; an occurrence-specific build must come from a
+    pinned assembly snapshot. Nothing is compiled, flashed or tested here.
+    """
+    pinned_firmware = scope.of_kind("firmware")
+    included = set()
+    for ref in p.firmware_builds:
+        built = firmware_build(ctx, ref)
+        revision, spec, build = built["revision"], built["spec"], built["build"]
+        cited = [scope.cite(revision.id, revision.definition_id)]
+        findings = conflicts(cited)
+        if cited[0]["status"] == "supplementary":
+            findings.append({"status": "incoherent", "reason": "firmware_not_pinned"})
+        quantity = scope.scope_quantity(revision.id)
+        occurrence = spec["occurrence"]
+        if occurrence:
+            snapshot_revision = scope.snapshots.get(ref.assembly_snapshot_id)
+            board = Revision.objects.get(id=occurrence["population_revision_id"])
+            population = scope.cite(board.id, board.definition_id)
+            cited.append(population)
+            findings.extend(conflicts([population]))
+            if snapshot_revision is None:
+                findings.append(
+                    {"status": "incoherent", "reason": "occurrence_snapshot_not_pinned"}
+                )
+            else:
+                cited.append(scope.cite(snapshot_revision.id, snapshot_revision.definition_id))
+                quantity = scope.scope_quantity(snapshot_revision.id)
+                if snapshot_revision.snapshot.sha256 != occurrence["assembly_snapshot_sha256"]:
+                    findings.append(
+                        {"status": "incoherent", "reason": "occurrence_snapshot_differs"}
+                    )
+        base = f"firmware/{build.id}"
+        paths = []
+        for path, data in built["raw"].items():
+            output = built["outputs"][path]
+            package.add(
+                f"{base}/{path}", data, output.media_type, "firmware", "registered_build_output"
+            )
+            paths.append(f"{base}/{path}")
+        for source_file in spec["sources"][0]["files"]:
+            package.rights_items.append(
+                {
+                    "subject": f"firmware_source_file:{build.id}:{source_file['path']}",
+                    "revision_id": str(revision.id),
+                    "definition_name": revision.definition.name,
+                    "record": "firmware_source",
+                    "label": f"{source_file['path']} ({source_file['role']})",
+                    # Source rights are free-text declarations without a recorded
+                    # cleared/restricted status, so the status stays unknown.
+                    "rights_status": "unknown",
+                    "declared_rights": source_file["rights"],
+                    "source_path": source_file["path"],
+                    "sha256": source_file["sha256"],
+                }
+            )
+        outputs = built["outputs"]
+        included.add(revision.id)
+        package.outputs.append(
+            output_record(
+                "firmware",
+                "firmware_build",
+                build.id,
+                {
+                    "firmware_revision_id": str(revision.id),
+                    "firmware_snapshot_sha256": spec["firmware_snapshot_sha256"],
+                    "occurrence": occurrence,
+                    "source_revision_id": str(build.source_revision_id),
+                    "recipe_id": build.recipe_id,
+                    "toolchain": spec["toolchain"],
+                    "report_sha256": outputs["compile.json"].sha256,
+                    "handoff_sha256": outputs["handoff.json"].sha256,
+                    "elf_sha256": outputs["firmware.elf"].sha256,
+                    "hex_sha256": outputs["firmware.hex"].sha256,
+                    "output_rights": outputs["firmware.elf"].rights,
+                },
+                cited,
+                findings,
+                quantity,
+                hardware_compatibility="not_evaluated",
+                flashing="not_performed",
+                device_operation="not_observed",
+                physical_qualification=False,
+                files=paths,
+            )
+        )
+    for revision in pinned_firmware:
+        if revision.id not in included:
+            package.unresolved.append(
+                {
+                    "output": "firmware",
+                    "revision_id": str(revision.id),
+                    "reason": "no_registered_firmware_build_included",
+                }
+            )
+    package.sections["firmware"] = {
+        "status": "included" if pinned_firmware or p.firmware_builds else "empty",
+        "pinned_firmware": len(pinned_firmware),
+        "builds": len(p.firmware_builds),
     }
 
 
@@ -740,6 +896,7 @@ def pcb_section(ctx, scope, package, p):
                 quantity,
                 drc_counts=report.drc_counts.model_dump(),
                 manufacturing_approval=False,
+                assembly_outputs="not_provided",
                 files=paths,
             )
         )
@@ -895,6 +1052,7 @@ def rights_section(scope, package):
                 "sha256": None,
             }
         )
+    items.extend(package.rights_items)
     items.sort(key=lambda row: row["subject"])
     counts = Counter(row["rights_status"] for row in items)
     declared = {row["revision_id"] for row in items}
@@ -957,6 +1115,7 @@ def build_package(ctx, p):
     spreadsheet_section(scope, package, p)
     cable_section(scope, package, p)
     pcb_section(ctx, scope, package, p)
+    firmware_section(ctx, scope, package, p)
     mechanical_section(scope, package, p)
     test_section(scope, package, p)
     rights = rights_section(scope, package)
