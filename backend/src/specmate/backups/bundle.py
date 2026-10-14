@@ -294,6 +294,10 @@ def extract_config(verified: Verified, output_dir: Path) -> dict[str, Any]:
     if not live.exists():
         _write_exclusive(live, b"{}\n", 0o644)
         written.append(live.name)
+    tools = output_dir / "tools-enabled.json"
+    if not tools.exists():
+        _write_exclusive(tools, b'{"format_version": 1, "enabled": {}}\n', 0o644)
+        written.append(tools.name)
     # A pre-existing, non-empty live registry is reported, never silently replaced.
     return {"written": written, "live_registry_empty": live.read_text().strip() == "{}"}
 

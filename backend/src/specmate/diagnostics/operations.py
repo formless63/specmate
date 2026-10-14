@@ -95,6 +95,7 @@ def workspace_status(ctx: Context, p: WorkspaceRef) -> dict[str, Any]:
             for k in ("state", "credentials_usable", "stages_holding_lease", "stages_lease_expired")
         },
         "tools": tool_states,
+        "tool_catalog": checks.tool_catalog(),
         "storage": {k: storage[k] for k in ("state", "code", "sampled", "missing") if k in storage},
         "workflow_engine": engine,
         "builds": builds,
@@ -158,6 +159,7 @@ def installation_report(ctx: Context, p: NoPayload) -> dict[str, Any]:
         "queue": queue,
         "runner": runner,
         "tools": tool_states,
+        "tool_catalog": checks.tool_catalog(),
         "approved_recipes": [
             {"id": rid, "image": (raw or {}).get("image")}
             for rid, raw in sorted(settings.SPECMATE_APPROVED_RECIPES.items())

@@ -797,3 +797,33 @@ def test_reconcile_and_drain_report_the_temporal_probe(monkeypatch, operator, bu
     expected = {"state": "unreachable", "reason": "connect_timeout"}
     assert internal(operator, "installation.reconcile").result["workflow_engine"] == expected
     assert stop(operator, "interrupt")["workflow_engine"] == expected
+
+
+def test_disabled_catalog_tool_is_reported_distinct_from_unapproved_recipe(
+    users, project, build, settings, recipe, workspace
+):
+    from specmate.builds.tools import load_catalog
+
+    kicad = next(t for t in load_catalog() if t["id"] == "kicad-10.0.6")
+    settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: {**recipe, "image": kicad["image"]}}
+    settings.SPECMATE_ENABLED_TOOLS = []
+    report = status(users["owner"], workspace)
+    assert report["tools"][0]["status"] == "tool_not_enabled"
+    assert "tool_not_enabled" in codes(report)
+    assert "recipe_not_approved" not in codes(report)
+    entry = {t["id"]: t for t in report["tool_catalog"]["tools"]}["kicad-10.0.6"]
+    assert report["tool_catalog"]["gated"] is True
+    assert entry["enabled"] is False and entry["state"] == "not_enabled"
+    assert entry["image_state"] == "not_evaluated"
+    assert entry["approved_recipe_ids"] == [recipe["id"]]
+    assert entry["platforms"] == ["linux/amd64"] and entry["download_bytes"] > 0
+
+
+def test_ungated_installation_reports_catalog_without_claiming_enablement(
+    users, project, settings, workspace
+):
+    settings.SPECMATE_ENABLED_TOOLS = None
+    report = status(users["viewer"], workspace)
+    assert report["tool_catalog"]["gated"] is False
+    assert {t["state"] for t in report["tool_catalog"]["tools"]} == {"not_gated"}
+    assert all(t["enabled"] is None for t in report["tool_catalog"]["tools"])

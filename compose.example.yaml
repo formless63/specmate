@@ -17,6 +17,7 @@ x-app-environment: &app-environment
   SPECMATE_TEMPORAL_TASK_QUEUE: specmate-builds
   SPECMATE_STARTUP_TIMEOUT: '120'
   SPECMATE_APPROVED_RECIPES_FILE: /etc/specmate/recipes.json
+  SPECMATE_ENABLED_TOOLS_FILE: /etc/specmate/tools-enabled.json
 
 services:
   web:
@@ -51,6 +52,12 @@ services:
       - type: bind
         source: ./recipes.json
         target: /etc/specmate/recipes.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./tools-enabled.json
+        target: /etc/specmate/tools-enabled.json
         read_only: true
         bind:
           create_host_path: false
@@ -139,6 +146,12 @@ services:
       - type: bind
         source: ./recipes.json
         target: /etc/specmate/recipes.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./tools-enabled.json
+        target: /etc/specmate/tools-enabled.json
         read_only: true
         bind:
           create_host_path: false

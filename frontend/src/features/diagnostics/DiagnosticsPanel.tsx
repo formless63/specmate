@@ -1,9 +1,9 @@
 import { Alert, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
-import { SbStatus, type SbLed } from "../../components/sb";
+import { SbStatus, SbUnknown, type SbLed } from "../../components/sb";
 import { runOperation } from "../workspace/api";
-import { CATEGORY_LABEL, RUNNER_LABEL, readWorkspaceStatus, type Finding, type WorkspaceStatus, type StatusBuild } from "./status";
+import { CATEGORY_LABEL, RUNNER_LABEL, downloadLabel, readWorkspaceStatus, type Finding, type WorkspaceStatus, type StatusBuild } from "./status";
 
 const WORK_LED: Record<WorkspaceStatus["work"]["mode"], SbLed> = { running: "active", draining: "review", interrupting: "failed", maintenance: "review" };
 const RUNNER_LED: Record<string, SbLed> = { working: "active", not_enrolled: "not-evaluated", enrolled_liveness_unknown: "not-evaluated", credential_unusable: "failed", lease_expired: "failed" };
@@ -66,6 +66,20 @@ export function DiagnosticsPanel({ workspaceId, active = true, onChanged }: { wo
     {status.findings.length === 0
       ? <Text>No problems detected by the checks that ran. Native tool compatibility and physical qualification are not evaluated here.</Text>
       : <Stack gap="xs" role="list" aria-label="Findings">{status.findings.map((finding, index) => <div role="listitem" key={`${finding.code}-${index}`}><FindingRow finding={finding} /></div>)}</Stack>}
+    {status.tool_catalog && <Stack gap={4}>
+      <Title order={4}>Optional native tools</Title>
+      <Text size="sm">Image availability is not evaluated here; the host tool console checks cached images.</Text>
+      <Stack gap={2} role="list" aria-label="Optional native tools">{status.tool_catalog.tools.map((tool) => <div role="listitem" key={tool.id}>
+        <Group gap="sm">
+          <SbStatus led={tool.enabled === null ? "not-evaluated" : tool.enabled ? "active" : "off"} dimension={tool.id}
+            value={tool.enabled === null ? "not gated" : tool.enabled ? "enabled" : "not enabled"} />
+          <Text size="sm">{tool.platforms.join(", ")}</Text>
+          <Text size="sm">download {downloadLabel(tool.download_bytes) ?? <SbUnknown what="size" />}</Text>
+          <Text size="sm">{tool.approved_recipe_ids.length} approved recipe{tool.approved_recipe_ids.length === 1 ? "" : "s"}</Text>
+          <Text size="sm">image {tool.image_state.replace(/_/g, " ")}</Text>
+        </Group>
+      </div>)}</Stack>
+    </Stack>}
     {notice && <Alert role="status">{notice}</Alert>}
     <Title order={4}>Unfinished builds</Title>
     <ReadOnlyNote permission="build.execute" />
