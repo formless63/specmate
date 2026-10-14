@@ -7,9 +7,11 @@ import { AssertionEditor, AssertionTable, ComparisonEditor, SourceSummary } from
 import { blankAssertion, blankComparison, command, label, read, terminalLabel, type Comparison, type Definition, type Draft, type Finding, type Frozen, type Identity, type Projection, type Review, type Value } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 
-export function PcbDisagreementPanel({ workspaceId }: { workspaceId: string }) { return <Workspace key={workspaceId} workspaceId={workspaceId} />; }
-function Workspace({ workspaceId }: { workspaceId: string }) {
+/** Workspace PCB source reviews. `projectId` is optional context: new reviews are then also referenced by that project. */
+export function PcbDisagreementPanel({ workspaceId, projectId = null }: { workspaceId: string; projectId?: string | null }) { return <Workspace key={`${workspaceId}:${projectId ?? ""}`} workspaceId={workspaceId} projectId={projectId} />; }
+function Workspace({ workspaceId, projectId }: { workspaceId: string; projectId: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
@@ -19,10 +21,13 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
   const definitions = useQuery({ queryKey: ['pcb-review-definitions', workspaceId], queryFn: () => read<Definition[]>(`workspaces/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ['pcb-review-identity', definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
   const draft = useQuery({ queryKey: ['pcb-review-draft', draftId], queryFn: () => read<Draft>(`pcb-disagreement/drafts/${draftId}`), enabled: !!draftId });
-  const create = useMutation({ mutationFn: () => command<Draft>('pcb_disagreement.create', { workspace_id: workspaceId, name, value }), onSuccess: async result => { setDefinition(result.definition_id); setDraftId(result.draft_id); setRevision(null); setOffset(0); await cache.invalidateQueries({ queryKey: ['pcb-review-definitions', workspaceId] }); } });
+  const create = useMutation({ mutationFn: () => command<Draft>('pcb_disagreement.create', { workspace_id: workspaceId, name, value }), onSuccess: async result => { setDefinition(result.definition_id); setDraftId(result.draft_id); setRevision(null); setOffset(0); await cache.invalidateQueries({ queryKey: ['pcb-review-definitions', workspaceId] }); await referenceFromProject(projectId, result.definition_id, 'PCB source review'); } });
   const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>('pcb_disagreement.freeze', { draft_id: draftId }, draft.data?.state), onSuccess: async result => { setRevision(result.revision_id); await cache.invalidateQueries({ queryKey: ['pcb-review-draft', draftId] }); await cache.invalidateQueries({ queryKey: ['pcb-review-identity', definition] }); } });
   const rows = definitions.isError ? [] : definitions.data ?? [];
   const denied = definitions.isError || identity.isError;
+  const pick = (id: string | null) => { setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); };
+  const openNewest = useOpenNewest(identity.data, setDraftId, setRevision);
+  useOpenProbed(definitions.isError ? null : definitionIn(definitions.data, ['pcb_assertion', 'pcb_comparison']), (id) => { pick(id); openNewest(id); });
   return <Stack><Title order={2}>PCB source disagreement</Title><Text>Compare independent exact-source assertions without choosing a correct source. Manual statements, accepted native board extraction, unresolved coverage and human review remain distinct.</Text>
     <NativeExtraction workspaceId={workspaceId} />
     <Card withBorder><Stack><Title order={3}>New assertion or comparison</Title><InspectionScope permission="item.create"><TextInput label="Source review definition name" value={name} onChange={e => setName(e.currentTarget.value)} /><Select label="New source review kind" value={value.kind} data={[{ value: 'pcb_assertion', label: 'Human source assertion' }, { value: 'pcb_comparison', label: 'Independent source comparison' }]} onChange={kind => { setValue(kind === 'pcb_assertion' ? blankAssertion() : blankComparison()); setCreateDenied(false); }} />
@@ -30,7 +35,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <Button disabled={!name || definitions.isError || createDenied} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create source review draft</Button><ReadOnlyNote permission="item.create">Creating source review drafts is unavailable.</ReadOnlyNote>{create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}{identity.isError && <Alert color="red">{identity.error.message}</Alert>}{draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    <Select label="Existing source review definition" searchable value={denied ? null : definition} disabled={definitions.isError} data={rows.filter(d => ['pcb_assertion', 'pcb_comparison'].includes(d.kind)).map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={id => { setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); }} />
+    <Select label="Existing source review definition" searchable value={denied ? null : definition} disabled={definitions.isError} data={rows.filter(d => ['pcb_assertion', 'pcb_comparison'].includes(d.kind)).map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={pick} />
     {identity.data && !denied && <><Select label="Source review draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} /><Select label="Frozen source review revision" value={revision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevision} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier source reviews</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Later source reviews</Button></Group></>}
     {draft.data && !draft.isError && !denied && <><DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} workspaceId={workspaceId} definitions={rows} onDenied={setDraftDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ['pcb-review-draft', draftId] }); }} /><Button disabled={draftDenied} loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze source review revision</Button></>}
     {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}

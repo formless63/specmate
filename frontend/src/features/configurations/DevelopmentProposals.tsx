@@ -63,7 +63,7 @@ function LinkedTarget({ link }: { link: DevelopmentLink }) {
 
 type Mode = 'new' | 'existing';
 
-function ProposeForm({ rule, draftId, projectId, needs, onDone, onCancel }: { rule: ConstraintResult; draftId: string; projectId: string; needs: Definition[]; onDone: () => void; onCancel: () => void }) {
+function ProposeForm({ rule, draftId, projectId, needs, onDone, onCancel }: { rule: ConstraintResult; draftId: string; projectId: string | null; needs: Definition[]; onDone: () => void; onCancel: () => void }) {
   const create = usePermission('item.create');
   const [mode, setMode] = useState<Mode>('new');
   const [need, setNeed] = useState<DevelopmentNeedKind>('adapter_board');
@@ -91,7 +91,7 @@ function ProposeForm({ rule, draftId, projectId, needs, onDone, onCancel }: { ru
       if (mode === 'new') {
         const result = await operation<DevelopmentLink & { target: { definition_id: string } }>('configuration.propose_development',
           { draft_id: draftId, rule_key: rule.key, need, name: name.trim(), summary: summary.trim(), basis: basis.trim() }, { key });
-        if (useHere) {
+        if (projectId && useHere) {
           // The need joins the workspace library; this project only references it.
           try { await addProjectReference(projectId, 'definition', result.target.definition_id, 'development proposal'); }
           catch (failure) { setNote(`Proposed in the library, but not added to this project: ${(failure as Error).message}`); setBusy(false); return; }
@@ -115,7 +115,7 @@ function ProposeForm({ rule, draftId, projectId, needs, onDone, onCancel }: { ru
           data={Object.entries(NEED_LABEL).map(([value, label]) => ({ value, label }))} />
         <TextInput label="Need name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
         <Textarea label="Summary" value={summary} onChange={(event) => setSummary(event.currentTarget.value)} />
-        <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />
+        {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />}
       </> : <NativeSelect label="Existing proposal" value={target} onChange={(event) => setTarget(event.currentTarget.value)}
         data={[{ value: '', label: needs.length || proposals.length ? 'Select a proposal' : 'No proposals in the library' },
           ...needs.map((item) => ({ value: `need:${item.definition_id}`, label: `Development need · ${item.name}` })),
@@ -132,7 +132,7 @@ function ProposeForm({ rule, draftId, projectId, needs, onDone, onCancel }: { ru
 
 /** Linked proposals beside one rule, with the "Propose development" action for failing rules. */
 export function RuleProposals({ rule, links, draftId, projectId, needs, onChanged }: {
-  rule: ConstraintResult; links: DevelopmentLink[]; draftId: string; projectId: string; needs: Definition[]; onChanged: () => void;
+  rule: ConstraintResult; links: DevelopmentLink[]; draftId: string; projectId: string | null; needs: Definition[]; onChanged: () => void;
 }) {
   const create = usePermission('item.create');
   const [open, setOpen] = useState(false);

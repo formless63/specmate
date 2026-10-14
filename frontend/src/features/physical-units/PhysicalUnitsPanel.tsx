@@ -1,4 +1,5 @@
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
+import { useOpenProbed } from "../scope/openProbed";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -72,6 +73,8 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
     mutation.mutate(envelope);
   }
   const failure = [definitions, identity, catalog, units, inventory, detail, workUnits].find((query) => query.isError);
+  // A Library row or deep link opens its physical unit on the listed page.
+  useOpenProbed(units.data ? (id) => units.data.units.some((unit) => unit.unit_id === id) : null, (id) => { setSelectedUnit(id); setUsageOffset(0); });
   return <Stack>
     <Title order={2}>Physical units</Title>
     <Text>Record an actual obtained or assembled subject at one exact design revision. Its serial is unique within this project. A physical lot identifies an actual batch; a work link associates the unit with a plan. Neither record reports completion, changes stock, or qualifies the unit.</Text>

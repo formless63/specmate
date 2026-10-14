@@ -6,8 +6,10 @@ import { ApiError } from '../workspace/api';
 import { command, initialPlan, inspectTarget, keyOf, read, terminalText, type Definition, type Draft, type Evidence, type Identity, type Inspection, type Label, type Pair, type TestPlan } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
 
-export function CableTestIntentPanel({ projectId }: { projectId: string }) {
+/** Library cable test plans. `projectId` is optional context: new plans are then also referenced by that project. */
+export function CableTestIntentPanel({ projectId = null }: { projectId?: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const [name, setName] = useState('');
@@ -46,8 +48,12 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
   const editorDraft = draft.data ?? (retainedDraft?.draft_id === draftId ? retainedDraft : null);
   const hidden = blocked || restoring || definitions.isError || identity.isError || draft.isError || definitions.isFetching;
   const error = workspaceDenied;
-  const create = useMutation({ mutationFn: (submitted: { projectId: string; name: string; value: TestPlan; generation: number }) => command<Draft>('cable_test_plan.create', { name: submitted.name, test_plan: submitted.value }), onSuccess: async (d, submitted) => { if (activeEditor.current.generation !== submitted.generation) return; setSaved(d); setDefinitionId(d.definition_id); setDraftId(d.draft_id); await cache.invalidateQueries({ queryKey: ['test-plan-definitions', projectId] }); }, onError: (e, submitted) => { if (activeEditor.current.generation === submitted.generation) error(e); } });
+  const create = useMutation({ mutationFn: (submitted: { projectId: string | null; name: string; value: TestPlan; generation: number }) => command<Draft>('cable_test_plan.create', { name: submitted.name, test_plan: submitted.value }), onSuccess: async (d, submitted) => { if (activeEditor.current.generation !== submitted.generation) return; setSaved(d); setDefinitionId(d.definition_id); setDraftId(d.draft_id); await cache.invalidateQueries({ queryKey: ['test-plan-definitions', projectId] }); await referenceFromProject(submitted.projectId, d.definition_id, 'cable test plan'); }, onError: (e, submitted) => { if (activeEditor.current.generation === submitted.generation) error(e); } });
   useEffect(() => { setName(''); setValue(initialPlan()); setDefinitionId(null); setDraftId(null); setRevisionId(null); setSaved(null); setRetainedDraft(null); setOffset(0); setBlocked(false); setRestoring(false); restoreAttempt.current = null; activePlan.current = null; }, [projectId]);
+  const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setSaved(null); setOffset(0); };
+  // The identity read is keyed by the definition, so its data belongs to definitionId.
+  const openNewest = useOpenNewest(identity.data && definitionId ? { ...identity.data, definition_id: definitionId } : undefined, setDraftId, setRevisionId);
+  useOpenProbed(definitionIn(definitions.isError ? undefined : definitions.data, ['cable_test_plan']), (id) => { pick(id); openNewest(id); });
   async function refreshAuthority() {
     const attempt = {};
     restoreAttempt.current = attempt;
@@ -81,12 +87,12 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
     {hidden && <Alert color="red">Retained test-plan content is hidden while access is unavailable or being rechecked.</Alert>}
     <div hidden={hidden}><fieldset disabled={create.isPending} style={{ border: 0, padding: 0 }}><Card withBorder><Stack>
       <Title order={3}>New test plan</Title><TextInput label="Test-plan name" value={name} onChange={e => setName(e.currentTarget.value)} />
-      <PlanEditor disabled={create.isPending} key={projectId} value={value} onChange={setValue} refresh={refresh} hidden={hidden} onAuthorityChange={setTargetDenied} />
+      <PlanEditor disabled={create.isPending} key={projectId ?? 'library'} value={value} onChange={setValue} refresh={refresh} hidden={hidden} onAuthorityChange={setTargetDenied} />
       <Button disabled={targetDenied || !name.trim() || hidden} loading={create.isPending} {...createGate.props} onClick={() => create.mutate({ projectId, name, value, generation: editorGeneration })}>Create test-plan draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
     </Stack></Card></fieldset></div>
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
     {[definitions, identity, draft].filter(q => q.isError).map((q, i) => <Alert key={i} color="red">{q.error?.message}</Alert>)}
-    {!hidden && <Select label="Test-plan definition" disabled={create.isPending} searchable data={(definitions.data ?? []).filter(d => d.kind === 'cable_test_plan').map(d => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={id => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setSaved(null); setOffset(0); }} />}
+    {!hidden && <Select label="Test-plan definition" disabled={create.isPending} searchable data={(definitions.data ?? []).filter(d => d.kind === 'cable_test_plan').map(d => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />}
     {!hidden && identity.data && <>
       <Select label="Test-plan draft" disabled={create.isPending} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setSaved(null); } }} />
       <Select label="Frozen test plan" data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} value={revisionId} onChange={setRevisionId} />

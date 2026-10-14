@@ -8,11 +8,13 @@ import { blankPlan, command, read, unknownCount, unknownDemand, type DemandQuant
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { SbQuantity } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 
 const purposes = [{ value: "assembly_contents", label: "Assembly contents" }, { value: "procurement", label: "Procurement" }, { value: "pcb_fabrication", label: "PCB fabrication" }, { value: "pcb_population", label: "PCB population" }, { value: "consumables", label: "Consumables" }];
 const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembly";
-export function BomPanel({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) { return <Workspace key={projectId} projectId={projectId} workspaceId={workspaceId} />; }
-function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) {
+/** Library BOM plans. `projectId` is optional context: new plans are then also referenced by that project. */
+export function BomPanel({ projectId = null, workspaceId }: { projectId?: string | null; workspaceId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} workspaceId={workspaceId} />; }
+function Workspace({ projectId, workspaceId }: { projectId: string | null; workspaceId?: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const [name, setName] = useState("");
@@ -27,7 +29,11 @@ function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?
   const create = useMutation({ mutationFn: () => command<Draft>("bom.create", { name, bom: plan }), onSuccess: async (data) => {
     setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["bom-definitions", projectId] });
+    await referenceFromProject(projectId, data.definition_id, "BOM plan");
   } });
+  const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); };
+  const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
+  useOpenProbed(definitionIn(definitions.data, ["bom_plan"]), (id) => { pick(id); openNewest(id); });
   return <Stack>
     <Title order={2}>Purpose-specific BOM planning</Title>
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
@@ -38,7 +44,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Select label="Existing BOM plan" value={definitionId} searchable data={(definitions.data ?? []).filter(d => d.kind === "bom_plan").map(d => ({ value: d.definition_id, label: d.name }))} onChange={id => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
+    <Select label="Existing BOM plan" value={definitionId} searchable data={(definitions.data ?? []).filter(d => d.kind === "bom_plan").map(d => ({ value: d.definition_id, label: d.name }))} onChange={pick} />
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
       <Select label="BOM draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} />

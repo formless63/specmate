@@ -31,7 +31,7 @@ test("body create, tokened edit and freeze preserve physical roles and unknown o
     else body = [{ definition_id: "body", name: "Synthetic", kind: "connector_body" }];
     return new Response(JSON.stringify(body), { status: 200 });
   }));
-  render(wrap(<InterfacePanel projectId="project" />));
+  render(wrap(<InterfacePanel />));
   fireEvent.change(screen.getByLabelText("Definition name"), { target: { value: "Synthetic" } });
   fireEvent.change(screen.getByLabelText("New physical contact ID"), { target: { value: "a" } });
   fireEvent.click(screen.getByText("Add contact"));
@@ -86,7 +86,7 @@ test("mapping form pins the selected repeated occurrence and its exact revision"
     else body = [];
     return new Response(JSON.stringify(body), { status: 200 });
   }));
-  render(wrap(<InterfacePanel projectId="project" />));
+  render(wrap(<InterfacePanel />));
   fireEvent.change(screen.getByLabelText("Definition name"), { target: { value: "Synthetic boundary" } });
   const kind = screen.getByRole("combobox", { name: "Interface definition kind" });
   fireEvent.focus(kind); fireEvent.keyDown(kind, { key: "ArrowDown" });
@@ -126,7 +126,7 @@ test("incomplete pinout draft opens with unknowns and requires an explicitly sel
     else body = [{ definition_id: "pinout", name: "Unfinished pinout", kind: "pinout" }];
     return new Response(JSON.stringify(body), { status: 200 });
   }));
-  render(wrap(<InterfacePanel projectId="project" />));
+  render(wrap(<InterfacePanel />));
   const definition = screen.getByRole("combobox", { name: "Existing interface definition" });
   fireEvent.focus(definition); fireEvent.change(definition, { target: { value: "Unfinished" } });
   fireEvent.click(await screen.findByText("Unfinished pinout (pinout)"));
@@ -162,7 +162,7 @@ test.each([
       : [{ definition_id: "body", name: "Synthetic", kind: "connector_body" }];
     return new Response(JSON.stringify(body), { status: 200 });
   }));
-  render(wrap(<PermissionsProvider permissions={[...permissions]}><InterfacePanel projectId="project" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><InterfacePanel /></PermissionsProvider>));
   await pick("Existing interface definition", "Synthetic (connector_body)");
   await pick("Edit interface draft", "draft · draft-v1");
   const save = await screen.findByRole("button", { name: "Save interface draft" }) as HTMLButtonElement;

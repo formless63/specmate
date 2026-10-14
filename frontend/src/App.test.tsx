@@ -1,10 +1,11 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { lazy } from "react";
 import { App, ToolLoadingBoundary } from "./App";
 import { AREAS } from "./features/shell";
+import { LIBRARY_VIEWS } from "./features/shell/scope";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -273,6 +274,23 @@ test.each([
   openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });
   expect((screen.getByRole("button", { name: "Create location" }) as HTMLButtonElement).title).toBe("Read-only access: requires Inventory management");
+});
+
+test("Library is the editing home: every collection lens mounts its editor without a project", async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  for (const [toolId, view] of Object.entries(LIBRARY_VIEWS)) {
+    const tool = AREAS.flatMap((area) => area.tools).find((item) => item.id === toolId)!;
+    openTool(tool.label);
+    expect(await screen.findByRole("region", { name: `${view.title} editor` })).toBeTruthy();
+    const list = await screen.findByRole("region", { name: `${view.title} in the library` });
+    expect(within(list).getByRole("button", { name: `New ${view.noun}` })).toBeTruthy();
+  }
+  expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
+  expect(screen.queryByText(/This tool could not be opened/)).toBeNull();
+  // The cable editor itself is mounted below the list, not only a list of labels.
+  openTool("Cables");
+  expect(await screen.findByRole("button", { name: "Open Patch lead in the editor" })).toBeTruthy();
 });
 
 test("Library scope lists the lens's collection with Used in, and opening a use switches scope but keeps the lens", async () => {

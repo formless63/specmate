@@ -47,7 +47,7 @@ test('create shared material and explicit uncut breakout, save with token, freez
     else data = [{ definition_id: 'harness', kind: 'harness', name: 'Synthetic branch' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<HarnessPanel projectId="project" />));
+  render(wrap(<HarnessPanel />));
   fill('Definition name', 'Synthetic branch'); fill('New physical section ID', 'shared'); fireEvent.click(screen.getByText('Add physical section'));
   fill('Section shared stock exact revision ID', 'stock-rev');
   fill('Section shared planned cut (mm); blank = unknown', '0.1000'); fill('Section shared cut basis', 'Planned synthetic cut');
@@ -94,7 +94,7 @@ test('denied source refresh hides cached joint and breakout records and disables
     const data = url.includes('/snapshot') ? { content: { stock } } : url.includes('harnesses/drafts') ? { definition_id: 'harness', draft_id: 'draft', state: 'v1', content: { harness: branched() } } : url.includes('catalog/definitions') ? { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] } : [{ definition_id: 'harness', kind: 'harness', name: 'Synthetic branch' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<HarnessPanel projectId="project" />, cache));
+  render(wrap(<HarnessPanel />, cache));
   await choose('Existing harness definition', 'Synthetic branch (harness)'); await choose('Edit harness draft', 'draft · v1');
   expect(await screen.findByText('Basis: Explicit synthetic shield basis')).toBeTruthy();
   await waitFor(() => expect(cache.getQueryData(['harness-source', 'revisions/stock-rev/snapshot'])).toBeTruthy());
@@ -112,10 +112,10 @@ test.each(['definitions', 'identity', 'draft'])('denied %s refresh removes cache
     const data = kind === 'source' ? { content: { stock } } : kind === 'draft' ? { definition_id: 'harness', draft_id: 'draft', state: 'v1', content: { harness: branched() } } : kind === 'identity' ? { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] } : [{ definition_id: 'harness', kind: 'harness', name: 'Synthetic branch' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<HarnessPanel projectId="project" />, cache));
+  render(wrap(<HarnessPanel />, cache));
   await choose('Existing harness definition', 'Synthetic branch (harness)'); await choose('Edit harness draft', 'draft · v1');
   expect(await screen.findByText('Basis: Explicit synthetic shield basis')).toBeTruthy();
-  const key = target === 'definitions' ? ['harness-definitions', 'project'] : target === 'identity' ? ['harness-identity', 'harness', 0] : ['harness-draft', 'draft'];
+  const key = target === 'definitions' ? ['harness-definitions', null] : target === 'identity' ? ['harness-identity', 'harness', 0] : ['harness-draft', 'draft'];
   denied = true; await act(async () => { await cache.refetchQueries({ queryKey: key }); });
   expect(await screen.findByText(`Denied ${target}.`)).toBeTruthy();
   expect(screen.queryByText('Basis: Explicit synthetic shield basis')).toBeNull();
@@ -134,7 +134,7 @@ test.each([
     const data = url.includes('/snapshot') ? { content: { stock } } : url.includes('harnesses/drafts') ? { definition_id: 'harness', draft_id: 'draft', state: 'v1', content: { harness: branched() } } : url.includes('catalog/definitions') ? { drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] } : [{ definition_id: 'harness', kind: 'harness', name: 'Synthetic branch' }];
     return new Response(JSON.stringify(data), { status: 200 });
   }));
-  render(wrap(<PermissionsProvider permissions={[...permissions]}><HarnessPanel projectId="project" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><HarnessPanel /></PermissionsProvider>));
   await choose('Existing harness definition', 'Synthetic branch (harness)'); await choose('Edit harness draft', 'draft · v1');
   expect(await screen.findByText('Basis: Explicit synthetic shield basis')).toBeTruthy();
   const save = screen.getByRole('button', { name: 'Save harness draft' }) as HTMLButtonElement;

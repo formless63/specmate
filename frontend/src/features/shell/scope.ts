@@ -1,3 +1,4 @@
+import type { PermissionName } from "../../lib/permissions";
 import type { LibraryFamily, ReferenceKind } from "../workspace/api";
 import { AREAS, areaOfTool } from "./areas";
 
@@ -12,11 +13,17 @@ export type LibraryView = {
   kinds: string[];
   title: string;
   noun: string;
+  /** The permission that adding a new item through this lens's editor needs. */
+  create: PermissionName;
 };
 
-const definitions = (kinds: string[], title: string, noun: string): LibraryView => ({ family: "definition", kinds, title, noun });
+const definitions = (kinds: string[], title: string, noun: string): LibraryView => ({ family: "definition", kinds, title, noun, create: "item.create" });
 
-/** Lenses with a library list. Lenses not listed here work on project-held records or on one record at a time. */
+/**
+ * Lenses with a library list. Each also has an editor that works at Library scope (no project): the
+ * Library is where items are created and edited; a project only references them. Lenses not listed
+ * here work on one record at a time or across the workspace.
+ */
 export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   identity: definitions([], "Definitions", "definition"),
   "wire-stock": definitions(["wire_stock"], "Wire stock", "stock record"),
@@ -27,7 +34,7 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   harnesses: definitions(["harness"], "Harnesses", "harness"),
   "passive-passages": definitions(["passage_model"], "Passive models", "passive model"),
   // Boards and their populations as workspace items; PCB intake below works on one native source.
-  pcb: definitions(["board", "pcb_population"], "Boards", "board record"),
+  pcb: { ...definitions(["board", "pcb_population"], "Boards", "board record"), create: "source.register" },
   "pcb-disagreement": definitions(["pcb_assertion", "pcb_comparison"], "PCB source reviews", "PCB review"),
   "occurrence-firmware": definitions(["firmware"], "Firmware", "firmware definition"),
   configurations: definitions(["option_set", "configuration"], "Options and configurations", "configuration"),
@@ -37,10 +44,10 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   preparation: definitions(["preparation_profile"], "Cut preparation profiles", "preparation profile"),
   "end-preparation": definitions(["end_preparation_profile"], "End preparation profiles", "end preparation profile"),
   "cable-test-intent": definitions(["cable_test_plan"], "Cable test plans", "cable test plan"),
-  sources: { family: "source_bundle", kinds: [], title: "Source bundles", noun: "source bundle" },
-  inventory: { family: "stock_account", kinds: [], title: "Stock accounts", noun: "stock account" },
-  "physical-units": { family: "physical_unit", kinds: [], title: "Physical units", noun: "physical unit" },
-  facts: { family: "fact_subject", kinds: [], title: "Fact ledgers", noun: "fact ledger" },
+  sources: { family: "source_bundle", kinds: [], title: "Source bundles", noun: "source bundle", create: "source.register" },
+  inventory: { family: "stock_account", kinds: [], title: "Stock accounts", noun: "stock account", create: "inventory.manage" },
+  "physical-units": { family: "physical_unit", kinds: [], title: "Physical units", noun: "physical unit", create: "inventory.manage" },
+  facts: { family: "fact_subject", kinds: [], title: "Fact ledgers", noun: "fact ledger", create: "design.edit" },
 };
 
 /** The library view for a lens, or null when the lens has none. */

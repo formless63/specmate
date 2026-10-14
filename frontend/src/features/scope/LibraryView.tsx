@@ -8,6 +8,7 @@ import { probeMark, readLibraryRecord, useProbe, useProbeOrLocal, useRelated } f
 import { floatingKind, KNOWN_KINDS, type LibraryView as View } from "../shell/scope";
 import { addReference, listLibrary, readProjectDetail, removeReference, type LibraryRecord, type Project } from "../workspace/api";
 import { ReferenceForm, type ReferenceChoice } from "./ReferenceForm";
+import type { EditorActions } from "./EditingLens";
 
 const KIND_HEADER: Record<View["family"], string> = {
   definition: "Kind", source_bundle: "Role", stock_account: "Dimension", physical_unit: "Origin", fact_subject: "Subject",
@@ -67,8 +68,9 @@ export function useReferenceActions() {
  * A lens's workspace collection as a dense, paginated table. Rows have no owning project; the
  * Used in column lists the projects that reference each item. At project scope the project's
  * referenced items come first and the lens can switch between them and the whole library.
+ * With an editor below the list, "New" starts an item there and "Open" opens a row's item in it.
  */
-export function LibraryView({ view, toolLabel, projectId, project, projects, principalKey, onOpenInProject }: {
+export function LibraryView({ view, toolLabel, projectId, project, projects, principalKey, onOpenInProject, editor }: {
   view: View;
   toolLabel: string;
   /** Project context (navigation only); null at Library scope. */
@@ -77,6 +79,8 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   projects: Project[];
   principalKey: string;
   onOpenInProject: (projectId: string, record: LibraryRecord) => void;
+  /** The lens's editor below this list; without one the list only shows and references items. */
+  editor?: EditorActions;
 }) {
   // The typed text lives in FilterInput so a keystroke never re-renders the (possibly 250+ row) table;
   // only the debounced query comes back here.
@@ -100,6 +104,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   const showsViews = (record: LibraryRecord) => record.family === "definition" && (record.kind === "cable" || record.kind === "harness");
   const rows = useMemo(() => (records.data?.pages ?? []).flatMap((page) => page.results), [records.data]);
   const edit = usePermission("project.edit");
+  const create = usePermission(view.create);
   const archived = !!project?.archived;
   const filtered = !!query || !!kindFilter;
   const showKindFilter = view.family === "definition" && view.kinds.length !== 1;
@@ -117,9 +122,13 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   return <section className="sb-dash sb-library" aria-label={title}>
     <Group justify="space-between" align="flex-end" wrap="wrap" gap="xs">
       <Title order={2} className="sb-dash-title">{title}</Title>
+      <Group gap="xs">
+      {editor && <Button variant="commit" size="xs" onClick={() => { setSelected(null); editor.reveal(true); }} {...create.props}>New {view.noun}</Button>}
       {projectId && <SegmentedControl size="xs" value={mode} onChange={(value) => setMode(value as "project" | "library")} aria-label="List scope"
         data={[{ value: "project", label: "This project" }, { value: "library", label: "Whole library" }]} />}
+      </Group>
     </Group>
+    {editor && projectId && <Text className="sb-dash-note">New items are added to the library and referenced by this project.</Text>}
     <div className="sb-ws-toolbar" role="search" aria-label={`Filter ${view.title}`}>
       <FilterInput onQuery={setQuery} />
       {showKindFilter && <Select aria-label="Kind filter" size="xs" w={200} searchable clearable placeholder="every kind"
@@ -158,7 +167,8 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
               : <span title={row.used_in.map((use) => use.project_name).join(", ")}>{row.used_in_total} project{row.used_in_total === 1 ? "" : "s"}</span>}</Table.Td>
             <Table.Td className="sb-dash-note">{row.detail ?? ""}</Table.Td>
             <Table.Td className="sb-mono sb-ws-when">{when(row.changed_at ?? row.created_at)}</Table.Td>
-            <Table.Td className="sb-ws-num">{row.referenceable && (projectId
+            <Table.Td className="sb-ws-num">{editor && <Button variant="quiet" size="xs" aria-label={`Open ${row.label} in the editor`} onClick={() => { if (!open) setSelected(row.record_id); editor.reveal(false); }}>Open</Button>}
+              {row.referenceable && (projectId
               ? here.length > 0
                 ? <RemoveButton label={row.label} busy={actions.busy} gate={archived ? archivedGate : edit}
                   onRemove={(reason) => void actions.remove(projectId, here[0]!.reference_id, row.label, reason)} />

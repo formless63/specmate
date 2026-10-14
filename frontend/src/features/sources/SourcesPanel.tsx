@@ -7,6 +7,7 @@ import { PropertyAuthorityPanel } from '../source-authority/PropertyAuthority';
 import { SbIdentityBadge, SbProvenance } from '../../components/sb';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
+import { useOpenProbed } from "../scope/openProbed";
 
 export function SourcesPanel(props: { workspaceId: string; projectId?: string | null }) {
   return <SourceWorkspace key={props.workspaceId} {...props} />;
@@ -82,6 +83,11 @@ function SourceWorkspace({ workspaceId, projectId }: { workspaceId: string; proj
       if (await refresh()) await inspect(result.revision_id);
     } catch (reason) { failed(reason); } finally { if (alive.current) setBusy(false); }
   }
+  // A Library row or deep link (a source bundle) opens the bundle's newest listed revision.
+  useOpenProbed(page.revisions.length ? (id) => page.revisions.some(revision => revision.bundle_id === id) : null, (id) => {
+    const newest = page.revisions.filter(revision => revision.bundle_id === id).sort((a, b) => b.number - a.number)[0];
+    if (newest) void inspect(newest.revision_id);
+  });
   return <Stack><Title order={2}>Sources</Title>
     <Text>Preserve exact source bytes and declared rights. Files remain inert; importing or expanding does not run a tool or approve the design.</Text>
     {error && <Alert color="red">{error}</Alert>}

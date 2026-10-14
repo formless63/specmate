@@ -14,6 +14,7 @@ import { StockSectionView } from '../cable-views/StockSectionView';
 import { SbQuantity, SbQuantityField, SbUnknown } from '../../components/sb';
 import { rowLook, Swatch } from '../cable-views/Swatch';
 import { FromPreference, usePreferenceDefaults } from '../preferences/usePreferenceDefaults';
+import { useOpenProbed } from '../scope/openProbed';
 
 /** Element kinds whose display colour a wire-colour preference may pre-fill. */
 const COLOUR_KINDS: StockElement['kind'][] = ['conductor', 'insulation', 'jacket'];
@@ -129,6 +130,11 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
+  // A Library row or deep link opens that stock's saved draft, as choosing it under "Saved stock" does.
+  useOpenProbed(stocks.length ? id => stocks.some(item => item.definition_id === id) : null, id => {
+    const record = stocks.find(item => item.definition_id === id); if (!record?.content.stock) return;
+    setCurrent(record); setDirty(false); setName(record.name); setStock(clone(record.content.stock)); setMessage('');
+  });
   return <Stack>
     <Title order={2}>Wire stock</Title>
     <Text>Describe reusable stock independently of finished cables. Unknown values remain unknown.</Text>

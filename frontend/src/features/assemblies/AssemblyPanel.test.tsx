@@ -54,7 +54,7 @@ test("assembly create, edit and freeze send shared operations with expected stat
     else body = [{ definition_id: "board", name: "Synthetic board", kind: "board" }, { definition_id: "assembly", name: "Synthetic", kind: "assembly" }];
     return new Response(JSON.stringify(body), { status: 200 });
   }));
-  render(wrap(<AssemblyPanel projectId="project-1" />));
+  render(wrap(<AssemblyPanel />));
   fireEvent.change(screen.getByLabelText("Assembly name"), { target: { value: "Synthetic" } });
   fireEvent.click(screen.getByText("Create assembly draft"));
   await screen.findByText("Occurrences");

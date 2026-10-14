@@ -24,13 +24,18 @@ reachable at both scopes. Scope changes navigation and filtering only, never acc
   (kind/role, name, latest frozen revision, and the projects that reference it), with
   kind and text filters. Lists are served by bounded single queries; the browser never
   fans out per project.
+- The Library is where items are created and edited. Below its list every collection lens
+  mounts the same editor it has in a project, with no project: **New** starts an item in the
+  editor and **Open** (or selecting the row, or a deep link to it) opens that item there, with
+  its newest draft for editing or its latest frozen revision. **Use in project…** stays a row
+  action.
 - At project scope a library lens shows the items that project references first, with a
   visible control to show the whole library. The Project area shows the project overview:
   its purpose, notes, decisions, reviews and its references grouped by area, each opening
   the item in its own lens. Counts are counts of references, not of owned records.
 - Creating an item never asks for a target project; it is added to the library. At project
-  scope the create form offers **Use in this project** (on by default), which adds a
-  reference after the item exists. Every library item offers **Use in project…** to add a
+  scope the new item is also referenced by that project: some create forms offer **Use in
+  this project** (on by default), others always add the reference after the item exists. Every library item offers **Use in project…** to add a
   reference to a chosen project and shows where it is used.
 - Selecting an item keeps the current scope, area and lens. Opening a referenced item from a
   project keeps that project as context. Lenses that work on project-held records (project

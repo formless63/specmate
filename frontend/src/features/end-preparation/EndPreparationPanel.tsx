@@ -8,10 +8,12 @@ import { ApplyHarnessPreparation } from './ApplyHarnessPreparation';
 import { ApplyPreparation } from './ApplyPreparation';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
 
 type Denial = { profile?: Profile; application?: Request; harnessApplication?: HarnessRequest; revision?: string; draft?: string; definition?: string };
-export function EndPreparationPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+/** Library end preparation profiles. `projectId` is optional context: new profiles are then also referenced by that project. */
+export function EndPreparationPanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} />; }
+function Workspace({ projectId }: { projectId: string | null }) {
   const editGate = usePermission('design.edit');
   // Saving a new profile or plan creates a workspace item (item.create); revising one needs design.edit.
   const createGate = usePermission('item.create');
@@ -40,6 +42,7 @@ function Workspace({ projectId }: { projectId: string }) {
       setCurrent(data); if (edit === edits.current) setProfile(data.content.end_preparation_profile);
       if (selected === selection.current) { setDefinition(data.definition_id); setDraftId(data.draft_id); }
       await cache.invalidateQueries({ queryKey: ['end-preparation-definitions', projectId] }); await cache.invalidateQueries({ queryKey: ['end-preparation-history', data.definition_id] });
+      if (!accepted) await referenceFromProject(projectId, data.definition_id, 'end preparation profile');
     } catch (reason) { fail(reason, generation, { profile: submitted, draft: accepted?.draft_id }); } finally { if (active(generation)) setBusy(null); }
   }
   async function load() {
@@ -85,6 +88,10 @@ function Workspace({ projectId }: { projectId: string }) {
     } catch (reason) { fail(reason, generation, {}); } finally { if (active(generation)) setBusy(null); }
   };
   useEffect(() => { if (!blocked) return; const listener = () => { void refresh(); }; window.addEventListener('focus', listener); return () => window.removeEventListener('focus', listener); });
+  const pick = (id: string | null) => { selection.current += 1; setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); };
+  // Opening from the Library selects the newest draft to load (unsaved values stay until loaded) or the latest revision.
+  const openNewest = useOpenNewest(history.data, setDraftId, setRevision);
+  useOpenProbed(definitionIn(definitions.data, ['end_preparation_profile']), (id) => { pick(id); openNewest(id); });
   const hidden = blocked || authorityDenied(definitions.error) || authorityDenied(history.error) || authorityDenied(stock.error);
   const renderedScope = scope.current;
   return <Stack><Title order={2}>Per-end preparation</Title><Text>Reviewed stripping, drain treatment, shield leads and expected bonds. Applications show instructions only. Copper continuity, actual bonds, measured preparation and physical qualification remain not evaluated.</Text>
@@ -96,7 +103,7 @@ function Workspace({ projectId }: { projectId: string }) {
       <ProfileEditor value={profile} onChange={change} features={stock.data && !stock.isFetching && !stock.isError ? stockFeatures(stock.data.structure) : []} />
       </InspectionScope>
       <Group><Button disabled={!!busy || !profile.stock_revision_id || (!current && !name.trim())} {...(current ? editGate : createGate).props} onClick={() => { void save(); }}>Save end preparation profile</Button>{current && <Button disabled={!!busy} {...freezeGate.props} onClick={() => { void freeze(); }}>Freeze end preparation profile</Button>}</Group><ReadOnlyNote permission={current ? "design.edit" : "item.create"}>Saving and freezing end preparation profiles are unavailable.</ReadOnlyNote>
-    </Stack></Card><Select label="Existing end preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'end_preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={id => { selection.current += 1; setDefinition(id); setDraftId(null); setRevision(null); setOffset(0); }} />
+    </Stack></Card><Select label="Existing end preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'end_preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={pick} />
     {history.data && !history.isFetching && <><Select label="End preparation draft to load" data={history.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { selection.current += 1; setDraftId(id); }} /><Button disabled={!!busy || !draftId} onClick={() => { void load(); }}>Load end preparation draft</Button><Select label="Frozen end preparation revision" data={history.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(history.data.name, r.number) }))} value={revision} onChange={id => { selection.current += 1; setRevision(id); }} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous end preparation history</Button><Button disabled={Math.max(history.data.drafts.length, history.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next end preparation history</Button></Group></>}
     {revision && <FrozenProfile key={revision} revisionId={revision} authorityScope={scope.current} onDenied={onDenied} />}
     </>}

@@ -8,6 +8,7 @@ import { WorkspaceHome } from "./features/home/WorkspaceHome";
 import { ProjectOverview } from "./features/overview/ProjectOverview";
 import { ChooseProject } from "./features/scope/ChooseProject";
 import { RecordFocusContext, type RecordFocus } from "./features/scope/focus";
+import { EditingLens } from "./features/scope/EditingLens";
 import { LibraryView } from "./features/scope/LibraryView";
 import { NavigationProvider, useWorkspaceUrl } from "./features/navigation";
 import { ProbeInspector, ProbeProvider } from "./features/probe";
@@ -21,7 +22,6 @@ const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/
 const AgentRunsPanel = lazy(() => import("./features/agent-runs/AgentRunsPanel").then((module) => ({ default: module.AgentRunsPanel })));
 const DiagnosticsPanel = lazy(() => import("./features/diagnostics/DiagnosticsPanel").then((module) => ({ default: module.DiagnosticsPanel })));
 const ShareRecordsPanel = lazy(() => import("./features/project-access/ShareRecordsPanel").then((module) => ({ default: module.ShareRecordsPanel })));
-const SourcingPanel = lazy(() => import("./features/inventory/SourcingPanel").then((module) => ({ default: module.SourcingPanel })));
 const IntegrationsPanel = lazy(() => import("./features/integrations/IntegrationsPanel").then((module) => ({ default: module.IntegrationsPanel })));
 const WorkspaceAccessPanel = lazy(() => import("./features/project-access/WorkspaceAccessPanel").then((module) => ({ default: module.WorkspaceAccessPanel })));
 const IdentityPanel = lazy(() => import("./features/identity/IdentityPanel").then((module) => ({ default: module.IdentityPanel })));
@@ -61,6 +61,7 @@ const PrintingPanel = lazy(() => import("./features/printing/PrintingPanel").the
 const SelectedPackagesPanel = lazy(() => import("./features/selected-packages/SelectedPackagesPanel").then((module) => ({ default: module.SelectedPackagesPanel })));
 const ExportPackagesPanel = lazy(() => import("./features/export-packages/ExportPackagesPanel").then((module) => ({ default: module.ExportPackagesPanel })));
 const ReleasesPanel = lazy(() => import("./features/releases/ReleasesPanel").then((module) => ({ default: module.ReleasesPanel })));
+const FirmwarePanel = lazy(() => import("./features/firmware/FirmwarePanel").then((module) => ({ default: module.FirmwarePanel })));
 const FirmwareOccurrencesPanel = lazy(() => import("./features/firmware-occurrences/FirmwareOccurrencesPanel").then((module) => ({ default: module.FirmwareOccurrencesPanel })));
 const FirmwareImpactPanel = lazy(() => import("./features/firmware-impact/FirmwareImpactPanel").then((module) => ({ default: module.FirmwareImpactPanel })));
 const ConfigurationsPanel = lazy(() => import("./features/configurations/ConfigurationsPanel").then((module) => ({ default: module.ConfigurationsPanel })));
@@ -171,11 +172,11 @@ function LibraryTool({ toolId, toolLabel, scope, onOpenInProject, lens }: { tool
   const view = libraryView(toolId);
   // Workspace-level lenses work without a project: the workspace comes from the shell scope.
   if (!view && WORKSPACE_LENSES.has(toolId)) return <WorkspaceLens {...lens} toolId={toolId} />;
+  // The Library is where items are created and edited: each collection lens mounts its editor without a project.
   if (view) {
-    const library = <LibraryView view={view} toolLabel={toolLabel} projectId={null} project={null} projects={scope.projects} principalKey={scope.principalKey}
-      onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} />;
-    // Sourcing is workspace-scoped (plans, stock and offers all live in the workspace), so Inventory offers it without a project too.
-    return toolId === "inventory" ? <Stack>{library}<SourcingPanel workspaceId={scope.workspaceId} /></Stack> : library;
+    return <Stack gap="lg"><EditingLens title={view.title} editor={<LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />}
+      list={(editor) => <LibraryView view={view} toolLabel={toolLabel} projectId={null} project={null} projects={scope.projects} principalKey={scope.principalKey}
+        onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} editor={editor} />} /></Stack>;
   }
   return <ChooseProject toolLabel={toolLabel} projects={scope.projects} lastProjectId={scope.lastProjectId} onChoose={(projectId) => onOpenInProject(projectId, toolId)} />;
 }
@@ -228,6 +229,43 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
 }
 
 /**
+ * The editor of a lens with a library list (see LIBRARY_VIEWS). The same editor serves Library scope
+ * (projectId null) and project scope, where the project is context only: new items are also
+ * referenced by it. Items always live in the workspace library.
+ */
+function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scope: WorkspaceScope; projectId: string | null; active: string }) {
+  const { principalKey, workspaceId } = scope;
+  const onAccessChanged = scope.refresh;
+  switch (toolId) {
+    case "identity": return <IdentityPanel projectId={projectId} />;
+    case "wire-stock": return <WireStockPanel projectId={projectId} workspaceId={workspaceId} />;
+    case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
+    case "assemblies": return <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />;
+    case "interfaces": return <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>;
+    case "cables": return <CablePanel projectId={projectId} workspaceId={workspaceId} />;
+    case "harnesses": return <HarnessPanel projectId={projectId} />;
+    case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
+    case "pcb": return <PcbPanel workspaceId={workspaceId} projectId={projectId} />;
+    case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
+    // Firmware definitions are declared here; per-occurrence firmware choices follow.
+    case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;
+    case "configurations": return <ConfigurationsPanel projectId={projectId} />;
+    case "mechanical-sources": return <MechanicalSourcesPanel workspaceId={workspaceId} />;
+    case "bom": return <BomPanel projectId={projectId} workspaceId={workspaceId} />;
+    case "material-accounting": return <MaterialAccountingPanel projectId={projectId} />;
+    case "preparation": return <PreparationPanel projectId={projectId} />;
+    case "end-preparation": return <EndPreparationPanel projectId={projectId} />;
+    case "cable-test-intent": return <CableTestIntentPanel projectId={projectId} />;
+    case "sources": return <SourcesPanel workspaceId={workspaceId} projectId={projectId} />;
+    // Inventory includes workspace-scoped Sourcing (plans, stock and offers all live in the workspace).
+    case "inventory": return <InventoryPanel workspaceId={workspaceId} projectId={projectId ?? undefined} />;
+    case "physical-units": return <PhysicalUnitsPanel workspaceId={workspaceId} projectId={projectId ?? undefined} />;
+    case "facts": return <FactsPanel workspaceId={workspaceId} projectId={projectId ?? undefined} />;
+    default: return null;
+  }
+}
+
+/**
  * Lenses at project scope. A lens with a library list first shows the items this project references
  * (with a switch to the whole library), then its tool. Panels receive the project as context only.
  */
@@ -242,48 +280,56 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     return view && <LibraryView view={view} toolLabel={toolLabel(toolId)} projectId={projectId} project={project} projects={scope.projects}
       principalKey={principalKey} onOpenInProject={(target, record) => onOpenInProject(target, toolId, record)} />;
   };
+  // A collection lens: the project's list above the same editor the Library uses, with this project as context.
+  const editing = (toolId: string) => {
+    const view = libraryView(toolId)!;
+    return <ToolPanel value={toolId}>{visited.has(toolId) && <Stack gap="lg"><EditingLens title={view.title}
+      editor={<LensEditor toolId={toolId} scope={scope} projectId={projectId} active={active} />}
+      list={(editor) => <LibraryView view={view} toolLabel={toolLabel(toolId)} projectId={projectId} project={project} projects={scope.projects}
+        principalKey={principalKey} onOpenInProject={(target, record) => onOpenInProject(target, toolId, record)} editor={editor} />} /></Stack>}</ToolPanel>;
+  };
   return <>
     <ToolPanel value="overview" library={library("overview")}>{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} role={role} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} onProjectChanged={onAccessChanged} onLeave={onLeave} />}</ToolPanel>
     <ToolPanel value="builds" library={library("builds")}>{visited.has("builds") && <WorkspaceLens {...lens} toolId="builds" />}</ToolPanel>
-    <ToolPanel value="sources" library={library("sources")}>{visited.has("sources") && <SourcesPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
+    {editing("sources")}
     <ToolPanel value="knowledge" library={library("knowledge")}>{visited.has("knowledge") && <WorkspaceLens {...lens} toolId="knowledge" />}</ToolPanel>
-    <ToolPanel value="identity" library={library("identity")}>{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
+    {editing("identity")}
     <ToolPanel value="discovery" library={library("discovery")}>{visited.has("discovery") && <WorkspaceLens {...lens} toolId="discovery" />}</ToolPanel>
     <ToolPanel value="revision-upgrades" library={library("revision-upgrades")}>{visited.has("revision-upgrades") && <WorkspaceLens {...lens} toolId="revision-upgrades" />}</ToolPanel>
     <ToolPanel value="matching" library={library("matching")}>{visited.has("matching") && <WorkspaceLens {...lens} toolId="matching" />}</ToolPanel>
     <ToolPanel value="catalog-packs" library={library("catalog-packs")}>{visited.has("catalog-packs") && <WorkspaceLens {...lens} toolId="catalog-packs" />}</ToolPanel>
-    <ToolPanel value="wire-stock" library={library("wire-stock")}>{visited.has("wire-stock") && <WireStockPanel projectId={projectId} workspaceId={workspaceId} />}</ToolPanel>
-    <ToolPanel value="workshop-profiles" library={library("workshop-profiles")}>{visited.has("workshop-profiles") && <WorkshopProfilePanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="material-accounting" library={library("material-accounting")}>{visited.has("material-accounting") && <MaterialAccountingPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="preparation" library={library("preparation")}>{visited.has("preparation") && <PreparationPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="end-preparation" library={library("end-preparation")}>{visited.has("end-preparation") && <EndPreparationPanel projectId={projectId} />}</ToolPanel>
+    {editing("wire-stock")}
+    {editing("workshop-profiles")}
+    {editing("material-accounting")}
+    {editing("preparation")}
+    {editing("end-preparation")}
     <ToolPanel value="selected-packages" library={library("selected-packages")}>{visited.has("selected-packages") && <WorkspaceLens {...lens} toolId="selected-packages" />}</ToolPanel>
     <ToolPanel value="export-packages" library={library("export-packages")}>{visited.has("export-packages") && <WorkspaceLens {...lens} toolId="export-packages" />}</ToolPanel>
     <ToolPanel value="printing" library={library("printing")}>{visited.has("printing") && <WorkspaceLens {...lens} toolId="printing" />}</ToolPanel>
-    <ToolPanel value="occurrence-firmware" library={library("occurrence-firmware")}>{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel workspaceId={workspaceId} />}</ToolPanel>
+    {editing("occurrence-firmware")}
     <ToolPanel value="firmware-impact" library={library("firmware-impact")}>{visited.has("firmware-impact") && <WorkspaceLens {...lens} toolId="firmware-impact" />}</ToolPanel>
-    <ToolPanel value="configurations" library={library("configurations")}>{visited.has("configurations") && <ConfigurationsPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="mechanical-sources" library={library("mechanical-sources")}>{visited.has("mechanical-sources") && <MechanicalSourcesPanel workspaceId={workspaceId} />}</ToolPanel>
+    {editing("configurations")}
+    {editing("mechanical-sources")}
     <ToolPanel value="shared-scene" library={library("shared-scene")}>{visited.has("shared-scene") && <WorkspaceLens {...lens} toolId="shared-scene" />}</ToolPanel>
     <ToolPanel value="context-selection" library={library("context-selection")}>{visited.has("context-selection") && <WorkspaceLens {...lens} toolId="context-selection" />}</ToolPanel>
-    <ToolPanel value="assemblies" library={library("assemblies")}>{visited.has("assemblies") && <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />}</ToolPanel>
-    <ToolPanel value="facts" library={library("facts")}>{visited.has("facts") && <FactsPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
+    {editing("assemblies")}
+    {editing("facts")}
     <ToolPanel value="evidence-kinds" library={library("evidence-kinds")}>{visited.has("evidence-kinds") && <WorkspaceLens {...lens} toolId="evidence-kinds" />}</ToolPanel>
     <ToolPanel value="releases" library={library("releases")}>{visited.has("releases") && <WorkspaceLens {...lens} toolId="releases" />}</ToolPanel>
     <ToolPanel value="mechanical-proposals" library={library("mechanical-proposals")}>{visited.has("mechanical-proposals") && <WorkspaceLens {...lens} toolId="mechanical-proposals" />}</ToolPanel>
     <ToolPanel value="scene-drawings" library={library("scene-drawings")}>{visited.has("scene-drawings") && <WorkspaceLens {...lens} toolId="scene-drawings" />}</ToolPanel>
     <ToolPanel value="preparation-documents" library={library("preparation-documents")}>{visited.has("preparation-documents") && <WorkspaceLens {...lens} toolId="preparation-documents" />}</ToolPanel>
-    <ToolPanel value="interfaces" library={library("interfaces")}>{visited.has("interfaces") && <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>}</ToolPanel>
-    <ToolPanel value="cables" library={library("cables")}>{visited.has("cables") && <CablePanel projectId={projectId} workspaceId={workspaceId} />}</ToolPanel>
-    <ToolPanel value="cable-test-intent" library={library("cable-test-intent")}>{visited.has("cable-test-intent") && <CableTestIntentPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="harnesses" library={library("harnesses")}>{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="passive-passages" library={library("passive-passages")}>{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} />}</ToolPanel>
+    {editing("interfaces")}
+    {editing("cables")}
+    {editing("cable-test-intent")}
+    {editing("harnesses")}
+    {editing("passive-passages")}
     <ToolPanel value="copper" library={library("copper")}>{visited.has("copper") && <WorkspaceLens {...lens} toolId="copper" />}</ToolPanel>
-    <ToolPanel value="pcb" library={library("pcb")}>{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="pcb-disagreement" library={library("pcb-disagreement")}>{visited.has("pcb-disagreement") && <PcbDisagreementPanel workspaceId={workspaceId} />}</ToolPanel>
-    <ToolPanel value="inventory" library={library("inventory")}>{visited.has("inventory") && <InventoryPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="bom" library={library("bom")}>{visited.has("bom") && <BomPanel projectId={projectId} workspaceId={workspaceId} />}</ToolPanel>
-    <ToolPanel value="physical-units" library={library("physical-units")}>{visited.has("physical-units") && <PhysicalUnitsPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
+    {editing("pcb")}
+    {editing("pcb-disagreement")}
+    {editing("inventory")}
+    {editing("bom")}
+    {editing("physical-units")}
     <ToolPanel value="agent-capabilities" library={library("agent-capabilities")}>{visited.has("agent-capabilities") && <WorkspaceLens {...lens} toolId="agent-capabilities" />}</ToolPanel>
     <ToolPanel value="agent-runs" library={library("agent-runs")}>{visited.has("agent-runs") && <WorkspaceLens {...lens} toolId="agent-runs" />}</ToolPanel>
     <ToolPanel value="preferences" library={library("preferences")}>{visited.has("preferences") && <WorkspaceLens {...lens} toolId="preferences" />}</ToolPanel>

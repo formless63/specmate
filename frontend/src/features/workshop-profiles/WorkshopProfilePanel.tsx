@@ -9,6 +9,7 @@ import {
 import type { Basis, ElementPractice, EndPractice, LeadDisplay, ProfileRecord,
   ProfileRevision, Source, StockChoice, Suggestion, WorkshopProfile } from './api';
 import { addProjectReference } from '../identity/api';
+import { useOpenProbed } from '../scope/openProbed';
 import { WorkshopProfileProvenance } from './PracticeProvenance';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -130,6 +131,10 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string | null 
     finally { setBusy(false); }
   };
 
+  // A Library row or deep link opens that profile's saved draft, as choosing it from the saved list does.
+  useOpenProbed(profiles.length ? id => profiles.some(item => item.definition_id === id) : null, id => {
+    const record = profiles.find(item => item.definition_id === id); if (record) void chooseProfile(record);
+  });
   return <Stack>
     <Title order={2}>Workshop profiles</Title>
     <Text>Preparation and illustration suggestions are versioned separately from stock construction. A visual pigtail does not establish an electrical bond.</Text>

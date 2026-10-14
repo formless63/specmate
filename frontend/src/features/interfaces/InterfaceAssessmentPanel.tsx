@@ -10,6 +10,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 import { recordInterfaceAssessment } from "../evidence/api";
 import { RecordResult } from "../evidence/RecordResult";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 
 const dimensions: { id: Dimension; label: string }[] = [
   { id: "mating", label: "Mating" }, { id: "pin_correspondence", label: "Pin correspondence" },
@@ -25,10 +26,10 @@ const canonical = (value: Assessment): string => JSON.stringify(value, (_key, it
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
 
 /** Mount in the interfaces workspace with the current principal and permissions. */
-export function InterfaceAssessmentPanel({ projectId, principalKey, active = true }: { projectId: string; principalKey: string; active?: boolean }) {
-  return <Workspace key={`${projectId}:${principalKey}`} isActive={active} />;
+export function InterfaceAssessmentPanel({ projectId = null, principalKey, active = true }: { projectId?: string | null; principalKey: string; active?: boolean }) {
+  return <Workspace key={`${projectId ?? "library"}:${principalKey}`} projectId={projectId} isActive={active} />;
 }
-function Workspace({ isActive }: { isActive: boolean }) {
+function Workspace({ projectId, isActive }: { projectId: string | null; isActive: boolean }) {
   const canEdit = useCan("design.edit");
   const canFreeze = useCan("design.freeze");
   const [scope] = useState(randomUUID);
@@ -76,6 +77,10 @@ function Workspace({ isActive }: { isActive: boolean }) {
   const draft = useQuery({ ...options, queryKey: [scope, "draft", draftId], queryFn: ({ signal }) => read<AssessmentDraft>(`interfaces/drafts/${draftId}`, { signal }), enabled: isActive && !!draftId });
   const inspection = useQuery({ ...options, queryKey: [scope, "revision", revisionId], queryFn: ({ signal }) => read<Inspection>(`interfaces/revisions/${revisionId}`, { signal }), enabled: isActive && !!revisionId });
   const queries = [definitions, ...(definition ? [identity] : []), ...(draftId ? [draft] : []), ...(revisionId ? [inspection] : [])];
+  const pick = (id: string | null) => { setDefinition(id); setOffset(0); setDraftId(null); setRevisionId(null); setCreating(false); };
+  const openNewest = useOpenNewest(identity.data, (id) => { if (canEdit) setDraftId(id); }, setRevisionId);
+  useOpenProbed(definitionIn(definitions.data, ["interface_assessment"]), (id) => { pick(id); openNewest(id); });
+  const [referenceError, setReferenceError] = useState<string | null>(null);
   const ready = isActive && !checkingAuthority && !checkingMutation && queries.every(q => !!q.data && !q.isFetching && !q.isError);
   const error = queries.find(q => q.isError)?.error;
   return <Stack>
@@ -83,8 +88,9 @@ function Workspace({ isActive }: { isActive: boolean }) {
     <Text>Keep mating, pin correspondence, electrical limits, protocol, shielding, grounding and fit separate. Results describe declarations and explicit operating assumptions; they do not qualify a physical assembly.</Text>
     <Button disabled={!isActive || checkingMutation} onClick={() => void refresh()}>Refresh assessment authority</Button>
     {error && <Alert color="red">{error.message}</Alert>}
+    {referenceError && <Alert color="red">{referenceError}</Alert>}
     {!ready && !error && <Text>Checking current assessment authority…</Text>}
-    <Select label="Saved assessment" searchable value={ready ? definition : null} data={ready ? (definitions.data ?? []).filter(d => d.kind === "interface_assessment").map(d => ({ value: d.definition_id, label: d.name })) : []} onChange={id => { setDefinition(id); setOffset(0); setDraftId(null); setRevisionId(null); setCreating(false); }} />
+    <Select label="Saved assessment" searchable value={ready ? definition : null} data={ready ? (definitions.data ?? []).filter(d => d.kind === "interface_assessment").map(d => ({ value: d.definition_id, label: d.name })) : []} onChange={pick} />
     {(definition || creating) && <Button variant="subtle" onClick={() => { setDefinition(null); setDraftId(null); setRevisionId(null); setCreating(false); setOffset(0); }}>Close assessment and discard prepared edits</Button>}
     {ready && identity.data && <Group>
       {canEdit && <Select label="Assessment draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: d.state }))} onChange={setDraftId} />}
@@ -93,7 +99,9 @@ function Workspace({ isActive }: { isActive: boolean }) {
       <Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next assessment history</Button>
     </Group>}
     {canEdit && <Button disabled={!ready} onClick={() => { setCreating(true); setDraftId(null); setRevisionId(null); }}>New assessment</Button>}
-    {creating && <div hidden={!ready}><Author key="new" ready={ready} canFreeze={false} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); await refresh(); }} /></div>}
+    {creating && <div hidden={!ready}><Author key="new" ready={ready} canFreeze={false} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); setReferenceError(null);
+      try { await referenceFromProject(projectId, saved.definition_id, "interface assessment"); } catch (e) { setReferenceError(e instanceof Error ? e.message : String(e)); }
+      await refresh(); }} /></div>}
     {canEdit && draft.data && <div hidden={!ready}><Author key={draft.data.draft_id} initial={draft.data} ready={ready} canFreeze={canFreeze} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async () => { if (active.current) await refresh(); }} onFrozen={id => { if (active.current) { setRevisionId(id); void refresh(); } }} /></div>}
     {ready && inspection.data && <><Text><RevisionLabel id={inspection.data.revision_id} snapshotId={inspection.data.snapshot_id} sha256={inspection.data.sha256} /></Text><AssessmentResults result={inspection.data.assessment} /><RecordResult fingerprint={inspection.data.revision_id} record={key => recordInterfaceAssessment(inspection.data.revision_id, key)} /></>}
   </Stack>;
