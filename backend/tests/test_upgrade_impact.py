@@ -114,3 +114,21 @@ def test_other_kinds_compare_content_and_mark_disciplines_not_evaluated(users, c
     # No readable evidence is recorded: reported as none found, never as no impact.
     assert impact["disciplines"]["evidence"]["status"] == "none_found"
     assert impact["evidence"]["becomes_stale"]["total"] == 0
+
+
+def test_length_changes_affect_electrical_mechanical_and_manufacturing():
+    from specmate.revision_upgrades.impact import cable_disciplines
+
+    section = {
+        "section": "lengths",
+        "status": "changed",
+        "reviews": [],
+        "summary": "",
+        "details": [],
+    }
+    disciplines = cable_disciplines([section], identical=False)
+    # Length drives conductor resistance, attenuation and delay as well as fit and cutting.
+    for discipline in ("electrical", "mechanical", "manufacturing"):
+        assert disciplines[discipline]["status"] == "changed"
+        assert disciplines[discipline]["sections"] == ["lengths"]
+    assert disciplines["firmware"]["status"] == "not_evaluated"

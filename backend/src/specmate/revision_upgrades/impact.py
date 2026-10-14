@@ -21,7 +21,7 @@ CABLE_SECTIONS = {
     "stock": {"electrical", "mechanical", "manufacturing"},
     "connectors": {"electrical", "mechanical", "manufacturing"},
     "terminations": {"electrical", "manufacturing"},
-    "lengths": {"mechanical", "manufacturing"},
+    "lengths": {"electrical", "mechanical", "manufacturing"},
     "labels": {"manufacturing"},
     "review": {"manufacturing"},
 }
