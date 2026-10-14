@@ -45,7 +45,7 @@ export function PreferencesPanel({ workspaceId }: { workspaceId: string }) {
 }
 
 function LayerForm({ title, scope, layer, workspaceId, onSaved }: { title: string; scope: "workspace" | "user"; layer: Layer; workspaceId: string; onSaved: (value: Preferences) => void }) {
-  const admin = usePermission("workspace.admin");
+  const admin = usePermission("design.edit");
   const editable = scope === "user" || admin.allowed;
   const [lists, setLists] = useState<Record<string, string>>(() => Object.fromEntries(LIST_KEYS.map((key) => [key, (layer.values[key] ?? []).join(", ")])));
   const [length, setLength] = useState(layer.values.default_length_unit ?? "");
@@ -69,8 +69,8 @@ function LayerForm({ title, scope, layer, workspaceId, onSaved }: { title: strin
   return <form onSubmit={submit} aria-label={title}>
     <Stack gap="xs">
       <Title order={3}>{title}</Title>
-      {scope === "workspace" && <ReadOnlyNote permission="workspace.admin">Workspace defaults are set by administrators</ReadOnlyNote>}
-      <InspectionScope permission={scope === "workspace" ? "workspace.admin" : "workspace.read"}>
+      {scope === "workspace" && <ReadOnlyNote permission="design.edit">Workspace defaults are set by editors and administrators</ReadOnlyNote>}
+      <InspectionScope permission={scope === "workspace" ? "design.edit" : "workspace.read"}>
         <Group align="end" grow>
           {LIST_KEYS.map((key) => <TextInput key={`${scope}-${key}`} label={`${LABELS[key]} (${title})`} description="Comma separated" value={lists[key] ?? ""} onChange={(event) => { const value = event.currentTarget.value; setLists((current) => ({ ...current, [key]: value })); }} />)}
         </Group>

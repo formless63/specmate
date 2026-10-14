@@ -1,4 +1,4 @@
-"""Setting maker preferences. Workspace defaults need administration; a member's own
+"""Setting maker preferences. Workspace defaults need design.edit; a member's own
 override needs only workspace read. Neither writes facts, ratings or evidence."""
 
 from django.db import transaction
@@ -19,7 +19,7 @@ from specmate.preferences.models import MakerPreferences
     access=Perm.WORKSPACE_READ,
 )
 def set_preferences(ctx: Context, p: SetPreferences):
-    needed = Perm.WORKSPACE_ADMIN if p.scope == "workspace" else Perm.WORKSPACE_READ
+    needed = Perm.DESIGN_EDIT if p.scope == "workspace" else Perm.WORKSPACE_READ
     workspace = authorize(ctx.user, p.workspace_id, needed)
     expected = ctx.require_expected_state()
     owner = None if p.scope == "workspace" else ctx.user

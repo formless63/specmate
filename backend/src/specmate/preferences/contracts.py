@@ -42,6 +42,6 @@ class SetPreferences(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_id: UUID
-    # "workspace" sets the shared defaults (administrators); "user" sets the caller's own override.
+    # "workspace" sets the shared defaults (design.edit); "user" sets the caller's own override.
     scope: Literal["workspace", "user"]
     values: PreferenceValues

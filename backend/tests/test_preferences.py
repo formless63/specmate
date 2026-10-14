@@ -77,14 +77,14 @@ def test_explicit_null_clears_and_partial_update_keeps_others(users, workspace):
 def test_authority_scope_and_state(users, workspace, other_workspace):
     body = {"workspace_id": workspace, "scope": "workspace", "values": {"wire_colours": ["red"]}}
     with pytest.raises(PermissionDenied):
-        call(users["editor"], body)
+        call(users["contributor"], body)
+    call(users["editor"], body)
     # Even a viewer may keep a personal override.
     call(users["viewer"], {**body, "scope": "user"})
     with pytest.raises(NotFound):
         call(users["outsider"], body)
     with pytest.raises(NotFound):
         discover(users["outsider"], workspace)
-    call(users["owner"], body)
     with pytest.raises(Conflict) as stale:
         call(users["owner"], body)
     assert stale.value.details["current_state"] == "preferences-v1"

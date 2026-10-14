@@ -50,12 +50,12 @@ test("saves the member override with the layer's state token and clears empty fi
   expect(posts[0]?.payload.values).toMatchObject({ default_length_unit: "in", wire_colours: null, preferred_suppliers: null });
 });
 
-test("workspace defaults are read-only without administration, with a visible reason", async () => {
+test("workspace defaults are read-only without design.edit, with a visible reason", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => reply(prefs())));
-  view(["workspace.read", "design.edit"]);
+  view(["workspace.read"]);
   await screen.findByRole("form", { name: "Workspace defaults" });
   expect((screen.getByRole("button", { name: "Save workspace defaults" }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByRole("note").textContent).toMatch(/administrators/);
+  expect(screen.getByRole("note").textContent).toMatch(/editors and administrators/);
   expect((screen.getByLabelText("Wire colours (Workspace defaults)") as HTMLInputElement).readOnly).toBe(true);
   expect((screen.getByRole("button", { name: "Save my override" }) as HTMLButtonElement).disabled).toBe(false);
 });
