@@ -393,6 +393,82 @@ class ReceiptTests(unittest.TestCase):
         self.docker.create.assert_not_called()
         self.assertEqual(self.persisted()["result"]["outcome"], "failed")
 
+    def test_persisted_tool_failure_is_replayed_not_rewritten_as_cancelled(self):
+        self.docker.inspect.return_value = None
+        self.runner.result(self.receipt, "failed", 7, "Tool exited unsuccessfully")
+        self.client.reconcile.return_value = {
+            "state": "cancellation_requested",
+            "cancellation_requested": True,
+        }
+        self.runner.run_receipt(self.persisted(), recovered=True)
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual(
+            (sent["outcome"], sent["exit_code"], sent["message"]),
+            ("failed", 7, "Tool exited unsuccessfully"),
+        )
+        self.docker.create.assert_not_called()
+        self.docker.start.assert_not_called()
+
+    def test_cancel_before_success_acceptance_keeps_observed_exit_code(self):
+        self.docker.inspect.return_value = None
+        self.receipt["artifacts"] = []
+        self.runner.result(self.receipt, "succeeded", 0, "Synthetic success")
+        self.client.reconcile.return_value = {
+            "state": "cancellation_requested",
+            "cancellation_requested": True,
+        }
+        self.runner.run_receipt(self.persisted(), recovered=True)
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual((sent["outcome"], sent["exit_code"]), ("cancelled", 0))
+        self.assertIn("Cancellation was requested", sent["message"])
+
+    def test_runner_shutdown_is_failure_not_cancellation(self):
+        self.receipt["started_at"] = time.time()
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "State": {"Running": True, "Status": "running"},
+        }
+        events = []
+        self.docker.stop.side_effect = lambda *args: events.append("stopped")
+        self.client.complete.side_effect = lambda *args: events.append("reported")
+        self.runner.stopping = True
+        self.runner.supervise(self.receipt)
+        self.runner.finish(self.receipt)
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual(events, ["stopped", "reported"])
+        self.assertEqual(sent["outcome"], "failed")
+        self.assertIn("Runner shutdown", sent["message"])
+
+    def test_requested_cancellation_stops_before_cancelled_is_reported(self):
+        self.receipt["started_at"] = time.time()
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "State": {"Running": True, "Status": "running"},
+        }
+        self.client.heartbeat.return_value = {"cancellation_requested": True}
+        events = []
+        self.docker.stop.side_effect = lambda *args: events.append("stopped")
+        self.client.complete.side_effect = lambda *args: events.append("reported")
+        self.runner.supervise(self.receipt)
+        self.runner.finish(self.receipt)
+        self.assertEqual(events, ["stopped", "reported"])
+        self.assertEqual(self.client.complete.call_args.args[1]["outcome"], "cancelled")
+
+    def test_unconfirmed_stop_never_reports_cancellation(self):
+        from specmate_runner.docker import RuntimeFailure
+
+        self.receipt["started_at"] = time.time()
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "State": {"Running": True, "Status": "running"},
+        }
+        self.client.heartbeat.return_value = {"cancellation_requested": True}
+        self.docker.stop.side_effect = RuntimeFailure("Container termination was not confirmed")
+        with self.assertRaises(RuntimeFailure):
+            self.runner.run_receipt(self.receipt, recovered=False)
+        self.client.complete.assert_not_called()
+        self.assertIsNone(self.persisted()["result"])
+
 
 @unittest.skipUnless(
     os.environ.get("SPECMATE_RUNNER_TEST_IMAGE"),

@@ -14,7 +14,24 @@ class BuildAttempt(models.Model):
     recipe_id = models.CharField(max_length=128)
     recipe = models.JSONField()
     workflow_id = models.CharField(max_length=100, unique=True)
+    # A deliberate retry is a new attempt with its own identity; the earlier attempt
+    # and its receipts stay untouched. At most one retry may follow a given attempt.
+    retry_of = models.ForeignKey(
+        "self", null=True, on_delete=models.PROTECT, related_name="retries"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(retry_of=models.F("id")), name="build_attempt_not_own_retry"
+            ),
+            models.UniqueConstraint(
+                fields=["retry_of"],
+                condition=models.Q(retry_of__isnull=False),
+                name="build_attempt_single_retry",
+            ),
+        ]
 
 
 class RunnerCredential(models.Model):
@@ -66,6 +83,11 @@ class BuildStage(models.Model):
                 )
                 | ~models.Q(state__in=["succeeded", "failed", "cancelled"]),
                 name="build_stage_terminal_receipt",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(state="cancelled")
+                | models.Q(cancellation_requested_at__isnull=False),
+                name="build_stage_cancelled_was_requested",
             ),
         ]
 

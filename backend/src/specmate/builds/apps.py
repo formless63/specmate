@@ -6,4 +6,7 @@ class BuildsConfig(AppConfig):
     label = "builds"
 
     def ready(self):
-        from specmate.builds import operations  # noqa: F401
+        from specmate.builds import (
+            operations,  # noqa: F401
+            recovery,  # noqa: F401
+        )

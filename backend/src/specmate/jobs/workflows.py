@@ -6,7 +6,16 @@ from datetime import timedelta
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
-TERMINAL = frozenset({"succeeded", "failed", "cancelled", "interrupted"})
+# An interrupted stage is not final: its runner may still reconcile the original
+# execution, and revocation or expiry must keep being observed until a receipt or a
+# deliberate build.abandon resolves it.
+FINAL = frozenset({"succeeded", "failed", "cancelled"})
+POLL_SECONDS = 5
+INTERRUPTED_POLL_SECONDS = 30
+
+
+def poll_delay(state: str) -> timedelta:
+    return timedelta(seconds=INTERRUPTED_POLL_SECONDS if state == "interrupted" else POLL_SECONDS)
 
 
 @workflow.defn
@@ -18,9 +27,9 @@ class BuildWorkflow:
             await self.call("dispatch_build", reference)
             while True:
                 status = await self.call("poll_build", reference)
-                if status["state"] in TERMINAL:
+                if status["state"] in FINAL:
                     return status
-                await workflow.sleep(timedelta(seconds=5))
+                await workflow.sleep(poll_delay(status["state"]))
                 if workflow.info().is_continue_as_new_suggested():
                     workflow.continue_as_new(reference)
         except asyncio.CancelledError:

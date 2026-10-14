@@ -23,6 +23,42 @@ Successful output is available only after verified terminal acceptance and a cur
 project access check. Mixed source-rights policies and artifact caching remain future
 capabilities; matching hashes alone grant no disclosure permission.
 
+## Cancellation, recovery and retry
+
+`build.cancel` only records a request (`cancellation_requested`). A stage becomes
+`cancelled` solely when its runner reports that the actual container was stopped, and the
+application refuses a `cancelled` receipt, and a database constraint refuses a cancelled
+stage, unless a cancellation was requested first. Revoking a runner or authority also only
+requests cancellation. A persisted tool failure or exit code is never rewritten as a
+cancellation by the runner; a success that cannot be accepted after a cancellation request
+is reported as cancelled with its observed exit code. A runner shutdown stops the container
+and reports a failure, not a cancellation. If the container cannot be confirmed stopped, no
+receipt is reported and the durable local receipt waits for reconciliation.
+
+The workflow keeps polling `interrupted` stages (more slowly) until a final receipt exists,
+so later expiry or revocation is still observed. Nothing relaunches an interrupted stage.
+If the leasing runner credential is revoked or expired, nothing can reconcile or confirm
+termination; `build.abandon` (requires the state token, an idempotency key and a stated
+basis, from the requester or a member with execution authority) then resolves the stage as
+`failed` with `termination_confirmed: false` and the resolution
+`abandoned_unreconciled`. It is refused while the credential is still valid, for work that
+never started (cancel it instead) and for stages that already have a receipt. Verified
+outputs uploaded before the resolution are retained as evidence only and have no download.
+
+`build.retry` starts a new attempt for a `failed` or `cancelled` stage: a new build
+identity and workflow over the same source revision and the same approved recipe
+(a changed recipe approval is refused and needs a deliberate new request). It requires the
+prior stage's state token and an idempotency key, current execution authority and passes
+the same compiler-consent hook as `build.request`, so firmware compiler builds still need
+`firmware_build.request`. At most one retry may follow an attempt; a second request reports
+the first. The earlier attempt, its receipt and its events are never changed.
+`build.history` returns the retained events (without runner identities or fencing tokens),
+receipt, unaccepted partial outputs, retry lineage and which actions are available;
+`build.list` lists a project's latest generic builds. The Builds tool in the Sources area
+uses these. Real container cancellation, restart reconciliation and lost-acknowledgment
+replay through the runner remain covered by the runner's isolated Docker cases and an
+orchestrated integration checkpoint; the application tests simulate the runner API.
+
 ## Pipeline
 
 Preserve/import source -> extract -> review -> generate/modify -> validate/route/compile ->
