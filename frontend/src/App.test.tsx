@@ -56,7 +56,14 @@ async function selectProject(name: string) {
   fireEvent.click(await screen.findByRole("option", { name, hidden: true }));
 }
 
-test("sign-in opens scoped project tools and mounts each real feature on its first selection", async () => {
+async function openAuthenticatedProjectTools() {
+  server({ authenticated: true }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  await selectProject("Project A");
+  await screen.findByRole("heading", { name: "Reusable identities" });
+}
+
+test("sign-in opens scoped project tools and lazily mounts stock, intake and inventory", async () => {
   const cryptoSource = globalThis.crypto;
   vi.stubGlobal("crypto", { getRandomValues: cryptoSource.getRandomValues.bind(cryptoSource) });
   const fetchMock = server(); renderApp();
@@ -82,6 +89,10 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Inventory" }));
   await screen.findByRole("heading", { name: "Inventory" }, { timeout: 5000 });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-a?offset=0&limit=50", expect.anything()));
+});
+
+test("selected packages, firmware and mechanical tools mount with scoped read controls", async () => {
+  await openAuthenticatedProjectTools();
   fireEvent.click(screen.getByRole("tab", { name: "Selected packages" }));
   await screen.findByRole("heading", { name: "Selected assembly packages" });
   expect(await screen.findByRole("button", { name: "Review exact selected package" })).toBeTruthy();
@@ -94,6 +105,10 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Firmware impact" }));
   await screen.findByRole("heading", { name: "Firmware change and observation review" });
   expect(screen.getByRole("button", { name: "Show firmware impact" })).toBeTruthy();
+});
+
+test("shared, assembly, connected and drawing views mount with scoped read controls", async () => {
+  await openAuthenticatedProjectTools();
   fireEvent.click(screen.getByRole("tab", { name: "Shared scene" }));
   await screen.findByRole("heading", { name: "Shared scene" });
   expect(screen.getByRole("button", { name: "Refresh scene access" })).toBeTruthy();
@@ -106,6 +121,10 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Scene drawings" }));
   await screen.findByRole("heading", { name: "Scene inspection drawings" });
   expect(screen.getByRole("button", { name: "Inspect drawing scene" })).toBeTruthy();
+});
+
+test("documents, interfaces and knowledge mount with scoped read controls", async () => {
+  await openAuthenticatedProjectTools();
   fireEvent.click(screen.getByRole("tab", { name: "Bench documents" }));
   await screen.findByRole("heading", { name: "Coordinated documents" });
   expect((screen.getByRole("button", { name: "Generate reviewed document set" }) as HTMLButtonElement).disabled).toBe(true);
@@ -115,7 +134,7 @@ test("sign-in opens scoped project tools and mounts each real feature on its fir
   fireEvent.click(screen.getByRole("tab", { name: "Notes & files" }));
   await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
   expect(screen.queryByRole("button", { name: "Create knowledge item" })).toBeNull();
-}, 10000);
+});
 
 test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {
   const fetchMock = server({ authenticated: true });
