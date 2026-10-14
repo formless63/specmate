@@ -1,3 +1,4 @@
+import { apiErrorMessage, fieldErrorMap } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 import type { LengthPlan, Projection } from "./Lengths";
 import type { Body, Pinout } from '../interfaces/api';
@@ -12,7 +13,7 @@ export function initialCable(): Cable {
 }
 
 export class CableOperationError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  constructor(message: string, readonly status: number, readonly fieldErrors: Record<string, string> = {}) { super(message); }
 }
 export const authorityDenied = (error: unknown) => error instanceof CableOperationError && [401, 403, 404].includes(error.status);
 
@@ -25,6 +26,6 @@ export async function command<T>(operation: string, payload: object, expectedSta
     body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
   });
   const body = await response.json();
-  if (!response.ok) throw new CableOperationError(body.error?.message ?? `Operation failed (${response.status})`, response.status);
+  if (!response.ok) throw new CableOperationError(apiErrorMessage(body, `Operation failed (${response.status})`), response.status, fieldErrorMap(body));
   return body.result as T;
 }

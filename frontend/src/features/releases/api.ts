@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { ApiError, runOperation } from '../workspace/api';
 import type { ExportOutput, ExportRequest, ScopeQuantity } from '../export-packages/api';
 import type { RightsReview } from '../selected-packages/api';
@@ -94,7 +95,7 @@ export async function downloadWarnings(releaseId: string) {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new ApiError(response.status, body?.error?.message ?? `Download failed (${response.status}).`);
+    throw new ApiError(response.status, apiErrorMessage(body, `Download failed (${response.status}).`));
   }
   const url = URL.createObjectURL(await response.blob());
   const link = document.createElement('a');
@@ -110,7 +111,7 @@ export async function downloadRelease(releaseId: string) {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new ApiError(response.status, body?.error?.message ?? `Download failed (${response.status}).`);
+    throw new ApiError(response.status, apiErrorMessage(body, `Download failed (${response.status}).`));
   }
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);

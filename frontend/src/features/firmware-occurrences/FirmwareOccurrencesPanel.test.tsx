@@ -31,6 +31,7 @@ function setup(options: { canEdit?: boolean; eligible?: boolean; lostResponse?: 
   let denied = false;
   let adoptionCalls = 0;
   const mock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes('/catalog/revision-labels')) return response({ labels: [{ readable: true, revision_id: 'fw-500', name: 'Independent controller', kind: 'firmware', number: 1 }], source_labels: [] });
     if (url.endsWith('/definitions')) return response([{ definition_id: 'asm', name: 'Synthetic pair', kind: 'assembly' }]);
     if (url.endsWith('/firmware')) return response({ firmware: [{ definition_id: 'fw', name: 'Independent controller', draft_id: 'fw-draft', revisions: [{ revision_id: 'fw-900', number: 2 }] }] });
     if (url.includes('/catalog/definitions/asm')) return response({ definition_id: 'asm', name: 'Synthetic pair', kind: 'assembly', drafts: [{ draft_id: 'assembly-draft', state: 'draft-v3', dependencies: [] }], revisions: [{ revision_id: 'frozen-asm', number: 1 }] });
@@ -84,6 +85,13 @@ test('frozen compile inspection pins one repeated board and hides execution with
   fireEvent.change(screen.getByLabelText('Frozen board occurrence for compilation'), { target: { value: JSON.stringify(['left', 'board']) } });
   expect(await screen.findByText(/occurrence left \/ board/)).toBeTruthy();
   expect(screen.queryByText(/occurrence right \/ board/)).toBeNull();
+});
+
+test('occurrence table shows the firmware name and revision, keeping the ID as exact detail', async () => {
+  setup({ canEdit: false }); await open(true);
+  expect((await screen.findAllByText('Independent controller')).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('r1').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('fw-500').length).toBeGreaterThan(0);
 });
 
 test('occurrence module stays lazy until opened', () => {

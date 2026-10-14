@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 import { read } from "../identity/api";
 
@@ -54,6 +55,6 @@ export async function command(envelope: Command): Promise<unknown> {
     body: JSON.stringify(envelope),
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message ?? `Operation failed (${response.status})`);
+  if (!response.ok) throw new Error(apiErrorMessage(body, `Operation failed (${response.status})`));
   return body.result;
 }

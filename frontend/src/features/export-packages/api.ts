@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { ApiError, runOperation } from '../workspace/api';
 export { requestJson, ApiError } from '../workspace/api';
 
@@ -50,7 +51,7 @@ export async function download(request: ExportRequest, sha256: string, rightsAck
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new ApiError(response.status, body?.error?.message ?? `Download failed (${response.status}).`);
+    throw new ApiError(response.status, apiErrorMessage(body, `Download failed (${response.status}).`));
   }
   return response.blob();
 }

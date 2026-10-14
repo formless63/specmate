@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Stack, Tabs, createTheme, defaultVariantColorsResolver, type CSSVariablesResolver, type MantineColorsTuple, type VariantColorsResolver } from "@mantine/core";
+import { Alert, Badge, Button, Group, Select, Stack, Tabs, createTheme, defaultVariantColorsResolver, type CSSVariablesResolver, type MantineColorsTuple, type VariantColorsResolver } from "@mantine/core";
 import tokens from "./schematic-bench.tokens.json";
 
 // Every colour, size and duration below is derived from schematic-bench.tokens.json
@@ -123,6 +123,8 @@ export const schematicBench = createTheme({
   cursorType: "pointer",
   other: { motion: tokens.motion.durations, density: tokens.density, layout: tokens.layout },
   components: {
+    // Re-choosing the selected option must keep it; optional fields opt in with `clearable`.
+    Select: Select.extend({ defaultProps: { allowDeselect: false } }),
     Button: Button.extend({ defaultProps: { variant: "primary", size: "compact-sm" } }),
     Badge: Badge.extend({ defaultProps: { variant: "frozen", radius: 0 } }),
     // Alerts are hairline panes with a state-coloured rule and title; the words carry the state.

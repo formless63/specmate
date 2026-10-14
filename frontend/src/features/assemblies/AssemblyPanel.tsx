@@ -226,7 +226,7 @@ function AssemblyEditor({ draft: currentDraft, definitions, onSaved, canEdit, on
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Contextual firmware assignments</Title>
-      {assembly.assignments?.map((a) => <Group key={addressKey(a.path)}><Text>{a.path.join("/")} · {a.assignments.firmware_revision_id ?? "Unassigned"}</Text><Button size="xs" variant="subtle" onClick={() => save.mutate({ ...assembly, assignments: assembly.assignments?.filter((other) => addressKey(other.path) !== addressKey(a.path)) })}>Clear assignment for {a.path.join("/")}</Button></Group>)}
+      {assembly.assignments?.map((a) => <Group key={addressKey(a.path)}><Text>{a.path.join("/")} · {a.assignments.firmware_revision_id ? <RevisionLabel id={a.assignments.firmware_revision_id} role="Firmware" /> : "Unassigned"}</Text><Button size="xs" variant="subtle" onClick={() => save.mutate({ ...assembly, assignments: assembly.assignments?.filter((other) => addressKey(other.path) !== addressKey(a.path)) })}>Clear assignment for {a.path.join("/")}</Button></Group>)}
       <TextInput label="Firmware occurrence path" value={assignmentPath} onChange={(e) => setAssignmentPath(e.currentTarget.value)} />
       <TextInput label="Exact firmware revision ID" value={firmwareRevision} onChange={(e) => setFirmwareRevision(e.currentTarget.value)} />
       <Button disabled={!assignmentPath || !firmwareRevision} loading={save.isPending} onClick={() => { const path = assignmentPath.split("/"); save.mutate({ ...assembly, assignments: [...(assembly.assignments ?? []).filter((a) => addressKey(a.path) !== addressKey(path)), { path, assignments: { firmware_revision_id: firmwareRevision } }] }); }}>Assign firmware to this occurrence</Button>
@@ -258,7 +258,7 @@ export function AssemblyInspector({ snapshotId }: { snapshotId: string }) {
         <Text>Context: {selected.address.path.join("/")}</Text><Text>Display reference: {selected.display_ref}</Text>
         <Text><RevisionLabel id={selected.revision_id} extraPins={[{ label: 'Definition ID', value: selected.definition_id }]} /></Text>
         <Text>Child snapshot SHA-256: {selected.snapshot_sha256}</Text>
-        <Text>Firmware revision: {selected.assignments.firmware_revision_id ?? "Unassigned"}</Text>
+        <Text>Firmware revision: {selected.assignments.firmware_revision_id ? <RevisionLabel id={selected.assignments.firmware_revision_id} /> : "Unassigned"}</Text>
         <Text>Canonical placement: {selected.placement.status === "known" ? `${selected.placement.translation?.join(", ")} mm` : "Unknown"}</Text>
         <Text>Canonical rotation quaternion (X, Y, Z, W): {selected.placement.status === "known" ? selected.placement.rotation_xyzw?.join(", ") : "Unknown"}</Text>
         <TextInput label="Selected stable feature ID" value={featureId} onChange={(e) => setFeatureId(e.currentTarget.value)} />

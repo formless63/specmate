@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "./api-errors";
 import { useEffect, useSyncExternalStore } from "react";
 
 /** Display identity of one exact revision, resolved through the scoped read contract. */
@@ -53,7 +54,7 @@ async function flush() {
     try {
       const response = await fetch(`/api/v0/catalog/revision-labels?${params}`, { credentials: "same-origin" });
       const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message ?? `Request failed (${response.status})`);
+      if (!response.ok) throw new Error(apiErrorMessage(body, `Request failed (${response.status})`));
       settle("design", d, body?.labels, false); settle("source", s, body?.source_labels, false);
     } catch {
       settle("design", d, [], true); settle("source", s, [], true);

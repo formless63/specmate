@@ -23,8 +23,9 @@ test("second repeated J1 keeps its occurrence selection across tree, contents an
   render(wrap(<AssemblyInspector snapshotId="root-snapshot" />));
   fireEvent.click(await screen.findByRole("button", { name: "right-module/control-board · J1" }));
   expect(screen.getByText("Context: right-module/control-board")).toBeTruthy();
-  expect(screen.getByText("Firmware revision: right-firmware")).toBeTruthy();
-  expect(screen.queryByText("Firmware revision: left-firmware")).toBeNull();
+  expect(screen.getByText(/Firmware revision:/)).toBeTruthy();
+  expect(screen.getByText("right-firmware")).toBeTruthy();
+  expect(screen.queryByText("left-firmware")).toBeNull();
   fireEvent.change(screen.getByLabelText("Selected stable feature ID"), { target: { value: "connector-a.pin2" } });
   fireEvent.click(screen.getByRole("tab", { name: "Assembly contents" }));
   expect(screen.getByText("Context: right-module/control-board")).toBeTruthy();
@@ -32,7 +33,7 @@ test("second repeated J1 keeps its occurrence selection across tree, contents an
   fireEvent.click(screen.getByRole("tab", { name: "View arrangement" }));
   fireEvent.click(screen.getByLabelText("Spread occurrences for inspection"));
   expect(screen.getByText("Canonical placement: 100, 0, 0 mm")).toBeTruthy();
-  expect(screen.getByText("Firmware revision: right-firmware")).toBeTruthy();
+  expect(screen.getByText("right-firmware")).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 

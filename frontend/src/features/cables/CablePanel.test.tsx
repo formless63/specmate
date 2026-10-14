@@ -310,3 +310,15 @@ test('a probe on a cable revision selects that definition and shows its views on
   expect(screen.queryByLabelText('Cable section drawing')).toBeNull();
   expect(urls.some(url => url.includes('cables/revisions/'))).toBe(false);
 });
+
+test('validation details from a rejected create appear on the offending fields', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === 'POST') return new Response(JSON.stringify({ error: { code: 'validation_failed', message: 'Invalid payload.', details: { errors: [{ loc: ['cable', 'stock_revision_id'], type: 'missing', msg: 'Field required' }] } } }), { status: 422 });
+    return new Response(JSON.stringify(String(url).endsWith('/definitions') ? [] : {}), { status: 200 });
+  }));
+  render(wrap(<PermissionsProvider permissions={['item.create']}><CablePanel projectId="project" /></PermissionsProvider>));
+  fireEvent.change(await screen.findByLabelText('Definition name'), { target: { value: 'Lead' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create cable draft' }));
+  expect(await screen.findByText(/Invalid payload\. stock revision: Field required/)).toBeTruthy();
+  expect((await screen.findAllByText('Field required')).length).toBeGreaterThan(0);
+});

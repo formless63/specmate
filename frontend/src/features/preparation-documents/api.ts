@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { sha256Hex } from '../../lib/sha256';
 import { ApiError, requestJson as request, runOperation } from '../workspace/api';
 export { ApiError } from '../workspace/api';
@@ -18,7 +19,7 @@ export async function receipt(id: string) { return (await runOperation<Receipt>(
 export async function download(id: string, output: Output): Promise<Blob> {
   const token = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('csrftoken='))?.slice(10) ?? '';
   const response = await fetch('/api/v0/preparation-documents/download', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(token) }, body: JSON.stringify({ document_set_id: id, filename: output.filename }) });
-  if (!response.ok) { const body = await response.json().catch(() => null); throw new ApiError(response.status, body?.error?.message ?? `Document download failed (${response.status}).`); }
+  if (!response.ok) { const body = await response.json().catch(() => null); throw new ApiError(response.status, apiErrorMessage(body, `Document download failed (${response.status}).`)); }
   const bytes = await response.arrayBuffer();
   if (bytes.byteLength !== output.size || await sha256Hex(bytes) !== output.sha256) throw new Error('Retained document hash or size mismatch.');
   return new Blob([bytes], { type: output.media_type });

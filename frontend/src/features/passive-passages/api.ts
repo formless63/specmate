@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 import { command, read } from "../identity/api";
 import type { Boundary, Graph, Origin } from "../copper/api";
@@ -51,6 +52,6 @@ export async function interpretModel(payload: object) {
   const csrf = document.cookie.split("; ").find((c) => c.startsWith("csrftoken="))?.split("=")[1];
   const response = await fetch("/api/v0/operations", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") }, body: JSON.stringify({ operation: "passage.interpret", request_id: randomUUID(), payload }) });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message ?? `Query failed (${response.status})`);
+  if (!response.ok) throw new Error(apiErrorMessage(body, `Query failed (${response.status})`));
   return body.result as Interpretation;
 }

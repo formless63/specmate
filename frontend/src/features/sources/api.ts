@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { sha256Hex } from "../../lib/sha256";
 import { randomUUID } from "../../lib/random-id";
 export type RevisionSummary = {
@@ -35,7 +36,7 @@ function csrf() { return document.cookie.split('; ').find(c => c.startsWith('csr
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v0/${url}`, { ...init, credentials: 'same-origin' });
   const body = await response.json();
-  if (!response.ok) throw new SourceError(response.status, body?.error?.message ?? `Request failed (${response.status})`);
+  if (!response.ok) throw new SourceError(response.status, apiErrorMessage(body, `Request failed (${response.status})`));
   return body as T;
 }
 export async function command<T>(operation: string, payload: object, options: { expectedState?: string; idempotent?: boolean; idempotencyKey?: string } = {}): Promise<T> {

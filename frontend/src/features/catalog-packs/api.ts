@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 export type FilePin = { source_bundle_revision_id: string; source_path: string; sha256: string; rights: string };
 export type RecipeReference = { recipe_id: string; version: string; digest: string };
@@ -13,13 +14,13 @@ export class PackRequestError extends Error { constructor(message: string, reado
 export async function read<T>(path: string): Promise<T> {
   const response = await fetch(`/api/v0/${path}`, { credentials: "same-origin" });
   const body = await response.json();
-  if (!response.ok) throw new PackRequestError(body.error?.message ?? `Request failed (${response.status})`, response.status);
+  if (!response.ok) throw new PackRequestError(apiErrorMessage(body, `Request failed (${response.status})`), response.status);
   return body as T;
 }
 export async function command<T>(operation: string, payload: object, expectedState?: string): Promise<T> {
   const csrf = document.cookie.split("; ").find((cookie) => cookie.startsWith("csrftoken="))?.split("=")[1];
   const response = await fetch("/api/v0/operations", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") }, body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }) });
   const body = await response.json();
-  if (!response.ok) throw new PackRequestError(body.error?.message ?? `Operation failed (${response.status})`, response.status);
+  if (!response.ok) throw new PackRequestError(apiErrorMessage(body, `Operation failed (${response.status})`), response.status);
   return body.result as T;
 }
