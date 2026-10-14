@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     "specmate.discovery.apps.DiscoveryConfig",
     "specmate.preferences.apps.PreferencesConfig",
     "specmate.configurations.apps.ConfigurationsConfig",
+    "specmate.agent_runs.apps.AgentRunsConfig",
 ]
 
 MIDDLEWARE = [

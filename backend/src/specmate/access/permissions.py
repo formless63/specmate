@@ -7,6 +7,10 @@ change. Non-members receive NotFound, never a denial, so existence does not leak
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
@@ -48,11 +52,44 @@ GRANTABLE: frozenset[Perm] = frozenset(
 )
 
 
+@dataclass(frozen=True)
+class Delegation:
+    """A bounded grant under which one account's authority is evaluated (agent runs).
+
+    While active, that account is a member of ``workspace_id`` only, and its permissions
+    there are capped to ``permissions`` (never widened). Other accounts are unaffected.
+    """
+
+    user_id: Any
+    workspace_id: str
+    permissions: frozenset[Perm]
+
+
+_delegation: ContextVar[Delegation | None] = ContextVar("specmate_delegation", default=None)
+
+
+@contextmanager
+def delegated(user_id: Any, workspace_id: Any, permissions: frozenset[Perm]) -> Iterator[None]:
+    token = _delegation.set(Delegation(user_id, str(workspace_id), frozenset(permissions)))
+    try:
+        yield
+    finally:
+        _delegation.reset(token)
+
+
+def _delegation_for(user_id: Any) -> Delegation | None:
+    current = _delegation.get()
+    return current if current is not None and current.user_id == user_id else None
+
+
 def permissions_for(member: WorkspaceMember) -> frozenset[Perm]:
     granted = {Perm(g) for g in member.grants if g in GRANTABLE}
     permissions = ROLE_PERMISSIONS[member.role] | granted
     if Perm.INVENTORY_MANAGE in permissions:
         permissions |= {Perm.INVENTORY_RESERVE}
+    bound = _delegation_for(member.user_id)
+    if bound is not None:
+        permissions &= bound.permissions
     return frozenset(permissions)
 
 
@@ -64,6 +101,9 @@ def membership(user: Any, workspace_id: Any) -> WorkspaceMember | None:
     """The actor's current membership in a workspace, read fresh from the database."""
     if not _authenticated(user) or workspace_id is None:
         return None
+    bound = _delegation_for(user.pk)
+    if bound is not None and str(workspace_id) != bound.workspace_id:
+        return None
     return (
         WorkspaceMember.objects.select_related("workspace")
         .filter(workspace_id=workspace_id, user=user)
@@ -74,6 +114,9 @@ def membership(user: Any, workspace_id: Any) -> WorkspaceMember | None:
 def member_workspaces(user: Any):
     if not _authenticated(user):
         return Workspace.objects.none()
+    bound = _delegation_for(user.pk)
+    if bound is not None:
+        return Workspace.objects.filter(members__user=user, id=bound.workspace_id)
     return Workspace.objects.filter(members__user=user)
 
 
@@ -81,6 +124,11 @@ def visible_projects(user: Any):
     """Every project in the actor's workspaces; projects are not separate access scopes."""
     if not _authenticated(user):
         return Project.objects.none()
+    bound = _delegation_for(user.pk)
+    if bound is not None:
+        return Project.objects.filter(
+            workspace__members__user=user, workspace_id=bound.workspace_id
+        )
     return Project.objects.filter(workspace__members__user=user)
 
 

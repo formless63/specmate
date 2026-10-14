@@ -12,6 +12,7 @@ from specmate import queries
 from specmate.access.api import router as access_router
 from specmate.access.session import require_browser_request
 from specmate.access.session_api import router as session_router
+from specmate.agent_runs.api import router as agent_runs_router
 from specmate.assemblies.api import router as assemblies_router
 from specmate.bom.api import router as bom_router
 from specmate.builds.api import artifacts_router
@@ -63,6 +64,7 @@ api.add_router("/v0/access", access_router)
 api.add_router("/v0/workspace", workspace_router)
 api.add_router("/v0/discovery", discovery_router)
 api.add_router("/v0/preferences", preferences_router)
+api.add_router("/v0/agent-runs", agent_runs_router)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/sources", sources_router)
 api.add_router("/v0/catalog-matching", matching_router)

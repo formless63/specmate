@@ -1,0 +1,101 @@
+{
+  "additionalProperties": false,
+  "description": "Grant an agent account a bounded, draft-level scope on the sponsor's behalf.",
+  "properties": {
+    "agent_username": {
+      "anyOf": [
+        {
+          "maxLength": 150,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent Username"
+    },
+    "allowed_actions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Allowed Actions",
+      "type": "array"
+    },
+    "boundary_actions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Boundary Actions",
+      "type": "array"
+    },
+    "checkpoint_every": {
+      "anyOf": [
+        {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Checkpoint Every"
+    },
+    "deadline": {
+      "format": "date-time",
+      "title": "Deadline",
+      "type": "string"
+    },
+    "max_actions": {
+      "maximum": 1000,
+      "minimum": 1,
+      "title": "Max Actions",
+      "type": "integer"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "purpose": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Purpose",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "title",
+    "allowed_actions",
+    "max_actions",
+    "deadline"
+  ],
+  "title": "CreateRun",
+  "type": "object"
+}
