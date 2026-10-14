@@ -72,7 +72,7 @@ test("assembly create, edit and freeze send shared operations with expected stat
   expect(screen.getAllByText("exact-revision", { selector: 'code' }).length).toBeGreaterThan(0);
   fireEvent.click(screen.getByText("Freeze assembly revision"));
   await waitFor(() => expect(calls).toHaveLength(3));
-  expect(calls[0]).toMatchObject({ operation: "assembly.create", payload: { name: "Synthetic" } }); expect(calls[0].payload).not.toHaveProperty("project_id");
+  expect(calls[0]).toMatchObject({ operation: "assembly.create", payload: { name: "Synthetic" } }); expect(calls[0]?.payload).not.toHaveProperty("project_id");
   expect(calls[1]).toMatchObject({ operation: "assembly.update", expected_state: "draft-v1", payload: { draft_id: "draft", assembly: { occurrences: [{ local_id: "second-board", revision_id: "exact-revision", display_ref: "J1", placement: { status: "unknown" } }] } } });
   expect(calls[2]).toMatchObject({ operation: "assembly.freeze", expected_state: "draft-v2", payload: { draft_id: "draft" } });
 });
