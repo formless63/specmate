@@ -131,6 +131,7 @@ def list_observations(user, workspace_id, revision_id, *, kind=None):
         out.append(
             {
                 "observation_id": str(o.id),
+                "promoted_offer_id": str(o.promotion.offer_id) if hasattr(o, "promotion") else None,
                 "kind": o.kind,
                 "observed_on": o.observed_on.isoformat(),
                 "valid_until": o.valid_until.isoformat() if o.valid_until else None,
@@ -160,6 +161,7 @@ def list_observations(user, workspace_id, revision_id, *, kind=None):
         )
     return {
         "revision_id": str(revision_id),
+        "label": "External observations (not reviewed)",
         "observations": out,
         "is_stock_ledger": False,
     }

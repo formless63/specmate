@@ -7,6 +7,7 @@ from specmate.integrations.contracts import (
     CreateIntegration,
     ExportNeeds,
     ImportObservations,
+    PromoteObservation,
     UpdateIntegration,
 )
 from specmate.integrations.models import (
@@ -14,6 +15,7 @@ from specmate.integrations.models import (
     ExternalObservation,
     ImportRun,
     Integration,
+    ObservationPromotion,
 )
 from specmate.integrations.queries import (
     export_result,
@@ -157,21 +159,12 @@ def import_observations(ctx: Context, p: ImportObservations):
         return import_result(earlier, duplicate=True)
     rows = adapter.read_rows(p.content, p.file_format, integration.columns)
     accepted, rejections = [], []
-    cache: dict[str, object] = {}
+    cache: dict = {}
     for number, raw in enumerate(rows, start=1):
         row, reason = adapter.validate_row(p.field, raw)
         revision = None
         if row is not None:
-            if row.revision_id not in cache:
-                try:
-                    found = get_revision(ctx.user, row.revision_id)
-                    ok = found.definition.workspace_id == integration.workspace_id
-                    cache[row.revision_id] = found if ok else None
-                except (NotFound, PermissionDenied, ValueError, ValidationFailed):
-                    cache[row.revision_id] = None
-            revision = cache[row.revision_id]
-            if revision is None:
-                reason = "revision_id: not an item revision in this workspace"
+            revision, reason = _resolve(ctx, integration, row, cache)
         if reason is not None:
             if len(rejections) < 100:  # the exact count is row_count - accepted_count
                 rejections.append({"row": number, "reason": reason})
@@ -194,6 +187,48 @@ def import_observations(ctx: Context, p: ImportObservations):
         [_observation(run, p.field, n, row, rev) for n, row, rev in accepted]
     )
     return import_result(run)
+
+
+def _resolve(ctx, integration, row, cache):
+    """Resolve a row's item to one exact, readable revision in the integration workspace."""
+    if row.revision_id is not None:
+        key = ("id", row.revision_id)
+    else:
+        key = ("source", row.scheme, row.identifier)
+    if key not in cache:
+        cache[key] = _lookup(ctx, integration, row)
+    return cache[key]
+
+
+def _lookup(ctx, integration, row):
+    from specmate.catalog.models import SourceIdentifier
+
+    if row.revision_id is not None:
+        ids = [row.revision_id]
+    else:
+        ids = list(
+            SourceIdentifier.objects.filter(
+                scheme=row.scheme,
+                identifier=row.identifier,
+                revision__definition__workspace_id=integration.workspace_id,
+            )
+            .values_list("revision_id", flat=True)
+            .distinct()[:2]
+        )
+        if not ids:
+            return None, "identifier: no revision in this workspace has this scheme and identifier"
+        if len(ids) > 1:
+            return (
+                None,
+                "identifier: ambiguous, more than one revision has this scheme and identifier",
+            )
+    try:
+        found = get_revision(ctx.user, ids[0])
+    except (NotFound, PermissionDenied, ValueError, ValidationFailed):
+        found = None
+    if found is None or found.definition.workspace_id != integration.workspace_id:
+        return None, "revision_id: not an item revision in this workspace"
+    return found, None
 
 
 def _observation(run, field, number, row, revision):
@@ -279,3 +314,77 @@ def _amount(value):
     from specmate.inventory.queries import decimal_text
 
     return None if value is None else decimal_text(value)
+
+
+def promote_scope(ctx: Context, p: PromoteObservation) -> str:
+    observation = (
+        ExternalObservation.objects.filter(id=p.observation_id).only("workspace_id").first()
+    )
+    if observation is None:
+        raise NotFound("Observation not found.")
+    authorize(ctx.user, observation.workspace_id, Perm.ITEM_CREATE)
+    return f"workspace:{observation.workspace_id}"
+
+
+@operation(
+    "integration.promote_observation",
+    PromoteObservation,
+    summary="Explicitly turn an imported supplier-offer observation into a reviewed offer.",
+    idempotency_scope=promote_scope,
+    authorize_replay=lambda ctx, p, stored: promote_scope(ctx, p),
+    access=Perm.ITEM_CREATE,
+)
+def promote_observation(ctx: Context, p: PromoteObservation):
+    from specmate.sourcing.contracts import Price, RecordOffer
+    from specmate.sourcing.operations import record_offer
+    from specmate.sourcing.queries import offer_result
+
+    promote_scope(ctx, p)
+    observation = (
+        ExternalObservation.objects.select_for_update()
+        .select_related("run__integration")
+        .get(id=p.observation_id)
+    )
+    if observation.kind != "supplier_offer":
+        raise ValidationFailed("Only supplier-offer observations can become offers.")
+    existing = (
+        ObservationPromotion.objects.select_related("offer__reviewed_by")
+        .filter(observation=observation)
+        .first()
+    )
+    if existing is not None:
+        get_revision(ctx.user, existing.offer.revision_id)
+        return {
+            "observation_id": str(observation.id),
+            "offer": offer_result(existing.offer),
+            "already_promoted": True,
+        }
+    price = None
+    if observation.price_amount is not None or observation.price_currency is not None:
+        price = Price(
+            amount=observation.price_amount,
+            currency=observation.price_currency,
+            per_unit=observation.price_unit or "ea",
+        )
+    run = observation.run
+    source = f"Integration {run.integration.name}, import {run.id}, file {run.content_sha256}"
+    offer = record_offer(
+        ctx,
+        RecordOffer(
+            workspace_id=observation.workspace_id,
+            revision_id=observation.revision_id,
+            supplier=observation.supplier,
+            supplier_ref=observation.external_ref,
+            source=source,
+            review_basis=p.review_basis,
+            offered_on=observation.observed_on,
+            valid_until=observation.valid_until,
+            price=price,
+            availability=observation.availability or "unknown",
+            lead_time_days=observation.lead_time_days,
+        ),
+    )
+    ObservationPromotion.objects.create(
+        observation=observation, offer_id=offer["offer_id"], actor=ctx.user
+    )
+    return {"observation_id": str(observation.id), "offer": offer, "already_promoted": False}

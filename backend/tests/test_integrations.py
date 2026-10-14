@@ -288,3 +288,67 @@ def test_no_integration_leaves_engineering_work_functional(users, sourced):
     result = report(users["owner"], sourced["bom"]["revision_id"])
     assert row(result, sourced["board"])["stock"]["status"] == "none_recorded"
     assert ExternalObservation.objects.count() == 0
+
+
+def register_ident(users, revision, scheme="sku", identifier="SKU-1"):
+    return op(
+        users["owner"],
+        "catalog.register_source_identifier",
+        {
+            "revision_id": revision["revision_id"],
+            "scheme": scheme,
+            "identifier": identifier,
+            "label": "Synthetic",
+            "rights": "Synthetic",
+            "rights_status": "unknown",
+        },
+    )
+
+
+def test_rows_resolve_by_source_identifier_with_explained_rejections(users, sourced):
+    register_ident(users, sourced["board"])
+    register_ident(users, sourced["board"], identifier="DUP")
+    register_ident(users, sourced["component"], identifier="DUP")
+    integ = make(users, sourced)
+    content = csv_of(
+        [
+            ["", "sku", "SKU-1", "Ok", DAY, "1", "USD"],
+            ["", "sku", "MISSING", "A", DAY, "1", "USD"],
+            ["", "sku", "DUP", "B", DAY, "1", "USD"],
+            [sourced["board"]["revision_id"], "sku", "SKU-1", "C", DAY, "1", "USD"],
+            ["", "sku", "", "D", DAY, "1", "USD"],
+        ],
+        [
+            "revision_id",
+            "scheme",
+            "identifier",
+            "supplier",
+            "offered_on",
+            "price_amount",
+            "price_currency",
+        ],
+    )
+    result = do_import(users, integ, "supplier_offer", content)
+    assert result["accepted_count"] == 1
+    reasons = {r["row"]: r["reason"] for r in result["rejections"]}
+    assert "no revision" in reasons[2] and "ambiguous" in reasons[3]
+    assert reasons[4] and reasons[5]
+    assert str(ExternalObservation.objects.get().revision_id) == sourced["board"]["revision_id"]
+
+
+def test_promotion_creates_a_reviewed_offer_once(users, sourced):
+    integ = make(users, sourced)
+    board = sourced["board"]["revision_id"]
+    do_import(users, integ, "supplier_offer", csv_of([[board, "S", DAY, "4", "USD"]], OFFER_HEADER))
+    observation = ExternalObservation.objects.get()
+    body = {"observation_id": str(observation.id), "review_basis": "Checked the quote"}
+    with pytest.raises(PermissionDenied):
+        op(users["viewer"], "integration.promote_observation", body)
+    first = op(users["editor"], "integration.promote_observation", body)
+    assert first["offer"]["reviewed_by"]["username"] == "editor"
+    assert first["offer"]["price"]["amount"] == "4" and not first["already_promoted"]
+    again = op(users["owner"], "integration.promote_observation", body)
+    assert again["already_promoted"] and again["offer"]["offer_id"] == first["offer"]["offer_id"]
+    assert SupplierOffer.objects.count() == 1
+    listed = op_get(users, sourced, board)
+    assert listed["observations"][0]["promoted_offer_id"] == first["offer"]["offer_id"]

@@ -124,3 +124,17 @@ class ExportRecord(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     request_id = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ObservationPromotion(models.Model):
+    """Link from an external observation to the reviewed offer created from it."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    observation = models.OneToOneField(
+        ExternalObservation, on_delete=models.PROTECT, related_name="promotion"
+    )
+    offer = models.OneToOneField(
+        "sourcing.SupplierOffer", on_delete=models.PROTECT, related_name="+"
+    )
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)

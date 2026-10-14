@@ -22,6 +22,8 @@ MAX_ROWS = 5000
 IMPORT_COLUMNS = {
     "supplier_offer": [
         "revision_id",
+        "scheme",
+        "identifier",
         "supplier",
         "supplier_ref",
         "offered_on",
@@ -34,6 +36,8 @@ IMPORT_COLUMNS = {
     ],
     "stock_observation": [
         "revision_id",
+        "scheme",
+        "identifier",
         "external_ref",
         "observed_on",
         "quantity_amount",
@@ -61,12 +65,26 @@ def _blank_is_unknown(value):
 class _Row(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
-    revision_id: UUID
+    # Exactly one way to name the item: an exact revision id, or a registered source
+    # identifier (scheme + identifier) resolved within the workspace.
+    revision_id: UUID | None = None
+    scheme: str | None = None
+    identifier: str | None = None
 
     @field_validator("*", mode="before")
     @classmethod
     def blank(cls, value):
         return _blank_is_unknown(value)
+
+    @model_validator(mode="after")
+    def names_one_item(self):
+        by_id = self.revision_id is not None
+        by_source = self.scheme is not None or self.identifier is not None
+        if by_id == by_source:
+            raise ValueError("Give either revision_id or both scheme and identifier.")
+        if by_source and (self.scheme is None or self.identifier is None):
+            raise ValueError("scheme and identifier must be given together.")
+        return self
 
 
 class OfferRow(_Row):

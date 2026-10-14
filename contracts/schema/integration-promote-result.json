@@ -1,0 +1,25 @@
+{
+  "properties": {
+    "already_promoted": {
+      "title": "Already Promoted",
+      "type": "boolean"
+    },
+    "observation_id": {
+      "format": "uuid",
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "offer": {
+      "additionalProperties": true,
+      "title": "Offer",
+      "type": "object"
+    }
+  },
+  "required": [
+    "observation_id",
+    "offer",
+    "already_promoted"
+  ],
+  "title": "PromoteResult",
+  "type": "object"
+}

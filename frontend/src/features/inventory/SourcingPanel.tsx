@@ -6,6 +6,7 @@ import { SbStatus, SbUnknown, type SbLed } from "../../components/sb";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import type { Definition, Identity } from "../identity/api";
 import { command, request } from "./api";
+import { ExternalObservations } from "../integrations/ExternalObservations";
 import { fetchReport, read, type OfferView, type Qty, type SourcingReport } from "./sourcing";
 
 const FRESH_LED: Record<string, SbLed> = { current: "active", stale: "stale", expired: "failed", unknown: "not-evaluated" };
@@ -27,7 +28,7 @@ function OfferLine({ offer }: { offer: OfferView }) {
   </Group>;
 }
 
-function ReportView({ report }: { report: SourcingReport }) {
+function ReportView({ report, workspaceId }: { report: SourcingReport; workspaceId: string }) {
   return <Stack gap="xs">
     <Group gap="md">
       <SbStatus led={report.cost.status === "complete" ? "active" : "not-evaluated"} dimension="cost" value={report.cost.status.replace("_", " ")} />
@@ -43,6 +44,9 @@ function ReportView({ report }: { report: SourcingReport }) {
         <Table.Td><Quantity value={row.shortfall} what="shortfall" />{row.shortfall.reason && <Text size="xs">{row.shortfall.reason.replaceAll("_", " ")}</Text>}{row.shortfall.at_most && <Text size="xs">at most {row.shortfall.at_most}</Text>}{row.shortfall.at_least && <Text size="xs">at least {row.shortfall.at_least}</Text>}</Table.Td>
         <Table.Td><Stack gap={4}>{row.offers.length === 0 && row.substitutes.length === 0 && <SbUnknown what="offers" />}{row.offers.map((offer) => <OfferLine key={offer.offer_id} offer={offer} />)}{row.substitutes.map((offer) => <OfferLine key={offer.offer_id} offer={offer} />)}</Stack></Table.Td>
       </Table.Tr>)}</Table.Tbody></Table>
+    <Title order={4}>External observations (not reviewed)</Title>
+    <Text size="xs">Imported from an integration. These are never counted as offers or in the cost above until someone promotes one to a reviewed offer.</Text>
+    {report.rows.map((row) => <ExternalObservations key={row.revision_id} workspaceId={workspaceId} revisionId={row.revision_id} name={row.name} />)}
     <Text size="xs">{report.limitations.join(" ")}</Text>
   </Stack>;
 }
@@ -101,7 +105,7 @@ export function SourcingPanel({ workspaceId }: { workspaceId: string }) {
     {(plan.error ?? report.error) && <Alert color="red">{(plan.error ?? report.error)?.message}</Alert>}
     <Chooser label="Plan" choice={plan} />
     <Group><TextInput label="Treat offers older than (days)" value={maxAge} onChange={(e) => setMaxAge(e.currentTarget.value)} /><TextInput label="As of date (YYYY-MM-DD)" value={asOf} onChange={(e) => setAsOf(e.currentTarget.value)} /></Group>
-    {report.data && <ReportView report={report.data} />}
+    {report.data && <ReportView report={report.data} workspaceId={workspaceId} />}
     <Title order={4}>Record a reviewed offer</Title>
     {record.isError && <Alert color="red">{record.error.message}</Alert>}
     {record.isSuccess && <Alert color="green">Offer recorded; you are its reviewer.</Alert>}

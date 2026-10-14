@@ -15,6 +15,8 @@ class IntegrationsConfig(AppConfig):
             ImportObservations,
             ImportResult,
             IntegrationResult,
+            PromoteObservation,
+            PromoteResult,
             UpdateIntegration,
         )
 
@@ -27,5 +29,7 @@ class IntegrationsConfig(AppConfig):
                 "integration-import-result": ImportResult,
                 "integration-export-needs": ExportNeeds,
                 "integration-export-result": ExportResult,
+                "integration-promote": PromoteObservation,
+                "integration-promote-result": PromoteResult,
             }
         )

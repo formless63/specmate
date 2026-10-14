@@ -62,6 +62,18 @@ class ExportNeeds(Payload):
     file_format: FileFormat = "csv"
 
 
+class PromoteObservation(Payload):
+    observation_id: UUID
+    # The reviewer's own basis; the actor becomes the offer's reviewer.
+    review_basis: str = Field(min_length=1, max_length=4000)
+
+
+class PromoteResult(BaseModel):
+    observation_id: UUID
+    offer: dict
+    already_promoted: bool
+
+
 class IntegrationResult(BaseModel):
     integration_id: UUID
     workspace_id: UUID
