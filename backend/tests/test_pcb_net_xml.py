@@ -53,21 +53,37 @@ def test_omitted_membership_unknown_and_uninterpreted_metadata_retained_as_cover
     assert "Uninterpreted XML element: future" in report["unsupported"]
 
 
-def test_duplicate_labels_and_multiunit_pin_numbers_never_guess_node_assignment():
-    for components in (
-        component("J1", 1) + component("J1", 2),
-        component("J1", 1).replace(
-            "</units>", '<unit name="B"><pins><pin num="1"/></pins></unit></units>'
+def test_duplicate_component_labels_never_guess_node_assignment():
+    report = normalize_xml(
+        document(
+            component("J1", 1) + component("J1", 2),
+            '<net code="1" name="N"><node ref="J1" pin="1"/></net>',
         ),
-    ):
-        report = normalize_xml(
-            document(components, '<net code="1" name="N"><node ref="J1" pin="1"/></net>'),
-            SOURCE_SHA,
-        )
-        assert len(report["terminals"]) == 2
-        assert len({t["local_id"] for t in report["terminals"]}) == 2
-        assert all(t["net_state"] == "unknown" for t in report["terminals"])
-        assert "Ambiguous or missing net node: J1.1" in report["unsupported"]
+        SOURCE_SHA,
+    )
+    assert len(report["terminals"]) == 2
+    assert all(t["net_state"] == "unknown" for t in report["terminals"])
+    assert "Ambiguous or missing net node: J1.1" in report["unsupported"]
+
+
+def test_pad_number_shared_by_units_assigns_net_to_every_unit_terminal_that_carries_it():
+    comp = component("U1", 1, ("1", "2")).replace(
+        "</units>", '<unit name="B"><pins><pin num="1"/><pin num="3"/></pins></unit></units>'
+    )
+    report = normalize_xml(
+        document(
+            comp,
+            '<net code="1" name="VCC"><node ref="U1" pin="1"/></net>'
+            '<net code="2" name="SIG"><node ref="U1" pin="3"/></net>',
+        ),
+        SOURCE_SHA,
+    )
+    got = {(t["unit"], t["pin"]): t["net_name"] for t in report["terminals"]}
+    assert got == {("A", "1"): "VCC", ("B", "1"): "VCC", ("A", "2"): None, ("B", "3"): "SIG"}
+    states = {(t["unit"], t["pin"]): t["net_state"] for t in report["terminals"]}
+    assert states[("A", "2")] == "unknown"
+    shared = [t for t in report["terminals"] if t["pin"] == "1"]
+    assert all("shared by several units" in t["basis"] for t in shared)
 
 
 def multiunit(ref, uuids, units=("A", "B", "C")):

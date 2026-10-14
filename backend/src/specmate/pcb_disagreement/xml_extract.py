@@ -217,19 +217,23 @@ def normalize_xml(raw, source_sha256):
         for node in net.findall("node"):
             key = (bounded(node.get("ref")), bounded(node.get("pin")))
             candidates = by_label.get(key, [])
-            if len(candidates) != 1 or refs[key[0]] != 1:
+            if not candidates or refs[key[0]] != 1:
                 unsupported.add("Ambiguous or missing net node: " + ".".join(key))
                 continue
-            terminal = candidates[0]
-            if terminal["local_id"] in assigned:
-                raise ValueError("A terminal is assigned more than once")
-            assigned.add(terminal["local_id"])
-            # KiCad auto-generated unconnected names are not explicit NC proof.
-            terminal.update(
-                net_state="assigned",
-                net_name=name,
-                basis="Reported KiCad XML net membership; not routed copper or continuity proof",
-            )
+            # A node names a footprint pad. The same pad number listed under several
+            # units is one pad, so every unit terminal carrying it gets the reported net.
+            shared = len({t["unit"] for t in candidates}) > 1
+            for terminal in candidates:
+                if terminal["local_id"] in assigned:
+                    raise ValueError("A terminal is assigned more than once")
+                assigned.add(terminal["local_id"])
+                # KiCad auto-generated unconnected names are not explicit NC proof.
+                terminal.update(
+                    net_state="assigned",
+                    net_name=name,
+                    basis="Reported KiCad XML net membership; not routed copper or continuity proof"
+                    + ("; pad number is shared by several units" if shared else ""),
+                )
     unsupported.update(
         [
             "Terminal UUIDs are not exported; component UUID, sheet, unit and pin "

@@ -458,3 +458,28 @@ def test_schematic_formats_accepted_by_the_native_report(role, method, version, 
         with pytest.raises(ValidationError):
             NativeReport.model_validate(report)
     assert '("20250114","20260306")' in PROGRAM
+
+
+def test_failed_extraction_lists_its_named_diagnostic(users, workspace, native_request):
+    attempt = request(users["owner"], native_request)
+    stage = BuildStage.objects.get(build_id=attempt["build_id"])
+    message = "[component-uuid-unit-mismatch] Component RN1 lists 2 UUIDs for 3 units."
+    staged = blobstore.stage(
+        io.BytesIO(json.dumps({"status": "failed", "error": message}).encode()), 2 * 1024**2
+    )
+    blobstore.promote(staged)
+    StageOutput.objects.create(
+        stage=stage,
+        path=REPORT_PATH,
+        sha256=staged.sha256,
+        size=staged.size,
+        media_type="application/json",
+        rights="synthetic",
+        source_revision_id=stage.build.source_revision_id,
+    )
+    stage.state = "failed"
+    stage.receipt = {"outcome": "failed", "exit_code": 1, "outputs": []}
+    stage.save()
+    listed = list_native(users["editor"], UUID(workspace))["attempts"][0]
+    assert listed["state"] == "failed" and listed["diagnostic"] == message
+    assert listed["interpretation"] is None
