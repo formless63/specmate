@@ -6,7 +6,7 @@ import pytest
 from django.db import DatabaseError, transaction
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.bom.queries import inspect_revision
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
@@ -17,7 +17,7 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import ensure_member, op
 
 
 def capture(user, draft, operation="draft.freeze", **kwargs):
@@ -194,9 +194,11 @@ def test_invalid_plan_rolls_back(users, project, mutation):
 
 def test_replay_cas_authorization_and_dependency_revocation(users, project):
     user = users["editor"]
-    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     private = op(users["owner"], "project.create", {"name": "Private reference"})["project_id"]
-    member = Membership.objects.create(user=user, project_id=private, role="viewer")
+    member = ensure_member(user, "viewer", project=private)
     *_, plan = fixture(users["owner"], private)
     draft = create(user, project, plan, idempotency_key="create")
     assert create(user, project, plan, idempotency_key="create") == draft
@@ -259,11 +261,13 @@ def test_http_jobs_and_generic_capture_hooks(users, project):
 
 def test_supplemental_hidden_dependency_rechecked_before_bad_path_and_after_freeze(users, project):
     user = users["editor"]
-    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     private = op(users["owner"], "project.create", {"name": "Restricted process input"})[
         "project_id"
     ]
-    membership = Membership.objects.create(user=user, project_id=private, role="viewer")
+    membership = ensure_member(user, "viewer", project=private)
     hidden = part(users["owner"], private, "Synthetic restricted wipe")
     *_, plan = fixture(users["owner"], project)
     plan["needs"] = [
@@ -295,7 +299,9 @@ def test_supplemental_cannot_duplicate_retained_child_and_freeze_requires_curren
     users, project
 ):
     user = users["editor"]
-    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     component, _, _, plan = fixture(users["owner"], project)
     invalid = copy.deepcopy(plan)
     invalid["needs"] = [
@@ -311,7 +317,7 @@ def test_supplemental_cannot_duplicate_retained_child_and_freeze_requires_curren
         create(user, project, invalid)
     draft = create(user, project, plan)
     capture(user, draft, "bom.freeze", idempotency_key="freeze-grant")
-    Membership.objects.filter(user=user, project_id=project).update(grants=[])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(grants=[])
     with pytest.raises(PermissionDenied):
         capture(user, draft, "bom.freeze", idempotency_key="freeze-grant")
 
@@ -389,7 +395,9 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
     from .test_workshop_profiles import profile, stock_revision
 
     owner, user = users["owner"], users["editor"]
-    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     stock_id, _ = stock_revision(users, project)
     raw = b"Synthetic process instruction."
     digest = hashlib.sha256(raw).hexdigest()

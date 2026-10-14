@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildAttempt, BuildOutbox
 from specmate.builds.operations import _execution_allowed
 from specmate.firmware_builds.contracts import FirmwareRef
@@ -112,8 +112,8 @@ def test_shared_lease_rechecks_exact_frozen_occurrence_parent_authority(
     assert _execution_allowed(build)
     assert op(owner, "build.get", {"build_id": compiled_request["build_id"]})["state"]
     # Fixture revocation isolates contextual parent authority from readable source/project.
-    Membership.objects.filter(project_id=auxiliary, user=owner).delete()
-    assert Membership.objects.filter(project_id=project, user=owner).exists()
+    WorkspaceMember.objects.filter(workspace__projects=auxiliary, user=owner).delete()
+    assert WorkspaceMember.objects.filter(workspace__projects=project, user=owner).exists()
     assert not _execution_allowed(build)
     with pytest.raises(NotFound):
         op(owner, "build.get", {"build_id": compiled_request["build_id"]})

@@ -3,7 +3,7 @@
 import pytest
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.access.permissions import Perm
 from specmate.facts.models import FactAssertion, FactSubject
 from specmate.facts.queries import read_facts
@@ -124,7 +124,7 @@ def test_unit_writes_need_inventory_authority_and_replays_recheck_current_grant(
         post_op(api(users["viewer"]), "facts.register_subject", {"target": target}).status_code
         == 403
     )
-    Membership.objects.filter(project_id=project, user=users["viewer"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).update(
         grants=[Perm.INVENTORY_MANAGE.value]
     )
     registered = post_op(
@@ -143,7 +143,9 @@ def test_unit_writes_need_inventory_authority_and_replays_recheck_current_grant(
         append(users["viewer"], ledger, fact("other", role="actual"), key="unit-fact")
     with pytest.raises(PermissionDenied):
         register(users["viewer"], {"kind": "project", "project_id": project})
-    Membership.objects.filter(project_id=project, user=users["viewer"]).update(grants=[])
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).update(
+        grants=[]
+    )
     with pytest.raises(PermissionDenied):
         register(users["viewer"], target, key="unit-ledger")
     with pytest.raises(PermissionDenied):

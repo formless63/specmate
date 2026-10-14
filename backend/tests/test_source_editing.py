@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db import DatabaseError, IntegrityError, transaction
 from django.test import Client, RequestFactory
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -26,7 +26,7 @@ from specmate.sources.models import (
     SourceEditSubmission,
 )
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_sources import register, sha
 
 ORIGINAL = {
@@ -72,7 +72,7 @@ def hide_archive_member(users, revision_id):
         media_type="text/plain",
         rights="unknown",
     )
-    Membership.objects.filter(project_id=project, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=user).delete()
 
 
 def original(users, project, contents=ORIGINAL, rights="synthetic-original"):
@@ -431,7 +431,7 @@ def test_closure_authorized_before_diagnostics_and_retained_conflicts(users, pro
             ],
         },
     )
-    Membership.objects.create(project_id=other, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=other)
     with pytest.raises(PermissionDenied):
         preview(
             users["editor"],
@@ -439,11 +439,13 @@ def test_closure_authorized_before_diagnostics_and_retained_conflicts(users, pro
         )
     reviewed = preview(users["editor"], payload)
     result = submit(users["editor"], payload, reviewed, idempotency_key="retained")
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="viewer"
+    )
     for body in ({}, {"summary": "mismatched"}):
         with pytest.raises(PermissionDenied):
             submit(users["editor"], payload, reviewed, idempotency_key="retained", body=body)
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         submit(users["editor"], payload, reviewed, idempotency_key="retained")
     request = RequestFactory().get("/")

@@ -9,7 +9,7 @@ import json
 import pytest
 from django.db import DatabaseError, connection, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.configurations.models import ResolvedConfiguration
 from specmate.design.models import Snapshot, SnapshotDependency
 from specmate.operations import (
@@ -20,7 +20,7 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_firmware import (  # noqa: F401
     CONFIG,
     MAIN,
@@ -402,7 +402,7 @@ def test_authority_cross_project_and_stale_review(users, project, parts, option_
     )
     with pytest.raises(NotFound):
         configuration(users["editor"], project, foreign["revision_id"])
-    Membership.objects.create(project_id=other, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=other)
     shared = configuration(users["editor"], project, foreign["revision_id"])
     assert (
         op(users["editor"], "configuration.resolve", {"draft_id": shared["draft_id"]})[
@@ -412,7 +412,7 @@ def test_authority_cross_project_and_stale_review(users, project, parts, option_
     )
     shared_capture = capture(users["editor"], shared["draft_id"])
     # Revoking the foreign read hides the retained record and the draft closure.
-    Membership.objects.filter(project_id=other, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         op(
             users["editor"],

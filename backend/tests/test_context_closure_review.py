@@ -6,14 +6,14 @@ from uuid import UUID
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog_packs.models import AdoptionEntry
 from specmate.design.models import Snapshot
 from specmate.design.operations import authorize_snapshot
 from specmate.operations import Conflict, NotFound
 from specmate.queries import get_draft
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_bom import assembly, capture, create, part
 from .test_catalog_packs import adopt, install, manifest, registered
 from .test_sources import files, register, sha
@@ -26,7 +26,7 @@ def source_origin(users, project):
         "project_id"
     ]
     for name in ("editor", "viewer"):
-        Membership.objects.create(project_id=remote, user=users[name], role="viewer")
+        ensure_member(users[name], "viewer", project=remote)
     data = b"Synthetic inert declaration; no geometry, solver or device evidence.\n"
     register(users["owner"], remote, data)
     source = op(
@@ -70,13 +70,13 @@ def test_failed_batch_preserves_prior_success_without_publishing_failed_origin(
     )
     prior = completed.copy()
     assert prior == {UUID(safe["snapshot_id"])}
-    Membership.objects.filter(project_id=remote, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["viewer"]).delete()
     with pytest.raises(NotFound, match=r"^Project not found\.$"):
         authorize_snapshot(
             users["viewer"], Snapshot.objects.get(pk=root["snapshot_id"]), _authorized=completed
         )
     assert completed == prior
-    Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=remote)
     authorize_snapshot(
         users["viewer"], Snapshot.objects.get(pk=root["snapshot_id"]), _authorized=completed
     )
@@ -107,7 +107,7 @@ def test_snapshot_replay_uses_fresh_source_origin_before_stale_cas_and_preserves
         {"draft_id": draft["draft_id"], "bom": updated_plan},
         expected_state=draft["state"],
     )
-    Membership.objects.filter(project_id=remote, user=actor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=actor).delete()
     count = Snapshot.objects.count()
     for key in (None, "independent-snapshot"):
         with pytest.raises(NotFound, match=r"^Project not found\.$"):
@@ -121,7 +121,7 @@ def test_snapshot_replay_uses_fresh_source_origin_before_stale_cas_and_preserves
     )
     assert denied.status_code == 404 and "snapshot_id" not in denied.json()
     assert Snapshot.objects.count() == count and bytes(row.canonical) == raw
-    Membership.objects.create(project_id=remote, user=actor, role="viewer")
+    ensure_member(actor, "viewer", project=remote)
     assert capture(actor, draft, operation, idempotency_key="independent-snapshot") == snap
     with pytest.raises(Conflict):
         capture(actor, draft, operation)

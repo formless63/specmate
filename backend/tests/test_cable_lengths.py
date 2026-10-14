@@ -3,7 +3,7 @@ import copy
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.cables.queries import inspect_revision
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
@@ -208,7 +208,7 @@ def test_current_cross_project_closure_denies_old_new_reads_and_changed_replay(u
     draft = create(user, project, cable, idempotency_key="source-length")
     before = capture(user, draft)
     after = capture(user, before["draft"])
-    Membership.objects.filter(project_id=source_project, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=source_project, user=user).delete()
     for rid in [before["revision_id"], after["revision_id"]]:
         with pytest.raises((PermissionDenied, NotFound)):
             inspect_revision(user, rid)
@@ -266,7 +266,7 @@ def test_hidden_retained_result_is_checked_before_changed_payload_diagnostics(
             payload["cable"] = accessible_cable
         state = other["state"]
         key = "retained-guard"
-    Membership.objects.filter(project_id=private_project, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=private_project, user=user).delete()
     with pytest.raises((PermissionDenied, NotFound)):
         op(user, operation_name, payload, expected_state=state, idempotency_key=key)
 
@@ -335,7 +335,7 @@ def test_hidden_retained_authority_precedes_supplied_semantic_diagnostics(
         if operation_name == "cable.create"
         else {"draft_id": fresh["draft_id"], "cable": replacement}
     )
-    Membership.objects.filter(project_id=hidden_project, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=hidden_project, user=user).delete()
     with pytest.raises((PermissionDenied, NotFound)):
         op(
             user,

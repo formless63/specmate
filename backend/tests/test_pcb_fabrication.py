@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 from django.test import RequestFactory
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageOutput
 from specmate.operations import (
     IdempotencyMismatch,
@@ -210,7 +210,7 @@ def test_review_drc_findings_download_and_revoked_access(users, intake, requeste
         read_options(read_request(users["viewer"]), intake["intake_id"])["builds"][0]["state"]
         == "succeeded"
     )
-    Membership.objects.filter(user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         op(users["viewer"], "pcb_fabrication.read", payload)
     with pytest.raises(NotFound):
@@ -266,7 +266,7 @@ def test_review_requires_complete_output_provenance(users, intake, requested, in
 
 
 def test_keyed_mismatch_rechecks_current_authority(users, intake, requested):
-    Membership.objects.filter(user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(
             users["owner"],
@@ -348,7 +348,7 @@ def test_hidden_source_parent_blocks_request_and_options_before_missing_report(
     item = PcbIntake.objects.create(
         source_revision=derived, board_path="board.kicad_pcb", created_by=users["owner"]
     )
-    Membership.objects.filter(user=users["owner"], project_id=parent_project).delete()
+    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
     with pytest.raises(NotFound):
         op(
             users["owner"],
@@ -366,7 +366,7 @@ def test_hidden_output_parent_precedes_provenance_diagnostics_and_keyed_mismatch
     parent_project, parent_id = other_source(users)
     derived = derived_record(users["owner"], source["revision_id"], parent_id)
     stage = register_test_outputs(requested, source_revision_id=derived.id)
-    Membership.objects.filter(user=users["owner"], project_id=parent_project).delete()
+    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
     with pytest.raises(NotFound):
         read_build(read_request(users["owner"]), intake["intake_id"], requested["build_id"])
     with pytest.raises(NotFound):

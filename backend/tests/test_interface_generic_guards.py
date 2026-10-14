@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 from specmate.queries import get_draft, get_revision
@@ -110,7 +110,9 @@ def test_revoked_exact_body_blocks_generic_reads_stale_conflicts_and_retained_re
         expected_state=pins["state"],
         idempotency_key="freeze-pins",
     )
-    Membership.objects.filter(project_id=remote["project_id"], user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=remote["project_id"], user=users["owner"]
+    ).delete()
     for read in [
         lambda: get_draft(users["owner"], pins["draft_id"]),
         lambda: get_revision(users["owner"], revision["revision_id"]),
@@ -160,7 +162,9 @@ def test_generic_dependency_capture_rechecks_transitive_exact_scope(users, proje
             "name": "Generic dependency parent",
         },
     )
-    Membership.objects.filter(project_id=remote["project_id"], user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=remote["project_id"], user=users["owner"]
+    ).delete()
     before = Snapshot.objects.count()
     with pytest.raises(NotFound):
         op(

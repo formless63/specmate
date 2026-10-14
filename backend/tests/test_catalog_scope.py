@@ -2,7 +2,7 @@
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog.models import ManufacturerVariant, PhysicalLot, Representation
 from specmate.operations import NotFound, PermissionDenied
 from specmate.operations.models import IdempotencyRecord
@@ -77,10 +77,10 @@ def test_catalog_replay_rechecks_current_scope_and_edit_grant(
     options = {"idempotency_key": "retained-catalog"}
     stored = op(user, operation, payload, **options)
     if revocation == "membership":
-        Membership.objects.filter(project_id=project, user=user).delete()
+        WorkspaceMember.objects.filter(workspace__projects=project, user=user).delete()
         expected_error, status = NotFound, 404
     else:
-        Membership.objects.filter(project_id=project, user=user).update(role="viewer")
+        WorkspaceMember.objects.filter(workspace__projects=project, user=user).update(role="viewer")
         expected_error, status = PermissionDenied, 403
     if via == "api":
         response = post_op(api(user), operation, payload, **options)
@@ -106,7 +106,7 @@ def test_revoked_catalog_scope_does_not_disclose_fingerprint_match(
     user = users["editor"]
     payload = catalog_inputs[operation]
     op(user, operation, payload, idempotency_key="retained-catalog")
-    Membership.objects.filter(project_id=project, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=user).delete()
     changed = {
         **payload,
         **({"part_number": "Changed"} if operation.endswith("variant") else {"label": "Changed"}),

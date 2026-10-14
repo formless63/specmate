@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from django.contrib.auth import get_user_model
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.assemblies.queries import get_snapshot, read_assembly
 from specmate.catalog_packs.models import AdoptionEntry
 from specmate.design.models import Snapshot
@@ -16,7 +16,7 @@ from specmate.facts.queries import read_facts, resolve_target
 from specmate.operations import NotFound, Unauthenticated, ValidationFailed
 from specmate.queries import get_bundle_revision, get_draft
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ, part
 from .test_catalog_packs import adopt, install, manifest, registered
 from .test_design import freeze as freeze_design
@@ -38,7 +38,7 @@ def adopt_with_remote_origin(users, project, original):
     """An unselected retained pack entry is current provenance, not an assembly child."""
     remote = op(users["owner"], "project.create", {"name": "Retained catalog item"})["project_id"]
     for name in ("editor", "viewer"):
-        Membership.objects.create(project_id=remote, user=users[name], role="viewer")
+        ensure_member(users[name], "viewer", project=remote)
     _, extra = part(users["owner"], remote)
     entries = manifest(original)["entries"] + [
         {
@@ -67,11 +67,11 @@ def adopted_assembly(users, project):
 
 
 def revoke(users, project):
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
 
 
 def restore(users, project):
-    Membership.objects.create(project_id=project, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=project)
 
 
 def test_assembly_origin_denial_precedes_path_across_jobs_and_generic_http(users, adopted_assembly):

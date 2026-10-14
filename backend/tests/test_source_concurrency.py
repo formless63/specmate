@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from django.db import connection, connections
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.jobs.adapter import run_operation
 from specmate.operations import Conflict, IdempotencyMismatch, NotFound, PermissionDenied
 from specmate.sources import blobstore, editing
@@ -367,7 +367,9 @@ def test_revision_closure_and_retained_authority_precede_conflicts(users, projec
         idempotency_key="retained",
     )
     revise()
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="viewer"
+    )
     for body in (payload, {**payload, "files": files_with(b"(other)")}):
         with pytest.raises(PermissionDenied):
             call(
@@ -377,7 +379,9 @@ def test_revision_closure_and_retained_authority_precede_conflicts(users, projec
                 expected_state=base["state"],
                 idempotency_key="retained",
             )()
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="editor")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="editor"
+    )
     with pytest.raises(IdempotencyMismatch):
         call(
             users["editor"],
@@ -417,7 +421,9 @@ def test_derivation_authorizes_source_closure_before_diagnostics_and_replay(user
         idempotency_key="derive",
     )
     created = derive()
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="viewer"
+    )
     for name in ("Keyed derivative", "Other name"):
         with pytest.raises(PermissionDenied):
             call(
@@ -426,7 +432,9 @@ def test_derivation_authorizes_source_closure_before_diagnostics_and_replay(user
                 {"source_revision_id": source["revision_id"], "name": name},
                 idempotency_key="derive",
             )()
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="editor")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="editor"
+    )
     assert derive().result == created.result
     other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
     register(users["outsider"], other, b"foreign")

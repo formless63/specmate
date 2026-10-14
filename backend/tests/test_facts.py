@@ -8,7 +8,7 @@ from uuid import UUID
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.facts.models import AssertionInput, AssertionSource, FactAssertion, FactSubject
 from specmate.facts.queries import read_facts
@@ -22,7 +22,7 @@ from specmate.operations import (
 )
 from specmate.operations.models import IdempotencyRecord
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
 
@@ -427,7 +427,7 @@ def test_authority_stale_writes_replay_mismatch_and_project_namespaces(users, pr
     with pytest.raises(Conflict) as exc:
         append(users["editor"], ledger, fact())
     assert exc.value.details == {"current_state": "facts-v2"}
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         append(users["editor"], ledger, fact(), idempotency_key="assertion")
     other = op(users["owner"], "project.create", {"name": "Other synthetic project"})["project_id"]
@@ -456,7 +456,7 @@ def test_registered_source_and_transitive_assertion_revoke_before_counts_replay_
         "source.create_original_bundle",
         {"project_id": remote, "name": "Synthetic evidence", "files": files(ORIGINAL)},
     )
-    Membership.objects.create(project_id=remote, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=remote)
     content = fact(
         provenance={
             "method": "source_observation",
@@ -482,7 +482,7 @@ def test_registered_source_and_transitive_assertion_revoke_before_counts_replay_
         },
     )
     append(users["editor"], second_ledger, calculation)
-    Membership.objects.filter(project_id=remote, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["editor"]).delete()
     for action in (
         lambda: read_facts(users["editor"], ledger["subject_id"]),
         lambda: append(users["editor"], ledger, content, idempotency_key="sourced"),

@@ -10,7 +10,7 @@ from uuid import UUID
 import pytest
 from django.db import close_old_connections, connections
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.cable_test_intent.contracts import InspectTarget
 from specmate.cable_test_intent.queries import inspect_target, portable_package, result
 from specmate.design.models import Definition, Snapshot
@@ -26,7 +26,7 @@ from specmate.operations.models import IdempotencyRecord
 from specmate.queries import get_draft, get_revision
 from specmate.sources.models import SourceBundle
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create as create_assembly
 from .test_assemblies import freeze as freeze_assembly
 from .test_assemblies import occ, part
@@ -423,7 +423,7 @@ def test_retained_key_authority_checked_before_mismatch_even_after_draft_replace
     private_project = op(users["owner"], "project.create", {"name": "Temporary shared source"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=private_project, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=private_project)
     old = copy.deepcopy(plan)
     old["pairs"][0]["evidence"] = source_evidence(users, private_project)
     draft = create(editor, project, old, idempotency_key="old-reference")
@@ -437,7 +437,7 @@ def test_retained_key_authority_checked_before_mismatch_even_after_draft_replace
         IdempotencyRecord.objects.filter(
             operation="cable_test_plan.create", key="old-reference"
         ).update(scope="legacy")
-    Membership.objects.filter(project_id=private_project, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=private_project, user=editor).delete()
     with pytest.raises(NotFound):
         create(editor, project, plan, idempotency_key="old-reference")
 
@@ -467,7 +467,7 @@ def test_full_root_closure_authority_required_even_when_package_omits_unrelated_
 ):
     owner = users["owner"]
     hidden = op(owner, "project.create", {"name": "Temporary sibling scope"})["project_id"]
-    Membership.objects.create(project_id=hidden, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=hidden)
     _, sibling = part(owner, hidden)
     root = freeze_assembly(
         owner, create_assembly(owner, project, [occ("chosen", cable), occ("sibling", sibling)])
@@ -477,7 +477,7 @@ def test_full_root_closure_authority_required_even_when_package_omits_unrelated_
     assert json.loads(portable_package(users["viewer"], frozen["revision_id"])[0])["scope"][
         "occurrence_path"
     ] == ["chosen"]
-    Membership.objects.filter(project_id=hidden, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=hidden, user=users["viewer"]).delete()
     for read in (
         lambda: result(users["viewer"], frozen["revision_id"]),
         lambda: portable_package(users["viewer"], frozen["revision_id"]),

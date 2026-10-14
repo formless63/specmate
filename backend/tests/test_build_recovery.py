@@ -12,7 +12,7 @@ import pytest
 from django.db import DatabaseError, IntegrityError, transaction
 from django.utils import timezone
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageEvent
 from specmate.jobs import workflows
 from specmate.operations import (
@@ -191,7 +191,9 @@ def test_abandon_authority_cas_validation_and_scope(users, project, build, crede
         abandon(users["owner"], build, basis="   ")
     assert BuildStage.objects.get(id=lease["stage_id"]).receipt is None
     # An executing member who is not the requester may resolve it.
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="owner")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="admin"
+    )
     assert abandon(users["editor"], build)["state"] == "failed"
 
 
@@ -222,9 +224,11 @@ def test_abandon_idempotent_replay_mismatch_and_terminal_conflict(users, build, 
 
 def test_abandon_replay_rechecks_current_authority(users, project, build, credential, lease):
     revoke(users, credential)
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="owner")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="admin"
+    )
     first = abandon(users["editor"], build)
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     stage = BuildStage.objects.get(id=lease["stage_id"])
     with pytest.raises(NotFound):
         op(
@@ -349,7 +353,9 @@ def test_retry_replay_returns_same_attempt_and_checks_current_authority(
             expected_state="stage-v1",
             idempotency_key="retry-1",
         )
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     with pytest.raises(PermissionDenied):
         retry(users["owner"], build)
 

@@ -3,7 +3,7 @@
 import pytest
 from django.contrib.auth import get_user_model
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.interfaces.queries import inspect_revision
 from specmate.operations import NotFound, Unauthenticated
@@ -47,7 +47,7 @@ def test_direct_interface_reader_rechecks_captured_inactive_actor(users, project
 def test_changed_interface_key_authorizes_retained_receipt_after_draft_drops_origin(users, project):
     from specmate.queries import get_draft
 
-    from .conftest import op
+    from .conftest import ensure_member, op
 
     owner = users["owner"]
     body = freeze(owner, create(owner, project))
@@ -61,12 +61,12 @@ def test_changed_interface_key_authorizes_retained_receipt_after_draft_drops_ori
         {"draft_id": saved["draft_id"], "interface": pinout(body)},
         expected_state=saved["state"],
     )
-    Membership.objects.filter(project_id=remote, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=owner).delete()
     assert get_draft(owner, saved["draft_id"])["state"] == newer["state"]
     with pytest.raises(NotFound):
         create(owner, project, pinout(body), idempotency_key="retained-interface")
     with pytest.raises(NotFound):
         create(owner, project, original, idempotency_key="retained-interface")
-    Membership.objects.create(project_id=remote, user=owner, role="owner")
+    ensure_member(owner, "owner", project=remote)
     assert create(owner, project, original, idempotency_key="retained-interface") == saved
     assert get_draft(owner, saved["draft_id"])["state"] == newer["state"]

@@ -7,7 +7,7 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.inventory.contracts import ChangeStock
 from specmate.inventory.models import Reservation, ReservationRelease, StockAccount, StockEntry
 from specmate.inventory.operations import authorize_inventory_replay
@@ -217,13 +217,13 @@ def test_permissions_and_scoped_api_reads_writes(users, project, stock):
         post_op(api(), "inventory.receive", payload, expected_state=stock["state"]).status_code
         == 401
     )
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
         grants=["inventory.reserve"]
     )
     result = reserve(users["editor"], stock)
     with pytest.raises(PermissionDenied):
         mutate(users["editor"], "receive", result["account"], payload["quantity"])
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
         grants=["inventory.manage"]
     )
     received = mutate(users["editor"], "receive", result["account"], payload["quantity"])
@@ -264,10 +264,12 @@ def test_replay_guard_rechecks_current_permissions(users, project, stock):
     ctx = Context(user=users["owner"], via="job", request_id="replay")
     parsed = ChangeStock.model_validate(payload)
     authorize_inventory_replay(ctx, parsed, result)
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     with pytest.raises(PermissionDenied):
         authorize_inventory_replay(ctx, parsed, result)
-    Membership.objects.filter(project_id=project, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).delete()
     with pytest.raises(NotFound):
         authorize_inventory_replay(ctx, parsed, result)
     assert StockEntry.objects.count() == 2
@@ -394,7 +396,7 @@ def test_competing_seven_against_ten_one_winner(users, stock, raw):
 def test_retained_reservation_rechecks_revoked_grant_across_contexts(users, project, stock, via):
     from specmate.operations import execute
 
-    membership = Membership.objects.get(project_id=project, user=users["editor"])
+    membership = WorkspaceMember.objects.get(workspace__projects=project, user=users["editor"])
     membership.grants = ["inventory.reserve"]
     membership.save(update_fields=["grants"])
     payload = {
@@ -455,7 +457,9 @@ def test_api_receipt_replay_and_revocation_use_ledger_operation(users, project, 
     assert first.status_code == 200 and first.json()["result"]["physical_quantity"] == "11"
     replay = post_op(client, "inventory.receive", payload, **kwargs)
     assert replay.status_code == 200 and replay.json()["replayed"]
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     assert post_op(client, "inventory.receive", payload, **kwargs).status_code == 403
     assert StockEntry.objects.count() == 2
 
@@ -583,7 +587,7 @@ def test_inventory_keys_are_namespaced_by_exact_project(users, project, stock):
 
 
 def test_inventory_keys_are_separate_for_actor_and_operation(users, project, stock):
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
         grants=["inventory.reserve"]
     )
     a = reserve(users["owner"], stock, "1", idempotency_key="shared-key")
@@ -601,10 +605,10 @@ def test_inventory_keys_are_separate_for_actor_and_operation(users, project, sto
 
 
 def test_current_scope_is_checked_before_key_mismatch_disclosure(users, project, stock):
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
         grants=["inventory.reserve"]
     )
     reserve(users["editor"], stock, "1", idempotency_key="scoped-key")
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         reserve(users["editor"], stock, "2", idempotency_key="scoped-key")

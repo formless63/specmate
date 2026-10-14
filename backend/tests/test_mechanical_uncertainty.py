@@ -8,13 +8,13 @@ from collections import Counter
 import pytest
 from pydantic import ValidationError
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Revision
 from specmate.mechanical_sources.contracts import MechanicalSource
 from specmate.operations import Conflict, NotFound, ValidationFailed
 from specmate.sources.models import SourceBundleRevision
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_mechanical_sources import mec_target  # noqa: F401
 from .test_sources import register
 from .test_transports import api
@@ -50,7 +50,7 @@ def mesh_declaration(users, project, mec_target):  # noqa: F811
         "project_id"
     ]
     for role in ("viewer", "editor"):
-        Membership.objects.create(project_id=source_project, user=users[role], role="viewer")
+        ensure_member(users[role], "viewer", project=source_project)
     register(users["owner"], source_project, MESH)
     source = op(
         users["owner"],
@@ -366,7 +366,9 @@ def test_precise_model_metadata_and_foreign_source_authority(users, project, mes
         p["scope"] == {"target_local_id": "connector", "model_local_id": "body"} for p in metadata
     )
     bundle = SourceBundleRevision.objects.get(id=content["sources"][0]["source_revision_id"])
-    Membership.objects.filter(project=bundle.bundle.project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=bundle.bundle.project, user=users["viewer"]
+    ).delete()
     client = api(users["viewer"])
     assert client.get(f"/api/v0/projects/{project}/definitions").status_code == 200
     denied = client.get(f"/api/v0/mechanical-sources/drafts/{draft['draft_id']}")
@@ -376,7 +378,7 @@ def test_precise_model_metadata_and_foreign_source_authority(users, project, mes
     )
     with pytest.raises(NotFound):
         op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]})
-    Membership.objects.create(project=bundle.bundle.project, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=bundle.bundle.project)
     assert op(users["viewer"], "mechanical_source.read", {"draft_id": draft["draft_id"]}) == before
 
 

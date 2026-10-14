@@ -8,13 +8,13 @@ import pytest
 from django.db import close_old_connections, connection
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import Conflict, IdempotencyMismatch, NotFound
 from specmate.operations.models import IdempotencyRecord
 from specmate.shared_scene import drawing_operations, drawing_render
 from specmate.shared_scene.models import SceneDrawing
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ
 from .test_preparation import cable, profile
 from .test_preparation import create as create_cuts
@@ -77,7 +77,7 @@ def test_changed_key_retains_old_scene_authority_when_proposed_scene_drops_it(
     retained = {
         part: client.get(url + "/" + part).content for part in ("svg", "manifest", "package")
     }
-    Membership.objects.filter(user=user, project_id=remote).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=remote).delete()
     assert op(
         user,
         "shared_scene.read_drawing_scene",
@@ -94,7 +94,7 @@ def test_changed_key_retains_old_scene_authority_when_proposed_scene_drops_it(
         response = client.get(url + "/" + part)
         assert response.status_code == 404
         assert response.json()["error"]["message"] == "Project not found."
-    Membership.objects.create(user=user, project_id=remote, role="owner")
+    ensure_member(user, "owner", project=remote)
     assert drawing(user, project, root) == saved
     assert read(user, saved) == before
     assert {part: client.get(url + "/" + part).content for part in retained} == retained

@@ -4,7 +4,7 @@ import copy
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.assemblies import placement as placement_operations  # noqa: F401
 from specmate.design.models import Draft, Snapshot
 from specmate.operations import Conflict, NotFound, PermissionDenied, ValidationFailed
@@ -163,7 +163,7 @@ def test_current_authority_and_readonly_transport(users, project, mounted):
         ).status_code
         == 404
     )
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         op(users["viewer"], "assembly.placement_inputs", {"draft_id": mounted["draft_id"]})
 

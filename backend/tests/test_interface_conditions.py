@@ -9,7 +9,7 @@ import pytest
 from django.db import close_old_connections, connections
 from pydantic import ValidationError
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.interfaces.condition_contracts import ConditionalRating, TemperatureEnvelope
 from specmate.interfaces.contracts import ConnectorBody, ElectricalContract, Orientation
@@ -17,7 +17,7 @@ from specmate.interfaces.orientation import project_contacts
 from specmate.interfaces.queries import inspect_revision
 from specmate.operations import Conflict, NotFound, PermissionDenied
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_interface_assessments import assessment
 from .test_interface_assessments import pair as base_pair
 from .test_interfaces import create, freeze
@@ -279,7 +279,7 @@ def test_rating_evidence_rechecks_current_full_historic_scope_before_diagnostics
     evidence = before["rating_evidence"]["data"]["warm"]
     assert evidence["sha256"] == hashlib.sha256(data).hexdigest()
     assert evidence["rights"] == "synthetic-original"
-    Membership.objects.filter(project_id=remote, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=owner).delete()
     invalid = copy.deepcopy(value)
     invalid["assignments"][0]["contact_id"] = "absent"
     for action in (
@@ -296,7 +296,7 @@ def test_rating_evidence_rechecks_current_full_historic_scope_before_diagnostics
     ):
         with pytest.raises(NotFound):
             action()
-    Membership.objects.create(project_id=remote, user=owner, role="owner")
+    ensure_member(owner, "owner", project=remote)
     assert inspect_revision(owner, frozen["revision_id"]) == before
     assert freeze(owner, draft, idempotency_key="rated-freeze") == frozen
     with pytest.raises(PermissionDenied):

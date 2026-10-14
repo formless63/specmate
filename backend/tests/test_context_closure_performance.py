@@ -14,7 +14,7 @@ from specmate.design.models import Snapshot
 from specmate.design.operations import authorize_snapshot
 from specmate.operations import Conflict, NotFound, Unauthenticated, ValidationFailed
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_bom import assembly, capture, create, part, policy
 from .test_shared_read_authority import adopt_with_remote_origin, restore, revoke
 from .test_transports import api, post_op
@@ -169,10 +169,10 @@ def test_batch_freeze_checks_dependency_catalog_origin_before_path_and_recovers(
     frozen = capture(owner, draft, operation, idempotency_key="origin-freeze")
     baseline = inspect_revision(owner, frozen["revision_id"], "assembly_contents")
     raw = bytes(Snapshot.objects.get(pk=frozen["snapshot_id"]).canonical)
-    from specmate.access.models import Membership
+    from specmate.access.models import WorkspaceMember
     from specmate.assemblies import queries as assembly_queries
 
-    Membership.objects.filter(project_id=remote, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=owner).delete()
     malformed = {
         "assembly_revision_id": root["revision_id"],
         "scope_paths": [["unresolved"]],
@@ -185,7 +185,7 @@ def test_batch_freeze_checks_dependency_catalog_origin_before_path_and_recovers(
     ):
         with pytest.raises(NotFound):
             action()
-    Membership.objects.create(project_id=remote, user=owner, role="owner")
+    ensure_member(owner, "owner", project=remote)
     assert capture(owner, draft, operation, idempotency_key="origin-freeze") == frozen
     assert inspect_revision(owner, frozen["revision_id"], "assembly_contents") == baseline
     assert bytes(Snapshot.objects.get(pk=frozen["snapshot_id"]).canonical) == raw

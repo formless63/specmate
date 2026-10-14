@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Draft, Revision
 from specmate.mechanical_sources import operations  # noqa: F401 (standalone registration)
 from specmate.operations import (
@@ -19,7 +19,7 @@ from specmate.operations import (
 )
 from specmate.sources.models import SourceBundleRevision
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_firmware import component
 from .test_pcb import (  # noqa: F401
     attempt,
@@ -329,8 +329,8 @@ def test_cross_project_reuse_then_live_and_retained_ancestor_denial(
     users, project, mec_sources, mec_target
 ):
     other = op(users["owner"], "project.create", {"name": "Reusable source origin"})["project_id"]
-    Membership.objects.create(project_id=other, user=users["editor"], role="editor")
-    Membership.objects.create(project_id=other, user=users["viewer"], role="viewer")
+    ensure_member(users["editor"], "editor", project=other)
+    ensure_member(users["viewer"], "viewer", project=other)
     register(users["editor"], other, DATA)
     origin = op(
         users["editor"],
@@ -355,7 +355,7 @@ def test_cross_project_reuse_then_live_and_retained_ancestor_denial(
     )
     content["sources"][0]["files"] = [content["sources"][0]["files"][0]]
     created = create(users["editor"], project, content, idempotency_key="retained")
-    Membership.objects.filter(project_id=other, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         op(users["editor"], "mechanical_source.read", {"draft_id": created["draft_id"]})
     with pytest.raises(NotFound):

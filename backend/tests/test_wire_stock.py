@@ -339,12 +339,14 @@ def test_stock_freeze_preserves_existing_exact_dependency_pins(users, project):
 
 
 def test_stock_key_namespace_and_current_edit_authority(users, project):
-    from specmate.access.models import Membership
+    from specmate.access.models import WorkspaceMember
 
     first = create(users, project, idempotency_key="same-stock-key")
     other = op(users["owner"], "project.create", {"name": "Separate stock project"})
     second = create(users, other["project_id"], idempotency_key="same-stock-key")
     assert first["definition_id"] != second["definition_id"]
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     with pytest.raises(PermissionDenied):
         create(users, project, idempotency_key="same-stock-key")

@@ -16,7 +16,7 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
@@ -357,10 +357,10 @@ def test_competing_variant_registrations_create_one_identity(users, revision):
 
 
 def test_draft_dependency_disclosure_rechecks_current_access(users, project, definition, revision):
-    from specmate.access.models import Membership
+    from specmate.access.models import WorkspaceMember
 
     other_project = op(users["owner"], "project.create", {"name": "Reusable library"})["project_id"]
-    Membership.objects.create(project_id=other_project, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=other_project)
     other = op(
         users["owner"],
         "definition.create",
@@ -380,13 +380,13 @@ def test_draft_dependency_disclosure_rechecks_current_access(users, project, def
     assert get_identity(users["editor"], definition["definition_id"])["drafts"][0][
         "dependencies"
     ] == [dependency["revision_id"]]
-    Membership.objects.filter(project_id=other_project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other_project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         get_identity(users["editor"], definition["definition_id"])
 
 
 def test_replay_guard_rechecks_current_authority_without_appending(users, project, revision):
-    from specmate.access.models import Membership
+    from specmate.access.models import WorkspaceMember
     from specmate.catalog.contracts import RegisterVariant
     from specmate.catalog.operations import authorize_catalog_replay
     from specmate.operations import Context
@@ -397,9 +397,11 @@ def test_replay_guard_rechecks_current_authority_without_appending(users, projec
     parsed = RegisterVariant.model_validate(payload)
     authorize_catalog_replay(context, parsed, result)
     assert ManufacturerVariant.objects.count() == 1
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="viewer"
+    )
     with pytest.raises(PermissionDenied):
         authorize_catalog_replay(context, parsed, result)
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         authorize_catalog_replay(context, parsed, result)

@@ -4,7 +4,6 @@ import pytest
 from django.db import connection, transaction
 from django.db.utils import DatabaseError
 
-from specmate.access.models import Membership
 from specmate.design.models import Revision, Snapshot
 from specmate.operations import (
     Conflict,
@@ -14,7 +13,7 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import member, op
 
 
 def freeze(user, draft_id, state, deps=()):
@@ -105,13 +104,74 @@ def test_database_rejects_update_and_delete_of_frozen_rows(users, definition, ta
             cur.execute(statement)
 
 
-def test_freeze_is_separate_authority_from_editing(users, project, definition):
-    with pytest.raises(PermissionDenied):
-        freeze(users["editor"], definition["draft_id"], "draft-v1")
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
-        grants=["design.freeze"]
-    )
+def test_freeze_is_separate_authority_from_editing(users, workspace, definition):
+    # Editors freeze by default; contributors need an explicit grant.
     assert freeze(users["editor"], definition["draft_id"], "draft-v1")["number"] == 1
+    created = op(
+        users["contributor"],
+        "definition.create",
+        {"workspace_id": workspace, "kind": "part", "name": "Contributed part"},
+    )
+    with pytest.raises(PermissionDenied):
+        freeze(users["contributor"], created["draft_id"], created["state"])
+    member(users["contributor"], "contributor", grants=["design.freeze"])
+    assert freeze(users["contributor"], created["draft_id"], created["state"])["number"] == 1
+
+
+def test_contributor_edits_only_drafts_of_items_they_created(users, workspace, definition):
+    created = op(
+        users["contributor"],
+        "definition.create",
+        {"workspace_id": workspace, "kind": "part", "name": "Contributed part"},
+    )
+    updated = op(
+        users["contributor"],
+        "draft.update",
+        {"draft_id": created["draft_id"], "changes": {"pins": 2}},
+        expected_state=created["state"],
+    )
+    assert updated["content"] == {"pins": 2}
+    with pytest.raises(PermissionDenied):
+        op(
+            users["contributor"],
+            "draft.update",
+            {"draft_id": definition["draft_id"], "changes": {"a": 2}},
+            expected_state=definition["state"],
+        )
+    # The editor may change the contributor's shared item.
+    assert op(
+        users["editor"],
+        "draft.update",
+        {"draft_id": created["draft_id"], "changes": {"pins": 3}},
+        expected_state=updated["state"],
+    )["content"] == {"pins": 3}
+    member(users["contributor"], "viewer")
+    with pytest.raises(PermissionDenied):
+        op(
+            users["contributor"],
+            "draft.update",
+            {"draft_id": created["draft_id"], "changes": {"pins": 4}},
+            expected_state="draft-v3",
+        )
+
+
+def test_viewer_cannot_create_and_creation_takes_no_project(users, workspace, project):
+    with pytest.raises(PermissionDenied):
+        op(
+            users["viewer"],
+            "definition.create",
+            {"workspace_id": workspace, "kind": "p", "name": "x"},
+        )
+    for scope in ({}, {"workspace_id": workspace, "project_id": project}):
+        with pytest.raises(ValidationFailed):
+            op(users["owner"], "definition.create", {**scope, "kind": "part", "name": "x"})
+    created = op(
+        users["contributor"],
+        "definition.create",
+        {"project_id": project, "kind": "part", "name": "Transitional scope"},
+    )
+    assert created["workspace_id"] == workspace
+    assert op(users["owner"], "project.references", {"project_id": project})["references"] == []
 
 
 def test_viewer_cannot_edit(users, definition):

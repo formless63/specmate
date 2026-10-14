@@ -7,7 +7,7 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connections, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Snapshot
 from specmate.operations import (
     Conflict,
@@ -20,7 +20,7 @@ from specmate.operations import (
 )
 from specmate.passive_passages.models import PassageReview
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_catalog_matching import source_evidence
 from .test_copper import board_population
 from .test_interfaces import create as interface_create
@@ -212,13 +212,13 @@ def test_all_retained_review_sources_authorized_before_stale_conflict_read_or_re
     other = op(owner, "project.create", {"name": "Controlled passive review evidence"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=other, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=other)
     evidence = source_evidence(users, other)
     initial = review(
         editor, frozen, decision="needs_evidence", evidence=evidence, idempotency_key="review"
     )
     review(editor, frozen, initial["state"])
-    Membership.objects.filter(project_id=other, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=editor).delete()
     for action in [
         lambda: interpretation(editor, frozen, terminals),
         lambda: op(editor, "passage.read", {"revision_id": frozen["revision_id"]}),
@@ -241,13 +241,13 @@ def test_supplied_source_and_retained_create_closures_precede_terminal_or_key_di
     _root, _terminals, model, _draft, _frozen = circuit
     owner, editor = users["owner"], users["editor"]
     other = op(owner, "project.create", {"name": "Controlled assertion source"})["project_id"]
-    Membership.objects.create(project_id=other, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=other)
     assertion_source = source_evidence(users, other)
     sourced = copy.deepcopy(model)
     sourced["passages"][0]["evidence"] = assertion_source
     body = {"project_id": project, "name": "Source-backed assertion", "model": sourced}
     created = op(editor, "passage.create", body, idempotency_key="create")
-    Membership.objects.filter(project_id=other, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=editor).delete()
     invalid = copy.deepcopy(sourced)
     invalid["passages"][0]["from_terminal_id"] = "terminal-" + "0" * 64
     with pytest.raises(NotFound):
@@ -409,7 +409,7 @@ def test_native_resistor_candidates_remain_boundaries_until_separate_assertion_a
 def test_root_project_revocation_precedes_query_selection_and_review_conflict(users, project):
     owner, editor = users["owner"], users["editor"]
     remote = op(owner, "project.create", {"name": "Restricted root graph"})["project_id"]
-    Membership.objects.create(project_id=remote, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=remote)
     body = interface_create(
         owner,
         remote,
@@ -431,7 +431,7 @@ def test_root_project_revocation_precedes_query_selection_and_review_conflict(us
         owner, "passage.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]
     )
     review(editor, frozen)
-    Membership.objects.filter(project_id=remote, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=editor).delete()
     with pytest.raises(NotFound):
         interpretation(editor, frozen, terminals, from_terminal_id="terminal-" + "0" * 64)
     with pytest.raises(NotFound):

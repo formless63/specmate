@@ -23,7 +23,7 @@ from specmate.shared_scene.drawing_contracts import DrawingOptions
 from specmate.shared_scene.drawing_render import projected, render_drawing
 from specmate.shared_scene.models import SceneDrawing
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ, part
 from .test_assembly_source_authority import sourced_child  # noqa: F401
 from .test_cables import capture, fixture
@@ -442,7 +442,7 @@ def test_derivative_origin_and_nested_parent_authority_restore_same_historic_out
     mec_sources,  # noqa: F811
     mec_target,  # noqa: F811
 ):
-    from specmate.access.models import Membership
+    from specmate.access.models import WorkspaceMember
     from specmate.sources.models import SourceBundle, SourceBundleRevision
 
     owner = users["owner"]
@@ -472,18 +472,18 @@ def test_derivative_origin_and_nested_parent_authority_restore_same_historic_out
         drawing(owner, project, frozen, options={"view": "front"})
     SourceBundle.objects.filter(id=origin).update(project_id=project)
     assert read(owner, created) == expected
-    Membership.objects.create(user=owner, project_id=hidden, role="viewer")
+    ensure_member(owner, "viewer", project=hidden)
     _, target = part(users["outsider"], hidden)
     module = freeze(owner, create(owner, project, [occ("restricted", target)]))
     nested = freeze(owner, create(owner, project, [occ("module", module)]))
     second = drawing(owner, project, nested, key="parent")
     exact = read(owner, second)
-    Membership.objects.filter(user=owner, project_id=hidden).delete()
+    WorkspaceMember.objects.filter(user=owner, workspace__projects=hidden).delete()
     with pytest.raises(NotFound):
         read(owner, second)
     with pytest.raises(NotFound):
         drawing(owner, project, nested, key="parent")
-    Membership.objects.create(user=owner, project_id=hidden, role="viewer")
+    ensure_member(owner, "viewer", project=hidden)
     assert read(owner, second) == exact
 
 

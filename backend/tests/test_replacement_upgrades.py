@@ -7,7 +7,7 @@ associations never establish a replacement. Frozen consumers keep their exact pi
 import pytest
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Revision, Snapshot
 from specmate.operations import (
     Conflict,
@@ -19,7 +19,7 @@ from specmate.operations import (
 )
 from specmate.revision_upgrades.models import UpgradeApplication, UpgradeProposal, UpgradeReview
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_transports import api
 
@@ -387,7 +387,7 @@ def test_consumer_edit_authority_candidate_revocation_and_replay(users, project,
     old, _ = pair
     owner, editor = users["owner"], users["editor"]
     remote = op(owner, "project.create", {"name": "Replacement source"})["project_id"]
-    Membership.objects.create(project_id=remote, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=remote)
     candidate = connector(owner, remote, "Remote replacement body", ["c1"])
     remote_module = freeze(owner, create(owner, remote, [occ("conn", old)]))
     owning = freeze(
@@ -411,7 +411,7 @@ def test_consumer_edit_authority_candidate_revocation_and_replay(users, project,
         op(users["viewer"], "upgrade.propose", payload)
     proposal = op(editor, "upgrade.propose", payload, idempotency_key="remote")
     reviewed = review(editor, proposal)
-    Membership.objects.filter(project_id=remote, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=editor).delete()
     for operation, body, context in [
         ("upgrade.read", {"proposal_id": proposal["proposal_id"]}, {}),
         (
@@ -429,7 +429,7 @@ def test_consumer_edit_authority_candidate_revocation_and_replay(users, project,
         with pytest.raises(NotFound):
             op(editor, operation, body, **context)
     assert not UpgradeApplication.objects.exists()
-    Membership.objects.create(project_id=remote, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=remote)
     assert op(editor, "upgrade.propose", payload, idempotency_key="remote") == proposal
     drafts = Draft.objects.count()
     applied = op(

@@ -7,7 +7,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.end_preparation import api
 from specmate.end_preparation.contracts import ApplyHarnessProfile
@@ -149,7 +149,7 @@ def test_full_unselected_closure_before_section_diagnostics_and_current_actor(us
     harness["sections"][1]["stock_revision_id"] = stock["revision_id"]
     target = capture(users["owner"], create(users["owner"], project, harness))
     request.update(harness_revision_id=target["revision_id"], section_id="missing")
-    Membership.objects.filter(project_id=hidden_project, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=hidden_project, user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(users["owner"], "end_preparation.apply_harness", request)
     with pytest.raises(NotFound):
@@ -173,7 +173,7 @@ def test_retained_harness_authority_before_changed_target_mismatch(users, projec
         ).update(scope="legacy")
     with pytest.raises(Conflict if legacy else IdempotencyMismatch):
         create(owner, project, visible, idempotency_key="physical-ends")
-    Membership.objects.filter(project_id=other, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=owner).delete()
     visible["sections"][0]["physical_ends"] = declarations()
     visible["sections"][0]["physical_ends"][0]["segment_ends"][0]["segment_id"] = "missing"
     with pytest.raises(NotFound):
@@ -231,7 +231,7 @@ def test_all_supplied_profile_authority_precedes_missing_section(users, project)
         users["owner"], create_profile(users["owner"], other, profile(stock["revision_id"]))
     )
     request.update(profile_revision_id=recipe["revision_id"], section_id="missing")
-    Membership.objects.filter(project_id=other, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(users["owner"], "end_preparation.apply_harness", request)
 
@@ -246,6 +246,6 @@ def test_legacy_retained_owner_denied_even_when_all_stock_references_remain_visi
     ).update(scope="legacy")
     with pytest.raises(Conflict):
         create(owner, project, harness, idempotency_key="old-owner")
-    Membership.objects.filter(project_id=other, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=owner).delete()
     with pytest.raises(NotFound):
         create(owner, project, harness, idempotency_key="old-owner")

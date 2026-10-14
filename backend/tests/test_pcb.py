@@ -12,7 +12,7 @@ import pytest
 from django.db import DatabaseError, transaction
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageOutput
 from specmate.operations import (
     Conflict,
@@ -354,7 +354,7 @@ def test_api_and_job_authorization_apply_to_reports_and_originals_after_revocati
     assert client.get(path).status_code == 200
     with pytest.raises(PermissionDenied):
         op(users["viewer"], "pcb.accept_extraction", {"attempt_id": attempt["attempt_id"]})
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     for endpoint in (
         path,
         path + "/original?path=board.kicad_pcb",
@@ -396,7 +396,7 @@ def test_replay_guard_rechecks_scope_execution_and_recipe(
     with pytest.raises(Unsupported):
         authorize_pcb_replay(ctx, payload, attempt)
     settings.SPECMATE_APPROVED_RECIPES = {recipe["id"]: recipe}
-    membership = Membership.objects.get(project_id=project, user=users["owner"])
+    membership = WorkspaceMember.objects.get(workspace__projects=project, user=users["owner"])
     membership.role = "viewer"
     membership.save()
     with pytest.raises(PermissionDenied):
@@ -417,7 +417,7 @@ def test_replay_accept_guard_rechecks_scope_and_pinned_provenance(users, project
     authorize_pcb_replay(ctx, payload, accepted)
     with pytest.raises(ValidationFailed):
         authorize_pcb_replay(ctx, payload, {**accepted, "output_id": str(uuid4())})
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         authorize_pcb_replay(ctx, payload, accepted)
 
@@ -901,7 +901,7 @@ def test_population_access_and_api_reads_recheck_scope(users, project, intake, p
             },
             idempotency_key="outsider",
         )
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         op(
             users["editor"],
@@ -912,7 +912,7 @@ def test_population_access_and_api_reads_recheck_scope(users, project, intake, p
             },
             idempotency_key="create-population",
         )
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     assert client.get(f"/api/v0/pcb/intakes/{intake['intake_id']}/populations").status_code == 404
     assert client.get(f"/api/v0/pcb/projects/{project}/association-targets").status_code == 404
 
@@ -1127,7 +1127,7 @@ def test_frozen_population_review_reopens_old_state_after_draft_edit_and_revocat
     assert old.json()["population"]["options"][0]["decisions"][0]["status"] == "omit"
     assert live.json()["population"]["options"][0]["decisions"][0]["status"] == "populate"
     assert old.json()["interpretation"]["interpretation_id"] == interpretation["interpretation_id"]
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     for path in (frozen_path, draft_path):
         response = client.get(path)
         assert response.status_code == 404

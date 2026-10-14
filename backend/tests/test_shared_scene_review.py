@@ -6,13 +6,13 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog_packs.models import AdoptionEntry
 from specmate.operations import NotFound, Unauthenticated
 from specmate.queries import get_draft
 from specmate.shared_scene.api import choices, inspect_snapshot
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ, part
 from .test_catalog_packs import adopt, install, manifest, registered
 from .test_shared_scene import scene
@@ -26,7 +26,7 @@ def test_pack_authority_hides_root_and_nested_adoption_then_restores_identical_s
         "project_id"
     ]
     for actor in ("owner", "editor", "viewer"):
-        Membership.objects.create(project_id=hidden, user=users[actor], role="viewer")
+        ensure_member(users[actor], "viewer", project=hidden)
     _, external = part(users["outsider"], hidden)
     dependency = op(
         users["owner"],
@@ -44,13 +44,13 @@ def test_pack_authority_hides_root_and_nested_adoption_then_restores_identical_s
     adopted = freeze(users["owner"], get_draft(users["owner"], record.draft_id))
     nested = freeze(users["owner"], create(users["owner"], project, [occ("adopted", adopted)]))
     expected = [scene(users["viewer"], frozen) for frozen in (adopted, nested)]
-    Membership.objects.filter(project_id=hidden, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=hidden, user=users["viewer"]).delete()
     for frozen in (adopted, nested):
         with pytest.raises(NotFound):
             scene(users["viewer"], frozen)
     choices = op(users["viewer"], "shared_scene.list", {"project_id": project})
     assert {row["snapshot_id"] for row in choices["assemblies"]} == {original["snapshot_id"]}
-    Membership.objects.create(project_id=hidden, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=hidden)
     assert [scene(users["viewer"], frozen) for frozen in (adopted, nested)] == expected
 
 

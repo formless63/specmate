@@ -6,7 +6,7 @@ import json
 import pytest
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.collaboration.models import ChangeReview, InternalNotification, ReviewEntry
 from specmate.design.models import Snapshot
 from specmate.operations import (
@@ -19,7 +19,7 @@ from specmate.operations import (
 )
 from specmate.operations.models import IdempotencyRecord
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ
 from .test_catalog_matching import source_evidence
 from .test_transports import api, post_op
@@ -295,7 +295,7 @@ def test_source_revocation_hides_inbox_before_key_or_cas_diagnostics(users, proj
         idempotency_key="retained-source",
     )
     assert op(users["viewer"], "collaboration.inbox", {"project_id": project})["results"] == []
-    Membership.objects.filter(project_id=source_project, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=source_project, user=owner).delete()
     with pytest.raises(NotFound):
         op(
             owner,
@@ -307,7 +307,7 @@ def test_source_revocation_hides_inbox_before_key_or_cas_diagnostics(users, proj
     with pytest.raises(NotFound):
         op(owner, "collaboration.respond", {**payload, "evidence": {}}, expected_state="stale")
     assert op(owner, "collaboration.list", {"project_id": project})["results"] == []
-    Membership.objects.create(project_id=source_project, user=owner, role="owner")
+    ensure_member(owner, "owner", project=source_project)
     assert (
         op(
             owner,
@@ -534,7 +534,7 @@ def test_final_source_reauthorization_rolls_back_after_real_external_revocation(
     def revoke():
         close_old_connections()
         try:
-            Membership.objects.filter(project_id=source_project, user=owner).delete()
+            WorkspaceMember.objects.filter(workspace__projects=source_project, user=owner).delete()
         finally:
             connections.close_all()
 
@@ -563,7 +563,7 @@ def test_final_source_reauthorization_rolls_back_after_real_external_revocation(
     assert not IdempotencyRecord.objects.filter(
         operation="collaboration.respond", key="final-closure"
     ).exists()
-    Membership.objects.create(project_id=source_project, user=owner, role="owner")
+    ensure_member(owner, "owner", project=source_project)
     monkeypatch.setattr(queries, "notify", original)
     recovered = op(
         owner,
@@ -597,7 +597,7 @@ def test_final_history_serialization_revocation_rolls_back_response_and_exact_re
     def revoke():
         close_old_connections()
         try:
-            Membership.objects.filter(project_id=source_project, user=owner).delete()
+            WorkspaceMember.objects.filter(workspace__projects=source_project, user=owner).delete()
         finally:
             connections.close_all()
 
@@ -623,14 +623,16 @@ def test_final_history_serialization_revocation_rolls_back_response_and_exact_re
             expected_state=review["state"],
             idempotency_key="serialized-history",
         )
-    assert not Membership.objects.filter(project_id=source_project, user=owner).exists()
+    assert not WorkspaceMember.objects.filter(
+        workspace__projects=source_project, user=owner
+    ).exists()
     assert ReviewEntry.objects.filter(review_id=review["review_id"]).count() == 1
     assert ChangeReview.objects.get(id=review["review_id"]).version == 1
     assert set(InternalNotification.objects.values_list("id", flat=True)) == before_notices
     assert not IdempotencyRecord.objects.filter(
         operation="collaboration.respond", key="serialized-history"
     ).exists()
-    Membership.objects.create(project_id=source_project, user=owner, role="owner")
+    ensure_member(owner, "owner", project=source_project)
     monkeypatch.setattr(queries, "evidence_result", original)
     recovered = op(
         owner,
@@ -660,7 +662,7 @@ def test_serialization_revocation_omits_protected_review_and_notification_pages(
         "project_id"
     ]
     evidence = source_evidence(users, source_project)
-    Membership.objects.create(project_id=source_project, user=recipient, role="viewer")
+    ensure_member(recipient, "viewer", project=source_project)
     op(
         owner,
         "collaboration.respond",
@@ -678,7 +680,9 @@ def test_serialization_revocation_omits_protected_review_and_notification_pages(
     def revoke():
         close_old_connections()
         try:
-            Membership.objects.filter(project_id=source_project, user=recipient).delete()
+            WorkspaceMember.objects.filter(
+                workspace__projects=source_project, user=recipient
+            ).delete()
         finally:
             connections.close_all()
 
@@ -694,8 +698,10 @@ def test_serialization_revocation_omits_protected_review_and_notification_pages(
     monkeypatch.setattr(queries, "evidence_result", serialize_then_revoke)
     page = op(recipient, operation, {"project_id": project})
     assert revoked and page == {"results": [], "next_after": None}
-    assert not Membership.objects.filter(project_id=source_project, user=recipient).exists()
-    Membership.objects.create(project_id=source_project, user=recipient, role="viewer")
+    assert not WorkspaceMember.objects.filter(
+        workspace__projects=source_project, user=recipient
+    ).exists()
+    ensure_member(recipient, "viewer", project=source_project)
     recovered = op(recipient, operation, {"project_id": project})
     assert recovered["results"] and all(
         row["review_id"] == review["review_id"] for row in recovered["results"]
@@ -723,7 +729,7 @@ def test_changed_review_id_cannot_bypass_denied_stored_receipt_closure(users, pr
         expected_state=historical["state"],
         idempotency_key="different-review-input",
     )
-    Membership.objects.filter(project_id=source_project, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=source_project, user=owner).delete()
     changed = {"review_id": independent["review_id"], "action": "comment", "basis": "New inputs"}
     assert op(owner, "collaboration.read", {"review_id": independent["review_id"]})
     with pytest.raises(NotFound):
@@ -734,7 +740,7 @@ def test_changed_review_id_cannot_bypass_denied_stored_receipt_closure(users, pr
             expected_state=independent["state"],
             idempotency_key="different-review-input",
         )
-    Membership.objects.create(project_id=source_project, user=owner, role="owner")
+    ensure_member(owner, "owner", project=source_project)
     with pytest.raises(IdempotencyMismatch):
         op(
             owner,

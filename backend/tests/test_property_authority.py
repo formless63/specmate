@@ -11,7 +11,7 @@ import pytest
 from django.db import DatabaseError, transaction
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -332,7 +332,9 @@ def test_current_authority_precedes_diagnostics_and_retained_conflicts(users, pr
             expected_state="authority-v1",
             idempotency_key="r",
         )
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="viewer"
+    )
     for key, basis in (("r", "Reviewed accepted extraction of the owner."), ("r", "different")):
         with pytest.raises(PermissionDenied):
             op(
@@ -348,7 +350,9 @@ def test_current_authority_precedes_diagnostics_and_retained_conflicts(users, pr
             )
     with pytest.raises(PermissionDenied):
         declare(users, owner["revision_id"], key="declare")
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="editor")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="editor"
+    )
     # A foreign blob in the owner's closure hides the authority before any detail.
     other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
     register(users["outsider"], other, b"foreign")
@@ -474,7 +478,7 @@ def test_retained_projection_checks_its_own_pins_before_changed_request_diagnost
         reconcile(
             users, authority["authority_id"], other, "authority-v1", idempotency_key="retained"
         )
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         reconcile(
             users, authority["authority_id"], other, "authority-v1", idempotency_key="retained"

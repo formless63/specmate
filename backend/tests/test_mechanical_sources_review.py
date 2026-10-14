@@ -9,14 +9,14 @@ from uuid import UUID, uuid4
 import pytest
 from django.contrib.auth import get_user_model
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog.models import Representation
 from specmate.design.models import Draft, Revision, SnapshotDependency
 from specmate.mechanical_sources.operations import require_freezable
 from specmate.operations import Context, NotFound, Unauthenticated, ValidationFailed, execute
 from specmate.sources.models import SourceBlob, SourceBundleFile
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_firmware import MCU, attempt, board, intake, recipe, source  # noqa: F401
 from .test_mechanical_sources import (  # noqa: F401
     DATA,
@@ -34,7 +34,7 @@ def foreign_source(users):
     project = op(users["outsider"], "project.create", {"name": "Independent source origin"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=project, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=project)
     register(users["outsider"], project, DATA)
     result = op(
         users["outsider"],
@@ -69,7 +69,9 @@ def test_retained_source_denial_precedes_changed_pin_diagnostics(
         {"draft_id": created["draft_id"], "mechanical_source": new},
         expected_state=created["state"],
     )
-    Membership.objects.filter(project_id=foreign_project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=foreign_project, user=users["editor"]
+    ).delete()
     assert op(users["editor"], "mechanical_source.read", {"draft_id": created["draft_id"]})
     new["sources"][0]["files"][0]["sha256"] = "0" * 64
     with pytest.raises(NotFound):
@@ -80,7 +82,9 @@ def test_complete_source_set_authorized_before_manifest_mismatch(
     users, project, mec_sources, mec_target
 ):
     foreign_project, original = foreign_source(users)
-    Membership.objects.filter(project_id=foreign_project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=foreign_project, user=users["editor"]
+    ).delete()
     content = declaration(mec_sources, mec_target)
     content["sources"][0]["source_manifest_sha256"] = "0" * 64
     content["sources"].append(
@@ -146,7 +150,9 @@ def test_model_actual_source_ancestry_authorized_before_wrong_revision(
         media_type="model/step",
         blob=SourceBlob.objects.get(project_id=foreign_project, sha256=digest(MODEL)),
     )
-    Membership.objects.filter(project_id=foreign_project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=foreign_project, user=users["editor"]
+    ).delete()
     replacement = op(
         users["editor"],
         "source.create_original_bundle",
@@ -288,8 +294,8 @@ def test_target_catalog_origin_is_current_authority(users, project, mec_sources,
     foreign_project = op(users["outsider"], "project.create", {"name": "Catalog target origin"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=foreign_project, user=users["editor"], role="viewer")
-    Membership.objects.create(project_id=foreign_project, user=users["owner"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=foreign_project)
+    ensure_member(users["owner"], "viewer", project=foreign_project)
     foreign = op(
         users["outsider"],
         "definition.create",
@@ -317,7 +323,9 @@ def test_target_catalog_origin_is_current_authority(users, project, mec_sources,
     )
     content = declaration(mec_sources, target)
     created = create(users["editor"], project, content, idempotency_key="origin")
-    Membership.objects.filter(project_id=foreign_project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=foreign_project, user=users["editor"]
+    ).delete()
     for action in (
         lambda: op(users["editor"], "mechanical_source.read", {"draft_id": created["draft_id"]}),
         lambda: create(users["editor"], project, content, idempotency_key="origin"),
@@ -340,7 +348,7 @@ def test_retained_mutation_closure_survives_changed_draft(
     users, project, mec_sources, mec_target, operation
 ):
     foreign_project, original = foreign_source(users)
-    membership = Membership.objects.get(project_id=project, user=users["editor"])
+    membership = WorkspaceMember.objects.get(workspace__projects=project, user=users["editor"])
     membership.grants = ["design.freeze"]
     membership.save()
     old = declaration(original, mec_target)
@@ -364,7 +372,9 @@ def test_retained_mutation_closure_survives_changed_draft(
         {"draft_id": created["draft_id"], "mechanical_source": replacement},
         expected_state=state,
     )
-    Membership.objects.filter(project_id=foreign_project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=foreign_project, user=users["editor"]
+    ).delete()
     if operation == "update":
         replacement["targets"][0]["snapshot_sha256"] = "0" * 64
         payload["mechanical_source"] = replacement
@@ -490,7 +500,7 @@ def test_generic_replay_denies_retained_source_before_changed_request(
     users, project, mec_sources, mec_target, command, legacy
 ):
     foreign_project, original = foreign_source(users)
-    Membership.objects.create(project_id=foreign_project, user=users["owner"], role="viewer")
+    ensure_member(users["owner"], "viewer", project=foreign_project)
     old = declaration(original, mec_target)
     old["sources"][0]["files"] = old["sources"][0]["files"][:1]
     payload = {
@@ -528,7 +538,9 @@ def test_generic_replay_denies_retained_source_before_changed_request(
         {"draft_id": created["draft_id"], "changes": {"mechanical_source": new}},
         expected_state=state,
     )
-    Membership.objects.filter(project_id=foreign_project, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=foreign_project, user=users["owner"]
+    ).delete()
     from .test_transports import api
 
     client = api(users["owner"])
@@ -577,7 +589,7 @@ def test_generic_replay_denies_retained_source_before_changed_request(
     # documented key mismatch (or legacy conflict); it must never execute again.
     from specmate.operations import Conflict, IdempotencyMismatch
 
-    Membership.objects.create(project_id=foreign_project, user=users["owner"], role="viewer")
+    ensure_member(users["owner"], "viewer", project=foreign_project)
     with pytest.raises(Conflict if legacy else IdempotencyMismatch):
         op(
             users["owner"],

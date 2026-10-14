@@ -1,4 +1,4 @@
-"""FND-006: keys isolate authorized projects and retain exact old outcomes safely."""
+"""FND-006: idempotency keys are namespaced by workspace after current authority checks."""
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from django.db import DatabaseError, connection, transaction
 
-from specmate.access.models import Membership, Project
+from specmate.access.models import Project, WorkspaceMember
 from specmate.design.models import Definition
 from specmate.operations import (
     Conflict,
@@ -20,14 +20,14 @@ from specmate.operations import (
     registry,
 )
 from specmate.operations.models import IdempotencyRecord
-from specmate.operations.scope import project_scope, revision_scope
+from specmate.operations.scope import revision_scope, workspace_scope
 
-from .conftest import op
+from .conftest import member, op
 from .test_transports import api, post_op
 
 
-def payload(project, name="Synthetic component"):
-    return {"project_id": project, "kind": "part", "name": name}
+def payload(workspace, name="Synthetic component"):
+    return {"workspace_id": workspace, "kind": "part", "name": name}
 
 
 def keyed_context(user, key="same-key"):
@@ -35,45 +35,60 @@ def keyed_context(user, key="same-key"):
 
 
 @pytest.mark.parametrize("via", ["api", "job"])
-def test_same_actor_operation_key_is_independent_per_project(users, project, via):
+def test_same_actor_operation_key_is_independent_per_workspace(
+    users, workspace, other_workspace, via
+):
     user = users["owner"]
-    other = op(user, "project.create", {"name": "Other synthetic scope"})["project_id"]
+    member(user, "admin", workspace=other_workspace)
 
-    def create(project_id):
+    def create(workspace_id):
         if via == "api":
             response = post_op(
-                api(user), "definition.create", payload(project_id), idempotency_key="same-key"
+                api(user), "definition.create", payload(workspace_id), idempotency_key="same-key"
             )
             assert response.status_code == 200
             return response.json()["result"]
-        return op(user, "definition.create", payload(project_id), idempotency_key="same-key")
+        return op(user, "definition.create", payload(workspace_id), idempotency_key="same-key")
 
-    a, b = create(project), create(other)
+    a, b = create(workspace), create(other_workspace)
     assert a["definition_id"] != b["definition_id"]
-    assert create(project) == a and create(other) == b
+    assert create(workspace) == a and create(other_workspace) == b
     assert set(IdempotencyRecord.objects.values_list("scope", flat=True)) == {
-        f"project:{project}",
-        f"project:{other}",
+        f"workspace:{workspace}",
+        f"workspace:{other_workspace}",
     }
     assert Definition.objects.count() == 2
 
 
-def test_same_project_changed_payload_still_mismatches(users, project):
+def test_projects_of_one_workspace_share_its_namespace(users, workspace, project):
     user = users["owner"]
-    execute("definition.create", keyed_context(user), payload(project))
+    other = op(user, "project.create", {"name": "Other synthetic scope"})["project_id"]
+    legacy_payload = {"project_id": project, "kind": "part", "name": "Synthetic component"}
+    first = execute("definition.create", keyed_context(user), legacy_payload).result
+    assert first["workspace_id"] == workspace
+    # Another project in the same workspace is context, not a separate namespace.
     with pytest.raises(IdempotencyMismatch):
-        execute("definition.create", keyed_context(user), payload(project, "Different"))
+        execute("definition.create", keyed_context(user), {**legacy_payload, "project_id": other})
+    assert IdempotencyRecord.objects.get().scope == f"workspace:{workspace}"
     assert Definition.objects.count() == 1
 
 
-def test_revoked_scope_is_checked_before_cached_fingerprint_or_result(users, project):
+def test_same_workspace_changed_payload_still_mismatches(users, workspace):
     user = users["owner"]
-    execute("definition.create", keyed_context(user), payload(project))
-    Membership.objects.filter(project_id=project, user=user).delete()
+    execute("definition.create", keyed_context(user), payload(workspace))
+    with pytest.raises(IdempotencyMismatch):
+        execute("definition.create", keyed_context(user), payload(workspace, "Different"))
+    assert Definition.objects.count() == 1
+
+
+def test_removed_membership_is_checked_before_cached_fingerprint_or_result(users, workspace):
+    user = users["owner"]
+    execute("definition.create", keyed_context(user), payload(workspace))
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=user).delete()
     client = api(user)
-    exact = post_op(client, "definition.create", payload(project), idempotency_key="same-key")
+    exact = post_op(client, "definition.create", payload(workspace), idempotency_key="same-key")
     changed = post_op(
-        client, "definition.create", payload(project, "Changed"), idempotency_key="same-key"
+        client, "definition.create", payload(workspace, "Changed"), idempotency_key="same-key"
     )
     absent = post_op(client, "definition.create", payload(str(uuid4())), idempotency_key="same-key")
     assert exact.status_code == changed.status_code == absent.status_code == 404
@@ -81,28 +96,32 @@ def test_revoked_scope_is_checked_before_cached_fingerprint_or_result(users, pro
     assert IdempotencyRecord.objects.count() == 1
 
 
-def test_top_level_project_creation_has_global_namespace(users):
+def test_project_creation_uses_the_workspace_namespace(users, workspace):
     user = users["owner"]
     ctx = keyed_context(user)
-    first = execute("project.create", ctx, {"name": "Global keyed project"})
-    again = execute("project.create", ctx, {"name": "Global keyed project"})
+    first = execute("project.create", ctx, {"name": "Keyed project"})
+    again = execute("project.create", ctx, {"name": "Keyed project"})
     assert again.replayed and first.result == again.result
-    assert IdempotencyRecord.objects.get().scope == "global"
+    assert IdempotencyRecord.objects.get().scope == f"workspace:{workspace}"
     assert Project.objects.count() == 1
 
 
-def test_missing_or_invalid_scope_hook_fails_before_effect(users, project, monkeypatch):
+@pytest.mark.parametrize(
+    "value",
+    [None, "legacy", "workspace:not-a-uuid", "project:{uuid}", "workspace:{uuid} "],
+)
+def test_missing_or_invalid_scope_hook_fails_before_effect(users, workspace, monkeypatch, value):
     original = registry["definition.create"]
     name = "extension.create"
-    for hook in (None, lambda ctx, parsed: "legacy", lambda ctx, parsed: "project:not-a-uuid"):
-        monkeypatch.setitem(registry, name, replace(original, name=name, idempotency_scope=hook))
-        with pytest.raises(PermissionDenied, match="scope policy"):
-            execute(name, keyed_context(users["owner"]), payload(project))
+    hook = None if value is None else (lambda ctx, parsed: value.format(uuid=workspace))
+    monkeypatch.setitem(registry, name, replace(original, name=name, idempotency_scope=hook))
+    with pytest.raises(PermissionDenied, match="scope policy"):
+        execute(name, keyed_context(users["owner"]), payload(workspace))
     assert not Definition.objects.exists()
     assert not IdempotencyRecord.objects.exists()
 
 
-def test_explicit_domain_scope_hook_uses_authorized_project(users, project, monkeypatch):
+def test_explicit_domain_scope_hook_uses_authorized_workspace(users, workspace, monkeypatch):
     original = registry["definition.create"]
     name = "extension.create"
     monkeypatch.setitem(
@@ -111,17 +130,19 @@ def test_explicit_domain_scope_hook_uses_authorized_project(users, project, monk
         replace(
             original,
             name=name,
-            idempotency_scope=lambda ctx, parsed: project_scope(ctx, parsed.project_id),
-            authorize_replay=lambda ctx, parsed, stored: project_scope(ctx, parsed.project_id),
+            idempotency_scope=lambda ctx, parsed: workspace_scope(ctx, parsed.workspace_id),
+            authorize_replay=lambda ctx, parsed, stored: workspace_scope(ctx, parsed.workspace_id),
         ),
     )
     ctx = keyed_context(users["owner"])
-    first = execute(name, ctx, payload(project))
-    assert execute(name, ctx, payload(project)).result == first.result
-    assert IdempotencyRecord.objects.get().scope == f"project:{project}"
+    first = execute(name, ctx, payload(workspace))
+    assert execute(name, ctx, payload(workspace)).result == first.result
+    assert IdempotencyRecord.objects.get().scope == f"workspace:{workspace}"
 
 
-def test_revision_scope_helper_resolves_owner_and_rechecks_membership(users, project, definition):
+def test_revision_scope_helper_resolves_workspace_and_rechecks_membership(
+    users, workspace, definition
+):
     frozen = op(
         users["owner"],
         "draft.freeze",
@@ -130,71 +151,30 @@ def test_revision_scope_helper_resolves_owner_and_rechecks_membership(users, pro
     )
     assert (
         revision_scope(keyed_context(users["viewer"]), frozen["revision_id"])
-        == f"project:{project}"
+        == f"workspace:{workspace}"
     )
     with pytest.raises(NotFound):
         revision_scope(keyed_context(users["outsider"]), frozen["revision_id"])
 
 
-def make_legacy(user, project):
-    ctx = keyed_context(user)
-    result = execute("definition.create", ctx, payload(project)).result
-    IdempotencyRecord.objects.update(scope="legacy")
-    return ctx, result
-
-
-def test_legacy_exact_replay_is_adopted_without_rerunning_handler(users, project, monkeypatch):
-    user = users["owner"]
-    ctx, result = make_legacy(user, project)
-
-    def forbidden_handler(ctx, parsed):
-        pytest.fail("A retained effect must not execute again.")
-
-    monkeypatch.setitem(
-        registry,
-        "definition.create",
-        replace(registry["definition.create"], handler=forbidden_handler),
-    )
-    replay = execute("definition.create", ctx, payload(project))
-    assert replay.replayed and replay.result == result
-    assert IdempotencyRecord.objects.get().scope == f"project:{project}"
-    assert Definition.objects.count() == 1
-
-
-def test_legacy_adoption_rechecks_current_authority(users, project):
+def test_replay_rechecks_current_role(users, workspace):
     user = users["editor"]
-    ctx, _ = make_legacy(user, project)
-    Membership.objects.filter(project_id=project, user=user).update(role="viewer")
+    ctx = keyed_context(user)
+    execute("definition.create", ctx, payload(workspace))
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=user).update(role="viewer")
     with pytest.raises(PermissionDenied):
-        execute("definition.create", ctx, payload(project))
-    assert IdempotencyRecord.objects.get().scope == "legacy"
+        execute("definition.create", ctx, payload(workspace))
     assert Definition.objects.count() == 1
 
 
-def test_unresolved_legacy_key_cannot_repeat_effect_with_changed_payload(users, project):
-    user = users["owner"]
-    ctx, _ = make_legacy(user, project)
-    other = op(user, "project.create", {"name": "New project"})["project_id"]
-    for new_payload in (payload(project, "Changed"), payload(other)):
-        with pytest.raises(Conflict, match="legacy outcome"):
-            execute("definition.create", ctx, new_payload)
-    assert Definition.objects.count() == 1
-    # Once the original exact request has been authorized and adopted, reuse in
-    # another scope is independent without discarding the old outcome.
-    execute("definition.create", ctx, payload(project))
-    execute("definition.create", ctx, payload(other))
-    assert Definition.objects.count() == 2
-
-
-@pytest.mark.parametrize("same_project", [True, False])
+@pytest.mark.parametrize("same_workspace", [True, False])
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_keys_preserve_per_project_effects(users, project, monkeypatch, same_project):
+def test_concurrent_keys_preserve_per_workspace_effects(
+    users, workspace, other_workspace, monkeypatch, same_workspace
+):
     user = users["owner"]
-    other = (
-        project
-        if same_project
-        else op(user, "project.create", {"name": "Parallel project"})["project_id"]
-    )
+    member(user, "admin", workspace=other_workspace)
+    other = workspace if same_workspace else other_workspace
     barrier = Barrier(2)
     original = registry["definition.create"]
 
@@ -206,27 +186,30 @@ def test_concurrent_keys_preserve_per_project_effects(users, project, monkeypatc
         registry, "definition.create", replace(original, handler=synchronized_handler)
     )
 
-    def create(project_id):
+    def create(workspace_id):
         try:
             try:
-                return execute("definition.create", keyed_context(user), payload(project_id)).result
+                return execute(
+                    "definition.create", keyed_context(user), payload(workspace_id)
+                ).result
             except Conflict:
                 return None
         finally:
             connection.close()
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(create, [project, other]))
-    expected = 1 if same_project else 2
+        results = list(pool.map(create, [workspace, other]))
+    expected = 1 if same_workspace else 2
     assert sum(result is not None for result in results) == expected
     assert Definition.objects.count() == IdempotencyRecord.objects.count() == expected
 
 
-def test_database_rejects_invalid_namespace(users):
+@pytest.mark.parametrize("scope", ["", "legacy", "project:{uuid}"])
+def test_database_rejects_invalid_or_retired_namespace(users, workspace, scope):
     with pytest.raises(DatabaseError), transaction.atomic():
         IdempotencyRecord.objects.create(
             actor=users["owner"],
-            scope="",
+            scope=scope.format(uuid=workspace),
             operation="example",
             key="key",
             fingerprint="0" * 64,
@@ -234,33 +217,7 @@ def test_database_rejects_invalid_namespace(users):
         )
 
 
-@pytest.mark.django_db(transaction=True)
-def test_migration_retains_unscoped_outcome_then_adopts_exact_replay(users, project):
-    from django.db.migrations.executor import MigrationExecutor
-
-    user = users["owner"]
-    ctx = keyed_context(user)
-    result = execute("definition.create", ctx, payload(project)).result
-    executor = MigrationExecutor(connection)
-    old_target = [("operations", "0002_immutable_rows")]
-    new_target = [("operations", "0003_idempotency_scope")]
-    try:
-        executor.migrate(old_target)
-        old_apps = executor.loader.project_state(old_target).apps
-        old_record = old_apps.get_model("operations", "IdempotencyRecord").objects.get()
-        assert old_record.result == result
-    finally:
-        MigrationExecutor(connection).migrate(new_target)
-    retained = IdempotencyRecord.objects.get()
-    assert retained.scope == "legacy" and retained.result == result
-    replay = execute("definition.create", ctx, payload(project))
-    assert replay.replayed and replay.result == result
-    retained.refresh_from_db()
-    assert retained.scope == f"project:{project}"
-    assert Definition.objects.count() == 1
-
-
-def test_derived_source_and_build_targets_use_their_owning_project(users, project, settings):
+def test_derived_source_and_build_targets_use_their_workspace(users, workspace, project, settings):
     from . import test_builds as build_tests
     from .test_sources import ORIGINAL, files, register
 
@@ -304,11 +261,13 @@ def test_derived_source_and_build_targets_use_their_owning_project(users, projec
         == cancelled
     )
     assert IdempotencyRecord.objects.count() == 4
-    assert set(IdempotencyRecord.objects.values_list("scope", flat=True)) == {f"project:{project}"}
+    assert set(IdempotencyRecord.objects.values_list("scope", flat=True)) == {
+        f"workspace:{workspace}"
+    }
 
 
-def test_operator_credential_scope_does_not_add_project_membership_requirement(
-    users, project, settings
+def test_operator_credential_scope_does_not_add_workspace_membership_requirement(
+    users, workspace, project, settings
 ):
     from specmate.access.models import Installation
 
@@ -327,11 +286,11 @@ def test_operator_credential_scope_does_not_add_project_membership_requirement(
             "recipe_ids": [recipe["id"]],
         },
     ).result
-    Membership.objects.filter(project_id=project, user=user).delete()
+    WorkspaceMember.objects.filter(workspace_id=workspace, user=user).delete()
     ctx = replace(ctx, idempotency_key="revoke-key")
     result = execute("runner.revoke", ctx, {"credential_id": credential["credential_id"]})
     assert (
         execute("runner.revoke", ctx, {"credential_id": credential["credential_id"]}).result
         == result.result
     )
-    assert IdempotencyRecord.objects.get().scope == f"project:{project}"
+    assert IdempotencyRecord.objects.get().scope == f"workspace:{workspace}"

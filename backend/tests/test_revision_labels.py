@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import ValidationFailed
 
 from .conftest import op
@@ -46,7 +46,7 @@ def test_outsider_and_missing_revisions_are_indistinguishable(users, project):
         {"revision_id": first["revision_id"], "readable": False},
         {"revision_id": missing, "readable": False},
     ]
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     assert labels(users["viewer"], first["revision_id"]) == hidden[:1]
 
 

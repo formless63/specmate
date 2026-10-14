@@ -9,7 +9,7 @@ import pytest
 from django.db import close_old_connections, connections
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.cables.queries import inspect_revision
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
@@ -21,7 +21,7 @@ from specmate.operations import (
 )
 from specmate.queries import get_draft, get_revision
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_interfaces import create as create_interface
 from .test_interfaces import freeze as freeze_interface
 from .test_interfaces import pinout
@@ -313,7 +313,9 @@ def test_deep_source_revocation_precedes_diagnostics_replay_and_stale_state(user
     from .test_workshop_profiles import profile, stock_revision
 
     owner, user = users["owner"], users["editor"]
-    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     stock_id, _ = stock_revision(users, project)
     raw = b"Synthetic cable reference."
     digest = hashlib.sha256(raw).hexdigest()
@@ -413,7 +415,7 @@ def test_deep_source_revocation_precedes_diagnostics_replay_and_stale_state(user
 def test_retained_create_and_update_results_authorize_original_references(users, project):
     owner, user = users["owner"], users["editor"]
     private = op(owner, "project.create", {"name": "Shared then restricted"})["project_id"]
-    grant = Membership.objects.create(user=user, project_id=private, role="viewer")
+    grant = ensure_member(user, "viewer", project=private)
     *_, old = fixture(owner, private)
     *_, current = fixture(owner, project)
     draft = create(user, project, old, idempotency_key="retained-create")

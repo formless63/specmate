@@ -3,11 +3,11 @@
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.firmware_builds import operations
 from specmate.operations import NotFound
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_firmware_builds import (  # noqa: F401
     attempt,
     board,
@@ -48,7 +48,7 @@ def test_retained_build_denial_precedes_changed_occurrence_diagnostic(
         {"draft_id": assembly["draft_id"]},
         expected_state=assembly["state"],
     )
-    Membership.objects.filter(user=users["owner"], project_id=parent_project).delete()
+    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
     with pytest.raises(NotFound):
         op(
             users["owner"],
@@ -160,7 +160,7 @@ def test_shared_and_compiler_downloads_recheck_reader_context_independently_of_r
     context_project = op(
         users["owner"], "project.create", {"name": "Reader-specific compiler context"}
     )["project_id"]
-    Membership.objects.create(project_id=context_project, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=context_project)
     assembly = op(
         users["owner"],
         "assembly.create",
@@ -209,8 +209,12 @@ def test_shared_and_compiler_downloads_recheck_reader_context_independently_of_r
     retained_bytes = b"".join(response.streaming_content)
     response.close()
     assert viewer.get(specific + query).status_code == 200
-    Membership.objects.filter(project_id=context_project, user=users["viewer"]).delete()
-    assert Membership.objects.filter(project_id=project, user=users["viewer"]).exists()
+    WorkspaceMember.objects.filter(
+        workspace__projects=context_project, user=users["viewer"]
+    ).delete()
+    assert WorkspaceMember.objects.filter(
+        workspace__projects=project, user=users["viewer"]
+    ).exists()
     assert _execution_allowed(BuildAttempt.objects.get(id=stage.build_id))
     with pytest.raises(NotFound):
         op(users["viewer"], "build.get", {"build_id": stage.build_id})

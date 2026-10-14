@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Revision
 from specmate.operations import (
     Conflict,
@@ -441,7 +441,9 @@ def test_draft_concurrency_and_authority_precede_retained_outcomes(users, projec
         op(users["viewer"], "firmware.update", update, expected_state=first["state"])
     with pytest.raises(NotFound):
         op(users["outsider"], "firmware.read", {"draft_id": draft["draft_id"]})
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="viewer"
+    )
     for firmware in (declaration(sources, board, pins=[]), declaration(sources, board)):
         with pytest.raises(PermissionDenied):
             op(
@@ -451,7 +453,9 @@ def test_draft_concurrency_and_authority_precede_retained_outcomes(users, projec
                 expected_state=draft["state"],
                 idempotency_key="update",
             )
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="editor")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="editor"
+    )
     # A foreign blob in a pinned source's closure hides the firmware before diagnostics.
     other = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
     register(users["outsider"], other, b"foreign")

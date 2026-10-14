@@ -5,13 +5,12 @@ from uuid import uuid4
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
 from specmate.copper.contracts import ReadGraph
 from specmate.copper.queries import inspect_graph
 from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_cables import capture as cable_capture
 from .test_cables import create as cable_create
 from .test_cables import fixture as cable_fixture
@@ -200,7 +199,7 @@ def test_current_full_source_authority_precedes_selection_and_limits(users, proj
 def test_cross_project_revocation_rechecks_whole_root_even_for_other_occurrence(users, project):
     owner, user = users["owner"], users["editor"]
     private = op(owner, "project.create", {"name": "Scoped source"})["project_id"]
-    grant = Membership.objects.create(user=user, project_id=private, role="viewer")
+    grant = ensure_member(user, "viewer", project=private)
     private_body = interface_freeze(owner, interface_create(owner, private))
     public_body = interface_freeze(owner, interface_create(owner, project))
     root = assembly(owner, project, [("visible", public_body), ("restricted", private_body)])

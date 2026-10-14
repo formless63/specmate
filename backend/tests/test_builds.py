@@ -13,7 +13,7 @@ from django.db import DatabaseError, close_old_connections, transaction
 from django.test import Client
 from django.utils import timezone
 
-from specmate.access.models import Installation, Membership
+from specmate.access.models import Installation, WorkspaceMember
 from specmate.builds.dispatch import ack_outbox, ready_outbox, record_dispatch_failure
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageEvent, StageOutput
 from specmate.builds.operations import authenticate_runner
@@ -425,7 +425,9 @@ def test_cancel_after_lost_upload_receipt_preserves_verified_incomplete_outputs(
 def test_revoked_execution_stops_new_inputs_and_requests_cancellation(
     users, project, build, credential, lease
 ):
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     assert runner_op(credential, "runner.heartbeat", fence(lease))["cancellation_requested"] is True
     with pytest.raises(PermissionDenied):
         runner_op(credential, "runner.input", {**fence(lease), "sha256": digest(SOURCE)})
@@ -519,7 +521,7 @@ def test_artifact_download_rechecks_current_project_membership(users, project, c
     response = client.get(url)
     assert response.status_code == 200, response.content
     assert b"".join(response.streaming_content) == OUTPUT
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     assert client.get(url).status_code == 404
 
 

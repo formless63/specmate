@@ -2,7 +2,7 @@
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog.queries import get_identity
 from specmate.operations import NotFound
 
@@ -47,7 +47,7 @@ def test_catalog_draft_summary_hides_revoked_reference_closure(users, project, k
     assert identity["drafts"][0]["draft_id"] == target["draft_id"]
     if kind == "generic_base":
         assert identity["drafts"][0]["dependencies"] == [pinned["revision_id"]]
-    Membership.objects.filter(user=user, project_id=remote["project_id"]).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=remote["project_id"]).delete()
     if via == "query":
         with pytest.raises(NotFound):
             get_identity(user, target["definition_id"])

@@ -13,7 +13,7 @@ from specmate.design.models import Snapshot
 from specmate.operations import NotFound
 from specmate.shared_scene import operations  # noqa: F401
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ
 from .test_assembly_source_authority import sourced_child  # noqa: F401
 from .test_bom import capture, policy
@@ -202,11 +202,10 @@ def test_accessible_shared_revision_does_not_make_a_foreign_root_a_selected_proj
     project,
     mec_board,  # noqa: F811
 ):
-    from specmate.access.models import Membership
 
     owner, viewer = users["owner"], users["viewer"]
     foreign = op(owner, "project.create", {"name": "Synthetic second root project"})["project_id"]
-    Membership.objects.create(user=viewer, project_id=foreign, role="viewer")
+    ensure_member(viewer, "viewer", project=foreign)
     frozen = freeze(owner, create(owner, foreign, [occ("board", mec_board)]))
     scene = op(viewer, "shared_scene.read", {"snapshot_id": frozen["snapshot_id"]})
     assert scene["nodes"][0]["revision_id"] == mec_board["revision_id"]

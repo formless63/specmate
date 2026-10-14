@@ -5,7 +5,7 @@ import json
 import pytest
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.knowledge.models import (
     KnowledgeAttachment,
@@ -23,7 +23,7 @@ from specmate.operations import (
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob, SourceBundleFile
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_physical_units import unit_payload
 from .test_sources import register, sha
 from .test_transports import api, post_op
@@ -300,7 +300,7 @@ def test_scoped_denial_hides_cross_project_targets_and_unauthorized_actors(users
     hidden = op(users["owner"], "project.create", {"name": "Hidden synthetic project"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=hidden, user=users["outsider"], role="viewer")
+    ensure_member(users["outsider"], "viewer", project=hidden)
     hidden_draft, hidden_r1, _ = part(users["owner"], hidden, "Hidden synthetic enclosure")
     hidden_target = {"kind": "revision", "revision_id": hidden_r1["revision_id"]}
     hidden_photo = preserve(
@@ -353,7 +353,7 @@ def test_scoped_denial_hides_cross_project_targets_and_unauthorized_actors(users
     with pytest.raises(NotFound):
         create(users["editor"], project, attachments=[attachment_ref(hidden_photo, "h.png")])
 
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         op(users["viewer"], "knowledge.read", {"item_id": item["item_id"]})
 
@@ -429,7 +429,9 @@ def test_replay_rechecks_current_authority(users, project, world):
     first = create(
         users["editor"], project, kind="note", body="Synthetic.", links=[t["r1"]], key="k2"
     )
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        role="viewer"
+    )
     with pytest.raises(PermissionDenied):
         create(users["editor"], project, kind="note", body="Synthetic.", links=[t["r1"]], key="k2")
     assert KnowledgeItem.objects.filter(id=first["item_id"]).exists()

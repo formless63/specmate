@@ -7,7 +7,7 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog.models import PhysicalLot
 from specmate.inventory.models import StockEntry, WorkBatch
 from specmate.inventory.queries import account_detail
@@ -159,7 +159,9 @@ def test_replay_conflict_and_current_authority(users, revision, actual, project)
             expected_state=work["state"],
             idempotency_key="stale-link",
         )
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     with pytest.raises(PermissionDenied):
         op(users["owner"], "physical_units.register", payload, idempotency_key="unit-replay")
     with pytest.raises(PermissionDenied):
@@ -423,7 +425,9 @@ def test_unit_attribution_requires_work_link_and_replay_authority(users, revisio
     assert (
         account_detail(users["viewer"], stock["account_id"])["account"]["physical_quantity"] == "10"
     )
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     with pytest.raises(PermissionDenied):
         op(
             users["owner"],

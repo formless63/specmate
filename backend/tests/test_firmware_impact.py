@@ -6,14 +6,14 @@ from uuid import uuid4
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Revision
 from specmate.facts.models import FactAssertion
 from specmate.firmware_impact import operations  # noqa: F401
 from specmate.operations import NotFound, ValidationFailed
 from specmate.sources.models import SourceBundle
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_facts import append, fact, subject
 from .test_firmware import (  # noqa: F401
     OPT,
@@ -252,7 +252,7 @@ def test_http_operation_and_scope_denial(users, project, sources, board):  # noq
     denied = post_op(api(users["outsider"]), "firmware_impact.compare", data)
     assert denied.status_code == 404
     assert "findings" not in denied.json()
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         compare(users, data)
 
@@ -372,7 +372,7 @@ def test_foreign_project_assertion_and_revision_are_scoped_even_for_shared_actor
 ):
     frozen = frozen_firmware(users, project, sources, board)
     other = op(users["owner"], "project.create", {"name": "Another synthetic project"})
-    Membership.objects.create(project_id=other["project_id"], user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=other["project_id"])
     recorded = observation(users, {"kind": "project", "project_id": other["project_id"]})
     with pytest.raises(NotFound):
         compare(users, payload(project, frozen, frozen, assertion_ids=[recorded["assertion_id"]]))

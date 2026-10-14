@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 from specmate.queries import get_draft, get_revision
@@ -49,7 +49,9 @@ def test_revoked_child_is_hidden_before_generic_reads_conflicts_and_replays(user
         expected_state=root["state"],
         idempotency_key="freeze-assembly",
     )
-    Membership.objects.filter(project_id=child_project["project_id"], user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=child_project["project_id"], user=users["owner"]
+    ).delete()
     for read in [
         lambda: get_draft(users["owner"], root["draft_id"]),
         lambda: get_revision(users["owner"], frozen["revision_id"]),

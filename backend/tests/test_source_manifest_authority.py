@@ -5,14 +5,14 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.contracts import SourceBundleManifest
 from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound, Unauthenticated
 from specmate.queries import get_bundle_revision
 from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleFile, SourceBundleRevision
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_sources import ORIGINAL, files, register
 
 
@@ -50,7 +50,7 @@ def test_retained_actor_cannot_read_manifest_after_deactivation(users, project):
 def test_manifest_checks_valid_cross_project_ancestor_before_disclosure(users, project):
     parent = original(users, project)
     destination = op(users["owner"], "project.create", {"name": "Derivative project"})["project_id"]
-    Membership.objects.create(project_id=destination, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=destination)
     bundle = SourceBundle.objects.create(
         project_id=destination,
         name="Cross-project derivative",
@@ -84,7 +84,7 @@ def test_manifest_checks_valid_cross_project_ancestor_before_disclosure(users, p
     client.force_login(users["viewer"])
     url = f"/api/v0/bundle-revisions/{revision.id}/manifest"
     assert client.get(url).content == data
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         get_bundle_revision(users["viewer"], revision.id)
     response = client.get(url)

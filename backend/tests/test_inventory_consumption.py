@@ -9,7 +9,7 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.inventory.contracts import Quantity
 from specmate.inventory.models import StockAccount, StockEntry, WorkBatch, WorkCompletion
 from specmate.inventory.queries import account_detail, latest_entry, work_batch_detail
@@ -248,15 +248,17 @@ def test_scope_current_grants_and_replay_are_authoritative(users, project, stock
     ]:
         with pytest.raises(error):
             use(users[who], reserved, work)
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
         grants=["inventory.manage"]
     )
     used = use(users["editor"], reserved, work)
     assert use(users["editor"], reserved, work) == used
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(grants=[])
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        grants=[]
+    )
     with pytest.raises(PermissionDenied):
         use(users["editor"], reserved, work)
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     with pytest.raises(NotFound):
         use(users["editor"], reserved, work)
     assert StockEntry.objects.count() == 2
@@ -466,7 +468,9 @@ def test_current_nested_target_access_is_checked_before_reads_replay_and_conflic
     used = use(users["owner"], reserved, work)
     returned = give_back(users["owner"], used)
     completion = complete(users["owner"], returned["work_batch"])
-    Membership.objects.filter(project_id=private["project_id"], user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=private["project_id"], user=users["owner"]
+    ).delete()
     for command in [
         lambda: create_work(users["owner"], revision["revision_id"]),
         lambda: use(users["owner"], reserved, work),
@@ -525,7 +529,9 @@ def test_http_consumption_return_completion_and_revoked_replay(users, project, s
     )
     assert reported.status_code == 200
     assert reported.json()["result"]["work_batch"]["reported_completed_units"] == 2
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     for name, data, envelope in [
         ("consume", payload, kwargs),
         ("return_unused", back_payload, back_kwargs),
@@ -554,7 +560,9 @@ def test_stock_revision_closure_is_checked_for_reads_new_writes_and_replay(
     )
     stock = open_account(users, lot, location)
     reserved = reserve(users["owner"], stock)
-    Membership.objects.filter(project_id=restricted["project_id"], user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=restricted["project_id"], user=users["owner"]
+    ).delete()
     for command in [
         lambda: open_account(users, lot, location),
         lambda: reserve(users["owner"], stock),
@@ -578,7 +586,7 @@ def test_stock_revision_closure_is_checked_for_reads_new_writes_and_replay(
 def test_mcp_context_work_commands_share_idempotency_and_current_authority(users, project, stock):
     from specmate.operations import Context, execute
 
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
         grants=["inventory.manage"]
     )
     calls = []
@@ -637,7 +645,9 @@ def test_mcp_context_work_commands_share_idempotency_and_current_authority(users
     for name, ctx, payload, original in calls:
         replay = execute(name, ctx, payload)
         assert replay.replayed and replay.result == original
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(grants=[])
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
+        grants=[]
+    )
     for name, ctx, payload, _ in calls:
         with pytest.raises(PermissionDenied):
             execute(name, ctx, payload)

@@ -8,7 +8,7 @@ import pytest
 from django.db import close_old_connections, connections
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.interfaces.queries import inspect_revision, trace, validate_content
 from specmate.operations import (
@@ -19,7 +19,7 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import op
+from .conftest import ensure_member, op
 
 BODY = {
     "kind": "connector_body",
@@ -257,9 +257,11 @@ def test_mutation_scope_and_read_visibility(users, project, actor, exception):
 
 def test_current_dependency_scope_on_replay_and_read(users, project):
     user = users["editor"]
-    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     private = op(users["owner"], "project.create", {"name": "Restricted body"})["project_id"]
-    membership = Membership.objects.create(user=user, project_id=private, role="viewer")
+    membership = ensure_member(user, "viewer", project=private)
     body = freeze(users["owner"], create(users["owner"], private))
     p = pinout(body)
     draft = create(user, project, p, idempotency_key="pinout-key")
@@ -394,12 +396,14 @@ def test_competing_keyed_creates_have_one_effect(users, project):
 
 
 def test_current_freeze_grant_rechecked_on_retained_replay(users, project):
-    Membership.objects.filter(user=users["editor"], project_id=project).update(
+    WorkspaceMember.objects.filter(user=users["editor"], workspace__projects=project).update(
         grants=["design.freeze"]
     )
     draft = create(users["editor"], project)
     freeze(users["editor"], draft, idempotency_key="granted-freeze")
-    Membership.objects.filter(user=users["editor"], project_id=project).update(grants=[])
+    WorkspaceMember.objects.filter(user=users["editor"], workspace__projects=project).update(
+        grants=[]
+    )
     with pytest.raises(PermissionDenied):
         freeze(users["editor"], draft, idempotency_key="granted-freeze")
 

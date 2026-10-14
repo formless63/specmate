@@ -6,13 +6,13 @@ from uuid import UUID
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.assemblies import placement
 from specmate.catalog_packs.models import AdoptionEntry
 from specmate.design.models import Draft
 from specmate.operations import Context, NotFound, Unauthenticated
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ, part
 from .test_catalog_packs import adopt, install, registered
 from .test_mechanical_sources import declaration, mec_sources, mec_target  # noqa: F401
@@ -38,7 +38,7 @@ def test_model_source_authority_is_rechecked_for_exact_repeated_contexts(
 
     origin = op(users["owner"], "project.create", {"name": "Synthetic model source origin"})
     pid = origin["project_id"]
-    Membership.objects.create(project_id=pid, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=pid)
     raw = b"Original opaque synthetic model; no geometry or physical qualification.\n"
     register(users["owner"], pid, raw)
     source = op(
@@ -117,14 +117,14 @@ def test_model_source_authority_is_rechecked_for_exact_repeated_contexts(
     root = create(users["owner"], project, [occ("left", frozen), occ("right", frozen)])
     result = op(users["viewer"], "assembly.placement_inputs", {"draft_id": root["draft_id"]})
     assert {tuple(row["path"]) for row in result["occurrences"]} == {("left",), ("right",)}
-    Membership.objects.filter(project_id=pid, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=pid, user=users["viewer"]).delete()
     assert_denied(users["viewer"], root)
 
 
 def test_root_catalog_adoption_origin_is_authorized_even_for_empty_current_assembly(users, project):
     origin = op(users["owner"], "project.create", {"name": "Synthetic catalog origin"})
     for name in ("editor", "viewer"):
-        Membership.objects.create(project_id=origin["project_id"], user=users[name], role="viewer")
+        ensure_member(users[name], "viewer", project=origin["project_id"])
     original = freeze(users["owner"], create(users["owner"], origin["project_id"]))
     version = registered(users, project, original)
     install(users, version)
@@ -132,13 +132,15 @@ def test_root_catalog_adoption_origin_is_authorized_even_for_empty_current_assem
     entry = AdoptionEntry.objects.get(entry__version_id=version["version_id"])
     root = {"draft_id": str(entry.draft_id)}
     assert op(users["viewer"], "assembly.placement_inputs", root)["occurrences"] == []
-    Membership.objects.filter(project_id=origin["project_id"], user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=origin["project_id"], user=users["viewer"]
+    ).delete()
     assert_denied(users["viewer"], root)
 
 
 def test_retained_base_closure_is_checked_after_draft_removes_the_hidden_child(users, project):
     origin = op(users["owner"], "project.create", {"name": "Synthetic retained origin"})
-    Membership.objects.create(project_id=origin["project_id"], user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=origin["project_id"])
     _, old = part(users["owner"], origin["project_id"])
     root = create(users["owner"], project, [occ("old-child", old)])
     frozen = freeze(users["owner"], root)
@@ -156,7 +158,9 @@ def test_retained_base_closure_is_checked_after_draft_removes_the_hidden_child(u
         ]
         == []
     )
-    Membership.objects.filter(project_id=origin["project_id"], user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=origin["project_id"], user=users["viewer"]
+    ).delete()
     assert_denied(users["viewer"], root)
     assert Draft.objects.get(id=root["draft_id"]).state_token == updated["state"]
 
@@ -177,7 +181,7 @@ def test_current_draft_can_drop_a_pin_but_its_original_exact_revision_read_still
     users, project
 ):
     origin = op(users["owner"], "project.create", {"name": "Synthetic original editor child"})
-    Membership.objects.create(project_id=origin["project_id"], user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=origin["project_id"])
     _, child = part(users["owner"], origin["project_id"])
     root = create(users["owner"], project, [occ("original-child", child)])
     op(
@@ -188,7 +192,9 @@ def test_current_draft_can_drop_a_pin_but_its_original_exact_revision_read_still
     )
     client = api(users["viewer"])
     assert client.get(f"/api/v0/revisions/{child['revision_id']}").status_code == 200
-    Membership.objects.filter(project_id=origin["project_id"], user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(
+        workspace__projects=origin["project_id"], user=users["viewer"]
+    ).delete()
     assert (
         op(users["viewer"], "assembly.placement_inputs", {"draft_id": root["draft_id"]})[
             "occurrences"

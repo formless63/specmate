@@ -2,7 +2,7 @@
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import Conflict, Context, IdempotencyMismatch, NotFound
 from specmate.operations.models import IdempotencyRecord
 from specmate.sources.models import SourceBundle, SourceBundleRevision
@@ -71,7 +71,7 @@ def test_changed_source_pin_authorizes_retained_outcome_before_mismatch(
     retained = SourceBundleRevision.objects.get(id=result["revision_id"])
     manifest = bytes(retained.manifest)
     # Only membership changes: the valid retained manifest and its ancestry remain intact.
-    Membership.objects.filter(project_id=parent_project, user=actor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=parent_project, user=actor).delete()
     for supplied in (changed, payload):
         with pytest.raises(NotFound, match="Project"):
             op(actor, operation, supplied, idempotency_key="source-pin", **context)

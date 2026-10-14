@@ -8,13 +8,12 @@ from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from specmate.access.models import Membership
 from specmate.design.models import Revision
 from specmate.mechanical_sources.api import list_targets
 from specmate.operations import NotFound, Unauthenticated
 from specmate.queries import get_revision
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_bom import assembly, part
 from .test_mechanical_sources import create, mec_target
 from .test_shared_read_authority import adopt_with_remote_origin, restore, revoke
@@ -101,7 +100,7 @@ def test_choice_call_refreshes_captured_actor(users, project):
 
 def test_registered_source_revocation_is_fresh_for_every_choice_call(users, project):
     remote = op(users["owner"], "project.create", {"name": "Original choice source"})["project_id"]
-    Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=remote)
     register(users["owner"], remote, ORIGINAL)
     source = op(
         users["owner"],

@@ -12,7 +12,7 @@ import pytest
 from django.db import DatabaseError, transaction
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.mechanical_proposals.models import ProposalDraft, ProposalRevision
 from specmate.operations import (
     Conflict,
@@ -240,7 +240,7 @@ def test_idempotent_replay_mismatch_and_replay_authority(users, project, board):
     with pytest.raises(IdempotencyMismatch):
         update(editor, first, {}, idempotency_key="update-key")
     # A member whose edit grant is removed cannot replay a retained outcome.
-    Membership.objects.filter(project_id=project, user=editor).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=editor).update(role="viewer")
     with pytest.raises(PermissionDenied):
         update(editor, first, FULL, idempotency_key="update-key")
 
@@ -421,7 +421,7 @@ def test_losing_project_access_hides_drafts_and_retained_records(users, project,
         {"draft_id": draft["draft_id"]},
         expected_state=draft["state"],
     )
-    Membership.objects.filter(project_id=project, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=editor).delete()
     with pytest.raises(NotFound):
         op(editor, "mechanical_proposal.read", {"draft_id": draft["draft_id"]})
     with pytest.raises(NotFound):

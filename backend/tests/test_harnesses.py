@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.harnesses.contracts import SegmentTerminal
 from specmate.harnesses.queries import inspect_relationships, inspect_revision
@@ -19,7 +19,7 @@ from specmate.operations import (
 )
 from specmate.queries import get_draft, get_revision
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_cables import fixture as cable_fixture
 
 
@@ -417,7 +417,9 @@ def test_deep_source_denial_precedes_relationship_diagnostics_current_stale_repl
     users, project
 ):
     owner, user = users["owner"], users["editor"]
-    Membership.objects.filter(user=user, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     stock, bundle = source_backed_stock(users, project)
     harness = {
         "sections": [{"local_id": "piece", "stock_revision_id": stock["revision_id"]}],
@@ -471,7 +473,7 @@ def test_deep_source_denial_precedes_relationship_diagnostics_current_stale_repl
 def test_stored_replay_still_checks_old_pins_after_current_draft_changes(users, project):
     owner, user = users["owner"], users["editor"]
     private = op(owner, "project.create", {"name": "Restricted later"})["project_id"]
-    grant = Membership.objects.create(user=user, project_id=private, role="viewer")
+    grant = ensure_member(user, "viewer", project=private)
     *_, old = fixture(owner, private)
     *_, current = fixture(owner, project)
     draft = create(user, project, old, idempotency_key="old-harness")

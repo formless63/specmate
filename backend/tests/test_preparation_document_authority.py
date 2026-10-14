@@ -8,14 +8,14 @@ from types import SimpleNamespace
 import pytest
 from django.db import close_old_connections, connection
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import Conflict, IdempotencyMismatch, NotFound, PermissionDenied
 from specmate.operations.models import IdempotencyRecord
 from specmate.preparation_documents import operations
 from specmate.preparation_documents.api import records
 from specmate.preparation_documents.models import DocumentOutput, DocumentSet
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_preparation import cable, profile
 from .test_preparation import create as create_cuts
 from .test_preparation import freeze as freeze_cuts
@@ -95,7 +95,9 @@ def test_source_revoked_during_promotion_rolls_back_receipt_and_key(users, proje
     def revoke_in_competing_connection():
         close_old_connections()
         try:
-            count, _ = Membership.objects.filter(user_id=user.pk, project_id=foreign).delete()
+            count, _ = WorkspaceMember.objects.filter(
+                user_id=user.pk, workspace__projects=foreign
+            ).delete()
             assert count == 1
         finally:
             close_old_connections()
@@ -119,10 +121,10 @@ def test_source_revoked_during_promotion_rolls_back_receipt_and_key(users, proje
             idempotency_key="promotion-recovery",
         )
     assert revoked
-    assert not Membership.objects.filter(user=user, project_id=foreign).exists()
+    assert not WorkspaceMember.objects.filter(user=user, workspace__projects=foreign).exists()
     assert DocumentSet.objects.count() == DocumentOutput.objects.count() == 0
     assert not IdempotencyRecord.objects.filter(operation="preparation_documents.generate").exists()
-    Membership.objects.create(user=user, project_id=foreign, role="owner")
+    ensure_member(user, "owner", project=foreign)
     recovered = op(
         user,
         "preparation_documents.generate",
@@ -162,7 +164,7 @@ def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users
     review, saved = retain(user, config)
     original = files(user, saved)
     changed = configuration(root)  # Same root, but no longer proposes protected recipe/source.
-    Membership.objects.filter(user=user, project_id=foreign).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=foreign).delete()
     assert op(user, "preparation_documents.review", changed)
     with pytest.raises(NotFound):
         op(user, "preparation_documents.read", {"document_set_id": saved["document_set_id"]})
@@ -182,7 +184,7 @@ def test_changed_key_cannot_drop_revoked_receipt_source_before_diagnostics(users
             expected_state=review["state"],
             idempotency_key="documents",
         )
-    Membership.objects.create(user=user, project_id=foreign, role="owner")
+    ensure_member(user, "owner", project=foreign)
     with pytest.raises(IdempotencyMismatch):
         op(
             user,

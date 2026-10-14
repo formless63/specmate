@@ -8,13 +8,13 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections, connections
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.facts.contracts import ProjectTarget
 from specmate.knowledge.models import KnowledgeEntry, KnowledgeItem, KnowledgeLink
 from specmate.knowledge.queries import items_for_target, project_items, read_item
 from specmate.operations import NotFound, Unauthenticated
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_knowledge import create
 from .test_physical_units import unit_payload
 from .test_shared_read_authority import adopted_assembly, restore, revoke  # noqa: F401
@@ -170,7 +170,7 @@ def test_receipt_replay_cannot_restore_a_now_hidden_foreign_link(users, project,
     remote = op(users["owner"], "project.create", {"name": "Independent foreign target"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=remote, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=remote)
     create_payload = {
         "project_id": project,
         "kind": "note",
@@ -203,7 +203,7 @@ def test_receipt_replay_cannot_restore_a_now_hidden_foreign_link(users, project,
         receipt = op(users["editor"], operation, payload, **context)
     rows = receipt["removed_links"] if receipt_kind == "removed" else receipt["links"]
     assert rows[0]["project_id"] == remote
-    Membership.objects.filter(project_id=remote, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["editor"]).delete()
     current = read_item(users["editor"], note["item_id"])
     assert (
         current["current"] == receipt["current"]
@@ -228,7 +228,7 @@ def test_receipt_replay_cannot_restore_a_now_hidden_foreign_link(users, project,
     denied = post_op(api(users["editor"]), operation, payload, **context)
     assert denied.status_code == 404 and remote.encode() not in denied.content
     assert KnowledgeEntry.objects.filter(item_id=note["item_id"]).count() == count
-    Membership.objects.create(project_id=remote, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=remote)
     assert op(users["editor"], operation, payload, **context) == receipt
     assert post_op(api(users["editor"]), operation, payload, **context).json()["result"] == receipt
     assert KnowledgeEntry.objects.filter(item_id=note["item_id"]).count() == count

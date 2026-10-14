@@ -10,7 +10,7 @@ import pytest
 from django.db import DatabaseError, connection, transaction
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildStage, StageOutput
 from specmate.operations import (
     Conflict,
@@ -29,7 +29,7 @@ from specmate.pcb_disagreement.xml_extract import normalize_xml
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBundle, SourceBundleFile
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_pcb_disagreement import assertion, create, freeze, update
 from .test_pcb_disagreement import source_pin as manual_source
 from .test_pcb_net_xml import document
@@ -238,7 +238,7 @@ def test_current_blob_and_bundle_closure_precedes_read_replay_and_diagnostics(
     users, project, native_request
 ):
     owner, editor = users["owner"], users["editor"]
-    Membership.objects.filter(user=editor, project_id=project).update(
+    WorkspaceMember.objects.filter(user=editor, workspace__projects=project).update(
         grants=["build.execute", "source.register"]
     )
     attempt = request(editor, native_request)
@@ -350,13 +350,11 @@ def test_visible_bundle_hidden_registered_blob_denied_before_file_or_recipe_diag
 ):
     owner, editor = users["owner"], users["editor"]
     visible = op(owner, "project.create", {"name": "Visible new source owner"})["project_id"]
-    Membership.objects.create(
-        project_id=visible, user=editor, role="editor", grants=["build.execute"]
-    )
+    ensure_member(editor, "editor", project=visible, grants=["build.execute"])
     SourceBundle.objects.filter(
         revisions__id=native_request["source"]["source_revision_id"]
     ).update(project_id=visible)
-    Membership.objects.filter(project_id=project, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=editor).delete()
     payload = deepcopy(native_request)
     payload["project_id"] = visible
     payload["recipe_id"] = "wrong-recipe"
@@ -387,7 +385,9 @@ def test_changed_native_payload_authorizes_retained_source_before_key_mismatch(
     users, project, native_request, operation, legacy
 ):
     owner, editor = users["owner"], users["editor"]
-    Membership.objects.filter(user=editor, project_id=project).update(grants=["build.execute"])
+    WorkspaceMember.objects.filter(user=editor, workspace__projects=project).update(
+        grants=["build.execute"]
+    )
     old = request(editor, native_request)
     output_pair(old)
     accept(editor, old)

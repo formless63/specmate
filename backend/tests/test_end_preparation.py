@@ -6,7 +6,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.end_preparation import api
 from specmate.end_preparation.contracts import ApplyProfile, EndPreparationProfile
@@ -441,7 +441,7 @@ def test_retained_old_source_authority_precedes_invalid_supplied_feature_and_key
         IdempotencyRecord.objects.filter(
             actor=user, operation="end_preparation.create", key="retained-source"
         ).update(scope="legacy")
-    Membership.objects.filter(user=user, project_id=private_project).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
     changed["a"]["instructions"][0]["element_path"] = "invalid.feature"
     with pytest.raises((NotFound, PermissionDenied), match="Project"):
         create(user, project, changed, idempotency_key="retained-source")
@@ -466,7 +466,7 @@ def test_all_incoming_sources_and_ancestors_authorized_before_file_diagnostics(u
     rules = profile(stock["revision_id"])
     rules["a"]["instructions"][0]["source"] = {**accessible, "path": "missing.txt"}
     rules["b"]["instructions"][0]["source"] = hidden
-    Membership.objects.filter(user=user, project_id=private_project).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
     with pytest.raises((NotFound, PermissionDenied), match="Project"):
         create(user, project, rules)
 
@@ -559,7 +559,7 @@ def test_inaccessible_cable_ancestor_precedes_invalid_mapping(users, project):
     _, _, stock, _, _, cable = fixture(user, private_project)
     target = capture(user, create_cable(user, project, cable))
     frozen = freeze(user, create(user, project, profile(stock["revision_id"])))
-    Membership.objects.filter(user=user, project_id=private_project).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
     with pytest.raises((NotFound, PermissionDenied), match="Project"):
         op(user, "end_preparation.apply", application(target, frozen, a_endpoint_id="bad"))
 
@@ -626,7 +626,7 @@ def test_body_target_authority_precedes_feature_diagnostics(users, project):
     body = freeze_interface(user, create_interface(user, private_project))
     rules = profile(stock["revision_id"], body["revision_id"])
     recipe = freeze(user, create(user, project, rules))
-    Membership.objects.filter(user=user, project_id=private_project).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
     rules["a"]["instructions"][0]["element_path"] = "unavailable.feature"
     with pytest.raises((NotFound, PermissionDenied), match="Project"):
         create(user, project, rules)

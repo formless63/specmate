@@ -12,7 +12,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -26,7 +26,7 @@ from specmate.preparation_documents.contracts import DOCUMENTS
 from specmate.preparation_documents.models import DocumentOutput, DocumentSet
 from specmate.sources import blobstore
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_bom import assembly, policy
 from .test_bom import capture as freeze_bom
 from .test_bom import create as create_bom
@@ -325,7 +325,7 @@ def test_full_current_source_closure_before_diagnostics_receipt_download_and_rep
     )
     review, saved = retain(user, config)
     assert saved["manifest"]["inputs"]["source_pins"][0]["bundle_revision_id"] == str(source.id)
-    Membership.objects.filter(user=user, project_id=foreign).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=foreign).delete()
     for name, payload, kwargs in (
         ("read", {"document_set_id": saved["document_set_id"]}, {}),
         ("download", {"document_set_id": saved["document_set_id"], "filename": DOCUMENTS[0]}, {}),
@@ -339,7 +339,7 @@ def test_full_current_source_closure_before_diagnostics_receipt_download_and_rep
         with pytest.raises((NotFound, PermissionDenied)):
             op(user, "preparation_documents." + name, payload, **kwargs)
     assert DocumentSet.objects.count() == 1
-    Membership.objects.create(user=user, project_id=foreign, role="owner")
+    ensure_member(user, "owner", project=foreign)
     assert (
         op(
             user,
@@ -605,7 +605,7 @@ def test_reference_authority_is_narrow_read_only_and_checks_entire_supplementary
     assert not DocumentSet.objects.exists()
     response = post_op(api(user), "preparation_documents.authority", payload)
     assert response.status_code == 200 and response.json()["result"] == {"authorized": True}
-    Membership.objects.filter(user=user, project_id=foreign).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=foreign).delete()
     with pytest.raises((NotFound, PermissionDenied)):
         op(user, "preparation_documents.authority", payload)
     assert post_op(api(user), "preparation_documents.authority", payload).status_code == 404

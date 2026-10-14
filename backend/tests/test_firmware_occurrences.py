@@ -9,7 +9,7 @@ from threading import Barrier
 import pytest
 from django.db import IntegrityError, close_old_connections, connections, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Revision, SnapshotDependency
 from specmate.firmware_occurrences.models import FirmwareAdoption
 from specmate.operations import (
@@ -22,7 +22,7 @@ from specmate.operations import (
 from specmate.operations.models import IdempotencyRecord
 from specmate.sources.models import SourceBlob, SourceBundleFile
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_firmware import (  # noqa: F401
     CONFIG,
     MAIN,
@@ -265,8 +265,9 @@ def test_scoped_replay_mismatch_and_edit_permission(users, pair):
             adoption_payload(reviewed),
             expected_state=reviewed["state"],
         )
-    Membership.objects.filter(
-        user=users["editor"], project=Draft.objects.get(id=assembly["draft_id"]).definition.project
+    WorkspaceMember.objects.filter(
+        user=users["editor"],
+        workspace__projects=Draft.objects.get(id=assembly["draft_id"]).definition.project,
     ).update(role="viewer")
     with pytest.raises(PermissionDenied):
         adopt(users, reviewed, idempotency_key="independent")
@@ -523,7 +524,7 @@ def test_retained_adoption_rechecks_original_base_after_new_freeze(users, pair):
         "project_id"
     ]
     for actor in (users["owner"], users["editor"], users["viewer"]):
-        Membership.objects.create(project_id=foreign, user=actor, role="viewer")
+        ensure_member(actor, "viewer", project=foreign)
     original = op(
         users["outsider"],
         "definition.create",
@@ -552,7 +553,9 @@ def test_retained_adoption_rechecks_original_base_after_new_freeze(users, pair):
         {"draft_id": assembly["draft_id"]},
         expected_state=saved["state"],
     )
-    Membership.objects.filter(project_id=foreign).exclude(user=users["outsider"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=foreign).exclude(
+        user=users["outsider"]
+    ).delete()
     with pytest.raises(NotFound):
         op(
             users["viewer"],

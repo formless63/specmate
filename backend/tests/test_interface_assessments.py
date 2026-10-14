@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 from django.contrib.auth import get_user_model
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.interfaces.queries import inspect_revision
 from specmate.operations import (
@@ -18,7 +18,7 @@ from specmate.operations import (
     Unauthenticated,
 )
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_interfaces import create, freeze
 from .test_shared_read_authority import adopt_with_remote_origin, restore, revoke
 from .test_sources import files, register
@@ -320,7 +320,7 @@ def test_registered_evidence_denial_before_pin_diagnostics_and_replay_recovery(
         and evidence["rights"] == "synthetic-original"
         and evidence["source_bundle_revision_id"] == source["revision_id"]
     )
-    Membership.objects.filter(project_id=remote, user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=owner).delete()
     invalid = copy.deepcopy(value)
     invalid["pairs"][0]["right_contact_id"] = "absent"
     for action in (
@@ -331,7 +331,7 @@ def test_registered_evidence_denial_before_pin_diagnostics_and_replay_recovery(
     ):
         with pytest.raises(NotFound):
             action()
-    Membership.objects.create(project_id=remote, user=owner, role="owner")
+    ensure_member(owner, "owner", project=remote)
     assert inspect_revision(owner, frozen["revision_id"]) == before
     assert freeze(owner, draft, idempotency_key="evidence-freeze") == frozen
 

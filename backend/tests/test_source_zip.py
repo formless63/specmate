@@ -7,7 +7,7 @@ import zipfile
 import pytest
 from django.test import Client, RequestFactory
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import (
     Context,
     IdempotencyMismatch,
@@ -257,7 +257,7 @@ def test_authority_shared_across_adapters_and_replay(users, project, via):
                 Context(user=users[actor], via=via, request_id="deny"),
                 payload(source),
             )
-    Membership.objects.filter(project_id=project, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
     for p in [payload(source), {**payload(source), "name": "mismatched"}]:
         with pytest.raises(NotFound):
             execute("source.expand_zip", context, p)

@@ -7,7 +7,7 @@ import pytest
 from django.db import close_old_connections, connections
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.assemblies.queries import (
     permitted_self_dependencies,
     read_assembly,
@@ -23,7 +23,7 @@ from specmate.operations import (
 )
 from specmate.operations.models import IdempotencyRecord
 
-from .conftest import op
+from .conftest import ensure_member, op
 
 
 def part(user, project, kind="board", name="Synthetic board"):
@@ -294,13 +294,13 @@ def test_canonical_placement_unknowns_and_view_arrangements_are_separate(users, 
 
 def test_unreadable_nested_closure_returns_no_paths_counts_or_conflict_content(users, project):
     remote = op(users["outsider"], "project.create", {"name": "Restricted project"})["project_id"]
-    Membership.objects.create(project_id=remote, user=users["owner"], role="viewer")
+    ensure_member(users["owner"], "viewer", project=remote)
     _, board = part(users["outsider"], remote)
     module = create(users["owner"], project, [occ("private-child", board)])
     module_rev = freeze(users["owner"], module)
     root = create(users["owner"], project, [occ("nested", module_rev)])
     root_rev = freeze(users["owner"], root)
-    Membership.objects.filter(project_id=remote, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
     for operation, payload in [
         ("assembly.read", {"snapshot_id": root_rev["snapshot_id"]}),
         ("assembly.resolve", {"snapshot_id": root_rev["snapshot_id"], "path": ["no-such-path"]}),
@@ -365,7 +365,7 @@ def test_shared_operations_stale_replay_mismatch_permissions_and_rollback(users,
 
 def test_replayed_create_rechecks_child_access(users, project):
     remote = op(users["outsider"], "project.create", {"name": "Restricted project"})["project_id"]
-    Membership.objects.create(project_id=remote, user=users["owner"], role="viewer")
+    ensure_member(users["owner"], "viewer", project=remote)
     _, board = part(users["outsider"], remote)
     payload = {
         "project_id": project,
@@ -373,7 +373,7 @@ def test_replayed_create_rechecks_child_access(users, project):
         "assembly": {"occurrences": [occ("child", board)]},
     }
     op(users["owner"], "assembly.create", payload, idempotency_key="create-assembly")
-    Membership.objects.filter(project_id=remote, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(users["owner"], "assembly.create", payload, idempotency_key="create-assembly")
 

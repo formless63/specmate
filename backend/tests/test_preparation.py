@@ -5,7 +5,7 @@ from uuid import UUID
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
     Conflict,
@@ -342,7 +342,7 @@ def test_source_ancestor_revocation_precedes_missing_file_and_replay_diagnostics
     # Retained evidence is hidden while the changed incoming profile is independently accessible.
     replacement = profile(value["stock_revision_id"])
     replacement["formulas"][1]["element_path"] = "stock.jacket"
-    Membership.objects.filter(project_id=hidden, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=hidden, user=user).delete()
     with pytest.raises((NotFound, PermissionDenied)):
         create(user, project, replacement, idempotency_key="source-profile")
     with pytest.raises((NotFound, PermissionDenied)):
@@ -409,7 +409,7 @@ def test_every_application_source_is_authorized_before_cut_diagnostics(users, pr
     hidden = profile(stock["revision_id"], "stock_cut")
     hidden["formulas"][0]["allowances"][0]["source"] = source
     hidden_revision = freeze(user, create(user, project, hidden))
-    Membership.objects.filter(project_id=hidden_project, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=hidden_project, user=user).delete()
     with pytest.raises((NotFound, PermissionDenied), match="Project"):
         op(
             user,

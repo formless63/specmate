@@ -8,7 +8,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.inventory.models import StockEntry
 from specmate.material_accounting.queries import inspect_revision
@@ -314,7 +314,7 @@ def test_full_sources_revocation_precedes_cut_diagnostics_and_retained_replay(us
     plan["pieces"][0]["extra_waste"]["source"] = source
     draft = create(user, project, plan, idempotency_key="protected")
     captured = freeze(user, draft)
-    Membership.objects.filter(user=user, project_id=hidden).delete()
+    WorkspaceMember.objects.filter(user=user, workspace__projects=hidden).delete()
     supplied = copy.deepcopy(plan)
     supplied["pieces"][0]["extra_waste"]["source"] = None
     supplied["pieces"][0]["section_id"] = "missing-physical-section"

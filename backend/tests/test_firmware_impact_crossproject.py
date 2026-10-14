@@ -8,7 +8,7 @@ from uuid import UUID
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.assemblies.queries import get_snapshot
 from specmate.design.models import Revision
 from specmate.facts.models import FactAssertion
@@ -16,7 +16,7 @@ from specmate.firmware_builds.contracts import FirmwareRef
 from specmate.firmware_builds.operations import inputs
 from specmate.operations import NotFound, ValidationFailed
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ
 from .test_facts import append, fact, subject
 from .test_firmware import attempt, board, intake, recipe, source, sources  # noqa: F401
@@ -36,7 +36,7 @@ def reused(users, project, sources, board):  # noqa: F811
     owning_project = op(users["owner"], "project.create", {"name": "Consumer assembly"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=owning_project, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=owning_project)
     draft = create(
         users["owner"],
         owning_project,
@@ -136,8 +136,12 @@ def test_missing_library_authority_precedes_invalid_context_path(users, reused):
     data["candidate"]["path"] = ["unresolved-private-path"]
     with pytest.raises(NotFound, match="Exact frozen board occurrence unavailable"):
         inputs(users["viewer"], FirmwareRef.model_validate(data["candidate"]))
-    Membership.objects.filter(project_id=reused["library"], user=users["viewer"]).delete()
-    assert Membership.objects.filter(project_id=reused["owner"], user=users["viewer"]).exists()
+    WorkspaceMember.objects.filter(
+        workspace__projects=reused["library"], user=users["viewer"]
+    ).delete()
+    assert WorkspaceMember.objects.filter(
+        workspace__projects=reused["owner"], user=users["viewer"]
+    ).exists()
     with pytest.raises(NotFound, match=r"^Project not found\.$"):
         op(users["viewer"], "firmware_impact.compare", data)
 
@@ -311,7 +315,7 @@ def test_library_revision_fact_input_source_authority_precedes_missing_context_d
     data["candidate"]["path"] = ["unresolved-private-path"]
     with pytest.raises(NotFound, match=r"^Project not found\.$"):
         op(users["viewer"], "firmware_impact.compare", data)
-    Membership.objects.create(project_id=other, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=other)
     with pytest.raises(NotFound, match="Exact frozen board occurrence unavailable"):
         op(users["viewer"], "firmware_impact.compare", data)
     assert (

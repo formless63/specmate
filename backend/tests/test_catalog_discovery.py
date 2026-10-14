@@ -2,10 +2,10 @@
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.operations import NotFound, ValidationFailed
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_catalog import variant_payload
 from .test_design import freeze
 from .test_inventory import assertion
@@ -65,7 +65,7 @@ def test_search_sources_catalog_and_stock_with_current_authority(users, project)
     assert search(viewer, "variant", "SYN-731")["results"][0]["record_id"] == variant["variant_id"]
     assert search(viewer, "lot", "Copper")["results"][0]["record_id"] == lot["lot_id"]
     assert search(viewer, "stock", "Drawer B")["results"][0]["record_id"] == stock["account_id"]
-    Membership.objects.filter(project_id=project, user=viewer).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=viewer).delete()
     for kind, text in (
         ("project", "Synthetic"),
         ("definition", "Caliper"),
@@ -127,7 +127,7 @@ def test_where_used_filters_hidden_parents_and_closure_before_paging(users, proj
         )
     with pytest.raises(NotFound):
         op(viewer, "catalog.where_used", {"revision_id": hidden_revision["revision_id"]})
-    Membership.objects.filter(project_id=project, user=viewer).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=viewer).delete()
     with pytest.raises(NotFound):
         op(viewer, "catalog.where_used", {"revision_id": pinned["revision_id"]})
 
@@ -156,7 +156,7 @@ def test_search_cursor_is_current_visible_match_and_query_is_literal(users, proj
 def test_search_skips_catalog_record_after_dependency_access_is_revoked(users, project):
     owner = users["owner"]
     remote = op(owner, "project.create", {"name": "Remote source"})["project_id"]
-    Membership.objects.create(project_id=remote, user=users["viewer"], role="viewer")
+    ensure_member(users["viewer"], "viewer", project=remote)
     dependency = create_part(owner, remote, "Remote fixture")
     pinned = freeze(owner, dependency["draft_id"], dependency["state"])
     part = create_part(owner, project, "Scoped fixture")
@@ -166,7 +166,7 @@ def test_search_skips_catalog_record_after_dependency_access_is_revoked(users, p
     assert (
         search(viewer, "variant", "REV-CHECK")["results"][0]["record_id"] == variant["variant_id"]
     )
-    Membership.objects.filter(project_id=remote, user=viewer).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=viewer).delete()
     assert search(viewer, "variant", "REV-CHECK")["results"] == []
     with pytest.raises(NotFound):
         search(viewer, "variant", "REV-CHECK", after=variant["variant_id"])

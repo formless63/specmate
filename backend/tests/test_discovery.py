@@ -8,7 +8,7 @@ import uuid
 import pytest
 from django.test import Client
 
-from specmate.access.models import Installation, Membership
+from specmate.access.models import Installation, WorkspaceMember
 from specmate.builds.models import RunnerCredential
 from specmate.builds.operations import RunnerIdentity
 from specmate.discovery import requirements
@@ -132,7 +132,7 @@ def test_explicit_grant_changes_the_answer(users, project):
         by_name(discover(users["editor"], project))["draft.freeze"]["availability"]["status"]
         == "not_permitted"
     )
-    Membership.objects.filter(project_id=project, user=users["editor"]).update(
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).update(
         grants=["design.freeze"]
     )
     result = discover(users["editor"], project)
@@ -323,7 +323,7 @@ def test_invalid_payload_and_idempotency_key_are_rejected(users, project):
 
 def test_membership_change_is_visible_immediately(users, project):
     assert discover(users["viewer"], project)["scope"]["role"] == "viewer"
-    Membership.objects.filter(project_id=project, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         discover(users["viewer"], project)
 

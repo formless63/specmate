@@ -7,7 +7,7 @@ from dataclasses import replace
 import pytest
 from django.contrib.auth import get_user_model
 
-from specmate.access.models import Installation, Membership
+from specmate.access.models import Installation, WorkspaceMember
 from specmate.builds.models import BuildAttempt
 from specmate.design.models import Definition, Revision
 from specmate.operations import (
@@ -104,7 +104,7 @@ def test_replay_after_membership_revocation_is_not_found(users, project, definit
     else:
         stored = op(user, name, payload, **options)
     target = stored["project_id"] if name == "project.create" else project
-    Membership.objects.filter(project_id=target, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=target, user=user).delete()
     if via == "api":
         denied = post_op(client, name, payload, **options)
         assert denied.status_code == 404
@@ -119,13 +119,16 @@ def test_replay_after_membership_revocation_is_not_found(users, project, definit
 def test_freeze_replay_rechecks_freeze_grant_without_reapplying_old_state(
     users, project, definition, via
 ):
-    user = users["editor"]
-    Membership.objects.filter(project_id=project, user=user).update(grants=["design.freeze"])
+    # Contributors freeze only with the explicit grant; removing it blocks replay.
+    user = users["contributor"]
+    WorkspaceMember.objects.filter(workspace__projects=project, user=user).update(
+        grants=["design.freeze"]
+    )
     payload = {"draft_id": definition["draft_id"]}
     options = {"expected_state": definition["state"], "idempotency_key": "freeze"}
     first = op(user, "draft.freeze", payload, **options)
     assert op(user, "draft.freeze", payload, **options) == first
-    Membership.objects.filter(project_id=project, user=user).update(grants=[])
+    WorkspaceMember.objects.filter(workspace__projects=project, user=user).update(grants=[])
     if via == "api":
         response = post_op(api(user), "draft.freeze", payload, **options)
         assert response.status_code == 403
@@ -151,7 +154,7 @@ def test_replay_rechecks_pinned_dependency_read_scope(users, project, definition
     payload = {"draft_id": definition["draft_id"], "dependencies": [frozen["revision_id"]]}
     options = {"expected_state": definition["state"], "idempotency_key": "dependency-freeze"}
     op(owner, "draft.freeze", payload, **options)
-    Membership.objects.filter(project_id=other["project_id"], user=owner).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other["project_id"], user=owner).delete()
     with pytest.raises(NotFound):
         op(owner, "draft.freeze", payload, **options)
     assert Revision.objects.count() == 2
@@ -256,7 +259,7 @@ def test_cached_operator_action_cannot_replay_through_jobs(users, project, recip
 
 def test_new_operation_without_replay_guard_fails_closed(users, project, monkeypatch):
     name = "unguarded.create"
-    from specmate.operations.scope import project_scope
+    from specmate.operations.scope import workspace_scope
 
     monkeypatch.setitem(
         registry,
@@ -264,7 +267,7 @@ def test_new_operation_without_replay_guard_fails_closed(users, project, monkeyp
         replace(
             registry["definition.create"],
             name=name,
-            idempotency_scope=lambda ctx, parsed: project_scope(ctx, parsed.project_id),
+            idempotency_scope=lambda ctx, parsed: workspace_scope(ctx, parsed.scope_id),
         ),
     )
     payload = {"project_id": project, "kind": "part", "name": "Guarded scope"}

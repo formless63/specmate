@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from django.test import RequestFactory
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageOutput
 from specmate.builds.recipes import Recipe
 from specmate.firmware_builds import operations
@@ -256,7 +256,7 @@ def test_handoff_exact_provenance_download_and_current_authority(users, firmware
     response = download_output(request, firmware["revision_id"], stage.build_id, output.id)
     assert digest(b"".join(response.streaming_content)) == output.sha256
     assert read_options(request, firmware["revision_id"])["builds"][0]["state"] == "succeeded"
-    Membership.objects.filter(user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         op(users["viewer"], "firmware_build.read", reference(requested))
     with pytest.raises(NotFound):
@@ -295,7 +295,7 @@ def test_failed_stage_and_mismatched_firmware_are_not_handoffs(users, requested)
 
 
 def test_source_revocation_precedes_key_mismatch(users, firmware, compiler_recipe, requested):
-    Membership.objects.filter(user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(user=users["owner"]).delete()
     with pytest.raises(NotFound):
         op(
             users["owner"],
@@ -367,7 +367,7 @@ def test_hidden_output_ancestor_precedes_hash_diagnostic_and_replay(
     parent_project, parent = other_source(users)
     derivative = derived_record(users["owner"], sources["revision_id"], parent)
     fake_outputs(requested, output_source=derivative.id)
-    Membership.objects.filter(user=users["owner"], project_id=parent_project).delete()
+    WorkspaceMember.objects.filter(user=users["owner"], workspace__projects=parent_project).delete()
     with pytest.raises(NotFound):
         op(users["owner"], "firmware_build.read", reference(requested))
     with pytest.raises(NotFound):

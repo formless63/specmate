@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Draft, Snapshot
 from specmate.operations import (
     Conflict,
@@ -211,7 +211,7 @@ def test_scope_cas_and_replay_are_enforced(users, project):
             {"draft_id": draft["draft_id"]},
             expected_state=draft["state"],
         )
-    Membership.objects.filter(project_id=project, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).delete()
     with pytest.raises(NotFound):
         create(users, project, body, idempotency_key="profile-create")
 

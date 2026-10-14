@@ -9,7 +9,7 @@ from uuid import UUID
 import pytest
 from django.test import Client, override_settings
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.operations import (
     Conflict,
@@ -27,7 +27,7 @@ from specmate.selected_packages.verification import verify_files
 from specmate.sources import blobstore
 from specmate.sources.models import SourceBundle
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_cables import capture as freeze_cable
 from .test_cables import create as create_cable
@@ -212,11 +212,11 @@ def test_contextual_authority_denial_before_bad_selection_stale_review_and_stand
 ):
     selected, _ = cable
     remote = op(users["outsider"], "project.create", {"name": "Private context"})["project_id"]
-    Membership.objects.create(project_id=remote, user=users["owner"], role="owner")
-    Membership.objects.create(project_id=project, user=users["outsider"], role="viewer")
+    ensure_member(users["owner"], "owner", project=remote)
+    ensure_member(users["outsider"], "viewer", project=project)
     root = freeze(users["outsider"], create(users["outsider"], remote, [occ("chosen", selected)]))
     review = op(users["owner"], "selected_package.review", request(root, ["chosen"]))
-    Membership.objects.filter(project_id=remote, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
     for path in (["chosen"], ["missing"]):
         payload = request(root, path, rights_reviews=[{"subject": "wrong", "decision": "unknown"}])
         with pytest.raises(NotFound) as err:
@@ -371,7 +371,7 @@ def test_source_ancestry_revocation_hides_diagnostics_and_retained_download(user
     original_bundle = SourceBundle.objects.get(revisions__id=original["source_bundle_revision_id"])
     original_bundle.project_id = UUID(remote)
     original_bundle.save(update_fields=["project"])
-    Membership.objects.filter(project_id=remote, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
     for sha256 in (retained["sha256"], "0" * 64):
         with pytest.raises(NotFound) as err:
             op(
@@ -470,7 +470,9 @@ def test_review_hash_fresh_authority_no_replay_keys_api_job_and_zip_adapter(user
         raw, _, _ = archive(users["viewer"], Download(**download_payload))
         assert response.content == raw
         assert response["Cache-Control"] == "private, no-store"
-        Membership.objects.filter(project_id=cable_project(cable), user=users["viewer"]).delete()
+        WorkspaceMember.objects.filter(
+            workspace__projects=cable_project(cable), user=users["viewer"]
+        ).delete()
         denied = client.post(
             "/api/v0/selected-packages/download", download_payload, content_type="application/json"
         )
@@ -496,7 +498,7 @@ def test_hidden_sibling_blocks_contextual_diagnostics_but_standalone_remains_rea
     cable,
 ):
     remote = op(users["outsider"], "project.create", {"name": "Restricted sibling"})["project_id"]
-    Membership.objects.create(project_id=remote, user=users["owner"], role="viewer")
+    ensure_member(users["owner"], "viewer", project=remote)
     _, sibling = part(users["outsider"], remote)
     selected = cable[0]
     root = freeze(

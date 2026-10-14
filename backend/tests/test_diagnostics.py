@@ -16,7 +16,7 @@ from django.db import DatabaseError, transaction
 from django.test import Client
 from django.utils import timezone
 
-from specmate.access.models import Installation, Membership
+from specmate.access.models import Installation, WorkspaceMember
 from specmate.builds.models import BuildStage
 from specmate.builds.operations import authenticate_runner
 from specmate.diagnostics.guards import InstallationNotAccepting
@@ -311,7 +311,9 @@ def test_withdrawn_authority_and_revoked_runner_are_permission_denials(
     users, project, build, credential, operator
 ):
     lease = lease_one(users, credential, build)
-    Membership.objects.filter(project_id=project, user=users["owner"]).update(role="viewer")
+    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
+        role="viewer"
+    )
     runner_op(credential, "runner.heartbeat", {**_fence(lease)})
     report = status(users["editor"], project)
     assert "execution_authority_withdrawn" in codes(report)

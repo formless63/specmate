@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 from django.test import Client
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
     Conflict,
@@ -272,7 +272,9 @@ def test_invalid_correspondence_hash_or_stale_review_rolls_back(users, project, 
 
 def test_cas_idempotency_old_revision_and_current_source_authority(users, project):
     owner, editor = users["owner"], users["editor"]
-    Membership.objects.filter(user=editor, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=editor, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     left, _right, value = pair(users, project)
     draft = create(editor, project, value, idempotency_key="compare-create")
     assert create(editor, project, value, idempotency_key="compare-create") == draft
@@ -337,7 +339,9 @@ def test_changed_review_payload_authorizes_retained_content_before_mismatch(
     users, project, operation, legacy
 ):
     owner, editor = users["owner"], users["editor"]
-    Membership.objects.filter(user=editor, project_id=project).update(grants=["design.freeze"])
+    WorkspaceMember.objects.filter(user=editor, workspace__projects=project).update(
+        grants=["design.freeze"]
+    )
     old_source = source_pin(owner, project)
     old_value = assertion(old_source)
     current_value = assertion(source_pin(owner, project, role="netlist"))

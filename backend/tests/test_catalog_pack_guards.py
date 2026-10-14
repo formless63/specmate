@@ -8,7 +8,7 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog_packs.contracts import PackManifest
 from specmate.catalog_packs.models import (
     AdoptionEntry,
@@ -21,7 +21,7 @@ from specmate.design.models import Definition
 from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_catalog_packs import (
     adopt,
     install,
@@ -308,7 +308,7 @@ def test_supplementary_pins_remain_authorized_even_for_inert_adoption(
     users, project, revision, category
 ):
     other = op(users["owner"], "project.create", {"name": "Supporting provenance"})["project_id"]
-    Membership.objects.create(project_id=other, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=other)
     file_project = project if category in {"rule", "model"} else other
     register(users["owner"], file_project, ORIGINAL)
     source = op(
@@ -361,7 +361,7 @@ def test_supplementary_pins_remain_authorized_even_for_inert_adoption(
     retained = get_version(users["editor"], version["version_id"])["entries"][0]
     assert retained["source"]["source_path"] == "support/source.txt "
     assert retained["source"]["rights"] == "synthetic-original"
-    Membership.objects.filter(project_id=other, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
     for invoke in (
         lambda: get_version(users["editor"], version["version_id"]),
         lambda: install(users, version),

@@ -7,14 +7,14 @@ from uuid import UUID
 import pytest
 from django.test import Client, RequestFactory
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import NotFound, ValidationFailed
 from specmate.shared_scene import operations  # noqa: F401
 from specmate.shared_scene.api import inspect_snapshot
 from specmate.shared_scene.transforms import millimetre_factor
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, freeze, occ, part
 from .test_assembly_source_authority import sourced_child  # noqa: F401
 from .test_cables import capture, fixture
@@ -211,14 +211,14 @@ def test_all_disciplines_known_length_unknown_routes_and_inert_models(
 
 def test_revoked_nested_parent_no_scene_or_diagnostics(users, project):
     remote = op(users["outsider"], "project.create", {"name": "Other scope"})["project_id"]
-    Membership.objects.create(project_id=remote, user=users["owner"], role="viewer")
+    ensure_member(users["owner"], "viewer", project=remote)
     _, restricted = part(users["outsider"], remote)
     nested = freeze(
         users["owner"], create(users["owner"], project, [occ("restricted", restricted)])
     )
     frozen = freeze(users["owner"], create(users["owner"], project, [occ("module", nested)]))
     scene(users["owner"], frozen)
-    Membership.objects.filter(project_id=remote, user=users["owner"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
     for user in (users["owner"], users["outsider"]):
         with pytest.raises(NotFound) as error:
             scene(user, frozen)
@@ -448,7 +448,7 @@ def test_root_adoption_origin_authority_is_rechecked_before_any_root_label(users
     original = freeze(users["owner"], create(users["owner"], project))
     remote = op(users["outsider"], "project.create", {"name": "Pack source scope"})["project_id"]
     for actor in ("owner", "editor", "viewer"):
-        Membership.objects.create(project_id=remote, user=users[actor], role="viewer")
+        ensure_member(users[actor], "viewer", project=remote)
     _, other = part(users["outsider"], remote, "part", "Other pack entry")
     entries = manifest(original)["entries"] + [
         {
@@ -468,7 +468,7 @@ def test_root_adoption_origin_authority_is_rechecked_before_any_root_label(users
     frozen = freeze(users["owner"], draft)
     scene(users["viewer"], frozen)
     # The retained pack's entire origin closure is distinct from adopted item dependencies.
-    Membership.objects.filter(project_id=remote, user=users["viewer"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         scene(users["viewer"], frozen)
     available = op(users["viewer"], "shared_scene.list", {"project_id": project})

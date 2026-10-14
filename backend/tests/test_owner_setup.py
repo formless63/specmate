@@ -6,7 +6,7 @@ from django.core.management import call_command
 from django.test import Client
 from django.utils import timezone
 
-from specmate.access.models import Installation, OwnerSetupToken
+from specmate.access.models import Installation, OwnerSetupToken, WorkspaceMember
 from specmate.access.operations import issue_owner_setup_token
 from specmate.operations import Conflict
 
@@ -24,8 +24,20 @@ def test_claim_creates_owner_and_signs_in():
     client = Client()
     response = claim(client, token)
     assert response.status_code == 200, response.content
-    assert Installation.objects.get().owner.username == "first-owner"
+    installation = Installation.objects.get()
+    assert installation.owner.username == "first-owner"
+    # The owner claims the first admin membership of the installation's workspace.
+    admin = WorkspaceMember.objects.get(user=installation.owner)
+    assert admin.workspace_id == installation.workspace_id and admin.role == "admin"
+    assert response.json()["result"]["workspace_id"] == str(installation.workspace_id)
     assert client.get("/api/v0/projects").status_code == 200  # session established
+    created = client.post(
+        "/api/v0/operations",
+        {"operation": "project.create", "request_id": "r2", "payload": {"name": "First"}},
+        content_type="application/json",
+    )
+    assert created.status_code == 200, created.content
+    assert created.json()["result"]["workspace_id"] == str(installation.workspace_id)
 
 
 def test_token_is_single_use_and_ownership_is_final():

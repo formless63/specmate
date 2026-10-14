@@ -2,11 +2,11 @@
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_catalog_discovery import create_part
 from .test_design import freeze
 from .test_transports import api
@@ -98,7 +98,7 @@ def test_impact_authorizes_candidate_closure_before_comparison_and_rechecks_curs
     assert result["next_after"] is None
     with pytest.raises(NotFound):
         op(viewer, "catalog.revision_impact", {**payload, "after": parents[1]["snapshot_id"]})
-    Membership.objects.filter(project_id=project, user=viewer).delete()
+    WorkspaceMember.objects.filter(workspace__projects=project, user=viewer).delete()
     with pytest.raises(NotFound):
         op(viewer, "catalog.revision_impact", payload)
 
@@ -121,13 +121,13 @@ def test_candidate_dependency_revocation_denies_even_an_invalid_comparison(users
     part = create_part(owner, project, "Candidate with controlled dependency")
     old = freeze(owner, part["draft_id"], part["state"])
     remote = op(owner, "project.create", {"name": "Controlled dependency project"})["project_id"]
-    Membership.objects.create(project_id=remote, user=viewer, role="viewer")
+    ensure_member(viewer, "viewer", project=remote)
     source = create_part(owner, remote, "Controlled source fixture")
     dependency = freeze(owner, source["draft_id"], source["state"])
     new = freeze(owner, part["draft_id"], old["draft"]["state"], [dependency["revision_id"]])
     payload = {"revision_id": old["revision_id"], "candidate_revision_id": new["revision_id"]}
     assert op(viewer, "catalog.revision_impact", payload)["dependency_pins_changed"] is True
-    Membership.objects.filter(project_id=remote, user=viewer).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=viewer).delete()
     with pytest.raises(NotFound):
         op(viewer, "catalog.revision_impact", payload)
     with pytest.raises(NotFound):

@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Snapshot
 from specmate.inventory.models import StockEntry
 from specmate.material_accounting.queries import inspect_revision
@@ -104,7 +104,7 @@ def test_hidden_latest_account_work_precedes_competing_section_diagnostic(users,
         unit="m",
         key="other-consumption",
     )
-    Membership.objects.filter(project_id=hidden, user=user).delete()
+    WorkspaceMember.objects.filter(workspace__projects=hidden, user=user).delete()
     bad = copy.deepcopy(plan)
     bad["pieces"][0]["section_id"] = "not-a-cable-section"
     with pytest.raises((NotFound, PermissionDenied)):

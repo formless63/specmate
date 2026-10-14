@@ -3,7 +3,7 @@
 import pytest
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Revision, Snapshot
 from specmate.operations import (
     Conflict,
@@ -15,7 +15,7 @@ from specmate.operations import (
 )
 from specmate.revision_upgrades.models import UpgradeApplication, UpgradeProposal, UpgradeReview
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_catalog_matching import source_evidence
 from .test_transports import api, post_op
@@ -253,11 +253,11 @@ def test_scope_sources_retained_evidence_and_denial_before_replay_or_conflict(
     payload, _ = fixture
     owner, editor = users["owner"], users["editor"]
     remote = op(owner, "project.create", {"name": "Review evidence scope"})["project_id"]
-    Membership.objects.create(project_id=remote, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=remote)
     evidence = source_evidence(users, remote)
     proposal = op(editor, "upgrade.propose", payload, idempotency_key="proposal")
     reviewed = accepted(editor, proposal, evidence=evidence)
-    Membership.objects.filter(project_id=remote, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=remote, user=editor).delete()
     for operation, body, context in [
         ("upgrade.read", {"proposal_id": proposal["proposal_id"]}, {}),
         (
@@ -555,7 +555,7 @@ def test_owning_pack_origin_source_revocation_precedes_paths_and_key_mismatch(
     source_project = op(owner, "project.create", {"name": "Controlled owning origin source"})[
         "project_id"
     ]
-    Membership.objects.create(project_id=source_project, user=editor, role="viewer")
+    ensure_member(editor, "viewer", project=source_project)
     evidence = source_evidence(users, source_project)
     source = SourceBundleFile.objects.select_related("blob").get(
         revision_id=evidence["source_bundle_revision_id"], path=evidence["source_path"]
@@ -597,7 +597,7 @@ def test_owning_pack_origin_source_revocation_precedes_paths_and_key_mismatch(
     proposal = op(editor, "upgrade.propose", supplied, idempotency_key="origin-proposal")
     inspected = op(editor, "upgrade.inspect_owner", {"snapshot_id": capture["snapshot_id"]})
     assert len(inspected["occurrences"]) == 2
-    Membership.objects.filter(project_id=source_project, user=editor).delete()
+    WorkspaceMember.objects.filter(workspace__projects=source_project, user=editor).delete()
     with pytest.raises(NotFound):
         op(editor, "upgrade.inspect_owner", {"snapshot_id": capture["snapshot_id"]})
     assert (

@@ -7,7 +7,7 @@ from threading import Barrier
 import pytest
 from django.db import DatabaseError, close_old_connections, connection, transaction
 
-from specmate.access.models import Membership
+from specmate.access.models import WorkspaceMember
 from specmate.catalog_packs.authoring import origin_revisions
 from specmate.catalog_packs.contracts import PackManifest
 from specmate.catalog_packs.models import (
@@ -30,7 +30,7 @@ from specmate.operations import (
 )
 from specmate.queries import get_draft, get_revision
 
-from .conftest import op
+from .conftest import ensure_member, op
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
@@ -299,7 +299,7 @@ def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
     users, project, revision
 ):
     other = op(users["owner"], "project.create", {"name": "Private source library"})["project_id"]
-    Membership.objects.create(project_id=other, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=other)
     source = op(
         users["owner"],
         "definition.create",
@@ -317,7 +317,7 @@ def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
             "manifest": manifest(revision, version="2.0"),
         },
     )
-    Membership.objects.filter(project_id=other, user=users["editor"]).delete()
+    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
     for invoke in (
         lambda: get_version(users["editor"], v2["version_id"]),
         lambda: history(users["editor"], v1["pack_id"]),
@@ -524,7 +524,7 @@ def test_cross_project_typed_copy_rejects_whole_batch_before_any_new_identity(
     users, project, revision
 ):
     other = op(users["owner"], "project.create", {"name": "Typed source library"})["project_id"]
-    Membership.objects.create(project_id=other, user=users["editor"], role="viewer")
+    ensure_member(users["editor"], "viewer", project=other)
     stock_id, _ = stock_revision(users, other)
     source_draft = create_profile(users, other, profile(stock_id))
     source = op(
