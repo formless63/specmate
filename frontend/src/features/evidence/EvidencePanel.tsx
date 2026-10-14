@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Card, Group, MultiSelect, Stack, Table, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { MiddleTruncate } from "../../lib/MiddleTruncate";
 import { SubjectTestForm } from "./SubjectTestForm";
 import { ApplicabilityPanel } from "./ApplicabilityPanel";
 import { KIND_ORDER, evidenceQuery, observationRange, read, recordedPath, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription, type RecordedResult } from "./api";
@@ -24,11 +25,11 @@ function RecordedSnapshot({ recordId }: { recordId: string }) {
     <Button variant="quiet" size="xs" onClick={() => setOpen(!open)}>{open ? "Hide recorded inputs" : "Show recorded inputs"}</Button>
     {open && snapshot.isError && <Text size="xs" c="red">{snapshot.error.message}</Text>}
     {open && snapshot.data && <Stack gap={2}>
-      <Text size="xs">Result SHA-256 {snapshot.data.result_sha256} · {snapshot.data.algorithm_version}</Text>
+      <Text size="xs">Result SHA-256 <MiddleTruncate text={snapshot.data.result_sha256} /> · {snapshot.data.algorithm_version}</Text>
       {snapshot.data.note && <Text size="xs">Note: {snapshot.data.note}</Text>}
       {snapshot.data.newer_assertions === true && <Text size="xs" c="orange">New fact assertions arrived in this comparison's scope after it was recorded.</Text>}
       {snapshot.data.source === "firmware_impact" && <RecordedObservations result={snapshot.data.result} />}
-      {snapshot.data.pins.map((pin) => <Text size="xs" key={`${pin.role}:${pin.revision_id}`}>{pin.role.replaceAll("_", " ")}: revision {pin.number} ({pin.revision_id}){pin.newer_revision_exists ? ` · newer revision ${pin.latest_number} exists` : " · latest"}</Text>)}
+      {snapshot.data.pins.map((pin) => <Text size="xs" key={`${pin.role}:${pin.revision_id}`}>{pin.role.replaceAll("_", " ")}: revision {pin.number} (<MiddleTruncate text={pin.revision_id} />){pin.newer_revision_exists ? ` · newer revision ${pin.latest_number} exists` : " · latest"}</Text>)}
     </Stack>}
   </>;
 }
@@ -58,7 +59,7 @@ function Row({ item }: { item: EvidenceItem }) {
       {item.conditions.map((c) => <Text size="xs" key={c.property}>Condition {c.property}: {c.status === "known" ? JSON.stringify(c.value) : "unknown"}</Text>)}</Table.Td>
     <Table.Td><Text size="sm">{item.subject.label}</Text><Text size="xs">{item.subject.kind === "work_batch" ? "Actual work batch, as a whole" : item.subject.scope === "actual" ? "Actual unit" : item.subject.scope === "design" ? "Design scope" : "Project scope"}</Text></Table.Td>
     <Table.Td><Text size="sm">Method: {method.name.replaceAll("_", " ")}</Text>{details.map((line) => <Text size="xs" key={line}>{line}</Text>)}</Table.Td>
-    <Table.Td><Text size="sm">Origin: {item.basis.origin.replaceAll("_", " ")}</Text>{item.basis.references.map((ref) => <Text size="xs" key={ref}>{ref}</Text>)}
+    <Table.Td><Text size="sm">Origin: {item.basis.origin.replaceAll("_", " ")}</Text>{item.basis.references.map((ref) => <Text size="xs" key={ref}><MiddleTruncate text={ref} /></Text>)}
       <Text size="xs">{item.basis.independently_verified ? "Independently verified" : "Not independently verified"}</Text>
       <Text size="xs">Recorded {item.recorded_at}{item.observed_at ? ` · observed ${item.observed_at}` : ""}</Text>
       {item.basis.origin === "recorded_result" && <RecordedSnapshot recordId={item.evidence_id.replace(/^recorded:/, "")} />}</Table.Td>
