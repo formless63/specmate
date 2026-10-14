@@ -21,7 +21,6 @@ from specmate.catalog_packs.models import (
 )
 from specmate.catalog_packs.queries import (
     active_version,
-    authority_review,
     authorize_file,
     get_pack,
     get_version,
@@ -139,9 +138,9 @@ def register_scope(ctx, payload):
     return scope
 
 
-def change_scope(name):
+def change_scope(name, permission=Perm.DESIGN_EDIT):
     def resolve(ctx, payload):
-        pack, _, _ = pack_rows(ctx.user, payload.pack_id, edit=True)
+        pack, _, _ = pack_rows(ctx.user, payload.pack_id, edit=True, permission=permission)
         if isinstance(payload, (InstallPack, AdoptPack)):
             version = (
                 PackVersion.objects.select_related("pack", "manifest_source__blob")
@@ -152,7 +151,7 @@ def change_scope(name):
                 raise NotFound("Pack version not found.")
             version_closure(ctx.user, [version])
         scope = f"workspace:{pack.workspace_id}"
-        authorize_retained(ctx, name, scope)
+        authorize_retained(ctx, name, scope, permission)
         return scope
 
     return resolve
@@ -160,7 +159,12 @@ def change_scope(name):
 
 def replay(ctx, payload, stored):
     registering = isinstance(payload, RegisterPackVersion)
-    permission = Perm.ITEM_CREATE if registering else Perm.DESIGN_EDIT
+    if registering:
+        permission = Perm.ITEM_CREATE
+    elif isinstance(payload, AdoptPack):
+        permission = Perm.DESIGN_EDIT
+    else:  # install and disable are admin decisions
+        permission = Perm.WORKSPACE_ADMIN
     pack_rows(ctx.user, stored["pack_id"], edit=True, permission=permission)
     if registering:
         registration_refs(ctx, payload)
@@ -245,8 +249,10 @@ def register(ctx: Context, payload: RegisterPackVersion):
     return version_result(version)
 
 
-def editable_state(ctx, pack_id):
-    pack, versions, decisions = pack_rows(ctx.user, pack_id, edit=True, lock=True)
+def editable_state(ctx, pack_id, permission=Perm.DESIGN_EDIT):
+    pack, versions, decisions = pack_rows(
+        ctx.user, pack_id, edit=True, lock=True, permission=permission
+    )
     if ctx.require_expected_state() != pack_state(decisions):
         raise Conflict("Pack decisions changed.", details={"current": get_pack(ctx.user, pack_id)})
     return pack, versions, decisions
@@ -269,14 +275,13 @@ def selected_version(ctx, versions, version_id):
     return version
 
 
-def append_decision(ctx, pack, version, decisions, action, basis, accepted=()):
+def append_decision(ctx, pack, version, decisions, action, basis):
     return PackDecision.objects.create(
         pack=pack,
         version=version,
         sequence=len(decisions) + 1,
         action=action,
         basis=basis,
-        accepted_authority=sorted(accepted),
         decided_by=ctx.user,
     )
 
@@ -284,42 +289,31 @@ def append_decision(ctx, pack, version, decisions, action, basis, accepted=()):
 @operation(
     "catalog_pack.install",
     InstallPack,
-    summary="Deliberately select an installed catalog version, including update or downgrade.",
+    summary="Admin: enable a registered pack or adapter version, including update or rollback.",
     requires_expected_state=True,
-    idempotency_scope=change_scope("catalog_pack.install"),
+    idempotency_scope=change_scope("catalog_pack.install", Perm.WORKSPACE_ADMIN),
     authorize_replay=replay,
-    access=Perm.DESIGN_EDIT,
+    access=Perm.WORKSPACE_ADMIN,
 )
 def install(ctx: Context, payload: InstallPack):
     get_version(ctx.user, payload.version_id)
-    pack, versions, decisions = editable_state(ctx, payload.pack_id)
+    pack, versions, decisions = editable_state(ctx, payload.pack_id, Perm.WORKSPACE_ADMIN)
     version = selected_version(ctx, versions, payload.version_id)
-    review = authority_review(version, decisions)
-    if set(payload.accept_authority) != set(review["new"]) or len(payload.accept_authority) != len(
-        review["new"]
-    ):
-        raise ValidationFailed(
-            "New requested authority must be accepted explicitly, separately from the content "
-            "update, and exactly as listed.",
-            details={"new_authority": review["new"], "accepted": payload.accept_authority},
-        )
-    append_decision(
-        ctx, pack, version, decisions, "install", payload.basis, accepted=review["requested"]
-    )
+    append_decision(ctx, pack, version, decisions, "install", payload.basis)
     return get_pack(ctx.user, pack.id)
 
 
 @operation(
     "catalog_pack.disable",
     DisablePack,
-    summary="Disable new pack use while preserving exact versions, adopted drafts and consumers.",
+    summary="Admin: disable new pack use; versions, adopted drafts and consumers stay.",
     requires_expected_state=True,
-    idempotency_scope=change_scope("catalog_pack.disable"),
+    idempotency_scope=change_scope("catalog_pack.disable", Perm.WORKSPACE_ADMIN),
     authorize_replay=replay,
-    access=Perm.DESIGN_EDIT,
+    access=Perm.WORKSPACE_ADMIN,
 )
 def disable(ctx: Context, payload: DisablePack):
-    pack, versions, decisions = editable_state(ctx, payload.pack_id)
+    pack, versions, decisions = editable_state(ctx, payload.pack_id, Perm.WORKSPACE_ADMIN)
     active = active_version(decisions)
     if active is None:
         raise Conflict("Pack has no enabled installed version.")

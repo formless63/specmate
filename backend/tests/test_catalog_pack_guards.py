@@ -21,7 +21,7 @@ from specmate.design.models import Definition
 from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, member, op
 from .scope_helpers import workspace_of
 from .test_catalog_packs import (
     adopt,
@@ -365,7 +365,8 @@ def test_supplementary_pins_remain_authorized_even_for_inert_adoption(
             {"revision_id": revision["revision_id"], "revision_sha256": revision["sha256"]}
         )
     version = registered(users, project, revision, entries=[entry])
-    installed = install(users, version, idempotency_key="supplementary-install")
+    member(users["editor"], "admin", project=project)  # installing is an admin decision
+    installed = install(users, version, actor="editor", idempotency_key="supplementary-install")
     adopt(users, version, installed["state"])
     retained = get_version(users["editor"], version["version_id"])["entries"][0]
     assert retained["source"]["source_path"] == "support/source.txt "
@@ -373,8 +374,8 @@ def test_supplementary_pins_remain_authorized_even_for_inert_adoption(
     WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
     for invoke in (
         lambda: get_version(users["editor"], version["version_id"]),
-        lambda: install(users, version),
-        lambda: install(users, version, idempotency_key="supplementary-install"),
+        lambda: install(users, version, actor="editor"),
+        lambda: install(users, version, actor="editor", idempotency_key="supplementary-install"),
     ):
         with pytest.raises(NotFound) as error:
             invoke()

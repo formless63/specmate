@@ -46,6 +46,7 @@ from specmate.operations import (
     OperationError,
     PermissionDenied,
     Unauthenticated,
+    Unsupported,
     ValidationFailed,
     operation,
 )
@@ -225,6 +226,10 @@ def _create_attempt(
     from specmate.firmware_builds.operations import authorize_request
 
     authorize_request(ctx, p, recipe)
+    from specmate.catalog_packs.queries import adapter_disabled
+
+    if adapter_disabled(workspace.id, recipe.id):
+        raise Unsupported("Adapter disabled: enable its pack version to request this build.")
     inputs = json.loads(bytes(source.manifest))["files"]
     if (
         len(inputs) > MAX_FILES

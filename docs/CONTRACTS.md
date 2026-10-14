@@ -120,8 +120,8 @@ spreadsheet and test outputs of one exact root and check that they cite identica
 
 ## Interfaces for extensions and integrations
 
-Versioned manifests declare publisher, digest/signature evidence, capability requirements,
-input/output schemas, dependencies, requested authority and migration/update behavior.
+Versioned manifests declare publisher (informational), content hashes, capability requirements,
+input/output schemas, dependencies, declared needs and migration/update behavior.
 Declarative content cannot gain execution through hidden template hooks. Executable
 extensions use scoped approved worker boundaries. In-process code is fully trusted code,
 not a sandbox merely because it is called a plugin.

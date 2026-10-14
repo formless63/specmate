@@ -1,14 +1,6 @@
 {
   "additionalProperties": false,
   "properties": {
-    "accept_authority": {
-      "items": {
-        "type": "string"
-      },
-      "maxItems": 20,
-      "title": "Accept Authority",
-      "type": "array"
-    },
     "basis": {
       "maxLength": 4000,
       "minLength": 1,

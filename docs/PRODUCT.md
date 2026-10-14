@@ -213,9 +213,9 @@ engineering mutations or turn arbitrary merges into valid revisions.
 
 Support independently maintained catalogs, rules, document formats, tool recipes and
 approved integrations through versioned boundaries. Declarative content and executable
-extensions have distinct trust/permission requirements. Installation/update exposes
-publisher, integrity, compatibility, dependencies, requested authority and privilege
-changes. Disable, rollback and quarantine preserve referenced history. Private content
+extensions stay distinguishable. Installation/update exposes publisher (informational),
+integrity hashes, compatibility, dependencies and declared needs. Only workspace admins
+enable or disable packs and adapters. Disable and rollback preserve referenced history. Private content
 remains private. An extension interface is not an automatic license exception.
 
 ### Installation and operations

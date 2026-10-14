@@ -71,8 +71,6 @@ class PackDecision(models.Model):
     sequence = models.PositiveIntegerField()
     action = models.CharField(max_length=20)
     basis = models.TextField()
-    # Authority keys the actor accepted with an install (full effective set).
-    accepted_authority = models.JSONField(default=list)
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
 

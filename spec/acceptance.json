@@ -1539,9 +1539,9 @@
       ],
       "kind": "scenario-specification",
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
-      "when": "Declare publisher/integrity/compatibility/dependencies/authority for packs and adapters.",
+      "when": "Declare publisher (informational), integrity hashes, compatibility, dependencies and needs for packs and adapters.",
       "expect": [
-        "An update requesting execution/network authority cannot be accepted as an unnoticed catalog-only update."
+        "An update declaring execution/network needs lists them plainly and is enabled only by an admin."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -1556,9 +1556,9 @@
       ],
       "kind": "scenario-specification",
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
-      "when": "Separate declarative content from executable/in-process code and enforce permissions.",
+      "when": "Keep declarative content distinguishable from executable adapters and require admin permission to enable them.",
       "expect": [
-        "A template cannot execute code under a content-only grant."
+        "A catalog pack never runs code, and a non-admin cannot enable or disable a pack or adapter."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -1575,7 +1575,7 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Preserve referenced engineering history while controlling future use.",
       "expect": [
-        "A quarantined adapter stops execution but its previous build evidence remains retrievable."
+        "A disabled adapter is not used again, but its previous build evidence remains retrievable."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

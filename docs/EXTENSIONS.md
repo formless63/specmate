@@ -6,28 +6,28 @@ Catalogs, preparation profiles, rules and document templates are versioned conte
 Executable recipes/adapters are separate approved execution capabilities. A template
 language that can run code is not declarative merely because its file is text.
 
-An installable manifest identifies publisher, package/version, content hashes/signature
-status, compatible contract versions, dependencies, capabilities, requested authority,
-license/rights and migration/rollback behavior. Expose unknown trust rather than a false
-verified badge. Acceptance of new privileges is distinct from acceptance of a content update.
+An installable manifest identifies publisher (a plain informational string), package/version,
+content hashes, compatible contract versions, dependencies, capabilities, declared needs,
+license/rights and migration/rollback behavior. There is no signature or publisher-trust
+model: admins own what they enable.
 
 Catalog packs (`catalog_packs`) implement this manifest. Packs and adapters share one
-format: `kind` (`catalog` or `adapter`), `contract_version` plus `compatible_contract_versions`,
-exact-version `dependencies`, pinned entry hashes, an unverified `signature_claim`, and
-`requested_authority`, a list of `{kind, scope, reason}` with kinds `execution`,
-`network_egress` and `in_process_code`. An adapter must reference its exact inert recipe and
-declare execution. Declaring authority grants nothing: installing a version whose request
-exceeds the enabled version's accepted authority fails until the install lists exactly the
-new keys (`accept_authority`), the decision records the accepted set, and a database trigger
-refuses an install whose accepted set differs from the manifest. Disabling resets the
-baseline. Running a recipe still needs the separate approved recipe registry.
+format: `kind` (`catalog` or `adapter`, always shown), `contract_version` plus
+`compatible_contract_versions`, exact-version `dependencies`, pinned entry hashes, and
+`requested_authority`, a plain list of declared needs `{kind, scope, reason}` with kinds
+`execution`, `network_egress` and `in_process_code`. An adapter must reference its exact inert
+recipe and declare execution. Declared needs are visible information and grant nothing.
+Registering a version is an import (`item.create`). Only `workspace.admin` may enable
+(`catalog_pack.install`, including update and rollback) or disable a pack or adapter, in one
+decision with no separate acceptance step. Running a recipe still needs the separate
+approved recipe registry.
 
 ## History
 
 Installing a new pack version does not change design pins. Users review adoption and
-impact. Disable stops new use/execution while preserving references and required old
-artifacts. Quarantine blocks dangerous activity without erasing evidence. Rollback cannot
-claim to reverse physical inventory changes or external side effects.
+impact. Disable stops new use while preserving references and required old artifacts.
+Rollback is an install of an earlier version and cannot claim to reverse physical inventory
+changes or external side effects.
 
 ## Execution
 

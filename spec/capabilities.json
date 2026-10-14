@@ -1130,7 +1130,7 @@
       "id": "EXT-001",
       "group": "EXT",
       "title": "Versioned manifests",
-      "requirement": "Declare publisher/integrity/compatibility/dependencies/authority for packs and adapters.",
+      "requirement": "Declare publisher (informational), integrity hashes, compatibility, dependencies and needs for packs and adapters.",
       "horizon": "baseline",
       "document": "docs/EXTENSIONS.md",
       "acceptance_ids": [
@@ -1140,8 +1140,8 @@
     {
       "id": "EXT-002",
       "group": "EXT",
-      "title": "Trust boundaries",
-      "requirement": "Separate declarative content from executable/in-process code and enforce permissions.",
+      "title": "Content versus executable boundaries",
+      "requirement": "Keep declarative content distinguishable from executable adapters, and let only admins enable them.",
       "horizon": "baseline",
       "document": "docs/EXTENSIONS.md",
       "acceptance_ids": [
@@ -1151,7 +1151,7 @@
     {
       "id": "EXT-003",
       "group": "EXT",
-      "title": "Disable rollback and quarantine",
+      "title": "Disable and rollback",
       "requirement": "Preserve referenced engineering history while controlling future use.",
       "horizon": "baseline",
       "document": "docs/EXTENSIONS.md",
