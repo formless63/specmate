@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "KindDescription": {
+      "additionalProperties": false,
+      "properties": {
+        "does_not_establish": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Does Not Establish",
+          "type": "array"
+        },
+        "establishes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Establishes",
+          "type": "array"
+        },
+        "fact_methods": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fact Methods",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "requirement",
+            "source_claim",
+            "calculation",
+            "generated_check",
+            "review",
+            "physical_measurement",
+            "physical_observation",
+            "preference"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "subject_scope": {
+          "enum": [
+            "design",
+            "actual",
+            "either"
+          ],
+          "title": "Subject Scope",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label",
+        "subject_scope",
+        "summary",
+        "establishes",
+        "does_not_establish",
+        "fact_methods"
+      ],
+      "title": "KindDescription",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kinds": {
+      "items": {
+        "$ref": "#/$defs/KindDescription"
+      },
+      "title": "Kinds",
+      "type": "array"
+    }
+  },
+  "required": [
+    "kinds"
+  ],
+  "title": "Taxonomy",
+  "type": "object"
+}

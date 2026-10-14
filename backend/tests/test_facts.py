@@ -280,6 +280,7 @@ def test_source_observation_review_calculation_measurement_and_preference_remain
     second = append(users["editor"], first, calculation)
     measurement = fact(
         magnitude="11",
+        role="actual",
         provenance={
             "method": "measurement",
             "observed_at": "2026-01-01T12:00:00Z",
@@ -290,7 +291,10 @@ def test_source_observation_review_calculation_measurement_and_preference_remain
             ],
         },
     )
-    third = append(users["editor"], second, measurement)
+    # A measurement observes an actual unit; a design-scope ledger cannot hold one.
+    with pytest.raises(ValidationFailed):
+        append(users["editor"], second, measurement)
+    third = second
     reviewed = fact(
         "association",
         role="actual",
@@ -317,8 +321,13 @@ def test_source_observation_review_calculation_measurement_and_preference_remain
     assert [row["fact"]["provenance"]["method"] for row in result["assertions"]] == [
         "source_observation",
         "calculation",
-        "measurement",
         "reviewed_association",
+        "preference",
+    ]
+    assert [row["evidence_kind"] for row in result["assertions"]] == [
+        "source_claim",
+        "calculation",
+        "review",
         "preference",
     ]
     assert all(row["evidence_status"] == "declared" for row in result["assertions"])

@@ -186,7 +186,10 @@ def subject_result(subject):
 
 
 def assertion_result(assertion):
+    from specmate.evidence.taxonomy import fact_kind
+
     return {
+        "evidence_kind": fact_kind(assertion.method, assertion.subject.kind)[0],
         "assertion_id": str(assertion.id),
         "subject_id": str(assertion.subject_id),
         "sequence": assertion.sequence,
