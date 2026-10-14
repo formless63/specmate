@@ -1,8 +1,14 @@
-import { Alert, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import { useCallback, useEffect, useState } from "react";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { SbStatus, type SbLed } from "../../components/sb";
 import { runOperation } from "../workspace/api";
 import { CATEGORY_LABEL, RUNNER_LABEL, readWorkspaceStatus, type Finding, type WorkspaceStatus, type StatusBuild } from "./status";
+
+const WORK_LED: Record<WorkspaceStatus["work"]["mode"], SbLed> = { running: "active", draining: "review", interrupting: "failed" };
+const RUNNER_LED: Record<string, SbLed> = { working: "active", not_enrolled: "not-evaluated", enrolled_liveness_unknown: "not-evaluated", credential_unusable: "failed", lease_expired: "failed" };
+const storageLed = (state: string): SbLed => state === "unavailable" ? "failed" : state === "degraded" ? "review" : "idle";
+const BUILD_LED: Record<string, SbLed> = { waiting_dispatch: "review", queued: "active", leased: "active", running: "active", interrupted: "failed" };
 
 const ACTIVE_FOR_CANCEL = new Set(["waiting_dispatch", "queued", "leased", "running"]);
 
@@ -52,10 +58,10 @@ export function DiagnosticsPanel({ workspaceId, active = true, onChanged }: { wo
     </Group>
     <Text size="sm">Read {new Date(status.evaluated_at).toLocaleTimeString()} · Closing the browser never cancels work; only an explicit cancellation or an operator stop does. Workflow engine: {status.workflow_engine.state.replace(/_/g, " ")}.</Text>
     <Group gap="xs" aria-label="State summary">
-      <Badge variant="draft">Work: {status.work.mode}{status.work.reason ? ` (${status.work.reason})` : ""}</Badge>
-      <Badge variant="draft">{RUNNER_LABEL[status.runner.state] ?? status.runner.state}</Badge>
-      <Badge variant="draft">Storage: {status.storage.state.replace(/_/g, " ")}</Badge>
-      <Badge variant="draft">{status.queue.pending} queued · {status.queue.active} active</Badge>
+      <SbStatus led={WORK_LED[status.work.mode] ?? "not-evaluated"} dimension="work" value={`${status.work.mode}${status.work.reason ? ` (${status.work.reason})` : ""}`} />
+      <SbStatus led={RUNNER_LED[status.runner.state] ?? "not-evaluated"} dimension="runner" value={(RUNNER_LABEL[status.runner.state] ?? status.runner.state).replace(/^Runner /, "")} />
+      <SbStatus led={storageLed(status.storage.state)} dimension="storage" value={status.storage.state.replace(/_/g, " ")} />
+      <SbStatus led={status.queue.active > 0 ? "active" : status.queue.pending > 0 ? "review" : "idle"} dimension="queue" value={`${status.queue.pending} queued · ${status.queue.active} active`} />
     </Group>
     {status.findings.length === 0
       ? <Text>No problems detected by the checks that ran. Native tool compatibility and physical qualification are not evaluated here.</Text>
@@ -68,7 +74,7 @@ export function DiagnosticsPanel({ workspaceId, active = true, onChanged }: { wo
       <Table.Tbody>{status.builds.map((build) => <Table.Tr key={build.build_id}>
         <Table.Td className="sb-mono">{build.build_id}</Table.Td>
         <Table.Td>{build.recipe_id}</Table.Td>
-        <Table.Td>{build.state.replace(/_/g, " ")}{build.lease_expired ? " · lease expired, outcome unknown" : ""}{build.cancellation_requested ? " · cancellation requested" : ""}</Table.Td>
+        <Table.Td><SbStatus led={build.lease_expired ? "failed" : BUILD_LED[build.state] ?? "not-evaluated"} dimension="build" value={`${build.state.replace(/_/g, " ")}${build.lease_expired ? " · lease expired, outcome unknown" : ""}${build.cancellation_requested ? " · cancellation requested" : ""}`} /></Table.Td>
         <Table.Td>{ACTIVE_FOR_CANCEL.has(build.state) && !build.cancellation_requested && <Button variant="risk" size="xs" {...execute.props}
           disabled={!execute.allowed || busy === build.build_id} onClick={() => void cancel(build)}>Cancel build</Button>}</Table.Td>
       </Table.Tr>)}</Table.Tbody>

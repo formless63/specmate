@@ -1,5 +1,6 @@
-import { Alert, Badge, Button, Card, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Card, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { JOB_LED, SbJobCard, SbProvenance, SbStatus, type JobState } from '../../components/sb';
 import { randomUUID } from '../../lib/random-id';
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { abandonBuild, cancelBuild, listBuilds, readHistory, retryBuild, type BuildHistory, type BuildList } from './api';
@@ -16,7 +17,9 @@ const EXPLAIN: Record<string, string> = {
   cancelled: 'A runner confirmed the process stopped after a cancellation request.',
 };
 const pretty = (value: string) => value.replaceAll('_', ' ');
-const badge = (state: string) => state === 'succeeded' ? 'frozen' : state === 'failed' || state === 'cancelled' ? 'occurrence' : 'draft';
+// Only the runner-confirmed states map to terminal looks; interrupted and requested-cancellation stay in review.
+const JOB_STATE: Record<string, JobState> = { waiting_dispatch: 'queued', queued: 'queued', leased: 'running', running: 'running', succeeded: 'succeeded', failed: 'failed', cancelled: 'cancelled', interrupted: 'review', cancellation_requested: 'review' };
+const jobState = (state: string): JobState => JOB_STATE[state] ?? 'review';
 
 export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
   const execute = usePermission('build.execute');
@@ -87,15 +90,15 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
     {list && list.builds.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Build</Table.Th><Table.Th>State</Table.Th><Table.Th>Recipe</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
       {list.builds.map(b => <Table.Tr key={b.build_id}>
         <Table.Td><Text size="xs">{b.build_id}</Text>{b.retry_of && <Text size="xs">Retry of {b.retry_of}</Text>}</Table.Td>
-        <Table.Td><Badge variant={badge(b.state)}>{pretty(b.state)}</Badge></Table.Td>
+        <Table.Td><SbStatus dimension='build' value={pretty(b.state)} {...JOB_LED[jobState(b.state)]} /></Table.Td>
         <Table.Td><Text size="xs">{b.recipe_id}</Text></Table.Td>
         <Table.Td><Button variant="quiet" disabled={busy} onClick={() => void load(b.build_id)}>Inspect build {b.build_id}</Button></Table.Td>
       </Table.Tr>)}</Table.Tbody></Table>}
     {list?.truncated && <Text size="xs">Showing the latest 100 builds; earlier history is retained.</Text>}
     {detail && <Stack aria-label="Build history">
       <Title order={4}>Build {detail.build_id}</Title>
-      <Group><Badge variant={badge(detail.state)}>{pretty(detail.state)}</Badge><Text size="sm">{EXPLAIN[detail.state] ?? ''}</Text></Group>
-      <Text size="xs">Recipe {detail.recipe_id} · Source revision {detail.source_revision_id} · Requested {detail.requested_at}</Text>
+      <SbJobCard title={detail.recipe_id} state={jobState(detail.state)} stateWords={pretty(detail.state)} dimension='build' detail={EXPLAIN[detail.state] ?? ''} />
+      <SbProvenance label='Request' summary={`Recipe ${detail.recipe_id} · requested ${detail.requested_at}`} pins={[{ label: 'Source revision', value: detail.source_revision_id }]} />
       {detail.lineage.length > 1 && <Text size="sm">Attempts: {detail.lineage.map(a => `${a.build_id}${a.current ? ' (this)' : ''} ${pretty(a.state)}`).join(' → ')}</Text>}
       {detail.receipt && <Stack gap={2}><Text size="sm">Receipt: {detail.receipt.outcome}{detail.receipt.exit_code !== null ? ` · exit code ${detail.receipt.exit_code}` : ' · no exit code observed'} · {detail.receipt.message}</Text>
         {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}</Text>}</Stack>}
