@@ -539,3 +539,42 @@ workspace for structured authoring, tokened edits, deliberate freezing and eight
 result cards. Current-authority refresh hides cached results and disables mutations while
 reads are pending or denied. Prepared edits keep their original token across fresh reads;
 changing the editing basis is deliberate. Project/principal changes clear editor state.
+
+
+## Declared orientation, polarity and conditional ratings
+
+Connector contacts retain a stable `contact_id`, an independently declared nullable
+number and label. Repeated numbers and labels are permitted; neither forms physical
+or copper identity. Contact coordinates belong to the body's exact drawing revision.
+Frozen pinout inspection projects them into an explicitly selected mating or termination
+view without sorting, renumbering or changing assignments. The declared drawing convention
+places the origin at a shared named datum, x right and y down. It removes the source
+rotation, reflects x across the vertical datum axis when changing viewing side, then
+applies the selected screen-counterclockwise rotation. Unknown rotations/datums, distinct
+datums and absent coordinates remain visibly unresolved. This transform does not assert
+actual mating correspondence or measured physical geometry.
+
+Electrical declarations retain independent positive, negative, reference, nonpolarized
+or unknown polarity and an explicit declaration basis. A separate polarity finding
+compares only the proposed contact row; drawing mirroring never changes its polarity.
+It creates no bond, driver/receiver behavior, safety approval or overall compatibility.
+
+Conditional voltage envelopes and current maxima identify stable local rating IDs,
+explicit inclusive Celsius temperature envelopes and/or exact named operating modes,
+a declaration basis and unknown, unverified or exact registered evidence. Registered
+rating evidence retains the exact source-bundle revision, file hash and rights; current
+source and historic catalog authority are checked before relationship diagnostics and
+receipt replay. Pinout freezing and generic design capture retain these declarations
+without editing their evidence or any prior revision.
+
+Assessment operating temperatures are explicit inclusive envelopes, separate from ratings.
+Every scope predicate must be supplied and satisfied before its rating applies. Missing
+conditions remain unknown; temperatures partially outside a declared envelope and mismatched
+modes are out of scope. Fully applicable declarations intersect their voltage envelopes
+and constrain current by the lowest maximum. A missing conditional condition prevents
+an unconditional declaration from silently resolving that dimension. A definitely
+out-of-scope rating contributes no limit and remains visible alongside any independently
+applicable declaration. Conditional-only dimensions with no applicable rating remain
+unknown. No extrapolation, interpolation, measured derating curve or thermal qualification
+is inferred. Findings expose the exact declarations, operating assumptions, scope reasons,
+effective limits and source evidence independently of mating, correspondence and fit.

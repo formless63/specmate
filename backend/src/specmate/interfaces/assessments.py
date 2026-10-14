@@ -5,11 +5,16 @@ from collections import Counter
 from specmate.catalog_matching.contracts import EvidenceResult
 from specmate.catalog_matching.operations import evidence_fields
 from specmate.interfaces.assessment_contracts import AssessmentResult, Finding
+from specmate.interfaces.conditions import resolve_limits
 from specmate.interfaces.contracts import Pinout
 from specmate.operations import ValidationFailed
 
 
 def evidence_inputs(value):
+    if isinstance(value, Pinout):
+        for assignment in value.assignments:
+            yield from (r.evidence for r in assignment.electrical.conditional_ratings)
+        return
     yield from (
         value.mating.evidence,
         value.fit.evidence,
@@ -53,7 +58,11 @@ def assess(value, closure):
     bodies = [closure.body_for(p) for p in (left, right)]
     contacts = [{c.contact_id: c for c in b.contacts} for b in bodies]
     assignments = [{a.contact_id: a.electrical for a in p.assignments} for p in (left, right)]
-    evidence = closure.assessment_evidence[id(value)]
+    evidence = {
+        **closure.assessment_evidence[id(left)],
+        **closure.assessment_evidence[id(right)],
+        **closure.assessment_evidence[id(value)],
+    }
     findings = []
 
     def finding(dimension, status, explanation, *, pair=None, facts=None, refs=(), declared=False):
@@ -119,6 +128,20 @@ def assess(value, closure):
         finding(
             "pin_correspondence", status, explanation, pair=pair, facts=facts, refs=[pair.evidence]
         )
+        polarities = [e.polarity if e else "unknown" for e in electrical]
+        polarity_status = "unknown"
+        polarity_reason = "Retained polarity is unknown at one or both contacts."
+        if invalid:
+            polarity_reason = "Invalid correspondence prevents polarity comparison."
+        elif "unknown" not in polarities:
+            same = polarities[0] == polarities[1]
+            polarity_status = "satisfied" if same else "invalid"
+            polarity_reason = (
+                "Explicit retained contact polarities "
+                + ("agree" if same else "conflict")
+                + "; drawing mirroring does not change polarity."
+            )
+        finding("polarity", polarity_status, polarity_reason, pair=pair, facts=facts)
         operating = pair.operating
         conditional = any(
             e and e.condition and e.condition != operating.condition for e in electrical
@@ -129,37 +152,42 @@ def assess(value, closure):
                 reason = (
                     "Invalid proposed correspondence prevents this row's electrical comparison."
                 )
-            elif conditional:
+            elif conditional and dimension == "protocol":
                 reason = (
                     "A retained electrical condition is not the explicitly "
                     "selected operating condition."
                 )
-            elif dimension == "levels" and operating.voltage_min_v is not None:
-                if all(
-                    e and e.voltage_min_v is not None and e.voltage_max_v is not None
-                    for e in electrical
-                ):
-                    within = all(
-                        e.voltage_min_v <= operating.voltage_min_v
-                        and operating.voltage_max_v <= e.voltage_max_v
-                        for e in electrical
+            elif dimension in {"levels", "current"}:
+                rating_dimension = "voltage" if dimension == "levels" else "current"
+                resolved = [resolve_limits(e, operating, rating_dimension) for e in electrical]
+                facts_for_dimension = {
+                    **facts,
+                    "rating_scope": {
+                        side: {"effective_limits": limits, "conditional_ratings": records}
+                        for side, (limits, records) in zip(("left", "right"), resolved, strict=True)
+                    },
+                }
+                required = operating.voltage_min_v if dimension == "levels" else operating.demand_a
+                if any(limits is None for limits, _ in resolved):
+                    reason = (
+                        "A rating is missing, out of scope, or has unresolved operating conditions."
                     )
+                elif required is not None:
+                    if dimension == "levels":
+                        within = all(
+                            limits[0] <= operating.voltage_min_v
+                            and operating.voltage_max_v <= limits[1]
+                            for limits, _ in resolved
+                        )
+                    else:
+                        within = all(operating.demand_a <= limits[1] for limits, _ in resolved)
                     result = "satisfied" if within else "invalid"
                     reason = (
-                        "Declared operating voltage envelope "
-                        + ("is within" if within else "exceeds")
-                        + " the retained limits at both contacts; signal thresholds "
-                        "are not evaluated."
-                    )
-            elif dimension == "current" and operating.demand_a is not None:
-                if all(e and e.current_max_a is not None for e in electrical):
-                    within = all(operating.demand_a <= e.current_max_a for e in electrical)
-                    result = "satisfied" if within else "invalid"
-                    reason = (
-                        "Explicit current demand "
-                        + ("is within" if within else "exceeds")
-                        + " the retained contact maxima; supply capability, heating "
-                        "and derating are not evaluated."
+                        "Explicit operating "
+                        + ("voltage envelope" if dimension == "levels" else "current demand")
+                        + (" is within" if within else " exceeds")
+                        + " the intersection of applicable retained declarations at both contacts; "
+                        "no thermal model, interpolation or physical qualification is established."
                     )
             elif dimension == "protocol" and operating.required_protocol is not None:
                 if all(e and e.protocol for e in electrical):
@@ -176,11 +204,25 @@ def assess(value, closure):
                 result,
                 reason,
                 pair=pair,
-                facts=facts,
-                refs=[pair.evidence, operating.evidence],
+                facts=facts_for_dimension
+                if dimension in {"levels", "current"} and not invalid
+                else facts,
+                refs=[
+                    pair.evidence,
+                    operating.evidence,
+                    *(
+                        r.evidence
+                        for e in electrical
+                        if e
+                        for r in e.conditional_ratings
+                        if r.dimension == ("voltage" if dimension == "levels" else "current")
+                    ),
+                ]
+                if dimension in {"levels", "current"}
+                else [pair.evidence, operating.evidence],
             )
     if not value.pairs:
-        for dimension in ("pin_correspondence", "levels", "current", "protocol"):
+        for dimension in ("pin_correspondence", "polarity", "levels", "current", "protocol"):
             finding(dimension, "unknown", "No explicit contact correspondence rows were supplied.")
     for dimension in ("shielding", "grounding"):
         intent = getattr(value, dimension)

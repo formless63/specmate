@@ -8,11 +8,20 @@ from pydantic import Field, model_validator
 from specmate.assemblies.contracts import LocalId, StrictModel
 from specmate.catalog_matching.contracts import EvidenceInput, EvidenceResult
 from specmate.contracts import FiniteNumber
+from specmate.interfaces.condition_contracts import TemperatureEnvelope
 
 Text = Annotated[str, Field(min_length=1, max_length=2000)]
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
 Dimension = Literal[
-    "mating", "pin_correspondence", "levels", "current", "protocol", "shielding", "grounding", "fit"
+    "mating",
+    "pin_correspondence",
+    "polarity",
+    "levels",
+    "current",
+    "protocol",
+    "shielding",
+    "grounding",
+    "fit",
 ]
 
 
@@ -33,6 +42,8 @@ class OperatingConditions(StrictModel):
 
     voltage_min_v: FiniteNumber | None = None
     voltage_max_v: FiniteNumber | None = None
+    temperature: TemperatureEnvelope | None = None
+    mode: Text | None = None
     demand_a: FiniteNumber | None = Field(default=None, ge=0)
     required_protocol: Text | None = None
     condition: Text | None = None
@@ -45,7 +56,16 @@ class OperatingConditions(StrictModel):
             raise ValueError("An operating voltage envelope needs both endpoints.")
         if self.voltage_min_v is not None and self.voltage_min_v > self.voltage_max_v:
             raise ValueError("Operating voltage range is reversed.")
-        if any(v is not None for v in (self.voltage_min_v, self.demand_a, self.required_protocol)):
+        if any(
+            v is not None
+            for v in (
+                self.voltage_min_v,
+                self.demand_a,
+                self.required_protocol,
+                self.temperature,
+                self.mode,
+            )
+        ):
             if not self.basis:
                 raise ValueError("Declared operating inputs require a basis.")
         return self

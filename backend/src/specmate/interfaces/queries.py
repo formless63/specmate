@@ -92,7 +92,7 @@ class Closure:
 
         self.assessment_evidence = {}
         for value in [self.root, *self.values.values()]:
-            if isinstance(value, InterfaceAssessment):
+            if isinstance(value, (InterfaceAssessment, Pinout)):
                 self.assessment_evidence[id(value)] = authorize_evidence(user, value)
         # Retained non-interface dependencies can own source evidence of their own.
         for rid, value in self.values.items():
@@ -193,6 +193,24 @@ def inspect_revision(user, revision_id):
         body = closure.body_for(closure.root)
         assignments = {
             a.contact_id: a.electrical.model_dump(mode="json") for a in closure.root.assignments
+        }
+        from specmate.interfaces.orientation import project_contacts
+
+        result["contact_view"] = project_contacts(body, closure.root.orientation)
+        result["contact_views"] = {
+            side: project_contacts(
+                body, closure.root.orientation.model_copy(update={"viewing_side": side})
+            )
+            for side in ("mating", "termination")
+        }
+        result["rating_evidence"] = {
+            a.contact_id: {
+                r.local_id: closure.assessment_evidence[id(closure.root)][
+                    r.evidence.model_dump_json()
+                ].model_dump(mode="json")
+                for r in a.electrical.conditional_ratings
+            }
+            for a in closure.root.assignments
         }
         result["contacts"] = [
             {**c.model_dump(mode="json"), "electrical": assignments.get(c.contact_id)}

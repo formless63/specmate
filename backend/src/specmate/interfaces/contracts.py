@@ -8,6 +8,7 @@ from pydantic import Field, TypeAdapter, model_validator
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.contracts import FiniteNumber
 from specmate.interfaces.assessment_contracts import InterfaceAssessment
+from specmate.interfaces.condition_contracts import ConditionalRating, Polarity
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
 Text = Annotated[str, Field(min_length=1, max_length=200)]
@@ -29,6 +30,7 @@ class Orientation(StrictModel):
 
 class Contact(StrictModel):
     contact_id: ContactId
+    number: Text | None = None
     physical_role: Literal["contact", "shell", "key"] = "contact"
     label: str = Field(default="", max_length=200)
     position_mm: tuple[FiniteNumber, FiniteNumber] | None = None
@@ -54,6 +56,9 @@ class ConnectorBody(StrictModel):
 class ElectricalContract(StrictModel):
     """Declared limits and roles, never measured compatibility or conductor identity."""
 
+    polarity: Polarity = "unknown"
+    polarity_basis: Text | None = None
+    conditional_ratings: list[ConditionalRating] = Field(default_factory=list, max_length=100)
     signal: Text | None = None
     role: Literal["signal", "power", "return", "shield", "chassis", "unused", "unknown"] = "unknown"
     direction: Literal["input", "output", "bidirectional", "passive", "unknown"] = "unknown"
@@ -66,6 +71,9 @@ class ElectricalContract(StrictModel):
 
     @model_validator(mode="after")
     def valid_range(self):
+        unique([r.local_id for r in self.conditional_ratings])
+        if self.polarity != "unknown" and not self.polarity_basis:
+            raise ValueError("Declared polarity requires its basis.")
         if self.voltage_min_v is not None and self.voltage_max_v is not None:
             if self.voltage_min_v > self.voltage_max_v:
                 raise ValueError("Voltage range is reversed.")
