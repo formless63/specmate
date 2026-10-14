@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "record_id": {
+      "format": "uuid",
+      "title": "Record Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id"
+  ],
+  "title": "ReadRecordedResult",
+  "type": "object"
+}

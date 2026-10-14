@@ -4,6 +4,7 @@ Each source module maps its own records onto the shared taxonomy. Items are filt
 by current authority per record; unreadable records are omitted, never counted or named.
 """
 
+from collections import Counter
 from heapq import merge
 from itertools import islice
 
@@ -11,6 +12,8 @@ from specmate.access.permissions import Perm, authorize
 from specmate.builds.models import BuildAttempt
 from specmate.design.models import Revision
 from specmate.evidence.contracts import EvidenceItem, EvidenceList, ListEvidence
+from specmate.evidence.models import RecordedResult
+from specmate.evidence.recorded import authorize_record, pin_states
 from specmate.evidence.taxonomy import FACT_METHOD_KIND, KIND_INFO, fact_kind
 from specmate.facts.models import FactAssertion
 from specmate.facts.queries import authorize_assertions, resolve_target, subject_target
@@ -341,6 +344,105 @@ def unit_items(user, p, kinds, scan):
     scan.limit_reached = True
 
 
+RECORDED_NOTE = "That the recorded result still holds for newer revisions of its inputs."
+
+
+def recorded_item(record, pins):
+    result = record.result
+    by_role = {pin["role"]: pin for pin in pins}
+    if record.source == RecordedResult.Source.INTERFACE_ASSESSMENT:
+        counts = Counter(f["status"] for f in result["assessment"]["findings"])
+        statement = (
+            f"Interface assessment: {counts['satisfied']} satisfied by declarations, "
+            f"{counts['invalid']} invalid, {counts['flagged']} flagged, "
+            f"{counts['unknown']} unknown findings; no overall compatibility result"
+        )
+        pin = by_role["assessment"]
+        subject = {
+            "scope": "design",
+            "kind": "revision",
+            "id": pin["revision_id"],
+            "label": f"Interface assessment revision {pin['number']}",
+        }
+        status, method, warnings = "recorded", "interface_assessment", []
+    else:
+        counts = Counter(f["status"] for f in result["findings"])
+        statement = (
+            f"Firmware impact review: {counts['changed']} changed, {counts['unknown']} unknown, "
+            f"{counts['unchanged']} unchanged recorded assumptions; "
+            f"{result['observations_total']} historical observations in scope"
+        )
+        candidate, baseline = by_role["candidate_firmware"], by_role["baseline_firmware"]
+        subject = {
+            "scope": "design",
+            "kind": "revision",
+            "id": candidate["revision_id"],
+            "label": (
+                f"Firmware revision {candidate['number']} (candidate; baseline "
+                f"revision {baseline['number']})"
+            ),
+        }
+        status = "review_required" if result["review_required"] else "recorded"
+        method = "firmware_impact_comparison"
+        warnings = ["Hardware compatibility, flashing and device operation are not evaluated."]
+        if result["observations_truncated"]:
+            warnings.append(
+                f"Recorded one page of {result['observations_total']} historical observations "
+                f"from position {result['observation_offset'] + 1}."
+            )
+    stale = [pin for pin in pins if pin["newer_revision_exists"]]
+    warnings = [
+        f"Stale: pinned {pin['role'].replace('_', ' ')} revision {pin['number']} has newer "
+        f"revision {pin['latest_number']}. The recorded result is kept unchanged."
+        for pin in stale
+    ] + warnings
+    return {
+        **describe("generated_check", [RECORDED_NOTE]),
+        "evidence_id": f"recorded:{record.id}",
+        "source": record.source,
+        "workspace_id": record.workspace_id,
+        "subject": subject,
+        "statement": statement,
+        "status": status,
+        "conditions": [],
+        "method": {"name": method, "algorithm_version": record.algorithm_version},
+        "basis": {
+            "origin": "recorded_result",
+            "references": [
+                f"recorded:{record.id}",
+                f"sha256:{record.result_sha256}",
+                *(f"revision:{pin['revision_id']} ({pin['role']})" for pin in pins),
+            ],
+            "independently_verified": False,
+        },
+        "recorded_at": record.recorded_at.isoformat(),
+        "actor_id": record.recorded_by_id,
+        "warnings": warnings,
+        "stale": bool(stale),
+    }
+
+
+def recorded_items(user, p, scan):
+    rows = RecordedResult.objects.filter(workspace_id=p.workspace_id).order_by(
+        "-recorded_at", "-id"
+    )
+    for index in range(0, SCAN_LIMIT, CHUNK):
+        chunk = list(rows[index : index + CHUNK])
+        states = pin_states(chunk)
+        for record in chunk:
+            try:
+                authorize_record(user, record)
+            except OperationError:
+                continue
+            yield (
+                (record.recorded_at, str(record.id)),
+                recorded_item(record, states.get(record.id, [])),
+            )
+        if len(chunk) < CHUNK:
+            return
+    scan.limit_reached = True
+
+
 def list_evidence(user, p: ListEvidence):
     authorize(user, p.workspace_id, Perm.WORKSPACE_READ)
     kinds = set(p.kinds) if p.kinds else None
@@ -351,6 +453,7 @@ def list_evidence(user, p: ListEvidence):
     if p.subject_id is None:
         if kinds is None or "generated_check" in kinds:
             sources.append(build_items(user, p, scan))
+            sources.append(recorded_items(user, p, scan))
         if kinds is None or "requirement" in kinds:
             sources.append(plan_items(user, p, scan))
         if kinds is None or kinds & {"source_claim", "physical_observation"}:

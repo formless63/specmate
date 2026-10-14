@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "Record the current separated result of one exact frozen interface assessment.",
+  "properties": {
+    "note": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Note",
+      "type": "string"
+    },
+    "revision_id": {
+      "format": "uuid",
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id"
+  ],
+  "title": "RecordInterfaceAssessment",
+  "type": "object"
+}

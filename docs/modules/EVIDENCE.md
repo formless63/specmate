@@ -10,7 +10,7 @@ establishes. Nothing is a generic "passed".
 | `requirement` | Stated need or test intent; satisfies nothing | Frozen cable test plans |
 | `source_claim` | Value reported by a citation or registered source, including a manually entered rating; retained, not verified | `source_observation` facts; declared unit registrations |
 | `calculation` | Derived by formula and algorithm version from input assertions | `calculation` facts |
-| `generated_check` | Tool or recipe receipt over exact retained inputs | Build attempts |
+| `generated_check` | Tool or recipe receipt, or recorded derived result, over exact retained inputs | Build attempts; recorded interface assessments and firmware impact reviews |
 | `review` | Human reviewed association | `reviewed_association` facts |
 | `physical_measurement` | Observation of an actual unit with instrument, procedure and time | `measurement` facts on physical-unit subjects only |
 | `physical_observation` | Observed or declared status of an actual unit with no instrument or procedure | Unit registrations with `observed`/`measured` status |
@@ -30,7 +30,33 @@ method (instrument, procedure, formula, algorithm version, recipe), provenance b
 an explicit `independently_verified` flag, and lists of what the kind does and does not
 establish. `physical_qualification` is always false.
 
-Not yet mapped (no persisted record to read): interface assessments are computed live
-and firmware impact reviews keep their own tools; knowledge notes are context, not
-evidence. Applicability or supersession rules, batch/configuration test scope and release
-closure belong to later evidence capabilities.
+## Recorded results
+
+Interface assessments and firmware impact reviews are computed live from exact frozen
+inputs, and reading them never records anything. A person with `item.create` records one
+deliberately:
+
+- `evidence.record_interface_assessment` (`revision_id`) stores the current
+  `interface.read` result of one frozen assessment revision.
+- `evidence.record_firmware_impact` (`comparison`, optional
+  `expected_comparison_sha256`) stores one `firmware_impact.compare` result; a different
+  current comparison hash is a conflict, so the stored result is the one that was shown.
+
+A record keeps the exact request, the result, its SHA-256, the algorithm version, an
+optional note, the actor and time, and one pin per exact input revision with its role
+(assessment, pinouts, dependencies; baseline/candidate firmware, population and assembly).
+Database triggers reject any update or delete and keep pins inside the record workspace.
+Both commands support idempotent retry; replay re-checks current read authority.
+
+Records appear in `evidence.list` as `generated_check` items with origin
+`recorded_result`. A record is `stale` when any pinned input definition has a newer
+revision; it is never rewritten or re-evaluated, and the warning names each superseded
+pin. Each read re-resolves the exact inputs through the owning module (the interface
+closure, or the firmware impact authorization), so a record whose inputs are no longer
+readable is omitted. `evidence.read_recorded` (HTTP `GET /api/v0/evidence/recorded/{id}`)
+returns the full snapshot with per-pin staleness. A recorded firmware review holds the
+observation page that was compared; it is not a human approval and evaluates no hardware.
+
+Not mapped: knowledge notes are context, not evidence. Applicability or supersession
+rules, batch/configuration test scope and release closure belong to later evidence
+capabilities.

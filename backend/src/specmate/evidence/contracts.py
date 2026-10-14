@@ -1,11 +1,22 @@
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from specmate.evidence.taxonomy import Kind
+from specmate.firmware_impact.contracts import CompareImpact
 
-Source = Literal["facts", "builds", "cable_test_plan", "physical_units"]
+Source = Literal[
+    "facts",
+    "builds",
+    "cable_test_plan",
+    "physical_units",
+    "interface_assessment",
+    "firmware_impact",
+]
+RecordedSource = Literal["interface_assessment", "firmware_impact"]
+Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+Note = Annotated[str, Field(max_length=2000)]
 
 
 class StrictModel(BaseModel):
@@ -71,6 +82,7 @@ class Basis(StrictModel):
         "plan_declaration",
         "unit_declaration",
         "declared_preference",
+        "recorded_result",
     ]
     references: list[str] = Field(default_factory=list)
     independently_verified: bool = False
@@ -94,6 +106,8 @@ class EvidenceItem(StrictModel):
     establishes: list[str]
     does_not_establish: list[str]
     warnings: list[str] = Field(default_factory=list)
+    # Recorded results only: True when a pinned input has a newer revision. None elsewhere.
+    stale: bool | None = None
     physical_qualification: Literal[False] = False
 
 
@@ -104,3 +118,50 @@ class EvidenceList(StrictModel):
     limit: int
     has_more: bool
     scan_limit_reached: bool = False
+
+
+class RecordInterfaceAssessment(StrictModel):
+    """Record the current separated result of one exact frozen interface assessment."""
+
+    revision_id: UUID
+    note: Note = ""
+
+
+class RecordFirmwareImpact(StrictModel):
+    """Record one exact firmware impact comparison as it was shown."""
+
+    comparison: CompareImpact
+    # The comparison hash the reviewer saw; a different current result is a conflict.
+    expected_comparison_sha256: Sha256 | None = None
+    note: Note = ""
+
+
+class ReadRecordedResult(StrictModel):
+    record_id: UUID
+
+
+class RecordedPinState(StrictModel):
+    role: str
+    revision_id: UUID
+    definition_id: UUID
+    number: int
+    latest_number: int
+    newer_revision_exists: bool
+
+
+class RecordedResult(StrictModel):
+    record_id: UUID
+    workspace_id: UUID
+    source: RecordedSource
+    kind: Kind
+    algorithm_version: str
+    request: dict
+    result: dict
+    result_sha256: Sha256
+    note: str
+    recorded_at: str
+    recorded_by_id: int
+    pins: list[RecordedPinState]
+    stale: bool
+    rewritten: Literal[False] = False
+    physical_qualification: Literal[False] = False

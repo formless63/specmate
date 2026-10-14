@@ -3,8 +3,9 @@ from uuid import UUID
 from ninja import Query, Router, Schema
 from pydantic import Field
 
-from specmate.evidence.contracts import ListEvidence
+from specmate.evidence.contracts import ListEvidence, ReadRecordedResult
 from specmate.evidence.queries import list_evidence
+from specmate.evidence.recorded import read_recorded
 from specmate.evidence.taxonomy import Kind, taxonomy
 
 router = Router(tags=["evidence"])
@@ -34,3 +35,8 @@ def get_workspace_evidence(request, workspace_id: UUID, query: Query[EvidenceQue
             limit=query.limit,
         ),
     )
+
+
+@router.get("/recorded/{record_id}")
+def get_recorded(request, record_id: UUID):
+    return read_recorded(request.user, ReadRecordedResult(record_id=record_id))

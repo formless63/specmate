@@ -106,6 +106,9 @@ EXPLICIT: dict[str, Requirement] = {
     # Project-less reads: authorization is per returned object, not a project role.
     "catalog.revision_labels": Requirement(AUTHENTICATED),
     "evidence.taxonomy": Requirement(AUTHENTICATED),
+    # Recording a derived result adds a workspace evidence record (contributor level).
+    "evidence.record_interface_assessment": _p(Perm.ITEM_CREATE),
+    "evidence.record_firmware_impact": _p(Perm.ITEM_CREATE),
     "firmware_build.request": _p(Perm.BUILD_EXECUTE),
     "pcb.request_extraction": _p(Perm.BUILD_EXECUTE),
     "pcb_disagreement.request_native": _p(Perm.BUILD_EXECUTE),

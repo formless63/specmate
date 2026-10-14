@@ -18,7 +18,8 @@
             "tool_receipt",
             "plan_declaration",
             "unit_declaration",
-            "declared_preference"
+            "declared_preference",
+            "recorded_result"
           ],
           "title": "Origin",
           "type": "string"
@@ -129,10 +130,24 @@
             "facts",
             "builds",
             "cable_test_plan",
-            "physical_units"
+            "physical_units",
+            "interface_assessment",
+            "firmware_impact"
           ],
           "title": "Source",
           "type": "string"
+        },
+        "stale": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stale"
         },
         "statement": {
           "title": "Statement",
