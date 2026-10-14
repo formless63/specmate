@@ -199,3 +199,11 @@ test.each([
   if (acceptOff) expect(accept.disabled).toBe(true);
   else expect(accept.disabled).toBe(false);
 });
+
+test('failed extraction shows its named diagnostic and offers no acceptance', async () => {
+  const diagnostic = '[component-uuid-unit-mismatch] Component RN1 lists 2 UUIDs for 3 units.';
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/sources/') ? { files: [source] } : url.includes('/native-options') ? { available_recipe_id: 'exact-approved' } : { attempts: [{ ...attempt, state: 'failed', diagnostic }], limit: 100 }), { status: 200 })));
+  wrap(<NativeExtraction workspaceId="project" />);
+  expect(await screen.findByText(diagnostic)).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'Accept extraction attempt' }) as HTMLButtonElement).disabled).toBe(true);
+});

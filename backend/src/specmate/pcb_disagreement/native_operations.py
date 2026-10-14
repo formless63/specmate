@@ -17,6 +17,7 @@ from specmate.design.operations import canonical_bytes
 from specmate.operations import NotFound, Unsupported, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import WorkspaceProjectPayload, workspace_scope
+from specmate.pcb.operations import failure_diagnostic_for
 from specmate.pcb_disagreement.contracts import FilePin
 from specmate.pcb_disagreement.models import SourceNetAttempt, SourceNetInterpretation
 from specmate.pcb_disagreement.native_report import NativeReport
@@ -303,6 +304,9 @@ def list_native(user, workspace_id):
                 "source_role": attempt.source_role,
                 "build_id": str(attempt.build_id),
                 "state": attempt.build.stage.state,
+                "diagnostic": failure_diagnostic_for(
+                    attempt.build.stage, attempt.source_file.revision_id, REPORT_PATH
+                ),
                 "interpretation": (
                     {"interpretation_id": str(item.id), "report_sha256": item.sha256}
                     if item
