@@ -40,6 +40,8 @@ function setup(permissions: string[]) {
   const bodies: Record<string, any>[] = [];
   let saved: string | null = null;
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes('/catalog/definitions?')) return response({ workspace_id: 'ws-1', project_id: 'project-a', results: [], next_after: null });
+    if (url.includes('/access/projects/project-a')) return response({ project_id: 'project-a', state: 'project-v1' });
     if (url.endsWith('/definitions')) return response([{ definition_id: 'cfg', name: 'Synthetic configuration', kind: 'configuration' }, { definition_id: 'set', name: 'Synthetic options', kind: 'option_set' }]);
     if (url.includes('/catalog/definitions/cfg')) return response({ definition_id: 'cfg', name: 'Synthetic configuration', kind: 'configuration', drafts: [{ draft_id: 'cfg-draft', state: 'draft-v1', dependencies: [] }], revisions: [] });
     if (url.includes('/catalog/definitions/set')) return response({ definition_id: 'set', name: 'Synthetic options', kind: 'option_set', drafts: [], revisions: [{ revision_id: 'set-rev', number: 1 }] });
@@ -50,6 +52,7 @@ function setup(permissions: string[]) {
       if (body.operation === 'configuration.capture') return response({ result: { resolved_configuration_id: 'resolved-1' } });
       if (body.operation === 'configuration.build_input') return response({ result: buildInput });
       if (body.operation === 'definition.create') return response({ result: { definition_id: 'cfg' } });
+      if (body.operation === 'project.add_reference') return response({ result: {} });
     }
     throw new Error(`Unexpected request ${url}`);
   }));
@@ -94,4 +97,17 @@ test('read-only principals review resolutions without mutating controls', async 
   expect((screen.getByRole('button', { name: 'Create configuration' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getAllByText('Read-only access: requires Edit').length).toBeGreaterThan(0);
   expect(bodies.every((body) => body.operation === 'configuration.resolve')).toBe(true);
+});
+
+test('creates a configuration in the workspace library and references it from the project', async () => {
+  const bodies = setup(['workspace.read', 'item.create', 'design.edit']);
+  fireEvent.change(await screen.findByLabelText('Option set'), { target: { value: 'set' } });
+  await screen.findByRole('option', { name: 'Revision 1' });
+  fireEvent.change(screen.getByLabelText('Frozen option-set revision'), { target: { value: 'set-rev' } });
+  fireEvent.change(screen.getByLabelText('Configuration name'), { target: { value: 'Synthetic build' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create configuration' }));
+  await waitFor(() => expect(bodies.some((body) => body.operation === 'project.add_reference')).toBe(true));
+  const created = bodies.find((body) => body.operation === 'definition.create')!;
+  expect(created.payload).toEqual({ workspace_id: 'ws-1', kind: 'configuration', name: 'Synthetic build', content: { configuration: { option_set_revision_id: 'set-rev', selections: [] } } });
+  expect(bodies.find((body) => body.operation === 'project.add_reference')!.payload).toMatchObject({ project_id: 'project-a', kind: 'definition', target_id: 'cfg' });
 });

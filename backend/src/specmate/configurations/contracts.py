@@ -142,3 +142,38 @@ class ResolvedRef(StrictModel):
 
 class ListResolved(StrictModel):
     workspace_id: UUID
+
+
+class AuthoringContext(StrictModel):
+    """Read exact pins an option-set author is choosing between; never reads drafts."""
+
+    target_revision_id: UUID | None = None
+    revision_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+class ReviewAdoption(StrictModel):
+    """Review adopting resolved occurrence choices into one owning assembly draft.
+
+    Omitting `draft_id` reviews a new draft of the resolution's frozen target assembly;
+    omitting `option_keys` selects every decision that would change the assembly.
+    """
+
+    resolved_configuration_id: UUID
+    draft_id: UUID | None = None
+    option_keys: list[Key] | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def unique(self):
+        if self.option_keys is not None and len(self.option_keys) != len(set(self.option_keys)):
+            raise ValueError("Select each option at most once.")
+        return self
+
+
+class AdoptResolution(ReviewAdoption):
+    option_keys: list[Key] = Field(min_length=1, max_length=200)
+    review_sha256: Sha256
+    basis: Basis
+
+
+class AdoptionRef(StrictModel):
+    adoption_id: UUID

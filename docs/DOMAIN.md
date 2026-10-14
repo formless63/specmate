@@ -123,6 +123,16 @@ decision's source (selected, default or none) and every unresolved option;
 revisions or chosen-definition revisions never change a captured resolution, and no frozen
 consumer is rewritten. Compatibility between choices remains `not_evaluated` there.
 
+Adopting a captured resolution into an assembly is a separate reviewed change.
+`configuration.review_adoption` shows the exact diff against a new draft of the frozen
+target assembly or an explicitly selected draft of it; `configuration.adopt` applies only
+the selected decisions after the actor confirms that review hash, with compare-and-set on
+a selected draft. A part or population choice replaces the pin of a direct occurrence; a
+firmware choice sets a contextual firmware pin. Nested occurrence revisions, occurrences
+whose features are addressed by relationships, and configuration-level values are not
+rewritten; population option IDs stay in the resolution. Immutable adoption evidence links
+the draft version to the resolved configuration, review and before/after content.
+
 Missing choices remain explicit. Engineering result is valid/invalid/unknown/not-evaluated
 with reasons and applicability. Development proposals are separate linked objects; a
 solver may return invalid-with-proposal or unknown-with-information-request.

@@ -1,8 +1,10 @@
-import { Alert, Badge, Button, Card, Group, NativeSelect, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Checkbox, Group, NativeSelect, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
-import { command, read, type Definition, type Identity } from '../identity/api';
+import { addProjectReference, command, libraryDefinitions, read, type Definition, type Identity } from '../identity/api';
+import { AdoptionReviewPanel } from './AdoptionReview';
+import { OptionSetAuthoring } from './OptionSetEditor';
 import { operation, type BuildInput, type Decision, type DraftResolution, type Selection, type Submission } from './api';
 
 const NONE = '__none__';
@@ -47,9 +49,10 @@ function Workspace({ projectId }: { projectId: string }) {
     <Title order={3}>Options and resolved choices</Title>
     <Text size="sm">A configuration pins one frozen option set. Resolution turns explicit selections and declared defaults into exact pinned choices; a build consumes only a captured resolved snapshot. Compatibility between choices is not evaluated here.</Text>
     {error && <Alert color="red">{error}</Alert>}
-    <NativeSelect label="Configuration" value={definition} data={[{ value: '', label: configurations.length ? 'Select a configuration' : 'No configurations in this project' }, ...configurations.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setDefinition(event.currentTarget.value)} />
+    <NativeSelect label="Configuration" value={definition} data={[{ value: '', label: configurations.length ? 'Select a configuration' : 'No configurations in the library' }, ...configurations.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setDefinition(event.currentTarget.value)} />
     {identity && <NativeSelect label="Configuration draft" value={draftId} data={[{ value: '', label: 'Select a draft' }, ...identity.drafts.map((item) => ({ value: item.draft_id, label: `Draft ${item.draft_id.slice(0, 8)} · ${item.state}` }))]} onChange={(event) => setDraftId(event.currentTarget.value)} />}
     {draftId && <DraftWorkspace key={draftId} draftId={draftId} />}
+    <OptionSetAuthoring projectId={projectId} definitions={definitions} onCreated={() => setReload((value) => value + 1)} />
     <CreateConfiguration projectId={projectId} optionSets={definitions.filter((item) => item.kind === 'option_set')} onCreated={(id) => { setReload((value) => value + 1); setDefinition(id); }} />
   </Stack></Card>;
 }
@@ -60,7 +63,9 @@ function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: 
   const [revisions, setRevisions] = useState<Identity['revisions']>([]);
   const [revision, setRevision] = useState('');
   const [name, setName] = useState('');
+  const [useHere, setUseHere] = useState(true);
   const [error, setError] = useState('');
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
@@ -69,10 +74,16 @@ function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: 
     return () => { active = false; };
   }, [optionSet]);
   async function create() {
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setNote('');
     try {
-      const result = await command<{ definition_id: string }>('definition.create', { project_id: projectId, kind: 'configuration', name: name.trim(),
+      // Configurations join the workspace library; the project only references them.
+      const { workspace_id } = await libraryDefinitions(projectId);
+      const result = await command<{ definition_id: string }>('definition.create', { workspace_id, kind: 'configuration', name: name.trim(),
         content: { configuration: { option_set_revision_id: revision, selections: [] } } });
+      if (useHere) {
+        try { await addProjectReference(projectId, 'definition', result.definition_id, 'configuration'); }
+        catch (failure) { setNote(`Created in the library, but not added to this project: ${(failure as Error).message}`); }
+      }
       setName(''); onCreated(result.definition_id);
     } catch (failure) { setError((failure as Error).message); } finally { setBusy(false); }
   }
@@ -80,10 +91,12 @@ function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: 
     <Title order={4}>New configuration</Title>
     <ReadOnlyNote permission="design.edit" />
     {error && <Alert color="red">{error}</Alert>}
+    {note && <Alert color="yellow">{note}</Alert>}
     <Group align="end">
-      <NativeSelect label="Option set" value={optionSet} data={[{ value: '', label: optionSets.length ? 'Select an option set' : 'No option sets in this project' }, ...optionSets.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setOptionSet(event.currentTarget.value)} />
+      <NativeSelect label="Option set" value={optionSet} data={[{ value: '', label: optionSets.length ? 'Select an option set' : 'No option sets in the library' }, ...optionSets.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setOptionSet(event.currentTarget.value)} />
       <NativeSelect label="Frozen option-set revision" value={revision} data={[{ value: '', label: 'Select an exact revision' }, ...revisions.map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]} onChange={(event) => setRevision(event.currentTarget.value)} />
       <TextInput label="Configuration name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
+      <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />
       <Button {...edit.props} disabled={!edit.allowed || !revision || !name.trim() || busy} onClick={() => { void create(); }}>Create configuration</Button>
     </Group>
   </Stack>;
@@ -102,6 +115,7 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
   const [basis, setBasis] = useState('');
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [buildInput, setBuildInput] = useState<BuildInput | null>(null);
+  const [adopting, setAdopting] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function refresh() {
@@ -188,7 +202,9 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
         <Badge variant="frozen">{item.resolution_sha256.slice(0, 12)}</Badge><Badge variant="outline" color={STATUS_COLOR[item.status]}>{item.status}</Badge>
         <Text size="sm">{item.basis}</Text>
         <Button variant="quiet" onClick={() => { void inspect(item.resolved_configuration_id); }}>Inspect build input</Button>
+        <Button variant="quiet" onClick={() => setAdopting(adopting === item.resolved_configuration_id ? '' : item.resolved_configuration_id)}>{adopting === item.resolved_configuration_id ? 'Hide adoption review' : 'Review adoption'}</Button>
       </Group>)}
+      {adopting && <AdoptionReviewPanel key={adopting} resolvedId={adopting} />}
       {preview.history_truncated && <Text size="sm">Only the latest 100 resolved snapshots are listed.</Text>}
       {buildInput && <Card withBorder><Stack gap="xs">
         <Text className="sb-silk">Build input · snapshot {buildInput.snapshot_sha256.slice(0, 16)}</Text>
