@@ -290,7 +290,7 @@ test.each([
   expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
 });
 
-test('a probe on a cable revision selects that definition and inspects exactly that frozen revision', async () => {
+test('a probe on a cable revision selects that definition and shows its views once, in the library row', async () => {
   const cable = { ...initialCable(), stock_revision_id: 'stock-rev' };
   const urls: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -304,8 +304,9 @@ test('a probe on a cable revision selects that definition and inspects exactly t
     return new Response(JSON.stringify(data), { status: 200 });
   }));
   render(wrap(<ProbeProvider probe={{ object: 'cable', rev: 1, path: [] }} onProbe={() => {}}><CablePanel projectId="project" /></ProbeProvider>));
-  expect(await screen.findByText('Frozen cable inspection')).toBeTruthy();
-  expect(urls.some(url => url.includes('cables/revisions/cable-r1'))).toBe(true);
-  expect(urls.some(url => url.includes('cables/revisions/cable-r2'))).toBe(false);
-  expect(await screen.findByLabelText('Cable section drawing')).toBeTruthy();
+  // The Library row owns the views for the probed definition; the panel points to it instead of repeating them.
+  expect(await screen.findByTestId('views-shown-above')).toBeTruthy();
+  expect(screen.queryByText('Frozen cable inspection')).toBeNull();
+  expect(screen.queryByLabelText('Cable section drawing')).toBeNull();
+  expect(urls.some(url => url.includes('cables/revisions/'))).toBe(false);
 });
