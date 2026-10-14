@@ -111,8 +111,8 @@ def test_release_cutoff_excludes_comparison_recorded_during_create(
 
     real = closure.build_package
 
-    def build_then_compare(ctx, p, as_of=None):
-        result = real(ctx, p, as_of=as_of)
+    def build_then_compare(ctx, p, as_of=None, **kwargs):
+        result = real(ctx, p, as_of=as_of, **kwargs)
         # A rerun is accepted after the manifest is built but before the release insert.
         if not ReproducibilityComparison.objects.exists():
             accept(second["build_id"])
