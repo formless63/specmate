@@ -156,6 +156,9 @@ test("selected packages, firmware and mechanical tools mount with scoped read co
   openTool("Selected packages");
   await screen.findByRole("heading", { name: "Selected assembly packages" });
   expect(await screen.findByRole("button", { name: "Review exact selected package" })).toBeTruthy();
+  openTool("Export packages");
+  await screen.findByRole("heading", { name: "Coherent export packages" });
+  expect(screen.getByRole("button", { name: "Review export package" })).toBeTruthy();
   openTool("Board firmware");
   await screen.findByRole("heading", { name: "Firmware on repeated boards" });
   expect(screen.getByRole("button", { name: "Show occurrence firmware" })).toBeTruthy();

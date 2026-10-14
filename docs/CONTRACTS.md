@@ -115,6 +115,8 @@ its dependency closure, filter for permissions and distribution rights, then con
 an independently understandable package with manifest and hashes. Do not silently omit a
 required private dependency and claim completeness; block or emit an explicitly limited
 package. Verification of a package does not imply physical qualification.
+[Coherent export packages](modules/export-packages.md) pin system, cable, PCB, mechanical,
+spreadsheet and test outputs of one exact root and check that they cite identical revisions.
 
 ## Interfaces for extensions and integrations
 
