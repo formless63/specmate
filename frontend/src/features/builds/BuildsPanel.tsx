@@ -108,6 +108,10 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       <SbJobCard title={detail.recipe_id} state={jobState(detail.state)} stateWords={pretty(detail.state)} dimension='build' detail={EXPLAIN[detail.state] ?? ''} />
       <SbProvenance label='Request' summary={`Recipe ${detail.recipe_id} · requested ${detail.requested_at}`} pins={[{ label: 'Source revision', value: detail.source_revision_id }]} />
       <Lineage lineage={detail.lineage} retryOf={detail.retry_of} />
+      {detail.configuration
+        ? <SbProvenance label='Configuration' summary={`Resolved configuration · ${detail.configuration.choices.length} choices · ${detail.configuration.pins.length} pinned revisions`}
+          pins={[{ label: 'Resolved configuration', value: detail.configuration.resolved_configuration_id }, { label: 'Option set revision', value: detail.configuration.option_set_revision_id }, { label: 'Configuration snapshot SHA-256', value: detail.configuration.snapshot_sha256 }, { label: 'Resolution SHA-256', value: detail.configuration.resolution_sha256 }]} />
+        : <Text size="xs">No configuration pinned: this build consumed only its source revision.</Text>}
       {detail.receipt && <Stack gap={2}><Text size="sm">Receipt: {detail.receipt.outcome}{detail.receipt.exit_code !== null ? ` · exit code ${detail.receipt.exit_code}` : ' · no exit code observed'} · {detail.receipt.message}</Text>
         {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}</Text>}</Stack>}
       {detail.outputs.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Verified output</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead><Table.Tbody>

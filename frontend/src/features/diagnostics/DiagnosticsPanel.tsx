@@ -56,7 +56,7 @@ export function DiagnosticsPanel({ workspaceId, active = true, onChanged }: { wo
       <Title order={3}>Status and recovery</Title>
       <Button variant="quiet" onClick={() => void load()}>Refresh</Button>
     </Group>
-    <Text size="sm">Read {new Date(status.evaluated_at).toLocaleTimeString()} · Closing the browser never cancels work; only an explicit cancellation or an operator stop does. Workflow engine: {status.workflow_engine.state.replace(/_/g, " ")}.</Text>
+    <Text size="sm">Read {new Date(status.evaluated_at).toLocaleTimeString()} · Closing the browser never cancels work; only an explicit cancellation or an operator stop does. Workflow engine: {status.workflow_engine.state.replace(/_/g, " ")}{status.workflow_engine.reason ? ` (${status.workflow_engine.reason.replace(/_/g, " ")})` : ""}.</Text>
     <Group gap="xs" aria-label="State summary">
       <SbStatus led={WORK_LED[status.work.mode] ?? "not-evaluated"} dimension="work" value={`${status.work.mode}${status.work.reason ? ` (${status.work.reason})` : ""}`} />
       <SbStatus led={RUNNER_LED[status.runner.state] ?? "not-evaluated"} dimension="runner" value={(RUNNER_LABEL[status.runner.state] ?? status.runner.state).replace(/^Runner /, "")} />

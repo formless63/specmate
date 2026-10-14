@@ -16,7 +16,7 @@ const history = (over: Partial<BuildHistory> = {}): BuildHistory => ({
   source_revision_id: 'rev-1', requested_at: '2026-01-01T00:00:00Z', retry_of: null, retried_by: null, requested_by_viewer: false,
   lineage: [{ build_id: 'build-a', state: 'running', current: true }],
   events: [{ kind: 'requested', at: 't1', detail: {} }], outputs: [],
-  cancel_available: true, retry_available: false, abandon_available: false, awaiting_runner_confirmation: false, ...over,
+  cancel_available: true, retry_available: false, abandon_available: false, awaiting_runner_confirmation: false, configuration: null, ...over,
 });
 const panel = (permissions?: string[]) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}>
   <PermissionsProvider permissions={permissions}><BuildsPanel workspaceId="p1" /></PermissionsProvider></MantineProvider>;
@@ -112,4 +112,18 @@ test('a requester still cannot retry without the grant', async () => {
   render(panel(['workspace.read']));
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' }));
   expect(((await screen.findByRole('button', { name: 'Retry as a new attempt' })) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('the pinned resolved configuration is shown with its exact pins; none pinned is stated', async () => {
+  await open();
+  expect(screen.getByText(/No configuration pinned/)).toBeTruthy();
+  cleanup();
+  vi.mocked(readHistory).mockResolvedValue(history({ configuration: {
+    resolved_configuration_id: 'config-1', snapshot_id: 'snap-1', snapshot_sha256: 'a'.repeat(64), resolution_sha256: 'b'.repeat(64), option_set_revision_id: 'options-1',
+    pins: [{ revision_id: 'rev-x', sha256: 'c'.repeat(64) }],
+    choices: [{ option_key: 'count', domain: 'firmware', path: null, status: 'resolved', source: 'selected', revision_id: null, population_option_id: null, value: '7' }],
+  } as BuildHistory['configuration'] }));
+  await open();
+  expect(screen.getByText('Resolved configuration · 1 choices · 1 pinned revisions')).toBeTruthy();
+  expect(screen.queryByText(/No configuration pinned/)).toBeNull();
 });

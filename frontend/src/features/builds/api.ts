@@ -1,4 +1,5 @@
 import { command } from '../sources/api';
+import type { BuildInput } from '../configurations/api';
 
 export type BuildSummary = {
   build_id: string; stage_id: string; state: string; state_token: string; terminal: boolean;
@@ -19,6 +20,8 @@ export type BuildHistory = {
   outputs: { path: string; sha256: string; size: number; accepted: boolean }[];
   cancel_available: boolean; retry_available: boolean; abandon_available: boolean;
   awaiting_runner_confirmation: boolean;
+  /** Exact resolved configuration input pinned at request time; null when none was pinned. */
+  configuration: BuildInput | null;
 };
 
 const read = { idempotent: false } as const;

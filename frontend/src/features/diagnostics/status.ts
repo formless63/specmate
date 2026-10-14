@@ -21,7 +21,7 @@ export type WorkspaceStatus = {
   runner: { state: string; credentials_usable: number; stages_holding_lease: number; stages_lease_expired: number };
   tools: { recipe_id: string; status: string; builds: number }[];
   storage: { state: string; code: string | null; sampled: number; missing?: number };
-  workflow_engine: { state: string };
+  workflow_engine: { state: string; reason?: string };
   builds: StatusBuild[];
   can_execute: boolean;
   findings: Finding[];

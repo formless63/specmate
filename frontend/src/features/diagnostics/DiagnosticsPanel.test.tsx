@@ -96,3 +96,8 @@ test("the indicator reports unavailable, not the last good state, when a later r
     await screen.findByRole("button", { name: /Status unavailable/ });
   } finally { vi.useRealTimers(); }
 });
+
+test("the workflow engine probe reason is shown with its state", async () => {
+  show(["workspace.read"], vi.fn(async () => reply({ ...status, workflow_engine: { state: "unreachable", reason: "connect_timeout" } })));
+  expect(await screen.findByText(/Workflow engine: unreachable \(connect timeout\)\./)).toBeTruthy();
+});
