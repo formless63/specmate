@@ -23,6 +23,7 @@ from specmate.configurations.contracts import (
     ConfigurationContent,
     OptionSetContent,
 )
+from specmate.design.closure_reads import authorized_revision, remember_authorized_revision
 from specmate.design.models import Revision
 from specmate.design.pins import check_pin
 from specmate.operations import NotFound, ValidationFailed
@@ -90,6 +91,12 @@ class Reader:
         key = str(revision_id)
         if key in self.revisions:
             return self.revisions[key]
+        revision = authorized_revision(self.user, revision_id)
+        if revision is not None:
+            # Closure already authorized in this traversal; the pin scope is still checked.
+            check_pin(self.user, revision)
+            self.revisions[key] = revision
+            return revision
         revision = (
             Revision.objects.select_related("definition", "snapshot__definition")
             .filter(id=revision_id)
@@ -101,6 +108,7 @@ class Reader:
             authorize_snapshot(self.user, revision.snapshot, _authorized=self.authorized)
         except NotFound:
             raise NotFound(message) from None
+        remember_authorized_revision(self.user, revision)
         self.revisions[key] = revision
         return revision
 

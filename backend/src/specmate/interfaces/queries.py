@@ -8,7 +8,8 @@ from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import Closure as AssemblyClosure
 from specmate.catalog_matching.queries import current_actor
 from specmate.catalog_packs.authoring import authorize_origin
-from specmate.design.models import Revision
+from specmate.design.closure_reads import closure_reads, prefetch_origins
+from specmate.design.models import Revision, SnapshotDependency
 from specmate.design.pins import check_pin
 from specmate.interfaces.contracts import (
     INTERFACE_ADAPTER,
@@ -56,6 +57,11 @@ def references(value):
 
 class Closure:
     def __init__(self, user, content, kind=None, dependencies=()):
+        # One membership read per workspace for the whole read-only closure walk.
+        with closure_reads():
+            self._build(user, content, kind, dependencies)
+
+    def _build(self, user, content, kind, dependencies):
         user = current_actor(user)
         self.user = user
         self.root = parse_content(content, kind)
@@ -66,29 +72,45 @@ class Closure:
         pending = [*references(self.root), *dependencies]
         pin_scope = None
         while pending:
-            rid = pending.pop()
-            if rid in self.revisions:
-                continue
-            if len(self.revisions) >= 2000:
-                raise ValidationFailed("Interface dependency limit exceeded.")
-            revision = (
-                Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
-            )
-            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
-            pin_scope = check_pin(user, revision, pin_scope)
-            authorize_origin(user, revision.definition)
-            self.revisions[rid] = revision
-            body = json.loads(bytes(revision.snapshot.canonical))["content"]
-            self.contents[rid] = body
-            value = parse_content(body, revision.definition.kind)
-            self.values[rid] = value
-            pending.extend(references(value))
-            pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
-            if revision.definition.kind == "assembly":
-                assembly = AssemblyClosure(user, body, kind="assembly")
-                self.assemblies[rid] = assembly
-                pending.extend(assembly.revisions)
-        from specmate.design.operations import authorize_snapshot
+            # Level by level: one query for the level's revisions, one for their pins.
+            level = [rid for rid in dict.fromkeys(pending) if rid not in self.revisions]
+            loaded = {
+                str(key): value
+                for key, value in Revision.objects.select_related(
+                    "definition", "snapshot__definition"
+                )
+                .in_bulk({str(rid) for rid in level})
+                .items()
+            }
+            pending = []
+            batch = []
+            for rid in level:
+                if len(self.revisions) >= 2000:
+                    raise ValidationFailed("Interface dependency limit exceeded.")
+                revision = loaded.get(str(rid))
+                # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+                pin_scope = check_pin(user, revision, pin_scope)
+                self.revisions[rid] = revision
+                batch.append((rid, revision))
+            prefetch_origins({revision.definition_id for _, revision in batch})
+            deps = {}
+            for snapshot_id, revision_id in SnapshotDependency.objects.filter(
+                snapshot_id__in=[revision.snapshot_id for _, revision in batch]
+            ).values_list("snapshot_id", "revision_id"):
+                deps.setdefault(snapshot_id, []).append(revision_id)
+            for rid, revision in batch:
+                authorize_origin(user, revision.definition)
+                body = json.loads(bytes(revision.snapshot.canonical))["content"]
+                self.contents[rid] = body
+                value = parse_content(body, revision.definition.kind)
+                self.values[rid] = value
+                pending.extend(references(value))
+                pending.extend(deps.get(revision.snapshot_id, ()))
+                if revision.definition.kind == "assembly":
+                    assembly = AssemblyClosure(user, body, kind="assembly")
+                    self.assemblies[rid] = assembly
+                    pending.extend(assembly.revisions)
+        from specmate.design.operations import authorize_snapshots
         from specmate.interfaces.assessments import authorize_evidence
 
         self.assessment_evidence = {}
@@ -96,9 +118,13 @@ class Closure:
             if isinstance(value, (InterfaceAssessment, Pinout)):
                 self.assessment_evidence[id(value)] = authorize_evidence(user, value)
         # Retained non-interface dependencies can own source evidence of their own.
-        for rid, value in self.values.items():
-            if value is None and self.revisions[rid].definition.kind != "assembly":
-                authorize_snapshot(user, self.revisions[rid].snapshot)
+        retained = [
+            self.revisions[rid].snapshot
+            for rid, value in self.values.items()
+            if value is None and self.revisions[rid].definition.kind != "assembly"
+        ]
+        if retained:
+            authorize_snapshots(user, retained)
         # All referenced scopes are checked before reference-kind/contact diagnostics.
         for value in [self.root, *self.values.values()]:
             self.validate(value)

@@ -30,6 +30,7 @@ from specmate.design.operations import (
     CaptureDraft,
     _capture,
     authorize_snapshot,
+    authorize_snapshots,
     check_state,
     scoped_draft,
 )
@@ -75,11 +76,9 @@ def summary(row):
 
 
 def history(ctx, rows):
-    rows = list(rows[: HISTORY + 1])
-    authorized = set()
-    for row in rows[:HISTORY]:
-        # Retained pins are disclosed only while their complete closure is readable.
-        authorize_snapshot(ctx.user, row.snapshot, _authorized=authorized)
+    rows = list(rows.select_related("snapshot__definition")[: HISTORY + 1])
+    # Retained pins are disclosed only while their complete closure is readable.
+    authorize_snapshots(ctx.user, [row.snapshot for row in rows[:HISTORY]])
     return [summary(row) for row in rows[:HISTORY]], len(rows) > HISTORY
 
 

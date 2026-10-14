@@ -8,7 +8,8 @@ from pydantic import ValidationError
 from specmate.access.permissions import Perm, authorize
 from specmate.cables.contracts import Cable
 from specmate.cables.lengths import project_lengths
-from specmate.design.models import Revision
+from specmate.design.closure_reads import closure_reads
+from specmate.design.models import Revision, SnapshotDependency
 from specmate.design.operations import authorize_snapshot
 from specmate.design.pins import check_pin
 from specmate.interfaces.contracts import ConnectorBody, Pinout
@@ -19,13 +20,13 @@ from specmate.wire_stock.schemas import StockSpecification
 _AUTHORIZING = ContextVar("cable_authorizing_snapshots", default=frozenset())
 
 
-def authorize_reference(user, revision):
+def authorize_reference(user, revision, *, _authorized=None):
     active = _AUTHORIZING.get()
     if revision.snapshot_id in active or len(active) >= 32:
         raise ValidationFailed("Cable authorization nesting limit or dependency cycle.")
     token = _AUTHORIZING.set(active | {revision.snapshot_id})
     try:
-        authorize_snapshot(user, revision.snapshot)
+        authorize_snapshot(user, revision.snapshot, _authorized=_authorized)
     finally:
         _AUTHORIZING.reset(token)
 
@@ -58,6 +59,11 @@ def conductive_elements(node, prefix=""):
 
 class Closure:
     def __init__(self, user, content, kind=None, dependencies=(), *, authority_only=False):
+        # One membership read per workspace for the whole read-only closure walk.
+        with closure_reads():
+            self._build(user, content, kind, dependencies, authority_only)
+
+    def _build(self, user, content, kind, dependencies, authority_only):
         self.cable = parse_content(content, kind)
         self.revisions = {}
         if self.cable is None:
@@ -70,21 +76,32 @@ class Closure:
         ]
         pin_scope = None
         while pending:
-            rid = pending.pop()
-            if rid in self.revisions:
-                continue
-            if len(self.revisions) >= 2000:
-                raise ValidationFailed("Cable dependency limit exceeded.")
-            revision = (
-                Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
+            # Level by level: one query for the level's revisions, one for their pins.
+            level = [rid for rid in dict.fromkeys(pending) if rid not in self.revisions]
+            loaded = {
+                str(key): value
+                for key, value in Revision.objects.select_related(
+                    "definition", "snapshot__definition"
+                )
+                .in_bulk({str(rid) for rid in level})
+                .items()
+            }
+            for rid in level:
+                if len(self.revisions) >= 2000:
+                    raise ValidationFailed("Cable dependency limit exceeded.")
+                revision = loaded.get(str(rid))
+                # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+                pin_scope = check_pin(user, revision, pin_scope)
+                self.revisions[rid] = revision
+            pending = list(
+                SnapshotDependency.objects.filter(
+                    snapshot_id__in=[self.revisions[rid].snapshot_id for rid in level]
+                ).values_list("revision_id", flat=True)
             )
-            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
-            pin_scope = check_pin(user, revision, pin_scope)
-            self.revisions[rid] = revision
-            pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         # Recheck typed source evidence, not just membership or snapshot dependency rows.
+        authorized = set()
         for revision in self.revisions.values():
-            authorize_reference(user, revision)
+            authorize_reference(user, revision, _authorized=authorized)
         if authority_only:
             return
         stock_revision = self.revisions[self.cable.stock_revision_id]

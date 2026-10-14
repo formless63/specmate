@@ -7,6 +7,7 @@ from contextvars import ContextVar
 from pydantic import ValidationError
 
 from specmate.access.permissions import Perm, authorize
+from specmate.design.closure_reads import closure_reads
 from specmate.design.models import Revision
 from specmate.design.operations import authorize_snapshot, canonical_bytes
 from specmate.operations import NotFound, ValidationFailed
@@ -142,15 +143,16 @@ class Closure:
                     raise NotFound("PCB source interpretation unavailable.")
                 authorize(user, original.blob.workspace_id, Perm.WORKSPACE_READ)
                 pending[side] = (pin, interpretation, file, original)
-        for revision in self.revisions.values():
-            active = _AUTHORIZING.get()
-            if revision.snapshot_id in active or len(active) >= 32:
-                raise ValidationFailed("Source review reference cycle or nesting limit.")
-            token = _AUTHORIZING.set(active | {revision.snapshot_id})
-            try:
-                authorize_snapshot(user, revision.snapshot)
-            finally:
-                _AUTHORIZING.reset(token)
+        with closure_reads():
+            for revision in self.revisions.values():
+                active = _AUTHORIZING.get()
+                if revision.snapshot_id in active or len(active) >= 32:
+                    raise ValidationFailed("Source review reference cycle or nesting limit.")
+                token = _AUTHORIZING.set(active | {revision.snapshot_id})
+                try:
+                    authorize_snapshot(user, revision.snapshot)
+                finally:
+                    _AUTHORIZING.reset(token)
         for side, record in pending.items():
             pin, owner, item, file = record
             if isinstance(pin, AssertionInput):
