@@ -36,7 +36,7 @@ function Harness({ permissions = ["project.read"] }: { permissions?: string[] })
 test("every tool belongs to exactly one area and the seven areas use keys 1-7", () => {
   const ids = AREAS.flatMap((area) => area.tools.map((tool) => tool.id));
   expect(new Set(ids).size).toBe(ids.length);
-  expect(ids).toHaveLength(36);
+  expect(ids).toHaveLength(38);
   expect(AREAS.map((area) => area.key)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
   expect(areaOfTool("pcb").label).toBe("Design");
   expect(describeAccess([]).known).toBe(false);
