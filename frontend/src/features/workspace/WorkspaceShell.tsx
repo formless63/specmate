@@ -3,32 +3,60 @@ import { Alert, Button, Group, Menu, PasswordInput, Select, Stack, Text, TextInp
 import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { HomeFrame } from "../home/HomeFrame";
-import { WorkspaceHome } from "../home/WorkspaceHome";
 import { forgetLastProject, readLastProject, writeLastProject } from "../home/lastProject";
-import { ApiError, requestJson, runOperation, type OperationResult, type Project, type SessionState } from "./api";
+import { ApiError, listWorkspaceProjects, requestJson, runOperation, type OperationResult, type Project, type SessionState } from "./api";
 
-/** Controls a full-bleed project shell places in its own top bar when `slots` is enabled. */
+/** Controls the shell places in its top bar: scope switching, account and request alerts. */
 export type ShellChrome = {
   username: string;
+  /** Scope control: Library or one project, searchable. */
   projectControl: ReactNode;
   signOutControl: ReactNode;
   alert: ReactNode;
-  /** Compact project switcher for phone widths; falls back to hiding project switching when absent. */
+  /** Compact scope switcher for phone widths. */
   projectMenu?: ReactNode;
   /** Compact account menu (containing Sign out) for phone widths. */
   accountMenu?: ReactNode;
 };
 
+/** Everything a signed-in shell needs: the workspace role, the current scope and scope actions. */
+export type WorkspaceScope = {
+  userId: string;
+  username: string;
+  /** Stable principal key for per-principal client caches. */
+  principalKey: string;
+  workspaceId: string;
+  /** The member's workspace role and permissions; they apply at every scope. */
+  role: string;
+  permissions: string[];
+  /** Null at Library scope. */
+  projectId: string | null;
+  project: Project | null;
+  /** Every project in the workspace, archived ones included (flagged). */
+  projects: Project[];
+  /** Remembered project id, already checked against the project list. */
+  lastProjectId: string | null;
+  busy: boolean;
+  selectProject: (projectId: string | null) => void;
+  createProject: (name: string, purpose?: string) => Promise<boolean>;
+  refresh: () => Promise<void>;
+  chrome: ShellChrome;
+};
+
+type Membership = { workspaceId: string; role: string; permissions: string[] };
+
+const LIBRARY = "__library__";
+
 /**
- * Owns the session, the authorized project list and the selected project. Before a project
- * is open it renders the workspace home in the Schematic Bench chrome; an open project is
- * rendered full-bleed and receives the account/project controls to host in its own top bar.
+ * Owns the session, the workspace membership, the project list and the current scope. A signed-in
+ * member always lands inside the shell at Library scope; nothing opens a project automatically.
+ * Changing scope, signing out, losing membership or a role change clear private query data.
  */
-export function WorkspaceShell({ children }: {
-  children: (projectId: string, project: Project, refreshProjects: () => Promise<void>, principalKey: string, chrome: ShellChrome) => ReactNode;
-}) {
+export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope) => ReactNode }) {
   const cache = useQueryClient();
   const [session, setSession] = useState<SessionState | null>(null);
+  const [membership, setMembership] = useState<Membership | null>(null);
+  const [noMembership, setNoMembership] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [username, setUsername] = useState("");
@@ -39,39 +67,69 @@ export function WorkspaceShell({ children }: {
   const [notice, setNotice] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const generation = useRef(0);
+  const known = useRef<Membership | null>(null);
 
-  const clearPrivate = useCallback(() => {
+  const clearCache = useCallback(() => {
     generation.current += 1;
     void cache.cancelQueries();
     cache.clear();
+  }, [cache]);
+
+  const clearPrivate = useCallback(() => {
+    clearCache();
+    known.current = null;
+    setMembership(null);
+    setNoMembership(false);
     setProjects([]);
     setProjectId(null);
     setNotice(null);
-  }, [cache]);
+  }, [clearCache]);
 
   const refresh = useCallback(async () => {
     const currentGeneration = generation.current;
     const state = await requestJson<SessionState>("/api/v0/session");
     if (currentGeneration !== generation.current) return;
     setSession(state);
-    if (state.user) {
-      const list = await requestJson<Project[]>("/api/v0/projects");
+    if (!state.user) { clearPrivate(); return; }
+    let page;
+    try {
+      page = await listWorkspaceProjects();
+    } catch (reason) {
       if (currentGeneration !== generation.current) return;
-      setProjects(list);
-      const remembered = readLastProject(String(state.user.id));
-      if (remembered && !list.some((p) => p.project_id === remembered)) forgetLastProject(String(state.user.id));
-      setProjectId((selected) => {
-        if (selected && !list.some((p) => p.project_id === selected)) {
-          void cache.cancelQueries(); cache.clear();
-          setNotice("A project you had open is no longer available to you. Its data was cleared from this screen.");
-          return null;
-        }
-        return selected;
-      });
-    } else {
-      clearPrivate();
+      if (reason instanceof ApiError && reason.status === 404) {
+        // Not (or no longer) a member: drop every private read and say so plainly.
+        const wasMember = known.current !== null;
+        clearPrivate();
+        setNoMembership(true);
+        if (wasMember) setNotice("You are no longer a member of this workspace. Its data was cleared from this screen.");
+        return;
+      }
+      throw reason;
     }
-  }, [cache, clearPrivate]);
+    if (currentGeneration !== generation.current) return;
+    const next: Membership = { workspaceId: page.workspace_id, role: page.role, permissions: page.permissions };
+    const previous = known.current;
+    if (previous && (previous.role !== next.role || previous.permissions.join(",") !== next.permissions.join(","))) {
+      // A role change refreshes cached reads and which actions are offered.
+      clearCache();
+      setNotice(`Your workspace role is now ${next.role}. The actions offered were refreshed.`);
+    }
+    known.current = next;
+    setMembership(next);
+    setNoMembership(false);
+    setProjects(page.results);
+    const userId = String(state.user.id);
+    const remembered = readLastProject(userId);
+    if (remembered && !page.results.some((p) => p.project_id === remembered)) forgetLastProject(userId);
+    setProjectId((selected) => {
+      if (selected && !page.results.some((p) => p.project_id === selected)) {
+        void cache.cancelQueries(); cache.clear();
+        setNotice("The project you had open no longer exists. You are back in the Library.");
+        return null;
+      }
+      return selected;
+    });
+  }, [cache, clearCache, clearPrivate]);
 
   useEffect(() => {
     let active = true;
@@ -131,27 +189,30 @@ export function WorkspaceShell({ children }: {
     });
   }
 
-  function selectProject(value: string | null) {
-    if (value === projectId) return;
-    generation.current += 1;
-    void cache.cancelQueries();
-    cache.clear();
-    setProjectId(value);
+  const selectProject = useCallback((value: string | null) => {
+    setProjectId((current) => {
+      if (value === current) return current;
+      // Scope changes discard the previous scope's private reads.
+      generation.current += 1;
+      void cache.cancelQueries();
+      cache.clear();
+      return value;
+    });
     setError(null);
     setNotice(null);
     if (value && session?.user) writeLastProject(String(session.user.id), value);
-  }
+  }, [cache, session]);
 
   /** Resolves true only when the project was created, so the form keeps the name after a failure. */
-  async function createProject(name: string): Promise<boolean> {
+  async function createProject(name: string, purpose = ""): Promise<boolean> {
     return act(async () => {
-      const result = await runOperation<Project>("project.create", { name });
+      const result = await runOperation<Project>("project.create", { name, ...(purpose ? { purpose } : {}) });
       await refresh();
       selectProject(result.result.project_id);
     });
   }
 
-  const selectedProject = projects.find((project) => project.project_id === projectId);
+  const selectedProject = projects.find((project) => project.project_id === projectId) ?? null;
   const userId = session?.user ? String(session.user.id) : null;
   // Only a remembered project the server still lists is offered; nothing is entered automatically.
   const lastProjectId = useMemo(() => {
@@ -160,46 +221,74 @@ export function WorkspaceShell({ children }: {
   }, [userId, projects, projectId]);
 
   const signOutControl = <Button variant="quiet" onClick={() => void signOut()} loading={busy}>Sign out</Button>;
+  const alert = notice || error ? <>
+    {notice && <Alert color="yellow" role="status" title="Workspace changed">{notice}</Alert>}
+    {error && <Alert color="red" title="Unable to complete request">{error}</Alert>}
+  </> : null;
 
-  if (session?.user && projectId && selectedProject) {
+  if (session?.user && membership) {
+    const user = session.user;
+    const current = selectedProject;
+    // Archived projects stay reachable from the project list, not from the switcher.
+    const switchable = projects.filter((project) => !project.archived || project.project_id === projectId);
+    const scopeName = current ? current.name : "Library";
     const chrome: ShellChrome = {
-      username: session.user.username,
-      projectControl: <Group gap={6} wrap="nowrap"><Select aria-label="Project" size="xs" w={200} data={projects.map((project) => ({ value: project.project_id, label: project.name }))}
-        value={projectId} onChange={selectProject} disabled={busy} allowDeselect={false} />
-        <Button variant="quiet" onClick={() => selectProject(null)} disabled={busy}>All projects</Button></Group>,
+      username: user.username,
+      projectControl: <Group gap={6} wrap="nowrap"><Select aria-label="Scope" size="xs" w={220} searchable nothingFoundMessage="No project matches"
+        data={[{ value: LIBRARY, label: "Library" }, ...switchable.map((project) => ({ value: project.project_id, label: project.archived ? `${project.name} (archived)` : project.name }))]}
+        value={current ? current.project_id : LIBRARY} onChange={(value) => selectProject(!value || value === LIBRARY ? null : value)} disabled={busy} allowDeselect={false} />
+        {current && <Button variant="quiet" aria-label="Switch to Library scope" onClick={() => selectProject(null)} disabled={busy}>Library</Button>}</Group>,
       signOutControl,
       projectMenu: <Menu position="bottom-start" withinPortal>
-        <Menu.Target><button type="button" className="sb-project-button" aria-label={`Project ${selectedProject.name}: switch`} disabled={busy}><span className="sb-project-name">{selectedProject.name}</span><span aria-hidden="true" className="sb-mono">▾</span></button></Menu.Target>
+        <Menu.Target><button type="button" className="sb-project-button" aria-label={`Scope ${scopeName}: switch`} disabled={busy}><span className="sb-project-name">{scopeName}</span><span aria-hidden="true" className="sb-mono">▾</span></button></Menu.Target>
         <Menu.Dropdown mah={360} style={{ overflowY: "auto" }}>
-          <Menu.Item onClick={() => selectProject(null)}>All projects</Menu.Item>
+          <Menu.Item aria-current={!current ? "true" : undefined} style={!current ? { color: "var(--sb-accent)" } : undefined} onClick={() => selectProject(null)}>Library</Menu.Item>
           <Menu.Divider />
-          {projects.map((project) => <Menu.Item key={project.project_id} aria-current={project.project_id === projectId ? "true" : undefined}
+          {switchable.map((project) => <Menu.Item key={project.project_id} aria-current={project.project_id === projectId ? "true" : undefined}
             style={project.project_id === projectId ? { color: "var(--sb-accent)" } : undefined} onClick={() => selectProject(project.project_id)}>{project.name}</Menu.Item>)}
         </Menu.Dropdown></Menu>,
       accountMenu: <Menu position="bottom-end" withinPortal>
-        <Menu.Target><Button variant="quiet" aria-label={`Account menu, signed in as ${session.user.username}`} className="sb-account-button">{session.user.username}</Button></Menu.Target>
+        <Menu.Target><Button variant="quiet" aria-label={`Account menu, signed in as ${user.username}`} className="sb-account-button">{user.username}</Button></Menu.Target>
         <Menu.Dropdown>
-          <Menu.Label>Signed in as {session.user.username}</Menu.Label>
+          <Menu.Label>Signed in as {user.username}</Menu.Label>
           <Menu.Item onClick={() => void signOut()} disabled={busy}>Sign out</Menu.Item>
         </Menu.Dropdown></Menu>,
-      alert: error ? <Alert color="red" title="Unable to complete request">{error}</Alert> : null,
+      alert,
     };
-    return <Fragment key={`${session.user.id}:${projectId}`}>{children(projectId, selectedProject, refresh, String(session.user.id), chrome)}</Fragment>;
+    const scope: WorkspaceScope = {
+      userId: String(user.id), username: user.username, principalKey: String(user.id),
+      workspaceId: membership.workspaceId, role: membership.role, permissions: membership.permissions,
+      projectId: current ? current.project_id : null, project: current, projects, lastProjectId, busy,
+      selectProject, createProject, refresh, chrome,
+    };
+    return <Fragment key={String(user.id)}>{children(scope)}</Fragment>;
+  }
+
+  if (session?.user && noMembership) {
+    return <HomeFrame username={session.user.username} signOutControl={signOutControl} statusLabel="No workspace">
+      <div className="sb-home-panel"><Stack gap="sm">
+        <Title order={1} className="sb-dash-title">No workspace access</Title>
+        {alert}
+        <Text>This account is not a member of a workspace. Ask a workspace admin to add you; nothing private is shown until then.</Text>
+        <Button variant="quiet" onClick={() => void act(refresh)} loading={busy}>Check again</Button>
+      </Stack></div>
+    </HomeFrame>;
   }
 
   if (session?.user) {
-    return <HomeFrame username={session.user.username} signOutControl={signOutControl} statusLabel="Workshop home"
-      actions={projects.map((project) => ({ id: `project:${project.project_id}`, label: project.name, description: "Open project", onClick: () => selectProject(project.project_id) }))}>
-      {error && <div className="sb-view" style={{ paddingTop: 8 }}><Alert color="red" title="Unable to complete request">{error}</Alert></div>}
-      <WorkspaceHome username={session.user.username} projects={projects} lastProjectId={lastProjectId} busy={busy} notice={notice}
-        onOpen={selectProject} onCreate={createProject} />
+    return <HomeFrame username={session.user.username} signOutControl={signOutControl} statusLabel="Connecting">
+      <div className="sb-home-panel"><Stack gap="sm">
+        {alert}
+        <Text role="status">{error ? "The workspace could not be read." : "Reading your workspace…"}</Text>
+        {error && <Button variant="primary" onClick={() => void act(refresh)} loading={busy}>Retry</Button>}
+      </Stack></div>
     </HomeFrame>;
   }
 
   return <HomeFrame statusLabel={!session ? (error ? "Not connected" : "Connecting") : "Signed out"}>
     <div className="sb-home-panel"><Stack gap="sm">
       <Title order={1} className="sb-dash-title">Specmate workshop</Title>
-      {expired && <Alert color="yellow" role="status" title="Session ended">Your session has ended. Sign in again to continue; open project data was cleared.</Alert>}
+      {expired && <Alert color="yellow" role="status" title="Session ended">Your session has ended. Sign in again to continue; private data was cleared from this screen.</Alert>}
       {error && <Alert color="red" title={!session ? "Workshop unavailable" : "Unable to complete request"}>{error}</Alert>}
       {!session ? <><Text role="status">{error ? "The workshop could not be reached." : "Connecting to the workshop…"}</Text>
         {error && <Button variant="primary" onClick={() => void act(refresh)} loading={busy}>Retry connection</Button>}</>

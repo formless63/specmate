@@ -65,6 +65,7 @@ def test_used_in_comes_from_active_floating_and_exact_references(users, workspac
     exact = add(users["contributor"], second, "revision", item["revision_id"], role="spare")
     row = library(users["viewer"])["results"][0]
     assert row["latest_revision"] == 1 and row["used_in_total"] == 2
+    assert row["latest_revision_id"] == item["revision_id"]
     uses = {use["project_name"]: use for use in row["used_in"]}
     assert uses["Synthetic bench"]["pin"] == "floating"
     assert uses["Synthetic bench"]["revision"] is None

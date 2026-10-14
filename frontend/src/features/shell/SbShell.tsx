@@ -7,10 +7,19 @@ import type { ShellChrome } from "../workspace";
 import { AREAS, areaOfTool, describeAccess, toolLabel, type AreaDef } from "./areas";
 
 const STATUS_LINE_HEIGHT = 24;
+const NO_ACTIONS: SpotlightActionGroupData[] = [];
 
 type SbShellProps = {
+  /** The current scope's name: "Library" or the project's name. */
   projectName: string;
+  /** Workspace permissions; they apply at every scope. */
   permissions: string[];
+  /** Workspace role as reported by the server. */
+  role?: string | null;
+  /** True at Library scope (no project context). */
+  libraryScope?: boolean;
+  /** Extra palette entries, e.g. switching scope. */
+  extraActions?: SpotlightActionGroupData[];
   activeTool: string;
   /** Called for every lens or area change; the owner mounts the tool on first visit. */
   onToolChange: (toolId: string) => void;
@@ -20,7 +29,7 @@ type SbShellProps = {
   children: ReactNode;
 };
 
-export function SbShell({ projectName, permissions, activeTool, onToolChange, chrome, statusIndicator, children }: SbShellProps) {
+export function SbShell({ projectName, permissions, role = null, libraryScope = false, extraActions = NO_ACTIONS, activeTool, onToolChange, chrome, statusIndicator, children }: SbShellProps) {
   const area = areaOfTool(activeTool);
   const wide = useMediaQuery(`(min-width: ${breakpoints.lg}px)`, false, { getInitialValueInEffect: false });
   const narrow = useMediaQuery(`(max-width: ${breakpoints.sm - 1}px)`, false, { getInitialValueInEffect: false });
@@ -59,9 +68,10 @@ export function SbShell({ projectName, permissions, activeTool, onToolChange, ch
       id: `tool:${tool.id}`, label: tool.label, description: `${item.label} area`,
       onClick: () => onToolChange(tool.id),
     })) })),
-  ], [onToolChange]);
+    ...extraActions,
+  ], [onToolChange, extraActions]);
 
-  const access = describeAccess(permissions);
+  const access = describeAccess(permissions, role);
   const railWidth = narrow ? 0 : wide ? rail.expanded : rail.collapsed;
 
   return <AppShell header={{ height: topBarHeight }} footer={{ height: STATUS_LINE_HEIGHT }}
@@ -102,10 +112,10 @@ export function SbShell({ projectName, permissions, activeTool, onToolChange, ch
 
     <AppShell.Main className="sb-main">
       <section aria-label="Context"><dl className="sb-context">
-        <Cell label="Project" value={projectName} />
+        <Cell label={libraryScope ? "Scope" : "Project"} value={projectName} selected={libraryScope} />
         <Cell label="Area" value={area.label} />
-        <Cell label="Tool" value={toolLabel(activeTool)} selected />
-        <Cell label="Your access" value={access.label} unknown={!access.known} />
+        <Cell label="Tool" value={toolLabel(activeTool)} selected={!libraryScope} />
+        <Cell label="Your role" value={access.label} unknown={!access.known} />
       </dl></section>
       {chrome.alert && <div className="sb-view" style={{ paddingTop: 8 }}>{chrome.alert}</div>}
       <Tabs keepMountedMode="display-none" value={activeTool} className="sb-view" onChange={(value) => { if (value) onToolChange(value); }}>
@@ -121,12 +131,12 @@ export function SbShell({ projectName, permissions, activeTool, onToolChange, ch
         <Text component="span" className="sb-silk">Ctrl K jump</Text>
         <Text component="span" className="sb-silk">1-7 areas</Text>
         <span className="sb-spacer" />
-        <Text component="span" className="sb-silk">{`${area.label} / ${toolLabel(activeTool)}`}</Text>
+        <Text component="span" className="sb-silk">{`${projectName} / ${area.label} / ${toolLabel(activeTool)}`}</Text>
       </div>
     </AppShell.Footer>
 
     <Spotlight actions={actions} shortcut="mod + K" nothingFound="No matching area or tool" highlightQuery
-      searchProps={{ placeholder: "Jump to an area or tool", "aria-label": "Jump to an area or tool" }} />
+      searchProps={{ placeholder: extraActions.length ? "Jump to an area, tool or project" : "Jump to an area or tool", "aria-label": "Jump to an area or tool" }} />
   </AppShell>;
 }
 

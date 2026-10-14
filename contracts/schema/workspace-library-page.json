@@ -73,6 +73,20 @@
           "description": "Highest frozen revision number; null when none is frozen.",
           "title": "Latest Revision"
         },
+        "latest_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The latest frozen design revision, for an exact pin.",
+          "title": "Latest Revision Id"
+        },
         "record_id": {
           "format": "uuid",
           "title": "Record Id",

@@ -109,6 +109,7 @@ def _definitions(workspace, payload, context):
     changed = Draft.objects.filter(definition=OuterRef("pk")).order_by("-updated_at")
     query = Definition.objects.filter(workspace=workspace).annotate(
         latest_revision=Subquery(latest.values("number")[:1]),
+        latest_revision_id=Subquery(latest.values("id")[:1]),
         changed_at=Subquery(changed.values("updated_at")[:1]),
     )
     if payload.kinds:
@@ -127,6 +128,7 @@ def _definitions(workspace, payload, context):
             "label": row.name,
             "created_at": row.created_at,
             "latest_revision": row.latest_revision,
+            "latest_revision_id": row.latest_revision_id,
             "changed_at": row.changed_at,
         }
 

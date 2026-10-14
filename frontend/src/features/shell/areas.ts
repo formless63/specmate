@@ -2,14 +2,15 @@ export type ToolDef = { id: string; label: string };
 export type AreaDef = { id: string; label: string; key: string; tools: ToolDef[] };
 
 /**
- * Every project tool belongs to exactly one area. Keys 1-7 select areas from
- * the keyboard; the first tool listed is the area's default lens.
+ * Every tool belongs to exactly one area. Keys 1-7 select areas from the keyboard; the
+ * first tool listed is the area's default lens. Every area is reachable at Library scope
+ * and at project scope; scope changes navigation and filtering, never access.
  */
 export const AREAS: AreaDef[] = [
   { id: "project", label: "Project", key: "1", tools: [
     { id: "overview", label: "Overview" },
     { id: "knowledge", label: "Notes & files" },
-    { id: "access", label: "Project access" },
+    { id: "access", label: "Workspace access" },
     { id: "agent-capabilities", label: "Agent access" },
     { id: "diagnostics", label: "Status & recovery" },
   ] },
@@ -63,7 +64,7 @@ export const AREAS: AreaDef[] = [
   ] },
 ];
 
-/** A project opens on its overview, not on a library lens. */
+/** The shell opens on the Project area: the project list at Library scope, the overview in a project. */
 export const DEFAULT_TOOL = "overview";
 
 export function areaOfTool(toolId: string): AreaDef {
@@ -78,19 +79,26 @@ export function toolLabel(toolId: string): string {
   return toolId;
 }
 
-/** Plain-words summary of the grants the signed-in principal holds in this project. */
-export function describeAccess(permissions: string[]): { label: string; known: boolean; grants: number } {
-  const has = (name: string) => permissions.includes(name);
+const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", contributor: "Contributor", editor: "Editor", admin: "Admin" };
+
+/**
+ * Plain-words summary of the signed-in principal's workspace role. The server reports the role
+ * with the permissions; without it the role is inferred from the reported atoms (the former
+ * per-project names are still understood).
+ */
+export function describeAccess(permissions: string[], role?: string | null): { label: string; known: boolean; grants: number } {
+  const has = (...names: string[]) => names.some((name) => permissions.includes(name));
   const grants = permissions.length;
-  if (has("project.admin")) return { label: "Administrator", known: true, grants };
-  if (has("design.freeze")) return { label: "Edit and freeze", known: true, grants };
-  if (has("design.edit")) return { label: "Edit", known: true, grants };
-  if (has("project.read")) return { label: "Read", known: true, grants };
+  if (role && ROLE_LABELS[role]) return { label: ROLE_LABELS[role], known: true, grants };
+  if (has("workspace.admin", "project.admin")) return { label: "Admin", known: true, grants };
+  if (has("design.edit")) return { label: "Editor", known: true, grants };
+  if (has("item.create", "project.edit")) return { label: "Contributor", known: true, grants };
+  if (has("workspace.read", "project.read")) return { label: "Viewer", known: true, grants };
   return { label: "Not reported", known: false, grants };
 }
 
-/** True only when permissions are reported and carry neither edit nor administration; unreported is not read-only. */
+/** True only when permissions are reported and allow no change at all; unreported is not read-only. */
 export function isReadOnly(permissions: string[] | undefined): boolean {
   if (!permissions || permissions.length === 0) return false;
-  return !permissions.includes("design.edit") && !permissions.includes("project.admin");
+  return !["design.edit", "item.create", "project.edit", "workspace.admin", "project.admin"].some((name) => permissions.includes(name));
 }

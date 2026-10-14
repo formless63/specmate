@@ -34,12 +34,37 @@ function reply(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
-function server({ authenticated = false, denyInventory = false, includePermissions = true, permissions = ["project.read", "source.register"] } = {}) {
+const ROLES: Record<string, string[]> = {
+  viewer: ["workspace.read"],
+  contributor: ["item.create", "project.edit", "source.register", "workspace.read"],
+  editor: ["design.edit", "design.freeze", "inventory.reserve", "item.create", "project.edit", "source.register", "workspace.read"],
+};
+
+function server({ authenticated = false, denyInventory = false, role = "contributor" } = {}) {
+  const projects = [{ project_id: "project-a", name: "Project A", purpose: "", archived: false, created_by: "local-user", references: [], dependents: {}, can_delete: true },
+    { project_id: "project-b", name: "Project B", purpose: "", archived: false, created_by: "local-user", references: [], dependents: {}, can_delete: true }];
+  const library = [{ record_id: "d1", family: "definition", kind: "cable", label: "Patch lead", detail: null, created_at: "2026-01-01T00:00:00Z", latest_revision: 1, latest_revision_id: "r1",
+    changed_at: null, referenceable: true, referenced: null, used_in_total: 1, used_in: [{ reference_id: "ref1", project_id: "project-b", project_name: "Project B", archived: false, pin: "floating", revision: null, role: "uses" }] }];
   const fetchMock = vi.fn(async (path: string, options?: RequestInit) => {
     if (path === "/api/v0/session") return reply({ user: authenticated ? { id: "7", username: "local-user" } : null, owner_setup_required: false });
     if (path === "/api/v0/session/login") { authenticated = true; return reply({ result: {} }); }
     if (path === "/api/v0/session/logout") { authenticated = false; return reply({ result: {} }); }
-    if (path === "/api/v0/projects") return reply([{ project_id: "project-a", name: "Project A", ...(includePermissions ? { permissions } : {}) }, { project_id: "project-b", name: "Project B", ...(includePermissions ? { permissions } : {}) }]);
+    // Older panels still read the flat project list (kept by the server).
+    if (path === "/api/v0/projects") return reply(projects.map((project) => ({ ...project, permissions: ROLES[role] })));
+    if (path.startsWith("/api/v0/workspace/projects?")) return reply({ workspace_id: "w1", role, permissions: ROLES[role], results: projects, total: 2, next_after: null });
+    if (path.startsWith("/api/v0/workspace/projects/")) {
+      const id = path.split("/").pop()!.split("?")[0]!;
+      return reply({ project_id: id, workspace_id: "w1", name: id, purpose: "", archived: false, archived_at: null, created_by: "local-user", state: `s-${id}`, permissions: ROLES[role], references: [], dependents: {}, can_delete: true });
+    }
+    if (path.startsWith("/api/v0/workspace/library?")) {
+      const url = new URL(path, "http://test");
+      const projectId = url.searchParams.get("project_id");
+      const rows = library.map((row) => ({ ...row, referenced: projectId ? row.used_in.some((use) => use.project_id === projectId) : null }))
+        .filter((row) => url.searchParams.get("referenced_only") !== "true" || row.referenced);
+      return reply({ workspace_id: "w1", family: url.searchParams.get("family"), project_id: projectId, results: url.searchParams.getAll("kinds").includes("cable") ? rows : [], next_after: null });
+    }
+    if (path === "/api/v0/access/workspace") return reply({ workspace_id: "w1", name: "Workspace", role, permissions: ROLES[role] });
+    if (path === "/api/v0/access/account-policy") return reply({ can_create_local_accounts: false });
     if (path === "/api/v0/operations") {
       const envelope = JSON.parse(String(options?.body));
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
@@ -66,7 +91,7 @@ function openTool(label: string) {
   fireEvent.click(screen.getByRole("tab", { name: label }));
 }
 
-/** From the workspace home, open a project the way a person does: choose its row. */
+/** From the project list at Library scope, open a project the way a person does: choose its row. */
 async function openProject(name: string) {
   fireEvent.click(await screen.findByRole("button", { name: `Open ${name}` }));
   await screen.findByRole("heading", { name: "Overview" });
@@ -74,7 +99,7 @@ async function openProject(name: string) {
 
 /** Inside a project, switch with the top-bar project control. */
 async function selectProject(name: string) {
-  fireEvent.click(screen.getByRole("combobox", { name: "Project" }));
+  fireEvent.click(screen.getByRole("combobox", { name: "Scope" }));
   fireEvent.click(await screen.findByRole("option", { name, hidden: true }));
 }
 
@@ -96,9 +121,11 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "synthetic-password" } });
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText("Signed in as local-user");
-  // Right after sign-in the workshop home shows the authorized projects inside the shell chrome, not a bare selector.
+  // Sign-in lands inside the one shell at Library scope, on the project list; nothing opens automatically.
   expect(screen.getByTestId("sb-top-bar")).toBeTruthy();
-  expect(screen.getByRole("navigation", { name: "Projects" })).toBeTruthy();
+  expect(screen.getByRole("navigation", { name: "Areas" })).toBeTruthy();
+  expect(await screen.findByRole("region", { name: "Projects" })).toBeTruthy();
+  expect((screen.getByRole("combobox", { name: "Scope" }) as HTMLInputElement).value).toBe("Library");
   expect(screen.queryByText("Select or create a project to begin.")).toBeNull();
   await openProject("Project A");
   expect(screen.getByRole("tablist", { name: "Project tools" })).toBeTruthy();
@@ -181,10 +208,9 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   expect((screen.getByLabelText("New location name") as HTMLInputElement).value).toBe("Private shelf draft");
   cache.setQueryData(["private", "project-a"], "synthetic-private-data");
   await selectProject("Project B");
-  await screen.findByRole("heading", { name: "Overview" });
-  expect(screen.queryByLabelText("New location name")).toBeNull();
+  // The area and lens survive the scope change; the lens remounts empty for the new project.
+  expect(screen.getByRole("tab", { name: "Inventory" }).getAttribute("aria-selected")).toBe("true");
   expect(cache.getQueryData(["private", "project-a"])).toBeUndefined();
-  openTool("Inventory");
   expect((await screen.findByLabelText("New location name") as HTMLInputElement).value).toBe("");
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/projects/project-b?offset=0&limit=50", expect.anything()));
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -194,8 +220,8 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   expect(cache.getQueryData(["inventory", "project-b", 0])).toBeUndefined();
 });
 
-test.each([true, false])("PCB controls require explicit grants (permissions supplied: %s), and scoped read denial is visible", async (includePermissions) => {
-  server({ authenticated: true, permissions: ["project.read"], includePermissions, denyInventory: true }); renderApp();
+test("PCB controls require explicit grants, and a denied read is visible", async () => {
+  server({ authenticated: true, role: "viewer", denyInventory: true }); renderApp();
   await screen.findByText("Signed in as local-user");
   await openProject("Project A");
   openTool("PCB intake");
@@ -221,10 +247,10 @@ test("overview start points and open-work links open the owning tool through the
 });
 
 test.each([
-  ["a read-only member", ["project.read"], true],
-  ["an editor", ["project.read", "design.edit", "source.register"], false],
-])("project permissions reach tool panels: %s sees Save stock %s", async (_name, permissions, off) => {
-  server({ authenticated: true, permissions }); renderApp();
+  ["a viewer", "viewer", true],
+  ["an editor", "editor", false],
+])("workspace permissions reach tool panels: %s sees Save stock disabled: %s", async (_name, role, off) => {
+  server({ authenticated: true, role }); renderApp();
   await screen.findByText("Signed in as local-user");
   await openProject("Project A");
   openTool("Wire stock");
@@ -236,4 +262,33 @@ test.each([
   openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });
   expect((screen.getByRole("button", { name: "Create location" }) as HTMLButtonElement).title).toBe("Read-only access: requires Inventory management");
+});
+
+test("Library scope lists the lens's collection with Used in, and opening a use switches scope but keeps the lens", async () => {
+  const fetchMock = server({ authenticated: true }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  openTool("Cables");
+  expect(await screen.findByRole("heading", { name: "Cables in the library" })).toBeTruthy();
+  expect(await screen.findByText("Patch lead")).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path]) => String(path).includes("/projects/project-"))).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Show uses of Patch lead" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open Cables in Project B" }));
+  expect(await screen.findByRole("heading", { name: "Cables in this project" })).toBeTruthy();
+  expect(screen.getByRole("tab", { name: "Cables" }).getAttribute("aria-selected")).toBe("true");
+  expect((screen.getByRole("combobox", { name: "Scope" }) as HTMLInputElement).value).toBe("Project B");
+  expect(screen.getByText("Opened from the library")).toBeTruthy();
+});
+
+test("project-held lenses offer an inline chooser at Library scope, and workspace access works at both scopes", async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  openTool("Notes & files");
+  expect(await screen.findByRole("heading", { name: "Choose a project" })).toBeTruthy();
+  openTool("Workspace access");
+  expect(await screen.findByRole("heading", { name: "Workspace access" })).toBeTruthy();
+  expect(await screen.findByText("Workspace admins manage members, roles and grants.")).toBeTruthy();
+  openTool("Notes & files");
+  fireEvent.click(screen.getByRole("button", { name: "Open Notes & files in Project A" }));
+  await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
+  expect((screen.getByRole("combobox", { name: "Scope" }) as HTMLInputElement).value).toBe("Project A");
 });

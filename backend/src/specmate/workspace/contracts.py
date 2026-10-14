@@ -80,6 +80,9 @@ class LibraryRecord(BaseModel):
     latest_revision: int | None = Field(
         default=None, description="Highest frozen revision number; null when none is frozen."
     )
+    latest_revision_id: UUID | None = Field(
+        default=None, description="The latest frozen design revision, for an exact pin."
+    )
     changed_at: datetime | None = Field(
         default=None, description="Latest draft change, when the family has drafts."
     )
