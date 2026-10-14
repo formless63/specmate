@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import type { Source } from '../workshop-profiles/api';
 import type { DemandQuantity, Waste } from '../bom/api';
 import type { Row as CutRow } from '../preparation/api';
@@ -7,7 +8,7 @@ export { command, authorityDenied } from '../cables/api';
 export async function read<T>(path: string): Promise<T> {
   const response = await fetch(`/api/v0/${path}`, { credentials: 'same-origin' });
   const body = await response.json();
-  if (!response.ok) throw new CableOperationError(body.error?.message ?? `Material read failed (${response.status})`, response.status);
+  if (!response.ok) throw new CableOperationError(apiErrorMessage(body, `Material read failed (${response.status})`), response.status);
   return body as T;
 }
 // Authority is a fresh read, never an idempotent engineering command.
@@ -19,7 +20,7 @@ export async function checkAuthority(plan: Plan): Promise<{ authorized: boolean 
     body: JSON.stringify(plan),
   });
   const body = await response.json();
-  if (!response.ok) throw new CableOperationError(body.error?.message ?? `Material authority failed (${response.status})`, response.status);
+  if (!response.ok) throw new CableOperationError(apiErrorMessage(body, `Material authority failed (${response.status})`), response.status);
   return body;
 }
 export type { Definition, Identity } from '../identity/api';

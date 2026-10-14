@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from '../../lib/random-id';
 
 export type Pin = { revision_id: string; definition_id: string; kind: string; name: string; number: number; snapshot_sha256: string };
@@ -112,6 +113,6 @@ export async function operation<T>(name: string, payload: object, submission?: {
       ...(submission?.state ? { expected_state: submission.state } : {}), ...(submission?.key ? { idempotency_key: submission.key } : {}) }),
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message ?? `Operation failed (${response.status})`);
+  if (!response.ok) throw new Error(apiErrorMessage(body, `Operation failed (${response.status})`));
   return body.result as T;
 }

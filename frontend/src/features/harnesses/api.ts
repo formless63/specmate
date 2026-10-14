@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import type { Endpoint } from '../cables/api';
 export { type Definition, type Identity } from '../identity/api';
 export { command } from '../cables/api';
@@ -23,6 +24,6 @@ export async function read<T>(path: string, payload?: Harness): Promise<T> {
   const csrf = decodeURIComponent(document.cookie.split('; ').find(c => c.startsWith('csrftoken='))?.slice(10) ?? '');
   const response = await fetch(`/api/v0/${path}`, { credentials: 'same-origin', ...(payload ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify(payload) } : {}) });
   const body = await response.json();
-  if (!response.ok) throw new CableOperationError(body.error?.message ?? `Harness request failed (${response.status})`, response.status);
+  if (!response.ok) throw new CableOperationError(apiErrorMessage(body, `Harness request failed (${response.status})`), response.status);
   return body as T;
 }

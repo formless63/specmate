@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 export type Definition = { definition_id: string; name: string; kind: string; workspace_id?: string; latest_revision_number?: number | null; in_project?: boolean };
 /** One page of the workspace library; at project scope referenced items come first. */
@@ -27,7 +28,7 @@ export type Catalog = {
 export async function read<T>(path: string): Promise<T> {
   const response = await fetch(`/api/v0/${path}`, { credentials: "same-origin" });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message ?? `Request failed (${response.status})`);
+  if (!response.ok) throw new Error(apiErrorMessage(body, `Request failed (${response.status})`));
   return body as T;
 }
 
@@ -39,7 +40,7 @@ export async function command<T>(operation: string, payload: object, expectedSta
     body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message ?? `Operation failed (${response.status})`);
+  if (!response.ok) throw new Error(apiErrorMessage(body, `Operation failed (${response.status})`));
   return body.result as T;
 }
 

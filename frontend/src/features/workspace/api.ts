@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 export type SessionState = {
   user: { id: string; username: string } | null;
@@ -50,7 +51,7 @@ export async function requestJson<T>(path: string, options: RequestInit = {}): P
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const error = body as { error?: { message?: string } } | null;
-    throw new ApiError(response.status, error?.error?.message ?? `Request failed (HTTP ${response.status}).`);
+    throw new ApiError(response.status, apiErrorMessage(error, `Request failed (HTTP ${response.status}).`));
   }
   return body as T;
 }

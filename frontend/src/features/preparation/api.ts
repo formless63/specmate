@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import type { Source } from '../workshop-profiles/api';
 import { CableOperationError } from '../cables/api';
 export { command, authorityDenied } from '../cables/api';
@@ -17,6 +18,6 @@ export async function postRead<T>(path: string, payload: object): Promise<T> {
   const csrf = document.cookie.split('; ').find(cookie => cookie.startsWith('csrftoken='))?.split('=')[1];
   const response = await fetch(`/api/v0/preparation/${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(csrf ?? '') }, body: JSON.stringify(payload) });
   const body = await response.json();
-  if (!response.ok) throw new CableOperationError(body.error?.message ?? `Preparation read failed (${response.status})`, response.status);
+  if (!response.ok) throw new CableOperationError(apiErrorMessage(body, `Preparation read failed (${response.status})`), response.status);
   return body as T;
 }

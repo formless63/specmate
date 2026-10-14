@@ -132,7 +132,7 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
     {error && <Alert color="red">{error}</Alert>}
     {inspection && <>
       <Table><Table.Thead><Table.Tr><Table.Th>Contextual path</Table.Th><Table.Th>Exact board revision</Table.Th><Table.Th>Firmware revision</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-        {inspection.occurrences.map((item) => <Table.Tr key={JSON.stringify(item.path)}><Table.Td><SbIdentityBadge kind="occurrence" /> {item.path.join('/')} · {item.display_ref || item.name}</Table.Td><Table.Td><RevisionLabel id={item.revision_id} /></Table.Td><Table.Td>{item.firmware_revision_id ?? 'Unassigned'}</Table.Td></Table.Tr>)}
+        {inspection.occurrences.map((item) => <Table.Tr key={JSON.stringify(item.path)}><Table.Td><SbIdentityBadge kind="occurrence" /> {item.path.join('/')} · {item.display_ref || item.name}</Table.Td><Table.Td><RevisionLabel id={item.revision_id} /></Table.Td><Table.Td>{item.firmware_revision_id ? <RevisionLabel id={item.firmware_revision_id} role="Firmware" /> : 'Unassigned'}</Table.Td></Table.Tr>)}
       </Table.Tbody></Table>
       {owner.snapshot_id && <>
         <NativeSelect label="Frozen board occurrence for compilation" value={path} data={[{ value: '', label: 'Select an exact frozen board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />

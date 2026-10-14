@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from '../../lib/random-id';
 import type { FirmwareRead } from '../firmware/api';
 
@@ -26,6 +27,6 @@ export async function operation<T>(name: string, payload: object, submission?: P
       ...(submission ? { expected_state: submission.state, idempotency_key: submission.key } : {}) }),
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message ?? `Operation failed (${response.status})`);
+  if (!response.ok) throw new Error(apiErrorMessage(body, `Operation failed (${response.status})`));
   return body.result as T;
 }

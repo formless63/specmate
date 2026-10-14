@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { sha256Hex } from "../../lib/sha256";
 import { randomUUID } from "../../lib/random-id";
 export type IntakeSummary = { intake_id: string; board_path: string; source_revision_id: string; upgraded_from_kicad?: number | null;
@@ -118,7 +119,7 @@ function csrfToken() {
 async function request<T>(url: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { ...init, signal, credentials: "same-origin" });
   const data = await response.json().catch(() => null);
-  if (!response.ok) throw new PcbRequestError(response.status, data?.error?.message ?? `Request failed (${response.status})`);
+  if (!response.ok) throw new PcbRequestError(response.status, apiErrorMessage(data, `Request failed (${response.status})`));
   if (data === null) throw new PcbRequestError(response.status, "Unexpected server response.");
   return data as T;
 }

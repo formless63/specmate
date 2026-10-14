@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 export class MatchingRequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -6,7 +7,7 @@ export class MatchingRequestError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v0/${path}`, { credentials: "same-origin", ...init });
   const body = await response.json();
-  if (!response.ok) throw new MatchingRequestError(body.error?.message ?? `Request failed (${response.status})`, response.status);
+  if (!response.ok) throw new MatchingRequestError(apiErrorMessage(body, `Request failed (${response.status})`), response.status);
   return body as T;
 }
 

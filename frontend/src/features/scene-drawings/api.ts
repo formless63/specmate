@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import { command, request, SourceError } from '../sources/api';
 import { sha256Hex } from '../../lib/sha256';
 import type { SharedScene } from '../shared-scene/api';
@@ -24,7 +25,7 @@ export async function drawingBytes(detail: Detail, part: 'svg' | 'manifest' | 'p
   const response = await fetch(`/api/v0/${drawingUrl(detail.drawing_id, part)}`, { credentials: 'same-origin', cache: 'no-store', signal });
   if (!response.ok) {
     const body = await response.json();
-    throw new SourceError(response.status, body?.error?.message ?? 'Drawing unavailable.');
+    throw new SourceError(response.status, apiErrorMessage(body, 'Drawing unavailable.'));
   }
   const bytes = await response.arrayBuffer();
   const hash = await sha256Hex(bytes);

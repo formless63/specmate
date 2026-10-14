@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 /** Why a failed build failed: the program's exit-code check, never a generic message. */
 export type Diagnostic = {
   code: number | null; check: string; message: string; detail: string;
@@ -35,7 +36,7 @@ export type Review = {
 async function read<T>(path: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(`/api/v0/pcb-fabrication/${path}`, { signal, credentials: 'same-origin' });
   const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message ?? `Fabrication read failed (${response.status}).`);
+  if (!response.ok) throw new Error(apiErrorMessage(data, `Fabrication read failed (${response.status}).`));
   return data;
 }
 

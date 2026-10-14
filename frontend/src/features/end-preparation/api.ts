@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import type { StockElement, StockSpecification } from '../../../../packages/section-layout/src';
 import type { Source } from '../workshop-profiles/api';
 import type { Inspection } from '../cables/api';
@@ -36,7 +37,7 @@ async function request<T>(path: string, payload?: object): Promise<T> {
   const csrf = decodeURIComponent(document.cookie.split('; ').find(c => c.startsWith('csrftoken='))?.slice(10) ?? '');
   const response = await fetch(`/api/v0/${path}`, { credentials: 'same-origin', ...(payload ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify(payload) } : {}) });
   const body = await response.json();
-  if (!response.ok) throw new CableOperationError(body.error?.message ?? `End preparation request failed (${response.status})`, response.status);
+  if (!response.ok) throw new CableOperationError(apiErrorMessage(body, `End preparation request failed (${response.status})`), response.status);
   return body as T;
 }
 export async function loadStock(revisionId: string): Promise<StockSpecification> { const result = await read<{ content: { stock: StockSpecification } }>(`revisions/${revisionId}/snapshot`); return result.content.stock; }

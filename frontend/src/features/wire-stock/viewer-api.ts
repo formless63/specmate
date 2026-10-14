@@ -1,3 +1,4 @@
+import { apiErrorMessage } from "../../lib/api-errors";
 import type { StockSpecification } from '../../../../packages/section-layout/src';
 import type { ProfileRevision } from '../workshop-profiles/api';
 import { allLibraryDefinitions } from '../identity/api';
@@ -7,7 +8,7 @@ export interface RevisionChoice { revision_id: string; number: number }
 async function read<T>(path: string): Promise<T> {
   const response = await fetch(`/api/v0/${path}`, { credentials: 'same-origin' });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error?.message ?? `Preview read failed (${response.status}).`);
+  if (!response.ok) throw new Error(apiErrorMessage(body, `Preview read failed (${response.status}).`));
   return body as T;
 }
 /** Library definitions; a project id only lists its references first. */
