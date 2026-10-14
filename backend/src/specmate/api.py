@@ -33,6 +33,7 @@ from specmate.interfaces.api import router as interfaces_router
 from specmate.inventory.api import router as inventory_router
 from specmate.knowledge.api import router as knowledge_router
 from specmate.material_accounting.api import router as material_accounting_router
+from specmate.mechanical_proposals.api import router as mechanical_proposals_router
 from specmate.mechanical_sources.api import router as mechanical_sources_router
 from specmate.operations import Context, OperationError, OperationResult, execute, registry
 from specmate.passive_passages.api import router as passages_router
@@ -77,6 +78,7 @@ api.add_router("/v0/pcb-disagreement", disagreement_router)
 api.add_router("/v0/pcb-fabrication", fabrication_router)
 api.add_router("/v0/material-accounting", material_accounting_router)
 api.add_router("/v0/mechanical-sources", mechanical_sources_router)
+api.add_router("/v0/mechanical-proposals", mechanical_proposals_router)
 api.add_router("/v0/firmware-builds", firmware_builds_router)
 api.add_router("/v0/firmware-impact", firmware_impact_router)
 api.add_router("/v0/shared-scenes", shared_scene_router)

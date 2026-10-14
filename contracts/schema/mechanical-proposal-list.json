@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id"
+  ],
+  "title": "ListProposals",
+  "type": "object"
+}

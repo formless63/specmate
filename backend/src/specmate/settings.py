@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "specmate.sources",
     "specmate.builds",
     "specmate.pcb",
+    "specmate.mechanical_proposals.apps.MechanicalProposalsConfig",
     "specmate.pcb_disagreement",
     "specmate.pcb_fabrication",
     "specmate.passive_passages",
