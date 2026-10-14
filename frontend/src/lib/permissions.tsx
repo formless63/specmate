@@ -98,6 +98,13 @@ function lockFields(root: HTMLElement) {
     if (field.hasAttribute("data-inspect-locked")) return;
     field.setAttribute("data-inspect-locked", "");
     field.setAttribute("aria-readonly", "true");
+    // A field disabled by form state (e.g. an orientation datum while the side is unknown) is shown as read-only
+    // inspection too, never as a grey disabled box; the original state is restored on unlock.
+    if ((field as HTMLInputElement).disabled) {
+      field.setAttribute("data-inspect-was-disabled", "");
+      (field as HTMLInputElement).disabled = false;
+      field.removeAttribute("data-disabled");
+    }
     if (field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && TEXT_LIKE(field))) field.readOnly = true;
     // Choice controls have no readonly state; take them out of pointer and tab order instead of greying them.
     if (field instanceof HTMLSelectElement || (field instanceof HTMLInputElement && !TEXT_LIKE(field)) || field.getAttribute("aria-haspopup")) field.tabIndex = -1;
@@ -108,6 +115,10 @@ function unlockFields(root: HTMLElement) {
   root.querySelectorAll<HTMLElement>("[data-inspect-locked]").forEach((field) => {
     field.removeAttribute("data-inspect-locked");
     field.removeAttribute("aria-readonly");
+    if (field.hasAttribute("data-inspect-was-disabled")) {
+      field.removeAttribute("data-inspect-was-disabled");
+      (field as HTMLInputElement).disabled = true;
+    }
     if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) field.readOnly = false;
     field.removeAttribute("tabindex");
   });
@@ -127,7 +138,8 @@ export function InspectionScope({ permission, children }: { permission: Permissi
     if (!root || allowed) return;
     lockFields(root);
     const watch = new MutationObserver(() => lockFields(root));
-    watch.observe(root, { childList: true, subtree: true });
+    // `disabled` flips with form state after the first lock (React re-applies it), so watch the attribute as well.
+    watch.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled"] });
     return () => { watch.disconnect(); unlockFields(root); };
   }, [allowed]);
   return <div ref={ref} style={{ display: "contents" }} {...(allowed ? {} : { "data-inspect": permission })}>{children}</div>;
