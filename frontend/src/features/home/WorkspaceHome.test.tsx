@@ -1,6 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { PermissionsProvider } from "../../lib/permissions";
 import { project, ROLE_PERMISSIONS, workspaceServer } from "../../test/workspaceServer";
 import type { Project } from "../workspace/api";
 import { WorkspaceHome } from "./WorkspaceHome";
@@ -15,8 +16,8 @@ function show(projects: Project[], { role = "editor", lastProjectId = null as st
   const onOpen = vi.fn();
   const onCreate = vi.fn(async () => true);
   const onChanged = vi.fn(async () => {});
-  render(<MantineProvider><WorkspaceHome username="local-user" role={role} permissions={ROLE_PERMISSIONS[role]!} projects={projects}
-    lastProjectId={lastProjectId} busy={false} onOpen={onOpen} onCreate={onCreate} onChanged={onChanged} /></MantineProvider>);
+  render(<MantineProvider><PermissionsProvider permissions={ROLE_PERMISSIONS[role]!}><WorkspaceHome username="local-user" role={role} permissions={ROLE_PERMISSIONS[role]!} projects={projects}
+    lastProjectId={lastProjectId} busy={false} onOpen={onOpen} onCreate={onCreate} onChanged={onChanged} /></PermissionsProvider></MantineProvider>);
   return { onOpen, onCreate, onChanged };
 }
 

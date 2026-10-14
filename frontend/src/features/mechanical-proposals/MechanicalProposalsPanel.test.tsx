@@ -168,6 +168,9 @@ test('read-only members see decisions but cannot record one', async () => {
   // The decision form renders as inspection: the reason stays readable but cannot be edited.
   await waitFor(() => expect((screen.getByLabelText(/Reason/) as HTMLTextAreaElement).readOnly).toBe(true));
   expect(screen.getAllByText(/Read-only access: requires/).length).toBeGreaterThan(0);
+  // The decision choice is plain text, not an operable control.
+  expect(screen.queryByRole('radio', { name: 'Accept' })).toBeNull();
+  expect(screen.queryByText('Accept')).toBeNull();
 });
 
 test('linking offers a picker over workspace drafts and sends the chosen draft id', async () => {

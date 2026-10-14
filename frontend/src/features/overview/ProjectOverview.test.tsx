@@ -1,6 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { PermissionsProvider } from "../../lib/permissions";
 import { project, record, reply, ROLE_PERMISSIONS, workspaceServer, type WorkspaceState } from "../../test/workspaceServer";
 import type { ResolvedReference } from "../workspace/api";
 import { ProjectOverview, START_POINTS } from "./ProjectOverview";
@@ -29,8 +30,8 @@ function serve(state: Partial<WorkspaceState> = {}, routes: Routes = {}) {
 function show(role = "editor", extra: { active?: boolean; onAccessLost?: () => Promise<void>; onLeave?: () => void } = {}) {
   const onOpenTool = vi.fn();
   const changed = vi.fn(async () => {});
-  const view = (active: boolean) => <MantineProvider><ProjectOverview projectId="p1" projectName="Demo" permissions={ROLE_PERMISSIONS[role]!} role={role}
-    active={active} onOpenTool={onOpenTool} onAccessLost={extra.onAccessLost} onProjectChanged={changed} onLeave={extra.onLeave} /></MantineProvider>;
+  const view = (active: boolean) => <MantineProvider><PermissionsProvider permissions={ROLE_PERMISSIONS[role]!}><ProjectOverview projectId="p1" projectName="Demo" permissions={ROLE_PERMISSIONS[role]!} role={role}
+    active={active} onOpenTool={onOpenTool} onAccessLost={extra.onAccessLost} onProjectChanged={changed} onLeave={extra.onLeave} /></PermissionsProvider></MantineProvider>;
   const rendered = render(view(extra.active ?? true));
   return { onOpenTool, changed, rerender: (active: boolean) => rendered.rerender(view(active)) };
 }

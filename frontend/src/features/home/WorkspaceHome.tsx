@@ -1,6 +1,6 @@
 import { Alert, Button, Checkbox, Group, Popover, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMemo, useState, type FormEvent } from "react";
-import { gateFor } from "../../lib/permissions";
+import { usePermission } from "../../lib/permissions";
 import { describeAccess } from "../shell/areas";
 import type { Project } from "../workspace/api";
 import { deleteBlocker, deleteProject, describeDependents, setArchived } from "./projectLifecycle";
@@ -36,7 +36,7 @@ export function WorkspaceHome({ username, role, permissions, projects, lastProje
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const create = gateFor(permissions, "project.edit");
+  const create = usePermission("project.edit");
   const last = projects.find((project) => project.project_id === lastProjectId && !project.archived) ?? null;
   const archivedCount = projects.filter((project) => project.archived).length;
   const shown = useMemo(() => {
