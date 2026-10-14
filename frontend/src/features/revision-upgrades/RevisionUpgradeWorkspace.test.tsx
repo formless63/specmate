@@ -127,7 +127,7 @@ test("existing draft adoption carries a separate draft token and clears a confli
   }));
   render(view()); await reload();
   fireEvent.change(screen.getByLabelText("Adoption target"), { target: { value: "existing_draft" } });
-  fireEvent.change(screen.getByLabelText("Existing owning draft ID"), { target: { value: "target-draft" } });
+  fireEvent.change(screen.getByLabelText("Existing consuming draft ID"), { target: { value: "target-draft" } });
   fireEvent.change(screen.getByLabelText("Existing draft state token"), { target: { value: "draft-v7" } });
   fireEvent.click(screen.getByRole("button", { name: "Apply reviewed upgrade to draft" }));
   await screen.findByText(/Selected owning draft changed/);
