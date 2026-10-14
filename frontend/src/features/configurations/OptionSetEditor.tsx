@@ -1,7 +1,7 @@
 import { Alert, Badge, Button, Checkbox, Group, NativeSelect, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
-import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { addProjectReference, command, libraryDefinitions, read, type Definition, type Identity } from '../identity/api';
 import { operation, type AuthoringContext, type Described } from './api';
 import {
@@ -57,11 +57,11 @@ export function OptionSetAuthoring({ projectId, definitions, onCreated }: { proj
       {identity && <NativeSelect label="Option-set draft" value={draftId} data={[{ value: '', label: identity.drafts.length ? 'Select a draft' : 'No editable draft' }, ...identity.drafts.map((item) => ({ value: item.draft_id, label: `Draft ${item.draft_id.slice(0, 8)} · ${item.state}` }))]} onChange={(event) => setDraftId(event.currentTarget.value)} />}
       {identity && <Text size="sm">{identity.revisions.length ? `Frozen revisions: ${identity.revisions.map((item) => item.number).join(', ')}` : 'No frozen revision yet'}</Text>}
     </Group>
-    <Group align="end">
+    <InspectionScope permission="item.create"><Group align="end">
       <TextInput label="New option set name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
       <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />
       <Button {...create.props} disabled={!create.allowed || !name.trim() || busy} onClick={() => { void createSet(); }}>Create option set</Button>
-    </Group>
+    </Group></InspectionScope>
     <ReadOnlyNote permission="item.create" />
     {draftId && <OptionSetDraftEditor key={draftId} draftId={draftId} definitions={definitions} onFrozen={() => setReload((value) => value + 1)} />}
   </Stack>;
@@ -166,18 +166,20 @@ function OptionSetDraftEditor({ draftId, definitions, onFrozen }: { draftId: str
       <div><dt className="sb-silk">Target</dt><dd style={{ margin: 0 }}>{context ? <Badge variant="frozen">{context.name} · rev {context.number}</Badge> : body.target_revision_id ? <Text size="sm">Not described</Text> : <Text size="sm">None</Text>}</dd></div>
       <div><dt className="sb-silk">Edits</dt><dd style={{ margin: 0 }}><Text size="sm">{dirty ? 'Unsaved' : 'Saved'}</Text></dd></div>
     </dl>
+    <InspectionScope permission="design.edit">
     <Group align="end">
-      <NativeSelect label="Target assembly" disabled={!edit.allowed || busy} value={targetDefinition} data={[{ value: '', label: 'No target assembly' }, ...assemblies.map((item) => ({ value: item.definition_id, label: item.name }))]}
+      <NativeSelect label="Target assembly" disabled={busy} value={targetDefinition} data={[{ value: '', label: 'No target assembly' }, ...assemblies.map((item) => ({ value: item.definition_id, label: item.name }))]}
         onChange={(event) => { const value = event.currentTarget.value; setTargetDefinition(value); if (!value) void chooseTarget(''); }} />
-      {targetDefinition && <NativeSelect label="Exact target revision" disabled={!edit.allowed || busy} value={body.target_revision_id ?? ''}
+      {targetDefinition && <NativeSelect label="Exact target revision" disabled={busy} value={body.target_revision_id ?? ''}
         data={[{ value: '', label: 'Select a frozen revision' }, ...targetRevisions.map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]}
         onChange={(event) => { void chooseTarget(event.currentTarget.value); }} />}
     </Group>
-    {body.options.map((option, index) => <OptionEditor key={index} option={option} disabled={!edit.allowed || busy} definitions={definitions} occurrences={context?.occurrences ?? []}
+    {body.options.map((option, index) => <OptionEditor key={index} option={option} disabled={busy} editable={edit.allowed} definitions={definitions} occurrences={context?.occurrences ?? []}
       described={described} revisionLists={revisionLists} onRevisions={(id) => { void revisionsOf(id); }} onDescribe={(id) => { void describe([id]).catch((failure: Error) => setError(failure.message)); }}
       onChange={(next) => updateOption(index, next)} onRemove={() => change({ ...body, options: body.options.filter((_, position) => position !== index) })} />)}
     {body.options.length === 0 && <Text size="sm">No options declared.</Text>}
-    <Group><Button variant="quiet" {...edit.props} disabled={!edit.allowed || busy} onClick={() => change({ ...body, options: [...body.options, blankOption(body)] })}>Add option</Button></Group>
+    </InspectionScope>
+    {edit.allowed && <Group><Button variant="quiet" disabled={busy} onClick={() => change({ ...body, options: [...body.options, blankOption(body)] })}>Add option</Button></Group>}
     {checked && problems.length > 0 && <Alert color="yellow" title="Not yet valid"><Stack gap={2}>{problems.map((item) => <Text key={item} size="sm">{item}</Text>)}</Stack></Alert>}
     <ReadOnlyNote permission="design.edit" />
     <Group>
@@ -195,11 +197,11 @@ function occurrenceLabel(item: Occurrence) {
 }
 
 type OptionEditorProps = {
-  option: OptionBody; disabled: boolean; definitions: Definition[]; occurrences: Occurrence[]; described: Record<string, Described>; revisionLists: Record<string, Revisions>;
+  option: OptionBody; disabled: boolean; editable: boolean; definitions: Definition[]; occurrences: Occurrence[]; described: Record<string, Described>; revisionLists: Record<string, Revisions>;
   onRevisions: (definitionId: string) => void; onDescribe: (revisionId: string) => void; onChange: (option: OptionBody) => void; onRemove: () => void;
 };
 
-function OptionEditor({ option, disabled, definitions, occurrences, described, revisionLists, onRevisions, onDescribe, onChange, onRemove }: OptionEditorProps) {
+function OptionEditor({ option, disabled, editable, definitions, occurrences, described, revisionLists, onRevisions, onDescribe, onChange, onRemove }: OptionEditorProps) {
   const occurrenceOnly = OCCURRENCE_DOMAINS.has(option.domain);
   const paths = occurrences.filter((item) => !occurrenceOnly || item.revision.kind === 'pcb_population');
   const path = option.path?.join('/') ?? '';
@@ -227,25 +229,25 @@ function OptionEditor({ option, disabled, definitions, occurrences, described, r
         <NativeSelect label="Default" aria-label={`Default of ${label}`} disabled={disabled} value={option.default_choice ?? ''} data={[{ value: '', label: 'No default' }, ...option.choices.map((choice) => ({ value: choice.key, label: choice.label || choice.key }))]}
           onChange={(event) => onChange({ ...option, default_choice: event.currentTarget.value || null })} />
         <Checkbox label="Required" disabled={disabled} checked={option.required} onChange={(event) => onChange({ ...option, required: event.currentTarget.checked })} />
-        <Button variant="risk" disabled={disabled} onClick={onRemove}>Remove option</Button>
+        {editable && <Button variant="risk" disabled={disabled} onClick={onRemove}>Remove option</Button>}
       </Group>
       {at && <Text className="sb-silk">Base pin at this occurrence: {at.revision.name} rev {at.revision.number}{at.revision.kind === 'pcb_population' ? ` · firmware ${at.firmware_revision_id ? at.firmware_revision_id.slice(0, 8) : 'unassigned'}` : ''}</Text>}
       <Table>
         <Table.Thead><Table.Tr><Table.Th>Choice key</Table.Th><Table.Th>Label</Table.Th><Table.Th>{REVISION_DOMAINS.has(option.domain) ? 'Exact revision' : 'Declared value'}</Table.Th><Table.Th>Notes</Table.Th><Table.Th /></Table.Tr></Table.Thead>
-        <Table.Tbody>{option.choices.map((choice, index) => <ChoiceEditor key={index} option={option} choice={choice} disabled={disabled} candidates={candidates} at={at} described={described}
+        <Table.Tbody>{option.choices.map((choice, index) => <ChoiceEditor key={index} option={option} choice={choice} disabled={disabled} editable={editable} candidates={candidates} at={at} described={described}
           revisionLists={revisionLists} onRevisions={onRevisions} onDescribe={onDescribe} onChange={(next) => setChoice(index, next)} onRemove={() => removeChoice(index)} />)}</Table.Tbody>
       </Table>
-      <Group><Button variant="quiet" disabled={disabled} onClick={() => onChange({ ...option, choices: [...option.choices, blankChoice(option)] })}>Add choice</Button></Group>
+      {editable && <Group><Button variant="quiet" disabled={disabled} onClick={() => onChange({ ...option, choices: [...option.choices, blankChoice(option)] })}>Add choice</Button></Group>}
     </Stack>
   </fieldset>;
 }
 
 type ChoiceEditorProps = {
-  option: OptionBody; choice: ChoiceBody; disabled: boolean; candidates: Definition[]; at: Occurrence | undefined; described: Record<string, Described>; revisionLists: Record<string, Revisions>;
+  option: OptionBody; choice: ChoiceBody; disabled: boolean; editable: boolean; candidates: Definition[]; at: Occurrence | undefined; described: Record<string, Described>; revisionLists: Record<string, Revisions>;
   onRevisions: (definitionId: string) => void; onDescribe: (revisionId: string) => void; onChange: (choice: ChoiceBody) => void; onRemove: () => void;
 };
 
-function ChoiceEditor({ option, choice, disabled, candidates, at, described, revisionLists, onRevisions, onDescribe, onChange, onRemove }: ChoiceEditorProps) {
+function ChoiceEditor({ option, choice, disabled, editable, candidates, at, described, revisionLists, onRevisions, onDescribe, onChange, onRemove }: ChoiceEditorProps) {
   const pinned = choice.revision_id ? described[choice.revision_id] : undefined;
   const [definition, setDefinition] = useState(pinned?.definition_id ?? '');
   useEffect(() => { if (pinned && !definition) setDefinition(pinned.definition_id); }, [pinned]);
@@ -271,6 +273,6 @@ function ChoiceEditor({ option, choice, disabled, candidates, at, described, rev
       {choice.revision_id && !pinned && <Text size="sm">Pin not described yet.</Text>}
       {option.default_choice === choice.key && <Badge variant="outline">Default</Badge>}
     </Table.Td>
-    <Table.Td><Button variant="subtle" disabled={disabled} aria-label={`Remove choice ${name}`} onClick={onRemove}>Remove</Button></Table.Td>
+    <Table.Td>{editable && <Button variant="subtle" disabled={disabled} aria-label={`Remove choice ${name}`} onClick={onRemove}>Remove</Button>}</Table.Td>
   </Table.Tr>;
 }

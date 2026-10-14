@@ -102,8 +102,10 @@ test('authors options with exact pins, keeps edits across a stale save and freez
 test('read-only principals inspect option sets without authoring controls', async () => {
   const bodies = setup(['workspace.read']);
   await openSet();
-  expect((screen.getByLabelText('Key of Population') as HTMLInputElement).disabled).toBe(true);
-  expect((screen.getByRole('button', { name: 'Add option' }) as HTMLButtonElement).disabled).toBe(true);
+  // Authoring fields render as inspection; structural edit controls are withheld.
+  await waitFor(() => expect((screen.getByLabelText('Key of Population') as HTMLInputElement).readOnly).toBe(true));
+  expect(screen.queryByRole('button', { name: 'Add option' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Remove option' })).toBeNull();
   expect((screen.getByRole('button', { name: 'Save option set' }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole('button', { name: 'Freeze option set' }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole('button', { name: 'Create option set' }) as HTMLButtonElement).disabled).toBe(true);

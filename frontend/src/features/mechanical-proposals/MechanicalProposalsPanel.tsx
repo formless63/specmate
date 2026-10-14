@@ -218,12 +218,14 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
       <Group><Title order={3}>Retained record {retained.number}</Title><Badge variant="frozen">{retained.status}</Badge></Group>
       <Text size="xs">SHA-256 {retained.sha256} · draft version {retained.draft_version} · board {retained.interpretation_sha256}</Text>
       <ProposalReview proposal={retained.document.proposal} label="Retained proposal" />
-      <DecisionReview workspaceId={workspaceId} key={`${retained.revision_id}:${retained.decision_state}`} retained={retained} allowed={edit.allowed} reason={edit.props.title} busy={busy} onDecide={decide} onReload={() => showRetained(retained.revision_id)} />
+      <DecisionReview workspaceId={workspaceId} key={`${retained.revision_id}:${retained.decision_state}`} retained={retained} busy={busy} onDecide={decide} onReload={() => showRetained(retained.revision_id)} />
     </Stack></Card>}
   </Stack>;
 }
 
-function DecisionReview({ workspaceId, retained, allowed, reason: gateReason, busy, onDecide, onReload }: { workspaceId: string; retained: Retained; allowed: boolean; reason?: string; busy: boolean; onDecide: (revisionId: string, state: string, payload: DecidePayload) => Promise<void>; onReload: () => void }) {
+function DecisionReview({ workspaceId, retained, busy, onDecide, onReload }: { workspaceId: string; retained: Retained; busy: boolean; onDecide: (revisionId: string, state: string, payload: DecidePayload) => Promise<void>; onReload: () => void }) {
+  const gate = usePermission('design.edit');
+  const allowed = gate.allowed;
   const [decision, setDecision] = useState<DecidePayload['decision']>('deferred');
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'create' | 'link'>('create');
@@ -261,18 +263,21 @@ function DecisionReview({ workspaceId, retained, allowed, reason: gateReason, bu
       {history.map(d => <Table.Tr key={d.decision_id}><Table.Td>{d.version}</Table.Td><Table.Td>{d.decision}</Table.Td><Table.Td>{d.reason}</Table.Td><Table.Td>{d.draft_id ? `${d.link_mode} ${d.draft_id}` : 'none'}</Table.Td><Table.Td>{d.created_at}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>}
     {final ? <Text size="sm">Accepted decisions are final.</Text> : <>
-      <SegmentedControl aria-label="Decision" value={decision} onChange={value => setDecision(value as DecidePayload['decision'])} disabled={!allowed} data={[{ value: 'accepted', label: 'Accept' }, { value: 'rejected', label: 'Reject' }, { value: 'deferred', label: 'Defer' }]} />
-      <Textarea label="Reason (required)" value={reason} onChange={event => setReason(event.currentTarget.value)} disabled={!allowed} rows={3} maxLength={4000} />
+      <InspectionScope permission="design.edit">
+      <SegmentedControl aria-label="Decision" value={decision} onChange={value => { if (allowed) setDecision(value as DecidePayload['decision']); }} data={[{ value: 'accepted', label: 'Accept' }, { value: 'rejected', label: 'Reject' }, { value: 'deferred', label: 'Defer' }]} />
+      <Textarea label="Reason (required)" value={reason} onChange={event => setReason(event.currentTarget.value)} rows={3} maxLength={4000} />
       {accepting && <>
-        <SegmentedControl aria-label="Draft target" value={mode} onChange={value => { setMode(value as 'create' | 'link'); setTarget(''); }} disabled={!allowed} data={[{ value: 'create', label: 'Create design draft' }, { value: 'link', label: 'Link existing draft' }]} />
+        <SegmentedControl aria-label="Draft target" value={mode} onChange={value => { if (!allowed) return; setMode(value as 'create' | 'link'); setTarget(''); }} data={[{ value: 'create', label: 'Create design draft' }, { value: 'link', label: 'Link existing draft' }]} />
         {mode === 'create'
-          ? <TextInput label="New draft name" value={target} onChange={event => setTarget(event.currentTarget.value)} disabled={!allowed} maxLength={200} />
-          : <Select label="Existing design draft" searchable placeholder={targets.length ? 'Choose a draft' : 'No drafts available'} value={target || null} onChange={value => setTarget(value ?? '')} disabled={!allowed} nothingFoundMessage="No matching drafts" error={targetError || undefined}
+          ? <TextInput label="New draft name" value={target} onChange={event => setTarget(event.currentTarget.value)} maxLength={200} />
+          : <Select label="Existing design draft" searchable placeholder={targets.length ? 'Choose a draft' : 'No drafts available'} value={target || null} onChange={value => setTarget(value ?? '')} nothingFoundMessage="No matching drafts" error={targetError || undefined}
               data={targets.map(t => ({ value: t.draft_id, label: `${t.name} (${t.kind}) · ${t.draft_id.slice(0, 8)}` }))} />}
       </>}
+      </InspectionScope>
       {conflict && <Alert color="yellow" role="alert">{conflict} <Button variant="quiet" onClick={onReload}>Load latest decisions</Button></Alert>}
       {failure && <Alert color="red" role="alert">{failure}</Alert>}
-      <Group><Button variant="commit" disabled={!allowed || busy || !ready} title={allowed ? undefined : gateReason} onClick={() => void submit()}>Record decision</Button></Group>
+      <Group><Button variant="commit" {...gate.props} disabled={!allowed || busy || !ready} onClick={() => void submit()}>Record decision</Button></Group>
+      <ReadOnlyNote permission="design.edit" />
     </>}
   </Stack></Card>;
 }

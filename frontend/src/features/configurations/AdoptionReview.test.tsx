@@ -98,8 +98,9 @@ test('re-reviews explicit selections and applies to a selected draft under compa
 test('read-only principals review the diff without adoption controls', async () => {
   const bodies = setup(['workspace.read']);
   await screen.findByRole('table', { name: 'Draft diff' });
-  expect((screen.getByLabelText('Adopt Sensor part') as HTMLInputElement).disabled).toBe(true);
-  expect((screen.getByLabelText('Adoption basis') as HTMLTextAreaElement).disabled).toBe(true);
+  // Authoring fields render as inspection: values stay visible but cannot be changed.
+  await waitFor(() => expect(screen.getByLabelText('Adopt Sensor part').getAttribute('aria-readonly')).toBe('true'));
+  expect((screen.getByLabelText('Adoption basis') as HTMLTextAreaElement).readOnly).toBe(true);
   expect((screen.getByRole('button', { name: 'Adopt 2 changes…' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText('Read-only access: requires Edit')).toBeTruthy();
   expect(bodies.every((body) => body.operation === 'configuration.review_adoption')).toBe(true);

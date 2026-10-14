@@ -165,7 +165,9 @@ test('read-only members see decisions but cannot record one', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Inspect retained record 1' }));
   await screen.findByText('Review decision');
   expect((screen.getByRole('button', { name: 'Record decision' }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByLabelText(/Reason/) as HTMLTextAreaElement).disabled).toBe(true);
+  // The decision form renders as inspection: the reason stays readable but cannot be edited.
+  await waitFor(() => expect((screen.getByLabelText(/Reason/) as HTMLTextAreaElement).readOnly).toBe(true));
+  expect(screen.getAllByText(/Read-only access: requires/).length).toBeGreaterThan(0);
 });
 
 test('linking offers a picker over workspace drafts and sends the chosen draft id', async () => {

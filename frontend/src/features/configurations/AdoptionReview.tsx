@@ -1,7 +1,7 @@
 import { Alert, Badge, Button, Card, Checkbox, Group, NativeSelect, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
-import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { read, type Identity } from '../identity/api';
 import { operation, type AdoptionAction, type AdoptionResult, type AdoptionReview, type Pin } from './api';
 
@@ -103,10 +103,10 @@ export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
         <div><dt className="sb-silk">Owner</dt><dd style={{ margin: 0 }}><Badge variant="draft">{review.owner.mode === 'new_draft' ? 'New draft' : review.owner.state}</Badge></dd></div>
         <div><dt className="sb-silk">Changes</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{review.changes.length}</dd></div>
       </dl>
-      <Table>
+      <InspectionScope permission="design.edit"><Table>
         <Table.Thead><Table.Tr><Table.Th>Adopt</Table.Th><Table.Th>Option</Table.Th><Table.Th>Occurrence</Table.Th><Table.Th>Action</Table.Th><Table.Th>Current</Table.Th><Table.Th>Resolved choice</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{review.rows.map((row) => <Table.Tr key={row.option_key}>
-          <Table.Td><Checkbox aria-label={`Adopt ${row.label}`} disabled={busy || !edit.allowed || !(CHANGES.has(row.action) || selected.has(row.option_key))} checked={selected.has(row.option_key)} onChange={(event) => toggle(row.option_key, event.currentTarget.checked)} /></Table.Td>
+          <Table.Td><Checkbox aria-label={`Adopt ${row.label}`} disabled={busy || !(CHANGES.has(row.action) || selected.has(row.option_key))} checked={selected.has(row.option_key)} onChange={(event) => toggle(row.option_key, event.currentTarget.checked)} /></Table.Td>
           <Table.Td><Text size="sm">{row.label}</Text><Text className="sb-silk">{row.domain}</Text></Table.Td>
           <Table.Td>{row.path ? <Badge variant="occurrence">{row.path.join('/')}</Badge> : <Text size="sm">Whole configuration</Text>}</Table.Td>
           <Table.Td><Badge variant="outline" color={ACTION[row.action].color}>{ACTION[row.action].label}</Badge></Table.Td>
@@ -114,7 +114,7 @@ export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
           <Table.Td style={{ fontFamily: 'var(--sb-font-data)' }}>{row.choice ? (row.choice.revision ? pinText(row.choice.revision) : row.choice.value) : <Text size="sm">No resolved choice ({row.decision_status})</Text>}</Table.Td>
           <Table.Td><Text size="sm">{row.reason}</Text></Table.Td>
         </Table.Tr>)}</Table.Tbody>
-      </Table>
+      </Table></InspectionScope>
       <Title order={5}>Draft diff</Title>
       {review.changes.length === 0 ? <Text size="sm">No change to the owning draft is selected.</Text> : <Table aria-label="Draft diff">
         <Table.Thead><Table.Tr><Table.Th>Occurrence</Table.Th><Table.Th>Field</Table.Th><Table.Th>Before</Table.Th><Table.Th>After</Table.Th></Table.Tr></Table.Thead>
@@ -128,7 +128,7 @@ export function AdoptionReviewPanel({ resolvedId }: { resolvedId: string }) {
       {review.warnings.map((item) => <Alert key={item.path.join('/')} color="yellow">{item.path.join('/')}: {item.message}</Alert>)}
       <Text size="sm" role="status">{review.message}</Text>
       <ReadOnlyNote permission="design.edit" />
-      <Textarea label="Adoption basis" disabled={!edit.allowed || busy} value={basis} onChange={(event) => { setBasis(event.currentTarget.value); setSubmission(null); }} />
+      <InspectionScope permission="design.edit"><Textarea label="Adoption basis" disabled={busy} value={basis} onChange={(event) => { setBasis(event.currentTarget.value); setSubmission(null); }} /></InspectionScope>
       {!confirming ? <Group>
         <Button {...edit.props} disabled={!edit.allowed || busy || !review.eligible || !basis.trim()} onClick={() => setConfirming(true)}>Adopt {review.changes.length} change{review.changes.length === 1 ? '' : 's'}…</Button>
       </Group> : <Alert color="yellow" title="Confirm adoption">
