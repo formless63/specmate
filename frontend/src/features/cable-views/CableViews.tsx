@@ -7,6 +7,9 @@ import { unpreparedProfile, wireModel } from '../../../../packages/wire-geometry
 import { EndFaceView } from './EndFaceView';
 import { StockInfo } from './StockInfo';
 import { StockSectionView } from './StockSectionView';
+import { PreparationSource } from './PreparationSource';
+import { SideView } from './SideView';
+import type { SidePreparation } from './SideView';
 
 // Three.js enters the browser only after the 3D tab is opened and its button pressed.
 const WireViewport = lazy(() => import('../wire-stock/WireViewport'));
@@ -25,22 +28,34 @@ function Wire3d({ stock, lengthMm }: { stock: StockSpecification; lengthMm: numb
   </Stack>;
 }
 
-/** Cross-section, both end faces, 3D model and information for one exact stock. */
-export type ViewTab = 'section' | 'end-a' | 'end-b' | '3d' | 'info';
-const ALL: ViewTab[] = ['section', 'end-a', 'end-b', '3d', 'info'];
-export function CableViews({ stock, name, revisionId, terminationLabels, tabs = ALL }: { stock: StockSpecification; name: string; revisionId?: string | null; terminationLabels?: Record<string, string>; tabs?: ViewTab[] }) {
+/** Cross-section, side view, both end faces, 3D model and information for one exact stock. */
+export type ViewTab = 'section' | 'side' | 'end-a' | 'end-b' | '3d' | 'info';
+const ALL: ViewTab[] = ['section', 'side', 'end-a', 'end-b', '3d', 'info'];
+/**
+ * `preparation` draws the side view's prepared ends; `choosePreparation` (needs a query client and an
+ * exact `revisionId`) lets the viewer pick a frozen end preparation profile for this stock instead.
+ */
+export function CableViews({ stock, name, revisionId, terminationLabels, tabs = ALL, preparation, choosePreparation = false }: { stock: StockSpecification; name: string; revisionId?: string | null; terminationLabels?: Record<string, string>; tabs?: ViewTab[]; preparation?: SidePreparation | null; choosePreparation?: boolean }) {
   const section = useMemo(() => sectionLayout(stock), [stock]);
   const [selected, setSelected] = useState<string | null>(null);
   const [length, setLength] = useState(100);
+  const [picked, setPicked] = useState<SidePreparation | null>(null);
+  const [profileRevision, setProfileRevision] = useState('');
+  const prepared = preparation ?? (picked && picked.stockRevisionId === revisionId ? picked : null);
   return <Tabs defaultValue={tabs[0]} keepMounted={false} aria-label="Cable views">
     <Tabs.List>
       {tabs.includes('section') && <Tabs.Tab value="section">Cross-section</Tabs.Tab>}
+      {tabs.includes('side') && <Tabs.Tab value="side">Side view</Tabs.Tab>}
       {tabs.includes('end-a') && <Tabs.Tab value="end-a">End A face</Tabs.Tab>}
       {tabs.includes('end-b') && <Tabs.Tab value="end-b">End B face</Tabs.Tab>}
       {tabs.includes('3d') && <Tabs.Tab value="3d">3D model</Tabs.Tab>}
       {tabs.includes('info') && <Tabs.Tab value="info">Information</Tabs.Tab>}
     </Tabs.List>
     {tabs.includes('section') && <Tabs.Panel value="section" pt="sm"><StockSectionView section={section} title={name} label="Cable section drawing" selected={selected} onSelect={setSelected} /></Tabs.Panel>}
+    {tabs.includes('side') && <Tabs.Panel value="side" pt="sm"><Stack gap="xs">
+      {choosePreparation && revisionId && preparation === undefined && <PreparationSource stockRevisionId={revisionId} revisionId={profileRevision} onRevision={setProfileRevision} onChange={setPicked} />}
+      <SideView section={section} title={name} preparation={prepared} selected={selected} onSelect={setSelected} />
+    </Stack></Tabs.Panel>}
     {tabs.includes('end-a') && <Tabs.Panel value="end-a" pt="sm"><EndFaceView section={section} end="a" labels={terminationLabels} selected={selected} /></Tabs.Panel>}
     {tabs.includes('end-b') && <Tabs.Panel value="end-b" pt="sm"><EndFaceView section={section} end="b" labels={terminationLabels} selected={selected} /></Tabs.Panel>}
     {tabs.includes('3d') && <Tabs.Panel value="3d" pt="sm"><Stack gap="xs">

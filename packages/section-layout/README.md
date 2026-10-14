@@ -18,3 +18,9 @@ appearance (fill, finish, texture, physical hints) shared by the SVG drawings, e
 and the 3D viewer; unrecorded values stay explicitly unknown. `end-face.ts` mirrors and
 turns the section for one end. Their chirality rule and shield-texture vocabulary adapt
 cab-stu (MIT, formless63) as recorded in the root NOTICE.
+
+`side-view.ts` draws the stock lying along the page at its recorded diameters: an
+illustrative cutaway (axial steps are not dimensions) or ends prepared by an end
+preparation profile (strip-back, removal or trim measured from the stock cut end).
+Anything that does not place an end on the cable axis is drawn hatched as unknown.
+Its behavior follows cab-stu's cutaway and strip figure; see the root NOTICE.

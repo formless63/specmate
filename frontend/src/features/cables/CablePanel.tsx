@@ -211,7 +211,7 @@ export function CableInspector({ revisionId, revisions = [] }: { revisionId: str
     {result.data && !result.isError && <><Text><RevisionLabel id={result.data.cable.stock_revision_id} role="Stock" /></Text><Text>Review: {result.data.cable.review}; basis: {result.data.cable.review_basis ?? 'unknown'}</Text>
       <Text>Continuity: {result.data.continuity}. Compatibility: {result.data.compatibility}. Physical qualification: {result.data.physical_qualification}.</Text>
       {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
-      {stock.data && !stock.isError && <CableViews stock={stock.data} name={`Cable stock ${stockId}`} revisionId={stockId} terminationLabels={terminationLabels} />}
+      {stock.data && !stock.isError && <CableViews stock={stock.data} name={`Cable stock ${stockId}`} revisionId={stockId} terminationLabels={terminationLabels} choosePreparation />}
       {result.data.lengths && <LengthInspection projection={result.data.lengths} />}
       <LengthImpactView key={`impact:${revisionId}`} afterRevision={revisionId} name={cableName} revisions={revisions} />
       <Table><Table.Thead><Table.Tr><Table.Th>Stable stock feature</Table.Th>{result.data.cable.endpoints.map(e => <Table.Th key={e.local_id}>{e.label ?? e.local_id} ({e.local_id})</Table.Th>)}</Table.Tr></Table.Thead><Table.Tbody>

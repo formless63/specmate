@@ -67,6 +67,11 @@ reuse here (retained in packages/section-layout/src and packages/wire-geometry/s
 The formboard and build-sheet views (packages/harness-views) are written for Specmate's
 records using only the behavior of cab-stu's drawing and build sheets (stage structure,
 deterministic self-contained output); no code, sheet format, artwork or font is copied.
+The cable side view (packages/section-layout/src/side-view.ts) is written for Specmate's
+stock and end preparation records using only the behavior of cab-stu's cable cutaway
+(packages/docs/src/drawing/cutaway.ts: layers stepped out of one another and called out)
+and bench strip figure (packages/docs/src/bench/figures.ts: an end as it leaves the jacket);
+no code, artwork, marking, font or colour table is copied.
 No predecessor catalog data, real designs, fonts, vendor art or comments are included.
 
 MIT permission notice for those adaptations:

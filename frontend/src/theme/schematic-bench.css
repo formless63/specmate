@@ -317,6 +317,11 @@ html[data-mantine-color-scheme="light"] .sb-viewer { background-color: var(--sb-
 .sb-viewer > svg:not([width]) { width: 100%; }
 .sb-viewer > svg[width] { margin-inline: auto; }
 .sb-viewer-3d canvas { display: block; background: transparent; }
+/* Side view: a selection reticle settles in once; bands brighten on hover. Reduced motion removes both. */
+.sb-viewer svg[data-view="side"] [data-selected] { animation: sb-side-fade var(--sb-motion-quick) var(--sb-motion-ease); }
+@keyframes sb-side-fade { from { opacity: 0; } to { opacity: 1; } }
+.sb-viewer svg[data-view="side"] .sb-side-band { cursor: pointer; transition: filter var(--sb-motion-snap) linear; }
+.sb-viewer svg[data-view="side"] .sb-side-band:hover { filter: brightness(1.12); }
 .sb-key-chip { padding: 2px 8px; border: 1px solid var(--sb-border-control); border-radius: 0; font-size: 11.5px; background: transparent; color: var(--sb-text-primary); cursor: pointer; }
 .sb-key-chip[aria-pressed="true"] { border-color: var(--sb-accent); color: var(--sb-accent); }
 .sb-key-chip:hover { border-color: var(--sb-text-primary); }
