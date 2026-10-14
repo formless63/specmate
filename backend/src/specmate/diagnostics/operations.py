@@ -277,7 +277,7 @@ def safe_stop(ctx: Context, p: SafeStop) -> dict[str, Any]:
         "open_work": open_work,
         # Safe to stop services only when no stage is unfinished or unreconciled.
         "quiescent": not open_work,
-        "workflow_engine": "not_evaluated",
+        "workflow_engine": checks.temporal_probe(),
     }
 
 
@@ -330,5 +330,5 @@ def reconcile(ctx: Context, p: NoPayload) -> dict[str, Any]:
         "awaiting_runner_reconciliation": awaiting,
         "requeued": 0,
         "undelivered_dispatch": queue["undelivered"],
-        "workflow_engine": "not_evaluated",
+        "workflow_engine": checks.temporal_probe(),
     }

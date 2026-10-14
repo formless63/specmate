@@ -779,3 +779,21 @@ def test_min_free_bytes_setting_is_declared_with_512_mib_default():
     from django.conf import settings as s
 
     assert s.SPECMATE_MIN_FREE_BYTES == 512 * 1024**2
+
+
+def test_reconcile_and_drain_report_the_temporal_probe(monkeypatch, operator, build):
+    from specmate.diagnostics import checks
+
+    assert stop(operator, "drain")["workflow_engine"]["state"] == "reachable"
+    assert (
+        internal(operator, "installation.reconcile").result["workflow_engine"]["state"]
+        == "reachable"
+    )
+
+    def boom(*a, **k):
+        raise TimeoutError()
+
+    monkeypatch.setattr(checks.socket, "create_connection", boom)
+    expected = {"state": "unreachable", "reason": "connect_timeout"}
+    assert internal(operator, "installation.reconcile").result["workflow_engine"] == expected
+    assert stop(operator, "interrupt")["workflow_engine"] == expected
