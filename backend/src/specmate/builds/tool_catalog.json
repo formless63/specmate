@@ -23,19 +23,19 @@
     {
       "id": "avr-gcc-5.4.0",
       "title": "AVR GCC 5.4.0 (baremetal C11 firmware compile, atmega328p ABI)",
-      "image": "specmate-firmware-check@sha256:98278a045a5ca870c5843f01e28f1902be69510d0a95695f2f7ca83d0bad7bc0",
+      "image": "specmate-firmware-check@sha256:3478a5b2e839f117b44bedf61f2cff9a8c72890d5704665a2741349946db5689",
       "source": "local-build",
       "platforms": ["linux/amd64"],
       "download_bytes": null,
-      "installed_bytes": 331939626,
-      "size_note": "Built locally from toolpacks/firmware/Dockerfile on a pinned Debian base; the package download happens at build time and its size is not recorded. A rebuild produces a different image ID that must be re-pinned here.",
+      "installed_bytes": 331874883,
+      "size_note": "Built locally from toolpacks/firmware/Dockerfile: base pinned by digest, all packages pinned to exact versions from snapshot.debian.org 20261010T000000Z, SOURCE_DATE_EPOCH=1791590400. Two independent --no-cache builds produced this same image ID on Docker 29.9.0 (containerd image store, BuildKit 0.34); the package download size is not recorded. A rebuild must reproduce this ID; if it does not, re-pin here and investigate.",
       "capabilities": [
         "firmware compile to ELF32 AVR and Intel HEX (C only, explicit atmega328p ABI)",
         "no flashing, device access or hardware compatibility claim"
       ],
       "rights": "GCC and binutils are GPL; avr-libc is BSD-style. Notices stay in the image under /usr/share/doc.",
       "qualification": "Synthetic C fixtures only; other ABIs, languages, PlatformIO and linux/arm64 are unsupported.",
-      "acquire": "docker build -f toolpacks/firmware/Dockerfile -t specmate-firmware-check:avr-gcc-v1 toolpacks/firmware"
+      "acquire": "docker build --network=default --provenance=false --sbom=false --build-arg SOURCE_DATE_EPOCH=1791590400 -f toolpacks/firmware/Dockerfile -t specmate-firmware-check:avr-gcc-v1 toolpacks/firmware"
     }
   ]
 }
