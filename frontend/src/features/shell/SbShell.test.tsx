@@ -2,7 +2,7 @@ import { MantineProvider, Tabs } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { AREAS, areaOfTool, describeAccess } from "./areas";
+import { AREAS, DEFAULT_TOOL, areaOfTool, describeAccess, isReadOnly } from "./areas";
 import { SbShell } from "./SbShell";
 
 function stubViewport(width: number) {
@@ -36,10 +36,26 @@ function Harness({ permissions = ["project.read"] }: { permissions?: string[] })
 test("every tool belongs to exactly one area and the seven areas use keys 1-7", () => {
   const ids = AREAS.flatMap((area) => area.tools.map((tool) => tool.id));
   expect(new Set(ids).size).toBe(ids.length);
-  expect(ids).toHaveLength(34);
+  expect(ids).toHaveLength(35);
   expect(AREAS.map((area) => area.key)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
   expect(areaOfTool("pcb").label).toBe("Design");
   expect(describeAccess([]).known).toBe(false);
+});
+
+test("a project opens on Overview, the first lens of the Project area", () => {
+  expect(DEFAULT_TOOL).toBe("overview");
+  expect(AREAS[0]?.id).toBe("project");
+  expect(AREAS[0]?.tools[0]?.id).toBe("overview");
+  expect(areaOfTool("overview").label).toBe("Project");
+  expect(areaOfTool("unknown-tool").label).toBe("Project");
+});
+
+test("read-only is claimed only when permissions are reported and carry no edit or admin grant", () => {
+  expect(isReadOnly(["project.read"])).toBe(true);
+  expect(isReadOnly(["project.read", "design.edit"])).toBe(false);
+  expect(isReadOnly(["project.read", "project.admin"])).toBe(false);
+  expect(isReadOnly([])).toBe(false);
+  expect(isReadOnly(undefined)).toBe(false);
 });
 
 test("rail selects areas, lenses switch tools, and landmarks and current state are exposed", () => {

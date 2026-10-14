@@ -44,6 +44,7 @@ function server({ authenticated = false, denyInventory = false, includePermissio
       const envelope = JSON.parse(String(options?.body));
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
     }
+    if (path.startsWith("/api/v0/collaboration/projects/")) return reply({ results: [], next_after: null });
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
     if (path.startsWith("/api/v0/preparation-documents/projects/")) return reply({ document_sets: [] });
     if (path.startsWith("/api/v0/knowledge/projects/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
@@ -64,6 +65,13 @@ function openTool(label: string) {
   fireEvent.click(screen.getByRole("tab", { name: label }));
 }
 
+/** From the workspace home, open a project the way a person does: choose its row. */
+async function openProject(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name: `Open ${name}` }));
+  await screen.findByRole("heading", { name: "Overview" });
+}
+
+/** Inside a project, switch with the top-bar project control. */
 async function selectProject(name: string) {
   fireEvent.click(screen.getByRole("combobox", { name: "Project" }));
   fireEvent.click(await screen.findByRole("option", { name, hidden: true }));
@@ -72,7 +80,8 @@ async function selectProject(name: string) {
 async function openAuthenticatedProjectTools() {
   server({ authenticated: true }); renderApp();
   await screen.findByText("Signed in as local-user");
-  await selectProject("Project A");
+  await openProject("Project A");
+  openTool("Identities");
   await screen.findByRole("heading", { name: "Reusable identities" });
 }
 
@@ -86,7 +95,14 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "synthetic-password" } });
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText("Signed in as local-user");
-  await selectProject("Project A");
+  // Right after sign-in the workshop home shows the authorized projects inside the shell chrome, not a bare selector.
+  expect(screen.getByTestId("sb-top-bar")).toBeTruthy();
+  expect(screen.getByRole("navigation", { name: "Projects" })).toBeTruthy();
+  expect(screen.queryByText("Select or create a project to begin.")).toBeNull();
+  await openProject("Project A");
+  expect(screen.getByRole("tablist", { name: "Project tools" })).toBeTruthy();
+  expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
+  openTool("Identities");
   await screen.findByRole("heading", { name: "Reusable identities" });
   expect(screen.getByRole("tablist", { name: "Library tools" })).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledWith("/api/v0/projects/project-a/definitions", expect.anything());
@@ -156,7 +172,7 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   const fetchMock = server({ authenticated: true });
   const cache = renderApp();
   await screen.findByText("Signed in as local-user");
-  await selectProject("Project A");
+  await openProject("Project A");
   openTool("Inventory");
   fireEvent.change(await screen.findByLabelText("New location name"), { target: { value: "Private shelf draft" } });
   openTool("Identities");
@@ -164,7 +180,7 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   expect((screen.getByLabelText("New location name") as HTMLInputElement).value).toBe("Private shelf draft");
   cache.setQueryData(["private", "project-a"], "synthetic-private-data");
   await selectProject("Project B");
-  await screen.findByRole("heading", { name: "Reusable identities" });
+  await screen.findByRole("heading", { name: "Overview" });
   expect(screen.queryByLabelText("New location name")).toBeNull();
   expect(cache.getQueryData(["private", "project-a"])).toBeUndefined();
   openTool("Inventory");
@@ -180,7 +196,7 @@ test("project changes reset panel state and selected tab, and sign-out removes p
 test.each([true, false])("PCB controls require explicit grants (permissions supplied: %s), and scoped read denial is visible", async (includePermissions) => {
   server({ authenticated: true, permissions: ["project.read"], includePermissions, denyInventory: true }); renderApp();
   await screen.findByText("Signed in as local-user");
-  await selectProject("Project A");
+  await openProject("Project A");
   openTool("PCB intake");
   await screen.findByRole("heading", { name: "PCB intake" });
   expect(screen.queryByRole("button", { name: "Preserve sources" })).toBeNull();
@@ -188,4 +204,17 @@ test.each([true, false])("PCB controls require explicit grants (permissions supp
   openTool("Inventory");
   expect(await screen.findByText("Project not found.")).toBeTruthy();
   expect(screen.queryByText("Inventory operation completed.")).toBeNull();
+});
+
+test("overview start points and open-work links open the owning tool through the shell", async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByText("Signed in as local-user");
+  await openProject("Project A");
+  fireEvent.click(screen.getByRole("button", { name: "Start: Stock record" }));
+  await screen.findByRole("heading", { name: "Wire stock" });
+  expect(screen.getByRole("tab", { name: "Wire stock" }).getAttribute("aria-selected")).toBe("true");
+  expect(screen.getByRole("tablist", { name: "Library tools" })).toBeTruthy();
+  // The Overview keeps its place in the Project area and returns without losing the project.
+  fireEvent.click(screen.getByRole("button", { name: "Project" }));
+  expect(screen.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected")).toBe("true");
 });

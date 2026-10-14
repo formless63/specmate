@@ -87,12 +87,12 @@ test("successful self-removal clears the enclosing workspace and private cache e
   render(<MantineProvider><QueryClientProvider client={cache}><WorkspaceShell>{(projectId, _project, refreshProjects) => <>
     <span>Previously scoped private document</span><ProjectAccessPanel projectId={projectId} onAccessChanged={refreshProjects} />
   </>}</WorkspaceShell></QueryClientProvider></MantineProvider>);
-  fireEvent.click(await screen.findByRole("combobox", { name: "Project" }));
-  fireEvent.click(await screen.findByRole("option", { name: "Synthetic project", hidden: true }));
+  fireEvent.click(await screen.findByRole("button", { name: "Open Synthetic project" }));
   expect(await screen.findByText("Previously scoped private document")).toBeTruthy();
   cache.setQueryData(["private-proof"], { content: "formerly authorized" });
   fireEvent.click(await screen.findByRole("button", { name: "Remove first-owner" }));
   await waitFor(() => expect(screen.queryByText("Previously scoped private document")).toBeNull());
   expect(cache.getQueryData(["private-proof"])).toBeUndefined();
-  expect(screen.getByText("Select or create a project to begin.")).toBeTruthy();
+  expect(await screen.findByText("No projects yet")).toBeTruthy();
+  expect(screen.getByText(/no longer available to you/)).toBeTruthy();
 });

@@ -7,6 +7,7 @@ export type AreaDef = { id: string; label: string; key: string; tools: ToolDef[]
  */
 export const AREAS: AreaDef[] = [
   { id: "project", label: "Project", key: "1", tools: [
+    { id: "overview", label: "Overview" },
     { id: "knowledge", label: "Notes & files" },
     { id: "access", label: "Project access" },
   ] },
@@ -56,10 +57,11 @@ export const AREAS: AreaDef[] = [
   ] },
 ];
 
-export const DEFAULT_TOOL = "identity";
+/** A project opens on its overview, not on a library lens. */
+export const DEFAULT_TOOL = "overview";
 
 export function areaOfTool(toolId: string): AreaDef {
-  return AREAS.find((area) => area.tools.some((tool) => tool.id === toolId)) ?? (AREAS[1] as AreaDef);
+  return AREAS.find((area) => area.tools.some((tool) => tool.id === toolId)) ?? (AREAS[0] as AreaDef);
 }
 
 export function toolLabel(toolId: string): string {
@@ -79,4 +81,10 @@ export function describeAccess(permissions: string[]): { label: string; known: b
   if (has("design.edit")) return { label: "Edit", known: true, grants };
   if (has("project.read")) return { label: "Read", known: true, grants };
   return { label: "Not reported", known: false, grants };
+}
+
+/** True only when permissions are reported and carry neither edit nor administration; unreported is not read-only. */
+export function isReadOnly(permissions: string[] | undefined): boolean {
+  if (!permissions || permissions.length === 0) return false;
+  return !permissions.includes("design.edit") && !permissions.includes("project.admin");
 }

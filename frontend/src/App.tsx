@@ -1,6 +1,7 @@
 import { Alert, Button, Stack, Tabs, Text } from "@mantine/core";
 import { Component, lazy, Suspense, useCallback, useState, type ReactNode } from "react";
 
+import { ProjectOverview } from "./features/overview/ProjectOverview";
 import { DEFAULT_TOOL, SbShell } from "./features/shell";
 import { WorkspaceShell, type ShellChrome } from "./features/workspace";
 
@@ -50,7 +51,7 @@ const PreparationDocumentsPanel = lazy(() => import("./features/preparation-docu
 const SceneDrawingsPanel = lazy(() => import("./features/scene-drawings/SceneDrawingsPanel").then((module) => ({ default: module.SceneDrawingsPanel })));
 
 export function App() {
-  return <WorkspaceShell slots>{(projectId, project, refreshProjects, principalKey, chrome) =>
+  return <WorkspaceShell>{(projectId, project, refreshProjects, principalKey, chrome) =>
     <ProjectWorkspace key={`${projectId}:${project.permissions?.join(",") ?? ""}`}
       projectId={projectId} projectName={project.name} chrome={chrome} principalKey={principalKey} permissions={project.permissions ?? []} onAccessChanged={refreshProjects} />
   }</WorkspaceShell>;
@@ -66,6 +67,7 @@ function ProjectWorkspace({ projectId, projectName, chrome, principalKey, permis
     setVisited((current) => current.has(value) ? current : new Set([...current, value]));
   }, []);
   return <SbShell projectName={projectName} permissions={permissions} activeTool={active} onToolChange={setActive} chrome={chrome}>
+    <ToolPanel value="overview">{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="sources">{visited.has("sources") && <SourcesPanel projectId={projectId} permissions={permissions} />}</ToolPanel>
     <ToolPanel value="knowledge">{visited.has("knowledge") && <Stack><KnowledgePanel projectId={projectId} principalKey={principalKey} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>}</ToolPanel>
     <ToolPanel value="identity">{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>

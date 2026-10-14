@@ -1,29 +1,30 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { WorkspaceShell } from "./WorkspaceShell";
+import { WorkspaceShell, type ShellChrome } from "./WorkspaceShell";
+import { readLastProject } from "../home/lastProject";
 import { requestJson } from "./api";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   Element.prototype.scrollIntoView = vi.fn();
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.localStorage.clear(); });
 function reply(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 function renderShell() {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MantineProvider><QueryClientProvider client={cache}>
-    <WorkspaceShell>{(projectId) => <PrivatePanel projectId={projectId} />}</WorkspaceShell>
+    <WorkspaceShell>{(projectId, _project, refresh, _principal, chrome) => <PrivatePanel projectId={projectId} chrome={chrome} refresh={refresh} />}</WorkspaceShell>
   </QueryClientProvider></MantineProvider>);
   return cache;
 }
-function PrivatePanel({ projectId }: { projectId: string }) {
+function PrivatePanel({ projectId, chrome, refresh }: { projectId: string; chrome: ShellChrome; refresh: () => Promise<void> }) {
   const [value, setValue] = useState("");
-  return <><div>Private project {projectId}</div><input aria-label="Private note" value={value}
+  return <>{chrome.projectControl}{chrome.signOutControl}<button type="button" onClick={() => void refresh()}>Re-read projects</button><div>Private project {projectId}</div><input aria-label="Private note" value={value}
     onChange={(event) => setValue(event.currentTarget.value)} /></>;
 }
 const signedIn = { user: { id: "7", username: "local-user" }, owner_setup_required: false };
@@ -50,9 +51,10 @@ test("anonymous login uses CSRF, loads scoped projects, and clears password", as
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText("Signed in as local-user");
   expect(screen.queryByLabelText(/^Password/)).toBeNull();
-  fireEvent.click(screen.getByRole("combobox", { name: "Project" }));
-  fireEvent.click(await screen.findByRole("option", { name: "Project A", hidden: true }));
+  expect(screen.queryByRole("combobox", { name: "Project" })).toBeNull();
+  fireEvent.click(await screen.findByRole("button", { name: "Open Project A" }));
   expect(await screen.findByText("Private project a")).toBeTruthy();
+  expect(readLastProject("7")).toBe("a");
 });
 
 test("setup uses existing owner endpoint and displays safe request errors", async () => {
@@ -81,9 +83,7 @@ test("project selection resets private component state and logout clears query d
   }));
   const cache = renderShell();
   await screen.findByText("Signed in as local-user");
-  await waitFor(() => expect(screen.getByRole("combobox", { name: "Project" })).toBeTruthy());
-  fireEvent.click(screen.getByRole("combobox", { name: "Project" }));
-  fireEvent.click(await screen.findByRole("option", { name: "Project A", hidden: true }));
+  fireEvent.click(await screen.findByRole("button", { name: "Open Project A" }));
   fireEvent.change(screen.getByLabelText("Private note"), { target: { value: "private note" } });
   cache.setQueryData(["private", "a"], "private-data");
   fireEvent.click(screen.getByRole("combobox", { name: "Project" }));
