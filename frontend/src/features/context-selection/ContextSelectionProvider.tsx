@@ -57,7 +57,9 @@ function ScopeProvider({ scope, children, onUnavailable, authorityPending, revis
     const selection = current.selection;
     if (!set || current.status !== 'ready' || !current.scene || selection?.kind !== 'occurrence') return;
     const target = sceneTarget(current.scene, selection.address, rev);
-    const same = shown && shown.object === target.object && shown.path.length === target.path.length && shown.path.every((part, index) => part === target.path[index]);
+    // The open root's exact revision belongs in the probe; when its number is unknown here, keep the probe's own.
+    if (rev === null && shown && shown.object === target.object) target.rev = shown.rev;
+    const same = shown && shown.object === target.object && shown.rev === target.rev && shown.path.length === target.path.length && shown.path.every((part, index) => part === target.path[index]);
     if (!same) set(target);
   }, [state.selection]);
   const previous = useRef(probe);

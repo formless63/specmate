@@ -34,7 +34,7 @@ function Workspace({ projectId = null, principalKey }: { projectId?: string | nu
     {error && <Alert color="red" role="alert">{error}</Alert>}
     <Select label="Contextual frozen root" searchable clearable value={root} data={choices.map(c => ({ value: c.snapshot_id, label: `${c.name} · revision ${c.number}` }))} onChange={setRoot} />
     <Group align="end"><TextInput label="Exact contextual root snapshot ID" value={exact} onChange={e => setExact(e.currentTarget.value)} /><Button disabled={!exact.trim()} onClick={() => setRoot(exact.trim())}>Open contextual root</Button></Group>
-    {root && <ContextSelectionProvider scope={{ project_id: projectId ?? 'library', principal_key: principalKey, snapshot_id: root }} onUnavailable={unavailable} authorityPending={busy}><RootViews /></ContextSelectionProvider>}
+    {root && <ContextSelectionProvider scope={{ project_id: projectId ?? 'library', principal_key: principalKey, snapshot_id: root }} onUnavailable={unavailable} authorityPending={busy} revision={choices.find(c => c.snapshot_id === root)?.number ?? null}><RootViews /></ContextSelectionProvider>}
   </Stack>;
 }
 function RootViews() {
