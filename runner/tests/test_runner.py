@@ -217,6 +217,41 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(self.client.upload.call_count, 1)
         self.assertEqual(self.client.complete.call_count, 2)
 
+    def failed_tool_with_report(self):
+        self.receipt["lease"]["recipe"]["outputs"] = [
+            {"path": "report.json", "media_type": "application/json", "rights": "r"},
+            {"path": "result.txt", "media_type": "text/plain", "rights": "r"},
+        ]
+        outputs = Path(self.temp.name) / self.receipt["identity"] / "outputs"
+        outputs.mkdir(parents=True, exist_ok=True)
+        (outputs / "report.json").write_bytes(b'{"check": "synthetic"}')
+        self.receipt["started_at"] = time.time()
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "State": {"Running": False, "ExitCode": 12},
+        }
+        self.runner.supervise(self.receipt)
+        return hashlib.sha256(b'{"check": "synthetic"}').hexdigest()
+
+    def test_failed_tool_registers_declared_partial_outputs(self):
+        digest = self.failed_tool_with_report()
+        self.runner.finish(self.receipt)
+        self.assertEqual(self.client.upload.call_count, 1)
+        self.assertEqual(self.client.upload.call_args.args[1]["path"], "report.json")
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual((sent["outcome"], sent["exit_code"]), ("failed", 12))
+        self.assertEqual(sent["outputs"], [{"path": "report.json", "sha256": digest}])
+
+    def test_refused_failure_report_upload_keeps_the_failure(self):
+        self.failed_tool_with_report()
+        self.client.upload.side_effect = Rejected("execution no longer authorized")
+        self.runner.finish(self.receipt)
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual(
+            (sent["outcome"], sent["exit_code"], sent["outputs"]), ("failed", 12, [])
+        )
+        self.assertEqual(self.persisted()["result"]["outputs"], [])
+
     def test_persisted_result_renews_expired_authority_before_acceptance(self):
         self.docker.inspect.return_value = None
         self.runner.result(self.receipt, "failed", 1, "Synthetic failure")
@@ -463,7 +498,9 @@ class ReceiptTests(unittest.TestCase):
             "State": {"Running": True, "Status": "running"},
         }
         self.client.heartbeat.return_value = {"cancellation_requested": True}
-        self.docker.stop.side_effect = RuntimeFailure("Container termination was not confirmed")
+        self.docker.stop.side_effect = RuntimeFailure(
+            "Container termination was not confirmed"
+        )
         with self.assertRaises(RuntimeFailure):
             self.runner.run_receipt(self.receipt, recovered=False)
         self.client.complete.assert_not_called()

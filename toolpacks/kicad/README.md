@@ -80,19 +80,21 @@ format, arm64 or physical design qualification is implied.
 
 ## Bounded fabrication pack
 
-The separate `kicad-fabrication-v1` program produces fixed Gerber X2, separated
-through-hole Excellon, native JSON DRC and a hash manifest from an immutable selected
-board. See the explicit support/failure boundaries in [PCB scope](../../docs/modules/PCB.md).
-Production graphics/text, native DNP, custom project settings/rules, zones, vias,
-cutouts, curved geometry and slotted drills are outside this first qualified subset.
-It does not author, modify or route the source, interpret human population options,
-generate assembly outputs or authorize manufacturing.
+The separate `kicad-fabrication-v2` program produces Gerber X2 for every copper layer
+plus mask, silkscreen, paste and outline, separated through-hole Excellon (with G85
+slots), native JSON DRC and a hash manifest from an immutable selected board. It applies
+the board's same-named `.kicad_pro`/`.kicad_dru` companions when preserved, and exports
+zones with their stored fills. See the support/failure boundaries and diagnostic
+checks in [PCB scope](../../docs/modules/PCB.md). It does not author, modify, refill or
+route the source, interpret human population options, generate assembly outputs or
+authorize manufacturing.
 
 Print an operator-reviewable registry entry without installing it:
 
 ```bash
 cd backend
-uv run python ../toolpacks/kicad/fabrication_recipe.py board.kicad_pcb --rights AGPL-3.0-only
+uv run python ../toolpacks/kicad/fabrication_recipe.py board.kicad_pcb --rights AGPL-3.0-only \
+  --copper-layers 4
 ```
 
 Run the standalone native probe with the exact cached image and external evidence:
@@ -103,8 +105,13 @@ PYTHONPATH=runner:scripts backend/.venv/bin/python scripts/check_pcb_fabrication
 ```
 
 The checker uses the existing runner isolation and independent original fixture
-coordinates. It includes plated and unconnected synthetic variants and explicit
-malformed/slot/DNP rejection. It changes no recipe registry, credentials, database,
+coordinates. It includes plated and unconnected synthetic variants; a variant with an
+arc edge, circular cutout, through via, stored zone fill, production copper/silkscreen
+graphics and an oval slot, run with and without an original synthetic project file
+(whose stricter track rule and text variable must take effect); and named failures for
+an invalid project file, a copper-layer mismatch, native DNP and malformed input.
+`scripts/fabrication_outputs.py` independently parses the Gerber X2 file functions,
+Gerber job, outline arcs, copper regions and Excellon hits/slots. It changes no recipe registry, credentials, database,
 permanent service or original fixture. This is standalone real-tool evidence;
 registered runner transport and browser acceptance remain separate checkpoints.
 
@@ -177,7 +184,7 @@ The intake program extracts `Edge.Cuts` lines, arcs and circles as exact edges
 (`outline_exact`/`cutouts_exact`; arcs keep start, mid, end plus derived centre,
 radius and sweep). `outline`/`cutouts` are then display tessellations with chord
 sagitta at most `outline_tolerance_mm` (0.005 mm). Bounds and area come from the exact
-geometry. Cubic Bezier edges keep their control points, are tessellated adaptively (control-polygon flatness bound), take bounds from curve extrema and report area as approximate within tolerance. Zero-length items are ignored and endpoint gaps up to 0.05 mm are bridged with a straight chord and always listed (`outline_bridged_gaps`, coverage `closed-polygons-bridged`); larger gaps are never bridged and the outline stays unsupported. Rectangles and polygons on `Edge.Cuts` remain unsupported, as
-do arc outlines for the fabrication program (qualified for line outlines only). The
+geometry. Cubic Bezier edges keep their control points, are tessellated adaptively (control-polygon flatness bound), take bounds from curve extrema and report area as approximate within tolerance. Zero-length items are ignored and endpoint gaps up to 0.05 mm are bridged with a straight chord and always listed (`outline_bridged_gaps`, coverage `closed-polygons-bridged`); larger gaps are never bridged and the outline stays unsupported. Rectangles and polygons on `Edge.Cuts` remain unsupported. The fabrication program
+does not gate on outline shape: KiCad exports line, arc and curved outlines natively. The
 geometry module `backend/src/specmate/pcb/outline_geometry.py` is embedded in the
 program, which is why the recipe argument limit is 32768 bytes.

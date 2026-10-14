@@ -114,13 +114,26 @@ class Runner:
     def finish(self, receipt):
         """The exact persisted completion request is replayed after a lost acknowledgment."""
         result = receipt["result"]
-        if result["outcome"] == "succeeded" and receipt["phase"] != "uploaded":
+        uploads = result["outcome"] == "succeeded" or (
+            result["outcome"] == "failed" and receipt.get("artifacts")
+        )
+        if uploads and receipt["phase"] != "uploaded":
+            uploaded = []
             for item in receipt["artifacts"]:
-                self.client.upload(
-                    receipt["lease"],
-                    item,
-                    self.root / receipt["identity"] / "outputs" / item["path"],
-                )
+                try:
+                    self.client.upload(
+                        receipt["lease"],
+                        item,
+                        self.root / receipt["identity"] / "outputs" / item["path"],
+                    )
+                except Rejected:
+                    if result["outcome"] != "failed":
+                        raise
+                    # Failure diagnostics are best effort; the failure itself is kept.
+                    result["outputs"] = uploaded
+                    break
+                if result["outcome"] == "failed":
+                    uploaded.append({"path": item["path"], "sha256": item["sha256"]})
             receipt["phase"] = "uploaded"
             self.save(receipt)
         self.client.complete(receipt["lease"], result)
@@ -270,7 +283,9 @@ class Runner:
             if self.stopping or control["cancellation_requested"]:
                 self.stop(receipt)
                 if control["cancellation_requested"]:
-                    self.result(receipt, "cancelled", None, "Container termination confirmed")
+                    self.result(
+                        receipt, "cancelled", None, "Container termination confirmed"
+                    )
                 else:
                     self.result(
                         receipt,
@@ -323,7 +338,26 @@ class Runner:
                         ],
                     )
                 else:
-                    self.result(receipt, "failed", code, "Tool exited unsuccessfully")
+                    # Declared outputs left by a failed tool (such as its own failure
+                    # report) are registered as verified partial outputs.
+                    artifacts = inspect_outputs(
+                        output_root,
+                        recipe["outputs"],
+                        recipe["limits"]["max_output_bytes"],
+                        complete=False,
+                        partial=True,
+                    )
+                    receipt["artifacts"] = artifacts
+                    self.result(
+                        receipt,
+                        "failed",
+                        code,
+                        "Tool exited unsuccessfully",
+                        [
+                            {"path": item["path"], "sha256": item["sha256"]}
+                            for item in artifacts
+                        ],
+                    )
                 return
             time.sleep(self.poll_seconds)
 

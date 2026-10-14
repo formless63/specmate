@@ -1,6 +1,6 @@
 {
   "format_version": 1,
-  "id": "kicad-fabrication-v1",
+  "id": "kicad-fabrication-v2",
   "tool_version": "10.0.6",
   "native_board_format_version": 20260206,
   "image": "kicad/kicad:10.0.6@sha256:40568bc95527f3a673a31a9b59badf512e71046c2d5068a364503c525f946a4e",
@@ -11,9 +11,10 @@
     "kicad_pcb"
   ],
   "operations": [
-    "immutable-board-json-drc",
-    "fixed-layer-gerber-x2-export",
-    "circular-through-excellon-export"
+    "immutable-board-json-drc-with-project-rules",
+    "all-copper-layer-gerber-x2-export",
+    "through-excellon-export-with-g85-slots",
+    "exit-code-failure-diagnostics"
   ],
   "output_formats": [
     "application/json",
@@ -28,22 +29,22 @@
   },
   "limits": {
     "cpus": 2,
-    "memory_bytes": 1073741824,
+    "memory_bytes": 2147483648,
     "pids": 128,
-    "timeout_seconds": 180,
-    "max_output_bytes": 16777216
+    "timeout_seconds": 900,
+    "max_output_bytes": 67108864
   },
   "qualification": {
-    "scope": "Original synthetic two-net rectangular board, circular PTH variant, disconnected track variant, malformed/slot/nativeDNP rejection",
+    "scope": "Original synthetic board variants (plain, plated, disconnected, arc edge/cutout/via/stored zone/production graphics/oval slot with and without a synthetic project file) and named rejection cases; separately, private real-board probes of KiCad 10-upgraded open hardware boards",
     "evidence_level": "standalone-real-tool",
     "approved_runner_pipeline": "separate-checkpoint",
     "manufacturing_approval": false,
     "physical_qualification": false,
     "unsupported": [
       "arm64 and other KiCad versions/formats",
-      "cutouts, curved outlines and tracks, zones, vias, slots and custom pads",
-      "production-layer graphics/text, variables and embedded assets",
-      "custom project rules/settings",
+      "blind, buried and micro vias; embedded files; renamed production layers",
+      "zone refill: stored fills are exported unchanged",
+      "board-saved plot settings: fixed command-line plot options apply",
       "native DNP and human population variants",
       "source generation/modification, ERC, schematic parity, autorouting and assembly outputs"
     ]

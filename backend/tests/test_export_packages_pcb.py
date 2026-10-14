@@ -10,7 +10,7 @@ import pytest
 
 from specmate.export_packages import operations  # noqa: F401
 from specmate.operations import ValidationFailed
-from specmate.pcb_fabrication.pack import OUTPUT_MEDIA
+from specmate.pcb_fabrication.pack import output_media
 
 from .conftest import op
 from .test_assemblies import create, freeze, occ, part
@@ -80,7 +80,7 @@ def test_fabrication_outputs_cite_the_pinned_board_and_count_repeated_boards(
     assert picture["cited_revisions"][0]["revision_id"] == root["revision_id"]
     _, files = download(users["viewer"], payload, reviewed)
     outputs = {p for p in files if p.startswith(f"pcb/{requested['build_id']}/")}
-    assert outputs == {f"pcb/{requested['build_id']}/{name}" for name in OUTPUT_MEDIA}
+    assert outputs == {f"pcb/{requested['build_id']}/{name}" for name in output_media(2)}
     for row in manifest["files"]:
         assert hashlib.sha256(files[row["path"]]).hexdigest() == row["sha256"]
     assert files[f"mechanical/{scene['drawing_id']}/drawing.svg"].startswith(b"<")

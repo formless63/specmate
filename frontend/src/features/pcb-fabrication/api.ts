@@ -1,8 +1,23 @@
+/** Why a failed build failed: the program's exit-code check, never a generic message. */
+export type Diagnostic = {
+  code: number | null; check: string; message: string; detail: string;
+  stderr_class: string | null; detail_retained: boolean;
+};
+
 export type Options = {
   available_recipe_id: string | null;
+  available_recipes?: { recipe_id: string; copper_layers: number }[];
   unavailable_reason: string | null;
-  builds: { build_id: string; state: string }[];
+  builds: { build_id: string; state: string; copper_layers?: number; diagnostic?: Diagnostic }[];
   limit: number;
+};
+
+export type Companion = { path: string; sha256: string } | null;
+
+export type Features = {
+  through_vias: number; slots: number; copper_zones: number; copper_zones_without_stored_copper: number;
+  rule_areas: number; zones_refilled: false; production_graphics: number; unresolved_text_variables: number;
+  outlines: number; cutouts: number;
 };
 
 export type Review = {
@@ -10,6 +25,7 @@ export type Review = {
   source: { path: string; sha256: string; source_revision_id: string; manifest_sha256: string; rights: string };
   report: {
     layers: string[]; drill_format: string; source_unchanged: true;
+    copper_layer_count?: number; project?: Companion; custom_rules?: Companion; features?: Features;
     drc_counts: { violations: number; unconnected_items: number; schematic_parity: number };
     unsupported: string[]; manufacturing_approval: false; physical_qualification: false;
   };

@@ -144,8 +144,11 @@ def hash_file(path):
     return digest.hexdigest()
 
 
-def inspect_outputs(root, declarations, maximum, *, complete):
-    """Called while running for bounds and after confirmed stop for registration."""
+def inspect_outputs(root, declarations, maximum, *, complete, partial=False):
+    """Called while running for bounds and after confirmed stop for registration.
+
+    ``partial`` hashes whichever declared outputs a stopped, failed tool left behind.
+    """
     expected = {item["path"]: item for item in declarations}
     found = {}
     count, size = 0, 0
@@ -169,7 +172,7 @@ def inspect_outputs(root, declarations, maximum, *, complete):
             size += info.st_size
             if size > maximum:
                 raise Invalid("Outputs exceed byte limit")
-            if complete:
+            if complete or partial:
                 found[relative] = {
                     **expected[relative],
                     "bytes": info.st_size,
