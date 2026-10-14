@@ -106,8 +106,15 @@ def _event(stage: BuildStage, kind: str, **detail) -> None:
 
 
 def _save(stage: BuildStage) -> None:
+    """Persist a state change; the user-command state token moves with it."""
     stage.version += 1
     stage.save()
+
+
+def _renew(stage: BuildStage) -> None:
+    """Persist liveness only. Lease renewal never moves the user-command state token."""
+    stage.lease_expires_at = _lease_expiry()
+    stage.save(update_fields=["lease_expires_at", "updated_at"])
 
 
 def stage_result(stage: BuildStage) -> dict:
@@ -116,10 +123,23 @@ def stage_result(stage: BuildStage) -> dict:
         "stage_id": str(stage.id),
         "state": stage.state,
         "state_token": f"stage-v{stage.version}",
-        "terminal": stage.state in TERMINAL or stage.state == "interrupted",
+        # Interrupted is not final: the owning runner may still reconcile the same
+        # execution and report its real outcome, or a person resolves it deliberately.
+        "terminal": stage.state in TERMINAL,
         "lease_expires_at": stage.lease_expires_at.isoformat() if stage.lease_expires_at else None,
         "cancellation_requested": stage.cancellation_requested_at is not None,
     }
+
+
+def receipt_view(stage: BuildStage) -> dict | None:
+    """The stored receipt as shown to readers: people by username, never by internal ID."""
+    receipt = stage.receipt
+    if receipt is None or not isinstance(receipt.get("resolved_by"), int):
+        return receipt
+    from django.contrib.auth import get_user_model
+
+    user = get_user_model().objects.filter(pk=receipt["resolved_by"]).first()
+    return {**receipt, "resolved_by": user.get_username() if user else None}
 
 
 def pinned_tool(build: BuildAttempt, stage: BuildStage) -> dict:
@@ -137,8 +157,22 @@ def pinned_tool(build: BuildAttempt, stage: BuildStage) -> dict:
         "argv": recipe["argv"],
         "limits": recipe["limits"],
         "network": recipe.get("network", "none"),
-        "resolved_image_id": receipt.get("image_id"),
+        "resolved_image_id": stage.resolved_image_id or receipt.get("image_id"),
     }
+
+
+IMAGE_ID = r"^sha256:[0-9a-f]{64}$"
+
+
+def _observe_image(stage: BuildStage, image_id: str | None) -> None:
+    """Record the runner-reported image of this execution once; it cannot change."""
+    if not image_id or stage.resolved_image_id == image_id:
+        return
+    if stage.resolved_image_id:
+        raise Conflict("The execution already reported a different resolved image.")
+    stage.resolved_image_id = image_id
+    # Evidence about the same execution, not a state change: the state token stays.
+    stage.save(update_fields=["resolved_image_id", "updated_at"])
 
 
 def _lease_expiry():
@@ -161,6 +195,9 @@ def _execution_allowed(build: BuildAttempt) -> bool:
 
 def _cancel(stage: BuildStage, reason: str) -> None:
     if stage.state in TERMINAL:
+        return
+    if stage.state == "cancellation_requested":
+        # Already requested: repeating the request is not a new state change.
         return
     stage.cancellation_requested_at = stage.cancellation_requested_at or timezone.now()
     if stage.state in {"waiting_dispatch", "queued"}:
@@ -378,7 +415,7 @@ def get_build(ctx: Context, p: BuildRef) -> dict:
     derived = derive(stage.build, stage)
     return {
         **stage_result(stage),
-        "receipt": stage.receipt,
+        "receipt": receipt_view(stage),
         "pinned": pinned_tool(stage.build, stage),
         "reproducibility": derived["level"] if derived else None,
     }
@@ -616,28 +653,37 @@ def _runner_stage(ctx: Context, p: StageLease, *, allow_expired=False, allow_ter
     return stage
 
 
+class Heartbeat(StageLease):
+    # Reported once the runner has inspected the created container.
+    image_id: str | None = Field(default=None, pattern=IMAGE_ID)
+
+
 @operation(
     "runner.heartbeat",
-    StageLease,
+    Heartbeat,
     summary="Renew a stage lease and read cancellation.",
     public=True,
     supports_idempotency=False,
     access=ACCESS_RUNNER,
 )
-def heartbeat(ctx: Context, p: StageLease) -> dict:
+def heartbeat(ctx: Context, p: Heartbeat) -> dict:
     stage = _runner_stage(ctx, p)
+    _observe_image(stage, p.image_id)
     if not _execution_allowed(stage.build):
         _cancel(stage, "execution_authority_revoked")
     elif stage.state == "leased":
         stage.state = "running"
-    stage.lease_expires_at = _lease_expiry()
-    _save(stage)
+        _save(stage)
+    # Renewal is liveness, not a state change: a user holding the current state token can
+    # still cancel while the runner keeps heartbeating.
+    _renew(stage)
     return stage_result(stage)
 
 
 class ReconcileLease(StageLease):
     container_id: str = Field(max_length=128)
     observed: Literal["running", "stopped", "absent"]
+    image_id: str | None = Field(default=None, pattern=IMAGE_ID)
 
 
 def _reconciliation_result(stage: BuildStage) -> dict:
@@ -659,6 +705,7 @@ def reconcile(ctx: Context, p: ReconcileLease) -> dict:
     stage = _runner_stage(ctx, p, allow_expired=True, allow_terminal=True)
     if stage.state in TERMINAL:
         return _reconciliation_result(stage)
+    _observe_image(stage, p.image_id)
     if p.observed == "running" and not p.container_id:
         raise ValidationFailed("A running observation requires its container identity.")
     if not _execution_allowed(stage.build) and stage.cancellation_requested_at is None:
@@ -796,7 +843,7 @@ class CompleteStage(StageLease):
     outputs: list[ReceiptOutput] = Field(default_factory=list, max_length=1000)
     message: str = Field(default="", max_length=2000)
     # Local content-addressed image ID the runner observed for this execution, if reported.
-    image_id: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    image_id: str | None = Field(default=None, pattern=IMAGE_ID)
 
 
 @operation(
@@ -818,6 +865,7 @@ def complete(ctx: Context, p: CompleteStage) -> dict:
         return stage_result(stage)
     if stage.lease_expires_at <= timezone.now():
         raise Conflict("Stage lease expired; reconcile before completing.")
+    _observe_image(stage, p.image_id)
     if p.outcome == "cancelled" and stage.cancellation_requested_at is None:
         # Work that nobody asked to cancel is never labelled cancelled by a receipt.
         raise ValidationFailed("A cancelled receipt requires an earlier cancellation request.")

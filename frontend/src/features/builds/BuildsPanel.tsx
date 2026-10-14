@@ -12,7 +12,7 @@ const EXPLAIN: Record<string, string> = {
   leased: 'Leased to a runner; no process activity has been observed yet.',
   running: 'A runner reports the process is running.',
   cancellation_requested: 'Cancellation requested. This is not cancelled until the runner confirms the process stopped.',
-  interrupted: 'The lease was lost. The tool is not rerun automatically; the original runner can reconcile the same execution.',
+  interrupted: 'The lease was lost. This is not final: the tool is not rerun automatically, and the original runner can still reconcile the same execution and report its real outcome, including success.',
   succeeded: 'Verified outputs were accepted. This is not engineering or physical qualification.',
   failed: 'Ended without success. Failure details and any verified partial outputs are retained.',
   cancelled: 'A runner confirmed the process stopped after a cancellation request.',
@@ -34,7 +34,7 @@ const bytes = (value: number) => value >= 1024 ** 2 ? `${(value / 1024 ** 2).toF
 function ToolPin({ pinned }: { pinned: PinnedTool | undefined }) {
   if (!pinned) return <Text size="xs">The tool pin was not reported for this build.</Text>;
   const l = pinned.limits;
-  return <SbProvenance label='Tool pin' summary={`${pinned.image_digest.slice(0, 19)}… · ${l.cpus} CPU · ${bytes(l.memory_bytes)} · ${l.timeout_seconds}s · network ${pinned.network} · ${pinned.resolved_image_id ? 'resolved image reported' : 'resolved image not reported'}`}
+  return <SbProvenance label='Tool pin' summary={`${pinned.image_digest.slice(0, 19)}… · ${l.cpus} CPU · ${bytes(l.memory_bytes)} · ${l.timeout_seconds}s · network ${pinned.network} · ${pinned.resolved_image_id ? `resolved image ${pinned.resolved_image_id.slice(0, 19)}…` : 'resolved image not reported'}`}
     pins={[{ label: 'Image', value: pinned.image }, { label: 'Image digest', value: pinned.image_digest },
       { label: 'Resolved image ID', value: pinned.resolved_image_id ?? 'not reported by the runner' },
       { label: 'Arguments', value: JSON.stringify(pinned.argv) },
@@ -114,7 +114,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
 
   return <Card withBorder><Stack>
     <Title order={3}>Builds, cancellation and recovery</Title>
-    <Text size="sm">Cancellation is a request until the runner confirms the process stopped. Interrupted work is never rerun automatically and is never relabelled cancelled or successful. A retry is a new attempt over the same exact source revision and approved recipe.</Text>
+    <Text size="sm">Cancellation is a request until the runner confirms the process stopped. Interrupted work is not final and is never rerun automatically: its original runner can still reconcile the same execution and report how it really ended, or a person resolves it deliberately. A retry is a new attempt over the same exact source revision and approved recipe.</Text>
     <ReadOnlyNote permission="build.execute">Builds can be inspected but not changed</ReadOnlyNote>
     <Group><Button variant="quiet" loading={busy} onClick={() => void load()}>Refresh builds</Button></Group>
     {error && <Alert color="red">{error}</Alert>}
@@ -140,7 +140,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
           pins={[{ label: 'Resolved configuration', value: detail.configuration.resolved_configuration_id }, { label: 'Option set revision', value: detail.configuration.option_set_revision_id }, { label: 'Configuration snapshot SHA-256', value: detail.configuration.snapshot_sha256 }, { label: 'Resolution SHA-256', value: detail.configuration.resolution_sha256 }]} />
         : <Text size="xs">No configuration pinned: this build consumed only its source revision.</Text>}
       {detail.receipt && <Stack gap={2}><Text size="sm">Receipt: {detail.receipt.outcome}{detail.receipt.exit_code !== null ? ` · exit code ${detail.receipt.exit_code}` : ' · no exit code observed'} · {detail.receipt.message}</Text>
-        {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}</Text>}</Stack>}
+        {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}{detail.receipt.resolved_by ? ` · resolved by ${detail.receipt.resolved_by}` : ''}</Text>}</Stack>}
       {detail.staged_inputs
         ? <Table><Table.Thead><Table.Tr><Table.Th>Staged input</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
           {detail.staged_inputs.map(i => <Table.Tr key={i.path}><Table.Td>{i.path}<Text size="xs">{i.bytes} bytes</Text></Table.Td><Table.Td><Text size="xs">{i.sha256}</Text></Table.Td><Table.Td>{i.rights}</Table.Td></Table.Tr>)}</Table.Tbody></Table>

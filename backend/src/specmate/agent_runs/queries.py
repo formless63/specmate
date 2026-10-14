@@ -6,6 +6,7 @@ import hashlib
 import json
 
 from django.apps import apps
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 
@@ -149,6 +150,42 @@ def _value_diff(before, after) -> dict:
     return {"before": before, "after": after}
 
 
+class _People:
+    """Show references to people by username in review diffs, never by internal key."""
+
+    def __init__(self):
+        self.user_model = get_user_model()
+        self.names: dict = {}
+
+    def fields(self, label: str) -> frozenset[str]:
+        try:
+            model = apps.get_model(label)
+        except (LookupError, ValueError):
+            return frozenset()
+        return frozenset(
+            f.attname
+            for f in model._meta.concrete_fields
+            if f.is_relation and f.related_model is self.user_model
+        )
+
+    def shown(self, label: str):
+        fields = self.fields(label)
+
+        def value(values: dict, field: str):
+            raw = values.get(field)
+            return self.name(raw) if field in fields else raw
+
+        return value
+
+    def name(self, pk):
+        if pk is None:
+            return None
+        if pk not in self.names:
+            user = self.user_model._base_manager.filter(pk=pk).first()
+            self.names[pk] = user.get_username() if user else "unknown user"
+        return self.names[pk]
+
+
 def _current(change: dict) -> str:
     try:
         model = apps.get_model(change["model"])
@@ -194,6 +231,7 @@ def review_package(user, run_id) -> dict:
     }
     changes = []
     truncated_steps = []
+    people = _People()
     for step in steps:
         if step.kind != AgentRunStep.Kind.ACTION or step.outcome != "applied":
             continue
@@ -202,6 +240,7 @@ def review_package(user, run_id) -> dict:
                 truncated_steps.append(step.number)
                 continue
             before, after = change.get("before") or {}, change.get("after") or {}
+            shown = people.shown(change["model"])
             current = _current(change)
             is_reverted = (step.number, change["record"]) in reverted_pairs
             revert = _revert_options(step, change, current, is_reverted)
@@ -216,7 +255,7 @@ def review_package(user, run_id) -> dict:
                     "action": change["action"],
                     "changed_fields": change["changed_fields"],
                     "diffs": {
-                        field: _value_diff(before.get(field), after.get(field))
+                        field: _value_diff(shown(before, field), shown(after, field))
                         for field in change["changed_fields"]
                     },
                     "current": current,

@@ -145,6 +145,11 @@ def test_abandon_after_revocation_records_unconfirmed_failure_never_cancelled(
     assert receipt["cancellation_requested"] is True
     assert receipt["outputs"] == [{"path": "result.txt", "sha256": digest(OUTPUT)}]
     assert receipt["basis"] == "Runner host retired."
+    # People are shown by username, never by internal primary key.
+    assert receipt["resolved_by"] == users["owner"].username
+    for read in ("build.get", "build.history"):
+        shown = op(users["viewer"], read, {"build_id": build["build_id"]})["receipt"]
+        assert shown["resolved_by"] == users["owner"].username
     events = list(StageEvent.objects.filter(stage_id=lease["stage_id"]).order_by("id"))
     assert events[-1].kind == "abandoned"
     # Uploaded bytes are retained but never become an accepted artifact.

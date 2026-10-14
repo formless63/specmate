@@ -24,6 +24,7 @@ from specmate.builds.operations import (
     _save,
     _stage_for_build,
     pinned_tool,
+    receipt_view,
     stage_result,
 )
 from specmate.builds.recipes import approved_recipe
@@ -126,7 +127,7 @@ def abandon_build(ctx, p: AbandonBuild) -> dict:
     stage.state = "failed"
     _save(stage)
     _event(stage, "abandoned", reason="runner_unavailable", outcome="failed")
-    return {**stage_result(stage), "receipt": stage.receipt}
+    return {**stage_result(stage), "receipt": receipt_view(stage)}
 
 
 @operation(
@@ -288,7 +289,7 @@ def history(ctx, p: HistoryRead) -> dict:
         **stage_result(stage),
         "workspace_id": str(build.workspace_id),
         "project_id": str(build.project_id) if build.project_id else None,
-        "receipt": stage.receipt,
+        "receipt": receipt_view(stage),
         "recipe_id": build.recipe_id,
         # The exact image digest, argv and limits pinned at request time.
         "pinned": pinned_tool(build, stage),

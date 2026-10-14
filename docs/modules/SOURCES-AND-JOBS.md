@@ -74,8 +74,11 @@ orchestrated integration checkpoint; the application tests simulate the runner A
 `build.get`, `build.history` and `build.output` return `pinned`: the image reference and
 digest, argv, network mode and limits copied into the attempt at request time, never the
 current approval. When the runner reports it, `resolved_image_id` is the local
-content-addressed image ID of the exited container (`docker inspect` `Image`); it is
-evidence, while the digest stays the pin. A changed approval leaves stored attempts as they
+content-addressed image ID of the execution's container (`docker inspect` `Image`); it is
+evidence, while the digest stays the pin. The runner reports it with heartbeats and
+reconciliation once it has inspected the container, and with the receipt, so it is kept
+even when no receipt is ever accepted (for example after a revoked credential). Once
+recorded it cannot change; a different image for the same execution is refused. A changed approval leaves stored attempts as they
 were and makes `build.retry` and `build.reproduce` refuse.
 
 Each attempt records an `input_key`: a digest of its exact staged inputs (paths, hashes,

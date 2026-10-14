@@ -539,6 +539,16 @@ def test_review_package_lists_diffs_provenance_and_drift_and_reverts(users, work
     records = {(c["step_number"], c["model"], c["action"]) for c in pkg["changes"]}
     assert (2, "design.definition", "created") in records
     assert (2, "design.draft", "created") in records
+    # References to people show usernames, never internal primary keys.
+    people = [
+        diff
+        for c in pkg["changes"]
+        for field, diff in c["diffs"].items()
+        if field in {"created_by_id", "updated_by_id"}
+    ]
+    assert people
+    names = {u.username for u in users.values()}
+    assert all(d["before"] is None and d["after"] in names for d in people)
     update = next(c for c in pkg["changes"] if c["step_number"] == 3)
     assert update["diffs"]["content"] == {
         "added": {"new": True},

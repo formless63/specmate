@@ -230,3 +230,28 @@ test('a failed build shows a reusable identical result with its level, never its
   await waitFor(() => expect(findReusable).toHaveBeenCalledTimes(2));
   expect(screen.queryByText('Reusable result available')).toBeNull();
 });
+
+test('an interrupted build is described as not final, since its runner can still reconcile it', async () => {
+  vi.mocked(readHistory).mockResolvedValue(history({ state: 'interrupted' }));
+  await open();
+  expect(screen.getByText(/This is not final/)).toBeTruthy();
+  expect(screen.getByText(/report its real outcome, including success/)).toBeTruthy();
+  expect(screen.queryByText(/never relabelled/)).toBeNull();
+});
+
+test('a runner-reported resolved image ID is shown with the pin, even without a receipt', async () => {
+  const image = `sha256:${'d'.repeat(64)}`;
+  vi.mocked(readHistory).mockResolvedValue(history({ state: 'interrupted', pinned: { ...pinned, resolved_image_id: image } }));
+  await open();
+  expect(screen.getByText(/resolved image sha256:dddddddddddd…/)).toBeTruthy();
+  expect(screen.queryByText(/resolved image not reported/)).toBeNull();
+});
+
+test('a deliberately resolved build names the person by username', async () => {
+  vi.mocked(readHistory).mockResolvedValue(history({
+    state: 'failed', cancel_available: false,
+    receipt: { outcome: 'failed', exit_code: null, message: 'Resolved without runner confirmation', outputs: [], resolution: 'abandoned_unreconciled', termination_confirmed: false, basis: 'Runner host retired.', resolved_by: 'synthetic-owner' },
+  }));
+  await open();
+  expect(screen.getByText(/Basis: Runner host retired\. · resolved by synthetic-owner/)).toBeTruthy();
+});
