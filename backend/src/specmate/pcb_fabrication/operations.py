@@ -79,7 +79,11 @@ def qualified_intake(ctx, intake, file):
     if report.source_sha256 != file.blob.sha256:
         raise ValidationFailed("Accepted intake differs from the exact preserved source.")
     if not report.outline or report.coverage.outline != "closed-line-polygons":
-        raise Unsupported("Fabrication requires a qualified closed line outline.")
+        raise Unsupported(
+            "Fabrication requires a qualified closed line outline; outlines with arcs "
+            "or circles are extracted and displayed but the fabrication program is "
+            "unqualified for them."
+        )
     if any(c.dnp for c in report.components):
         raise Unsupported("Native DNP export behavior is unqualified; preserve the original.")
     if intake.source_revision.files.filter(path__iregex=r"\.(kicad_pro|kicad_dru)$").exists():

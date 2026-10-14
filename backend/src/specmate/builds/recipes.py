@@ -13,6 +13,7 @@ from specmate.operations import Unsupported, ValidationFailed
 # Current native-runner capability envelope. Source storage can support larger
 # bundles, but this runner cannot accept them as one execution stage.
 MAX_FILES = 512
+MAX_ARG_BYTES = 32768  # far below the kernel's single-argument limit; runner mirrors it
 MAX_FILE_BYTES = 64 * 1024**2
 MAX_INPUT_BYTES = 256 * 1024**2
 
@@ -53,7 +54,7 @@ class Recipe(BaseModel):
     def valid_recipe(self):
         if self.image.endswith("0" * 64):
             raise ValueError("placeholder image digest is not executable")
-        if any(not a or "\x00" in a or len(a) > 8192 for a in self.argv):
+        if any(not a or "\x00" in a or len(a) > MAX_ARG_BYTES for a in self.argv):
             raise ValueError("argv contains an invalid argument")
         if not self.argv[0].startswith("/"):
             raise ValueError("argv must start with an absolute executable path")

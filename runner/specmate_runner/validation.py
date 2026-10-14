@@ -102,7 +102,7 @@ def validate_manifest(lease):
             not isinstance(argv, list)
             or not 1 <= len(argv) <= 128
             or any(
-                not isinstance(arg, str) or "\x00" in arg or len(arg) > 8192
+                not isinstance(arg, str) or "\x00" in arg or len(arg) > 32768
                 for arg in argv
             )
             or not argv[0].startswith("/")

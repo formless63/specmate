@@ -29,12 +29,14 @@ from specmate.operations import (
     ValidationFailed,
     operation,
 )
+from specmate.pcb import outline_geometry as geometry
 from specmate.pcb.models import (
     PcbInterpretation,
     PropertyAuthority,
     PropertyOwnerChange,
     PropertyProjection,
 )
+from specmate.pcb.report import polygon_metrics
 from specmate.sources.authority import authorize_revision
 from specmate.sources.models import SourceBundle, SourceBundleRevision
 
@@ -101,8 +103,18 @@ def head_of(bundle_id) -> SourceBundleRevision:
 
 
 def projected_value(report: dict) -> tuple[str, dict]:
-    if report["coverage"]["outline"] == "closed-line-polygons":
-        return "known", {"outline": report["outline"], "cutouts": report["cutouts"]}
+    if report["coverage"]["outline"] != "unsupported":
+        value = {"outline": report["outline"], "cutouts": report["cutouts"]}
+        if report.get("outline_exact") is not None:
+            # Polygons are display tessellations; exact parameters stay authoritative.
+            value.update(
+                outline_exact=report["outline_exact"],
+                cutouts_exact=report["cutouts_exact"],
+                tolerance_mm=report["outline_tolerance_mm"],
+                bridged_gaps=report["outline_bridged_gaps"],
+                chaining_tolerance_mm=report["chaining_tolerance_mm"],
+            )
+        return "known", value
     unsupported = [u for u in report["unsupported"] if "outline" in u.lower()]
     return "unknown", {
         "outline": None,
@@ -111,36 +123,37 @@ def projected_value(report: dict) -> tuple[str, dict]:
     }
 
 
-def _area(polygon) -> float:
-    return (
-        abs(
-            sum(
-                x1 * y2 - x2 * y1
-                for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1], strict=True)
-            )
-        )
-        / 2
-    )
-
-
 def summary(status: str, value: dict) -> dict:
     if status != "known":
         return {"status": "unknown", "reason": value["reason"]}
     points = [p for polygon in value["outline"] for p in polygon]
+    exact = value.get("outline_exact")
+    if exact is not None:
+        measured = geometry.metrics(exact, value["cutouts_exact"])
+        curves = [e["kind"] for loop in (*exact, *value["cutouts_exact"]) for e in loop]
+        extra = {
+            "geometry": "exact-arcs",
+            "tolerance_mm": value["tolerance_mm"],
+            "arcs": curves.count("arc"),
+            "circles": curves.count("circle"),
+            "beziers": curves.count("bezier"),
+            "bridged_gaps": len(value["bridged_gaps"]),
+            "max_bridged_gap_mm": max((g["size_mm"] for g in value["bridged_gaps"]), default=0),
+            "area_basis": "approximate-within-tolerance"
+            if measured["area_approximate"]
+            else "exact",
+        }
+    else:
+        measured = polygon_metrics(value["outline"], value["cutouts"])
+        extra = {}
     return {
         "status": "known",
         "outline_polygons": len(value["outline"]),
         "cutouts": len(value["cutouts"]),
         "vertices": len(points),
-        "bbox_mm": [
-            min(x for x, _ in points),
-            min(y for _, y in points),
-            max(x for x, _ in points),
-            max(y for _, y in points),
-        ],
-        "net_area_mm2": round(
-            sum(_area(p) for p in value["outline"]) - sum(_area(p) for p in value["cutouts"]), 6
-        ),
+        "bbox_mm": measured["bbox_mm"],
+        "net_area_mm2": round(measured["net_area_mm2"], 6),
+        **extra,
     }
 
 

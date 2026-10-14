@@ -24,3 +24,9 @@ It exercises rejection by the real parser; it is not a valid engineering source.
 Do not repair it into a successful input.
 
 See `toolpacks/kicad/README.md` for the pinned environment and regeneration.
+
+`rounded-board.kicad_pcb` is the same original board with a different `Edge.Cuts`
+outline: a 40 × 25 mm rectangle with four 4 mm radius corner arcs (arcs authored
+as start, mid, end) and one 3 mm radius circular cutout centred at (20, 12.5) mm.
+Expected exact values are derived analytically in `backend/tests/test_pcb_outline_arcs.py`:
+net area = 1000 − 4·(4 − π)·4² − π·3² mm², bounds 0, 0 to 40, 25.

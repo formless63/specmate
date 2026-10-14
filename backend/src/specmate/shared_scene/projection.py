@@ -266,6 +266,7 @@ class Resources:
                     "frame": "illustration plane: native x/y -> local x/-y; depth is not inferred",
                     "outline": [[[x, -y, 0] for x, y in polygon] for polygon in report.outline],
                     "cutouts": [[[x, -y, 0] for x, y in polygon] for polygon in report.cutouts],
+                    "outline_tolerance_mm": report.outline_tolerance_mm,
                     "coverage": report.coverage.model_dump(mode="json"),
                     "source": provenance[0],
                     "limitations": [

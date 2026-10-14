@@ -1,5 +1,250 @@
 {
   "$defs": {
+    "ArcEdge": {
+      "additionalProperties": false,
+      "description": "Exact arc: start, mid and end as authored, plus the derived circle.",
+      "properties": {
+        "center": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center",
+          "type": "array"
+        },
+        "end": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "kind": {
+          "const": "arc",
+          "title": "Kind",
+          "type": "string"
+        },
+        "mid": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Mid",
+          "type": "array"
+        },
+        "radius": {
+          "exclusiveMinimum": 0,
+          "title": "Radius",
+          "type": "number"
+        },
+        "start": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        },
+        "sweep_deg": {
+          "title": "Sweep Deg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "start",
+        "mid",
+        "end",
+        "center",
+        "radius",
+        "sweep_deg"
+      ],
+      "title": "ArcEdge",
+      "type": "object"
+    },
+    "BezierEdge": {
+      "additionalProperties": false,
+      "description": "Cubic Bezier with its exact control points.",
+      "properties": {
+        "c1": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "C1",
+          "type": "array"
+        },
+        "c2": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "C2",
+          "type": "array"
+        },
+        "end": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "kind": {
+          "const": "bezier",
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "start",
+        "c1",
+        "c2",
+        "end"
+      ],
+      "title": "BezierEdge",
+      "type": "object"
+    },
+    "BridgedGap": {
+      "additionalProperties": false,
+      "description": "An endpoint gap in the native outline that extraction closed with a straight chord.",
+      "properties": {
+        "at": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "At",
+          "type": "array"
+        },
+        "size_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Size Mm",
+          "type": "number"
+        },
+        "to": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "To",
+          "type": "array"
+        }
+      },
+      "required": [
+        "at",
+        "to",
+        "size_mm"
+      ],
+      "title": "BridgedGap",
+      "type": "object"
+    },
+    "CircleEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "center": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center",
+          "type": "array"
+        },
+        "kind": {
+          "const": "circle",
+          "title": "Kind",
+          "type": "string"
+        },
+        "radius": {
+          "exclusiveMinimum": 0,
+          "title": "Radius",
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "center",
+        "radius"
+      ],
+      "title": "CircleEdge",
+      "type": "object"
+    },
     "Component": {
       "additionalProperties": false,
       "properties": {
@@ -93,6 +338,8 @@
         "outline": {
           "enum": [
             "closed-line-polygons",
+            "closed-polygons-with-arcs",
+            "closed-polygons-bridged",
             "unsupported"
           ],
           "title": "Outline",
@@ -169,6 +416,51 @@
         "mounting_status"
       ],
       "title": "Hole",
+      "type": "object"
+    },
+    "LineEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "kind": {
+          "const": "line",
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "start",
+        "end"
+      ],
+      "title": "LineEdge",
       "type": "object"
     },
     "Pad": {
@@ -329,6 +621,20 @@
       "title": "Adapter",
       "type": "string"
     },
+    "chaining_tolerance_mm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Chaining Tolerance Mm"
+    },
     "component_passages": {
       "items": {
         "$ref": "#/$defs/Passage"
@@ -388,6 +694,49 @@
       "title": "Cutouts",
       "type": "array"
     },
+    "cutouts_exact": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "arc": "#/$defs/ArcEdge",
+                  "bezier": "#/$defs/BezierEdge",
+                  "circle": "#/$defs/CircleEdge",
+                  "line": "#/$defs/LineEdge"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LineEdge"
+                },
+                {
+                  "$ref": "#/$defs/ArcEdge"
+                },
+                {
+                  "$ref": "#/$defs/BezierEdge"
+                },
+                {
+                  "$ref": "#/$defs/CircleEdge"
+                }
+              ]
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cutouts Exact"
+    },
     "format_version": {
       "const": 1,
       "title": "Format Version",
@@ -426,6 +775,79 @@
       "maxItems": 10000,
       "title": "Outline",
       "type": "array"
+    },
+    "outline_bridged_gaps": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/BridgedGap"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outline Bridged Gaps"
+    },
+    "outline_exact": {
+      "anyOf": [
+        {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "arc": "#/$defs/ArcEdge",
+                  "bezier": "#/$defs/BezierEdge",
+                  "circle": "#/$defs/CircleEdge",
+                  "line": "#/$defs/LineEdge"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LineEdge"
+                },
+                {
+                  "$ref": "#/$defs/ArcEdge"
+                },
+                {
+                  "$ref": "#/$defs/BezierEdge"
+                },
+                {
+                  "$ref": "#/$defs/CircleEdge"
+                }
+              ]
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outline Exact"
+    },
+    "outline_tolerance_mm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outline Tolerance Mm"
     },
     "pads": {
       "items": {

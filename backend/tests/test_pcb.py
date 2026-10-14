@@ -372,7 +372,7 @@ def test_api_and_job_authorization_apply_to_reports_and_originals_after_revocati
 
 def test_recipe_program_is_bounded_and_native_import_never_occurs_in_app():
     assert IMAGE.endswith("40568bc95527f3a673a31a9b59badf512e71046c2d5068a364503c525f946a4e")
-    assert len(SCRIPT) <= 8192
+    assert len(SCRIPT) <= 32768
     assert "pcbnew" not in __import__("sys").modules
     assert (
         recipe_for("nested/board.kicad_pcb", RIGHTS)["argv"][-2] == "/inputs/nested/board.kicad_pcb"

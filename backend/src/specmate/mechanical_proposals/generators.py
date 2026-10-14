@@ -9,10 +9,10 @@ or manufacturing conclusion.
 """
 
 import math
-from collections.abc import Iterable
 from itertools import pairwise
 
 from specmate.mechanical_proposals.contracts import GENERATOR, Parameters
+from specmate.pcb import outline_geometry
 from specmate.pcb.report import Report
 
 MAX_SLOTS = 2000
@@ -45,12 +45,6 @@ def point(p):
 
 def rect(x0, y0, x1, y1):
     return {"x0": num(x0), "y0": num(y0), "x1": num(x1), "y1": num(y1)}
-
-
-def _bbox(polygons: Iterable[list]):
-    xs = [p[0] for polygon in polygons for p in polygon]
-    ys = [p[1] for polygon in polygons for p in polygon]
-    return (min(xs), min(ys), max(xs), max(ys)) if xs else None
 
 
 def _area(polygon):
@@ -144,7 +138,8 @@ class Builder:
     # -- board facts -------------------------------------------------------------
     def board(self):
         report = self.report
-        env = _bbox(report.outline)
+        metrics = report.outline_metrics()
+        env = tuple(metrics["bbox_mm"]) if metrics else None
         self.env = env
         if env is None:
             self.unresolved_note(
@@ -185,8 +180,10 @@ class Builder:
                 "Envelope is the axis-aligned bounding rectangle of the native outline; "
                 "it is not an offset of the actual outline."
             )
-            polygons = self.report.outline
-            if len(polygons) != 1 or abs(_area(polygons[0]) - self._envelope_area()) > 1e-6:
+            if (
+                len(self.report.outline) != 1
+                or abs(self._outline_area() - self._envelope_area()) > 1e-6
+            ):
                 notes.append("The native outline is not a single axis-aligned rectangle.")
             if clearance is not None:
                 self.cavity = (
@@ -229,6 +226,12 @@ class Builder:
             checks,
             notes,
         )
+
+    def _outline_area(self):
+        report = self.report
+        if report.outline_exact is not None:
+            return outline_geometry.area([e.model_dump() for e in report.outline_exact[0]])
+        return _area(report.outline[0])
 
     def _envelope_area(self):
         e = self.env
