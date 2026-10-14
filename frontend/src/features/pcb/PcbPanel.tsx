@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, FileInput, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Anchor, Badge, Button, Checkbox, FileInput, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import { command, getIntake, listIntakes, listPopulations, PcbRequestError, preserveFiles, type Intake, type IntakeSummary, type NativeReport, type PopulationDraft } from "./api";
 import { PopulationEditor } from "./PopulationEditor";
@@ -29,6 +29,7 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
   const [name, setName] = useState("");
   const [rights, setRights] = useState("");
   const [boardPath, setBoardPath] = useState<string | null>(null);
+  const [useHere, setUseHere] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lifetime = useRef(new AbortController());
@@ -95,7 +96,7 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
   }
   async function importSources() {
     await work(async () => {
-      const result = await preserveFiles(workspaceId, files, name, rights, boardPath ?? "", lifetime.current.signal);
+      const result = await preserveFiles(workspaceId, files, name, rights, boardPath ?? "", lifetime.current.signal, projectId && useHere ? projectId : null);
       setFiles([]); setBoardPath(null);
       await refreshList(); setSelected(result.intake_id);
     });
@@ -142,6 +143,7 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
       <TextInput label="Source package name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <TextInput label="Source rights declaration" description="Declare the rights that apply to these files and derived outputs." value={rights} onChange={(e) => setRights(e.currentTarget.value)} />
       <Select label="Board to interpret" description="Optional. Other inputs are preserved with unsupported semantic coverage." clearable data={boardOptions} value={boardPath} onChange={setBoardPath} />
+      {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(e) => setUseHere(e.currentTarget.checked)} />}
       <Button onClick={() => void importSources()} loading={busy} disabled={!files.length || !name.trim() || !rights.trim()}>Preserve sources</Button>
     </Stack>}
     <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={orderIntakes(items).map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}${i.upgraded_from_kicad ? ` · upgraded from KiCad ${i.upgraded_from_kicad}` : ""}${i.referenced_by_project ? " · used by this project" : ""}${i.superseded_by_intake_id ? " · superseded by upgraded derivative" : ""}` }))} />

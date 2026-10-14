@@ -144,6 +144,8 @@ def revision_result(revision: SourceBundleRevision) -> dict:
 class CreateBundle(WorkspacePayload):
     name: str = Field(min_length=1, max_length=200)
     files: list[FileRef] = Field(min_length=1, max_length=10000)
+    # Navigation context: the project that will reference the new bundle.
+    project_id: UUID | None = None
 
 
 @operation(
@@ -157,7 +159,11 @@ def create_original_bundle(ctx: Context, p: CreateBundle) -> dict:
     bundle = SourceBundle.objects.create(
         workspace=workspace, name=p.name, role=SourceBundle.Role.ORIGINAL, created_by=ctx.user
     )
-    return revision_result(_write_revision(ctx, bundle, p.files, ancestry=[]))
+    result = revision_result(_write_revision(ctx, bundle, p.files, ancestry=[]))
+    from specmate.access.projects import reference_created_item
+
+    reference_created_item(ctx, workspace, p.project_id, "source_bundle", bundle, "created here")
+    return result
 
 
 class ReviseBundle(BaseModel):

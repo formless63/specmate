@@ -43,13 +43,11 @@ test("creates a reusable definition, freezes exact draft state, then registers a
   await screen.findByText("Physical lots");
   fireEvent.change(screen.getByLabelText("Lot label"), { target: { value: "Batch A" } });
   fireEvent.click(screen.getByText("Register lot identity"));
-  await waitFor(() => expect(calls).toHaveLength(4));
-  // The definition joins the workspace library; using it in the project is a separate reference.
-  expect(calls[0]).toMatchObject({ operation: "definition.create", payload: { name: "Synthetic part", kind: "part", workspace_id: "workspace-1" } });
-  expect(calls[0]!.payload).not.toHaveProperty("project_id");
-  expect(calls[1]).toMatchObject({ operation: "project.add_reference", expected_state: "project-v1", payload: { project_id: "project-1", kind: "definition", target_id: definitionId } });
-  expect(calls[2]).toMatchObject({ operation: "draft.freeze", expected_state: "draft-v1", payload: { draft_id: draftId, dependencies: [] } });
-  expect(calls[3]).toMatchObject({ operation: "catalog.register_lot", payload: { revision_id: revisionId, label: "Batch A", variant_id: null } });
+  await waitFor(() => expect(calls).toHaveLength(3));
+  // The definition joins the workspace library and is referenced by the project in the same operation.
+  expect(calls[0]).toMatchObject({ operation: "definition.create", payload: { name: "Synthetic part", kind: "part", workspace_id: "workspace-1", project_id: "project-1" } });
+  expect(calls[1]).toMatchObject({ operation: "draft.freeze", expected_state: "draft-v1", payload: { draft_id: draftId, dependencies: [] } });
+  expect(calls[2]).toMatchObject({ operation: "catalog.register_lot", payload: { revision_id: revisionId, label: "Batch A", variant_id: null } });
   expect(fetchMock.mock.calls.some(([url]) => String(url).includes("catalog/definitions?") && String(url).includes("project_id=project-1"))).toBe(true);
 });
 

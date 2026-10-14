@@ -56,6 +56,8 @@ class CreateDefinition(BaseModel):
     kind: str = Field(pattern=KIND_PATTERN)
     name: str = Field(min_length=1, max_length=200)
     content: dict[str, JsonValue] = Field(default_factory=dict)
+    # Navigation context: the project that will reference the new item.
+    project_id: UUID | None = None
 
 
 @operation(
@@ -72,6 +74,9 @@ def create_definition(ctx: Context, p: CreateDefinition) -> dict:
     content = validate_content(definition.kind, p.content)
     authorize_design_content(ctx.user, definition, content)
     draft = Draft.objects.create(definition=definition, content=content, updated_by=ctx.user)
+    from specmate.access.projects import reference_created_item
+
+    reference_created_item(ctx, workspace, p.project_id, "definition", definition, "created here")
     return {
         "definition_id": str(definition.id),
         "workspace_id": str(workspace.id),

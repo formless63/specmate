@@ -245,7 +245,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
   return <>
     <ToolPanel value="overview" library={library("overview")}>{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} role={role} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} onProjectChanged={onAccessChanged} onLeave={onLeave} />}</ToolPanel>
     <ToolPanel value="builds" library={library("builds")}>{visited.has("builds") && <WorkspaceLens {...lens} toolId="builds" />}</ToolPanel>
-    <ToolPanel value="sources" library={library("sources")}>{visited.has("sources") && <SourcesPanel workspaceId={workspaceId} />}</ToolPanel>
+    <ToolPanel value="sources" library={library("sources")}>{visited.has("sources") && <SourcesPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="knowledge" library={library("knowledge")}>{visited.has("knowledge") && <WorkspaceLens {...lens} toolId="knowledge" />}</ToolPanel>
     <ToolPanel value="identity" library={library("identity")}>{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery" library={library("discovery")}>{visited.has("discovery") && <WorkspaceLens {...lens} toolId="discovery" />}</ToolPanel>
