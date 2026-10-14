@@ -25,8 +25,9 @@ from specmate.cable_test_intent.queries import result as test_result
 from specmate.cables.queries import inspect_revision as inspect_cable
 from specmate.catalog.models import Representation, SourceIdentifier
 from specmate.catalog_matching.queries import current_actor
+from specmate.design.closure_reads import closure_reads
 from specmate.design.models import Revision
-from specmate.design.operations import canonical_bytes
+from specmate.design.operations import canonical_bytes, closure_revisions
 from specmate.harnesses.queries import inspect_revision as inspect_harness
 from specmate.operations import Conflict, ValidationFailed
 from specmate.pcb.models import PcbInterpretation
@@ -193,23 +194,16 @@ class Scope:
     def __init__(self, user, p):
         self.user = user
         self.quantity = p.quantity
-        self.root = get_revision(user, p.root_revision_id)
         self.closure = None
-        self.revisions = {self.root.id: self.root}
-        if self.root.definition.kind == "assembly":
-            _, self.closure = get_snapshot(user, self.root.snapshot_id)
-            self.revisions.update(self.closure.revisions)
-        else:
-            pending = list(self.root.snapshot.dependencies.values_list("revision_id", flat=True))
-            while pending:
-                rid = pending.pop()
-                if rid in self.revisions:
-                    continue
-                if len(self.revisions) >= MAX_REVISIONS:
-                    raise ValidationFailed("Export package dependency limit exceeded.")
-                revision = get_revision(user, rid)
-                self.revisions[rid] = revision
-                pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
+        # One membership read and per-level batched closure rows, not queries per part.
+        with closure_reads():
+            self.root = get_revision(user, p.root_revision_id)
+            self.revisions = {self.root.id: self.root}
+            if self.root.definition.kind == "assembly":
+                _, self.closure = get_snapshot(user, self.root.snapshot_id)
+                self.revisions.update(self.closure.revisions)
+            else:
+                self.revisions.update(closure_revisions(user, self.root.snapshot))
         if len(self.revisions) > MAX_REVISIONS:
             raise ValidationFailed("Export package dependency limit exceeded.")
         # Independent structural count: the root once, then each contextual occurrence.

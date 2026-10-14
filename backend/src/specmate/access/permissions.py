@@ -77,6 +77,28 @@ def delegated(user_id: Any, workspace_id: Any, permissions: frozenset[Perm]) -> 
         _delegation.reset(token)
 
 
+# Membership rows reused inside one synchronous read traversal (see `memoized_membership`).
+_membership_memo: ContextVar[dict | None] = ContextVar("specmate_membership_memo", default=None)
+
+
+@contextmanager
+def memoized_membership() -> Iterator[None]:
+    """Read each (actor, workspace) membership at most once inside this block.
+
+    Only for bounded, read-only traversals (closure authorization): the memo lives for the
+    block, never across operations or requests. Nested blocks share the outer memo.
+    Delegation bounds are still applied on every call.
+    """
+    if _membership_memo.get() is not None:
+        yield
+        return
+    token = _membership_memo.set({})
+    try:
+        yield
+    finally:
+        _membership_memo.reset(token)
+
+
 def _delegation_for(user_id: Any) -> Delegation | None:
     current = _delegation.get()
     return current if current is not None and current.user_id == user_id else None
@@ -104,11 +126,18 @@ def membership(user: Any, workspace_id: Any) -> WorkspaceMember | None:
     bound = _delegation_for(user.pk)
     if bound is not None and str(workspace_id) != bound.workspace_id:
         return None
-    return (
+    memo = _membership_memo.get()
+    key = (user.pk, str(workspace_id))
+    if memo is not None and key in memo:
+        return memo[key]
+    member = (
         WorkspaceMember.objects.select_related("workspace")
         .filter(workspace_id=workspace_id, user=user)
         .first()
     )
+    if memo is not None:
+        memo[key] = member
+    return member
 
 
 def member_workspaces(user: Any):

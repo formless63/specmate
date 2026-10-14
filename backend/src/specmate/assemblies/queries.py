@@ -15,7 +15,8 @@ from specmate.assemblies.contracts import (
     OccurrenceRef,
     RevisionRef,
 )
-from specmate.design.models import Revision, Snapshot
+from specmate.design.closure_reads import closure_reads, prefetch_origins
+from specmate.design.models import Revision, Snapshot, SnapshotDependency
 from specmate.design.pins import check_pin
 from specmate.operations import NotFound, ValidationFailed
 
@@ -106,21 +107,22 @@ class Closure:
         self.relationships = []
         self.assignments = {}
         self.root = parse_content(content, kind=kind)
-        self._read_pending(content, dependencies)
+        with closure_reads():
+            self._read_pending(content, dependencies)
         if self.root is not None:
             self._expand(self.root, (), frozenset())
             self._validate_graph()
 
-    def _revision(self, revision_id):
+    def _revision(self, revision_id, loaded=None):
         if revision_id in self.revisions:
             return self.revisions[revision_id]
         if revision_id in self.proposed:
             # Built from an already authorized exact revision of this workspace.
             self.revisions[revision_id] = self.proposed[revision_id]
             return self.proposed[revision_id]
-        revision = (
-            Revision.objects.select_related("definition", "snapshot").filter(id=revision_id).first()
-        )
+        if loaded is None:
+            loaded = self._load([revision_id])
+        revision = loaded.get(str(revision_id))
         # Missing, foreign-workspace and unreadable pins all read as the same NotFound,
         # before any graph diagnostic or a database guard can see them.
         self.workspace_id = check_pin(self.user, revision, self.workspace_id)
@@ -129,20 +131,44 @@ class Closure:
         self.revisions[revision_id] = revision
         return revision
 
+    def _load(self, revision_ids):
+        """One query for a level of pinned revisions, keyed by string id."""
+        rows = Revision.objects.select_related("definition", "snapshot").in_bulk(
+            {str(rid) for rid in revision_ids}
+        )
+        return {str(rid): revision for rid, revision in rows.items()}
+
     def _read_pending(self, content, dependencies):
-        """Follow reference closure with a visited set; documentary cycles are legal."""
+        """Follow reference closure level by level; documentary cycles are legal.
+
+        Each level's revisions are read in one query and its dependency pins in another.
+        Every revision is still pin-checked (missing, foreign and unreadable read alike)
+        before anything about it is parsed or returned.
+        """
         pending = [*dependencies, *self._references(parse_content(content))]
         while pending:
-            rid = pending.pop()
-            if rid in self.revisions:
-                continue
-            revision = self._revision(rid)
-            body = json.loads(bytes(revision.snapshot.canonical))
-            assembly = parse_content(body["content"], kind=revision.definition.kind)
-            pending.extend(self._references(assembly))
+            level = [
+                rid
+                for rid in dict.fromkeys(pending)
+                if rid not in self.revisions and rid not in self.proposed
+            ]
+            proposed = [rid for rid in dict.fromkeys(pending) if rid in self.proposed]
+            pending = []
+            loaded = self._load(level) if level else {}
+            fresh = [self._revision(rid, loaded) for rid in level]
+            fresh.extend(self._revision(rid) for rid in proposed if rid not in self.revisions)
+            for revision in fresh:
+                body = json.loads(bytes(revision.snapshot.canonical))
+                assembly = parse_content(body["content"], kind=revision.definition.kind)
+                pending.extend(self._references(assembly))
             # Non-assembly children can themselves pin restricted sources/designs.
-            if not isinstance(revision, ProposedRevision):
-                pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
+            stored = [r.snapshot_id for r in fresh if not isinstance(r, ProposedRevision)]
+            if stored:
+                pending.extend(
+                    SnapshotDependency.objects.filter(snapshot_id__in=stored).values_list(
+                        "revision_id", flat=True
+                    )
+                )
         self._authorize_typed_references()
 
     def _authorize_typed_references(self):
@@ -152,6 +178,9 @@ class Closure:
         # module authorize its retained content before paths or diagnostics escape.
         active = _AUTHORIZING.get()
         token = _AUTHORIZING.set(active | {r.snapshot_id for r in self.revisions.values()})
+        prefetch_origins(
+            {r.definition_id for r in self.revisions.values() if r.snapshot_id not in active}
+        )
         try:
             for revision in self.revisions.values():
                 if revision.snapshot_id in active:
@@ -298,18 +327,19 @@ def get_snapshot(user, snapshot_id):
     snapshot = Snapshot.objects.select_related("definition").filter(id=snapshot_id).first()
     if snapshot is None:
         raise NotFound("Assembly unavailable.")
-    authorize(user, snapshot.definition.workspace_id, Perm.WORKSPACE_READ)
-    # The root's retained adoption pack is independent of its child/dependency closure.
-    authorize_origin(user, snapshot.definition)
-    body = json.loads(bytes(snapshot.canonical))
-    # Historical or manually supplied pins are authorized before graph diagnostics too.
-    closure = Closure(
-        user,
-        body["content"],
-        kind=snapshot.definition.kind,
-        dependencies=snapshot.dependencies.values_list("revision_id", flat=True),
-        workspace_id=snapshot.definition.workspace_id,
-    )
+    with closure_reads():
+        authorize(user, snapshot.definition.workspace_id, Perm.WORKSPACE_READ)
+        # The root's retained adoption pack is independent of its child/dependency closure.
+        authorize_origin(user, snapshot.definition)
+        body = json.loads(bytes(snapshot.canonical))
+        # Historical or manually supplied pins are authorized before graph diagnostics too.
+        closure = Closure(
+            user,
+            body["content"],
+            kind=snapshot.definition.kind,
+            dependencies=snapshot.dependencies.values_list("revision_id", flat=True),
+            workspace_id=snapshot.definition.workspace_id,
+        )
     if closure.root is None:
         raise ValidationFailed("Snapshot is not an assembly.")
     return snapshot, closure
