@@ -5,3 +5,5 @@ export * from './appearance';
 export * from './end-face';
 export * from './side-view';
 export * from './callouts';
+export * from './placement';
+export * from './fit';
