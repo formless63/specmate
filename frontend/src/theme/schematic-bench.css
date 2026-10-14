@@ -39,6 +39,10 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
 .mantine-Button-root[data-disabled], .mantine-Button-root:disabled, .mantine-ActionIcon-root[data-disabled], .mantine-ActionIcon-root:disabled { border-color: var(--sb-border-subtle); color: var(--sb-text-disabled); background: transparent; }
 .mantine-Button-root[data-variant="subtle"][data-disabled], .mantine-Button-root[data-variant="subtle"]:disabled { border-color: transparent; }
 .mantine-Button-label { white-space: normal; }
+/* Hover inversion only where hover exists: on touch, :hover sticks after a tap and paints solid blocks. */
+@media (hover: none) {
+  .mantine-Button-root:is([data-variant="quiet"], [data-variant="default"], [data-variant="light"], [data-variant="outline"], [data-variant="filled"]):is(:hover, :active):not([data-disabled], :disabled) { background: transparent; color: var(--sb-text-primary); }
+}
 @media (pointer: coarse) { .mantine-Button-root { min-height: 32px; } }
 
 /* ---- Identity tags (Badge variants) ---- */
@@ -278,7 +282,7 @@ html[data-mantine-color-scheme] .mantine-Table-table { border-collapse: collapse
 html[data-mantine-color-scheme] .mantine-Table-th { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .12em; font-size: 9.5px; font-weight: 400; color: var(--sb-text-tertiary); background: transparent; text-align: left; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--sb-border-strong); white-space: nowrap; vertical-align: bottom; }
 html[data-mantine-color-scheme] .mantine-Table-td { padding: 4px 8px; min-height: 26px; height: 26px; border: 0; border-bottom: 1px solid var(--sb-border-subtle); vertical-align: middle; color: var(--sb-text-primary); }
 html[data-mantine-color-scheme] .mantine-Table-tr { background: transparent; }
-html[data-mantine-color-scheme] .mantine-Table-tr:hover { background: var(--sb-surface-raised); }
+html[data-mantine-color-scheme] .mantine-Table-tbody .mantine-Table-tr:hover { background: var(--sb-surface-raised); }
 html[data-mantine-color-scheme] .mantine-Table-tr[data-selected], html[data-mantine-color-scheme] .mantine-Table-tr[aria-selected="true"] { background: var(--sb-accent-glow); }
 html[data-mantine-color-scheme] .mantine-Table-caption { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: var(--sb-text-tertiary); caption-side: top; text-align: left; padding: 4px 8px; }
 html[data-mantine-color-scheme] :is(td, th)[data-numeric], html[data-mantine-color-scheme] .sb-num { text-align: right; font-family: var(--sb-font-data); font-variant-numeric: tabular-nums; }
@@ -313,6 +317,8 @@ span.sb-project-button { border-bottom-color: transparent; cursor: default; }
 .sb-search[data-compact="true"] { width: auto; max-width: none; margin-left: 0; gap: 4px; padding: 2px 6px; border: 1px solid var(--sb-border-control); }
 .sb-search[data-compact="true"] .sb-keycap { border: 0; padding: 0; }
 .sb-account-button { max-width: 9ch; }
+.sb-account-button:is(:hover, :active, [data-expanded]):not([data-disabled], :disabled) { background: transparent; color: var(--sb-text-primary); border-color: var(--sb-text-primary); }
+.sb-account-button .mantine-Button-label { color: inherit; }
 .sb-account-button .mantine-Button-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; font-family: var(--sb-font-data); font-size: 11px; font-weight: 400; }
 @media (max-width: 599px) {
   .sb-topbar { gap: 8px; padding: 0 8px; }
