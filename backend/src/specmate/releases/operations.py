@@ -11,6 +11,7 @@ import base64
 import io
 
 from django.db import transaction
+from django.utils import timezone
 
 from specmate.access.models import ProjectReference
 from specmate.access.permissions import Perm, authorize, authorize_project, context_project
@@ -85,7 +86,11 @@ def create(ctx: Context, p: CreateRelease):
         authorize_project(ctx.user, project.id, Perm.PROJECT_EDIT)
         if project.archived_at is not None:
             raise Conflict("Archived projects are read-only; unarchive the project first.")
-    closure, files, manifest_sha256 = review_release(ctx, p)
+    # Fixed once, before the manifest is built, and stored: create and verify bound build
+    # reproducibility evidence to the same instant, so a comparison committed later
+    # cannot change the reconstructed manifest.
+    as_of = timezone.now()
+    closure, files, manifest_sha256 = review_release(ctx, p, as_of=as_of)
     sha256 = review_digest(closure)
     if sha256 != p.reviewed_sha256:
         raise Conflict(
@@ -158,6 +163,7 @@ def create(ctx: Context, p: CreateRelease):
             acknowledgement_reason=p.acknowledgement.reason if p.acknowledgement else "",
             released_by=ctx.user,
             request_id=ctx.request_id,
+            reproducibility_as_of=as_of,
         )
         ReleasePin.objects.bulk_create(
             ReleasePin(release=release, revision_id=rid, role=role, sha256=shas[rid])
@@ -310,7 +316,7 @@ def verify(ctx: Context, p: ReleaseRef):
             {k: release.request[k] for k in ExportRequest.model_fields if k in release.request}
         )
         get_revision(ctx.user, release.root_revision_id)
-        _, _, rebuilt = build_package(ctx, request)
+        _, _, rebuilt = build_package(ctx, request, as_of=release.reproducibility_as_of)
         reconstruction = "identical" if rebuilt == release.manifest_sha256 else "differs"
     except NotFound:
         reconstruction = "unavailable"

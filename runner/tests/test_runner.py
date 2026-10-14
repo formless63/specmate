@@ -242,6 +242,31 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual((sent["outcome"], sent["exit_code"]), ("failed", 12))
         self.assertEqual(sent["outputs"], [{"path": "report.json", "sha256": digest}])
 
+    def test_exited_container_reports_its_resolved_image_id(self):
+        self.receipt["started_at"] = time.time()
+        image = "sha256:" + "b" * 64
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "Image": image,
+            "State": {"Running": False, "ExitCode": 0},
+        }
+        self.runner.supervise(self.receipt)
+        self.runner.finish(self.receipt)
+        sent = self.client.complete.call_args.args[1]
+        self.assertEqual((sent["outcome"], sent["image_id"]), ("succeeded", image))
+        self.assertEqual(self.persisted()["result"]["image_id"], image)
+
+    def test_unrecognized_image_identity_is_not_reported(self):
+        self.receipt["started_at"] = time.time()
+        self.docker.inspect.return_value = {
+            "Id": "container",
+            "Image": "not-an-image-id",
+            "State": {"Running": False, "ExitCode": 3},
+        }
+        self.runner.supervise(self.receipt)
+        self.runner.finish(self.receipt)
+        self.assertNotIn("image_id", self.client.complete.call_args.args[1])
+
     def test_refused_failure_report_upload_keeps_the_failure(self):
         self.failed_tool_with_report()
         self.client.upload.side_effect = Rejected("execution no longer authorized")

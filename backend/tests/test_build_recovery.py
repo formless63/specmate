@@ -462,6 +462,8 @@ def test_history_retains_events_partial_outputs_and_lineage_without_secrets(
             "size": len(OUTPUT),
             "rights": RIGHTS,
             "accepted": False,
+            # Unaccepted bytes carry no reproducibility level at all.
+            "reproducibility": None,
         }
     ]
     kinds = [e["kind"] for e in history["events"]]

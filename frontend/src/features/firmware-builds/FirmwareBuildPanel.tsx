@@ -2,10 +2,10 @@ import { Alert, Anchor, Button, Card, Checkbox, Group, Select, Stack, Table, Tex
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
-import { compileOptions, compileOutputUrl, compileReview, listResolvedConfigurations, type CompileOptions, type CompileReview, type FirmwareBuildRef, type ResolvedChoices } from './api';
+import { compileOptions, compileOutputUrl, compileReview, listResolvedConfigurations, reproduceCompile, retryCompile, type CompileOptions, type CompileReview, type FirmwareBuildRef, type ResolvedChoices } from './api';
 import { Lineage, jobState, pretty } from '../builds/BuildsPanel';
 import { SbJobCard, SbUnknown } from '../../components/sb';
-import { cancelBuild, readHistory, retryBuild } from '../builds/api';
+import { cancelBuild, readHistory } from '../builds/api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 import type { ResolvedSummary } from '../configurations/api';
@@ -109,7 +109,7 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
     {available?.builds.map(build => <SbJobCard key={build.build_id} title={build.build_id} state={jobState(build.state)} stateWords={pretty(build.state)} dimension="compile"
       detail={<>{build.failure ?? ''}{build.retry_of ? ` retry of ${build.retry_of}` : ''}</>}
       actions={<><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button>
-      <BuildControls build={build} canExecute={canExecute} onChanged={() => refresh(null)} /></>} />)}
+      <BuildControls build={build} reference={reference} consent={consent} basis={basis.trim()} canExecute={canExecute} onChanged={() => refresh(null)} /></>} />)}
     {available?.truncated && <Text>Showing the latest 100 builds; earlier history is retained.</Text>}
     {review && <Stack><Title order={4}>Registered compiler handoff</Title>
       <Lineage lineage={review.lineage} retryOf={review.retry_of} /><CompilerPins inputs={review.inputs} />
@@ -131,29 +131,36 @@ function CompilerPins({ inputs }: { inputs: CompileOptions['inputs'] }) {
 }
 
 /** Offers only what the list row's server-computed flags allow (the rule build.history uses). Cancel needs the
- * requester or build.execute; retry needs build.execute. History is read only on click, for a fresh state token. */
-function BuildControls({ build, canExecute, onChanged }: { build: CompileOptions['builds'][number]; canExecute: boolean; onChanged: () => Promise<void> }) {
+ * requester or build.execute; retry and reproducibility checks need build.execute plus the same explicit
+ * source-execution consent and basis as a compile request. History is read only on click, for a fresh state token. */
+function BuildControls({ build, reference, consent, basis, canExecute, onChanged }: { build: CompileOptions['builds'][number]; reference: FirmwareBuildRef; consent: boolean; basis: string; canExecute: boolean; onChanged: () => Promise<void> }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const key = useRef<{ name: string; value: string } | null>(null);
-  const run = async (action: 'cancel' | 'retry') => {
+  const run = async (action: 'cancel' | 'retry' | 'reproduce') => {
     setBusy(true); setError('');
     try {
       const fresh = await readHistory(build.build_id);
-      if (action === 'cancel' ? !fresh.cancel_available : !fresh.retry_available) { setError('That action is no longer available.'); await onChanged(); return; }
-      const name = `${action}:${fresh.state_token}`;
+      const allowed = action === 'cancel' ? fresh.cancel_available : action === 'retry' ? fresh.retry_available : fresh.reproduce_available;
+      if (!allowed) { setError('That action is no longer available.'); await onChanged(); return; }
+      const name = `${action}:${fresh.state_token}:${basis}`;
       if (key.current?.name !== name) key.current = { name, value: randomUUID() };
       if (action === 'cancel') await cancelBuild(build.build_id, fresh.state_token, key.current.value);
-      else await retryBuild(build.build_id, fresh.state_token, key.current.value);
+      else if (action === 'retry') await retryCompile(reference, build.build_id, basis, fresh.state_token, key.current.value);
+      else await reproduceCompile(reference, build.build_id, basis, fresh.state_token, key.current.value);
       key.current = null; await onChanged();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Build action failed.'); }
     finally { setBusy(false); }
   };
   const canCancel = build.cancel_available && (canExecute || build.requested_by_viewer);
   const canRetry = build.retry_available && canExecute;
+  const canReproduce = build.state === 'succeeded' && canExecute;
+  const consented = consent && Boolean(basis);
   return <Group gap="xs">
     {canCancel && <Button variant="subtle" disabled={busy} onClick={() => void run('cancel')}>Request cancellation of {build.build_id}</Button>}
-    {canRetry && <Button variant="subtle" disabled={busy} onClick={() => void run('retry')}>Retry {build.build_id} as a new attempt</Button>}
+    {canRetry && <Button variant="subtle" disabled={busy || !consented} onClick={() => void run('retry')}>Retry {build.build_id} as a new attempt</Button>}
+    {canReproduce && <Button variant="subtle" disabled={busy || !consented} onClick={() => void run('reproduce')}>Request reproducibility check of {build.build_id}</Button>}
+    {(canRetry || canReproduce) && !consented && <Text size="xs">Authorize source execution and give a review basis above to rerun this compile.</Text>}
     {error && <Text size="xs" c="red">{error}</Text>}
   </Group>;
 }

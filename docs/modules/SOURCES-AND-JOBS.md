@@ -64,6 +64,36 @@ uses these. Real container cancellation, restart reconciliation and lost-acknowl
 replay through the runner remain covered by the runner's isolated Docker cases and an
 orchestrated integration checkpoint; the application tests simulate the runner API.
 
+### Tool pins and reproducibility levels (BLD-002, BLD-006)
+
+`build.get`, `build.history` and `build.output` return `pinned`: the image reference and
+digest, argv, network mode and limits copied into the attempt at request time, never the
+current approval. When the runner reports it, `resolved_image_id` is the local
+content-addressed image ID of the exited container (`docker inspect` `Image`); it is
+evidence, while the digest stays the pin. A changed approval leaves stored attempts as they
+were and makes `build.retry` and `build.reproduce` refuse.
+
+Each attempt records an `input_key`: a digest of its exact staged inputs (paths, hashes,
+sizes, types, rights), pinned recipe and configuration input. When a stage's success is
+accepted, its outputs are compared with up to 20 earlier accepted attempts that have the
+same key in the same workspace, and one append-only `ReproducibilityComparison` row per
+output path is stored (database guards refuse updates, deletes and mismatched pairs).
+Equal hash and size means byte-identical. Otherwise a declared comparator for the media
+type decides semantic equality: `json-canonical/1` (parsed JSON, sorted keys) applies to
+`application/json` and `+json`; other types record `none_declared`. Levels per output,
+derived from those rows: `provenance` (no comparison; every single success), then
+`rerun_recorded`, `semantic_equality` and `byte_reproducible`. A build's level is its weakest
+output's level; unaccepted outputs have none. `build.reproduce` (state token, idempotency
+key, `build.execute`) starts a new independent attempt over the exact staged inputs and
+configuration of an accepted build, refused if the approval changed. The consent hook
+refuses the generic `build.retry` and `build.reproduce` for compiler builds; they use
+`firmware_build.retry` and `firmware_build.reproduce`, with the same explicit
+source-execution consent and basis as `firmware_build.request`. Export package manifests carry the level of each
+included firmware and fabrication build. `release.create` fixes `reproducibility_as_of`
+before building its manifest and stores it; `release.verify` rebuilds with that stored
+cutoff, so comparisons recorded later never alter a release's reconstruction. Simulated
+runner tests establish the mechanism only; actual tool reproducibility needs real reruns.
+
 ## Pipeline
 
 Preserve/import source -> extract -> review -> generate/modify -> validate/route/compile ->

@@ -933,6 +933,9 @@ def test_identical_request_is_offered_a_succeeded_result_and_reuse_is_recorded(
     offer = op(users["owner"], "build.find_reusable", build_payload)["reusable"]
     assert offer["build_id"] == build["build_id"]
     assert [o["sha256"] for o in offer["outputs"]] == [digest(OUTPUT)]
+    # One accepted execution is provenance only; matching shares reproducibility's key.
+    assert offer["reproducibility"] == "provenance"
+    assert BuildAttempt.objects.get(id=build["build_id"]).input_key is not None
     reused = op(
         users["owner"], "build.reuse", {**build_payload, "result_build_id": build["build_id"]}
     )

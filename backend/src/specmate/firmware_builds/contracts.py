@@ -29,6 +29,13 @@ class CompileRef(FirmwareRef):
     build_id: UUID
 
 
+class ReproduceCompile(CompileRef):
+    """Retry or re-run a compile; the same explicit source-execution consent is required."""
+
+    source_execution_authorized: Literal[True]
+    basis: str = Field(min_length=1, max_length=2000, pattern=r"\S")
+
+
 class Output(StrictModel):
     path: str
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

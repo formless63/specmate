@@ -1,6 +1,6 @@
 import { type Firmware } from '../firmware/api';
 import { operation, type ResolvedSummary } from '../configurations/api';
-import { request } from '../sources/api';
+import { command, request } from '../sources/api';
 
 export type FirmwareBuildRef = { firmware_revision_id: string; assembly_snapshot_id?: string | null; path?: string[] };
 export type CompilerInputs = Firmware & {
@@ -29,3 +29,8 @@ export const compileOutputUrl = (item: CompileReview, outputId: string) => `/api
 export type ResolvedChoices = { resolved: ResolvedSummary[]; truncated: boolean };
 export const listResolvedConfigurations = (workspaceId: string) =>
   operation<ResolvedChoices>('configuration.list_resolved', { workspace_id: workspaceId });
+/** Retry and reproducibility checks of compiles carry the same explicit source-execution consent as a request. */
+const consented = (name: string) => (ref: FirmwareBuildRef, buildId: string, basis: string, expectedState: string, idempotencyKey: string) =>
+  command<{ build_id: string }>(name, { ...ref, build_id: buildId, source_execution_authorized: true, basis }, { expectedState, idempotencyKey });
+export const retryCompile = consented('firmware_build.retry');
+export const reproduceCompile = consented('firmware_build.reproduce');

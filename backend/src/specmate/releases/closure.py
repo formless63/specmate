@@ -371,10 +371,13 @@ def package_items(manifest, unresolved, blockers):
         )
 
 
-def review_release(ctx, p):
-    """(review, export files, manifest sha256) for one release request; writes nothing."""
+def review_release(ctx, p, as_of=None):
+    """(review, export files, manifest sha256) for one release request; writes nothing.
+
+    ``as_of`` bounds build reproducibility evidence (see ``build_package``).
+    """
     user = current_actor(ctx.user)
-    manifest, files, manifest_sha256 = build_package(ctx, export_request(p))
+    manifest, files, manifest_sha256 = build_package(ctx, export_request(p), as_of=as_of)
     revisions = pinned_revisions(manifest)
     root = revisions[manifest["scope"]["root"]["revision_id"]]
     workspace_id = root.definition.workspace_id

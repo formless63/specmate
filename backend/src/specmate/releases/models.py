@@ -30,6 +30,8 @@ class Release(models.Model):
     acknowledgement_reason = models.TextField(blank=True, default="")
     released_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     released_at = models.DateTimeField(auto_now_add=True)
+    # Cutoff for build reproducibility evidence in the manifest, fixed before it was built.
+    reproducibility_as_of = models.DateTimeField(null=True)
     request_id = models.CharField(max_length=200)
 
     class Meta:

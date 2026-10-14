@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -17,6 +18,8 @@ from .validation import (
     validate_identity,
     validate_manifest,
 )
+
+IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 class Runner:
@@ -98,13 +101,18 @@ class Runner:
                 raise Invalid("Input digest mismatch")
             target.chmod(0o444)
 
-    def result(self, receipt, outcome, exit_code, message, outputs=None):
+    def result(
+        self, receipt, outcome, exit_code, message, outputs=None, image_id=None
+    ):
         receipt["result"] = {
             "outcome": outcome,
             "exit_code": exit_code,
             "outputs": outputs or [],
             "message": message,
         }
+        if isinstance(image_id, str) and IMAGE_ID.fullmatch(image_id):
+            # The local content-addressed image the exited container actually ran.
+            receipt["result"]["image_id"] = image_id
         receipt["phase"] = "stopped"
         self.save(receipt)
 
@@ -311,6 +319,7 @@ class Runner:
                 self.result(receipt, "failed", None, "Started container disappeared")
                 return
             running = container["State"]["Running"]
+            image_id = container.get("Image")
             inspect_outputs(
                 output_root,
                 recipe["outputs"],
@@ -336,6 +345,7 @@ class Runner:
                             {"path": item["path"], "sha256": item["sha256"]}
                             for item in artifacts
                         ],
+                        image_id=image_id,
                     )
                 else:
                     # Declared outputs left by a failed tool (such as its own failure
@@ -357,6 +367,7 @@ class Runner:
                             {"path": item["path"], "sha256": item["sha256"]}
                             for item in artifacts
                         ],
+                        image_id=image_id,
                     )
                 return
             time.sleep(self.poll_seconds)
