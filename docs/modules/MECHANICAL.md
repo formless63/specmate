@@ -55,8 +55,14 @@ check the pinned draft, board hash, status and `physical:false`). Retaining iden
 content again returns the existing record. Drafts and records create no design draft,
 snapshot, placement or source and cannot change a frozen revision. Solid CAD, STEP/STL
 output and native build123d or FreeCAD generation remain separate approved tool stages;
-this generator is original, and the predecessor case builder was consulted for concepts
-only (no code reused).
+this planar generator is original code.
+
+The Parametric proposals tool (Design area) lists drafts, creates one from an accepted
+board, edits blank-is-unknown declarations with per-hole mount decisions, saves under the
+draft token (a stale save keeps the unsaved text and offers an explicit reload), shows the
+saved proposal with a plan view, unresolved inputs, checks, facts and remaining physical
+checks, and retains or inspects immutable records. Mutating controls follow the project's
+edit permission, and an access change clears every retained board identity and proposal.
 
 ## Scene
 
