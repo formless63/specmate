@@ -9,6 +9,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LABEL: Record<ApplicabilityStatus, { led: SbLed; value: string }> = {
   exact_revision: { led: "info", value: "recorded against this revision" },
   exact_unit_only: { led: "info", value: "one unit of this revision only" },
+  exact_batch_only: { led: "info", value: "one batch of this revision, as a whole" },
   definition_scope_unverified: { led: "not-evaluated", value: "definition-wide, not verified for this revision" },
   stale_earlier_revision: { led: "stale", value: "stale: earlier revision" },
   inapplicable_later_revision: { led: "off", value: "inapplicable: later revision" },

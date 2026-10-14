@@ -125,6 +125,23 @@ test("the stale badge says whether a revision, new assertions or both went stale
   expect(screen.getByText("Stale: newer input revision and new fact assertions")).toBeTruthy();
 });
 
+test("a test record on an older design revision reads as stale; a batch test applies to the batch only", async () => {
+  const test_ = item({ evidence_id: "test:t1", kind: "physical_measurement", kind_label: "Physical measurement", statement: "continuity test, criterion met", source: "subject_tests", stale: true,
+    subject: { scope: "actual", kind: "work_batch", id: "b-1", label: "Work batch B (as a whole)" }, warnings: ["Stale: tested against design revision 1; revision 2 is newer."] });
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("taxonomy")) return new Response(JSON.stringify({ kinds }), { status: 200 });
+    if (url.includes("/applicability/")) return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false,
+      revision: { revision_id: "r-1", definition_id: "d", number: 1, latest_number: 2, is_latest: false },
+      items: [{ item: test_, applicability: { status: "exact_batch_only", reason: "Tested on one work batch, as a whole.", evidence_revision_id: "r-1", evidence_revision_number: 1, observation_preserved: true, qualifies_selected_revision: false } }] }), { status: 200 });
+    return new Response(JSON.stringify({ workspace_id: "ws-1", offset: 0, limit: 50, has_more: false, scan_limit_reached: false, items: [test_] }), { status: 200 });
+  }));
+  mount();
+  expect(await screen.findByText("Stale: newer design revision")).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Revision ID"), { target: { value: "00000000-0000-4000-8000-000000000001" } });
+  fireEvent.click(screen.getByRole("button", { name: "Check applicability" }));
+  expect(await screen.findByText("one batch of this revision, as a whole")).toBeTruthy();
+});
+
 test("the applicability revision defaults to the shared selection and is picked from its revisions", async () => {
   const urls: string[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {

@@ -8,7 +8,7 @@ from collections import Counter
 from heapq import merge
 from itertools import islice
 
-from django.db.models import Q
+from django.db.models import Max, Q
 
 from specmate.access.permissions import Perm, authorize
 from specmate.builds.models import BuildAttempt
@@ -450,6 +450,18 @@ def recorded_items(user, p, scan):
     scan.limit_reached = True
 
 
+def latest_numbers(definition_ids):
+    """Newest revision number of each definition."""
+    if not definition_ids:
+        return {}
+    return dict(
+        Revision.objects.filter(definition_id__in=definition_ids)
+        .values("definition_id")
+        .annotate(latest=Max("number"))
+        .values_list("definition_id", "latest")
+    )
+
+
 def test_items(user, p, scan):
     from specmate.evidence.models import SubjectTest
     from specmate.evidence.subject_tests import evidence_item, readable_test
@@ -457,15 +469,22 @@ def test_items(user, p, scan):
     rows = SubjectTest.objects.filter(workspace_id=p.workspace_id)
     if p.actual_id:
         rows = rows.filter(Q(unit_id=p.actual_id) | Q(work_batch_id=p.actual_id))
-    rows = rows.select_related("unit", "work_batch").order_by("-recorded_at", "-id")
+    rows = rows.select_related("unit", "work_batch", "design_revision").order_by(
+        "-recorded_at", "-id"
+    )
     for index in range(0, SCAN_LIMIT, CHUNK):
         chunk = list(rows[index : index + CHUNK])
+        latest = latest_numbers({row.design_revision.definition_id for row in chunk})
         for row in chunk:
             try:
                 readable_test(user, row)
             except OperationError:
                 continue
-            yield (row.recorded_at, str(row.id)), evidence_item(row, describe)
+            tested = row.design_revision
+            yield (
+                (row.recorded_at, str(row.id)),
+                evidence_item(row, describe, tested.number, latest.get(tested.definition_id)),
+            )
         if len(chunk) < CHUNK:
             return
     scan.limit_reached = True

@@ -204,14 +204,29 @@ def readable_test(user, row):
 
 
 def read_subject_test(user, p: ReadSubjectTest):
-    row = SubjectTest.objects.select_related("unit", "work_batch").filter(id=p.test_id).first()
+    row = (
+        SubjectTest.objects.select_related("unit", "work_batch", "design_revision")
+        .filter(id=p.test_id)
+        .first()
+    )
     if row is None:
         raise NotFound("Test record unavailable.")
     try:
         readable_test(user, row)
     except OperationError:
         raise NotFound("Test record unavailable.") from None
-    return test_view(row)
+    from specmate.evidence.queries import latest_numbers
+
+    tested = row.design_revision
+    latest = latest_numbers({tested.definition_id}).get(tested.definition_id)
+    stale = stale_warning(tested.number, latest)
+    return {
+        **test_view(row),
+        "design_revision_number": tested.number,
+        "latest_revision_number": latest,
+        "stale": stale is not None,
+        "warnings": [stale] if stale else [],
+    }
 
 
 def value_line(value):
@@ -220,11 +235,28 @@ def value_line(value):
     return value_text(value)
 
 
-def evidence_item(row, describe):
-    """Map one test record onto the shared evidence item shape."""
+def stale_warning(tested_number, latest_number):
+    """Warning for a test whose design revision has a newer revision; None when current."""
+    if tested_number is None or latest_number is None or latest_number <= tested_number:
+        return None
+    return (
+        f"Stale: tested against design revision {tested_number}; revision {latest_number} is "
+        "newer. The test record is kept unchanged and says nothing about the newer revision."
+    )
+
+
+def evidence_item(row, describe, tested_number=None, latest_number=None):
+    """Map one test record onto the shared evidence item shape.
+
+    ``tested_number`` and ``latest_number`` are the stored design revision's number and the
+    newest revision number of its definition; with both, a newer revision marks it stale.
+    """
     names = ", ".join(i["name"] for i in row.instruments)
     references = [f"test:{row.id}", f"revision:{row.design_revision_id}"]
     warnings = []
+    stale = stale_warning(tested_number, latest_number)
+    if stale:
+        warnings.append(stale)
     for instrument in row.instruments:
         label = instrument["name"] + (
             f" ({instrument['identifier']})" if instrument.get("identifier") else ""
@@ -299,4 +331,5 @@ def evidence_item(row, describe):
         "observed_at": row.observed_at.isoformat(),
         "actor_id": row.recorded_by_id,
         "warnings": warnings,
+        "stale": None if latest_number is None else stale is not None,
     }

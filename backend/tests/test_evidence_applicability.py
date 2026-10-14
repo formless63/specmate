@@ -229,3 +229,94 @@ def test_recorded_firmware_impact_goes_stale_when_assertions_arrive_in_its_scope
     assert item["stale"] is True
     assert any("new fact assertions arrived" in w for w in item["warnings"])
     assert not any(arrived["assertion_id"] in w for w in item["warnings"])
+
+
+def subject_test(user, subject, key):
+    return op(
+        user,
+        "evidence.record_test",
+        {
+            "subject": subject,
+            "test_kind": "continuity",
+            "procedure": "Synthetic bench procedure; no actual test performed here.",
+            "instruments": [{"name": "Synthetic meter", "calibration": "unknown"}],
+            "observed_at": "2026-01-01T12:00:00Z",
+            "criterion": "Mapped terminals conduct",
+            "finding": "criterion_met",
+        },
+        idempotency_key=key,
+    )
+
+
+def test_subject_tests_read_against_their_stored_design_revision(users, project, history):
+    owner = users["owner"]
+    first = history["first"]
+    work = op(
+        owner,
+        "inventory.create_work_batch",
+        {
+            "revision_id": first["revision_id"],
+            "kind": "batch",
+            "label": "Applicability batch",
+            "planned_units": 2,
+        },
+        idempotency_key="appl-batch",
+    )
+    on_unit = subject_test(
+        owner, {"kind": "physical_unit", "unit_id": history["unit"]["unit_id"]}, "appl-test-u"
+    )
+    on_batch = subject_test(
+        owner, {"kind": "work_batch", "work_batch_id": work["work_batch_id"]}, "appl-test-b"
+    )
+    unit_id, batch_id = f"test:{on_unit['test_id']}", f"test:{on_batch['test_id']}"
+
+    exact = rows(read(users["viewer"], project, first))
+    assert exact[unit_id]["applicability"]["status"] == "exact_unit_only"
+    assert exact[batch_id]["applicability"]["status"] == "exact_batch_only"
+    assert "as a whole" in exact[batch_id]["applicability"]["reason"]
+    assert exact[unit_id]["item"]["stale"] is False
+    assert not any(w.startswith("Stale") for w in exact[unit_id]["item"]["warnings"])
+    listed = op(users["viewer"], "evidence.list", {"workspace_id": workspace_of(project)})
+    assert {
+        i["evidence_id"]: i["stale"] for i in listed["items"] if i["source"] == "subject_tests"
+    } == {
+        unit_id: False,
+        batch_id: False,
+    }
+
+    second = change_termination(users, history)
+    later = rows(read(users["viewer"], project, second))
+    for evidence_id, word in ((unit_id, "unit"), (batch_id, "work batch")):
+        row = later[evidence_id]
+        assert row["applicability"]["status"] == "stale_earlier_revision"
+        assert row["applicability"]["evidence_revision_number"] == first["number"]
+        assert f"{word} built to revision {first['number']}" in row["applicability"]["reason"]
+        assert "termination.style" in row["applicability"]["change"]["changed_sections"]
+        assert row["applicability"]["qualifies_selected_revision"] is False
+        assert row["item"]["stale"] is True
+        assert any(f"revision {second['number']} is newer" in w for w in row["item"]["warnings"])
+    # Read against the earlier revision, the test is exact but still warns about the newer one.
+    earlier = rows(read(users["viewer"], project, first))
+    assert earlier[unit_id]["applicability"]["status"] == "exact_unit_only"
+    assert earlier[unit_id]["item"]["stale"] is True
+
+    listed = op(users["viewer"], "evidence.list", {"workspace_id": workspace_of(project)})
+    tests = {i["evidence_id"]: i for i in listed["items"] if i["source"] == "subject_tests"}
+    assert tests[unit_id]["stale"] is True and tests[batch_id]["stale"] is True
+    read_back = op(users["viewer"], "evidence.read_test", {"test_id": on_unit["test_id"]})
+    assert read_back["stale"] is True
+    assert read_back["design_revision_number"] == first["number"]
+    assert read_back["latest_revision_number"] == second["number"]
+    # The stored record itself is unchanged.
+    assert {k: read_back[k] for k in on_unit} == on_unit
+    assert read_back["design_revision_id"] == first["revision_id"]
+
+
+def test_subject_tests_need_current_authority_to_appear(users, project, history):
+    owner = users["owner"]
+    done = subject_test(
+        owner, {"kind": "physical_unit", "unit_id": history["unit"]["unit_id"]}, "appl-test-x"
+    )
+    assert f"test:{done['test_id']}" in rows(read(users["viewer"], project, history["first"]))
+    with pytest.raises(NotFound):
+        read(users["outsider"], project, history["first"])

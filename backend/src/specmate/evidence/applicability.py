@@ -15,9 +15,10 @@ from django.db.models import Q
 from specmate.access.permissions import Perm, authorize
 from specmate.design.models import Revision
 from specmate.evidence.contracts import ApplicabilityList, ReadApplicability
-from specmate.evidence.models import RecordedPin, RecordedResult
-from specmate.evidence.queries import CHUNK, SCAN_LIMIT, fact_item, recorded_item
+from specmate.evidence.models import RecordedPin, RecordedResult, SubjectTest
+from specmate.evidence.queries import CHUNK, SCAN_LIMIT, describe, fact_item, recorded_item
 from specmate.evidence.recorded import newer_assertions, pin_states
+from specmate.evidence.subject_tests import evidence_item, readable_test
 from specmate.facts.models import FactAssertion
 from specmate.facts.queries import authorize_assertions, resolve_target, subject_target
 from specmate.operations import NotFound, OperationError
@@ -37,6 +38,10 @@ NOTES = {
         "Observed on one physical unit built to this exact revision; it does not qualify any "
         "other unit of the same revision."
     ),
+    "exact_batch_only": (
+        "Tested on one work batch, as a whole, built to this exact revision; it does not "
+        "qualify any individual unit in it or any other batch of the same revision."
+    ),
     "definition_scope_unverified": (
         "Attached to the definition as a whole, not to a revision; whether it holds for the "
         "selected revision is not established."
@@ -47,6 +52,14 @@ NOTES = {
     ),
     "unit_later_revision": (
         "Observed on a unit built to later revision {then}; inapplicable to selected "
+        "revision {now}."
+    ),
+    "batch_earlier_revision": (
+        "Tested on a work batch built to revision {then}. The test stays true of that batch "
+        "but is stale for selected revision {now}."
+    ),
+    "batch_later_revision": (
+        "Tested on a work batch built to later revision {then}; inapplicable to selected "
         "revision {now}."
     ),
 }
@@ -89,10 +102,17 @@ def change_between(then, now):
     }
 
 
-def classify(selected, evidence_revision, *, unit=False):
-    """Applicability of evidence attached to ``evidence_revision`` for ``selected``."""
+def classify(selected, evidence_revision, *, unit=False, batch=False):
+    """Applicability of evidence attached to ``evidence_revision`` for ``selected``.
+
+    ``unit`` marks evidence observed on one physical unit, ``batch`` evidence from a test of
+    one work batch as a whole; either one never extends to other actual subjects.
+    """
+    actual = "batch" if batch else "unit" if unit else None
     if evidence_revision.id == selected.id:
-        status = "exact_unit_only" if unit else "exact_revision"
+        status = {"unit": "exact_unit_only", "batch": "exact_batch_only"}.get(
+            actual, "exact_revision"
+        )
         return {
             "status": status,
             "reason": NOTES[status],
@@ -101,7 +121,7 @@ def classify(selected, evidence_revision, *, unit=False):
         }
     earlier = evidence_revision.number < selected.number
     status = "stale_earlier_revision" if earlier else "inapplicable_later_revision"
-    note = NOTES[("unit_" + ("earlier" if earlier else "later") + "_revision") if unit else status]
+    note = NOTES[f"{actual}_{'earlier' if earlier else 'later'}_revision" if actual else status]
     then, now = evidence_revision, selected
     return {
         "status": status,
@@ -192,8 +212,35 @@ def applicability_items(user, p, selected, scan):
         exact = next((r for r in pinned if r.id == selected.id), None)
         basis = exact or pinned[-1]
         out.append(((record.recorded_at, str(record.id)), item, classify(selected, basis)))
+    out.extend(test_applicability(user, p, selected, siblings, scan))
     out.sort(key=lambda row: row[0], reverse=True)
     return out
+
+
+def test_applicability(user, p, selected, siblings, scan):
+    """Actual-subject test records, read against the design revision stored on each record."""
+    latest = max(r.number for r in siblings.values())
+    rows = (
+        SubjectTest.objects.filter(workspace_id=p.workspace_id, design_revision_id__in=siblings)
+        .select_related("unit", "work_batch")
+        .order_by("-recorded_at", "-id")
+    )
+    for index in range(0, SCAN_LIMIT, CHUNK):
+        chunk = list(rows[index : index + CHUNK])
+        for row in chunk:
+            try:
+                readable_test(user, row)
+            except OperationError:
+                continue
+            tested = siblings[row.design_revision_id]
+            yield (
+                (row.recorded_at, str(row.id)),
+                evidence_item(row, describe, tested.number, latest),
+                classify(selected, tested, unit=bool(row.unit_id), batch=bool(row.work_batch_id)),
+            )
+        if len(chunk) < CHUNK:
+            return
+    scan.limit_reached = True
 
 
 def read_applicability(user, p: ReadApplicability):

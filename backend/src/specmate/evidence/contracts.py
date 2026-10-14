@@ -112,7 +112,8 @@ class EvidenceItem(StrictModel):
     establishes: list[str]
     does_not_establish: list[str]
     warnings: list[str] = Field(default_factory=list)
-    # Recorded results only: True when a pinned input has a newer revision. None elsewhere.
+    # Recorded results: True when a pinned input has a newer revision. Test records: True when
+    # the tested design revision has a newer revision. None elsewhere.
     stale: bool | None = None
     physical_qualification: Literal[False] = False
 
@@ -188,6 +189,7 @@ class ReadApplicability(StrictModel):
 ApplicabilityStatus = Literal[
     "exact_revision",
     "exact_unit_only",
+    "exact_batch_only",
     "definition_scope_unverified",
     "stale_earlier_revision",
     "inapplicable_later_revision",

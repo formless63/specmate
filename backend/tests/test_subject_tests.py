@@ -258,11 +258,13 @@ def test_authority_replay_and_immutability(users, workspace, units):
 
 def test_reads_are_scoped_and_http_matches_operations(users, workspace, units):
     done = record(users["owner"], on_unit(units[0]))
-    assert op(users["viewer"], "evidence.read_test", {"test_id": done["test_id"]}) == done
+    read_back = op(users["viewer"], "evidence.read_test", {"test_id": done["test_id"]})
+    assert {k: read_back[k] for k in done} == done
+    assert read_back["stale"] is False and read_back["warnings"] == []
     with pytest.raises(NotFound):
         op(users["outsider"], "evidence.read_test", {"test_id": done["test_id"]})
     client = api(users["viewer"])
-    assert client.get(f"/api/v0/evidence/tests/{done['test_id']}").json() == done
+    assert client.get(f"/api/v0/evidence/tests/{done['test_id']}").json() == read_back
     assert (
         api(users["outsider"]).get(f"/api/v0/evidence/tests/{done['test_id']}").status_code == 404
     )

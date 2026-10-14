@@ -35,6 +35,7 @@ function RecordedSnapshot({ recordId }: { recordId: string }) {
 
 /** Says what went stale: a newer input revision, new fact assertions in scope, or both. */
 function staleText(item: EvidenceItem): string {
+  if (item.source === "subject_tests") return "Stale: newer design revision";
   const assertions = item.warnings.some((w) => w.startsWith("Stale: new fact assertions"));
   const revision = item.warnings.some((w) => w.startsWith("Stale: pinned"));
   if (assertions && revision) return "Stale: newer input revision and new fact assertions";
@@ -52,7 +53,7 @@ function Row({ item }: { item: EvidenceItem }) {
   return <Table.Tr>
     <Table.Td><KindBadge item={item} /><Text size="xs">{item.source.replaceAll("_", " ")}</Text>
       {item.stale === true && <Badge color="orange" variant="draft">{staleText(item)}</Badge>}
-      {item.stale === false && <Text size="xs">Recorded inputs are the latest revisions</Text>}</Table.Td>
+      {item.stale === false && <Text size="xs">{item.source === "subject_tests" ? "Tested design revision is the latest" : "Recorded inputs are the latest revisions"}</Text>}</Table.Td>
     <Table.Td><Text>{item.statement}</Text><Text size="xs">Status: {item.status.replaceAll("_", " ")}</Text>
       {item.conditions.map((c) => <Text size="xs" key={c.property}>Condition {c.property}: {c.status === "known" ? JSON.stringify(c.value) : "unknown"}</Text>)}</Table.Td>
     <Table.Td><Text size="sm">{item.subject.label}</Text><Text size="xs">{item.subject.kind === "work_batch" ? "Actual work batch, as a whole" : item.subject.scope === "actual" ? "Actual unit" : item.subject.scope === "design" ? "Design scope" : "Project scope"}</Text></Table.Td>

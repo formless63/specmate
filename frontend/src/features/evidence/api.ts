@@ -67,7 +67,7 @@ export type SubjectTestRecord = { test_id: string; recorded_at: string; applies_
 export function recordSubjectTest(input: SubjectTestInput, idempotencyKey: string): Promise<SubjectTestRecord> {
   return command<SubjectTestRecord>("evidence.record_test", input, { idempotencyKey });
 }
-export type ApplicabilityStatus = "exact_revision" | "exact_unit_only" | "definition_scope_unverified" | "stale_earlier_revision" | "inapplicable_later_revision";
+export type ApplicabilityStatus = "exact_revision" | "exact_unit_only" | "exact_batch_only" | "definition_scope_unverified" | "stale_earlier_revision" | "inapplicable_later_revision";
 export type Applicability = {
   status: ApplicabilityStatus; reason: string; evidence_revision_id?: string | null; evidence_revision_number?: number | null;
   change?: { from_number: number; to_number: number; content_changed: boolean; changed_sections: string[]; sections_truncated: boolean } | null;
