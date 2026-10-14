@@ -86,3 +86,14 @@ test("fields added later are locked too, and a held permission leaves the form e
   expect((screen.getByLabelText("Name") as HTMLInputElement).readOnly).toBe(false);
   expect(document.querySelector("[data-inspect]")).toBeNull();
 });
+
+test("fields disabled by form state show as read-only inspection without the permission and recover on unlock", () => {
+  const view = (permissions: string[]) => <PermissionsProvider permissions={permissions as never}><InspectionScope permission="design.edit"><input aria-label="Orientation datum" disabled defaultValue="A1" /></InspectionScope></PermissionsProvider>;
+  const { rerender } = render(view(["workspace.read"]));
+  const datum = screen.getByLabelText("Orientation datum") as HTMLInputElement;
+  expect(datum.disabled).toBe(false);
+  expect(datum.readOnly).toBe(true);
+  expect(datum.value).toBe("A1");
+  rerender(view(["workspace.read", "design.edit"]));
+  expect((screen.getByLabelText("Orientation datum") as HTMLInputElement).disabled).toBe(true);
+});
