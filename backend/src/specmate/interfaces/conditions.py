@@ -1,10 +1,13 @@
 """Bounded inclusive scope comparison, with no extrapolation or interpolation."""
 
+PARTIAL_REASON = "Rating scope covers only part of the operating envelope"
+
 
 def rating_scope(rating, operating):
     scope = rating.scope
     outside = []
     missing = []
+    partial = []
     if scope.mode is not None:
         if operating.mode is None:
             missing.append("Named operating mode is unknown.")
@@ -13,15 +16,20 @@ def rating_scope(rating, operating):
     if scope.temperature is not None:
         if operating.temperature is None:
             missing.append("Operating temperature envelope is unknown.")
+        elif (
+            operating.temperature.maximum_c < scope.temperature.minimum_c
+            or scope.temperature.maximum_c < operating.temperature.minimum_c
+        ):
+            outside.append("Operating temperature envelope lies outside the declared scope.")
         elif not (
             scope.temperature.minimum_c <= operating.temperature.minimum_c
             and operating.temperature.maximum_c <= scope.temperature.maximum_c
         ):
-            outside.append("Operating temperature envelope extends outside the declared scope.")
+            partial.append(PARTIAL_REASON + ".")
     if outside:
-        return "out_of_scope", " ".join(outside + missing)
-    if missing:
-        return "unknown", " ".join(missing)
+        return "out_of_scope", " ".join(outside + partial + missing)
+    if partial or missing:
+        return "unknown", " ".join(partial + missing)
     return "in_scope", "All declared scope conditions include the explicit operating envelope."
 
 

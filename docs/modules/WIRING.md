@@ -574,7 +574,10 @@ actual mating correspondence or measured physical geometry.
 Electrical declarations retain independent positive, negative, reference, nonpolarized
 or unknown polarity and an explicit declaration basis. A separate polarity finding
 compares only the proposed contact row; drawing mirroring never changes its polarity.
-It creates no bond, driver/receiver behavior, safety approval or overall compatibility.
+A nonpolarized or reference contact paired with a positive or negative contact is
+`flagged`: a named, review-level finding with its reason that is allowed and never
+blocks freezing or any other dimension. Other differing explicit polarities (for example
+positive against negative, or nonpolarized against reference) remain `invalid`. It creates no bond, driver/receiver behavior, safety approval or overall compatibility.
 
 Conditional voltage envelopes and current maxima identify stable local rating IDs,
 explicit inclusive Celsius temperature envelopes and/or exact named operating modes,
@@ -586,8 +589,11 @@ without editing their evidence or any prior revision.
 
 Assessment operating temperatures are explicit inclusive envelopes, separate from ratings.
 Every scope predicate must be supplied and satisfied before its rating applies. Missing
-conditions remain unknown; temperatures partially outside a declared envelope and mismatched
-modes are out of scope. Fully applicable declarations intersect their voltage envelopes
+conditions remain unknown. A temperature scope that only partly overlaps the operating
+envelope leaves that rating dimension unknown ("Rating scope covers only part of the
+operating envelope"), even when an unconditional legacy limit exists; a fully contained
+scope applies, and a fully disjoint temperature scope or mismatched mode is out of scope.
+Fully applicable declarations intersect their voltage envelopes
 and constrain current by the lowest maximum. A missing conditional condition prevents
 an unconditional declaration from silently resolving that dimension. A definitely
 out-of-scope rating contributes no limit and remains visible alongside any independently

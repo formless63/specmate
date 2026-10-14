@@ -149,7 +149,8 @@
           "enum": [
             "satisfied",
             "invalid",
-            "unknown"
+            "unknown",
+            "flagged"
           ],
           "title": "Status",
           "type": "string"
