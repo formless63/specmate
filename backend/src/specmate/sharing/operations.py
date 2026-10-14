@@ -48,6 +48,7 @@ def view(row):
         "archive_sha256": row.archive_sha256,
         "manifest_sha256": row.manifest_sha256,
         "shared_by": row.shared_by_id,
+        "shared_by_username": row.shared_by.get_username(),
         "shared_at": row.shared_at.isoformat(),
         "via": row.via,
     }
@@ -62,7 +63,7 @@ def view(row):
 )
 def list_shares(ctx: Context, p: ListShares):
     workspace = authorize(ctx.user, p.workspace_id, Perm.WORKSPACE_READ)
-    rows = ShareRecord.objects.filter(workspace=workspace)
+    rows = ShareRecord.objects.filter(workspace=workspace).select_related("shared_by")
     total = rows.count()
     window = list(rows.order_by("-shared_at", "-id")[p.offset : p.offset + p.limit])
     return {

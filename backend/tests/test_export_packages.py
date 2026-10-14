@@ -9,11 +9,17 @@ import csv
 import hashlib
 import io
 import json
+import subprocess
+import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
-from specmate.export_packages import operations  # noqa: F401
+from specmate.export_packages import (
+    operations,  # noqa: F401
+    verification,
+)
 from specmate.export_packages.verification import verify_archive, verify_files
 from specmate.operations import Conflict, NotFound, ValidationFailed
 
@@ -109,7 +115,18 @@ def documents(user, cable, quantity, key):
     return saved["document_set_id"]
 
 
-def test_package_pins_every_output_to_identical_revisions_and_independent_quantities(users, system):
+def run_bundled(work, target, manifest_sha256):
+    """Run the package's own verifier with the interpreter in isolated mode."""
+    script = work / "verify" / "verification.py"
+    argv = [sys.executable, "-I", "-S", str(script), str(target), "--manifest-sha256"]
+    return subprocess.run(  # noqa: S603
+        [*argv, manifest_sha256], capture_output=True, text=True, check=False
+    )
+
+
+def test_package_pins_every_output_to_identical_revisions_and_independent_quantities(
+    users, system, tmp_path
+):
     owner, viewer = users["owner"], users["viewer"]
     root, cable, board = system["root"], system["cable"], system["board"]
     # Independent oracle: the cable occurs twice per root, the board once.
@@ -211,6 +228,30 @@ def test_package_pins_every_output_to_identical_revisions_and_independent_quanti
     ]
     # Fixed timestamps and sorted entries: an unchanged review yields identical bytes.
     assert download(viewer, payload, reviewed)[0] == raw
+
+    # The offline verifier travels in the package, listed and hashed like any other file.
+    bundled = files["verify/verification.py"]
+    frozen = Path(verification.__file__).with_name("verifiers") / "v2.py"
+    assert bundled == frozen.read_bytes()
+    # Released verifier bytes never change; a verifier change needs a new package format.
+    assert (
+        hashlib.sha256(bundled).hexdigest()
+        == "19c90ac0c8877f06b4d0b28690ac423259158bf192370d7a6ad367368c0c63d4"
+    )
+    assert json.loads(files["manifest.json"])["package_format"] == 2
+    listed = {row["path"]: row for row in json.loads(files["manifest.json"])["files"]}
+    assert listed["verify/verification.py"]["sha256"] == hashlib.sha256(bundled).hexdigest()
+    assert b"verify/verification.py" in files["README.txt"]
+    work = tmp_path / "extracted"
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        archive.extractall(work)
+    (tmp_path / "package.zip").write_bytes(raw)
+    for target in (work, tmp_path / "package.zip"):
+        done = run_bundled(work, target, reviewed["sha256"])
+        assert (done.returncode, done.stdout.strip()) == (0, "verified"), done.stdout
+    (work / "cable" / cable["revision_id"] / "conductors.csv").write_bytes(b"altered")
+    done = run_bundled(work, work, reviewed["sha256"])
+    assert done.returncode == 1 and "hash or size mismatch" in done.stdout
 
 
 def test_incoherent_revisions_and_quantities_block_the_package(users, project, system):

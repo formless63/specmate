@@ -7,6 +7,9 @@ runs and nothing here is physical qualification.
 
 import base64
 import hashlib
+import io
+import json
+import zipfile
 from uuid import UUID
 
 import pytest
@@ -195,6 +198,41 @@ def test_release_freezes_exact_closure_and_is_reconstructable(users, closure):
     ):
         with pytest.raises(DatabaseError), transaction.atomic():
             statement()
+
+
+def test_release_made_under_package_format_1_still_verifies_identical(users, closure, monkeypatch):
+    """Releases from before the bundled verifier keep their layout and manifest hash."""
+    payload = request(closure)
+    with monkeypatch.context() as legacy:
+        legacy.setattr("specmate.export_packages.queries.LATEST_FORMAT", 1)
+        legacy.setattr("specmate.releases.operations.LATEST_FORMAT", 1)
+        reviewed = review(users["viewer"], payload)
+        created = release(users["editor"], payload, reviewed, **ACK)
+    row = Release.objects.get(id=created["release_id"])
+    assert row.package_format == 1
+    data = base64.b64decode(
+        op(users["viewer"], "release.download", {"release_id": created["release_id"]})[
+            "archive_base64"
+        ]
+    )
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        assert "verify/verification.py" not in archive.namelist()
+        assert "package_format" not in json.loads(archive.read("manifest.json"))
+    # Current code (latest format 2) rebuilds with the stored format.
+    verified = op(users["viewer"], "release.verify", {"release_id": created["release_id"]})
+    assert verified["status"] == "verified" and verified["reconstruction"] == "identical"
+    # A new review uses the latest format and differs in manifest hash.
+    latest = review(users["viewer"], payload)
+    assert latest["review"]["artifacts"]["package_manifest_sha256"] != row.manifest_sha256
+    new = release(users["editor"], payload, latest, **ACK)
+    assert Release.objects.get(id=new["release_id"]).package_format == 2
+    again = op(users["viewer"], "release.verify", {"release_id": new["release_id"]})
+    assert again["reconstruction"] == "identical" and again["problems"] == []
+    data = base64.b64decode(
+        op(users["viewer"], "release.download", {"release_id": new["release_id"]})["archive_base64"]
+    )
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        assert "verify/verification.py" in archive.namelist()
 
 
 def test_unresolved_items_need_explicit_acknowledgement_with_reason(users, closure):

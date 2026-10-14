@@ -46,12 +46,12 @@ function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous BOM revisions</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next BOM revisions</Button></Group>
     </>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && <DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); }} onFrozen={async id => { setRevisionId(id); await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); await cache.invalidateQueries({ queryKey: ["bom-identity", definitionId] }); }} />}
+    {draft.data && <DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} workspaceId={workspaceId} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); }} onFrozen={async id => { setRevisionId(id); await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); await cache.invalidateQueries({ queryKey: ["bom-identity", definitionId] }); }} />}
     {revisionId && <BomInspector key={revisionId} revisionId={revisionId} />}
   </Stack>;
 }
 
-function DraftEditor({ draft, definitions, onSaved, onFrozen }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void>; onFrozen: (id: string) => Promise<void> }) {
+function DraftEditor({ draft, definitions, workspaceId, onSaved, onFrozen }: { draft: Draft; workspaceId?: string | null; definitions: Definition[]; onSaved: () => Promise<void>; onFrozen: (id: string) => Promise<void> }) {
   const editGate = usePermission('design.edit');
   const freezeGate = usePermission('design.freeze');
   const [value, setValue] = useState(draft.content.bom ?? blankPlan());
@@ -59,7 +59,7 @@ function DraftEditor({ draft, definitions, onSaved, onFrozen }: { draft: Draft; 
   const save = useMutation({ mutationFn: () => command("bom.update", { draft_id: draft.draft_id, bom: value }, draft.state), onSuccess: onSaved });
   const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("bom.freeze", { draft_id: draft.draft_id }, draft.state), onSuccess: result => onFrozen(result.revision_id) });
   return <Card withBorder><Stack><Title order={3}>Edit BOM draft</Title>
-    <InspectionScope permission="design.edit"><PlanEditor value={value} definitions={definitions} onChange={next => { setValue(next); setDirty(true); }} /></InspectionScope>
+    <InspectionScope permission="design.edit"><PlanEditor value={value} definitions={definitions} workspaceId={workspaceId} onChange={next => { setValue(next); setDirty(true); }} /></InspectionScope>
     <Group><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save BOM draft</Button><Button disabled={dirty || !draft.content.bom} loading={freeze.isPending} onClick={() => freeze.mutate()} {...freezeGate.props}>Freeze BOM revision</Button><ReadOnlyNote permission="design.edit">Saving and freezing BOM drafts are unavailable.</ReadOnlyNote></Group>
     {dirty && <Text>Save your edits before freezing.</Text>}
     {save.isError && <Alert color="red">{save.error.message}</Alert>}{freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}

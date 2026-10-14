@@ -1,6 +1,11 @@
 """Standard-library offline check of a coherent export package (no application needed).
 
-Usage: python3 -I -S verification.py package.zip --manifest-sha256 <retained-review-sha256>
+Usage: python3 -I -S verification.py package.zip|extracted-folder --manifest-sha256 <sha256>
+(<sha256> is the manifest hash retained from the authorized review.)
+
+This file ships inside every package as verify/verification.py and is listed in the manifest
+like any other file. A copy inside the package can only vouch for the package it came with:
+for independent assurance, run a copy obtained separately (for example from the application).
 
 Checks the manifest against a separately retained review hash, the file inventory and
 hashes, every pinned canonical design snapshot, and that each included output's files
@@ -11,6 +16,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import sys
 import zipfile
 
@@ -60,13 +66,26 @@ def verify_archive(data, manifest_sha256=None):
     return verify_files(files, manifest_sha256)
 
 
+def read_folder(root):
+    files = {}
+    for folder, _, names in os.walk(root):
+        for name in names:
+            path = os.path.join(folder, name)
+            with open(path, "rb") as stream:
+                files[os.path.relpath(path, root).replace(os.sep, "/")] = stream.read()
+    return files
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("package")
     parser.add_argument("--manifest-sha256", required=True)
     args = parser.parse_args(argv)
-    with open(args.package, "rb") as stream:
-        problems = verify_archive(stream.read(), args.manifest_sha256)
+    if os.path.isdir(args.package):
+        problems = verify_files(read_folder(args.package), args.manifest_sha256)
+    else:
+        with open(args.package, "rb") as stream:
+            problems = verify_archive(stream.read(), args.manifest_sha256)
     for problem in problems:
         print(problem)
     print("verified" if not problems else f"{len(problems)} problem(s)")

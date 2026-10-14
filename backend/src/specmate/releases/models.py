@@ -32,6 +32,8 @@ class Release(models.Model):
     released_at = models.DateTimeField(auto_now_add=True)
     # Cutoff for build reproducibility evidence in the manifest, fixed before it was built.
     reproducibility_as_of = models.DateTimeField(null=True)
+    # Export package layout of the retained archive (1 = before the bundled verifier).
+    package_format = models.PositiveSmallIntegerField(default=1)
     request_id = models.CharField(max_length=200)
 
     class Meta:

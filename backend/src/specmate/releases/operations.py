@@ -18,7 +18,7 @@ from specmate.access.permissions import Perm, authorize, authorize_project, cont
 from specmate.design.models import Revision
 from specmate.design.operations import canonical_bytes
 from specmate.export_packages.contracts import ExportRequest
-from specmate.export_packages.queries import build_package, digest, zip_package
+from specmate.export_packages.queries import LATEST_FORMAT, build_package, digest, zip_package
 from specmate.export_packages.verification import verify_archive
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.scope import workspace_scope
@@ -90,7 +90,9 @@ def create(ctx: Context, p: CreateRelease):
     # reproducibility evidence to the same instant, so a comparison committed later
     # cannot change the reconstructed manifest.
     as_of = timezone.now()
-    closure, files, manifest_sha256 = review_release(ctx, p, as_of=as_of)
+    closure, files, manifest_sha256 = review_release(
+        ctx, p, as_of=as_of, package_format=LATEST_FORMAT
+    )
     sha256 = review_digest(closure)
     if sha256 != p.reviewed_sha256:
         raise Conflict(
@@ -164,6 +166,7 @@ def create(ctx: Context, p: CreateRelease):
             released_by=ctx.user,
             request_id=ctx.request_id,
             reproducibility_as_of=as_of,
+            package_format=LATEST_FORMAT,
         )
         ReleasePin.objects.bulk_create(
             ReleasePin(release=release, revision_id=rid, role=role, sha256=shas[rid])
@@ -316,7 +319,9 @@ def verify(ctx: Context, p: ReleaseRef):
             {k: release.request[k] for k in ExportRequest.model_fields if k in release.request}
         )
         get_revision(ctx.user, release.root_revision_id)
-        _, _, rebuilt = build_package(ctx, request, as_of=release.reproducibility_as_of)
+        _, _, rebuilt = build_package(
+            ctx, request, as_of=release.reproducibility_as_of, package_format=release.package_format
+        )
         reconstruction = "identical" if rebuilt == release.manifest_sha256 else "differs"
     except NotFound:
         reconstruction = "unavailable"
