@@ -9,14 +9,15 @@ import { compileOptions, compileReview, type CompileOptions, type CompileReview 
 vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), compileOptions: vi.fn(), compileReview: vi.fn() }));
 vi.mock('../sources/api', async original => ({ ...(await original<typeof import('../sources/api')>()), command: vi.fn() }));
 const options: CompileOptions = {
-  available_recipe_id: 'approved-compiler', unavailable_reason: null, builds: [{ build_id: 'build-one', state: 'succeeded', failure: null }], truncated: false,
+  available_recipe_id: 'approved-compiler', unavailable_reason: null, builds: [{ build_id: 'build-one', state: 'succeeded', failure: null, retry_of: 'build-zero', requested_by_viewer: false }], truncated: false,
   inputs: { schema_version: '1', adapter: 'firmware-avr-gcc-v1', firmware_revision_id: 'firmware-one', firmware_snapshot_sha256: 'firmware-snapshot', occurrence: null,
     sources: [{ local_id: 'app', source_revision_id: 'source-one', source_manifest_sha256: 'source-manifest', files: [{ path: 'synthetic-main.c', sha256: 'source-hash', rights: 'MIT', role: 'application' }] }],
     configuration: [{ key: 'COUNT', status: 'known', value: '7' }], toolchain: { family: 'other', name: 'avr-gcc', version: '5.4.0', framework: 'baremetal', board_id: 'atmega328p' },
     target: { population_revision_id: 'population-one', option_id: 'default', component_id: 'native-one', declared_part: null }, pins: [] },
 };
 const evidence: CompileReview = {
-  reference: { firmware_revision_id: 'firmware-one', build_id: 'build-one' }, inputs: options.inputs, image: 'exact-compiler-image', recipe_id: 'approved-compiler', report_sha256: 'report-hash',
+  reference: { firmware_revision_id: 'firmware-one', build_id: 'build-one' }, retry_of: 'build-zero',
+  lineage: [{ build_id: 'build-zero', state: 'failed', current: false }, { build_id: 'build-one', state: 'succeeded', current: true }], inputs: options.inputs, image: 'exact-compiler-image', recipe_id: 'approved-compiler', report_sha256: 'report-hash',
   report: { compiler_version: '5.4.0', tool_packages: { 'gcc-avr': 'exact-package' }, flashing: 'not_performed', device_operation: 'not_observed', hardware_compatibility: 'not_evaluated', physical_qualification: false },
   outputs: [{ output_id: 'output-one', path: 'handoff.json', sha256: 'handoff-hash', rights: 'MIT', size: 100, media_type: 'application/json' }],
 };
@@ -113,4 +114,11 @@ test('strict-mode project replacement and unmount ignore old compile completion'
   view.unmount();
   await act(async () => finish({ build_id: 'old-build' }));
   expect(compileOptions).toHaveBeenCalledTimes(count);
+});
+
+test('firmware builds show their retry chain in the list and the handoff', async () => {
+  render(panel()); await screen.findByText(/retry of build-zero/);
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect firmware handoff build-one' }));
+  await screen.findByText('Retry of #1 (build-zero)');
+  expect(screen.getByText('Attempt #2 · build-one (this) · succeeded')).toBeTruthy();
 });

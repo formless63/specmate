@@ -12,6 +12,7 @@ from specmate.assemblies.queries import get_snapshot
 from specmate.builds.models import BuildAttempt
 from specmate.builds.operations import RequestBuild, request_build
 from specmate.builds.recipes import Recipe, approved_recipe
+from specmate.builds.recovery import _lineage as lineage
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
 from specmate.firmware_builds.contracts import (
@@ -324,6 +325,8 @@ def read(ctx, p):
     report, outputs = validate_outputs(spec, build)
     return {
         "reference": p.model_dump(mode="json"),
+        "retry_of": str(build.retry_of_id) if build.retry_of_id else None,
+        "lineage": lineage(build),
         "inputs": spec,
         "recipe_id": build.recipe_id,
         "image": build.recipe["image"],
@@ -370,6 +373,8 @@ def options(ctx, p):
                 "build_id": str(build.id),
                 "state": build.stage.state,
                 "failure": build.stage.receipt.get("message") if build.stage.receipt else None,
+                "retry_of": str(build.retry_of_id) if build.retry_of_id else None,
+                "requested_by_viewer": ctx.user.pk == build.requested_by_id,
             }
         )
     return {

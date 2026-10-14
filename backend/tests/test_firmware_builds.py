@@ -254,7 +254,12 @@ def test_handoff_exact_provenance_download_and_current_authority(users, firmware
     output = stage.outputs.get(path="handoff.json")
     response = download_output(request, firmware["revision_id"], stage.build_id, output.id)
     assert digest(b"".join(response.streaming_content)) == output.sha256
-    assert read_options(request, firmware["revision_id"])["builds"][0]["state"] == "succeeded"
+    listed = read_options(request, firmware["revision_id"])["builds"][0]
+    assert listed["state"] == "succeeded" and listed["retry_of"] is None
+    assert item["retry_of"] is None
+    assert item["lineage"] == [
+        {"build_id": str(stage.build_id), "state": "succeeded", "current": True}
+    ]
     WorkspaceMember.objects.filter(user=users["viewer"]).delete()
     with pytest.raises(NotFound):
         op(users["viewer"], "firmware_build.read", reference(requested))

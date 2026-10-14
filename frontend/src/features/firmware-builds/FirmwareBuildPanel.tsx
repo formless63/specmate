@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
 import { compileOptions, compileOutputUrl, compileReview, type CompileOptions, type CompileReview, type FirmwareBuildRef } from './api';
+import { Lineage } from '../builds/BuildsPanel';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = FirmwareBuildRef & { canExecute?: boolean };
@@ -77,9 +78,10 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
       <TextInput label="Source execution review basis" value={basis} onChange={event => setBasis(event.currentTarget.value)} />
       <Button disabled={busy || !consent || !basis.trim()} onClick={() => void compile()}>Request firmware compile</Button>
     </Stack>}
-    {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button></Group>)}
+    {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}{build.retry_of ? ` · retry of ${build.retry_of}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button></Group>)}
     {available?.truncated && <Text>Showing the latest 100 builds; earlier history is retained.</Text>}
-    {review && <Stack><Title order={4}>Registered compiler handoff</Title><CompilerPins inputs={review.inputs} />
+    {review && <Stack><Title order={4}>Registered compiler handoff</Title>
+      <Lineage lineage={review.lineage} retryOf={review.retry_of} /><CompilerPins inputs={review.inputs} />
       <Text size="xs">Recipe {review.recipe_id} · image {review.image} · report {review.report_sha256}</Text>
       <Text size="sm">Tool packages: {Object.entries(review.report.tool_packages).map(([name, version]) => `${name} ${version}`).join(', ')}</Text>
       <Table><Table.Thead><Table.Tr><Table.Th>Output</Table.Th><Table.Th>Exact bytes / rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{review.outputs.map(output => <Table.Tr key={output.output_id}><Table.Td><Anchor href={compileOutputUrl(review, output.output_id)}>{output.path}</Anchor></Table.Td><Table.Td><Text size="xs">{output.sha256} · {output.size} bytes · {output.rights}</Text></Table.Td></Table.Tr>)}</Table.Tbody></Table>

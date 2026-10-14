@@ -472,6 +472,11 @@ def test_history_retains_events_partial_outputs_and_lineage_without_secrets(
     ]
     newest = op(users["viewer"], "build.history", {"build_id": second["build_id"]})
     assert newest["retry_of"] == build["build_id"] and newest["lineage"][1]["current"]
+    # Only the original requester is flagged; the UI offers cancellation to them without the grant.
+    assert newest["requested_by_viewer"] is False
+    assert op(users["owner"], "build.history", {"build_id": second["build_id"]})[
+        "requested_by_viewer"
+    ] is (BuildAttempt.objects.get(id=second["build_id"]).requested_by_id == users["owner"].pk)
 
 
 def test_history_flags_resolution_actions_for_unavailable_runner(users, build, credential, lease):

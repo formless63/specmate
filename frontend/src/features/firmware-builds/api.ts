@@ -8,10 +8,11 @@ export type CompilerInputs = Firmware & {
 };
 export type CompileOptions = {
   inputs: CompilerInputs; available_recipe_id: string | null; unavailable_reason: string | null;
-  builds: { build_id: string; state: string; failure: string | null }[]; truncated: boolean;
+  builds: { build_id: string; state: string; failure: string | null; retry_of: string | null; requested_by_viewer: boolean }[]; truncated: boolean;
 };
 export type CompileReview = {
-  reference: FirmwareBuildRef & { build_id: string }; inputs: CompilerInputs; image: string; recipe_id: string; report_sha256: string;
+  reference: FirmwareBuildRef & { build_id: string }; retry_of: string | null;
+  lineage: { build_id: string; state: string; current: boolean }[]; inputs: CompilerInputs; image: string; recipe_id: string; report_sha256: string;
   report: { compiler_version: string; tool_packages: Record<string, string>; physical_qualification: false; flashing: 'not_performed'; device_operation: 'not_observed'; hardware_compatibility: 'not_evaluated' };
   outputs: { output_id: string; path: string; sha256: string; size: number; rights: string; media_type: string }[];
 };

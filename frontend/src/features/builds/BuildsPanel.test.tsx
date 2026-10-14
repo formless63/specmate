@@ -9,11 +9,11 @@ vi.mock('./api', () => ({ listBuilds: vi.fn(), readHistory: vi.fn(), cancelBuild
 
 const summary = (id: string, state: string, retryOf: string | null = null) => ({
   build_id: id, stage_id: `stage-${id}`, state, state_token: 'stage-v3', terminal: false, cancellation_requested: false,
-  recipe_id: 'synthetic-check-r1', requested_at: '2026-01-01T00:00:00Z', retry_of: retryOf,
+  recipe_id: 'synthetic-check-r1', requested_at: '2026-01-01T00:00:00Z', retry_of: retryOf, requested_by_viewer: false,
 });
 const history = (over: Partial<BuildHistory> = {}): BuildHistory => ({
   build_id: 'build-a', state: 'running', state_token: 'stage-v3', receipt: null, recipe_id: 'synthetic-check-r1',
-  source_revision_id: 'rev-1', requested_at: '2026-01-01T00:00:00Z', retry_of: null, retried_by: null,
+  source_revision_id: 'rev-1', requested_at: '2026-01-01T00:00:00Z', retry_of: null, retried_by: null, requested_by_viewer: false,
   lineage: [{ build_id: 'build-a', state: 'running', current: true }],
   events: [{ kind: 'requested', at: 't1', detail: {} }], outputs: [],
   cancel_available: true, retry_available: false, abandon_available: false, awaiting_runner_confirmation: false, ...over,
@@ -52,7 +52,9 @@ test('retry names the exact failed attempt and opens the new attempt', async () 
   fireEvent.click(screen.getByRole('button', { name: 'Retry as a new attempt' }));
   await waitFor(() => expect(retryBuild).toHaveBeenCalledWith('build-a', 'stage-v3', expect.any(String)));
   await screen.findByText('Build build-b');
-  expect(screen.getByText(/build-a failed → build-b \(this\) waiting dispatch/)).toBeTruthy();
+  expect(screen.getByText('Retry of #1 (build-a)')).toBeTruthy();
+  expect(screen.getByText('Attempt #1 · build-a · failed')).toBeTruthy();
+  expect(screen.getByText('Attempt #2 · build-b (this) · waiting dispatch')).toBeTruthy();
 });
 
 test('unavailable runner offers a resolution that needs a basis and says termination is unconfirmed', async () => {
@@ -93,4 +95,21 @@ test('a denied refresh clears retained build details', async () => {
   await screen.findByText('Current access denied.');
   expect(screen.queryByLabelText('Build history')).toBeNull();
   expect(screen.queryByText(/synthetic-check-r1/)).toBeNull();
+});
+
+test('the original requester may cancel without the build.execute grant, others may not', async () => {
+  vi.mocked(readHistory).mockResolvedValue(history({ requested_by_viewer: true }));
+  render(panel(['workspace.read']));
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' }));
+  const cancel = await screen.findByRole('button', { name: 'Request cancellation' }) as HTMLButtonElement;
+  expect(cancel.disabled).toBe(false);
+  fireEvent.click(cancel);
+  await waitFor(() => expect(cancelBuild).toHaveBeenCalledWith('build-a', 'stage-v3', expect.any(String)));
+});
+
+test('a requester still cannot retry without the grant', async () => {
+  vi.mocked(readHistory).mockResolvedValue(history({ state: 'failed', cancel_available: false, retry_available: true, requested_by_viewer: true }));
+  render(panel(['workspace.read']));
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' }));
+  expect(((await screen.findByRole('button', { name: 'Retry as a new attempt' })) as HTMLButtonElement).disabled).toBe(true);
 });
