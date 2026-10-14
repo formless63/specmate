@@ -1,0 +1,29 @@
+"""Workspace reads: the library, the project list and resolved project references.
+
+Every route is a thin adapter over ``specmate.workspace.queries``; mutations (projects,
+references, membership) go through the shared operation endpoint.
+"""
+
+from uuid import UUID
+
+from ninja import Query, Router
+
+from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects
+from specmate.workspace.queries import list_library, list_projects, project_detail
+
+router = Router(tags=["workspace"])
+
+
+@router.get("/library")
+def library(request, payload: Query[ListLibrary]):
+    return list_library(request.user, payload)
+
+
+@router.get("/projects")
+def projects(request, payload: Query[ListWorkspaceProjects]):
+    return list_projects(request.user, payload)
+
+
+@router.get("/projects/{project_id}")
+def project(request, project_id: UUID, include_removed: bool = False):
+    return project_detail(request.user, project_id, include_removed=include_removed)

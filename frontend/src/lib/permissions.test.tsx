@@ -46,3 +46,15 @@ test("the hook reads the provider and defaults to allowed without one", () => {
   expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
   expect(screen.queryByRole("note")).toBeNull();
 });
+
+test("workspace atoms are matched and the former per-project names read as their workspace names", () => {
+  const contributor = ["workspace.read", "item.create", "source.register", "project.edit"];
+  expect(holds(contributor, "item.create")).toBe(true);
+  expect(holds(contributor, "project.edit")).toBe(true);
+  expect(holds(contributor, "design.edit")).toBe(false);
+  expect(holds(contributor, "project.read")).toBe(true);
+  expect(holds(["workspace.read", "workspace.admin"], "project.admin")).toBe(true);
+  expect(holds(["project.admin"], "workspace.admin")).toBe(true);
+  expect(holds(["workspace.read"], "workspace.admin")).toBe(false);
+  expect(readOnlyReason("item.create")).toBe("Read-only access: requires Contribution");
+});

@@ -50,12 +50,22 @@ test("a project opens on Overview, the first lens of the Project area", () => {
   expect(areaOfTool("unknown-tool").label).toBe("Project");
 });
 
-test("read-only is claimed only when permissions are reported and carry no edit or admin grant", () => {
+test("read-only is claimed only when permissions are reported and allow no change", () => {
+  expect(isReadOnly(["workspace.read"])).toBe(true);
   expect(isReadOnly(["project.read"])).toBe(true);
+  expect(isReadOnly(["workspace.read", "item.create", "project.edit"])).toBe(false);
   expect(isReadOnly(["project.read", "design.edit"])).toBe(false);
   expect(isReadOnly(["project.read", "project.admin"])).toBe(false);
   expect(isReadOnly([])).toBe(false);
   expect(isReadOnly(undefined)).toBe(false);
+});
+
+test("the workspace role names access; without a role it is inferred from the atoms", () => {
+  expect(describeAccess(["workspace.read"], "contributor").label).toBe("Contributor");
+  expect(describeAccess(["workspace.read", "workspace.admin"]).label).toBe("Admin");
+  expect(describeAccess(["workspace.read", "design.edit"]).label).toBe("Editor");
+  expect(describeAccess(["workspace.read", "item.create"]).label).toBe("Contributor");
+  expect(describeAccess(["workspace.read"]).label).toBe("Viewer");
 });
 
 test("rail selects areas, lenses switch tools, and landmarks and current state are exposed", () => {
@@ -81,7 +91,8 @@ test("context header shows one fact per cell and the status line holds no naviga
   const context = screen.getByRole("region", { name: "Context" }) as HTMLElement;
   expect(within(context).getByText("Demo workshop")).toBeTruthy();
   expect(within(context).getByText("Identities")).toBeTruthy();
-  expect(within(context).getByText("Edit")).toBeTruthy();
+  expect(within(context).getByText("Editor")).toBeTruthy();
+  expect(within(context).getByText("Project")).toBeTruthy();
   const status = screen.getByTestId("sb-status-line");
   expect(within(status).queryAllByRole("button")).toHaveLength(0);
   expect(within(status).queryAllByRole("link")).toHaveLength(0);
@@ -145,4 +156,22 @@ test("the top bar shows a supplied status indicator and otherwise says status is
   rerender(view(<span role="status" aria-label="Job status">2 running</span>));
   expect(screen.queryByText("Status not evaluated")).toBeNull();
   expect(screen.getByText("2 running")).toBeTruthy();
+});
+
+test("at Library scope the header names the scope, and the palette offers scope switching", async () => {
+  const chosen = vi.fn();
+  render(<MantineProvider><SbShell projectName="Library" libraryScope role="viewer" permissions={["workspace.read"]} activeTool="cables" chrome={chrome}
+    extraActions={[{ group: "Scope", actions: [{ id: "scope:p", label: "Bench project", onClick: chosen }] }]}
+    onToolChange={() => {}}><Tabs.Panel value="cables">x</Tabs.Panel></SbShell></MantineProvider>);
+  const context = screen.getByRole("region", { name: "Context" }) as HTMLElement;
+  expect(within(context).getByText("Scope")).toBeTruthy();
+  expect(within(context).getByText("Library")).toBeTruthy();
+  expect(within(context).getByText("Viewer")).toBeTruthy();
+  expect(within(screen.getByTestId("sb-status-line")).getByText("Library / Design / Cables")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Jump to a tool or area" }));
+  const box = await screen.findByPlaceholderText("Jump to an area, tool or project");
+  fireEvent.change(box, { target: { value: "Bench" } });
+  const [action] = await screen.findAllByText((_, node) => node?.tagName === "BUTTON" && !!node.textContent?.includes("Bench project"));
+  fireEvent.click(action!);
+  expect(chosen).toHaveBeenCalled();
 });

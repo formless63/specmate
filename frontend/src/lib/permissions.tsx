@@ -2,49 +2,67 @@ import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 
 /**
- * Project permissions as reported by the server for the signed-in principal.
- * This is a presentation aid only: the server remains the authority and still
- * rejects every operation the principal may not perform.
+ * Workspace permissions as reported by the server for the signed-in principal. The workspace
+ * role (viewer, contributor, editor, admin) plus explicit grants decide them; projects are
+ * not separate access scopes. This is a presentation aid only: the server remains the
+ * authority and still rejects every operation the principal may not perform.
  */
 export type PermissionName =
-  | "project.read"
-  | "project.admin"
+  | "workspace.read"
+  | "workspace.admin"
   | "item.create"
+  | "project.edit"
   | "design.edit"
   | "design.freeze"
   | "source.register"
   | "build.execute"
   | "inventory.manage"
-  | "inventory.reserve";
+  | "inventory.reserve"
+  /** @deprecated Former per-project names; read as workspace.read and workspace.admin. */
+  | "project.read"
+  | "project.admin";
 
 const REQUIRES: Record<PermissionName, string> = {
-  "project.read": "Read",
-  "project.admin": "Administration",
-  "item.create": "Creating records",
+  "workspace.read": "Read",
+  "workspace.admin": "Administration",
+  "item.create": "Contribution",
+  "project.edit": "Project editing",
   "design.edit": "Edit",
   "design.freeze": "Freeze",
   "source.register": "Source registration",
   "build.execute": "Native execution",
   "inventory.manage": "Inventory management",
   "inventory.reserve": "Inventory reservation",
+  "project.read": "Read",
+  "project.admin": "Administration",
+};
+
+/** Former per-project names still accepted from callers and older reports. */
+const ALIASES: Partial<Record<string, string>> = {
+  "project.read": "workspace.read",
+  "project.admin": "workspace.admin",
+  "workspace.read": "project.read",
+  "workspace.admin": "project.admin",
 };
 
 const PermissionContext = createContext<readonly string[] | undefined>(undefined);
 
-/** Supplies the project's reported permissions to every panel below it. */
+/** Supplies the reported workspace permissions to every panel below it. */
 export function PermissionsProvider({ permissions, children }: { permissions: readonly string[] | undefined; children: ReactNode }) {
   return <PermissionContext.Provider value={permissions}>{children}</PermissionContext.Provider>;
 }
 
 /**
  * Pure check. With no provider (a panel mounted on its own) permissions are unknown and the control
- * stays available, so the server decides. Once a project reports permissions - even an empty list -
+ * stays available, so the server decides. Once the workspace reports permissions - even an empty list -
  * only reported grants enable controls, matching the PCB panel. Inventory management implies
  * reservation, as the server grants it.
  */
 export function holds(permissions: readonly string[] | undefined, name: PermissionName): boolean {
   if (!permissions) return true;
   if (permissions.includes(name)) return true;
+  const alias = ALIASES[name];
+  if (alias && permissions.includes(alias)) return true;
   return name === "inventory.reserve" && permissions.includes("inventory.manage");
 }
 

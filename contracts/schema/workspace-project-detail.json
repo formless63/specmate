@@ -1,0 +1,232 @@
+{
+  "$defs": {
+    "ResolvedReference": {
+      "properties": {
+        "added_at": {
+          "format": "date-time",
+          "title": "Added At",
+          "type": "string"
+        },
+        "added_by": {
+          "title": "Added By",
+          "type": "string"
+        },
+        "definition_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Definition behind a definition/revision.",
+          "title": "Definition Id"
+        },
+        "item_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Definition kind, source role, unit origin, \u2026",
+          "title": "Item Kind"
+        },
+        "kind": {
+          "enum": [
+            "definition",
+            "revision",
+            "source_bundle",
+            "physical_unit",
+            "work_batch"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "latest_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest frozen revision of the definition.",
+          "title": "Latest Revision"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "pin": {
+          "enum": [
+            "floating",
+            "exact"
+          ],
+          "title": "Pin",
+          "type": "string"
+        },
+        "reference_id": {
+          "format": "uuid",
+          "title": "Reference Id",
+          "type": "string"
+        },
+        "removal_reason": {
+          "title": "Removal Reason",
+          "type": "string"
+        },
+        "removed": {
+          "title": "Removed",
+          "type": "boolean"
+        },
+        "removed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Removed At"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Pinned revision number (exact references).",
+          "title": "Revision"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "target_id": {
+          "format": "uuid",
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference_id",
+        "kind",
+        "target_id",
+        "pin",
+        "role",
+        "note",
+        "added_by",
+        "added_at",
+        "removed",
+        "removed_at",
+        "removal_reason",
+        "label",
+        "item_kind",
+        "definition_id",
+        "revision",
+        "latest_revision"
+      ],
+      "title": "ResolvedReference",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "archived": {
+      "title": "Archived",
+      "type": "boolean"
+    },
+    "archived_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Archived At"
+    },
+    "can_delete": {
+      "title": "Can Delete",
+      "type": "boolean"
+    },
+    "created_by": {
+      "title": "Created By",
+      "type": "string"
+    },
+    "dependents": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Dependents",
+      "type": "object"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "permissions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Permissions",
+      "type": "array"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "purpose": {
+      "title": "Purpose",
+      "type": "string"
+    },
+    "references": {
+      "items": {
+        "$ref": "#/$defs/ResolvedReference"
+      },
+      "title": "References",
+      "type": "array"
+    },
+    "state": {
+      "title": "State",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "workspace_id",
+    "name",
+    "purpose",
+    "archived",
+    "archived_at",
+    "created_by",
+    "state",
+    "permissions",
+    "references",
+    "dependents",
+    "can_delete"
+  ],
+  "title": "ProjectDetail",
+  "type": "object"
+}

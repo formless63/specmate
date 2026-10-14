@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     "specmate.operations",
     "specmate.access",
+    "specmate.workspace.apps.WorkspaceConfig",
     "specmate.design",
     "specmate.catalog",
     "specmate.catalog_matching",

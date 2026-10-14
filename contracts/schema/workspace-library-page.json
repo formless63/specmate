@@ -1,0 +1,256 @@
+{
+  "$defs": {
+    "LibraryRecord": {
+      "properties": {
+        "changed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Latest draft change, when the family has drafts.",
+          "title": "Changed At"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "family": {
+          "enum": [
+            "definition",
+            "source_bundle",
+            "physical_unit",
+            "stock_account",
+            "fact_subject"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Definition kind, source role, unit origin, \u2026",
+          "title": "Kind"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "latest_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Highest frozen revision number; null when none is frozen.",
+          "title": "Latest Revision"
+        },
+        "latest_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The latest frozen design revision, for an exact pin.",
+          "title": "Latest Revision Id"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        },
+        "referenceable": {
+          "description": "Whether a project can reference this record.",
+          "title": "Referenceable",
+          "type": "boolean"
+        },
+        "referenced": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Referenced by the context project; null without a project context.",
+          "title": "Referenced"
+        },
+        "used_in": {
+          "description": "Active project references, bounded.",
+          "items": {
+            "$ref": "#/$defs/UsedIn"
+          },
+          "title": "Used In",
+          "type": "array"
+        },
+        "used_in_total": {
+          "minimum": 0,
+          "title": "Used In Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "record_id",
+        "family",
+        "kind",
+        "label",
+        "created_at",
+        "referenceable",
+        "referenced",
+        "used_in",
+        "used_in_total"
+      ],
+      "title": "LibraryRecord",
+      "type": "object"
+    },
+    "UsedIn": {
+      "properties": {
+        "archived": {
+          "title": "Archived",
+          "type": "boolean"
+        },
+        "pin": {
+          "enum": [
+            "floating",
+            "exact"
+          ],
+          "title": "Pin",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "project_name": {
+          "title": "Project Name",
+          "type": "string"
+        },
+        "reference_id": {
+          "format": "uuid",
+          "title": "Reference Id",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Pinned revision number for an exact reference.",
+          "title": "Revision"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference_id",
+        "project_id",
+        "project_name",
+        "archived",
+        "pin",
+        "revision",
+        "role"
+      ],
+      "title": "UsedIn",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "family": {
+      "enum": [
+        "definition",
+        "source_bundle",
+        "physical_unit",
+        "stock_account",
+        "fact_subject"
+      ],
+      "title": "Family",
+      "type": "string"
+    },
+    "next_after": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Opaque cursor; null on the last page.",
+      "title": "Next After"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Project Id"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/LibraryRecord"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "family",
+    "project_id",
+    "results",
+    "next_after"
+  ],
+  "title": "LibraryPage",
+  "type": "object"
+}

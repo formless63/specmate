@@ -52,9 +52,11 @@ from specmate.shared_scene.api import router as shared_scene_router
 from specmate.sources.api import router as sources_router
 from specmate.wire_stock.api import router as stock_router
 from specmate.workshop_profiles.api import router as workshop_profile_router
+from specmate.workspace.api import router as workspace_router
 
 api = NinjaAPI(title="Specmate", version="0", urls_namespace="api", auth=django_auth)
 api.add_router("/v0/access", access_router)
+api.add_router("/v0/workspace", workspace_router)
 api.add_router("/v0/discovery", discovery_router)
 api.add_router("/v0/catalog", catalog_router)
 api.add_router("/v0/sources", sources_router)
