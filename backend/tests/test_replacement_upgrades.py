@@ -7,7 +7,6 @@ associations never establish a replacement. Frozen consumers keep their exact pi
 import pytest
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Draft, Revision, Snapshot
 from specmate.operations import (
     Conflict,
@@ -19,10 +18,11 @@ from specmate.operations import (
 )
 from specmate.revision_upgrades.models import UpgradeApplication, UpgradeProposal, UpgradeReview
 
-from .conftest import ensure_member, op
-from .scope_helpers import workspace_of
+from .conftest import member, op, remove_member
 from .test_assemblies import create, endpoint, freeze, occ, part
+from .test_project_references import add
 from .test_transports import api
+from .test_wire_stock import workspace_of
 
 
 def connector(user, project, name, contacts):
@@ -349,46 +349,47 @@ def test_replacement_assignment_decisions_are_explicit(users, project):
     ] == {"firmware_revision_id": None}
 
 
-def test_consumers_list_authorized_nested_uses_only(users, project, pair):
+def test_consumers_list_workspace_nested_uses_and_project_references_first(users, project, pair):
     old, _ = pair
     owner, editor = users["owner"], users["editor"]
     module = freeze(owner, create(owner, project, [occ("conn", old)]))
     owning = freeze(owner, create(owner, project, [occ("left", module), occ("right", module)]))
-    remote = op(owner, "project.create", {"name": "Restricted consumer source"})["project_id"]
-    _, secret = part(owner, remote)
-    hidden = freeze(owner, create(owner, project, [occ("conn", old), occ("other", secret)]))
-    body = {"project_id": project, "revision_id": old["revision_id"]}
-    seen = op(owner, "upgrade.consumers", body)
-    assert {c["owning_snapshot_id"] for c in seen["consumers"]} == {
-        module["snapshot_id"],
-        owning["snapshot_id"],
-        hidden["snapshot_id"],
-    }
+    # A consumer that also pins content created from another project is a normal use.
+    remote = op(owner, "project.create", {"name": "Library consumer source"})["project_id"]
+    _, library = part(owner, remote)
+    mixed = freeze(owner, create(owner, project, [occ("conn", old), occ("other", library)]))
+    body = {"revision_id": old["revision_id"]}
     listed = op(editor, "upgrade.consumers", body)
+    assert listed["workspace_id"] == workspace_of(project) and listed["project_id"] is None
     assert {c["owning_snapshot_id"] for c in listed["consumers"]} == {
         module["snapshot_id"],
         owning["snapshot_id"],
+        mixed["snapshot_id"],
     }
+    assert all("in_project" not in c for c in listed["consumers"])
     uses = next(c for c in listed["consumers"] if c["owning_snapshot_id"] == owning["snapshot_id"])
     assert uses["uses"] == [
         {"path": ["left", "conn"], "context_path": ["left"], "display_ref": "J1"},
         {"path": ["right", "conn"], "context_path": ["right"], "display_ref": "J1"},
     ]
-    assert "Restricted" not in str(listed)
-    query = (
-        f"/api/v0/revision-upgrades/consumers?project_id={project}&revision_id={old['revision_id']}"
-    )
+    owning_definition = uses["owning_definition_id"]
+    add(owner, remote, "definition", owning_definition, role="assembly")
+    scoped = op(editor, "upgrade.consumers", {**body, "project_id": remote})
+    assert scoped["consumers"][0]["owning_snapshot_id"] == owning["snapshot_id"]
+    assert [c["in_project"] for c in scoped["consumers"]] == [True, False, False]
+    query = f"/api/v0/revision-upgrades/consumers?revision_id={old['revision_id']}"
     assert api(editor).get(query).json() == listed
     assert api(users["outsider"]).get(query).status_code == 404
     with pytest.raises(NotFound):
         op(users["outsider"], "upgrade.consumers", body)
+    with pytest.raises(NotFound):
+        op(users["outsider"], "upgrade.consumers", {**body, "project_id": project})
 
 
 def test_consumer_edit_authority_candidate_revocation_and_replay(users, project, pair):
     old, _ = pair
     owner, editor = users["owner"], users["editor"]
     remote = op(owner, "project.create", {"name": "Replacement source"})["project_id"]
-    ensure_member(editor, "viewer", project=remote)
     candidate = connector(owner, remote, "Remote replacement body", ["c1"])
     remote_module = freeze(owner, create(owner, remote, [occ("conn", old)]))
     owning = freeze(
@@ -404,15 +405,22 @@ def test_consumer_edit_authority_candidate_revocation_and_replay(users, project,
         "paths": [["left"]],
         "basis": "Replace a direct use.",
     }
-    # A nested consumer in a read-only project cannot receive an adoption draft.
-    with pytest.raises(PermissionDenied):
-        op(editor, "upgrade.propose", {**payload, "context_path": ["sub"], "paths": [["conn"]]})
-    # The remote candidate stays hidden from a non-member before any edit diagnostic.
+    # Without design.edit no consumer (direct or nested) can receive an adoption draft.
+    for actor in ("viewer", "contributor"):
+        for body in (payload, {**payload, "context_path": ["sub"], "paths": [["conn"]]}):
+            with pytest.raises(PermissionDenied):
+                op(users[actor], "upgrade.propose", body)
+    # The candidate stays hidden from a non-member before any edit diagnostic.
     with pytest.raises(NotFound):
-        op(users["viewer"], "upgrade.propose", payload)
+        op(users["outsider"], "upgrade.propose", payload)
+    # A consumer created from another project is an ordinary editable workspace item.
+    nested = op(
+        editor, "upgrade.propose", {**payload, "context_path": ["sub"], "paths": [["conn"]]}
+    )
+    assert nested["context_path"] == ["sub"]
     proposal = op(editor, "upgrade.propose", payload, idempotency_key="remote")
     reviewed = review(editor, proposal)
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=editor).delete()
+    remove_member(editor)
     for operation, body, context in [
         ("upgrade.read", {"proposal_id": proposal["proposal_id"]}, {}),
         (
@@ -430,7 +438,10 @@ def test_consumer_edit_authority_candidate_revocation_and_replay(users, project,
         with pytest.raises(NotFound):
             op(editor, operation, body, **context)
     assert not UpgradeApplication.objects.exists()
-    ensure_member(editor, "viewer", project=remote)
+    member(editor, "viewer")
+    with pytest.raises(PermissionDenied):
+        op(editor, "upgrade.propose", payload, idempotency_key="remote")
+    member(editor, "editor")
     assert op(editor, "upgrade.propose", payload, idempotency_key="remote") == proposal
     drafts = Draft.objects.count()
     applied = op(

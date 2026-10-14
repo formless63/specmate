@@ -12,9 +12,9 @@ from specmate.workshop_profiles.queries import (
 router = Router(tags=["workshop profiles"])
 
 
-@router.get("/projects/{project_id}/workshop-profiles")
-def profiles(request, project_id: UUID):
-    return list_profiles(request.user, project_id)
+@router.get("/workshop-profiles")
+def profiles(request, workspace_id: UUID | None = None, project_id: UUID | None = None):
+    return list_profiles(request.user, workspace_id, project_id)
 
 
 @router.get("/workshop-profiles/{draft_id}")

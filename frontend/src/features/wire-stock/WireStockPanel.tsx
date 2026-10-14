@@ -1,10 +1,11 @@
 import { randomUUID } from "../../lib/random-id";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Checkbox, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { renderPreviewSvg, renderSectionSvg, sectionLayout, stockGeometry } from '../../../../packages/section-layout/src';
 import type { Fact, GroupElement, StockElement, StockSpecification } from '../../../../packages/section-layout/src';
 import { freezeStock, listStocks, saveStock } from './api';
+import { addProjectReference } from '../identity/api';
 import type { StockRecord } from './api';
 import { stockPresets } from './presets';
 import { WirePreparationPreview } from './WirePreparationPreview';
@@ -65,7 +66,7 @@ function ElementEditor({ node, path, onChange }: { node: StockElement; path: str
   </Stack>;
 }
 
-/** Project selected by the application; no connector or PCB prerequisite. */
+/** Library wire stock. `projectId` is optional context, never the stock's owner; no connector or PCB prerequisite. */
 export function WireStockPanel({ projectId }: { projectId?: string | null }) {
   const [stocks, setStocks] = useState<StockRecord[]>([]);
   const [current, setCurrent] = useState<StockRecord | null>(null);
@@ -76,23 +77,30 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
   const [dirty, setDirty] = useState(true);
   const [busy, setBusy] = useState(false);
   const [length, setLength] = useState(100);
-  const edit = usePermission('design.edit');
+  const edit = usePermission('item.create');
+  const [useHere, setUseHere] = useState(true);
   const freezeGate = usePermission('design.freeze');
   const section = useMemo(() => sectionLayout(stock), [stock]);
   const geometry = useMemo(() => stockGeometry(section, length), [section, length]);
   useEffect(() => {
     let live = true;
     setCurrent(null); setStocks([]); setError(''); setMessage(''); setDirty(true);
-    if (projectId) listStocks(projectId).then(v => { if (live) setStocks(v); }).catch(e => { if (live) setError(String(e.message)); });
+    listStocks(projectId).then(v => { if (live) setStocks(v); }).catch(e => { if (live) setError(String(e.message)); });
     return () => { live = false; };
   }, [projectId]);
   const save = async () => {
-    if (!projectId) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      const saved = await saveStock(projectId, name, stock, current);
-      setCurrent(saved); setDirty(false); setStock(clone(saved.content.stock!)); setStocks(await listStocks(projectId));
-      setMessage(`Saved ${saved.name} (${saved.state}).`);
+      const created = current === null;
+      const saved = await saveStock(name, stock, current);
+      setCurrent(saved); setDirty(false); setStock(clone(saved.content.stock!));
+      let note = '';
+      if (created && projectId && useHere) {
+        try { await addProjectReference(projectId, 'definition', saved.definition_id, 'stock'); }
+        catch (e) { note = ` Not added to this project: ${e instanceof Error ? e.message : String(e)}`; }
+      }
+      setStocks(await listStocks(projectId));
+      setMessage(`Saved ${saved.name} (${saved.state}).${note}`);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -108,7 +116,7 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
     <Text>Describe reusable stock independently of finished cables. Unknown values remain unknown.</Text>
     {error && <Alert color="red" role="alert">{error}</Alert>}{message && <Alert color="green">{message}</Alert>}
     <Group>
-      <Select label="Saved stock" data={stocks.map(item => ({ value: item.draft_id, label: item.name }))} value={current?.draft_id ?? null} onChange={id => {
+      <Select label="Saved stock" data={stocks.map(item => ({ value: item.draft_id, label: item.in_project ? `${item.name} · in this project` : item.name }))} value={current?.draft_id ?? null} onChange={id => {
         const record = stocks.find(item => item.draft_id === id); if (!record?.content.stock) return;
         setCurrent(record); setDirty(false); setName(record.name); setStock(clone(record.content.stock)); setMessage('');
       }} />
@@ -118,21 +126,20 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
       <TextInput label="Stock name" value={name} disabled={current !== null} onChange={e => setName(e.target.value)} />
       <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }); setDirty(true); } }} />
     </Group>
-    <Group><Button onClick={save} loading={busy} disabled={!projectId} {...edit.props}>Save stock</Button><Button variant="light" onClick={freeze} disabled={!current || busy || dirty} {...freezeGate.props}>Freeze saved stock</Button>
+    {projectId && current === null && <Checkbox label="Use in this project" checked={useHere} onChange={e => setUseHere(e.currentTarget.checked)} />}
+    <Group><Button onClick={save} loading={busy} {...edit.props}>Save stock</Button><Button variant="light" onClick={freeze} disabled={!current || busy || dirty} {...freezeGate.props}>Freeze saved stock</Button>
       <Button variant="light" onClick={() => download('stock.json', JSON.stringify({ name, stock, section, geometry }, null, 2), 'application/json')}>Export specification</Button>
       <Button variant="light" onClick={() => download('stock-section.svg', renderSectionSvg(section, name), 'image/svg+xml')}>Export section SVG</Button>
     </Group>
-    <ReadOnlyNote permission="design.edit">Saving and freezing stock are unavailable; the local section and exports still work.</ReadOnlyNote>
+    <ReadOnlyNote permission="item.create">Saving and freezing stock are unavailable; the local section and exports still work.</ReadOnlyNote>
     {dirty && <Text size="sm">Unsaved construction. Save before freezing.</Text>}
-    <Button variant="subtle" disabled={!projectId || busy} onClick={async () => {
-      if (!projectId) return;
+    <Button variant="subtle" disabled={busy} onClick={async () => {
       try {
         const fresh = await listStocks(projectId); setStocks(fresh);
         const saved = fresh.find(item => item.draft_id === current?.draft_id);
         if (saved?.content.stock) { setCurrent(saved); setStock(clone(saved.content.stock)); setDirty(false); setMessage('Reloaded saved construction.'); }
       } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     }}>Reload saved stock (discard local edits)</Button>
-    {!projectId && <Text>Select a project to save stock. The local section remains available.</Text>}
     <Text>Section: {dimension(section.widthMm)} × {dimension(section.heightMm)} · {section.rows.length} material elements · view {section.viewedFrom}</Text>
     {section.unknown.length > 0 && <Alert color="yellow">Incomplete geometry: {section.unknown.join('; ')}</Alert>}
     <Group align="flex-start" grow>
@@ -149,7 +156,7 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
     <Text>{Object.entries(stock.facts).map(([key, fact]) => `${key}: ${fact.value ?? 'Unknown'}${fact.unit ? ` ${fact.unit}` : ''} (${fact.status})`).join(' · ')}</Text>
     <Title order={3}>End faces and information</Title>
     <CableViews stock={stock} name={name} tabs={['end-a', 'end-b', 'info']} />
-    {projectId && <FrozenWirePreview key={projectId} projectId={projectId} />}
+    <FrozenWirePreview key={projectId ?? 'library'} projectId={projectId} />
     <Title order={3}>Engineering facts</Title>
     {Object.entries(stock.facts).map(([key, fact]) => <Group key={key} align="flex-end">
       <Text>{key}{fact.unit ? ` (${fact.unit})` : ''}</Text>

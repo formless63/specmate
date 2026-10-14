@@ -1,1 +1,1 @@
-"""Inert, versioned catalog content and deliberate project adoption."""
+"""Inert, versioned catalog content and deliberate workspace adoption."""

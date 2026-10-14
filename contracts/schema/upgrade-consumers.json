@@ -1,11 +1,19 @@
 {
   "additionalProperties": false,
-  "description": "Authorized frozen consumers in one project that pin an exact revision at any depth.",
+  "description": "Frozen consumers in the revision's workspace that pin it exactly at any depth.\n\n``project_id`` is optional navigation context: that project's referenced consumers\nare listed first.",
   "properties": {
     "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
     },
     "revision_id": {
       "format": "uuid",
@@ -14,7 +22,6 @@
     }
   },
   "required": [
-    "project_id",
     "revision_id"
   ],
   "title": "ReadConsumers",

@@ -40,7 +40,10 @@ class KnowledgePin(StrictModel):
 
 
 class CreateReview(StrictModel):
-    project_id: UUID
+    # Omitted: the actor's workspace. A review is a workspace record.
+    workspace_id: UUID | None = None
+    # Optional project context the review was raised in (navigation only, never authority).
+    project_id: UUID | None = None
     old_revision_id: UUID
     candidate_revision_id: UUID
     title: str = Field(min_length=1, max_length=200)
@@ -55,7 +58,7 @@ class CreateReview(StrictModel):
         if len(self.recipients) != len(set(self.recipients)) or any(
             not name.strip() or len(name) > 150 for name in self.recipients
         ):
-            raise ValueError("Recipients must be unique explicit project members.")
+            raise ValueError("Recipients must be unique explicit workspace members.")
         return self
 
 
@@ -85,7 +88,9 @@ class ProposeReviewUpgrade(ReadReview):
 
 
 class ReviewPage(StrictModel):
-    project_id: UUID
+    workspace_id: UUID | None = None
+    # Optional project context: reviews raised in that project come first and are marked.
+    project_id: UUID | None = None
     after: UUID | None = None
     limit: int = Field(default=25, ge=1, le=100)
 

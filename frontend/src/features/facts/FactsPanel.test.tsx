@@ -157,7 +157,7 @@ test.each([
   fireEvent.change(screen.getByLabelText("Evidence citation"), { target: { value: "Original synthetic missing allowance record." } });
   const record = screen.getByRole("button", { name: "Record immutable assertion" }) as HTMLButtonElement;
   expect(record.disabled).toBe(off);
-  expect(record.title).toBe(off ? `Read-only access: requires ${kind === "project" ? "Creating records" : "Inventory management"}` : "");
+  expect(record.title).toBe(off ? `Read-only access: requires ${kind === "project" ? "Contributor access" : "Inventory management"}` : "");
 });
 
 test("read-only permissions disable opening a new fact ledger but not reading existing subjects", async () => {
@@ -165,7 +165,7 @@ test("read-only permissions disable opening a new fact ledger but not reading ex
   render(wrap(<PermissionsProvider permissions={["project.read"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   const open = await screen.findByRole("button", { name: "Open fact ledger" }) as HTMLButtonElement;
   expect(open.disabled).toBe(true);
-  expect(open.title).toBe("Read-only access: requires Creating records");
+  expect(open.title).toBe("Read-only access: requires Contributor access");
   cleanup();
   render(wrap(<PermissionsProvider permissions={["project.read", "item.create"]}><FactsPanel workspaceId="ws-1" projectId="project-1" /></PermissionsProvider>));
   expect(((await screen.findByRole("button", { name: "Open fact ledger" })) as HTMLButtonElement).disabled).toBe(false);

@@ -26,6 +26,19 @@
       "title": "Limit",
       "type": "integer"
     },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
     "revision_id": {
       "format": "uuid",
       "title": "Revision Id",

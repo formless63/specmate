@@ -7,16 +7,18 @@ from specmate.catalog_packs import queries
 router = Router(tags=["catalog packs"])
 
 
-@router.get("/projects/{project_id}/source-files")
-def source_files(request, project_id: UUID, after: int | None = None, limit: int = 50):
+@router.get("/source-files")
+def source_files(
+    request, workspace_id: UUID | None = None, after: int | None = None, limit: int = 50
+):
     from specmate.catalog_matching.queries import list_evidence_files
 
-    return list_evidence_files(request.user, project_id, after=after, limit=limit)
+    return list_evidence_files(request.user, workspace_id, after=after, limit=limit)
 
 
-@router.get("/projects/{project_id}")
-def packs(request, project_id: UUID, after: UUID | None = None, limit: int = 25):
-    return queries.list_packs(request.user, project_id, after=after, limit=limit)
+@router.get("/packs")
+def packs(request, workspace_id: UUID | None = None, after: UUID | None = None, limit: int = 25):
+    return queries.list_packs(request.user, workspace_id, after=after, limit=limit)
 
 
 @router.get("/packs/{pack_id}")

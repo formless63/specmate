@@ -74,7 +74,6 @@ class SuggestSupplierMatches(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_revision_id: UUID
     source_variant_id: UUID
-    target_project_id: UUID
     after: UUID | None = None
     limit: int = 25
 
@@ -94,7 +93,7 @@ class SupplierSuggestion(BaseModel):
 
 class SupplierSuggestions(BaseModel):
     source: RevisionIdentity
-    target_project_id: UUID
+    workspace_id: UUID
     results: list[SupplierSuggestion]
     next_after: UUID | None
     inspection_truncated: bool

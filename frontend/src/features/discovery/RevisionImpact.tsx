@@ -4,7 +4,7 @@ import { revisionImpact, type DefinitionRevisions, type ImpactPage } from "./api
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { ExactPins } from "../../lib/IdentityLabel";
 
-export function RevisionImpact({ definition }: { definition: DefinitionRevisions }) {
+export function RevisionImpact({ definition, projectId }: { definition: DefinitionRevisions; projectId?: string | null }) {
   const [current, setCurrent] = useState("");
   const [candidate, setCandidate] = useState("");
   const [report, setReport] = useState<ImpactPage | null>(null);
@@ -20,7 +20,7 @@ export function RevisionImpact({ definition }: { definition: DefinitionRevisions
     const previous = report;
     setReport(null); setError(""); setBusy(true);
     try {
-      const next = await revisionImpact(current, candidate, after);
+      const next = await revisionImpact(current, candidate, after, projectId);
       if (generation.current === token) setReport(after && previous ? { ...next, results: [...previous.results, ...next.results] } : next);
     } catch (reason) {
       if (generation.current === token) setError(reason instanceof Error ? reason.message : "Impact request failed.");
@@ -43,8 +43,9 @@ export function RevisionImpact({ definition }: { definition: DefinitionRevisions
       <Text>Existing pins retained. Compatibility: not evaluated. New owning draft required for adoption.</Text>
       <Text size="xs">Current snapshot SHA-256 {report.current_sha256}</Text>
       <Text size="xs">Proposed snapshot SHA-256 {report.candidate_sha256}</Text>
-      {report.results.length === 0 && <Text>No visible parent snapshots pin the existing revision.</Text>}
-      {report.results.map(row => <Stack gap={0} key={row.snapshot_id}><Text>{row.label}</Text><Text size="xs">Exact revision pin retained <ExactPins pins={[{ label: 'Snapshot ID', value: row.snapshot_id }, { label: 'Project ID', value: row.project_id }]} /></Text></Stack>)}
+      {report.results.length === 0 && <Text>No parent snapshots pin the existing revision.</Text>}
+      {report.results.map(row => <Stack gap={0} key={row.snapshot_id}><Text>{row.label}</Text><Text size="xs">Exact revision pin retained <ExactPins pins={[{ label: 'Snapshot ID', value: row.snapshot_id }, { label: 'Definition ID', value: row.definition_id }]} /></Text></Stack>)}
+      {report.project_references.length > 0 && <Text size="sm">Projects using this identity: {report.project_references.map((use) => `${use.project_name} (${use.relation === "project_reference_exact" ? "exact" : "floating"})`).join(", ")}</Text>}
       {report.next_after && <Button disabled={busy} onClick={() => void compare(report.next_after ?? undefined)}>More affected pins</Button>}
     </Stack>}
   </Stack>;

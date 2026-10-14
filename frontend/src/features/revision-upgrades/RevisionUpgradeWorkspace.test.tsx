@@ -193,9 +193,8 @@ function heldReply() {
   return { promise, resolve };
 }
 
-test.each([false, true])("handed off exact proposal freshly validates the owning project without review or adoption (can edit: %s)", async (canEdit) => {
+test.each([false, true])("handed off exact proposal is read freshly without review or adoption (can edit: %s)", async (canEdit) => {
   const fetch = vi.fn(async (path: string) => {
-    if (path === "/api/v0/projects/p1/definitions") return reply([{ definition_id: "assembly-one", name: "Authorized owning assembly", kind: "assembly" }]);
     expect(path).toBe("/api/v0/revision-upgrades/proposals/proposal-one");
     return reply({ ...proposal, decision: "accepted" });
   });
@@ -205,10 +204,11 @@ test.each([false, true])("handed off exact proposal freshly validates the owning
   expect(screen.getByText("Owning snapshot snapshot-one · SHA-256 " + "a".repeat(64))).toBeTruthy();
   expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: "Apply reviewed upgrade to draft" }) as HTMLButtonElement).disabled).toBe(!canEdit);
-  expect(fetch.mock.calls.map(([path]) => path).sort()).toEqual(["/api/v0/projects/p1/definitions", "/api/v0/revision-upgrades/proposals/proposal-one"]);
+  // Only the proposal itself is read: a project never limits which workspace proposals open.
+  expect(fetch.mock.calls.map(([path]) => path)).toEqual(["/api/v0/revision-upgrades/proposals/proposal-one"]);
 });
 
-test("new handoff fences prior proposal until exact fresh project proof and rejects a readable other-project owner", async () => {
+test("new handoff fences the prior proposal until the new one is read; any workspace owner is valid", async () => {
   const held = heldReply();
   vi.stubGlobal("fetch", vi.fn(async (path: string) => {
     if (path.endsWith("/definitions")) return reply([{ definition_id: "assembly-one" }]);
@@ -220,10 +220,9 @@ test("new handoff fences prior proposal until exact fresh project proof and reje
   view.rerender(handoff({ canEdit: true, initialProposalId: "proposal-other" }));
   expect(screen.queryByText("Exact proposal proposal-one")).toBeNull();
   expect(screen.queryByRole("button", { name: "Append review" })).toBeNull();
-  held.resolve(reply({ ...proposal, proposal_id: "proposal-other", owning_definition_id: "other-project-owner", old: { ...proposal.old, name: "Other readable project pin" } }));
-  await screen.findByText(/unavailable in the selected project/);
-  expect(screen.queryByText(/Other readable project pin/)).toBeNull();
-  expect(screen.queryByText("Exact proposal proposal-other")).toBeNull();
+  held.resolve(reply({ ...proposal, proposal_id: "proposal-other", owning_definition_id: "assembly-from-another-project" }));
+  expect(await screen.findByText("Exact proposal proposal-other")).toBeTruthy();
+  expect(screen.queryByText("Exact proposal proposal-one")).toBeNull();
 });
 
 test.each(["project", "principal"])("%s transition fences a handed off proposal and rejects its old successful reply", async (scope) => {

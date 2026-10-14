@@ -548,30 +548,34 @@ def result(user, proposal_id):
 MAX_CONSUMER_SNAPSHOTS = 200
 
 
-def consumers(user, project_id, revision_id):
-    """Authorized frozen consumers of an exact revision; hidden closures are not counted."""
+def consumers(user, revision_id, *, project_id=None):
+    """Frozen assembly consumers of an exact revision in its workspace, at any depth.
+
+    A project id is context only: consumers whose definition the project references come
+    first and are marked; no consumer is hidden or counted differently.
+    """
+    from specmate.catalog.scope import library_scope, references_definition
+
     user = current_actor(user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
     target = get_revision(user, revision_id)
-    candidates = (
-        Snapshot.objects.filter(
-            definition__workspace=workspace,
-            definition__kind="assembly",
-            dependencies__revision_id=target.id,
-        )
-        .select_related("definition")
-        .order_by("-created_at", "id")
-    )
+    workspace, project = library_scope(user, target.definition.workspace_id, project_id)
+    candidates = Snapshot.objects.filter(
+        definition__workspace=workspace,
+        definition__kind="assembly",
+        dependencies__revision_id=target.id,
+    ).select_related("definition")
+    if project is not None:
+        candidates = candidates.annotate(
+            in_project=references_definition(project, "definition_id")
+        ).order_by("-in_project", "-created_at", "id")
+    else:
+        candidates = candidates.order_by("-created_at", "id")
     found, truncated = [], False
     for index, snapshot in enumerate(candidates):
         if index >= MAX_CONSUMER_SNAPSHOTS:
             truncated = True
             break
-        try:
-            owning, closure = get_snapshot(user, snapshot.id)
-        except NotFound:
-            # A consumer whose complete closure is not currently authorized stays hidden.
-            continue
+        owning, closure = get_snapshot(user, snapshot.id)
         revision = Revision.objects.filter(snapshot=owning).first()
         uses = [
             {
@@ -583,19 +587,22 @@ def consumers(user, project_id, revision_id):
             if node.revision.id == target.id
         ]
         if uses:
-            found.append(
-                {
-                    "owning_snapshot_id": str(owning.id),
-                    "owning_definition_id": str(owning.definition_id),
-                    "name": owning.definition.name,
-                    "revision_id": str(revision.id) if revision else None,
-                    "number": revision.number if revision else None,
-                    "sha256": owning.sha256,
-                    "uses": uses,
-                }
-            )
+            row = {
+                "owning_snapshot_id": str(owning.id),
+                "owning_definition_id": str(owning.definition_id),
+                "name": owning.definition.name,
+                "revision_id": str(revision.id) if revision else None,
+                "number": revision.number if revision else None,
+                "sha256": owning.sha256,
+                "uses": uses,
+            }
+            if project is not None:
+                row["in_project"] = bool(snapshot.in_project)
+            found.append(row)
     return {
         "revision": revision_identity(target).model_dump(mode="json"),
+        "workspace_id": str(workspace.id),
+        "project_id": str(project.id) if project is not None else None,
         "consumers": found,
         "truncated": truncated,
         "compatibility": "not_evaluated",

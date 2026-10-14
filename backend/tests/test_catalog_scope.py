@@ -1,13 +1,13 @@
-"""Catalog keyed writes preserve current authority and isolate owning projects."""
+"""Catalog keyed writes preserve current authority and isolate workspaces."""
 
 import pytest
 
 from specmate.access.models import WorkspaceMember
 from specmate.catalog.models import ManufacturerVariant, PhysicalLot, Representation
-from specmate.operations import NotFound, PermissionDenied
+from specmate.operations import IdempotencyMismatch, NotFound, PermissionDenied
 from specmate.operations.models import IdempotencyRecord
 
-from .conftest import op
+from .conftest import member, op
 from .test_catalog import rep_payload, variant_payload
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
@@ -52,18 +52,41 @@ OPERATIONS = ["catalog.register_variant", "catalog.register_lot", "catalog.regis
 
 
 @pytest.mark.parametrize("operation", OPERATIONS)
-def test_catalog_key_is_independent_per_project(users, project, catalog_inputs, operation):
+def test_catalog_key_is_one_namespace_per_workspace(
+    users, project, workspace, other_workspace, catalog_inputs, operation
+):
     user = users["owner"]
-    other = op(user, "project.create", {"name": "Second catalog project"})["project_id"]
-    second_inputs = make_inputs(user, other)
+    # Another project of the same workspace shares the namespace: a reused key with a
+    # different registration is a mismatch, never a second record.
+    same = op(user, "project.create", {"name": "Second catalog project"})["project_id"]
+    same_inputs = make_inputs(user, same)
     first = op(user, operation, catalog_inputs[operation], idempotency_key="shared-key")
+    with pytest.raises(IdempotencyMismatch):
+        op(user, operation, same_inputs[operation], idempotency_key="shared-key")
+    # A second workspace the actor belongs to has its own namespace.
+    member(user, "editor", workspace=other_workspace)
+    foreign = op(
+        user, "project.create", {"name": "Foreign catalog project", "workspace_id": other_workspace}
+    )["project_id"]
+    second_inputs = make_inputs(user, foreign)
     second = op(user, operation, second_inputs[operation], idempotency_key="shared-key")
     assert first["definition_id"] != second["definition_id"]
     assert op(user, operation, catalog_inputs[operation], idempotency_key="shared-key") == first
     assert op(user, operation, second_inputs[operation], idempotency_key="shared-key") == second
     assert set(
         IdempotencyRecord.objects.filter(operation=operation).values_list("scope", flat=True)
-    ) == {f"project:{project}", f"project:{other}"}
+    ) == {f"workspace:{workspace}", f"workspace:{other_workspace}"}
+
+
+@pytest.mark.parametrize("operation", OPERATIONS)
+def test_contributor_registers_catalog_associations_but_viewer_cannot(
+    users, catalog_inputs, operation
+):
+    with pytest.raises(PermissionDenied):
+        op(users["viewer"], operation, catalog_inputs[operation])
+    assert op(users["contributor"], operation, catalog_inputs[operation])["definition_id"]
+    with pytest.raises(NotFound):
+        op(users["outsider"], operation, catalog_inputs[operation])
 
 
 @pytest.mark.parametrize("operation", OPERATIONS)

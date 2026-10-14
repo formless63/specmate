@@ -303,10 +303,20 @@ def test_two_consumers_reuse_one_definition_revision(users, project, revision, d
     )
 
 
-def test_accessible_cross_project_source_still_rejected_by_service_and_database(users, revision):
+def test_accessible_cross_workspace_source_still_rejected_by_service_and_database(
+    users, revision, other_workspace
+):
     from specmate.sources.models import SourceBundleFile
 
-    other = op(users["owner"], "project.create", {"name": "Separate source scope"})["project_id"]
+    from .conftest import member
+
+    # The owner can read both workspaces, yet a pin never crosses a workspace boundary.
+    member(users["owner"], "editor", workspace=other_workspace)
+    other = op(
+        users["owner"],
+        "project.create",
+        {"name": "Separate source scope", "workspace_id": other_workspace},
+    )["project_id"]
     register(users["owner"], other, ORIGINAL)
     source = op(
         users["owner"],

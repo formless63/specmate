@@ -93,10 +93,14 @@ class ReviewUpgrade(ReadUpgrade):
 
 
 class ReadConsumers(StrictModel):
-    """Authorized frozen consumers in one project that pin an exact revision at any depth."""
+    """Frozen consumers in the revision's workspace that pin it exactly at any depth.
 
-    project_id: UUID
+    ``project_id`` is optional navigation context: that project's referenced consumers
+    are listed first.
+    """
+
     revision_id: UUID
+    project_id: UUID | None = None
 
 
 class ApplyUpgrade(ReadUpgrade):

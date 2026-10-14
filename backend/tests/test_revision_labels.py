@@ -7,8 +7,8 @@ import pytest
 from specmate.access.models import WorkspaceMember
 from specmate.operations import ValidationFailed
 
-from .conftest import op
-from .test_catalog_discovery import create_part
+from .conftest import op, remove_member
+from .test_catalog_discovery import create_foreign_part, create_part
 from .test_design import freeze
 from .test_transports import api
 
@@ -50,25 +50,29 @@ def test_outsider_and_missing_revisions_are_indistinguishable(users, project):
     assert labels(users["viewer"], first["revision_id"]) == hidden[:1]
 
 
-def test_cross_project_dependency_hides_parent_name_but_not_other_labels(users, project):
+def test_workspace_labels_readable_and_foreign_or_lost_scope_indistinguishable(
+    users, project, other_workspace
+):
     owner = users["owner"]
-    remote = op(owner, "project.create", {"name": "Other private bench"})["project_id"]
-    dependency = create_part(owner, remote, "Remote dependency")
-    remote_revision = freeze(owner, dependency["draft_id"], dependency["state"])
-    parent = create_part(owner, project, "Parent with remote pin")
-    pinned = freeze(owner, parent["draft_id"], parent["state"], [remote_revision["revision_id"]])
-    plain = create_part(owner, project, "Plain readable")
-    readable = freeze(owner, plain["draft_id"], plain["state"])
+    second = op(owner, "project.create", {"name": "Other bench"})["project_id"]
+    dependency = create_part(owner, second, "Library dependency")
+    library_revision = freeze(owner, dependency["draft_id"], dependency["state"])
+    parent = create_part(owner, project, "Parent with library pin")
+    pinned = freeze(owner, parent["draft_id"], parent["state"], [library_revision["revision_id"]])
+    foreign = create_foreign_part(users, other_workspace)
     rows = labels(
         users["viewer"],
-        remote_revision["revision_id"],
+        library_revision["revision_id"],
         pinned["revision_id"],
-        readable["revision_id"],
+        foreign["revision_id"],
+        str(uuid.uuid4()),
     )
-    assert [r["readable"] for r in rows] == [False, False, True]
-    assert all(set(r) == {"revision_id", "readable"} for r in rows[:2])
-    assert rows[2]["name"] == "Plain readable"
-    assert labels(owner, pinned["revision_id"])[0]["name"] == "Parent with remote pin"
+    assert [r["readable"] for r in rows] == [True, True, False, False]
+    assert [r["name"] for r in rows[:2]] == ["Library dependency", "Parent with library pin"]
+    assert all(set(r) == {"revision_id", "readable"} for r in rows[2:])
+    remove_member(users["viewer"])
+    lost = labels(users["viewer"], pinned["revision_id"])
+    assert lost == [{"revision_id": pinned["revision_id"], "readable": False}]
 
 
 def test_payload_is_bounded_and_unique_and_http_shares_the_operation(users, project):

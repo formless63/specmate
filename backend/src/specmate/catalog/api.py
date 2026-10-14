@@ -44,6 +44,27 @@ def page(offset, limit):
     return {"offset": offset, "limit": limit}
 
 
+@router.get("/definitions")
+def library_definitions(
+    request,
+    workspace_id: UUID | None = None,
+    project_id: UUID | None = None,
+    kind: str | None = None,
+    after: UUID | None = None,
+    limit: int = 50,
+):
+    if not 1 <= limit <= 100:
+        raise ValidationFailed("Pagination requires a limit between 1 and 100.")
+    return queries.list_definitions(
+        request.user,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        kind=kind,
+        after=after,
+        limit=limit,
+    )
+
+
 @router.get("/definitions/{definition_id}")
 def get_identity(request, definition_id: UUID, offset: int = 0, limit: int = 50):
     return queries.get_identity(request.user, definition_id, **page(offset, limit))

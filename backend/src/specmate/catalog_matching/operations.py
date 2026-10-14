@@ -37,7 +37,8 @@ def proposal_references(ctx, payload):
     source = get_revision(ctx.user, payload.source_revision_id)
     target = get_revision(ctx.user, payload.target_revision_id)
     evidence = evidence_fields(ctx.user, payload.evidence)
-    authorize(ctx.user, source.definition.workspace_id, Perm.DESIGN_EDIT)
+    # Proposing a candidate is additive: contributors may record correspondences.
+    authorize(ctx.user, source.definition.workspace_id, Perm.ITEM_CREATE)
     # Authorize every reference before semantic diagnostics reveal its relationship.
     if source.definition_id == target.definition_id:
         raise ValidationFailed("Matching requires distinct engineering definition identities.")
@@ -47,7 +48,7 @@ def proposal_references(ctx, payload):
 def proposal_scope(ctx, payload):
     source, _, _ = proposal_references(ctx, payload)
     scope = f"workspace:{source.definition.workspace_id}"
-    authorize_retained_outcome(ctx, "catalog.propose_match", scope)
+    authorize_retained_outcome(ctx, "catalog.propose_match", scope, Perm.ITEM_CREATE)
     return scope
 
 
@@ -59,18 +60,20 @@ def review_scope(ctx, payload):
     return scope
 
 
-def authorize_retained_outcome(ctx, name, scope):
+def authorize_retained_outcome(ctx, name, scope, permission=Perm.DESIGN_EDIT):
     """Recheck old references before the executor exposes a keyed mismatch diagnostic."""
     if ctx.idempotency_key is not None:
         for record in IdempotencyRecord.objects.filter(
             actor=ctx.user, operation=name, key=ctx.idempotency_key, scope=scope
         ):
-            candidate_rows(ctx.user, record.result["candidate_id"], edit=True)
+            candidate_rows(
+                ctx.user, record.result["candidate_id"], edit=True, permission=permission
+            )
 
 
 def authorize_proposal_replay(ctx, payload, stored):
     proposal_references(ctx, payload)
-    candidate_rows(ctx.user, stored["candidate_id"], edit=True)
+    candidate_rows(ctx.user, stored["candidate_id"], edit=True, permission=Perm.ITEM_CREATE)
 
 
 def authorize_review_replay(ctx, payload, stored):

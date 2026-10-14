@@ -15,8 +15,9 @@ test('produces standalone section and preview without device or connector config
   expect(screen.getByText(/Section: 3 mm × 3 mm · 4 material elements/)).toBeTruthy();
   expect(screen.getByLabelText('Stock section drawing').querySelectorAll('[data-element]')).toHaveLength(4);
   expect(screen.getByLabelText('Stock geometry preview').querySelectorAll('[data-preview-element]')).toHaveLength(4);
-  expect((screen.getByRole('button', { name: 'Save stock' }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText(/Select a project to save stock/)).toBeTruthy();
+  // Stock is a library item: saving never needs a project.
+  expect((screen.getByRole('button', { name: 'Save stock' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.queryByLabelText('Use in this project')).toBeNull();
 });
 
 test('saving editor changes persists the exact stock through the shared operation adapter', async () => {
@@ -33,10 +34,12 @@ test('saving editor changes persists the exact stock through the shared operatio
   expect(screen.getByText(/Section: 3.2 mm × 3.2 mm/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Save stock' }));
   await screen.findByText('Saved Synthetic saved coax (draft-v1).');
-  const call = fetchMock.mock.calls.find(([, options]) => (options as RequestInit)?.method === 'POST')!;
-  const payload = JSON.parse((call[1] as RequestInit).body as string);
+  const posts = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit)?.method === 'POST').map(([, options]) => JSON.parse((options as RequestInit).body as string));
+  const payload = posts[0];
   expect(payload.operation).toBe('wire_stock.create');
-  expect(payload.payload.project_id).toBe('project-1');
+  expect(payload.payload).not.toHaveProperty('project_id');
+  // "Use in this project" records a separate reference after the stock exists.
+  expect(posts[1]).toMatchObject({ operation: 'project.add_reference', payload: { project_id: 'project-1', kind: 'definition', target_id: 'definition-1', role: 'stock' } });
   expect(payload.payload.stock.structure.children[3].outer_diameter_mm).toBe(3.2);
   expect(payload.payload.stock.facts.impedance.value).toBeNull();
   expect((screen.getByRole('button', { name: 'Freeze saved stock' }) as HTMLButtonElement).disabled).toBe(false);
@@ -56,7 +59,8 @@ test('adding unknown material keeps identities in table and marks incomplete geo
 
 test('server conflict is visible and cannot be mistaken for a saved stock', async () => {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_url: string, options?: RequestInit) =>
-    options?.method === 'POST' ? new Response(JSON.stringify({ error: { message: 'Draft changed since expected state.' } }), { status: 409 }) : new Response('[]')));
+    options?.method === 'POST' ? new Response(JSON.stringify({ error: { message: 'Draft changed since expected state.' } }), { status: 409 })
+      : new Response(_url.includes('/catalog/definitions?') ? JSON.stringify({ results: [], next_after: null }) : '[]')));
   show('project-1');
   fireEvent.click(screen.getByRole('button', { name: 'Save stock' }));
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Draft changed'));
@@ -69,20 +73,20 @@ const button = (name: string) => screen.getByRole('button', { name }) as HTMLBut
 
 test('read-only permissions disable Save stock and Freeze with an accessible reason while local work stays available', () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('[]')));
-  showAs(['project.read']);
+  showAs(['workspace.read']);
   expect(button('Save stock').disabled).toBe(true);
-  expect(button('Save stock').title).toBe('Read-only access: requires Edit');
+  expect(button('Save stock').title).toBe('Read-only access: requires Contributor access');
   expect(button('Freeze saved stock').disabled).toBe(true);
-  expect(screen.getByRole('note').textContent).toContain('Read-only access: requires Edit');
+  expect(screen.getByRole('note').textContent).toContain('Read-only access: requires Contributor access');
   expect(button('Export specification').disabled).toBe(false);
   expect(button('Export section SVG').disabled).toBe(false);
 });
 
-test('editor without freeze can save but not freeze; freeze holder can do both', async () => {
+test('contributor can save but not freeze; freeze holder can do both', async () => {
   const saved = { name: 'Synthetic saved coax', definition_id: 'definition-1', draft_id: 'draft-1', state: 'draft-v1', content: { stock: stockPresets.coax } };
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_url: string, options?: RequestInit) =>
     options?.method === 'POST' ? new Response(JSON.stringify({ result: saved })) : new Response('[]')));
-  showAs(['project.read', 'design.edit']);
+  showAs(['workspace.read', 'item.create']);
   expect(button('Save stock').disabled).toBe(false);
   expect(screen.queryByRole('note')).toBeNull();
   fireEvent.click(button('Save stock'));
@@ -90,7 +94,7 @@ test('editor without freeze can save but not freeze; freeze holder can do both',
   expect(button('Freeze saved stock').disabled).toBe(true);
   expect(button('Freeze saved stock').title).toBe('Read-only access: requires Freeze');
   cleanup();
-  showAs(['project.read', 'design.edit', 'design.freeze']);
+  showAs(['workspace.read', 'item.create', 'design.edit', 'design.freeze']);
   fireEvent.click(button('Save stock'));
   await screen.findByText('Saved Synthetic saved coax (draft-v1).');
   expect(button('Freeze saved stock').disabled).toBe(false);

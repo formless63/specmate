@@ -3,9 +3,9 @@ import json
 from pathlib import Path
 
 import pytest
+from django.db import DatabaseError, transaction
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Draft, Snapshot
 from specmate.operations import (
     Conflict,
@@ -24,7 +24,8 @@ from specmate.workshop_profiles.queries import (
 )
 from specmate.workshop_profiles.schemas import WorkshopProfile
 
-from .conftest import op
+from .conftest import op, remove_member
+from .test_wire_stock import workspace_of
 
 FIXTURE = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "wire-stock-coax.json"
 
@@ -34,7 +35,7 @@ def stock_revision(users, project):
     draft = op(
         users["owner"],
         "wire_stock.create",
-        {"project_id": project, "name": "Synthetic coax", "stock": stock},
+        {"workspace_id": workspace_of(project), "name": "Synthetic coax", "stock": stock},
     )
     frozen = op(
         users["owner"],
@@ -70,10 +71,11 @@ def profile(revision_id, **changes):
 
 
 def create(users, project, body, **ctx):
+    """Profiles are library definitions: the payload names the workspace, never a project."""
     return op(
         users["owner"],
         "workshop_profile.create",
-        {"project_id": project, "name": "Synthetic preparation", "profile": body},
+        {"workspace_id": workspace_of(project), "name": "Synthetic preparation", "profile": body},
         **ctx,
     )
 
@@ -104,7 +106,7 @@ def test_profile_has_separate_identity_exact_stock_pin_and_immutable_revision(us
         get_profile(users["viewer"], draft["draft_id"])["content"]["profile"]["stock_revision_id"]
         == stock_id
     )
-    assert list_profiles(users["viewer"], project)[0]["definition_id"] == draft["definition_id"]
+    assert list_profiles(users["viewer"])[0]["definition_id"] == draft["definition_id"]
     frozen = op(
         users["owner"],
         "workshop_profile.freeze",
@@ -204,14 +206,16 @@ def test_scope_cas_and_replay_are_enforced(users, project):
             expected_state="draft-v0",
         )
     assert Draft.objects.get(id=draft["draft_id"]).version == 1
+    # Freezing needs design.freeze: editors hold it, contributors do not.
     with pytest.raises(PermissionDenied):
         op(
-            users["editor"],
+            users["contributor"],
             "workshop_profile.freeze",
             {"draft_id": draft["draft_id"]},
             expected_state=draft["state"],
         )
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).delete()
+    # Losing workspace membership hides even the actor's own keyed outcome.
+    remove_member(users["owner"])
     with pytest.raises(NotFound):
         create(users, project, body, idempotency_key="profile-create")
 
@@ -335,21 +339,24 @@ def test_generic_commands_keep_profile_validation_and_exact_dependency(users, pr
     "field,value", [("foil_visibility", "hide"), ("illustration_lay_direction", "positive")]
 )
 def test_registered_source_digest_and_rights_are_checked_on_profile_read(
-    users, project, field, value
+    users, project, other_workspace, field, value
 ):
     stock_id, _ = stock_revision(users, project)
     source_path = " instructions/strip.txt "
     raw = b"synthetic workshop instruction\n"
     digest = hashlib.sha256(raw).hexdigest()
     blob = SourceBlob.objects.create(
-        project_id=project,
+        workspace_id=workspace_of(project),
         sha256=digest,
         size=len(raw),
         media_type="text/plain",
         registered_by=users["owner"],
     )
     bundle = SourceBundle.objects.create(
-        project_id=project, name="Synthetic source", role="original", created_by=users["owner"]
+        workspace_id=workspace_of(project),
+        name="Synthetic source",
+        role="original",
+        created_by=users["owner"],
     )
     revision = SourceBundleRevision.objects.create(
         bundle=bundle,
@@ -441,16 +448,18 @@ def test_registered_source_digest_and_rights_are_checked_on_profile_read(
         {"draft_id": draft["draft_id"], "profile": profile(stock_id)},
         expected_state=frozen["draft"]["state"],
     )
-    other_project = op(users["owner"], "project.create", {"name": "Separate project"})["project_id"]
-    bundle.project_id = other_project
-    bundle.save(update_fields=["project"])
-    # The moved bundle now references another project's blobs. Source authority
-    # rejects that inconsistent closure before exposing profile-specific diagnostics.
+    # A source can never move to another workspace (database guard); losing workspace
+    # membership hides the profile, its exact source and the keyed outcomes instead.
+    with pytest.raises(DatabaseError), transaction.atomic():
+        SourceBundle.objects.filter(id=bundle.id).update(workspace_id=other_workspace)
+    remove_member(users["viewer"])
+    remove_member(users["owner"])
     with pytest.raises(NotFound):
         create(users, project, documented, idempotency_key="documented-profile")
 
     with pytest.raises(NotFound):
         revision_result(users["viewer"], frozen["revision_id"])
+    assert revision_result(users["editor"], frozen["revision_id"])["content"]["profile"][field]
     with pytest.raises(NotFound):
         op(
             users["owner"],
@@ -478,7 +487,6 @@ def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
                 "operation": "workshop_profile.create",
                 "request_id": "profile-http-1",
                 "payload": {
-                    "project_id": project,
                     "name": "Synthetic display",
                     "profile": profile(stock_id, illustration_lay_direction=direction),
                 },
@@ -488,9 +496,17 @@ def test_http_adapter_lists_and_reads_exact_profile_revision(users, project):
     )
     assert response.status_code == 200, response.content
     draft = response.json()["result"]
-    listed = client.get(f"/api/v0/projects/{project}/workshop-profiles")
+    listed = client.get("/api/v0/workshop-profiles")
     assert listed.status_code == 200
     assert listed.json()[0]["definition_id"] == draft["definition_id"]
+    from .test_project_references import add
+
+    add(users["owner"], project, "definition", draft["definition_id"], role="display")
+    scoped = client.get("/api/v0/workshop-profiles", {"project_id": project}).json()
+    assert scoped[0]["definition_id"] == draft["definition_id"] and scoped[0]["in_project"]
+    outsider = Client()
+    outsider.force_login(users["outsider"])
+    assert outsider.get("/api/v0/workshop-profiles", {"project_id": project}).status_code == 404
     frozen = op(
         users["owner"],
         "workshop_profile.freeze",

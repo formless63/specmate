@@ -25,7 +25,7 @@ export type PermissionName =
 const REQUIRES: Record<PermissionName, string> = {
   "workspace.read": "Read",
   "workspace.admin": "Administration",
-  "item.create": "Contribution",
+  "item.create": "Contributor access",
   "project.edit": "Project editing",
   "design.edit": "Edit",
   "design.freeze": "Freeze",

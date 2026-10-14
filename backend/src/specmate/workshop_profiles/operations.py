@@ -4,12 +4,13 @@ from uuid import UUID
 
 from pydantic import Field
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
+from specmate.catalog.scope import creation_workspace
 from specmate.design.models import Definition, Draft
-from specmate.design.operations import check_state, draft_state, scoped_draft
+from specmate.design.operations import check_state, scoped_draft
 from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.operations.scope import workspace_scope
-from specmate.workshop_profiles.queries import authorize_profile_content
+from specmate.workshop_profiles.queries import authorize_profile_content, profile_record
 from specmate.workshop_profiles.schemas import (
     StrictModel,
     WorkshopProfile,
@@ -18,7 +19,10 @@ from specmate.workshop_profiles.schemas import (
 
 
 class CreateProfile(StrictModel):
-    project_id: UUID
+    # Omitted: the actor's workspace. Profiles are library definitions.
+    workspace_id: UUID | None = None
+    # TRANSITIONAL (P3 removes): a project id only selects its workspace; no reference.
+    project_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
     profile: WorkshopProfile
 
@@ -34,7 +38,8 @@ class FreezeProfile(StrictModel):
 
 def profile_scope(ctx, p) -> str:
     if isinstance(p, CreateProfile):
-        return workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+        workspace = creation_workspace(ctx.user, p.workspace_id, p.project_id)
+        return workspace_scope(ctx, workspace.id, Perm.ITEM_CREATE)
     permission = Perm.DESIGN_FREEZE if isinstance(p, FreezeProfile) else Perm.DESIGN_EDIT
     draft = scoped_draft(ctx, p.draft_id, permission)
     if draft.definition.kind != "workshop_profile":
@@ -72,7 +77,7 @@ def authorize_profile_replay(ctx, p, stored) -> None:
     authorize_replay=authorize_profile_replay,
 )
 def create_profile(ctx: Context, p: CreateProfile) -> dict:
-    workspace = authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = creation_workspace(ctx.user, p.workspace_id, p.project_id)
     content = validate_profile_content({"profile": p.profile.model_dump(mode="json")})
     definition = Definition(
         workspace=workspace, kind="workshop_profile", name=p.name, created_by=ctx.user
@@ -80,7 +85,7 @@ def create_profile(ctx: Context, p: CreateProfile) -> dict:
     authorize_profile_content(ctx.user, definition, content)
     definition.save()
     draft = Draft.objects.create(definition=definition, content=content, updated_by=ctx.user)
-    return {"definition_id": str(definition.id), "name": definition.name, **draft_state(draft)}
+    return profile_record(draft)
 
 
 @operation(
@@ -102,11 +107,7 @@ def update_profile(ctx: Context, p: UpdateProfile) -> dict:
     draft.version += 1
     draft.updated_by = ctx.user
     draft.save(update_fields=["content", "version", "updated_by", "updated_at"])
-    return {
-        "definition_id": str(draft.definition_id),
-        "name": draft.definition.name,
-        **draft_state(draft),
-    }
+    return profile_record(draft)
 
 
 @operation(

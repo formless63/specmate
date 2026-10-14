@@ -48,7 +48,7 @@ def _native_execution(workspace_id: UUID | None, held: frozenset[Perm]) -> dict:
         )
         if not active.exists():
             result["status"] = "degraded"
-            result["reasons"] = ["no_active_runner_for_project"]
+            result["reasons"] = ["no_active_runner_for_workspace"]
         if Perm.BUILD_EXECUTE in held:
             # Recipe ids are execution configuration: only show them to actors who may request.
             result["approved_recipe_ids"] = recipes
@@ -81,7 +81,7 @@ def _availability(
         return out("available")
     needed = requirement.permission
     if scope is None:
-        return out("scope_required", "project_id_required", requires=needed.value)
+        return out("scope_required", "workspace_id_required", requires=needed.value)
     if needed not in held:
         return out("not_permitted", "missing_permission", missing=needed.value)
     if "recipe_id" in spec.payload.model_fields:
@@ -93,25 +93,32 @@ def _availability(
     return out("available")
 
 
-def describe(ctx: Context, project_id: UUID | None, include_schemas: bool) -> dict:
+def describe(
+    ctx: Context, workspace_id: UUID | None, project_id: UUID | None, include_schemas: bool
+) -> dict:
     if not isinstance(ctx.user, get_user_model()):
         raise PermissionDenied("Discovery requires an interactive account actor.")
     held: frozenset[Perm] = frozenset()
     scope = None
-    if project_id is not None:
-        # Non-members get NotFound, exactly like every other scoped read.
-        workspace = authorize(ctx.user, project_id, Perm.WORKSPACE_READ)
+    workspace = None
+    if workspace_id is not None or project_id is not None:
+        from specmate.catalog.scope import library_scope
+
+        # Non-members get NotFound, exactly like every other scoped read. A project id
+        # only selects its workspace: the role is the member's workspace role.
+        workspace, project = library_scope(ctx.user, workspace_id, project_id)
+        authorize(ctx.user, workspace.id, Perm.WORKSPACE_READ)
         member = membership(ctx.user, workspace.id)
         held = permissions_for(member)
         scope = {
-            "project_id": str(project_id),
             "workspace_id": str(workspace.id),
+            "project_id": str(project.id) if project is not None else None,
             "role": member.role,
             "permissions": sorted(p.value for p in held),
         }
     installation = Installation.objects.filter(singleton=True).first()
     is_owner = installation is not None and installation.owner_id == ctx.user.pk
-    native = _native_execution(workspace.id if project_id is not None else None, held)
+    native = _native_execution(workspace.id if workspace is not None else None, held)
 
     operations = []
     digest_material = []
@@ -157,7 +164,7 @@ def describe(ctx: Context, project_id: UUID | None, include_schemas: bool) -> di
         "scope": scope,
         "capabilities": {"native_execution": native},
         "notes": [
-            "available means the actor's role satisfies the operation's minimum project "
+            "available means the actor's role satisfies the operation's minimum workspace "
             "permission and no capability is missing; object-level authority, expected-state "
             "tokens and rights are still checked when the operation runs.",
         ],

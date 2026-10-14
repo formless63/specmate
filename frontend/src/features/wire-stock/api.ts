@@ -3,6 +3,8 @@ import type { StockSpecification } from '../../../../packages/section-layout/src
 
 export interface StockRecord {
   definition_id: string;
+  workspace_id?: string;
+  in_project?: boolean;
   draft_id: string;
   name: string;
   state: string;
@@ -15,14 +17,16 @@ async function read<T>(url: string, options?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(body.error?.message ?? `Request failed (${response.status}).`);
   return body as T;
 }
-export const listStocks = (projectId: string): Promise<StockRecord[]> =>
-  read(`/api/v0/projects/${encodeURIComponent(projectId)}/stocks`);
-export async function saveStock(projectId: string, name: string, stock: StockSpecification, current: StockRecord | null): Promise<StockRecord> {
+/** Library stock; a project id only lists the stock that project references first. */
+export const listStocks = (projectId?: string | null): Promise<StockRecord[]> =>
+  read(`/api/v0/stocks${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`);
+/** New stock joins the workspace library (the server resolves the actor's workspace). */
+export async function saveStock(name: string, stock: StockSpecification, current: StockRecord | null): Promise<StockRecord> {
   const result = await read<{ result: StockRecord }>('/api/v0/operations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
     body: JSON.stringify({ operation: current ? 'wire_stock.update' : 'wire_stock.create',
       request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: current?.state ?? null,
-      payload: current ? { draft_id: current.draft_id, stock } : { project_id: projectId, name, stock } }),
+      payload: current ? { draft_id: current.draft_id, stock } : { name, stock } }),
   });
   return result.result;
 }

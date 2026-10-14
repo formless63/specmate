@@ -11,7 +11,7 @@ const suggestion: SupplierSuggestion = {
   source_variant_id: variant.variant_id, target_variant_id: "target-variant",
   manufacturer: variant.manufacturer, part_number: variant.part_number,
   source_association_basis: variant.association_basis, target_association_basis: "Target catalog assertion",
-  target: { revision_id: "target-revision", definition_id: "target-definition", project_id: "target-project", name: "Suggested exact target", kind: "part", number: 2, sha256: "a".repeat(64) },
+  target: { revision_id: "target-revision", definition_id: "target-definition", workspace_id: "workspace-1", name: "Suggested exact target", kind: "part", number: 2, sha256: "a".repeat(64) },
   match_basis: "exact_manufacturer_and_part_number", review: "not_reviewed", compatibility: "not_evaluated",
 };
 async function load() {
@@ -24,9 +24,12 @@ async function load() {
 
 test("reading exact suggestions makes no commands; only deliberate use returns the exact target", async () => {
   const use = vi.fn(); const denied = vi.fn();
-  const fetch = vi.fn(async (path: string) => reply(path.includes("supplier-suggestions") ? { results: [suggestion], next_after: null, inspection_truncated: false } : { variants: [variant] }));
+  const fetch = vi.fn(async (path: string) => {
+    if (path.includes("supplier-suggestions")) expect(path).not.toContain("project");
+    return reply(path.includes("supplier-suggestions") ? { results: [suggestion], next_after: null, inspection_truncated: false } : { variants: [variant] });
+  });
   vi.stubGlobal("fetch", fetch);
-  render(<MantineProvider><SupplierSuggestions sourceRevisionId="source-revision" targetProjectId="target-project" canEdit onUse={use} onDenied={denied} /></MantineProvider>);
+  render(<MantineProvider><SupplierSuggestions sourceRevisionId="source-revision" canEdit onUse={use} onDenied={denied} /></MantineProvider>);
   expect(fetch).not.toHaveBeenCalled();
   await load();
   expect(use).not.toHaveBeenCalled();
@@ -45,7 +48,7 @@ test("denied repeated suggestion read clears retained names and pins before any 
   vi.stubGlobal("fetch", vi.fn(async (path: string) => path.includes("supplier-suggestions")
     ? revoked ? reply({ error: { message: "Source authority changed." } }, 404) : reply({ results: [suggestion], next_after: null, inspection_truncated: false })
     : reply({ variants: [variant] })));
-  render(<MantineProvider><SupplierSuggestions sourceRevisionId="source-revision" targetProjectId="target-project" canEdit onUse={vi.fn()} onDenied={denied} /></MantineProvider>);
+  render(<MantineProvider><SupplierSuggestions sourceRevisionId="source-revision" canEdit onUse={vi.fn()} onDenied={denied} /></MantineProvider>);
   await load(); revoked = true;
   fireEvent.click(screen.getByRole("button", { name: "Suggest exact identifier matches" }));
   expect(screen.queryByText("Suggested exact target · revision 2")).toBeNull();
@@ -55,16 +58,16 @@ test("denied repeated suggestion read clears retained names and pins before any 
   expect(denied).toHaveBeenCalledTimes(1);
 });
 
-test("read-only actor can inspect but cannot use pins; target scope change discards the old results", async () => {
+test("read-only actor can inspect but cannot use pins; a new source revision discards the old results", async () => {
   const use = vi.fn();
   vi.stubGlobal("fetch", vi.fn(async (path: string) => reply(path.includes("supplier-suggestions") ? { results: [suggestion], next_after: null, inspection_truncated: true } : { variants: [variant] })));
-  const show = (target: string) => <MantineProvider><SupplierSuggestions sourceRevisionId="source-revision" targetProjectId={target} canEdit={false} onUse={use} onDenied={vi.fn()} /></MantineProvider>;
-  const view = render(show("target-project"));
+  const show = (source: string) => <MantineProvider><SupplierSuggestions sourceRevisionId={source} canEdit={false} onUse={use} onDenied={vi.fn()} /></MantineProvider>;
+  const view = render(show("source-revision"));
   await load();
   const button = screen.getByRole("button", { name: "Use exact pins in proposal" }) as HTMLButtonElement;
   expect(button.disabled).toBe(true); fireEvent.click(button); expect(use).not.toHaveBeenCalled();
   expect(screen.getByText(/inspection bound was reached/)).toBeTruthy();
-  view.rerender(show("other-project"));
+  view.rerender(show("other-revision"));
   await waitFor(() => expect(screen.queryByText("Suggested exact target · revision 2")).toBeNull());
   expect(screen.queryByLabelText("Exact source supplier identity")).toBeNull();
 });

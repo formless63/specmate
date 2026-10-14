@@ -21,11 +21,11 @@ function installApi(exactProfile = profileRevision(), frozenStock = stockPresets
   const jacket = draft.structure.children[3]!;
   if (jacket.kind !== 'group' && jacket.kind !== 'web') jacket.outer_diameter_mm = 8;
   const fetcher = vi.fn(async (url: string, _options?: RequestInit) => {
-    if (url.endsWith('/stocks')) return new Response(JSON.stringify([{ name: 'Editable stock', definition_id: 'stock-definition', draft_id: 'draft1', state: 'draft-v1', content: { stock: draft } }]));
-    if (url.endsWith('/definitions')) return new Response(JSON.stringify([
+    if (url.includes('/api/v0/stocks')) return new Response(JSON.stringify([{ name: 'Editable stock', definition_id: 'stock-definition', draft_id: 'draft1', state: 'draft-v1', content: { stock: draft } }]));
+    if (url.includes('/catalog/definitions?')) return new Response(JSON.stringify({ workspace_id: 'workspace', project_id: null, next_after: null, results: [
       { definition_id: 'stock-definition', name: 'Synthetic stock', kind: 'wire_stock' },
       { definition_id: 'profile-definition', name: 'Synthetic profile', kind: 'workshop_profile' },
-    ]));
+    ] }));
     if (url.includes('/catalog/definitions/')) return new Response(JSON.stringify({ kind: 'wire_stock', revisions: [{ revision_id: 'stock-r1', number: 1 }, { revision_id: 'stock-r2', number: 2 }] }));
     if (url.endsWith('/snapshot')) return new Response(JSON.stringify({ content: { stock: url.includes('stock-r1') ? frozenStock : draft } }));
     if (url.includes('/workshop-profile-definitions/')) return new Response(JSON.stringify([profileRevision(), profileRevision('stock-r2', 'profile-r2')]));

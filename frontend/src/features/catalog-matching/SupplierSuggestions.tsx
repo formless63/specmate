@@ -7,13 +7,13 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 type Variant = { variant_id: string; manufacturer: string; part_number: string; association_basis: string };
 
 type Props = {
-  sourceRevisionId: string; targetProjectId: string; canEdit: boolean;
+  sourceRevisionId: string; canEdit: boolean;
   onUse: (value: SupplierSuggestion) => void; onDenied: (reason: unknown) => void;
 };
 export function SupplierSuggestions(props: Props) {
-  return <Workspace key={`${props.sourceRevisionId}:${props.targetProjectId}`} {...props} />;
+  return <Workspace key={props.sourceRevisionId} {...props} />;
 }
-function Workspace({ sourceRevisionId, targetProjectId, canEdit, onUse, onDenied }: Props) {
+function Workspace({ sourceRevisionId, canEdit, onUse, onDenied }: Props) {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [variantId, setVariantId] = useState("");
   const [offset, setOffset] = useState(0);
@@ -48,14 +48,14 @@ function Workspace({ sourceRevisionId, targetProjectId, canEdit, onUse, onDenied
     setBusy(true); setError("");
     if (!after) setPage(null);
     try {
-      const value = await supplierSuggestions(sourceRevisionId, variantId, targetProjectId, after);
+      const value = await supplierSuggestions(sourceRevisionId, variantId, after);
       if (token === generation.current) setPage(after && page ? { ...value, results: [...page.results, ...value.results] } : value);
     } catch (reason) { if (token === generation.current) denied(reason); }
     finally { if (token === generation.current) setBusy(false); }
   }
   return <Card withBorder><Stack>
     <Title order={3}>Supplier identifier suggestions</Title>
-    <Text>Compare one asserted manufacturer and part-number pair with the selected target project. Suggestions remain unreviewed; reading them changes no identities or consumer pins.</Text>
+    <Text>Compare one asserted manufacturer and part-number pair with the workspace library. Suggestions remain unreviewed; reading them changes no identities or consumer pins.</Text>
     {error && <Alert color="red">{error}</Alert>}
     <Button variant="light" loading={busy} disabled={blocked} onClick={() => void loadVariants()}>Load source supplier identities</Button>
     {!blocked && !busy && loaded && <>
@@ -64,8 +64,8 @@ function Workspace({ sourceRevisionId, targetProjectId, canEdit, onUse, onDenied
       {moreVariants && <Button variant="light" onClick={() => void loadVariants(offset + 50)}>More source supplier identities</Button>}
       <Button disabled={!variantId} onClick={() => void suggest()}>Suggest exact identifier matches</Button>
       {page && <>
-        {page.inspection_truncated && <Alert color="yellow">The inspection bound was reached. This list does not establish complete discovery; continue if offered or narrow the target project.</Alert>}
-        {page.results.length === 0 && <Text>No currently accessible exact identifier suggestions in this page.</Text>}
+        {page.inspection_truncated && <Alert color="yellow">The inspection bound was reached. This list does not establish complete discovery; continue if offered.</Alert>}
+        {page.results.length === 0 && <Text>No exact identifier suggestions in this page.</Text>}
         {page.results.map((value) => <Card withBorder key={value.target_variant_id}><Stack gap="xs">
           <Text fw={600}>{value.target.name} · revision {value.target.number}</Text>
           <Text>{value.manufacturer} · {value.part_number} · Exact identifier pair; unreviewed, compatibility not evaluated.</Text>

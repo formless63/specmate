@@ -7,12 +7,12 @@ import type { Comparison, Review } from './api';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); HTMLElement.prototype.scrollIntoView = vi.fn(); });
-const pin = (id: string, number: number) => ({ revision_id: id, definition_id: 'original-definition', project_id: 'project', name: 'Original declared stock', kind: 'wire_stock', number, sha256: `exact-${id}-hash` });
+const pin = (id: string, number: number) => ({ revision_id: id, definition_id: 'original-definition', workspace_id: 'workspace', name: 'Original declared stock', kind: 'wire_stock', number, sha256: `exact-${id}-hash` });
 const comparison: Comparison = { old: pin('old', 1), candidate: pin('candidate', 2), identity_relation: 'same_definition', changes: [
   { path: ['length_mm'], change: 'changed', old_present: true, candidate_present: true, old: '12.5', candidate: '13.75' },
   { path: ['unknown'], change: 'added', old_present: false, candidate_present: true, old: null, candidate: null },
-], next_changes_offset: null, parents_side: 'old', parent_scope: 'currently_authorized_captured_snapshot_pins', parents: { results: [{ snapshot_id: 'exact-parent-snapshot', definition_id: 'parent', project_id: 'project', label: 'Original authorized parent' }], next_after: null }, dependency_pins: { old: [], candidate: [] }, limitations: ['Declared JSON positions are not feature correspondence.'] };
-const baseReview: Review = { review_id: 'review', project_id: 'project', title: 'Original private review title', old: comparison.old, candidate: comparison.candidate, state: 'team-review-v3', status: 'open', recipients: [{ user_id: 'viewer', username: 'original-viewer' }], knowledge: { item_id: 'note', number: 1, title: 'Original pinned note', body: 'Private original explanation', attachments: [{ path: 'original.txt', sha256: 'source-hash', rights: 'AGPL-3.0-only' }] }, entries: [{ entry_id: 'entry', number: 1, action: 'opened', basis: 'Original declared basis', author: 'original-owner', created_at: '2026-01-01', evidence: { status: 'unknown' }, upgrade_proposal_id: null }], comparison };
+], next_changes_offset: null, parents_side: 'old', parent_scope: 'currently_authorized_captured_snapshot_pins', parents: { results: [{ snapshot_id: 'exact-parent-snapshot', definition_id: 'parent', workspace_id: 'workspace', label: 'Original authorized parent' }], next_after: null }, dependency_pins: { old: [], candidate: [] }, limitations: ['Declared JSON positions are not feature correspondence.'] };
+const baseReview: Review = { review_id: 'review', workspace_id: 'workspace', project_id: 'project', title: 'Original private review title', old: comparison.old, candidate: comparison.candidate, state: 'team-review-v3', status: 'open', recipients: [{ user_id: 'viewer', username: 'original-viewer' }], knowledge: { item_id: 'note', number: 1, title: 'Original pinned note', body: 'Private original explanation', attachments: [{ path: 'original.txt', sha256: 'source-hash', rights: 'AGPL-3.0-only' }] }, entries: [{ entry_id: 'entry', number: 1, action: 'opened', basis: 'Original declared basis', author: 'original-owner', created_at: '2026-01-01', evidence: { status: 'unknown' }, upgrade_proposal_id: null }], comparison };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 function fixture() {
@@ -30,8 +30,7 @@ function fixture() {
       if (body.operation === 'collaboration.compare') return json({ result: comparison });
       return json({ result: { ...baseReview, state } });
     }
-    if (url.endsWith('/projects')) return json([{ project_id: 'project', name: 'Original authorized project', permissions: ['design.edit'] }]);
-    if (url.endsWith('/definitions')) return json([{ definition_id: 'original-definition', name: 'Original declared stock', kind: 'wire_stock' }]);
+    if (url.includes('/catalog/definitions?')) return json({ workspace_id: 'workspace', project_id: 'project', results: [{ definition_id: 'original-definition', name: 'Original declared stock', kind: 'wire_stock' }], next_after: null });
     return json({ definition_id: 'original-definition', name: 'Original declared stock', kind: 'wire_stock', revisions: [{ revision_id: 'old', number: 1 }, { revision_id: 'candidate', number: 2 }], drafts: [] });
   }));
   return { calls, hold: () => { held = deferred<Response>(); return held; }, release: () => { held?.resolve(json({ result: { ...baseReview, state } })); held = null; }, deny: () => { deny = true; }, restore: () => { deny = false; }, failResponse: () => { failResponse = true; } };
@@ -141,12 +140,23 @@ test('closing denied historic selection permits a clean context without reviving
   expect((screen.getByLabelText('Prepared response basis') as HTMLTextAreaElement).value).toBe('Original prepared response retained');
 });
 
-test('inactive scope also fences an already open portal containing protected project choices', async () => {
+test('inactive scope fences retained review choices and protected labels', async () => {
   fixture(); const view = render(panel());
-  const input = await screen.findByRole('combobox', { name: 'Old revision project' });
   await screen.findByRole('combobox', { name: 'Retained team review' });
-  fireEvent.click(input);
-  await waitFor(() => expect(input.getAttribute('aria-expanded')).toBe('true'));
   view.rerender(panel('owner', false));
-  expect(input.getAttribute('aria-expanded')).toBe('false');
+  expect(screen.queryByRole('combobox', { name: 'Retained team review' })).toBeNull();
+  expect(screen.queryByText(/Original private review title/)).toBeNull();
+});
+
+test('reviews and inbox are workspace reads; a project is only ordering context', async () => {
+  const f = fixture(); const view = render(panel());
+  await screen.findByRole('combobox', { name: 'Retained team review' });
+  const scoped = f.calls.filter(c => c.operation === 'collaboration.list' || c.operation === 'collaboration.inbox');
+  expect(scoped.length).toBeGreaterThan(0);
+  expect(scoped.every(c => c.payload.project_id === 'project')).toBe(true);
+  view.unmount();
+  const g = fixture(); render(<MantineProvider><CollaborationPanel principalKey="owner" canEdit active /></MantineProvider>);
+  await screen.findByRole('combobox', { name: 'Retained team review' });
+  const library = g.calls.filter(c => c.operation === 'collaboration.list' || c.operation === 'collaboration.inbox');
+  expect(library.every(c => !('project_id' in c.payload))).toBe(true);
 });

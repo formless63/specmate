@@ -1,21 +1,23 @@
 import { randomUUID } from "../../lib/random-id";
 import { Alert, Badge, Button, Card, Checkbox, Group, MultiSelect, NativeSelect, Stack, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { command, PackRequestError, read, type Decision, type Entry, type FilePin, type Manifest, type Pack, type Project, type SourceFile, type Version } from "./api";
+import { command, PackRequestError, read, type Decision, type Entry, type FilePin, type Manifest, type Pack, type SourceFile, type Version } from "./api";
+import { allLibraryDefinitions } from "../identity/api";
+import { useCan } from "../../lib/permissions";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const message = (reason: unknown) => reason instanceof Error ? reason.message : "Request failed.";
 const blankEntry = (): Entry => ({ key: "", label: "", category: "content", rights: "unknown" });
 
-export function CatalogPacksWorkspace({ projectId }: { projectId: string }) {
+/** Workspace catalog packs. `projectId` is optional context: pickers list its references first. */
+export function CatalogPacksWorkspace({ projectId }: { projectId?: string | null }) {
   const [epoch, setEpoch] = useState(0);
   useEffect(() => { const refresh = () => setEpoch((value) => value + 1); window.addEventListener("focus", refresh); return () => window.removeEventListener("focus", refresh); }, []);
-  return <Stack><Button variant="light" onClick={() => setEpoch((value) => value + 1)}>Refresh catalog pack access</Button><Workspace key={`${projectId}-${epoch}`} projectId={projectId} /></Stack>;
+  return <Stack><Button variant="light" onClick={() => setEpoch((value) => value + 1)}>Refresh catalog pack access</Button><Workspace key={`${projectId ?? "library"}-${epoch}`} projectId={projectId ?? null} /></Stack>;
 }
 
-function Workspace({ projectId }: { projectId: string }) {
-  const [projects, setProjects] = useState<Project[]>([]);
+function Workspace({ projectId }: { projectId: string | null }) {
   const [packs, setPacks] = useState<Pack[]>([]);
   const [nextPack, setNextPack] = useState<string | null>(null);
   const [selected, setSelected] = useState<Pack | null>(null);
@@ -28,16 +30,19 @@ function Workspace({ projectId }: { projectId: string }) {
   const [blocked, setBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
-  const canEdit = !blocked && (projects.find((project) => project.project_id === projectId)?.permissions.includes("design.edit") ?? false);
-  const invalidate = (reason: unknown) => { setError(message(reason)); setBlocked(true); setProjects([]); setPacks([]); setSelected(null); setVersion(null); setDecisions([]); setEntryKeys([]); setBasis(""); setBusy(false); };
+  // Importing an inert pack version is additive (contributors may); install, adopt and
+  // disable change what the workspace uses and need design.edit.
+  const canImport = useCan("item.create") && !blocked;
+  const canEdit = useCan("design.edit") && !blocked;
+  const invalidate = (reason: unknown) => { setError(message(reason)); setBlocked(true); setPacks([]); setSelected(null); setVersion(null); setDecisions([]); setEntryKeys([]); setBasis(""); setBusy(false); };
 
   async function loadPacks(after?: string) {
-    const page = await read<{ results: Pack[]; next_after: string | null }>(`catalog-packs/projects/${projectId}?limit=25${after ? `&after=${after}` : ""}`);
+    const page = await read<{ results: Pack[]; next_after: string | null }>(`catalog-packs/packs?limit=25${after ? `&after=${after}` : ""}`);
     return page;
   }
   useEffect(() => {
     const token = ++generation.current;
-    void Promise.all([read<Project[]>("projects"), loadPacks()]).then(([actorProjects, page]) => { if (token === generation.current) { setProjects(actorProjects); setPacks(page.results); setNextPack(page.next_after); } })
+    void loadPacks().then((page) => { if (token === generation.current) { setPacks(page.results); setNextPack(page.next_after); } })
       .catch((reason) => { if (token === generation.current) invalidate(reason); });
     return () => { generation.current += 1; };
   }, []);
@@ -90,8 +95,9 @@ function Workspace({ projectId }: { projectId: string }) {
     <Text>Version inert catalog content, profiles, model/rule files and recipe references. Installation and adoption grant no executable authority; old consumers retain their exact pins.</Text>
     {error && <Alert color="red">{error}</Alert>}
     {blocked && <Alert color="yellow">Refresh access before continuing. Retained choices and history were cleared.</Alert>}
-    {!canEdit && <Text>Read only. Pack authoring and adoption require design editing permission.</Text>}
-    {!blocked && <RegisterForm projectId={projectId} projects={projects} packs={packs} canEdit={canEdit} onRegistered={registered} onDenied={invalidate} />}
+    {!canImport && <Text>Read only. Importing packs needs contributor access; installation and adoption need editor access.</Text>}
+    {canImport && !canEdit && <Text>You can import pack versions. Installation and adoption need editor access.</Text>}
+    {!blocked && <RegisterForm projectId={projectId} packs={packs} canEdit={canImport} onRegistered={registered} onDenied={invalidate} />}
     <Title order={3}>Registered packs</Title>
     {packs.map((pack) => <Card withBorder key={pack.pack_id}><Group><Text>{pack.package_key}</Text><Badge>{pack.enabled ? "Enabled" : "Not enabled"}</Badge></Group><Button variant="light" disabled={busy} onClick={() => void inspect(pack.pack_id)}>Inspect pack</Button></Card>)}
     {nextPack && <Button onClick={() => void morePacks()}>More packs</Button>}
@@ -120,7 +126,7 @@ function Workspace({ projectId }: { projectId: string }) {
   </Stack>;
 }
 
-function RegisterForm({ projectId, projects, packs, canEdit, onRegistered, onDenied }: { projectId: string; projects: Project[]; packs: Pack[]; canEdit: boolean; onRegistered: (version: Version) => Promise<void>; onDenied: (reason: unknown) => void }) {
+function RegisterForm({ projectId, packs, canEdit, onRegistered, onDenied }: { projectId: string | null; packs: Pack[]; canEdit: boolean; onRegistered: (version: Version) => Promise<void>; onDenied: (reason: unknown) => void }) {
   const [packId, setPackId] = useState("");
   const [packageKey, setPackageKey] = useState("");
   const [label, setLabel] = useState("");
@@ -142,7 +148,7 @@ function RegisterForm({ projectId, projects, packs, canEdit, onRegistered, onDen
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
     const manifest: Manifest = { format: "specmate.catalog-pack", contract_version: contractVersion, package_key: packageKey, label, version, publisher, rights, capabilities: capabilities.split(",").map((claim) => claim.trim()).filter(Boolean), requested_authority: [], dependencies, signature_claim: signedClaim ? { algorithm, signer, signature } : null, entries: entries.map((entry) => entry.value) };
-    try { const result = await command<Version>("catalog_pack.register", { project_id: projectId, pack_id: packId || null, manifest, manifest_source: linkedManifest ? manifestSource : null }); if (active.current) await onRegistered(result); }
+    try { const result = await command<Version>("catalog_pack.register", { pack_id: packId || null, manifest, manifest_source: linkedManifest ? manifestSource : null }); if (active.current) await onRegistered(result); }
     catch (reason) { if (active.current) { setError(message(reason)); if (!(reason instanceof PackRequestError) || ![409, 422].includes(reason.status)) onDenied(reason); } }
     finally { if (active.current) setBusy(false); }
   }
@@ -162,14 +168,14 @@ function RegisterForm({ projectId, projects, packs, canEdit, onRegistered, onDen
     {signedClaim && <><TextInput label="Claimed signature algorithm" value={algorithm} onChange={(event) => setAlgorithm(event.currentTarget.value)} required maxLength={100} /><TextInput label="Claimed signer" value={signer} onChange={(event) => setSigner(event.currentTarget.value)} required maxLength={200} /><Textarea label="Unverified signature text" value={signature} onChange={(event) => setSignature(event.currentTarget.value)} required maxLength={4000} /></>}
     <Text size="sm">Publisher, capability and signature claims remain unverified. Pack rights are declared metadata and do not establish redistribution permission.</Text>
     <Checkbox label="Link an exact registered manifest file" checked={linkedManifest} onChange={(event) => setLinkedManifest(event.currentTarget.checked)} />
-    {linkedManifest && <SourcePicker label="Manifest" projectId={projectId} projects={projects} onChange={setManifestSource} onDenied={onDenied} />}
-    {entries.map((entry, index) => <Card withBorder key={entry.id}><EntryEditor index={index + 1} value={entry.value} projectId={projectId} projects={projects} onChange={(value) => setEntries((current) => current.map((row) => row.id === entry.id ? { ...row, value } : row))} onDenied={onDenied} />{entries.length > 1 && <Button variant="light" onClick={() => setEntries((current) => current.filter((row) => row.id !== entry.id))}>Remove entry {index + 1}</Button>}</Card>)}
+    {linkedManifest && <SourcePicker label="Manifest" onChange={setManifestSource} onDenied={onDenied} />}
+    {entries.map((entry, index) => <Card withBorder key={entry.id}><EntryEditor index={index + 1} value={entry.value} projectId={projectId} onChange={(value) => setEntries((current) => current.map((row) => row.id === entry.id ? { ...row, value } : row))} onDenied={onDenied} />{entries.length > 1 && <Button variant="light" onClick={() => setEntries((current) => current.filter((row) => row.id !== entry.id))}>Remove entry {index + 1}</Button>}</Card>)}
     <Button variant="light" disabled={entries.length >= 100} onClick={() => setEntries((current) => [...current, { id: randomUUID(), value: blankEntry() }])}>Add catalog entry</Button>
     <Button type="submit" loading={busy} disabled={!canEdit || !completeEntries || (linkedManifest && !manifestSource)}>Register exact version</Button>
   </Stack></form></Card>;
 }
 
-function EntryEditor({ index, value, projectId, projects, onChange, onDenied }: { index: number; value: Entry; projectId: string; projects: Project[]; onChange: (entry: Entry) => void; onDenied: (reason: unknown) => void }) {
+function EntryEditor({ index, value, projectId, onChange, onDenied }: { index: number; value: Entry; projectId: string | null; onChange: (entry: Entry) => void; onDenied: (reason: unknown) => void }) {
   const prefix = `Entry ${index}`;
   const patch = (changes: Partial<Entry>) => onChange({ ...value, ...changes });
   return <Stack gap="xs">
@@ -177,8 +183,8 @@ function EntryEditor({ index, value, projectId, projects, onChange, onDenied }: 
     <TextInput label={`${prefix} label`} value={value.label} onChange={(event) => patch({ label: event.currentTarget.value })} required maxLength={200} />
     <NativeSelect label={`${prefix} category`} value={value.category} data={[{ value: "content", label: "Engineering content" }, { value: "profile", label: "Workshop profile" }, { value: "rule", label: "Inert rule file" }, { value: "model", label: "Inert model file" }, { value: "recipe_reference", label: "Inert recipe reference" }]} onChange={(event) => onChange({ key: value.key, label: value.label, rights: value.rights, category: event.currentTarget.value as Entry["category"] })} />
     <TextInput label={`${prefix} declared rights`} value={value.rights} onChange={(event) => patch({ rights: event.currentTarget.value })} required maxLength={200} />
-    {["content", "profile"].includes(value.category) && <RevisionPicker key={value.category} label={prefix} projectId={projectId} projects={projects} onChange={(pin) => patch({ revision_id: pin?.revision_id ?? null, revision_sha256: pin?.sha256 ?? null })} onDenied={onDenied} />}
-    {["rule", "model"].includes(value.category) && <SourcePicker key={value.category} label={prefix} projectId={projectId} projects={projects} onChange={(source) => patch({ source })} onDenied={onDenied} />}
+    {["content", "profile"].includes(value.category) && <RevisionPicker key={value.category} label={prefix} projectId={projectId} onChange={(pin) => patch({ revision_id: pin?.revision_id ?? null, revision_sha256: pin?.sha256 ?? null })} onDenied={onDenied} />}
+    {["rule", "model"].includes(value.category) && <SourcePicker key={value.category} label={prefix} onChange={(source) => patch({ source })} onDenied={onDenied} />}
     {value.category === "recipe_reference" && <>
       <TextInput label={`${prefix} recipe identity`} value={value.recipe?.recipe_id ?? ""} onChange={(event) => patch({ recipe: { recipe_id: event.currentTarget.value, version: value.recipe?.version ?? "", digest: value.recipe?.digest ?? "" } })} required maxLength={100} />
       <TextInput label={`${prefix} recipe version`} value={value.recipe?.version ?? ""} onChange={(event) => patch({ recipe: { recipe_id: value.recipe?.recipe_id ?? "", version: event.currentTarget.value, digest: value.recipe?.digest ?? "" } })} required maxLength={100} />
@@ -188,22 +194,22 @@ function EntryEditor({ index, value, projectId, projects, onChange, onDenied }: 
   </Stack>;
 }
 
-function RevisionPicker({ label, projectId, projects, onChange, onDenied }: { label: string; projectId: string; projects: Project[]; onChange: (pin: { revision_id: string; sha256: string } | null) => void; onDenied: (reason: unknown) => void }) {
-  const [scope, setScope] = useState(projectId); const [definitions, setDefinitions] = useState<{ definition_id: string; name: string; kind: string }[]>([]);
+function RevisionPicker({ label, projectId, onChange, onDenied }: { label: string; projectId: string | null; onChange: (pin: { revision_id: string; sha256: string } | null) => void; onDenied: (reason: unknown) => void }) {
+  const [definitions, setDefinitions] = useState<{ definition_id: string; name: string; kind: string; in_project?: boolean }[]>([]);
   const [definitionId, setDefinitionId] = useState(""); const [revisions, setRevisions] = useState<{ revision_id: string; number: number }[]>([]); const [revisionId, setRevisionId] = useState(""); const [offset, setOffset] = useState(0); const [more, setMore] = useState(false);
   const generation = useRef(0);
-  useEffect(() => { const token = ++generation.current; void read<typeof definitions>(`projects/${scope}/definitions`).then((rows) => { if (token === generation.current) setDefinitions(rows); }).catch((reason) => { if (token === generation.current) onDenied(reason); }); return () => { generation.current += 1; }; }, [scope]);
+  useEffect(() => { const token = ++generation.current; void allLibraryDefinitions(projectId).then((rows) => { if (token === generation.current) setDefinitions(rows); }).catch((reason) => { if (token === generation.current) onDenied(reason); }); return () => { generation.current += 1; }; }, [projectId]);
   async function chooseDefinition(value: string) { const token = ++generation.current; setDefinitionId(value); setRevisionId(""); setRevisions([]); setOffset(0); setMore(false); onChange(null); if (!value) return; try { const identity = await read<{ revisions: typeof revisions }>(`catalog/definitions/${value}?offset=0&limit=50`); if (token === generation.current) { setRevisions(identity.revisions); setMore(identity.revisions.length === 50); } } catch (reason) { if (token === generation.current) onDenied(reason); } }
   async function chooseRevision(value: string) { const token = ++generation.current; setRevisionId(value); onChange(null); if (!value) return; try { const pin = await read<{ revision_id: string; sha256: string }>(`revisions/${value}`); if (token === generation.current) onChange(pin); } catch (reason) { if (token === generation.current) onDenied(reason); } }
   async function loadMore() { const token = ++generation.current; try { const identity = await read<{ revisions: typeof revisions }>(`catalog/definitions/${definitionId}?offset=${offset + 50}&limit=50`); if (token === generation.current) { setRevisions((current) => [...current, ...identity.revisions]); setOffset(offset + 50); setMore(identity.revisions.length === 50); } } catch (reason) { if (token === generation.current) onDenied(reason); } }
-  return <Stack gap="xs"><NativeSelect label={`${label} source project`} value={scope} data={projects.map((project) => ({ value: project.project_id, label: project.name }))} onChange={(event) => { setScope(event.currentTarget.value); setDefinitions([]); setDefinitionId(""); setRevisionId(""); setRevisions([]); onChange(null); }} /><NativeSelect label={`${label} source definition`} value={definitionId} data={[{ value: "", label: "Select a source definition" }, ...definitions.map((definition) => ({ value: definition.definition_id, label: `${definition.name} · ${definition.kind}` }))]} onChange={(event) => void chooseDefinition(event.currentTarget.value)} required /><NativeSelect label={`${label} exact source revision`} value={revisionId} data={[{ value: "", label: "Select a frozen revision" }, ...revisions.map((revision) => ({ value: revision.revision_id, label: revisionOptionLabel(definitions.find((d) => d.definition_id === definitionId)?.name, revision.number) }))]} onChange={(event) => void chooseRevision(event.currentTarget.value)} required />{more && <Button variant="light" onClick={() => void loadMore()}>More {label.toLowerCase()} revisions</Button>}</Stack>;
+  return <Stack gap="xs"><NativeSelect label={`${label} source definition`} value={definitionId} data={[{ value: "", label: "Select a library definition" }, ...definitions.map((definition) => ({ value: definition.definition_id, label: `${definition.name} · ${definition.kind}${definition.in_project ? " · in this project" : ""}` }))]} onChange={(event) => void chooseDefinition(event.currentTarget.value)} required /><NativeSelect label={`${label} exact source revision`} value={revisionId} data={[{ value: "", label: "Select a frozen revision" }, ...revisions.map((revision) => ({ value: revision.revision_id, label: revisionOptionLabel(definitions.find((d) => d.definition_id === definitionId)?.name, revision.number) }))]} onChange={(event) => void chooseRevision(event.currentTarget.value)} required />{more && <Button variant="light" onClick={() => void loadMore()}>More {label.toLowerCase()} revisions</Button>}</Stack>;
 }
 
-function SourcePicker({ label, projectId, projects, onChange, onDenied }: { label: string; projectId: string; projects: Project[]; onChange: (pin: FilePin | null) => void; onDenied: (reason: unknown) => void }) {
-  const [scope, setScope] = useState(projectId); const [files, setFiles] = useState<SourceFile[]>([]); const [selected, setSelected] = useState(""); const [next, setNext] = useState<number | null>(null); const generation = useRef(0);
-  useEffect(() => { const token = ++generation.current; setFiles([]); setSelected(""); setNext(null); void read<{ results: SourceFile[]; next_after: number | null }>(`catalog-packs/projects/${scope}/source-files?limit=50`).then((page) => { if (token === generation.current) { setFiles(page.results); setNext(page.next_after); } }).catch((reason) => { if (token === generation.current) onDenied(reason); }); return () => { generation.current += 1; }; }, [scope]);
-  async function more() { const token = ++generation.current; try { const page = await read<{ results: SourceFile[]; next_after: number | null }>(`catalog-packs/projects/${scope}/source-files?limit=50&after=${next}`); if (token === generation.current) { setFiles((current) => [...current, ...page.results]); setNext(page.next_after); } } catch (reason) { if (token === generation.current) onDenied(reason); } }
-  return <Stack gap="xs"><NativeSelect label={`${label} file project`} value={scope} data={projects.map((project) => ({ value: project.project_id, label: project.name }))} onChange={(event) => { setScope(event.currentTarget.value); onChange(null); }} /><NativeSelect label={`${label} exact registered file`} value={selected} data={[{ value: "", label: "Select a registered file" }, ...files.map((file) => ({ value: String(file.file_id), label: `${file.bundle_name} · revision ${file.bundle_number} · ${file.source_path} · ${file.sha256}` }))]} onChange={(event) => { setSelected(event.currentTarget.value); const pin = files.find((file) => String(file.file_id) === event.currentTarget.value); onChange(pin ? { source_bundle_revision_id: pin.source_bundle_revision_id, source_path: pin.source_path, sha256: pin.sha256, rights: pin.rights } : null); }} required />{next !== null && <Button variant="light" onClick={() => void more()}>More {label.toLowerCase()} files</Button>}</Stack>;
+function SourcePicker({ label, onChange, onDenied }: { label: string; onChange: (pin: FilePin | null) => void; onDenied: (reason: unknown) => void }) {
+  const [files, setFiles] = useState<SourceFile[]>([]); const [selected, setSelected] = useState(""); const [next, setNext] = useState<number | null>(null); const generation = useRef(0);
+  useEffect(() => { const token = ++generation.current; setFiles([]); setSelected(""); setNext(null); void read<{ results: SourceFile[]; next_after: number | null }>("catalog-packs/source-files?limit=50").then((page) => { if (token === generation.current) { setFiles(page.results); setNext(page.next_after); } }).catch((reason) => { if (token === generation.current) onDenied(reason); }); return () => { generation.current += 1; }; }, []);
+  async function more() { const token = ++generation.current; try { const page = await read<{ results: SourceFile[]; next_after: number | null }>(`catalog-packs/source-files?limit=50&after=${next}`); if (token === generation.current) { setFiles((current) => [...current, ...page.results]); setNext(page.next_after); } } catch (reason) { if (token === generation.current) onDenied(reason); } }
+  return <Stack gap="xs"><NativeSelect label={`${label} exact registered file`} value={selected} data={[{ value: "", label: "Select a registered file" }, ...files.map((file) => ({ value: String(file.file_id), label: `${file.bundle_name} · revision ${file.bundle_number} · ${file.source_path} · ${file.sha256}` }))]} onChange={(event) => { setSelected(event.currentTarget.value); const pin = files.find((file) => String(file.file_id) === event.currentTarget.value); onChange(pin ? { source_bundle_revision_id: pin.source_bundle_revision_id, source_path: pin.source_path, sha256: pin.sha256, rights: pin.rights } : null); }} required />{next !== null && <Button variant="light" onClick={() => void more()}>More {label.toLowerCase()} files</Button>}</Stack>;
 }
 
 function FileView({ pin }: { pin: FilePin }) { return <Stack gap={0}><Text size="sm"><RevisionLabel kind="source" id={pin.source_bundle_revision_id} role="Bundle" /></Text><Text size="sm" style={{ whiteSpace: "pre-wrap" }}>Path: {pin.source_path}</Text><Text size="sm">SHA-256 {pin.sha256}</Text><Text size="sm" style={{ whiteSpace: "pre-wrap" }}>Declared file rights: {pin.rights}</Text></Stack>; }

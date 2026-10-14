@@ -44,7 +44,7 @@ def variant(users, revision, *, manufacturer="Synthetic maker", part_number="SYN
 
 
 @pytest.fixture
-def associations(users, pair, project):
+def associations(users, pair):
     source = variant(users, pair[0])
     target = variant(users, pair[1])
     return (
@@ -53,7 +53,6 @@ def associations(users, pair, project):
         {
             "source_revision_id": pair[0]["revision_id"],
             "source_variant_id": source["variant_id"],
-            "target_project_id": project,
         },
     )
 
@@ -123,47 +122,68 @@ def test_supplied_association_and_cursor_must_match_the_exact_current_query(
         suggest(users, query, actor="outsider")
 
 
-def hidden_target(users, project):
-    private = op(users["owner"], "project.create", {"name": "Independent synthetic source scope"})[
-        "project_id"
-    ]
+def foreign_target(users):
+    """An identically labelled revision in the outsider's separate workspace."""
     child = op(
-        users["owner"],
+        users["outsider"],
         "definition.create",
-        {"project_id": private, "name": "Scoped source", "kind": "part"},
+        {"name": "Foreign target", "kind": "part"} | {"workspace_id": foreign_workspace_id(users)},
     )
-    hidden = freeze(users["owner"], child["draft_id"], child["state"])
-    parent = op(
-        users["owner"],
-        "definition.create",
-        {"project_id": project, "name": "Scoped dependent target", "kind": "part"},
-    )
-    revision = freeze(users["owner"], parent["draft_id"], parent["state"], [hidden["revision_id"]])
-    return revision
+    return freeze(users["outsider"], child["draft_id"], child["state"])
 
 
-def test_hidden_complete_target_closure_is_omitted_and_cursor_denied_before_limit(
-    users, project, associations
+def foreign_workspace_id(users):
+    from specmate.access.models import WorkspaceMember
+
+    return str(WorkspaceMember.objects.get(user=users["outsider"]).workspace_id)
+
+
+def foreign_variant(users, revision):
+    return op(
+        users["outsider"],
+        "catalog.register_variant",
+        {
+            "revision_id": revision["revision_id"],
+            "manufacturer": "Synthetic maker",
+            "part_number": "SYN-PAIR",
+            "association_basis": "Synthetic unverified catalog assertion.",
+        },
+    )
+
+
+def test_same_workspace_reuse_and_foreign_workspace_never_suggested(
+    users, project, workspace, associations
 ):
     _, target, query = associations
-    private = hidden_target(users, project)
-    hidden = variant(users, private)
-    assert [r["target_variant_id"] for r in suggest(users, query)["results"]] == [
-        target["variant_id"]
-    ]
+    result = suggest(users, query)
+    assert result["workspace_id"] == workspace
+    # A second same-workspace definition with the exact pair is suggested to every member.
+    reused = op(
+        users["owner"],
+        "definition.create",
+        {"project_id": project, "name": "Library reuse target", "kind": "part"},
+    )
+    reused_revision = freeze(users["owner"], reused["draft_id"], reused["state"])
+    second = variant(users, reused_revision)
+    assert {r["target_variant_id"] for r in suggest(users, query)["results"]} == {
+        target["variant_id"],
+        second["variant_id"],
+    }
+    # The outsider's identical assertion stays invisible, and is no cursor.
+    hidden = foreign_variant(users, foreign_target(users))
+    assert hidden["variant_id"] not in {
+        r["target_variant_id"] for r in suggest(users, query, actor="owner")["results"]
+    }
     with pytest.raises(NotFound):
         suggest(users, {**query, "after": hidden["variant_id"], "limit": 0})
-    assert len(suggest(users, query, actor="owner")["results"]) == 2
 
 
-def test_hidden_source_and_wrong_association_are_authorized_before_diagnostics(
-    users, project, associations
-):
+def test_foreign_source_and_wrong_association_are_not_found_before_diagnostics(users, associations):
     _, _, query = associations
-    private = hidden_target(users, project)
-    hidden = variant(users, private)
+    foreign = foreign_target(users)
+    hidden = foreign_variant(users, foreign)
     for changes in [
-        {"source_revision_id": private["revision_id"]},
+        {"source_revision_id": foreign["revision_id"]},
         {"source_variant_id": hidden["variant_id"]},
     ]:
         with pytest.raises(NotFound):
@@ -198,10 +218,7 @@ def test_http_jobs_and_current_actor_match_shared_read_authority(users, associat
     client = api(users["owner"])
     response = client.get(
         f"/api/v0/catalog-matching/revisions/{query['source_revision_id']}/supplier-suggestions",
-        {
-            "source_variant_id": query["source_variant_id"],
-            "target_project_id": query["target_project_id"],
-        },
+        {"source_variant_id": query["source_variant_id"]},
     )
     assert response.status_code == 200 and response.json() == expected
     assert (

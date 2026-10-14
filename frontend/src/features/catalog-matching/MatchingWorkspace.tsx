@@ -1,7 +1,8 @@
 import { Alert, Badge, Button, Card, Group, NativeSelect, Stack, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { read, type Definition, type Identity } from "../identity/api";
-import { MatchingRequestError, candidateDetail, candidates, evidenceFiles, proposeMatch, reviewMatch, type Candidate, type CandidatePage, type Evidence, type EvidenceFile, type Project } from "./api";
+import { allLibraryDefinitions, read, type Definition, type Identity } from "../identity/api";
+import { MatchingRequestError, candidateDetail, candidates, evidenceFiles, proposeMatch, reviewMatch, type Candidate, type CandidatePage, type Evidence, type EvidenceFile } from "./api";
+import { useCan } from "../../lib/permissions";
 import { SupplierSuggestions } from "./SupplierSuggestions";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -10,7 +11,8 @@ type Pin = { revision_id: string; definition_id: string };
 const unknownEvidence: Evidence = { status: "unknown" };
 const message = (reason: unknown) => reason instanceof Error ? reason.message : "Request failed.";
 
-export function MatchingWorkspace({ projectId }: { projectId: string }) {
+/** Reviewed matching over the workspace library. `projectId` only orders pickers (its references first). */
+export function MatchingWorkspace({ projectId }: { projectId?: string | null }) {
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     const refreshAccess = () => setRefresh((value) => value + 1);
@@ -19,15 +21,13 @@ export function MatchingWorkspace({ projectId }: { projectId: string }) {
   }, []);
   return <Stack>
     <Button variant="light" onClick={() => setRefresh((value) => value + 1)}>Refresh matching access</Button>
-    <Workspace key={`${projectId}-${refresh}`} projectId={projectId} />
+    <Workspace key={`${projectId ?? "library"}-${refresh}`} projectId={projectId ?? null} />
   </Stack>;
 }
 
-function Workspace({ projectId }: { projectId: string }) {
-  const [projects, setProjects] = useState<Project[]>([]);
+function Workspace({ projectId }: { projectId: string | null }) {
   const [source, setSource] = useState<Pin | null>(null);
   const [target, setTarget] = useState<Pin | null>(null);
-  const [targetProject, setTargetProject] = useState(projectId);
   const [kind, setKind] = useState<Candidate["association_kind"]>("supplier");
   const [sourceIdentifier, setSourceIdentifier] = useState("");
   const [targetIdentifier, setTargetIdentifier] = useState("");
@@ -40,21 +40,18 @@ function Workspace({ projectId }: { projectId: string }) {
   const [accessInvalid, setAccessInvalid] = useState(false);
   const [selectorEpoch, setSelectorEpoch] = useState(0);
   const generation = useRef(0);
-  const canEdit = projects.find((p) => p.project_id === projectId)?.permissions.includes("design.edit") ?? false;
+  // Proposing is additive (contributors may); recording a review decision needs design.edit.
+  const canPropose = useCan("item.create");
+  const canEdit = useCan("design.edit");
 
   function invalidateAccess(reason?: unknown) {
     setAccessInvalid(true); setSelectorEpoch((value) => value + 1);
-    setSource(null); setTarget(null); setSelected(null); setPage(null); setProjects([]);
+    setSource(null); setTarget(null); setSelected(null); setPage(null);
     setBusy(false);
     if (reason) setError(message(reason));
   }
 
-  useEffect(() => {
-    let active = true;
-    void read<Project[]>("projects").then((value) => { if (active) setProjects(value); })
-      .catch((reason) => { if (active) setError(message(reason)); });
-    return () => { active = false; generation.current += 1; };
-  }, []);
+  useEffect(() => () => { generation.current += 1; }, []);
 
   useEffect(() => {
     const token = ++generation.current;
@@ -111,12 +108,11 @@ function Workspace({ projectId }: { projectId: string }) {
     <Title order={2}>Reviewed matching</Title>
     <Text>Review correspondence between distinct engineering definitions. Acceptance preserves exact identities and existing consumer pins; compatibility and qualification remain unevaluated.</Text>
     {error && <Alert color="red">{error}</Alert>}
-    {!canEdit && <Text>Read only. Proposals and reviews require design editing permission in this project.</Text>}
+    {!canPropose && <Text>Read only. Proposals need contributor access and reviews need editor access.</Text>}
     {accessInvalid && <Alert color="yellow">Access must be refreshed before continuing.</Alert>}
-    <RevisionPicker key={`source-${projectId}-${selectorEpoch}`} projectId={accessInvalid ? "" : projectId} label="Source" onChange={setSource} />
-    <NativeSelect label="Target project" value={targetProject} onChange={(event) => { setTargetProject(event.currentTarget.value); setTarget(null); }} data={projects.map((p) => ({ value: p.project_id, label: p.name }))} />
-    <RevisionPicker key={`target-${targetProject}-${selectorEpoch}`} projectId={accessInvalid ? "" : targetProject} label="Target" onChange={setTarget} />
-    {source && !accessInvalid && <SupplierSuggestions key={`${source.revision_id}-${targetProject}-${selectorEpoch}`} sourceRevisionId={source.revision_id} targetProjectId={targetProject} canEdit={canEdit} onDenied={invalidateAccess} onUse={(value) => {
+    <RevisionPicker key={`source-${selectorEpoch}`} projectId={projectId} disabled={accessInvalid} label="Source" onChange={setSource} />
+    <RevisionPicker key={`target-${selectorEpoch}`} projectId={projectId} disabled={accessInvalid} label="Target" onChange={setTarget} />
+    {source && !accessInvalid && <SupplierSuggestions key={`${source.revision_id}-${selectorEpoch}`} sourceRevisionId={source.revision_id} canEdit={canPropose} onDenied={invalidateAccess} onUse={(value) => {
       setTarget({ revision_id: value.target.revision_id, definition_id: value.target.definition_id });
       setKind("supplier"); setSourceIdentifier(value.part_number); setTargetIdentifier(value.part_number);
       setBasis(`Exact asserted manufacturer/part pair ${value.manufacturer} / ${value.part_number}; source association ${value.source_variant_id}, target association ${value.target_variant_id}. Correspondence remains unreviewed.`);
@@ -129,9 +125,9 @@ function Workspace({ projectId }: { projectId: string }) {
         <TextInput label="Observed source identifier" value={sourceIdentifier} onChange={(event) => setSourceIdentifier(event.currentTarget.value)} maxLength={200} required />
         <TextInput label="Observed target identifier" value={targetIdentifier} onChange={(event) => setTargetIdentifier(event.currentTarget.value)} maxLength={200} required />
         <Textarea label="Proposal basis" value={basis} onChange={(event) => setBasis(event.currentTarget.value)} maxLength={4000} required />
-        <EvidenceEditor key={selectorEpoch} label="Proposal" projects={projects} projectId={projectId} onChange={setEvidence} />
+        <EvidenceEditor key={selectorEpoch} label="Proposal" onChange={setEvidence} />
         {source && target && source.definition_id === target.definition_id && <Text c="red">Select distinct definitions. Later revisions of one definition use revision adoption.</Text>}
-        <Button type="submit" loading={busy} disabled={!canEdit || !source || !target || source.definition_id === target.definition_id}>Create candidate</Button>
+        <Button type="submit" loading={busy} disabled={!canPropose || !source || !target || source.definition_id === target.definition_id}>Create candidate</Button>
       </Stack></form>
     </Card>
     <Title order={3}>Candidates for the selected source revision</Title>
@@ -142,14 +138,14 @@ function Workspace({ projectId }: { projectId: string }) {
       <Button variant="light" disabled={busy} onClick={() => void inspect(candidate.candidate_id)}>Review candidate</Button>
     </Card>)}
     {page?.next_after && <Button disabled={busy} onClick={() => void more()}>More candidates</Button>}
-    {selected && <ReviewPanel key={`${selected.candidate_id}-${selected.state}`} candidate={selected} projects={projects} projectId={projectId} canEdit={canEdit}
+    {selected && <ReviewPanel key={`${selected.candidate_id}-${selected.state}`} candidate={selected} canEdit={canEdit}
       onUpdated={(result) => { setSelected(result); setPage((current) => current && { ...current, results: current.results.map((row) => row.candidate_id === result.candidate_id ? result : row) }); }}
       onError={(reason) => setError(reason)}
       onRevoked={() => invalidateAccess(new Error("Review access changed. Refresh matching access."))} />}
   </Stack>;
 }
 
-function RevisionPicker({ projectId, label, onChange }: { projectId: string; label: string; onChange: (pin: Pin | null) => void }) {
+function RevisionPicker({ projectId, disabled, label, onChange }: { projectId: string | null; disabled: boolean; label: string; onChange: (pin: Pin | null) => void }) {
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [definitionId, setDefinitionId] = useState("");
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -160,11 +156,11 @@ function RevisionPicker({ projectId, label, onChange }: { projectId: string; lab
   const generation = useRef(0);
   useEffect(() => {
     let active = true;
-    if (!projectId) return;
-    void read<Definition[]>(`projects/${projectId}/definitions`).then((value) => { if (active) setDefinitions(value); })
+    if (disabled) return;
+    void allLibraryDefinitions(projectId).then((value) => { if (active) setDefinitions(value); })
       .catch((reason) => { if (active) setError(message(reason)); });
     return () => { active = false; generation.current += 1; };
-  }, [projectId]);
+  }, [projectId, disabled]);
 
   async function chooseDefinition(value: string) {
     const token = ++generation.current;
@@ -187,17 +183,16 @@ function RevisionPicker({ projectId, label, onChange }: { projectId: string; lab
 
   return <Stack gap="xs">
     {error && <Alert color="red">{error}</Alert>}
-    <NativeSelect label={`${label} definition`} value={definitionId} onChange={(event) => void chooseDefinition(event.currentTarget.value)} data={[{ value: "", label: "Select a definition" }, ...definitions.map((d) => ({ value: d.definition_id, label: `${d.name} · ${d.kind}` }))]} />
+    <NativeSelect label={`${label} definition`} value={definitionId} onChange={(event) => void chooseDefinition(event.currentTarget.value)} data={[{ value: "", label: "Select a definition" }, ...definitions.map((d) => ({ value: d.definition_id, label: `${d.name} · ${d.kind}${d.in_project ? " · in this project" : ""}` }))]} />
     <NativeSelect label={`${label} exact revision`} value={revisionId} onChange={(event) => { const value = event.currentTarget.value; setRevisionId(value); onChange(value ? { revision_id: value, definition_id: definitionId } : null); }} data={[{ value: "", label: "Select a frozen revision" }, ...(identity?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity?.name, r.number) }))]} />
     {identity?.revisions.length === 0 && <Text>No frozen revisions. Create and freeze a revision in the identity workspace.</Text>}
     {more && <Button variant="light" onClick={() => void moreRevisions()}>More {label.toLowerCase()} revisions</Button>}
   </Stack>;
 }
 
-function EvidenceEditor({ label, projects, projectId, onChange }: { label: string; projects: Project[]; projectId: string; onChange: (evidence: Evidence) => void }) {
+function EvidenceEditor({ label, onChange }: { label: string; onChange: (evidence: Evidence) => void }) {
   const [status, setStatus] = useState<Evidence["status"]>("unknown");
   const [citation, setCitation] = useState("");
-  const [scope, setScope] = useState(projectId);
   const [files, setFiles] = useState<EvidenceFile[]>([]);
   const [fileId, setFileId] = useState("");
   const [nextAfter, setNextAfter] = useState<number | null>(null);
@@ -207,10 +202,10 @@ function EvidenceEditor({ label, projects, projectId, onChange }: { label: strin
     const token = ++generation.current;
     setFiles([]); setFileId(""); setNextAfter(null); setError("");
     if (status !== "registered_file") return;
-    void evidenceFiles(scope).then((value) => { if (token === generation.current) { setFiles(value.results); setNextAfter(value.next_after); } })
+    void evidenceFiles().then((value) => { if (token === generation.current) { setFiles(value.results); setNextAfter(value.next_after); } })
       .catch((reason) => { if (token === generation.current) setError(message(reason)); });
     return () => { generation.current += 1; };
-  }, [status, scope]);
+  }, [status]);
 
   function chooseFile(value: string) {
     setFileId(value);
@@ -221,7 +216,7 @@ function EvidenceEditor({ label, projects, projectId, onChange }: { label: strin
     if (nextAfter === null) return;
     const token = ++generation.current;
     try {
-      const next = await evidenceFiles(scope, nextAfter);
+      const next = await evidenceFiles(nextAfter);
       if (token === generation.current) { setFiles((current) => [...current, ...next.results]); setNextAfter(next.next_after); }
     } catch (reason) { if (token === generation.current) { setError(message(reason)); setFiles([]); chooseFile(""); } }
   }
@@ -229,7 +224,6 @@ function EvidenceEditor({ label, projects, projectId, onChange }: { label: strin
     <NativeSelect label={`${label} evidence status`} value={status} onChange={(event) => { const value = event.currentTarget.value as Evidence["status"]; setStatus(value); onChange(value === "unverified_citation" ? { status: value, citation } : unknownEvidence); }} data={[{ value: "unknown", label: "Unknown evidence" }, { value: "unverified_citation", label: "Unverified citation" }, { value: "registered_file", label: "Exact registered source file" }]} />
     {status === "unverified_citation" && <Textarea label={`${label} unverified citation`} value={citation} onChange={(event) => { setCitation(event.currentTarget.value); onChange({ status, citation: event.currentTarget.value }); }} required maxLength={4000} />}
     {status === "registered_file" && <>
-      <NativeSelect label={`${label} evidence project`} value={scope} onChange={(event) => { setScope(event.currentTarget.value); onChange(unknownEvidence); }} data={projects.map((p) => ({ value: p.project_id, label: p.name }))} />
       <NativeSelect label={`${label} exact source file`} value={fileId} onChange={(event) => chooseFile(event.currentTarget.value)} required data={[{ value: "", label: "Select a registered file" }, ...files.map((file) => ({ value: String(file.file_id), label: `${file.bundle_name} · revision ${file.bundle_number} · ${file.source_path} · ${file.sha256}` }))]} />
       {nextAfter !== null && <Button variant="light" onClick={() => void moreFiles()}>More {label.toLowerCase()} evidence files</Button>}
       <Text size="sm">Exact bytes and declared rights identify the citation; engineering claims remain subject to review.</Text>
@@ -252,7 +246,7 @@ function EvidenceView({ evidence }: { evidence: Evidence }) {
   </Stack>;
 }
 
-function ReviewPanel({ candidate, projects, projectId, canEdit, onUpdated, onRevoked, onError }: { candidate: Candidate; projects: Project[]; projectId: string; canEdit: boolean; onUpdated: (result: Candidate) => void; onRevoked: () => void; onError: (reason: string) => void }) {
+function ReviewPanel({ candidate, canEdit, onUpdated, onRevoked, onError }: { candidate: Candidate; canEdit: boolean; onUpdated: (result: Candidate) => void; onRevoked: () => void; onError: (reason: string) => void }) {
   const [decision, setDecision] = useState("needs_evidence");
   const [basis, setBasis] = useState("");
   const [evidence, setEvidence] = useState<Evidence>(unknownEvidence);
@@ -298,7 +292,7 @@ function ReviewPanel({ candidate, projects, projectId, canEdit, onUpdated, onRev
     <form onSubmit={(event) => void submit(event)}><Stack>
       <NativeSelect label="Review decision" value={decision} onChange={(event) => setDecision(event.currentTarget.value)} data={[{ value: "needs_evidence", label: "Needs evidence" }, { value: "accepted", label: "Accept correspondence" }, { value: "rejected", label: "Reject correspondence" }]} />
       <Textarea label="Review basis" value={basis} onChange={(event) => setBasis(event.currentTarget.value)} required maxLength={4000} />
-      <EvidenceEditor label="Review" projects={projects} projectId={projectId} onChange={setEvidence} />
+      <EvidenceEditor label="Review" onChange={setEvidence} />
       <Button type="submit" disabled={!canEdit} loading={busy}>Append review</Button>
     </Stack></form>
   </Stack></Card>;

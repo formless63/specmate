@@ -19,7 +19,7 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member, set_role
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
@@ -62,10 +62,12 @@ def review(candidate, decision="accepted", **changes):
     }
 
 
-def source_evidence(users, project, *, path="src/source.txt", rights="synthetic-original"):
-    register(users["owner"], project, ORIGINAL)
+def source_evidence(
+    users, project, *, path="src/source.txt", rights="synthetic-original", actor="owner"
+):
+    register(users[actor], project, ORIGINAL)
     source = op(
-        users["owner"],
+        users[actor],
         "source.create_original_bundle",
         {
             "project_id": project,
@@ -180,9 +182,16 @@ def test_current_actor_scope_and_source_edit_authority(users, project, pair):
     candidate = op(
         users["editor"], "catalog.propose_match", proposal(pair), idempotency_key="match"
     )
-    WorkspaceMember.objects.filter(user=users["editor"], workspace__projects=project).update(
-        role="viewer"
-    )
+    # Proposing is additive (contributors may), reviewing a decision needs design.edit.
+    proposed = op(users["contributor"], "catalog.propose_match", proposal(pair))
+    with pytest.raises(PermissionDenied):
+        op(
+            users["contributor"],
+            "catalog.review_match",
+            review(proposed),
+            expected_state="match-v0",
+        )
+    set_role(users["editor"], "viewer")
     with pytest.raises(PermissionDenied):
         op(users["editor"], "catalog.propose_match", proposal(pair), idempotency_key="match")
     users["viewer"].is_active = False
@@ -192,8 +201,8 @@ def test_current_actor_scope_and_source_edit_authority(users, project, pair):
 
 
 def test_all_historical_evidence_reauthorized_before_conflict_read_or_replay(users, pair):
+    # Evidence registered from another project is ordinary same-workspace evidence.
     other = op(users["owner"], "project.create", {"name": "Evidence library"})["project_id"]
-    ensure_member(users["editor"], "viewer", project=other)
     evidence = source_evidence(users, other)
     candidate = op(
         users["editor"], "catalog.propose_match", proposal(pair), idempotency_key="match"
@@ -211,9 +220,12 @@ def test_all_historical_evidence_reauthorized_before_conflict_read_or_replay(use
         review(first, "needs_evidence"),
         expected_state="match-v1",
     )
-    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
+    retained = get_candidate(users["viewer"], candidate["candidate_id"])["reviews"][0]
+    assert retained["evidence"]["source_path"] == evidence["source_path"]
+    remove_member(users["editor"])
     for invoke in (
         lambda: get_candidate(users["editor"], candidate["candidate_id"]),
+        lambda: list_candidates(users["editor"], pair[0]["revision_id"]),
         lambda: op(
             users["editor"], "catalog.review_match", review(candidate), expected_state="match-v0"
         ),
@@ -237,7 +249,6 @@ def test_all_historical_evidence_reauthorized_before_conflict_read_or_replay(use
         with pytest.raises(NotFound) as error:
             invoke()
         assert error.value.details == {}
-    assert list_candidates(users["editor"], pair[0]["revision_id"])["results"] == []
     assert MatchReview.objects.count() == 2
 
 
@@ -308,9 +319,10 @@ def test_target_retained_dependency_closure_reauthorized(users, project, pair):
     )
     payload = proposal((pair[0], target))
     candidate = op(users["editor"], "catalog.propose_match", payload, idempotency_key="closure")
-    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
+    remove_member(users["editor"])
     for invoke in (
         lambda: get_candidate(users["editor"], candidate["candidate_id"]),
+        lambda: list_candidates(users["editor"], pair[0]["revision_id"]),
         lambda: op(users["editor"], "catalog.propose_match", payload, idempotency_key="closure"),
         lambda: op(
             users["editor"], "catalog.review_match", review(candidate), expected_state="match-v0"
@@ -355,49 +367,48 @@ def test_api_command_reads_and_visible_pagination(users, pair):
     )
 
 
-def test_candidate_cursor_belongs_to_source_and_rechecks_retained_authority(users, project, pair):
-    visible = op(users["editor"], "catalog.propose_match", proposal(pair))
+def test_candidate_cursor_belongs_to_source_and_rechecks_current_membership(users, project, pair):
+    first = op(users["editor"], "catalog.propose_match", proposal(pair))
     other = op(users["owner"], "project.create", {"name": "Cursor evidence scope"})["project_id"]
-    ensure_member(users["editor"], "viewer", project=other)
     evidence = source_evidence(users, other)
-    hidden = op(users["editor"], "catalog.propose_match", proposal(pair, evidence=evidence))
+    second = op(users["editor"], "catalog.propose_match", proposal(pair, evidence=evidence))
     reversed_match = op(users["editor"], "catalog.propose_match", proposal((pair[1], pair[0])))
     with pytest.raises(NotFound):
         list_candidates(
             users["editor"], pair[0]["revision_id"], after=reversed_match["candidate_id"]
         )
-    WorkspaceMember.objects.filter(workspace__projects=other, user=users["editor"]).delete()
+    expected = sorted([first, second], key=lambda row: row["candidate_id"])
+    page = list_candidates(users["viewer"], pair[0]["revision_id"], limit=1)
+    assert page["results"] == expected[:1] and page["next_after"] == expected[0]["candidate_id"]
+    rest = list_candidates(users["viewer"], pair[0]["revision_id"], after=page["next_after"])
+    assert rest["results"] == expected[1:] and rest["next_after"] is None
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
-        list_candidates(users["editor"], pair[0]["revision_id"], after=hidden["candidate_id"])
-    page = list_candidates(users["editor"], pair[0]["revision_id"], limit=1)
-    assert page["results"] == [visible] and page["next_after"] is None
-    assert (
-        list_candidates(users["editor"], pair[0]["revision_id"], after=visible["candidate_id"])[
-            "results"
-        ]
-        == []
-    )
+        list_candidates(users["editor"], pair[0]["revision_id"], after=first["candidate_id"])
 
 
-def test_evidence_file_cursor_scope_access_and_visible_pages(users, project):
+def test_evidence_file_cursor_scope_access_and_visible_pages(users, project, workspace):
     source_evidence(users, project)
-    page = list_evidence_files(users["editor"], project, limit=1)
+    page = list_evidence_files(users["editor"], limit=1)
+    assert page["workspace_id"] == workspace
     assert len(page["results"]) == 1 and page["next_after"] is None
     cursor = page["results"][0]["file_id"]
-    assert list_evidence_files(users["editor"], project, after=cursor)["results"] == []
+    assert list_evidence_files(users["editor"], after=cursor)["results"] == []
+    # Files registered from any project of the workspace are listed together.
     other = op(users["owner"], "project.create", {"name": "Separate evidence"})["project_id"]
-    ensure_member(users["editor"], "viewer", project=other)
-    source_evidence(users, other)
-    other_cursor = list_evidence_files(users["editor"], other)["results"][0]["file_id"]
+    source_evidence(users, other, path="src/other.txt")
+    assert len(list_evidence_files(users["editor"], workspace)["results"]) == 2
+    foreign_project = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
+    source_evidence(users, foreign_project, actor="outsider")
+    foreign_cursor = list_evidence_files(users["outsider"])["results"][0]["file_id"]
+    for after in (foreign_cursor, 9999999, 0):
+        with pytest.raises(NotFound):
+            list_evidence_files(users["editor"], workspace, after=after)
     with pytest.raises(NotFound):
-        list_evidence_files(users["editor"], project, after=other_cursor)
+        list_evidence_files(users["outsider"], workspace)
+    remove_member(users["editor"])
     with pytest.raises(NotFound):
-        list_evidence_files(users["editor"], project, after=9999999)
-    with pytest.raises(NotFound):
-        list_evidence_files(users["editor"], project, after=0)
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["editor"]).delete()
-    with pytest.raises(NotFound):
-        list_evidence_files(users["editor"], project, after=cursor)
+        list_evidence_files(users["editor"], workspace, after=cursor)
 
 
 @pytest.mark.parametrize(

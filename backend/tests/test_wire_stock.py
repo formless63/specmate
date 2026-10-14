@@ -16,7 +16,7 @@ from specmate.operations import (
 from specmate.wire_stock.queries import get_stock, list_stocks
 from specmate.wire_stock.schemas import StockSpecification, validate_stock_content
 
-from .conftest import op
+from .conftest import op, set_role
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
 
@@ -25,12 +25,19 @@ def fixture(name="coax"):
     return json.loads((FIXTURES / f"wire-stock-{name}.json").read_text())["stock"]
 
 
-def create(users, project, stock=None, **ctx):
+def workspace_of(project):
+    from specmate.access.models import Project
+
+    return str(Project.objects.get(id=project).workspace_id)
+
+
+def create(users, project, stock=None, *, actor="owner", **ctx):
+    """Stock is a library definition: the payload names the workspace, never a project."""
     return op(
-        users["owner"],
+        users[actor],
         "wire_stock.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic standalone stock",
             "stock": fixture() if stock is None else stock,
         },
@@ -43,7 +50,7 @@ def test_typed_construction_round_trip_preserves_hierarchy_and_unknowns(name, us
     stock = fixture(name)
     record = create(users, project, stock)
     assert get_stock(users["viewer"], record["draft_id"])["content"]["stock"] == stock
-    assert list_stocks(users["owner"], project)[0]["definition_id"] == record["definition_id"]
+    assert list_stocks(users["owner"])[0]["definition_id"] == record["definition_id"]
     assert Definition.objects.get(id=record["definition_id"]).kind == "wire_stock"
     assert stock["facts"]["impedance"] == {
         "value": None,
@@ -111,8 +118,8 @@ def test_idempotency_replay_and_mismatch(users, project):
         create(users, project, fixture("pair"), idempotency_key="stock-create")
 
 
-def test_scope_permission_and_validation_leave_no_partial_stock(users, project):
-    payload = {"project_id": project, "name": "Synthetic", "stock": fixture()}
+def test_scope_permission_and_validation_leave_no_partial_stock(users, project, workspace):
+    payload = {"workspace_id": workspace, "name": "Synthetic", "stock": fixture()}
     for actor, error in [("viewer", PermissionDenied), ("outsider", NotFound)]:
         with pytest.raises(error):
             op(users[actor], "wire_stock.create", payload)
@@ -133,13 +140,30 @@ def test_scope_permission_and_validation_leave_no_partial_stock(users, project):
     with pytest.raises(NotFound):
         get_stock(users["outsider"], record["draft_id"])
     with pytest.raises(NotFound):
-        list_stocks(users["outsider"], project)
+        list_stocks(users["outsider"], workspace)
+    with pytest.raises(NotFound):
+        list_stocks(users["outsider"], project_id=project)
+    # Contributors create and edit their own stock but never freeze or edit others' stock.
     with pytest.raises(PermissionDenied):
         op(
-            users["editor"],
-            "wire_stock.freeze",
-            {"draft_id": record["draft_id"]},
+            users["contributor"],
+            "wire_stock.update",
+            {"draft_id": record["draft_id"], "stock": fixture()},
             expected_state=record["state"],
+        )
+    own = create(users, project, actor="contributor")
+    updated = op(
+        users["contributor"],
+        "wire_stock.update",
+        {"draft_id": own["draft_id"], "stock": fixture("pair")},
+        expected_state=own["state"],
+    )
+    with pytest.raises(PermissionDenied):
+        op(
+            users["contributor"],
+            "wire_stock.freeze",
+            {"draft_id": own["draft_id"]},
+            expected_state=updated["state"],
         )
 
 
@@ -173,7 +197,7 @@ def test_http_operations_and_queries_share_stock_commands(users, project):
                 "operation": "wire_stock.create",
                 "request_id": "http-stock",
                 "payload": {
-                    "project_id": project,
+                    "workspace_id": workspace_of(project),
                     "name": "HTTP synthetic stock",
                     "stock": fixture(),
                 },
@@ -186,9 +210,11 @@ def test_http_operations_and_queries_share_stock_commands(users, project):
     assert (
         client.get(f"/api/v0/stocks/{record['draft_id']}").json()["content"]["stock"] == fixture()
     )
+    assert [row["draft_id"] for row in client.get("/api/v0/stocks").json()] == [record["draft_id"]]
     client.force_login(users["outsider"])
     assert client.get(f"/api/v0/stocks/{record['draft_id']}").status_code == 404
-    assert client.get(f"/api/v0/projects/{project}/stocks").status_code == 404
+    assert client.get("/api/v0/stocks", {"project_id": project}).status_code == 404
+    assert client.get("/api/v0/stocks").json() == []
 
 
 def test_typed_freeze_requires_stock_but_generic_draft_can_be_incomplete(users, project):
@@ -339,14 +365,38 @@ def test_stock_freeze_preserves_existing_exact_dependency_pins(users, project):
 
 
 def test_stock_key_namespace_and_current_edit_authority(users, project):
-    from specmate.access.models import WorkspaceMember
-
     first = create(users, project, idempotency_key="same-stock-key")
+    # One workspace namespace: the same key from any project context replays the same stock.
     other = op(users["owner"], "project.create", {"name": "Separate stock project"})
-    second = create(users, other["project_id"], idempotency_key="same-stock-key")
-    assert first["definition_id"] != second["definition_id"]
-    WorkspaceMember.objects.filter(workspace__projects=project, user=users["owner"]).update(
-        role="viewer"
+    assert create(users, other["project_id"], idempotency_key="same-stock-key") == first
+    # Separate workspaces keep separate namespaces.
+    foreign = op(
+        users["outsider"],
+        "wire_stock.create",
+        {"name": "Synthetic standalone stock", "stock": fixture()},
+        idempotency_key="same-stock-key",
     )
+    assert foreign["definition_id"] != first["definition_id"]
+    assert foreign["workspace_id"] != first["workspace_id"]
+    # A role downgrade is rechecked before replay.
+    set_role(users["owner"], "viewer")
     with pytest.raises(PermissionDenied):
         create(users, project, idempotency_key="same-stock-key")
+
+
+def test_library_list_shows_project_references_first_without_hiding_other_stock(users, project):
+    from .test_project_references import add
+
+    first = create(users, project)
+    second = create(users, project)
+    library = [row["definition_id"] for row in list_stocks(users["viewer"])]
+    assert library == [first["definition_id"], second["definition_id"]]
+    assert all("in_project" not in row for row in list_stocks(users["viewer"]))
+    add(users["contributor"], project, "definition", second["definition_id"], role="stock")
+    scoped = list_stocks(users["viewer"], project_id=project)
+    assert [(row["definition_id"], row["in_project"]) for row in scoped] == [
+        (second["definition_id"], True),
+        (first["definition_id"], False),
+    ]
+    # The project context is navigation only: the same stock is readable without it.
+    assert {row["workspace_id"] for row in scoped} == {workspace_of(project)}

@@ -15,7 +15,7 @@ from specmate.operations import (
 )
 from specmate.revision_upgrades.models import UpgradeApplication, UpgradeProposal, UpgradeReview
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member, set_role
 from .scope_helpers import workspace_of
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_catalog_matching import source_evidence
@@ -409,7 +409,7 @@ def test_database_guards_proposals_reviews_and_application_history(users, fixtur
         owner,
         "definition.create",
         {
-            "project_id": str(row.owning_snapshot.definition.project_id),
+            "workspace_id": str(row.owning_snapshot.definition.workspace_id),
             "kind": "part",
             "name": "Wrong owner",
         },
@@ -485,34 +485,47 @@ def test_apply_retained_outcome_authorizes_edited_draft_before_mismatch(users, f
         expected_state=proposal["state"],
         idempotency_key="retained-adoption",
     )
-    remote = op(owner, "project.create", {"name": "Restricted later draft source"})["project_id"]
-    _, secret = part(owner, remote)
+    remote = op(owner, "project.create", {"name": "Later draft library source"})["project_id"]
+    _, library = part(owner, remote)
     draft = Draft.objects.get(id=result["draft_id"])
     body = draft.content["assembly"]
-    body["occurrences"].append(occ("private-later-child", secret))
+    body["occurrences"].append(occ("library-later-child", library))
     op(
         owner,
         "assembly.update",
         {"draft_id": result["draft_id"], "assembly": body},
         expected_state=result["state"],
     )
-    for supplied in [
-        adoption,
-        {
-            **adoption,
-            "mode": "existing_draft",
-            "draft_id": result["draft_id"],
-            "draft_expected_state": "draft-v2",
-        },
-    ]:
+    changed = {
+        **adoption,
+        "mode": "existing_draft",
+        "draft_id": result["draft_id"],
+        "draft_expected_state": "draft-v2",
+    }
+
+    def retry(supplied):
+        return op(
+            editor,
+            "upgrade.apply",
+            supplied,
+            expected_state=proposal["state"],
+            idempotency_key="retained-adoption",
+        )
+
+    # Library content added from another project keeps the retained draft readable.
+    assert retry(adoption) == result
+    with pytest.raises(IdempotencyMismatch):
+        retry(changed)
+    # Without current edit authority over the retained draft, no outcome or key
+    # diagnostic is disclosed.
+    set_role(editor, "contributor")
+    for supplied in (adoption, changed):
+        with pytest.raises(PermissionDenied):
+            retry(supplied)
+    remove_member(editor)
+    for supplied in (adoption, changed):
         with pytest.raises(NotFound):
-            op(
-                editor,
-                "upgrade.apply",
-                supplied,
-                expected_state=proposal["state"],
-                idempotency_key="retained-adoption",
-            )
+            retry(supplied)
 
 
 @pytest.mark.django_db(transaction=True)
@@ -568,7 +581,7 @@ def test_owning_pack_origin_source_revocation_precedes_paths_and_key_mismatch(
         "sha256": source.blob.sha256,
         "rights": source.rights,
     }
-    version = op(editor, "catalog_pack.register", {"project_id": project, "manifest": declaration})
+    version = op(editor, "catalog_pack.register", {"manifest": declaration})
     op(
         editor,
         "catalog_pack.install",

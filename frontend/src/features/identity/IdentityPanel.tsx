@@ -1,28 +1,41 @@
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
-import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
+import { Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { command, read, type Catalog, type Definition, type Identity } from "./api";
+import { command, libraryDefinitions, read, addProjectReference, type Catalog, type Identity } from "./api";
 import { IdentityLabel, RevisionLabel } from "../../lib/IdentityLabel";
 
-export function IdentityPanel({ projectId }: { projectId: string }) {
-  return <IdentityWorkspace key={projectId} projectId={projectId} />;
+/** Library identities. `projectId` is optional navigation context, never the item's owner. */
+export function IdentityPanel({ projectId }: { projectId?: string | null }) {
+  return <IdentityWorkspace key={projectId ?? "library"} projectId={projectId ?? null} />;
 }
 
-function IdentityWorkspace({ projectId }: { projectId: string }) {
+function IdentityWorkspace({ projectId }: { projectId: string | null }) {
   const cache = useQueryClient();
-  const editGate = usePermission('design.edit');
+  const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [identityOffset, setIdentityOffset] = useState(0);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [kind, setKind] = useState("part");
-  const definitions = useQuery({ queryKey: ["identity-definitions", projectId], queryFn: () => read<Definition[]>(`projects/${projectId}/definitions`) });
+  const [useHere, setUseHere] = useState(true);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const definitions = useQuery({ queryKey: ["library-definitions", projectId], queryFn: () => libraryDefinitions(projectId) });
   const identity = useQuery({ queryKey: ["identity", definitionId, identityOffset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${identityOffset}`), enabled: !!definitionId });
-  const create = useMutation({ mutationFn: () => command<{ definition_id: string }>("definition.create", { project_id: projectId, kind, name }), onSuccess: async (data) => {
-    setDefinitionId(data.definition_id); setRevisionId(null); setIdentityOffset(0); setName("");
-    await cache.invalidateQueries({ queryKey: ["identity-definitions", projectId] });
+  const create = useMutation({ mutationFn: async () => {
+    // New items join the workspace library; a project reference is a separate, optional step.
+    const workspaceId = definitions.data?.workspace_id ?? (await libraryDefinitions(projectId)).workspace_id;
+    return command<{ definition_id: string }>("definition.create", { workspace_id: workspaceId, kind, name });
+  }, onSuccess: async (data) => {
+    setDefinitionId(data.definition_id); setRevisionId(null); setIdentityOffset(0); setName(""); setReferenceError(null);
+    if (projectId && useHere) {
+      try { await addProjectReference(projectId, "definition", data.definition_id, kind); }
+      catch (error) { setReferenceError(`Created in the library, but not added to this project: ${(error as Error).message}`); }
+    }
+    await cache.invalidateQueries({ queryKey: ["library-definitions", projectId] });
+    // Other panels still cache definition lists under the earlier key.
+    await cache.invalidateQueries({ queryKey: ["identity-definitions"] });
   } });
   const freeze = useMutation({ mutationFn: (draft: { draft_id: string; state: string; dependencies: string[] }) => command<{ revision_id: string; number: number }>("draft.freeze", { draft_id: draft.draft_id, dependencies: draft.dependencies }, draft.state), onSuccess: async (data) => {
     setRevisionId(data.revision_id); setIdentityOffset(Math.floor((data.number - 1) / 50) * 50); await cache.invalidateQueries({ queryKey: ["identity", definitionId] });
@@ -34,11 +47,13 @@ function IdentityWorkspace({ projectId }: { projectId: string }) {
       <Title order={3}>Create definition</Title>
       <TextInput label="Definition name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
       <TextInput label="Definition kind" value={kind} onChange={(event) => setKind(event.currentTarget.value)} />
-      <Button disabled={!name.trim() || !kind.trim()} loading={create.isPending} onClick={() => create.mutate()} {...editGate.props}>Create draft</Button><ReadOnlyNote permission="design.edit">Creating drafts is unavailable.</ReadOnlyNote>
+      {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />}
+      <Button disabled={!name.trim() || !kind.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
+      {referenceError && <Alert color="yellow">{referenceError}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Select label="Definition" placeholder="Choose a definition" searchable data={(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitionId} onChange={(value) => { setDefinitionId(value); setRevisionId(null); setIdentityOffset(0); }} />
+    <Select label="Definition" placeholder="Choose a library definition" searchable data={(definitions.data?.results ?? []).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})${d.in_project ? " · in this project" : ""}` }))} value={definitionId} onChange={(value) => { setDefinitionId(value); setRevisionId(null); setIdentityOffset(0); }} />
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
       <Text size="sm"><IdentityLabel name={identity.data.name} kind={identity.data.kind} pins={[{ label: 'Definition ID', value: identity.data.definition_id }]} /></Text>
@@ -53,7 +68,8 @@ function IdentityWorkspace({ projectId }: { projectId: string }) {
 }
 
 function RevisionCatalog({ revisionId }: { revisionId: string }) {
-  const editGate = usePermission('design.edit');
+  // Catalog associations are additive registrations: contributors may record them.
+  const editGate = usePermission('item.create');
   const cache = useQueryClient();
   const [manufacturer, setManufacturer] = useState("");
   const [partNumber, setPartNumber] = useState("");
@@ -79,7 +95,7 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
       <TextInput label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.currentTarget.value)} />
       <TextInput label="Manufacturer part number" value={partNumber} onChange={(e) => setPartNumber(e.currentTarget.value)} />
       <Textarea label="Basis for this association" value={basis} onChange={(e) => setBasis(e.currentTarget.value)} />
-      <Button disabled={!manufacturer.trim() || !partNumber.trim() || !basis.trim()} loading={registration.isPending} onClick={() => register("variant", { manufacturer, part_number: partNumber, association_basis: basis })} {...editGate.props}>Register variant</Button><ReadOnlyNote permission="design.edit">Registering identities is unavailable.</ReadOnlyNote>
+      <Button disabled={!manufacturer.trim() || !partNumber.trim() || !basis.trim()} loading={registration.isPending} onClick={() => register("variant", { manufacturer, part_number: partNumber, association_basis: basis })} {...editGate.props}>Register variant</Button><ReadOnlyNote permission="item.create">Registering identities is unavailable.</ReadOnlyNote>
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Physical lots</Title>
@@ -96,7 +112,7 @@ function RevisionCatalog({ revisionId }: { revisionId: string }) {
       <Select label="Representation kind" value={representationKind} onChange={setRepresentationKind} data={["symbol", "footprint", "model", "drawing", "datasheet"]} allowDeselect={false} />
       <TextInput label="Registered source bundle revision ID" value={bundleRevision} onChange={(e) => setBundleRevision(e.currentTarget.value)} />
       <TextInput label="Source package path" value={sourcePath} onChange={(e) => setSourcePath(e.currentTarget.value)} />
-      <Text size="sm">Choose an exact file from a registered source bundle in this project. Its original rights are retained.</Text>
+      <Text size="sm">Choose an exact file from a registered source bundle in this workspace. Its original rights are retained.</Text>
       <Button disabled={!representationLabel.trim() || !bundleRevision.trim() || !sourcePath.trim()} loading={registration.isPending} onClick={() => register("representation", { label: representationLabel, kind: representationKind, source_bundle_revision_id: bundleRevision, source_path: sourcePath })} {...editGate.props}>Register representation</Button>
     </Stack></Card>
     <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous records</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={!catalog.data || Math.max(catalog.data.variants.length, catalog.data.lots.length, catalog.data.representations.length) < 50} onClick={() => setOffset(offset + 50)}>Next records</Button></Group>

@@ -56,5 +56,5 @@ test("workspace atoms are matched and the former per-project names read as their
   expect(holds(["workspace.read", "workspace.admin"], "project.admin")).toBe(true);
   expect(holds(["project.admin"], "workspace.admin")).toBe(true);
   expect(holds(["workspace.read"], "workspace.admin")).toBe(false);
-  expect(readOnlyReason("item.create")).toBe("Read-only access: requires Contribution");
+  expect(readOnlyReason("item.create")).toBe("Read-only access: requires Contributor access");
 });

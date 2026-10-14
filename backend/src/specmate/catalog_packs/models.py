@@ -89,7 +89,7 @@ class PackDecision(models.Model):
 class AdoptionEntry(models.Model):
     decision = models.ForeignKey(PackDecision, on_delete=models.PROTECT, related_name="adoptions")
     entry = models.ForeignKey(VersionEntry, on_delete=models.PROTECT)
-    # Only controlled shared definition creation produces these owning-project drafts.
+    # Only controlled shared definition creation produces these workspace drafts.
     definition = models.ForeignKey("design.Definition", null=True, on_delete=models.PROTECT)
     draft = models.ForeignKey("design.Draft", null=True, on_delete=models.PROTECT)
     initial_content = models.BinaryField(null=True)

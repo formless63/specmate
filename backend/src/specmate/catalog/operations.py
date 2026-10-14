@@ -16,7 +16,7 @@ def authorize_catalog_replay(ctx: Context, p, stored_result: dict) -> None:
     Registration results only disclose records scoped by these pinned references.
     """
     revision = get_revision(ctx.user, p.revision_id)
-    authorize(ctx.user, revision.definition.workspace_id, Perm.DESIGN_EDIT)
+    authorize(ctx.user, revision.definition.workspace_id, Perm.ITEM_CREATE)
     if isinstance(p, RegisterRepresentation):
         source = get_bundle_revision(ctx.user, p.source_bundle_revision_id)
         if source.bundle.workspace_id != revision.definition.workspace_id:
@@ -42,7 +42,7 @@ def catalog_scope(ctx: Context, p) -> str:
 
 def editable_revision(ctx, revision_id):
     revision = get_revision(ctx.user, revision_id)
-    authorize(ctx.user, revision.definition.workspace_id, Perm.DESIGN_EDIT)
+    authorize(ctx.user, revision.definition.workspace_id, Perm.ITEM_CREATE)
     # Serialize duplicate checks without modifying the immutable revision.
     Revision.objects.select_for_update().get(id=revision.id)
     return revision

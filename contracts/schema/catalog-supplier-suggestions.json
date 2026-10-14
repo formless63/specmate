@@ -142,15 +142,15 @@
     "source": {
       "$ref": "#/$defs/RevisionIdentity"
     },
-    "target_project_id": {
+    "workspace_id": {
       "format": "uuid",
-      "title": "Target Project Id",
+      "title": "Workspace Id",
       "type": "string"
     }
   },
   "required": [
     "source",
-    "target_project_id",
+    "workspace_id",
     "results",
     "next_after",
     "inspection_truncated"

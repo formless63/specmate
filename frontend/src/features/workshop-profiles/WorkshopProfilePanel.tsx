@@ -8,6 +8,7 @@ import {
 } from './api';
 import type { Basis, ElementPractice, EndPractice, LeadDisplay, ProfileRecord,
   ProfileRevision, Source, StockChoice, Suggestion, WorkshopProfile } from './api';
+import { addProjectReference } from '../identity/api';
 import { WorkshopProfileProvenance } from './PracticeProvenance';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -27,8 +28,10 @@ function paths(node: StockElement, prefix = ''): string[] {
   return [path, ...(node.kind === 'group' ? node.children.flatMap(child => paths(child, path)) : [])];
 }
 
-export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
-  const edit = usePermission('design.edit');
+/** Library workshop profiles. `projectId` is optional context, never the profile's owner. */
+export function WorkshopProfilePanel({ projectId }: { projectId?: string | null }) {
+  const edit = usePermission('item.create');
+  const [useHere, setUseHere] = useState(true);
   const freezeGate = usePermission('design.freeze');
   const [stocks, setStocks] = useState<StockChoice[]>([]);
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
@@ -52,7 +55,6 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
   const elementPaths = useMemo(() => stock ? paths(stock.structure as GroupElement).slice(1) : [], [stock]);
 
   useEffect(() => {
-    if (!projectId) return;
     let alive = true;
     Promise.all([listStocks(projectId), listProfiles(projectId)])
       .then(([stockRows, profileRows]) => { if (alive) { setStocks(stockRows); setProfiles(profileRows); } })
@@ -100,11 +102,16 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
     const rule = next.element_rules[path] ?? blankRule(); change(rule[end]); next.element_rules[path] = rule;
   });
   const save = async () => {
-    if (!projectId || !profile || !name.trim() || frozen) return;
+    if (!profile || !name.trim() || frozen) return;
     setBusy(true); setError('');
     try {
-      const result = await saveProfile(projectId, name.trim(), profile, current);
+      const created = current === null;
+      const result = await saveProfile(name.trim(), profile, current);
       const row = { ...result, name: result.name ?? name.trim() };
+      if (created && projectId && useHere) {
+        try { await addProjectReference(projectId, 'definition', row.definition_id, 'workshop profile'); }
+        catch (e) { setError(`Saved in the library, but not added to this project: ${e instanceof Error ? e.message : String(e)}`); }
+      }
       setCurrent(row); setProfiles(items => [...items.filter(item => item.draft_id !== row.draft_id), row]);
       setProfile(copy(row.content.profile ?? profile)); setDirty(false); setMessage(`Saved ${row.name} (${row.state}).`);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -235,9 +242,10 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
           </Group>)}
         </Stack>;
       })}
-      <Group><Button onClick={() => void save()} loading={busy} disabled={!!frozen || !projectId || !profile || !name.trim() || !dirty} {...edit.props}>Save profile</Button>
+      {projectId && current === null && <Checkbox label="Use in this project" checked={useHere} onChange={e => setUseHere(e.currentTarget.checked)} />}
+      <Group><Button onClick={() => void save()} loading={busy} disabled={!!frozen || !profile || !name.trim() || !dirty} {...edit.props}>Save profile</Button>
         <Button variant="light" onClick={() => void freeze()} disabled={!current || dirty || !!frozen || busy} {...freezeGate.props}>Freeze profile</Button></Group>
-      <ReadOnlyNote permission="design.edit">Saving and freezing profiles are unavailable.</ReadOnlyNote>
+      <ReadOnlyNote permission="item.create">Saving and freezing profiles are unavailable.</ReadOnlyNote>
       {dirty && <Text size="sm">Unsaved profile suggestions. Save before freezing.</Text>}
     </>}
     {!shown && <Text>Select a frozen stock revision to prepare a profile.</Text>}

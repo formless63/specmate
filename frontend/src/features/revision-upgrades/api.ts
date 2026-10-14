@@ -50,13 +50,16 @@ export type Proposal = {
 export type Assembly = { occurrences: { address: { path: string[] }; revision_id: string; name: string; display_ref: string }[] };
 export type Applied = { proposal_id: string; application_id: string; draft_id: string; state: string; base_revision_id: string | null; parent_propagation?: "required" | "not_applicable" };
 export type Consumers = {
-  revision: Pin; truncated: boolean; compatibility: string;
-  consumers: { owning_snapshot_id: string; owning_definition_id: string; name: string; revision_id: string | null; number: number | null; sha256: string;
+  revision: Pin; workspace_id?: string; project_id?: string | null; truncated: boolean; compatibility: string;
+  consumers: { owning_snapshot_id: string; owning_definition_id: string; name: string; revision_id: string | null; number: number | null; sha256: string; in_project?: boolean;
     uses: { path: string[]; context_path: string[]; display_ref: string }[] }[];
 };
 export function inspectAssembly(snapshotId: string) { return request<Assembly>(`revision-upgrades/snapshots/${snapshotId}`); }
-export function findConsumers(projectId: string, revisionId: string) {
-  return request<Consumers>(`revision-upgrades/consumers?project_id=${encodeURIComponent(projectId)}&revision_id=${encodeURIComponent(revisionId)}`);
+/** Workspace consumers of an exact revision; a project id only lists its referenced consumers first. */
+export function findConsumers(revisionId: string, projectId?: string | null) {
+  const params = new URLSearchParams({ revision_id: revisionId });
+  if (projectId) params.set("project_id", projectId);
+  return request<Consumers>(`revision-upgrades/consumers?${params}`);
 }
 export function loadProposal(id: string) { return request<Proposal>(`revision-upgrades/proposals/${id}`); }
 export function proposeUpgrade(payload: object) { return command<Proposal>("upgrade.propose", payload); }

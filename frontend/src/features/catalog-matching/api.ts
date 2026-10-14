@@ -19,9 +19,8 @@ async function command(operation: string, payload: object, expectedState?: strin
   return body.result;
 }
 
-export type Project = { project_id: string; name: string; permissions: string[] };
 export type RevisionIdentity = {
-  revision_id: string; definition_id: string; project_id: string; name: string;
+  revision_id: string; definition_id: string; workspace_id: string; name: string;
   kind: string; number: number; sha256: string;
 };
 export type Evidence = {
@@ -48,18 +47,19 @@ export type Candidate = {
   }[];
 };
 export type CandidatePage = { source_revision_id: string; results: Candidate[]; next_after: string | null };
-export type EvidencePage = { results: EvidenceFile[]; next_after: number | null };
+export type EvidencePage = { workspace_id?: string; results: EvidenceFile[]; next_after: number | null };
 export type SupplierSuggestion = {
   source_variant_id: string; target_variant_id: string; manufacturer: string; part_number: string;
   source_association_basis: string; target_association_basis: string; target: RevisionIdentity;
   match_basis: "exact_manufacturer_and_part_number"; review: "not_reviewed"; compatibility: "not_evaluated";
 };
 export type SupplierSuggestionPage = {
-  source: RevisionIdentity; target_project_id: string; results: SupplierSuggestion[];
+  source: RevisionIdentity; workspace_id: string; results: SupplierSuggestion[];
   next_after: string | null; inspection_truncated: boolean; meaning: "identifier_suggestions_only";
 };
-export function supplierSuggestions(sourceRevision: string, sourceVariant: string, project: string, after?: string) {
-  const params = new URLSearchParams({ source_variant_id: sourceVariant, target_project_id: project, limit: "25" });
+/** Exact identifier suggestions from the source revision's workspace library. */
+export function supplierSuggestions(sourceRevision: string, sourceVariant: string, after?: string) {
+  const params = new URLSearchParams({ source_variant_id: sourceVariant, limit: "25" });
   if (after) params.set("after", after);
   return request<SupplierSuggestionPage>(`catalog-matching/revisions/${sourceRevision}/supplier-suggestions?${params}`);
 }
@@ -72,10 +72,11 @@ export function candidates(revisionId: string, after?: string) {
 export function candidateDetail(candidateId: string) {
   return request<Candidate>(`catalog-matching/candidates/${candidateId}`);
 }
-export function evidenceFiles(projectId: string, after?: number) {
+/** Registered source files of the actor's workspace, for exact evidence selection. */
+export function evidenceFiles(after?: number) {
   const params = new URLSearchParams({ limit: "50" });
   if (after !== undefined) params.set("after", String(after));
-  return request<EvidencePage>(`catalog-matching/projects/${projectId}/evidence-files?${params}`);
+  return request<EvidencePage>(`catalog-matching/evidence-files?${params}`);
 }
 export function proposeMatch(payload: object) {
   return command("catalog.propose_match", payload);

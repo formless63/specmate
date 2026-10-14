@@ -15,7 +15,6 @@ def supplier_suggestions(
     request,
     revision_id: UUID,
     source_variant_id: UUID,
-    target_project_id: UUID,
     after: UUID | None = None,
     limit: int = 25,
 ):
@@ -24,7 +23,6 @@ def supplier_suggestions(
         SuggestSupplierMatches(
             source_revision_id=revision_id,
             source_variant_id=source_variant_id,
-            target_project_id=target_project_id,
             after=after,
             limit=limit,
         ),
@@ -41,6 +39,8 @@ def candidates(request, revision_id: UUID, after: UUID | None = None, limit: int
     return queries.list_candidates(request.user, revision_id, after=after, limit=limit)
 
 
-@router.get("/projects/{project_id}/evidence-files")
-def evidence_files(request, project_id: UUID, after: int | None = None, limit: int = 50):
-    return queries.list_evidence_files(request.user, project_id, after=after, limit=limit)
+@router.get("/evidence-files")
+def evidence_files(
+    request, workspace_id: UUID | None = None, after: int | None = None, limit: int = 50
+):
+    return queries.list_evidence_files(request.user, workspace_id, after=after, limit=limit)

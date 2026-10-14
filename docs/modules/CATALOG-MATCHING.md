@@ -7,9 +7,10 @@ identity. An explicit proposal creates a separate candidate even when identifier
 are equal; it does not merge definitions, register a representation or alter a
 consumer's captured dependency pins.
 
-The source revision determines the assertion's owning project. Proposing or
-reviewing requires its current `design.edit` permission and current read authority
-over both revisions' complete retained closure. Target edit authority is unnecessary
+The source revision determines the assertion's workspace; source and target never cross
+workspaces. Proposing a candidate is additive and requires `item.create` (contributors
+may propose); recording a review decision requires `design.edit`. Both need current
+workspace membership. Target edit authority is unnecessary
 because the target is referenced rather than changed. Correspondence between two
 revisions of the same definition belongs to explicit revision adoption, not matching.
 
@@ -29,15 +30,15 @@ Later review can change the current decision without rewriting earlier evidence.
 Candidates and reviews are immutable database rows. A database sequence guard and
 candidate lock protect consecutive review versions. Reviews compare the required
 `expected_state` (`match-v0`, `match-v1`, …); stale requests receive an authorized
-current state. Both operations use the shared executor's actor/project/operation
+current state. Both operations use the shared executor's actor/workspace/operation
 idempotency namespace. Every retained citation and both engineering closures are
 reauthorized before result disclosure, replay or keyed/stale conflict diagnostics.
 Revoked evidence in any prior review prevents disclosure of the whole history.
 
 The HTTP adapter exposes candidate detail, cursor-paged candidates owned by a source
-revision, and cursor-paged exact registered files for a project's evidence selector.
-Hidden candidates are skipped without counts; continuation cursors refer only to
-visible candidates. HTTP commands, discovered agent commands and trusted jobs call
+revision, and cursor-paged exact registered files of the workspace for the evidence
+selector (`GET /api/v0/catalog-matching/evidence-files`, optional `workspace_id`).
+Continuation cursors must be rows of the same workspace query. HTTP commands, discovered agent commands and trusted jobs call
 the same registered operations. The browser uses definition and exact-revision
 selectors, typed evidence fields and an append-review form; JSON editing is unnecessary.
 Continuations must identify a currently authorized row in the same query scope.
@@ -46,7 +47,8 @@ selections, forms and history before reading current authority. A denied candida
 reread also clears old options and disables mutations until access is refreshed.
 
 `catalog.suggest_supplier_matches` and its read-only HTTP adapter compare one explicitly
-selected immutable manufacturer association with a target project's associations.
+selected immutable manufacturer association with the associations of the source's
+workspace library.
 Only an exact manufacturer and part-number pair produces a suggestion, and revisions
 of the source's own definition are excluded. The response retains both association IDs,
 bases and exact revision identities. These are unreviewed catalog assertions, not
@@ -54,9 +56,8 @@ verified supplier evidence, interchangeability, a model-fit result or a merged i
 Reading suggestions creates no candidate or review; a person must deliberately use the
 normal proposal command. The browser loads identities on request and offers an explicit action to fill
 the existing proposal form; creating the proposal remains a separate action. Suggestions
-do not upgrade unknown evidence to verified evidence. Every disclosed target's complete current source closure is
-checked, inaccessible rows are omitted, and continuation cursors belong to that same
-currently authorized query. Pages contain at most 50 rows, with a 2,000-association
+do not upgrade unknown evidence to verified evidence. Suggestions never include another
+workspace's associations, and continuation cursors belong to the same workspace query. Pages contain at most 50 rows, with a 2,000-association
 inspection bound and an explicit truncation flag rather than a completeness claim.
 
 Automatic similarity scoring, supplier import adapters, model-fit computation and
