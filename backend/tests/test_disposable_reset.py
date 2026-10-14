@@ -78,14 +78,21 @@ def test_verify_refuses_unknown_targets(aligned, tmp_path, settings):
 
 
 @pytest.mark.django_db
-def test_debug_or_development_alone_is_insufficient(settings, tmp_path):
+def test_debug_or_development_alone_is_insufficient(settings, aligned):
     settings.DEVELOPMENT = True
     settings.DEBUG = True
     with pytest.raises(disposable.ResetRefused, match="No installation marker"):
         disposable.verify("")
+    # Not being a development environment no longer blocks a verified marker.
     settings.DEVELOPMENT = False
-    path, _ = _marker(tmp_path)
-    _refused(path, "development environment")
+    settings.DEBUG = False
+    from specmate.access.models import Installation
+
+    path, data = aligned
+    Installation.objects.update_or_create(
+        singleton=True, defaults={"installation_id": data["installation_id"]}
+    )
+    assert str(disposable.verify(str(path)).installation_id) == data["installation_id"]
 
 
 @pytest.mark.django_db
@@ -253,8 +260,9 @@ def test_end_to_end_reset_in_declared_install_and_refusal_elsewhere(scratch_db, 
     # Same database without a marker, with production environment, or with a foreign marker.
     no_marker = _scratch_env(tmp_path)
     assert _manage(no_marker, "reset_disposable", "--confirm", marker_id).returncode != 0
+    # The environment name is not authority: a verified marker also resets under production.
     prod = {**env, "SPECMATE_ENVIRONMENT": "production", "SPECMATE_SECRET_KEY": "x"}
-    assert _manage(prod, "reset_disposable", "--confirm", marker_id).returncode != 0
+    assert _manage(prod, "reset_disposable", "--confirm", marker_id).returncode == 0
     data = json.loads(marker.read_text())
     data["installation_id"] = str(uuid.uuid4())
     marker.write_text(json.dumps(data))

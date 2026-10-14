@@ -1,8 +1,9 @@
 """OPS-007: verify a disposable pre-1.0 installation before any destructive reset.
 
-A reset is allowed only when every identity below agrees. DEBUG, a development
-environment, a localhost hostname or a version number alone never suffices, and
-an unknown or ambiguous target is always refused. Verification is read-only.
+A reset is allowed only when every identity below agrees. The verified marker is
+the authority; the environment name is not consulted. DEBUG, a localhost hostname
+or a version number alone never suffices, and an unknown or ambiguous target is
+always refused. Verification is read-only.
 
 The installation marker is a JSON file kept outside the application checkout, in
 the disposable stack's own state directory:
@@ -91,8 +92,6 @@ def verify(marker_path: str | None = None) -> Verified:
     """Raise ResetRefused unless this process targets the marked disposable installation."""
     from specmate.access.models import Installation
 
-    if not settings.DEVELOPMENT:
-        raise ResetRefused("Reset authority is disabled outside the development environment.")
     if not _version_is_pre_release():
         raise ResetRefused("Resets are only permitted before v1.0.0.")
     marker = _load_marker(

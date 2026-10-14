@@ -181,7 +181,8 @@ Pin images and dependencies. Unattended floating-tag upgrades are not the defaul
 the children of the artifact root. It runs only when all of these agree, and otherwise
 refuses without changing anything:
 
-- `SPECMATE_ENVIRONMENT=development` and an application version below 1.0.0;
+- an application version below 1.0.0 (the environment name, including `production`, is not
+  consulted: the verified marker is the authority, and DEBUG or a version alone is not);
 - `SPECMATE_DISPOSABLE_MARKER` (or `--marker`) names an absolute regular file, kept in the
   disposable stack's own state directory, with `schema: 1`, `policy: "pre-1.0-disposable"`,
   an `installation_id` UUID, the exact database `host`/`port`/`name`, an absolute
