@@ -3,12 +3,12 @@
 import hashlib
 import json
 
-from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import Closure as AssemblyClosure
 from specmate.cables.queries import Closure as CableClosure
 from specmate.copper.contracts import Graph
 from specmate.design.models import Revision
 from specmate.design.operations import authorize_snapshot
+from specmate.design.pins import check_pin
 from specmate.harnesses.queries import Closure as HarnessClosure
 from specmate.interfaces.contracts import ConnectorBody, InterfaceMap, Pinout
 from specmate.interfaces.queries import Closure as InterfaceClosure
@@ -415,16 +415,16 @@ def inspect_graph(user, query):
         .filter(id=query.revision_id)
         .first()
     )
-    if root is None:
-        raise NotFound("Copper graph unavailable.")
-    authorize(user, root.definition.workspace_id, Perm.WORKSPACE_READ)
+    # Missing, foreign-workspace (inside a typed closure) and unreadable roots read alike.
     # This precedes occurrence/terminal diagnostics, graph caps and any projection.
+    check_pin(user, root)
+    # Membership in the root's workspace covers its exact closure (pins never cross
+    # workspaces); the walk only bounds the closure before any projection work.
     pending, visited = [root.snapshot], set()
     while pending:
         snapshot = pending.pop()
         if snapshot.id in visited:
             continue
-        authorize(user, snapshot.definition.workspace_id, Perm.WORKSPACE_READ)
         if len(visited) >= MAX_SNAPSHOTS:
             raise ValidationFailed("Copper graph source closure limit exceeded.")
         visited.add(snapshot.id)
@@ -434,7 +434,9 @@ def inspect_graph(user, query):
         )
     authorize_snapshot(user, root.snapshot)
     content = body(root)
-    assembly = AssemblyClosure(user, content, kind=root.definition.kind)
+    assembly = AssemblyClosure(
+        user, content, kind=root.definition.kind, workspace_id=root.definition.workspace_id
+    )
     scope = tuple(query.occurrence_path)
     if scope and scope not in assembly.nodes:
         raise NotFound("Copper graph occurrence unavailable.")

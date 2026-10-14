@@ -16,8 +16,10 @@ Drafts, Snapshots and Revisions. It introduces no second identity registry.
   merge paths. Conditions and declaration basis travel with each passage.
 
 `interface.create`, `interface.update`, `interface.snapshot` and `interface.freeze`
-use the shared operation transaction, actor/project idempotency namespace, current
-permission checks and draft concurrency tokens. Freeze requires its separate grant.
+use the shared operation transaction, actor/workspace idempotency namespace, current
+permission checks and draft concurrency tokens. Creating takes an optional
+`workspace_id` (the actor's only workspace when omitted) and never a project. Freeze
+requires `design.freeze` (editors by default, or an explicit grant).
 `interface.read` and `interface.trace` are live read operations. HTTP read routes are
 under `/api/v0/interfaces`; mutation adapters use the normal operations endpoint.
 

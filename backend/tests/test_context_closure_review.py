@@ -6,14 +6,13 @@ from uuid import UUID
 
 import pytest
 
-from specmate.access.models import WorkspaceMember
 from specmate.catalog_packs.models import AdoptionEntry
 from specmate.design.models import Snapshot
 from specmate.design.operations import authorize_snapshot
 from specmate.operations import Conflict, NotFound
 from specmate.queries import get_draft
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, member, op, remove_member
 from .test_bom import assembly, capture, create, part
 from .test_catalog_packs import adopt, install, manifest, registered
 from .test_sources import files, register, sha
@@ -70,8 +69,9 @@ def test_failed_batch_preserves_prior_success_without_publishing_failed_origin(
     )
     prior = completed.copy()
     assert prior == {UUID(safe["snapshot_id"])}
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["viewer"]).delete()
-    with pytest.raises(NotFound, match=r"^Project not found\.$"):
+    # Sources share the workspace boundary: membership loss is the remaining revocation.
+    remove_member(users["viewer"], project=remote)
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         authorize_snapshot(
             users["viewer"], Snapshot.objects.get(pk=root["snapshot_id"]), _authorized=completed
         )
@@ -107,10 +107,10 @@ def test_snapshot_replay_uses_fresh_source_origin_before_stale_cas_and_preserves
         {"draft_id": draft["draft_id"], "bom": updated_plan},
         expected_state=draft["state"],
     )
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=actor).delete()
+    remove_member(actor, project=remote)
     count = Snapshot.objects.count()
     for key in (None, "independent-snapshot"):
-        with pytest.raises(NotFound, match=r"^Project not found\.$"):
+        with pytest.raises(NotFound, match=r"^Not found\.$"):
             capture(actor, draft, operation, idempotency_key=key)
     denied = post_op(
         api(actor),
@@ -121,7 +121,7 @@ def test_snapshot_replay_uses_fresh_source_origin_before_stale_cas_and_preserves
     )
     assert denied.status_code == 404 and "snapshot_id" not in denied.json()
     assert Snapshot.objects.count() == count and bytes(row.canonical) == raw
-    ensure_member(actor, "viewer", project=remote)
+    member(actor, "editor", project=remote)
     assert capture(actor, draft, operation, idempotency_key="independent-snapshot") == snap
     with pytest.raises(Conflict):
         capture(actor, draft, operation)

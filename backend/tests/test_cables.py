@@ -9,7 +9,6 @@ import pytest
 from django.db import close_old_connections, connections
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.cables.queries import inspect_revision
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
@@ -21,7 +20,8 @@ from specmate.operations import (
 )
 from specmate.queries import get_draft, get_revision
 
-from .conftest import ensure_member, op
+from .conftest import op, remove_member
+from .scope_helpers import workspace_of
 from .test_interfaces import create as create_interface
 from .test_interfaces import freeze as freeze_interface
 from .test_interfaces import pinout
@@ -53,7 +53,7 @@ def create(user, project, cable, **ctx):
     return op(
         user,
         "cable.create",
-        {"project_id": project, "name": "Synthetic cable", "cable": cable},
+        {"workspace_id": workspace_of(project), "name": "Synthetic cable", "cable": cable},
         **ctx,
     )
 
@@ -313,21 +313,21 @@ def test_deep_source_revocation_precedes_diagnostics_replay_and_stale_state(user
     from .test_workshop_profiles import profile, stock_revision
 
     owner, user = users["owner"], users["editor"]
-    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
-        grants=["design.freeze"]
-    )
     stock_id, _ = stock_revision(users, project)
     raw = b"Synthetic cable reference."
     digest = hashlib.sha256(raw).hexdigest()
     blob = SourceBlob.objects.create(
-        project_id=project,
+        workspace_id=workspace_of(project),
         sha256=digest,
         size=len(raw),
         media_type="text/plain",
         registered_by=owner,
     )
     bundle = SourceBundle.objects.create(
-        project_id=project, name="Synthetic evidence", role="original", created_by=owner
+        workspace_id=workspace_of(project),
+        name="Synthetic evidence",
+        role="original",
+        created_by=owner,
     )
     source = SourceBundleRevision.objects.create(
         bundle=bundle,
@@ -374,9 +374,8 @@ def test_deep_source_revocation_precedes_diagnostics_replay_and_stale_state(user
     cable["stock_revision_id"] = referenced_stock["revision_id"]
     draft = create(user, project, cable, idempotency_key="source-cable")
     frozen = capture(user, draft, idempotency_key="source-freeze")
-    hidden = op(owner, "project.create", {"name": "Restricted evidence"})["project_id"]
-    bundle.project_id = hidden
-    bundle.save(update_fields=["project"])
+    # Sources share the workspace boundary: membership loss is the remaining revocation.
+    remove_member(user)
     invalid = copy.deepcopy(cable)
     invalid["assignments"][0]["contact_id"] = "missing"
     actions = [
@@ -414,9 +413,7 @@ def test_deep_source_revocation_precedes_diagnostics_replay_and_stale_state(user
 
 def test_retained_create_and_update_results_authorize_original_references(users, project):
     owner, user = users["owner"], users["editor"]
-    private = op(owner, "project.create", {"name": "Shared then restricted"})["project_id"]
-    grant = ensure_member(user, "viewer", project=private)
-    *_, old = fixture(owner, private)
+    *_, old = fixture(owner, project)
     *_, current = fixture(owner, project)
     draft = create(user, project, old, idempotency_key="retained-create")
     updated = op(
@@ -432,11 +429,12 @@ def test_retained_create_and_update_results_authorize_original_references(users,
         {"draft_id": draft["draft_id"], "cable": current},
         expected_state=updated["state"],
     )
-    grant.delete()
     assert (
         get_draft(user, draft["draft_id"])["content"]["cable"]["stock_revision_id"]
         == current["stock_revision_id"]
     )
+    # Retained receipts recheck current membership before replay.
+    remove_member(user)
     with pytest.raises(NotFound):
         create(user, project, old, idempotency_key="retained-create")
     with pytest.raises(NotFound):
@@ -452,10 +450,13 @@ def test_retained_create_and_update_results_authorize_original_references(users,
 def test_new_reference_authority_precedes_stale_token(users, project):
     owner, user = users["owner"], users["editor"]
     *_, current = fixture(owner, project)
-    private = op(owner, "project.create", {"name": "Private endpoint references"})["project_id"]
-    *_, hidden = fixture(owner, private)
+    # References from a foreign workspace read as missing before the stale-token conflict.
+    remote = op(users["outsider"], "project.create", {"name": "Foreign endpoint references"})[
+        "project_id"
+    ]
+    *_, hidden = fixture(users["outsider"], remote)
     draft = create(user, project, current)
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         op(
             user,
             "cable.update",

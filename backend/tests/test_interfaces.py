@@ -19,7 +19,8 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, set_grants
+from .scope_helpers import workspace_of
 
 BODY = {
     "kind": "connector_body",
@@ -36,7 +37,11 @@ def create(user, project, interface=BODY, **ctx):
     return op(
         user,
         "interface.create",
-        {"project_id": project, "name": "Synthetic interface", "interface": interface},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic interface",
+            "interface": interface,
+        },
         **ctx,
     )
 
@@ -82,7 +87,7 @@ def setup_mapping(user, project, internal_kind="board"):
         user,
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Repeated boards",
             "assembly": {
                 "occurrences": [
@@ -282,12 +287,18 @@ def test_current_dependency_scope_on_replay_and_read(users, project):
         )
 
 
-def test_key_namespaces_replay_and_stale_write(users, project):
+def test_key_namespaces_replay_and_stale_write(users, project, other_workspace):
     user = users["owner"]
     other = op(user, "project.create", {"name": "Other"})["project_id"]
     a = create(user, project, idempotency_key="key")
-    b = create(user, other, idempotency_key="key")
+    # Projects share their workspace namespace: the same key replays the same item.
+    assert create(user, other, idempotency_key="key") == a
+    # Another workspace is a separate namespace for the same actor and key.
+    ensure_member(user, "contributor", workspace=other_workspace)
+    remote = op(users["outsider"], "project.create", {"name": "Foreign"})["project_id"]
+    b = create(user, remote, idempotency_key="key")
     assert a["definition_id"] != b["definition_id"]
+    assert b["workspace_id"] == other_workspace
     assert create(user, project, idempotency_key="key") == a
     with pytest.raises(IdempotencyMismatch):
         create(user, project, {**BODY, "family": "Changed"}, idempotency_key="key")
@@ -312,7 +323,7 @@ def test_http_and_jobs_use_same_mutation_and_trace(users, project):
                 "operation": "interface.create",
                 "request_id": "interface-api",
                 "payload": {
-                    "project_id": project,
+                    "workspace_id": workspace_of(project),
                     "name": "Synthetic HTTP body",
                     "interface": BODY,
                 },
@@ -396,16 +407,14 @@ def test_competing_keyed_creates_have_one_effect(users, project):
 
 
 def test_current_freeze_grant_rechecked_on_retained_replay(users, project):
-    WorkspaceMember.objects.filter(user=users["editor"], workspace__projects=project).update(
-        grants=["design.freeze"]
-    )
-    draft = create(users["editor"], project)
-    freeze(users["editor"], draft, idempotency_key="granted-freeze")
-    WorkspaceMember.objects.filter(user=users["editor"], workspace__projects=project).update(
-        grants=[]
-    )
+    # Contributors freeze only with the explicit design.freeze grant.
+    actor = users["contributor"]
+    set_grants(actor, ["design.freeze"])
+    draft = create(actor, project)
+    freeze(actor, draft, idempotency_key="granted-freeze")
+    set_grants(actor, [])
     with pytest.raises(PermissionDenied):
-        freeze(users["editor"], draft, idempotency_key="granted-freeze")
+        freeze(actor, draft, idempotency_key="granted-freeze")
 
 
 @pytest.mark.parametrize("kind", ["connector_body", "pinout", "interface_map"])

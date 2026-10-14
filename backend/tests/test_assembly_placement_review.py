@@ -12,7 +12,7 @@ from specmate.catalog_packs.models import AdoptionEntry
 from specmate.design.models import Draft
 from specmate.operations import Context, NotFound, Unauthenticated
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
 from .test_assemblies import create, freeze, occ, part
 from .test_catalog_packs import adopt, install, registered
 from .test_mechanical_sources import declaration, mec_sources, mec_target  # noqa: F401
@@ -177,12 +177,8 @@ def test_direct_read_refreshes_actor_activity_instead_of_trusting_stale_context(
         )
 
 
-def test_current_draft_can_drop_a_pin_but_its_original_exact_revision_read_still_denies(
-    users, project
-):
-    origin = op(users["owner"], "project.create", {"name": "Synthetic original editor child"})
-    ensure_member(users["viewer"], "viewer", project=origin["project_id"])
-    _, child = part(users["owner"], origin["project_id"])
+def test_current_draft_can_drop_a_pin_while_its_exact_revision_stays_shared(users, project):
+    _, child = part(users["owner"], project)
     root = create(users["owner"], project, [occ("original-child", child)])
     op(
         users["owner"],
@@ -191,16 +187,18 @@ def test_current_draft_can_drop_a_pin_but_its_original_exact_revision_read_still
         expected_state=root["state"],
     )
     client = api(users["viewer"])
-    assert client.get(f"/api/v0/revisions/{child['revision_id']}").status_code == 200
-    WorkspaceMember.objects.filter(
-        workspace__projects=origin["project_id"], user=users["viewer"]
-    ).delete()
+    # The current draft no longer offers the dropped pin; the exact revision is still a
+    # workspace collection item every member reads.
     assert (
         op(users["viewer"], "assembly.placement_inputs", {"draft_id": root["draft_id"]})[
             "occurrences"
         ]
         == []
     )
+    assert client.get(f"/api/v0/revisions/{child['revision_id']}").status_code == 200
+    remove_member(users["viewer"])
+    with pytest.raises(NotFound):
+        op(users["viewer"], "assembly.placement_inputs", {"draft_id": root["draft_id"]})
     denied = client.get(f"/api/v0/revisions/{child['revision_id']}")
     assert denied.status_code == 404
     assert str(child["snapshot_id"]) not in denied.content.decode()

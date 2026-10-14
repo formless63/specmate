@@ -14,7 +14,7 @@ from specmate.catalog_matching.queries import current_actor
 from specmate.catalog_packs.authoring import authorize_origin
 from specmate.design.models import Revision, Snapshot
 from specmate.mechanical_sources.operations import evaluate, parse_content
-from specmate.operations import NotFound, PermissionDenied, ValidationFailed
+from specmate.operations import NotFound, ValidationFailed
 from specmate.pcb.models import PcbInterpretation
 from specmate.pcb.population import review_payload
 from specmate.pcb.report import Report
@@ -34,30 +34,32 @@ def scene_snapshot(user, snapshot_id):
     return get_snapshot(user, snapshot_id)
 
 
-def list_scenes(user, project_id):
+def list_scenes(user, workspace_id=None):
+    from specmate.access.workspaces import actor_workspace_id
+
     user = current_actor(user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
-    rows = []
-    # Bound closure work too. Counts and cursors never expose hidden assemblies.
+    workspace = authorize(user, actor_workspace_id(user, workspace_id), Perm.WORKSPACE_READ)
+    # Every member reads the whole collection, so membership alone decides the listing;
+    # opening a scene still checks its exact closure and typed source authority.
     revisions = (
         Revision.objects.select_related("definition", "snapshot")
         .filter(definition__workspace=workspace, definition__kind="assembly")
         .order_by("-frozen_at", "id")[:50]
     )
-    for revision in revisions:
-        try:
-            scene_snapshot(user, revision.snapshot_id)
-        except (NotFound, PermissionDenied):
-            continue
-        rows.append(
-            {
-                "snapshot_id": str(revision.snapshot_id),
-                "revision_id": str(revision.id),
-                "name": revision.definition.name,
-                "number": revision.number,
-            }
-        )
-    return {"assemblies": rows, "window": "latest_50_frozen_revisions"}
+    rows = [
+        {
+            "snapshot_id": str(revision.snapshot_id),
+            "revision_id": str(revision.id),
+            "name": revision.definition.name,
+            "number": revision.number,
+        }
+        for revision in revisions
+    ]
+    return {
+        "workspace_id": str(workspace.id),
+        "assemblies": rows,
+        "window": "latest_50_frozen_revisions",
+    }
 
 
 def identity(revision):

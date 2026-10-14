@@ -85,8 +85,8 @@ These lifecycle rules do not establish hardware performance or physical qualific
 `shared_scene.list` and `shared_scene.read` are read-only operations shared by the
 HTTP and authorized agent/job paths. The Shared scene tool deliberately selects a
 frozen assembly snapshot, independently of editable drafts. The scoped router is
-`/api/v0/shared-scenes`: `/projects/{project_id}` lists readable choices among the
-latest 50 frozen assembly revisions, and `/snapshots/{snapshot_id}` reads an exact
+`/api/v0/shared-scenes`: `/workspace` lists the latest 50 frozen assembly revisions in
+the actor's workspace collection (members read every item), and `/snapshots/{snapshot_id}` reads an exact
 scene. Older snapshots remain addressable explicitly. Captured unfrozen draft
 snapshots are rejected by this view; they are not presented as frozen design state.
 
@@ -365,16 +365,17 @@ prerequisites; editing later assumptions leaves retained snapshots unchanged.
 ## Retained scene inspection drawings
 
 An exact frozen assembly can produce an immutable internal inspection SVG and JSON
-manifest through `shared_scene.create_drawing`. A project reader may deliberately
+manifest through `shared_scene.create_drawing`. A workspace member may deliberately
 create this derived inspection record; it edits no definition, placement, source,
-inventory, physical unit or release state. The request requires an idempotency key
-scoped by actor and selected project; the request fingerprint pins the exact
-snapshot, renderer version and options.
+inventory, physical unit or release state. The drawing belongs to the root snapshot's
+workspace and takes no project. The request requires an idempotency key scoped by
+actor and workspace; the request fingerprint pins the exact snapshot, renderer
+version and options.
 Historic receipts are reauthorized before replay or conflict disclosure. Current
 root, nested input, source ancestry, model and target authority is checked before
-labels, rendering, retained metadata and each byte download. A selected project
-must own the root snapshot; readable inputs in other projects remain valid members
-of its authorized closure.
+labels, rendering, retained metadata and each byte download. The whole closure stays
+inside the root's workspace; a non-member receives the same not-found response for
+the root, the drawing and every download.
 
 Renderer `scene-line-svg-v1` projects accepted planar PCB outlines and declared
 positive stock lengths as explicitly labelled stock axes. It provides top, front,
@@ -401,7 +402,7 @@ rebuilds the default display request from unchanged canonical inputs.
 
 Stored SVG and manifest bytes share one database transaction with the operation
 receipt. Database guards prevent later mutation and reject mismatched snapshot,
-project, options and output hashes. The retained package contains `drawing.svg`
+workspace, options and output hashes. The retained package contains `drawing.svg`
 and `manifest.json` with deterministic archive metadata. Restricted or unknown
 source rights stay explicit: internal inspection grants no blanket redistribution,
 publication consent or release authority. Labels are escaped in generated-only

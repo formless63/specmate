@@ -7,6 +7,21 @@ separate records. Preserve element IDs for conductors, layers, screens and drain
 reviewed bond belongs to electrical topology, not a geometric gathering operation.
 One body can carry different logical pinouts; viewing side/orientation is explicit.
 
+## Workspace scope
+
+Stock, interfaces, cables, harnesses, assemblies, passive models, option sets and
+configurations, workshop/preparation/end-preparation profiles and BOM, material and
+cable test plans are workspace collection items. Typed `*.create` commands take an
+optional `workspace_id` (the actor's only workspace when omitted) and never a project;
+creating requires `item.create`. Projects reference these items afterwards. Every
+exact pin in typed content (and every revision a read combines, such as a profile
+applied to a cable or a document binding) must belong to the same workspace. A
+revision from another workspace, a missing revision and a revision the actor cannot
+read all produce the same `Not found.` response before any graph, mapping or
+semantic diagnostic, and before a database guard could reject the write. Membership
+in the root's workspace covers the exact closure; typed validation and source
+evidence checks still run for every pinned record.
+
 ## Reuse boundary
 
 Adapt capable prior section layouts, SVG callouts, layered tube geometry, pigtail handling,
@@ -38,7 +53,7 @@ Stock construction is version 1 typed state in a `wire_stock` definition's draft
 with exact frozen state in the shared revision/snapshot records. Dedicated
 `wire_stock.create`, `wire_stock.update`, and `wire_stock.freeze` commands use the
 same authorization, idempotency and optimistic state tokens as other operations.
-Project stock queries do not require connectors, devices, PCB sources or topology.
+Stock queries do not require connectors, devices, PCB sources or topology.
 
 Stable local element IDs form hierarchical paths. Groups declare concentric,
 ring, linear or figure-eight arrangements. Explicit pitches and offsets locate

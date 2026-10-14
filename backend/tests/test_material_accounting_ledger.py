@@ -12,6 +12,7 @@ from specmate.material_accounting.queries import inspect_revision
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_inventory import open_account, reserve
 from .test_inventory_consumption import create_work, give_back, use
 from .test_material_accounting import create, fixture, freeze, quantity
@@ -85,7 +86,7 @@ def test_hidden_latest_account_work_precedes_competing_section_diagnostic(users,
         user,
         "cable.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Same-project work with hidden dependency",
             "cable": other_value,
         },

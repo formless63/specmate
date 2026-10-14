@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
+from specmate.design.pins import check_pin
 from specmate.inventory.queries import get_consumption
 from specmate.material_accounting.contracts import MaterialPlan
 from specmate.operations import NotFound, ValidationFailed
@@ -63,6 +64,7 @@ def references(value, *, source_only=False):
 def preauthorize(user, content, extra=()):
     pending = [*references(content), *extra]
     seen = set()
+    pin_scope = None
     while pending:
         kind, rid = pending.pop()
         if (kind, rid) in seen:
@@ -76,9 +78,8 @@ def preauthorize(user, content, extra=()):
             revision = (
                 Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
             )
-            if revision is None:
-                raise NotFound("Revision unavailable.")
-            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
+            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+            pin_scope = check_pin(user, revision, pin_scope)
             pending.extend(
                 references(
                     json.loads(bytes(revision.snapshot.canonical))["content"], source_only=True

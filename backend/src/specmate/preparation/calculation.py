@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from specmate.cables.queries import inspect_revision as inspect_cable
 from specmate.catalog_matching.queries import current_actor
+from specmate.design.pins import pin_workspace
 from specmate.harnesses.queries import read_revision as read_harness
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
@@ -40,11 +41,13 @@ def compute(user, request):
     user = current_actor(user)
     # Authorize every supplied revision and source closure before selection diagnostics.
     subject = get_revision(user, request.revision_id)
-    revisions = {
-        a.profile_revision_id: get_revision(user, a.profile_revision_id)
-        for a in request.applications
-    }
-    profiles = {rid: profile_revision(user, rid) for rid in revisions}
+    # Applied profiles stay in the subject's workspace (NotFound before diagnostics).
+    with pin_workspace(subject.definition.workspace_id):
+        revisions = {
+            a.profile_revision_id: get_revision(user, a.profile_revision_id)
+            for a in request.applications
+        }
+        profiles = {rid: profile_revision(user, rid) for rid in revisions}
     pieces = {}
     if subject.definition.kind == "cable":
         inspected = inspect_cable(user, subject.id)

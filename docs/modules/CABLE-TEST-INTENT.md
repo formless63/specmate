@@ -19,11 +19,13 @@ silently creates a continuity or isolation expectation.
 engineering operations, independent draft state tokens and immutable captures.
 Generic definition/draft commands apply the same typed validation and dependency
 capture. `.inspect_target`, `.read` and `.package` are fresh read operations. Both
-supplied scope references and retained idempotency outcomes are reauthorized,
-including current and legacy keyed outcomes, before mismatch diagnostics.
-The full root owning closure, selected cable dependencies and registered evidence
-including preserved originals and archive/edit ancestors must remain accessible
-before file-path, terminal, label or occurrence diagnostics are shown.
+supplied scope references and retained idempotency outcomes are reauthorized
+before mismatch diagnostics. Test plans are global workspace items that projects
+reference; creating one takes an optional `workspace_id` and no project.
+The full root closure, selected cable dependencies and registered evidence including
+preserved originals and archive/edit ancestors stay inside the plan's workspace and
+must remain readable before file-path, terminal, label or occurrence diagnostics are
+shown; a revision from another workspace reads as not found.
 Direct query boundaries refresh account liveness.
 
 The Cable test intent workspace supports exact revision IDs, contextual paths,

@@ -18,11 +18,11 @@ from specmate.shared_scene.operations import ListScenes, inspect_choices, inspec
 router = Router(tags=["shared scene"])
 
 
-@router.get("/projects/{project_id}")
-def choices(request, project_id: UUID):
+@router.get("/workspace")
+def choices(request, workspace_id: UUID | None = None):
     return inspect_choices(
         Context(user=request.user, via="api", request_id="scene-list"),
-        ListScenes(project_id=project_id),
+        ListScenes(workspace_id=workspace_id),
     )
 
 
@@ -35,16 +35,16 @@ def inspect_snapshot(request, snapshot_id: UUID):
 
 
 @router.get("/drawings/{drawing_id}")
-def inspect_drawing(request, drawing_id: UUID, project_id: UUID | None = None):
+def inspect_drawing(request, drawing_id: UUID):
     return read_drawing(
         Context(user=request.user, via="api", request_id="drawing-read"),
-        ReadDrawing(drawing_id=drawing_id, project_id=project_id),
+        ReadDrawing(drawing_id=drawing_id),
     )
 
 
 @router.get("/drawings/{drawing_id}/{part}")
-def drawing_download(request, drawing_id: UUID, part: str, project_id: UUID | None = None):
-    drawing = drawing_record(request.user, drawing_id, project_id)
+def drawing_download(request, drawing_id: UUID, part: str):
+    drawing = drawing_record(request.user, drawing_id)
     if part == "svg":
         raw, media_type, filename = bytes(drawing.svg), "image/svg+xml", "drawing.svg"
     elif part == "manifest":
@@ -69,8 +69,8 @@ def drawing_download(request, drawing_id: UUID, part: str, project_id: UUID | No
 
 
 @router.get("/drawing-scenes/{snapshot_id}")
-def inspect_drawing_scene(request, snapshot_id: UUID, project_id: UUID):
+def inspect_drawing_scene(request, snapshot_id: UUID):
     return read_drawing_scene(
         Context(user=request.user, via="api", request_id="drawing-scene-read"),
-        ReadDrawingScene(project_id=project_id, snapshot_id=snapshot_id),
+        ReadDrawingScene(snapshot_id=snapshot_id),
     )

@@ -9,6 +9,7 @@ from specmate.assemblies.queries import Closure as AssemblyClosure
 from specmate.catalog_matching.queries import current_actor
 from specmate.catalog_packs.authoring import authorize_origin
 from specmate.design.models import Revision
+from specmate.design.pins import check_pin
 from specmate.interfaces.contracts import (
     INTERFACE_ADAPTER,
     KINDS,
@@ -63,6 +64,7 @@ class Closure:
         self.values = {}
         self.assemblies = {}
         pending = [*references(self.root), *dependencies]
+        pin_scope = None
         while pending:
             rid = pending.pop()
             if rid in self.revisions:
@@ -72,9 +74,8 @@ class Closure:
             revision = (
                 Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
             )
-            if revision is None:
-                raise NotFound("Interface reference unavailable.")
-            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
+            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+            pin_scope = check_pin(user, revision, pin_scope)
             authorize_origin(user, revision.definition)
             self.revisions[rid] = revision
             body = json.loads(bytes(revision.snapshot.canonical))["content"]

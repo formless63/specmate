@@ -1,4 +1,4 @@
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
 from specmate.cables.contracts import (
     CaptureCable,
     CreateCable,
@@ -23,6 +23,7 @@ from specmate.design.operations import (
     snapshot_draft,
     update_draft,
 )
+from specmate.design.pins import item_workspace, pin_workspace
 from specmate.operations import Context, NotFound, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import workspace_scope
@@ -41,7 +42,9 @@ def cable_draft(ctx, draft_id, permission, lock=False):
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateCable):
-        scope_id = p.project_id
+        # Creating adds a workspace collection item (item.create); no project is involved.
+        permission = Perm.ITEM_CREATE
+        scope_id = item_workspace(ctx.user, p.workspace_id).id
     else:
         scope_id = cable_draft(ctx, p.draft_id, permission).definition.workspace_id
     resolved = workspace_scope(ctx, scope_id, permission)
@@ -96,12 +99,13 @@ def retained_authority(ctx, stored, permission):
     idempotency_scope=scope,
 )
 def create(ctx: Context, p: CreateCable):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = item_workspace(ctx.user, p.workspace_id)
     content = {"cable": p.cable.model_dump(mode="json")}
-    authorize_content(ctx.user, content)
+    with pin_workspace(workspace.id):
+        authorize_content(ctx.user, content)
     return create_definition(
         ctx,
-        CreateDefinition(project_id=p.project_id, name=p.name, kind="cable", content=content),
+        CreateDefinition(workspace_id=workspace.id, name=p.name, kind="cable", content=content),
     )
 
 

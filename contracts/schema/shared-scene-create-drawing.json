@@ -174,11 +174,6 @@
     "options": {
       "$ref": "#/$defs/DrawingOptions"
     },
-    "project_id": {
-      "format": "uuid",
-      "title": "Project Id",
-      "type": "string"
-    },
     "purpose": {
       "const": "internal_inspection",
       "default": "internal_inspection",
@@ -198,7 +193,6 @@
     }
   },
   "required": [
-    "project_id",
     "snapshot_id"
   ],
   "title": "CreateDrawing",

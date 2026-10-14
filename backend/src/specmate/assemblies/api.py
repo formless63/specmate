@@ -31,5 +31,5 @@ def inspect_draft(request, draft_id: UUID):
     )
     if draft.definition.kind != "assembly":
         raise ValidationFailed("Draft is not an assembly.")
-    authorize_content(request.user, draft.content)
+    authorize_content(request.user, draft.content, draft.definition.workspace_id)
     return {"definition_id": str(draft.definition_id), **draft_state(draft)}

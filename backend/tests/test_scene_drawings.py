@@ -23,7 +23,8 @@ from specmate.shared_scene.drawing_contracts import DrawingOptions
 from specmate.shared_scene.drawing_render import projected, render_drawing
 from specmate.shared_scene.models import SceneDrawing
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ, part
 from .test_assembly_source_authority import sourced_child  # noqa: F401
 from .test_cables import capture, fixture
@@ -38,11 +39,7 @@ def drawing(user, project, frozen, *, options=None, key="draw-once"):
     return op(
         user,
         "shared_scene.create_drawing",
-        {
-            "project_id": project,
-            "snapshot_id": frozen["snapshot_id"],
-            "options": options or {},
-        },
+        {"snapshot_id": frozen["snapshot_id"], "options": options or {}},
         idempotency_key=key,
     )
 
@@ -346,13 +343,8 @@ def test_scopes_actor_liveness_and_database_immutable_bytes_are_independent(user
     with pytest.raises(NotFound):
         read(users["outsider"], created)
     with pytest.raises(NotFound):
-        drawing(users["owner"], str(uuid4()), frozen)
-    with pytest.raises(NotFound):
-        op(
-            users["viewer"],
-            "shared_scene.read_drawing",
-            {"drawing_id": created["drawing_id"], "project_id": str(uuid4())},
-        )
+        op(users["viewer"], "shared_scene.read_drawing", {"drawing_id": str(uuid4())})
+    assert created["workspace_id"] == workspace_of(project)
     record = SceneDrawing.objects.get(id=created["drawing_id"])
     for values in ({"svg": b"changed"}, {"manifest_sha256": "f" * 64}):
         with pytest.raises(DatabaseError), transaction.atomic():
@@ -403,7 +395,7 @@ def test_database_insert_rejects_forged_hash_snapshot_and_manifest(users, projec
     for changes in (
         {"svg": b"forged"},
         {
-            "project": record.project,
+            "workspace": record.workspace,
             "snapshot": Snapshot.objects.get(
                 id=freeze(users["owner"], create(users["owner"], project))["snapshot_id"]
             ),
@@ -442,10 +434,7 @@ def test_derivative_origin_and_nested_parent_authority_restore_same_historic_out
     mec_sources,  # noqa: F811
     mec_target,  # noqa: F811
 ):
-    from specmate.access.models import WorkspaceMember
-    from specmate.sources.models import SourceBundle, SourceBundleRevision
-
-    owner = users["owner"]
+    owner, viewer = users["owner"], users["viewer"]
     derivative = op(
         owner,
         "source.derive_bundle",
@@ -459,60 +448,48 @@ def test_derivative_origin_and_nested_parent_authority_restore_same_historic_out
         expected_state=draft["state"],
     )
     frozen = freeze(owner, create(owner, project, [occ("enclosure", child)]))
-    created = drawing(owner, project, frozen)
-    expected = read(owner, created)
-    hidden = op(users["outsider"], "project.create", {"name": "Other inspection scope"})[
-        "project_id"
-    ]
-    origin = SourceBundleRevision.objects.get(id=mec_sources["revision_id"]).bundle_id
-    SourceBundle.objects.filter(id=origin).update(project_id=hidden)
-    with pytest.raises(NotFound):
-        read(owner, created)
-    with pytest.raises(NotFound):
-        drawing(owner, project, frozen, options={"view": "front"})
-    SourceBundle.objects.filter(id=origin).update(project_id=project)
-    assert read(owner, created) == expected
-    ensure_member(owner, "viewer", project=hidden)
-    _, target = part(users["outsider"], hidden)
+    created = drawing(viewer, project, frozen)
+    expected = read(viewer, created)
+    _, target = part(owner, project)
     module = freeze(owner, create(owner, project, [occ("restricted", target)]))
     nested = freeze(owner, create(owner, project, [occ("module", module)]))
-    second = drawing(owner, project, nested, key="parent")
-    exact = read(owner, second)
-    WorkspaceMember.objects.filter(user=owner, workspace__projects=hidden).delete()
-    with pytest.raises(NotFound):
-        read(owner, second)
-    with pytest.raises(NotFound):
-        drawing(owner, project, nested, key="parent")
-    ensure_member(owner, "viewer", project=hidden)
-    assert read(owner, second) == exact
+    second = drawing(viewer, project, nested, key="parent")
+    exact = read(viewer, second)
+    # Sources and nested parents share the workspace boundary: membership loss is the
+    # remaining revocation, and restoring it restores the same historic outputs.
+    remove_member(viewer)
+    for record, root, key in ((created, frozen, "draw-once"), (second, nested, "parent")):
+        with pytest.raises(NotFound):
+            read(viewer, record)
+        with pytest.raises(NotFound):
+            drawing(viewer, project, root, options={"view": "front"}, key=key)
+    member(viewer, "viewer")
+    assert read(viewer, created) == expected
+    assert read(viewer, second) == exact
 
 
-def test_drawing_scene_read_requires_selected_root_project_before_any_labels(users, project):
+def test_drawing_scene_read_is_workspace_scoped_before_any_labels(users, project):
     owner = users["owner"]
     first = freeze(owner, create(owner, project))
     other = op(owner, "project.create", {"name": "Separate root project"})["project_id"]
+    # A root made in another project is the same workspace collection item.
     second = freeze(owner, create(owner, other))
-    expected = op(owner, "shared_scene.read", {"snapshot_id": first["snapshot_id"]})
-    assert (
-        op(
-            owner,
-            "shared_scene.read_drawing_scene",
-            {"project_id": project, "snapshot_id": first["snapshot_id"]},
+    for frozen in (first, second):
+        expected = op(owner, "shared_scene.read", {"snapshot_id": frozen["snapshot_id"]})
+        assert (
+            op(owner, "shared_scene.read_drawing_scene", {"snapshot_id": frozen["snapshot_id"]})
+            == expected
         )
-        == expected
-    )
+    outsider = users["outsider"]
+    remote = op(outsider, "project.create", {"name": "Foreign root project"})["project_id"]
+    foreign = freeze(outsider, create(outsider, remote))
     with pytest.raises(NotFound) as error:
-        op(
-            owner,
-            "shared_scene.read_drawing_scene",
-            {"project_id": project, "snapshot_id": second["snapshot_id"]},
-        )
+        op(owner, "shared_scene.read_drawing_scene", {"snapshot_id": foreign["snapshot_id"]})
     assert error.value.details == {}
     client = Client()
     client.force_login(owner)
-    path = f"/api/v0/shared-scenes/drawing-scenes/{second['snapshot_id']}?project_id={project}"
-    result = client.get(path)
-    assert result.status_code == 404 and "Separate root project" not in result.content.decode()
+    result = client.get(f"/api/v0/shared-scenes/drawing-scenes/{foreign['snapshot_id']}")
+    assert result.status_code == 404 and "Foreign root project" not in result.content.decode()
 
 
 def test_http_generation_and_mcp_read_match_trusted_jobs_with_current_denial(
@@ -526,7 +503,7 @@ def test_http_generation_and_mcp_read_match_trusted_jobs_with_current_denial(
     frozen = freeze(users["owner"], create(users["owner"], project, [occ("module", module)]))
     client = Client()
     client.force_login(users["viewer"])
-    payload = {"project_id": project, "snapshot_id": frozen["snapshot_id"]}
+    payload = {"snapshot_id": frozen["snapshot_id"]}
     body = {
         "operation": "shared_scene.create_drawing",
         "request_id": "http-drawing",
@@ -539,7 +516,7 @@ def test_http_generation_and_mcp_read_match_trusted_jobs_with_current_denial(
     assert response.status_code == 200
     created = response.json()["result"]
     assert drawing(users["viewer"], project, frozen, key="shared-channel-intent") == created
-    read_payload = {"drawing_id": created["drawing_id"], "project_id": project}
+    read_payload = {"drawing_id": created["drawing_id"]}
     mcp = Context(user=users["viewer"], via="mcp", request_id="mcp-drawing")
     assert execute("shared_scene.read_drawing", mcp, read_payload).result == read(
         users["viewer"], created
@@ -626,21 +603,24 @@ def test_render_budgets_fail_atomically_even_when_every_segment_would_be_clipped
     assert SceneDrawing.objects.count() == 0 and IdempotencyRecord.objects.count() == before
 
 
-def test_retained_record_root_project_match_is_current_even_when_actor_reads_both(users, project):
-    from specmate.design.models import Definition
-
+def test_retained_record_workspace_matches_its_root_and_rejects_foreign_rows(
+    users, project, other_workspace
+):
     owner = users["owner"]
     frozen = freeze(owner, create(owner, project))
     created = drawing(owner, project, frozen)
     expected = read(owner, created)
-    other = op(owner, "project.create", {"name": "Other readable root scope"})["project_id"]
-    definition_id = Snapshot.objects.get(id=frozen["snapshot_id"]).definition_id
-    # Trusted DB-state simulation only: no normal engineering ownership command.
-    # Definition metadata is mutable; no immutable row/guard is changed or disabled.
-    Definition.objects.filter(id=definition_id).update(project_id=other)
+    assert expected["workspace_id"] == workspace_of(project)
+    record = SceneDrawing.objects.get(id=created["drawing_id"])
+    base = {
+        field.name: getattr(record, field.name)
+        for field in record._meta.fields
+        if field.name not in {"id", "created_at"}
+    }
+    # The database guard keeps a drawing in its root's workspace.
+    with pytest.raises(DatabaseError), transaction.atomic():
+        SceneDrawing.objects.create(**(base | {"workspace_id": other_workspace}))
+    # An administrator of a foreign workspace cannot read it.
     with pytest.raises(NotFound):
-        read(owner, created)
-    with pytest.raises(NotFound):
-        drawing(owner, project, frozen)
-    Definition.objects.filter(id=definition_id).update(project_id=project)
+        read(users["outsider"], created)
     assert read(owner, created) == expected

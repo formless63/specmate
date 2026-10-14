@@ -6,7 +6,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.design.models import Definition, Snapshot
 from specmate.end_preparation import api
 from specmate.end_preparation.contracts import ApplyProfile, EndPreparationProfile
@@ -19,9 +18,9 @@ from specmate.operations import (
     Unauthenticated,
     ValidationFailed,
 )
-from specmate.operations.models import IdempotencyRecord
 
-from .conftest import op
+from .conftest import ensure_member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_cables import STOCK, capture, fixture
 from .test_cables import create as create_cable
 from .test_preparation import evidence
@@ -128,7 +127,11 @@ def create(user, project, value, **ctx):
     return op(
         user,
         "end_preparation.create",
-        {"project_id": project, "name": "Synthetic end preparation", "profile": value},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Synthetic end preparation",
+            "profile": value,
+        },
         **ctx,
     )
 
@@ -416,16 +419,17 @@ def test_shared_generic_paths_pins_cas_idempotency_and_role_denial(users, projec
         inspect_profile(users["outsider"], frozen["revision_id"])
 
 
-@pytest.mark.parametrize("legacy", [False, True])
 def test_retained_old_source_authority_precedes_invalid_supplied_feature_and_key_mismatch(
-    users, project, legacy
+    users, project
 ):
-    user = users["owner"]
-    _, _, stock, _, _, cable = fixture(user, project)
-    target = capture(user, create_cable(user, project, cable))
-    private_project = op(user, "project.create", {"name": "Synthetic private origin"})["project_id"]
-    parent, _ = evidence(user, private_project)
-    _, source = evidence(user, project, parent)
+    user = users["editor"]
+    _, _, stock, _, _, cable = fixture(users["owner"], project)
+    target = capture(users["owner"], create_cable(users["owner"], project, cable))
+    origin = op(users["owner"], "project.create", {"name": "Synthetic origin context"})[
+        "project_id"
+    ]
+    parent, _ = evidence(users["owner"], origin)
+    _, source = evidence(users["owner"], project, parent)
     rules = profile(stock["revision_id"])
     rules["a"]["instructions"][0]["source"] = source
     draft = create(user, project, rules, idempotency_key="retained-source")
@@ -437,38 +441,36 @@ def test_retained_old_source_authority_precedes_invalid_supplied_feature_and_key
         {"draft_id": draft["draft_id"], "profile": changed},
         expected_state=frozen["draft"]["state"],
     )
-    if legacy:
-        IdempotencyRecord.objects.filter(
-            actor=user, operation="end_preparation.create", key="retained-source"
-        ).update(scope="legacy")
-    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
+    # Membership loss is the remaining revocation; it precedes every supplied diagnostic.
+    remove_member(user)
     changed["a"]["instructions"][0]["element_path"] = "invalid.feature"
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         create(user, project, changed, idempotency_key="retained-source")
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         op(user, "end_preparation.apply", application(target, frozen, a_endpoint_id="invalid-end"))
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         inspect_profile(user, frozen["revision_id"])
 
 
 def test_all_incoming_sources_and_ancestors_authorized_before_file_diagnostics(users, project):
-    user = users["owner"]
-    _, _, stock, _, _, _ = fixture(user, project)
-    private_project = op(user, "project.create", {"name": "Synthetic private original"})[
+    owner, user = users["owner"], users["editor"]
+    _, _, stock, _, _, _ = fixture(owner, project)
+    origin = op(owner, "project.create", {"name": "Synthetic original context"})["project_id"]
+    parent, _ = evidence(owner, origin)
+    other_project = op(owner, "project.create", {"name": "Synthetic accessible evidence"})[
         "project_id"
     ]
-    parent, _ = evidence(user, private_project)
-    other_project = op(user, "project.create", {"name": "Synthetic accessible evidence"})[
-        "project_id"
-    ]
-    _, accessible = evidence(user, other_project)
-    _, hidden = evidence(user, project, parent)
+    _, accessible = evidence(owner, other_project)
+    _, derived = evidence(owner, project, parent)
     rules = profile(stock["revision_id"])
     rules["a"]["instructions"][0]["source"] = {**accessible, "path": "missing.txt"}
-    rules["b"]["instructions"][0]["source"] = hidden
-    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    rules["b"]["instructions"][0]["source"] = derived
+    remove_member(user)
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         create(user, project, rules)
+    # A member reaches the file diagnostic only after the whole source closure resolves.
+    with pytest.raises(NotFound, match="evidence file unavailable"):
+        create(owner, project, rules)
 
 
 @pytest.mark.parametrize("boundary", ["revision", "draft", "apply", "authority", "query"])
@@ -552,15 +554,12 @@ def test_exact_hierarchical_feature_paths_do_not_alias_repeated_labels(users, pr
 
 
 def test_inaccessible_cable_ancestor_precedes_invalid_mapping(users, project):
-    user = users["owner"]
-    private_project = op(user, "project.create", {"name": "Synthetic cable references"})[
-        "project_id"
-    ]
-    _, _, stock, _, _, cable = fixture(user, private_project)
-    target = capture(user, create_cable(user, project, cable))
-    frozen = freeze(user, create(user, project, profile(stock["revision_id"])))
-    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    owner, user = users["owner"], users["editor"]
+    _, _, stock, _, _, cable = fixture(owner, project)
+    target = capture(owner, create_cable(owner, project, cable))
+    frozen = freeze(owner, create(owner, project, profile(stock["revision_id"])))
+    remove_member(user)
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         op(user, "end_preparation.apply", application(target, frozen, a_endpoint_id="bad"))
 
 
@@ -616,22 +615,27 @@ def test_known_endpoint_orientations_are_preserved_without_mirroring_or_label_in
         )
 
 
-def test_body_target_authority_precedes_feature_diagnostics(users, project):
+def test_body_target_authority_precedes_feature_diagnostics(users, project, other_workspace):
     from .test_interfaces import create as create_interface
     from .test_interfaces import freeze as freeze_interface
 
     user = users["owner"]
     _, _, stock, _, _, _ = fixture(user, project)
-    private_project = op(user, "project.create", {"name": "Synthetic private body"})["project_id"]
-    body = freeze_interface(user, create_interface(user, private_project))
-    rules = profile(stock["revision_id"], body["revision_id"])
-    recipe = freeze(user, create(user, project, rules))
-    WorkspaceMember.objects.filter(user=user, workspace__projects=private_project).delete()
+    # A body from a foreign workspace reads as missing even to a member of both.
+    ensure_member(user, "viewer", workspace=other_workspace)
+    remote = op(users["outsider"], "project.create", {"name": "Synthetic foreign body"})[
+        "project_id"
+    ]
+    foreign = freeze_interface(users["outsider"], create_interface(users["outsider"], remote))
+    rules = profile(stock["revision_id"], foreign["revision_id"])
     rules["a"]["instructions"][0]["element_path"] = "unavailable.feature"
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         create(user, project, rules)
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
-        inspect_profile(user, recipe["revision_id"])
+    body = freeze_interface(user, create_interface(user, project))
+    recipe = freeze(user, create(user, project, profile(stock["revision_id"], body["revision_id"])))
+    remove_member(users["viewer"])
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        inspect_profile(users["viewer"], recipe["revision_id"])
 
 
 @pytest.mark.parametrize(

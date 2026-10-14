@@ -28,6 +28,7 @@ from specmate.design.operations import (
     check_state,
     scoped_draft,
 )
+from specmate.design.pins import pin_workspace
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 
@@ -63,6 +64,12 @@ def history(ctx, rows):
 
 
 def preview(ctx, draft):
+    # Every exact pin in the draft must stay in its workspace (NotFound before any guard).
+    with pin_workspace(draft.definition.workspace_id):
+        return _preview(ctx, draft)
+
+
+def _preview(ctx, draft):
     configuration = parse_configuration(draft.content, "configuration")
     reader = Reader(ctx.user)
     resolution = resolve(reader, configuration)
@@ -125,13 +132,14 @@ def resolve_configuration(ctx: Context, p: ResolveConfiguration):
     content = json.loads(bytes(snapshot.canonical))["content"]
     configuration = parse_configuration(content, "configuration")
     reader = Reader(ctx.user)
-    return {
-        "snapshot_id": str(snapshot.id),
-        "snapshot_sha256": snapshot.sha256,
-        "configuration": content["configuration"],
-        "resolution": resolve(reader, configuration),
-        "available": available(reader, configuration),
-    }
+    with pin_workspace(snapshot.definition.workspace_id):
+        return {
+            "snapshot_id": str(snapshot.id),
+            "snapshot_sha256": snapshot.sha256,
+            "configuration": content["configuration"],
+            "resolution": resolve(reader, configuration),
+            "available": available(reader, configuration),
+        }
 
 
 def capture_replay(ctx, p, stored):

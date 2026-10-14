@@ -1,4 +1,4 @@
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
 from specmate.design.operations import (
     CaptureDraft,
     CreateDefinition,
@@ -9,6 +9,7 @@ from specmate.design.operations import (
     snapshot_draft,
     update_draft,
 )
+from specmate.design.pins import item_workspace, pin_workspace
 from specmate.interfaces.contracts import (
     KINDS,
     CaptureInterface,
@@ -42,7 +43,9 @@ def interface_draft(ctx, draft_id, permission, lock=False):
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateInterface):
-        scope_id = p.project_id
+        # Creating adds a workspace collection item (item.create); no project is involved.
+        permission = Perm.ITEM_CREATE
+        scope_id = item_workspace(ctx.user, p.workspace_id).id
     else:
         scope_id = interface_draft(ctx, p.draft_id, permission).definition.workspace_id
     namespace = workspace_scope(ctx, scope_id, permission)
@@ -92,13 +95,14 @@ def authorize_stored(ctx, stored):
     idempotency_scope=scope,
 )
 def create(ctx: Context, p: CreateInterface):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = item_workspace(ctx.user, p.workspace_id)
     content = {"interface": p.interface.model_dump(mode="json")}
-    authorize_content(ctx.user, content)
+    with pin_workspace(workspace.id):
+        authorize_content(ctx.user, content)
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=p.project_id, name=p.name, kind=p.interface.kind, content=content
+            workspace_id=workspace.id, name=p.name, kind=p.interface.kind, content=content
         ),
     )
 

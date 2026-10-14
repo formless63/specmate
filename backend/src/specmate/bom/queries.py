@@ -11,6 +11,7 @@ from specmate.assemblies.queries import Closure as AssemblyClosure
 from specmate.bom.contracts import BomPlan, DemandQuantity
 from specmate.design.models import Revision
 from specmate.design.operations import authorize_snapshot
+from specmate.design.pins import check_pin
 from specmate.inventory.contracts import (
     CANONICAL_UNITS,
     QUANTITY_CONTEXT,
@@ -66,6 +67,7 @@ class Closure:
             *(n.revision_id for n in self.plan.needs),
             *dependencies,
         ]
+        pin_scope = None
         while pending:
             rid = pending.pop()
             if rid in self.revisions:
@@ -75,9 +77,8 @@ class Closure:
             revision = (
                 Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
             )
-            if revision is None:
-                raise NotFound("BOM reference unavailable.")
-            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
+            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+            pin_scope = check_pin(user, revision, pin_scope)
             self.revisions[rid] = revision
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         # Project membership alone does not authorize typed source-file references,

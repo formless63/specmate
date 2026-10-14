@@ -22,6 +22,7 @@ from specmate.operations import (
 )
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_design import freeze as freeze_generic
 from .test_harnesses import capture as capture_harness
 from .test_harnesses import create as create_harness
@@ -75,7 +76,7 @@ def create(user, project, plan, **ctx):
     return op(
         user,
         "material_plan.create",
-        {"project_id": project, "name": "Synthetic material sheet", "plan": plan},
+        {"workspace_id": workspace_of(project), "name": "Synthetic material sheet", "plan": plan},
         **ctx,
     )
 
@@ -318,10 +319,10 @@ def test_full_sources_revocation_precedes_cut_diagnostics_and_retained_replay(us
     supplied = copy.deepcopy(plan)
     supplied["pieces"][0]["extra_waste"]["source"] = None
     supplied["pieces"][0]["section_id"] = "missing-physical-section"
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises((NotFound, PermissionDenied), match=r"^Not found\.$"):
         create(user, project, supplied, idempotency_key="protected")
     plan["pieces"][0]["extra_waste"]["source"]["path"] = "missing.txt"
-    with pytest.raises((NotFound, PermissionDenied), match="Project"):
+    with pytest.raises((NotFound, PermissionDenied), match=r"^Not found\.$"):
         create(user, project, plan)
     with pytest.raises((NotFound, PermissionDenied)):
         inspect_revision(user, captured["revision_id"])

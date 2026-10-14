@@ -28,6 +28,7 @@ from specmate.pcb.report import Report
 from specmate.sources import blobstore
 
 from .conftest import op
+from .scope_helpers import workspace_of
 
 ROOT = Path(__file__).resolve().parents[2]
 RIGHTS = "AGPL-3.0-only"
@@ -619,7 +620,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["owner"],
         "interface.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "One contact body",
             "interface": {
                 "kind": "connector_body",
@@ -642,7 +643,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
         users["owner"],
         "interface.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "One contact pinout",
             "interface": {
                 "kind": "pinout",

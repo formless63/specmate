@@ -26,7 +26,9 @@ def inspect_inputs(ctx: Context, p: PlacementInputs):
     draft = scoped_draft(replace(ctx, user=user), p.draft_id, Perm.WORKSPACE_READ)
     if draft.base_revision_id:
         authorize_snapshot(user, draft.base_revision.snapshot)
-    closure = Closure(user, draft.content, kind=draft.definition.kind)
+    closure = Closure(
+        user, draft.content, kind=draft.definition.kind, workspace_id=draft.definition.workspace_id
+    )
     if draft.definition.kind != "assembly" or closure.root is None:
         raise ValidationFailed("Select an assembly draft.")
     return {

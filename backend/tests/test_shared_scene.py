@@ -7,14 +7,14 @@ from uuid import UUID
 import pytest
 from django.test import Client, RequestFactory
 
-from specmate.access.models import WorkspaceMember
-from specmate.design.models import Definition, Snapshot
+from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 from specmate.shared_scene import operations  # noqa: F401
 from specmate.shared_scene.api import inspect_snapshot
 from specmate.shared_scene.transforms import millimetre_factor
 
-from .conftest import ensure_member, op
+from .conftest import member, op, remove_member
+from .scope_helpers import workspace_of
 from .test_assemblies import create, freeze, occ, part
 from .test_assembly_source_authority import sourced_child  # noqa: F401
 from .test_cables import capture, fixture
@@ -112,7 +112,7 @@ def test_all_disciplines_known_length_unknown_routes_and_inert_models(
         user,
         "harness.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Shared material",
             "harness": {
                 "sections": [
@@ -210,16 +210,15 @@ def test_all_disciplines_known_length_unknown_routes_and_inert_models(
 
 
 def test_revoked_nested_parent_no_scene_or_diagnostics(users, project):
-    remote = op(users["outsider"], "project.create", {"name": "Other scope"})["project_id"]
-    ensure_member(users["owner"], "viewer", project=remote)
-    _, restricted = part(users["outsider"], remote)
+    _, restricted = part(users["owner"], project)
     nested = freeze(
         users["owner"], create(users["owner"], project, [occ("restricted", restricted)])
     )
     frozen = freeze(users["owner"], create(users["owner"], project, [occ("module", nested)]))
-    scene(users["owner"], frozen)
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["owner"]).delete()
-    for user in (users["owner"], users["outsider"]):
+    scene(users["viewer"], frozen)
+    # Membership loss is the remaining revocation; non-members never see the scene.
+    remove_member(users["viewer"])
+    for user in (users["viewer"], users["outsider"]):
         with pytest.raises(NotFound) as error:
             scene(user, frozen)
         assert error.value.details == {} and "restricted" not in error.value.message
@@ -269,7 +268,6 @@ def test_source_origin_ancestor_revocation_denies_exact_frozen_scene(
     mec_sources,  # noqa: F811
     mec_target,  # noqa: F811
 ):
-    from specmate.sources.models import SourceBundle, SourceBundleRevision
 
     user = users["owner"]
     derivative = op(
@@ -288,18 +286,16 @@ def test_source_origin_ancestor_revocation_denies_exact_frozen_scene(
         expected_state=draft["state"],
     )
     frozen = freeze(user, create(user, project, [occ("enclosure", revision)]))
-    first = scene(user, frozen)
-    hidden = op(users["outsider"], "project.create", {"name": "Retained source owner"})[
-        "project_id"
-    ]
-    # Simulate an operator changing origin authority; immutable source bytes stay intact.
-    origin = SourceBundleRevision.objects.get(id=mec_sources["revision_id"]).bundle_id
-    SourceBundle.objects.filter(id=origin).update(project_id=hidden)
+    first = scene(users["viewer"], frozen)
+    # Sources share the workspace boundary: membership loss is the remaining revocation,
+    # and restoring membership restores the exact same immutable scene.
+    remove_member(users["viewer"])
     with pytest.raises(NotFound):
-        scene(user, frozen)
-    assert op(user, "shared_scene.list", {"project_id": project})["assemblies"] == []
-    SourceBundle.objects.filter(id=origin).update(project_id=project)
-    assert scene(user, frozen) == first
+        scene(users["viewer"], frozen)
+    with pytest.raises(NotFound):
+        op(users["viewer"], "shared_scene.list", {"workspace_id": workspace_of(project)})
+    member(users["viewer"], "viewer")
+    assert scene(users["viewer"], frozen) == first
 
 
 def test_read_jobs_and_router_adapter_share_projection_and_never_cache(users, project):
@@ -364,7 +360,8 @@ def test_generic_unsupported_child_still_authorizes_its_facts_and_sources(
     revoke()
     with pytest.raises(NotFound):
         scene(users["viewer"], frozen)
-    assert op(users["viewer"], "shared_scene.list", {"project_id": project})["assemblies"] == []
+    with pytest.raises(NotFound):
+        op(users["viewer"], "shared_scene.list", {"workspace_id": workspace_of(project)})
 
 
 def test_model_revision_authority_is_independent_from_mechanical_target(
@@ -374,7 +371,7 @@ def test_model_revision_authority_is_independent_from_mechanical_target(
     mec_target,  # noqa: F811
 ):
     user = users["owner"]
-    represented_draft, represented = part(user, project, "part", "Represented model identity")
+    _, represented = part(user, project, "part", "Represented model identity")
     model = op(
         user,
         "catalog.register_representation",
@@ -415,12 +412,12 @@ def test_model_revision_authority_is_independent_from_mechanical_target(
     model_resource = next(g for g in first["geometry"] if g["type"] == "unavailable_model")
     assert model_resource["role"] == "manufacturing" and model_resource["millimetre_factor"] == 1000
     assert model_resource["source"]["revision_id"] != mec_target["revision_id"]
-    hidden = op(users["outsider"], "project.create", {"name": "Model owner"})["project_id"]
-    Definition.objects.filter(id=represented_draft["definition_id"]).update(project_id=hidden)
+    # The represented model is its own workspace item; the scene reports it independently
+    # of the mechanical target, and membership decides both.
+    assert scene(users["viewer"], frozen) == first
+    remove_member(users["viewer"])
     with pytest.raises(NotFound):
-        scene(user, frozen)
-    Definition.objects.filter(id=represented_draft["definition_id"]).update(project_id=project)
-    assert scene(user, frozen) == first
+        scene(users["viewer"], frozen)
 
 
 def test_composed_nonfinite_coordinates_fail_without_returning_invalid_world_geometry(
@@ -446,10 +443,9 @@ def test_root_adoption_origin_authority_is_rechecked_before_any_root_label(users
     from .test_catalog_packs import adopt, install, manifest, registered
 
     original = freeze(users["owner"], create(users["owner"], project))
-    remote = op(users["outsider"], "project.create", {"name": "Pack source scope"})["project_id"]
-    for actor in ("owner", "editor", "viewer"):
-        ensure_member(users[actor], "viewer", project=remote)
-    _, other = part(users["outsider"], remote, "part", "Other pack entry")
+    # Pack origins stay inside the workspace like every other pin.
+    remote = op(users["owner"], "project.create", {"name": "Pack source scope"})["project_id"]
+    _, other = part(users["owner"], remote, "part", "Other pack entry")
     entries = manifest(original)["entries"] + [
         {
             "key": "other",
@@ -468,8 +464,8 @@ def test_root_adoption_origin_authority_is_rechecked_before_any_root_label(users
     frozen = freeze(users["owner"], draft)
     scene(users["viewer"], frozen)
     # The retained pack's entire origin closure is distinct from adopted item dependencies.
-    WorkspaceMember.objects.filter(workspace__projects=remote, user=users["viewer"]).delete()
+    remove_member(users["viewer"])
     with pytest.raises(NotFound):
         scene(users["viewer"], frozen)
-    available = op(users["viewer"], "shared_scene.list", {"project_id": project})
-    assert all(row["snapshot_id"] != frozen["snapshot_id"] for row in available["assemblies"])
+    with pytest.raises(NotFound):
+        op(users["viewer"], "shared_scene.list", {"workspace_id": workspace_of(project)})

@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Snapshot
 from specmate.design.operations import (
@@ -13,6 +13,7 @@ from specmate.design.operations import (
     scoped_draft,
     update_draft,
 )
+from specmate.design.pins import item_workspace, pin_workspace
 from specmate.end_preparation.application import apply_harness_profile, apply_profile
 from specmate.end_preparation.contracts import (
     ApplyHarnessProfile,
@@ -50,12 +51,13 @@ def retained(ctx, stored, permission):
 
 
 def scope(ctx, payload, permission=Perm.DESIGN_EDIT):
-    project_id = (
-        payload.project_id
-        if isinstance(payload, CreateProfile)
-        else profile_draft(ctx, payload.draft_id, permission).definition.workspace_id
-    )
-    namespace = workspace_scope(ctx, project_id, permission)
+    if isinstance(payload, CreateProfile):
+        # Creating adds a workspace collection item (item.create); no project is involved.
+        permission = Perm.ITEM_CREATE
+        workspace_id = item_workspace(ctx.user, payload.workspace_id).id
+    else:
+        workspace_id = profile_draft(ctx, payload.draft_id, permission).definition.workspace_id
+    namespace = workspace_scope(ctx, workspace_id, permission)
     if isinstance(payload, (CreateProfile, UpdateProfile)):
         closure(
             ctx.user,
@@ -93,13 +95,14 @@ def replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     idempotency_scope=scope,
 )
 def create(ctx: Context, payload: CreateProfile):
-    authorize(ctx.user, payload.project_id, Perm.DESIGN_EDIT)
+    workspace = item_workspace(ctx.user, payload.workspace_id)
     content = {"end_preparation_profile": payload.profile.model_dump(mode="json")}
-    closure(ctx.user, content)
+    with pin_workspace(workspace.id):
+        closure(ctx.user, content)
     return create_definition(
         ctx,
         CreateDefinition(
-            project_id=payload.project_id,
+            workspace_id=workspace.id,
             name=payload.name,
             kind="end_preparation_profile",
             content=content,

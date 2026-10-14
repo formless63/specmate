@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from specmate.access.permissions import Perm, authorize
+from specmate.access.permissions import Perm
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.operations import (
     CaptureDraft,
@@ -12,6 +12,7 @@ from specmate.design.operations import (
     snapshot_draft,
     update_draft,
 )
+from specmate.design.pins import item_workspace, pin_workspace
 from specmate.harnesses.contracts import (
     CaptureHarness,
     CreateHarness,
@@ -45,7 +46,9 @@ def harness_draft(ctx, draft_id, permission, lock=False):
 
 def scope(ctx, p, permission=Perm.DESIGN_EDIT):
     if isinstance(p, CreateHarness):
-        scope_id = p.project_id
+        # Creating adds a workspace collection item (item.create); no project is involved.
+        permission = Perm.ITEM_CREATE
+        scope_id = item_workspace(ctx.user, p.workspace_id).id
     else:
         scope_id = harness_draft(ctx, p.draft_id, permission).definition.workspace_id
     namespace = workspace_scope(ctx, scope_id, permission)
@@ -101,12 +104,13 @@ def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     idempotency_scope=scope,
 )
 def create(ctx: Context, p: CreateHarness):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = item_workspace(ctx.user, p.workspace_id)
     content = {"harness": p.harness.model_dump(mode="json")}
-    authorize_content(ctx.user, content)
+    with pin_workspace(workspace.id):
+        authorize_content(ctx.user, content)
     return create_definition(
         ctx,
-        CreateDefinition(project_id=p.project_id, name=p.name, kind="harness", content=content),
+        CreateDefinition(workspace_id=workspace.id, name=p.name, kind="harness", content=content),
     )
 
 

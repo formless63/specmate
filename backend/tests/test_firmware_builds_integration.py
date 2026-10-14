@@ -13,6 +13,7 @@ from specmate.firmware_builds.pack import recipe_for
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_firmware_builds import (  # noqa: F401
     IMAGE,
     attempt,
@@ -71,7 +72,7 @@ def test_shared_lease_rechecks_exact_frozen_occurrence_parent_authority(
         owner,
         "assembly.create",
         {
-            "project_id": auxiliary,
+            "workspace_id": workspace_of(auxiliary),
             "name": "Exact contextual compiler target",
             "assembly": {
                 "occurrences": [

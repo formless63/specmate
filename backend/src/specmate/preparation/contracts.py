@@ -65,7 +65,8 @@ class PreparationProfile(StrictModel):
 
 
 class CreateProfile(StrictModel):
-    project_id: UUID
+    # The workspace collection that receives the item; omitted means the actor's only one.
+    workspace_id: UUID | None = None
     name: Text
     profile: PreparationProfile
 

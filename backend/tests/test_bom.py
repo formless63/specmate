@@ -6,7 +6,6 @@ import pytest
 from django.db import DatabaseError, transaction
 from django.test import Client
 
-from specmate.access.models import WorkspaceMember
 from specmate.bom.queries import inspect_revision
 from specmate.design.models import Definition, Snapshot
 from specmate.operations import (
@@ -17,7 +16,8 @@ from specmate.operations import (
     ValidationFailed,
 )
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, member, op, remove_member, set_grants
+from .scope_helpers import workspace_of
 
 
 def capture(user, draft, operation="draft.freeze", **kwargs):
@@ -39,7 +39,7 @@ def assembly(user, project, children):
             user,
             "assembly.create",
             {
-                "project_id": project,
+                "workspace_id": workspace_of(project),
                 "name": "Synthetic assembly",
                 "assembly": {
                     "occurrences": [
@@ -81,7 +81,10 @@ def fixture(user, project):
 
 def create(user, project, plan, **kwargs):
     return op(
-        user, "bom.create", {"project_id": project, "name": "Synthetic plan", "bom": plan}, **kwargs
+        user,
+        "bom.create",
+        {"workspace_id": workspace_of(project), "name": "Synthetic plan", "bom": plan},
+        **kwargs,
     )
 
 
@@ -193,10 +196,9 @@ def test_invalid_plan_rolls_back(users, project, mutation):
 
 
 def test_replay_cas_authorization_and_dependency_revocation(users, project):
-    user = users["editor"]
-    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
-        grants=["design.freeze"]
-    )
+    # A contributor freezes only with the explicit design.freeze grant.
+    user = users["contributor"]
+    set_grants(user, ["design.freeze"])
     private = op(users["owner"], "project.create", {"name": "Private reference"})["project_id"]
     member = ensure_member(user, "viewer", project=private)
     *_, plan = fixture(users["owner"], private)
@@ -240,7 +242,11 @@ def test_http_jobs_and_generic_capture_hooks(users, project):
             {
                 "operation": "bom.create",
                 "request_id": "bom-http",
-                "payload": {"project_id": project, "name": "HTTP plan", "bom": plan},
+                "payload": {
+                    "workspace_id": workspace_of(project),
+                    "name": "HTTP plan",
+                    "bom": plan,
+                },
             }
         ),
         content_type="application/json",
@@ -260,10 +266,9 @@ def test_http_jobs_and_generic_capture_hooks(users, project):
 
 
 def test_supplemental_hidden_dependency_rechecked_before_bad_path_and_after_freeze(users, project):
-    user = users["editor"]
-    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
-        grants=["design.freeze"]
-    )
+    # A contributor freezes only with the explicit design.freeze grant.
+    user = users["contributor"]
+    set_grants(user, ["design.freeze"])
     private = op(users["owner"], "project.create", {"name": "Restricted process input"})[
         "project_id"
     ]
@@ -298,10 +303,9 @@ def test_supplemental_hidden_dependency_rechecked_before_bad_path_and_after_free
 def test_supplemental_cannot_duplicate_retained_child_and_freeze_requires_current_grant(
     users, project
 ):
-    user = users["editor"]
-    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
-        grants=["design.freeze"]
-    )
+    # A contributor freezes only with the explicit design.freeze grant.
+    user = users["contributor"]
+    set_grants(user, ["design.freeze"])
     component, _, _, plan = fixture(users["owner"], project)
     invalid = copy.deepcopy(plan)
     invalid["needs"] = [
@@ -317,7 +321,7 @@ def test_supplemental_cannot_duplicate_retained_child_and_freeze_requires_curren
         create(user, project, invalid)
     draft = create(user, project, plan)
     capture(user, draft, "bom.freeze", idempotency_key="freeze-grant")
-    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(grants=[])
+    set_grants(user, [])
     with pytest.raises(PermissionDenied):
         capture(user, draft, "bom.freeze", idempotency_key="freeze-grant")
 
@@ -395,21 +399,21 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
     from .test_workshop_profiles import profile, stock_revision
 
     owner, user = users["owner"], users["editor"]
-    WorkspaceMember.objects.filter(user=user, workspace__projects=project).update(
-        grants=["design.freeze"]
-    )
     stock_id, _ = stock_revision(users, project)
     raw = b"Synthetic process instruction."
     digest = hashlib.sha256(raw).hexdigest()
     blob = SourceBlob.objects.create(
-        project_id=project,
+        workspace_id=workspace_of(project),
         sha256=digest,
         size=len(raw),
         media_type="text/plain",
         registered_by=owner,
     )
     bundle = SourceBundle.objects.create(
-        project_id=project, name="Synthetic provenance", role="original", created_by=owner
+        workspace_id=workspace_of(project),
+        name="Synthetic provenance",
+        role="original",
+        created_by=owner,
     )
     source_revision = SourceBundleRevision.objects.create(
         bundle=bundle,
@@ -476,9 +480,8 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
     before = inspect_revision(user, frozen["revision_id"])
     assert len(before["rows"]) == 1
     raw = bytes(Snapshot.objects.get(pk=frozen["snapshot_id"]).canonical)
-    hidden_project = op(owner, "project.create", {"name": "Restricted provenance"})["project_id"]
-    bundle.project_id = hidden_project
-    bundle.save(update_fields=["project"])
+    # Sources share the workspace boundary: membership loss is the remaining revocation.
+    remove_member(user)
     malformed = copy.deepcopy(plan)
     malformed["scope_paths"] = [["missing"]]
     malformed_demand = copy.deepcopy(plan)
@@ -529,8 +532,7 @@ def test_typed_source_revocation_denies_all_bom_paths_even_below_buy_boundary(
         assert response.status_code == 404
         assert profile_revision["revision_id"].encode() not in response.content
         assert str(source_revision.id).encode() not in response.content
-    bundle.project_id = project
-    bundle.save(update_fields=["project"])
+    member(user, "editor")
     assert inspect_revision(user, frozen["revision_id"]) == before
     assert capture(user, draft, "bom.freeze", idempotency_key="source-backed-freeze") == frozen
     generic = capture(user, frozen["draft"], "draft.freeze")

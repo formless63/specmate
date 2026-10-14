@@ -24,6 +24,7 @@ from specmate.sources import blobstore
 from specmate.sources.models import SourceBlob, SourceBundleFile
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_physical_units import unit_payload
 from .test_sources import register, sha
 from .test_transports import api, post_op
@@ -69,7 +70,7 @@ def world(users, project):
         owner,
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic frame",
             "assembly": {
                 "occurrences": [

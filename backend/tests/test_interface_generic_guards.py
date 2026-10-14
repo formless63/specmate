@@ -9,7 +9,7 @@ from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 from specmate.queries import get_draft, get_revision
 
-from .conftest import op
+from .conftest import ensure_member, op, remove_member
 from .test_interfaces import BODY, create, freeze, pinout
 
 
@@ -149,32 +149,45 @@ def test_revoked_exact_body_blocks_generic_reads_stale_conflicts_and_retained_re
 
 
 @pytest.mark.parametrize("capture", ["draft.snapshot", "draft.freeze"])
-def test_generic_dependency_capture_rechecks_transitive_exact_scope(users, project, capture):
-    remote = op(users["owner"], "project.create", {"name": "Revoked body source"})
-    body = freeze(users["owner"], create(users["owner"], remote["project_id"]))
+def test_generic_dependency_capture_rechecks_transitive_exact_scope(
+    users, project, other_workspace, capture
+):
+    editor = users["editor"]
+    body = freeze(users["owner"], create(users["owner"], project))
     pins = freeze(users["owner"], create(users["owner"], project, pinout(body)))
     parent = op(
-        users["owner"],
+        editor,
         "definition.create",
-        {
-            "project_id": project,
-            "kind": "part",
-            "name": "Generic dependency parent",
-        },
+        {"project_id": project, "kind": "part", "name": "Generic dependency parent"},
     )
-    WorkspaceMember.objects.filter(
-        workspace__projects=remote["project_id"], user=users["owner"]
-    ).delete()
+    remove_member(editor)
     before = Snapshot.objects.count()
     with pytest.raises(NotFound):
         op(
-            users["owner"],
+            editor,
             capture,
-            {
-                "draft_id": parent["draft_id"],
-                "dependencies": [pins["revision_id"]],
-            },
+            {"draft_id": parent["draft_id"], "dependencies": [pins["revision_id"]]},
             expected_state=parent["state"],
         )
     assert Snapshot.objects.count() == before
     assert get_draft(users["owner"], parent["draft_id"])["state"] == parent["state"]
+    # A transitive pin from a foreign workspace reads as missing, even to a member of both.
+    outsider = users["outsider"]
+    remote = op(outsider, "project.create", {"name": "Foreign body source"})["project_id"]
+    foreign_body = freeze(outsider, create(outsider, remote))
+    foreign_pins = freeze(outsider, create(outsider, remote, pinout(foreign_body)))
+    ensure_member(users["owner"], "viewer", workspace=other_workspace)
+    owned = op(
+        users["owner"],
+        "definition.create",
+        {"project_id": project, "kind": "part", "name": "Generic foreign parent"},
+    )
+    before = Snapshot.objects.count()
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(
+            users["owner"],
+            capture,
+            {"draft_id": owned["draft_id"], "dependencies": [foreign_pins["revision_id"]]},
+            expected_state=owned["state"],
+        )
+    assert Snapshot.objects.count() == before

@@ -2,6 +2,7 @@
 
 from specmate.cables.queries import inspect_revision as inspect_cable
 from specmate.catalog_matching.queries import current_actor
+from specmate.design.pins import pin_workspace
 from specmate.end_preparation.contracts import BondExpectation, ContactTarget
 from specmate.end_preparation.queries import LAYER_KINDS, profile_revision
 from specmate.operations import ValidationFailed
@@ -46,8 +47,10 @@ def apply_profile(user, request):
     user = current_actor(user)
     # Both complete frozen closures must be current before mapping diagnostics.
     cable_revision = get_revision(user, request.cable_revision_id)
-    get_revision(user, request.profile_revision_id)
-    revision, profile, stock, elements, _ = profile_revision(user, request.profile_revision_id)
+    # The applied profile stays in the cable's workspace (NotFound before diagnostics).
+    with pin_workspace(cable_revision.definition.workspace_id):
+        get_revision(user, request.profile_revision_id)
+        revision, profile, stock, elements, _ = profile_revision(user, request.profile_revision_id)
     cable = inspect_cable(user, cable_revision.id)
     if str(profile.stock_revision_id) != cable["cable"]["stock_revision_id"]:
         raise ValidationFailed("End preparation must pin the cable's exact stock revision.")
@@ -149,10 +152,12 @@ def apply_harness_profile(user, request):
 
     user = current_actor(user)
     # All supplied complete snapshots precede section, mapping and stock diagnostics.
-    get_revision(user, request.harness_revision_id)
-    get_revision(user, request.profile_revision_id)
-    harness_revision, harness = read_revision(user, request.harness_revision_id)
-    revision, profile, stock, elements, _ = profile_revision(user, request.profile_revision_id)
+    harness_revision = get_revision(user, request.harness_revision_id)
+    # The applied profile stays in the harness's workspace (NotFound before diagnostics).
+    with pin_workspace(harness_revision.definition.workspace_id):
+        get_revision(user, request.profile_revision_id)
+        harness_revision, harness = read_revision(user, request.harness_revision_id)
+        revision, profile, stock, elements, _ = profile_revision(user, request.profile_revision_id)
     section = harness.sections.get(request.section_id)
     if section is None:
         raise ValidationFailed("Physical section is absent from this exact harness revision.")

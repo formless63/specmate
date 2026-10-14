@@ -31,6 +31,7 @@ from specmate.operations import (
 from specmate.queries import get_draft, get_revision
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_design import freeze
 from .test_sources import ORIGINAL, files, register
 from .test_transports import api, post_op
@@ -568,7 +569,7 @@ def test_hidden_current_consumer_does_not_poison_source_version_read(users, proj
         users["owner"],
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Source assembly",
             "assembly": {"occurrences": []},
         },

@@ -6,10 +6,10 @@ from decimal import Decimal, DecimalException, Inexact, Rounded, localcontext
 
 from pydantic import ValidationError
 
-from specmate.access.permissions import Perm, authorize
 from specmate.cables.queries import conductive_elements
 from specmate.design.models import Revision
 from specmate.design.operations import authorize_snapshot
+from specmate.design.pins import check_pin
 from specmate.harnesses.contracts import (
     EndpointTerminal,
     Harness,
@@ -22,7 +22,7 @@ from specmate.harnesses.contracts import (
 from specmate.interfaces.contracts import ConnectorBody, Pinout
 from specmate.interfaces.queries import parse_content as parse_interface
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
-from specmate.operations import NotFound, ValidationFailed
+from specmate.operations import ValidationFailed
 from specmate.wire_stock.schemas import StockSpecification
 
 _AUTHORIZING = ContextVar("harness_authorizing_snapshots", default=frozenset())
@@ -69,6 +69,7 @@ class Closure:
             *(e.pinout_revision_id for e in self.harness.endpoints),
             *dependencies,
         ]
+        pin_scope = None
         while pending:
             rid = pending.pop()
             if rid in self.revisions:
@@ -78,9 +79,8 @@ class Closure:
             revision = (
                 Revision.objects.select_related("definition", "snapshot").filter(id=rid).first()
             )
-            if revision is None:
-                raise NotFound("Harness reference unavailable.")
-            authorize(user, revision.definition.workspace_id, Perm.WORKSPACE_READ)
+            # Missing, foreign-workspace and unreadable pins read alike, before any guard.
+            pin_scope = check_pin(user, revision, pin_scope)
             self.revisions[rid] = revision
             pending.extend(revision.snapshot.dependencies.values_list("revision_id", flat=True))
         for revision in self.revisions.values():

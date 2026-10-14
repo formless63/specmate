@@ -16,6 +16,7 @@ from specmate.operations import (
 from specmate.revision_upgrades.models import UpgradeApplication, UpgradeProposal, UpgradeReview
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_assemblies import create, endpoint, freeze, occ, part
 from .test_catalog_matching import source_evidence
 from .test_transports import api, post_op
@@ -28,7 +29,7 @@ def fixture(users, project):
         owner,
         "interface.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Synthetic connector",
             "interface": {"kind": "connector_body", "contacts": [{"contact_id": "pin-a"}]},
         },

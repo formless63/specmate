@@ -3,6 +3,7 @@
 import pytest
 
 from .conftest import op
+from .scope_helpers import workspace_of
 from .test_copper import assembly, board_population
 from .test_harnesses import capture, create, fixture
 from .test_passive_passages import interpretation, review
@@ -67,7 +68,11 @@ def test_harness_to_board_path_preserves_exact_origins_and_unknown_active_behavi
     draft = op(
         owner,
         "passage.create",
-        {"project_id": project, "name": "Harness board explanation fixture", "model": model},
+        {
+            "workspace_id": workspace_of(project),
+            "name": "Harness board explanation fixture",
+            "model": model,
+        },
     )
     frozen = op(
         owner, "passage.freeze", {"draft_id": draft["draft_id"]}, expected_state=draft["state"]

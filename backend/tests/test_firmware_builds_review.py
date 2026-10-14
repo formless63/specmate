@@ -8,6 +8,7 @@ from specmate.firmware_builds import operations
 from specmate.operations import NotFound
 
 from .conftest import ensure_member, op
+from .scope_helpers import workspace_of
 from .test_firmware_builds import (  # noqa: F401
     attempt,
     board,
@@ -35,7 +36,7 @@ def test_retained_build_denial_precedes_changed_occurrence_diagnostic(
         users["owner"],
         "assembly.create",
         {
-            "project_id": project,
+            "workspace_id": workspace_of(project),
             "name": "Unassigned board context",
             "assembly": {
                 "occurrences": [{"local_id": "board", "revision_id": board[0]["revision_id"]}]
@@ -165,7 +166,7 @@ def test_shared_and_compiler_downloads_recheck_reader_context_independently_of_r
         users["owner"],
         "assembly.create",
         {
-            "project_id": context_project,
+            "workspace_id": workspace_of(context_project),
             "name": "Independent contextual authority",
             "assembly": {
                 "occurrences": [

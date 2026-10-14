@@ -12,7 +12,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import DatabaseError, transaction
 
-from specmate.access.models import WorkspaceMember
 from specmate.operations import (
     Conflict,
     IdempotencyMismatch,
@@ -26,7 +25,7 @@ from specmate.preparation_documents.contracts import DOCUMENTS
 from specmate.preparation_documents.models import DocumentOutput, DocumentSet
 from specmate.sources import blobstore
 
-from .conftest import ensure_member, op
+from .conftest import ensure_member, op, remove_member
 from .test_bom import assembly, policy
 from .test_bom import capture as freeze_bom
 from .test_bom import create as create_bom
@@ -325,7 +324,7 @@ def test_full_current_source_closure_before_diagnostics_receipt_download_and_rep
     )
     review, saved = retain(user, config)
     assert saved["manifest"]["inputs"]["source_pins"][0]["bundle_revision_id"] == str(source.id)
-    WorkspaceMember.objects.filter(user=user, workspace__projects=foreign).delete()
+    remove_member(user, project=foreign)
     for name, payload, kwargs in (
         ("read", {"document_set_id": saved["document_set_id"]}, {}),
         ("download", {"document_set_id": saved["document_set_id"], "filename": DOCUMENTS[0]}, {}),
@@ -561,7 +560,7 @@ def test_new_root_revision_keeps_old_frozen_bytes_and_exact_binary_adapter(users
         json.loads(documents_api.receipt(request, saved["document_set_id"]).content)["sha256"]
         == saved["sha256"]
     )
-    listed = documents_api.records(request, project)
+    listed = documents_api.records(request)
     assert listed["Cache-Control"] == "private, no-store"
     assert len(json.loads(listed.content)["document_sets"]) == 2
 
@@ -586,7 +585,7 @@ def test_output_metadata_cannot_depart_from_immutable_manifest(users, project):
 
 
 def test_reference_authority_is_narrow_read_only_and_checks_entire_supplementary_source(
-    users, project
+    users, project, other_workspace
 ):
     user = users["owner"]
     value, root = cable(user, project)
@@ -605,10 +604,23 @@ def test_reference_authority_is_narrow_read_only_and_checks_entire_supplementary
     assert not DocumentSet.objects.exists()
     response = post_op(api(user), "preparation_documents.authority", payload)
     assert response.status_code == 200 and response.json()["result"] == {"authorized": True}
-    WorkspaceMember.objects.filter(user=user, workspace__projects=foreign).delete()
-    with pytest.raises((NotFound, PermissionDenied)):
-        op(user, "preparation_documents.authority", payload)
-    assert post_op(api(user), "preparation_documents.authority", payload).status_code == 404
+    # A supplementary revision from a foreign workspace reads as missing, even to an actor
+    # in both workspaces, while the root alone stays authorized.
+    outsider = users["outsider"]
+    remote = op(outsider, "project.create", {"name": "Foreign recipe bench"})["project_id"]
+    foreign_value, _ = cable(outsider, remote)
+    foreign_recipe = freeze_cuts(
+        outsider, create_cuts(outsider, remote, profile(foreign_value["stock_revision_id"]))
+    )
+    ensure_member(user, "viewer", workspace=other_workspace)
+    mixed = {**payload, "supplementary_revision_ids": [foreign_recipe["revision_id"]]}
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
+        op(user, "preparation_documents.authority", mixed)
+    assert post_op(api(user), "preparation_documents.authority", mixed).status_code == 404
     assert op(
         user, "preparation_documents.authority", {"root_revision_id": root["revision_id"]}
     ) == {"authorized": True}
+    # Losing membership hides every reference read.
+    remove_member(users["viewer"])
+    with pytest.raises(NotFound):
+        op(users["viewer"], "preparation_documents.authority", payload)

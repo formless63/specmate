@@ -7,6 +7,7 @@ from django.http import HttpResponse, JsonResponse
 from ninja import Router
 
 from specmate.access.permissions import Perm, authorize
+from specmate.access.workspaces import actor_workspace_id
 from specmate.catalog_matching.queries import current_actor
 from specmate.operations import Context, OperationError, execute
 from specmate.preparation_documents.contracts import Download
@@ -16,22 +17,27 @@ from specmate.preparation_documents.operations import authorized_set, result
 router = Router(tags=["preparation-documents"])
 
 
-@router.get("/projects/{project_id}")
-def records(request, project_id: UUID):
+@router.get("/workspace")
+def records(request, workspace_id: UUID | None = None):
     user = current_actor(request.user)
-    workspace = authorize(user, project_id, Perm.WORKSPACE_READ)
+    workspace = authorize(user, actor_workspace_id(user, workspace_id), Perm.WORKSPACE_READ)
     rows = DocumentSet.objects.filter(root_revision__definition__workspace=workspace).order_by(
         "-created_at", "id"
     )[:50]
     visible = []
     for row in rows:
         try:
+            # Each retained receipt is re-read through its current exact input closure.
             record = authorized_set(user, row.id)
         except OperationError:
             continue
         visible.append(result(record))
     return JsonResponse(
-        {"document_sets": visible, "listing": "latest_50_candidates_no_hidden_total"},
+        {
+            "workspace_id": str(workspace.id),
+            "document_sets": visible,
+            "listing": "latest_50_candidates_no_hidden_total",
+        },
         headers={"Cache-Control": "private, no-store"},
     )
 

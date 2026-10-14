@@ -1,4 +1,5 @@
 from specmate.access.permissions import Perm, authorize
+from specmate.access.workspaces import actor_workspace_id
 from specmate.assemblies.contracts import (
     CaptureAssembly,
     CreateAssembly,
@@ -28,7 +29,7 @@ from specmate.operations.scope import workspace_scope
 
 
 def create_scope(ctx, p):
-    return workspace_scope(ctx, p.project_id, Perm.DESIGN_EDIT)
+    return workspace_scope(ctx, actor_workspace_id(ctx.user, p.workspace_id), Perm.ITEM_CREATE)
 
 
 def edit_scope(ctx, p):
@@ -42,27 +43,27 @@ def freeze_scope(ctx, p):
 
 
 def authorize_create_replay(ctx, p, stored):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
-    authorize_content(ctx.user, stored["content"])
+    workspace = authorize(ctx.user, actor_workspace_id(ctx.user, p.workspace_id), Perm.ITEM_CREATE)
+    authorize_content(ctx.user, stored["content"], workspace.id)
 
 
 def authorize_update_replay(ctx, p, stored):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT)
-    authorize_content(ctx.user, draft.content)
-    authorize_content(ctx.user, stored["content"])
+    authorize_content(ctx.user, draft.content, draft.definition.workspace_id)
+    authorize_content(ctx.user, stored["content"], draft.definition.workspace_id)
 
 
 def authorize_capture_replay(ctx, p, stored):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT)
-    authorize_content(ctx.user, draft.content)
+    authorize_content(ctx.user, draft.content, draft.definition.workspace_id)
     get_snapshot(ctx.user, stored["snapshot_id"])
 
 
 def authorize_freeze_replay(ctx, p, stored):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE)
-    authorize_content(ctx.user, draft.content)
+    authorize_content(ctx.user, draft.content, draft.definition.workspace_id)
     get_snapshot(ctx.user, stored["snapshot_id"])
-    authorize_content(ctx.user, stored["draft"]["content"])
+    authorize_content(ctx.user, stored["draft"]["content"], draft.definition.workspace_id)
 
 
 def capture_payload(ctx, p, permission):
@@ -81,12 +82,12 @@ def capture_payload(ctx, p, permission):
     idempotency_scope=create_scope,
 )
 def create_assembly(ctx: Context, p: CreateAssembly):
-    authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
+    workspace = authorize(ctx.user, actor_workspace_id(ctx.user, p.workspace_id), Perm.ITEM_CREATE)
     content = {"assembly": p.assembly.model_dump(mode="json")}
-    authorize_content(ctx.user, content)
+    authorize_content(ctx.user, content, workspace.id)
     return create_definition(
         ctx,
-        CreateDefinition(project_id=p.project_id, name=p.name, kind="assembly", content=content),
+        CreateDefinition(workspace_id=workspace.id, name=p.name, kind="assembly", content=content),
     )
 
 
@@ -101,11 +102,11 @@ def create_assembly(ctx: Context, p: CreateAssembly):
 def update_assembly(ctx: Context, p: UpdateAssembly):
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
     # Authorize existing closure before generic stale-state conflicts can disclose it.
-    authorize_content(ctx.user, draft.content)
+    authorize_content(ctx.user, draft.content, draft.definition.workspace_id)
     if draft.definition.kind != "assembly":
         raise ValidationFailed("Draft is not an assembly.")
     content = {"assembly": p.assembly.model_dump(mode="json")}
-    authorize_content(ctx.user, content)
+    authorize_content(ctx.user, content, draft.definition.workspace_id)
     return update_draft(ctx, UpdateDraft(draft_id=p.draft_id, changes=content))
 
 

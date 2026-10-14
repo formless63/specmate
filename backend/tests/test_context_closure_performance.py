@@ -52,7 +52,7 @@ def test_bom_root_retained_origin_denial_and_exact_restoration(users, project):
         lambda: inspect_revision(actor, frozen["revision_id"]),
         lambda: op(actor, "bom.read", payload),
     ):
-        with pytest.raises(NotFound, match=r"^Project not found\.$"):
+        with pytest.raises(NotFound, match=r"^Not found\.$"):
             read()
     assert client.get(f"/api/v0/bom/revisions/{frozen['revision_id']}").status_code == 404
     assert post_op(client, "bom.read", payload).status_code == 404
@@ -62,15 +62,15 @@ def test_bom_root_retained_origin_denial_and_exact_restoration(users, project):
 
 
 def test_failed_snapshot_batch_does_not_publish_partial_authorization(users, project):
-    remote = op(users["owner"], "project.create", {"name": "Restricted batch input"})["project_id"]
-    hidden = part(users["owner"], remote, "Synthetic hidden leaf")
+    hidden = part(users["owner"], project, "Synthetic hidden leaf")
     root = assembly(users["owner"], project, [("hidden", hidden)])
     snapshot = Snapshot.objects.select_related("definition").get(pk=root["snapshot_id"])
     completed = set()
+    revoke(users, project)
     with pytest.raises(NotFound):
         authorize_snapshot(users["viewer"], snapshot, _authorized=completed)
     assert completed == set()
-    restore(users, remote)
+    restore(users, project)
     authorize_snapshot(users["viewer"], snapshot, _authorized=completed)
     assert completed == {UUID(root["snapshot_id"]), UUID(hidden["snapshot_id"])}
 
@@ -203,7 +203,7 @@ def test_bom_root_origin_denial_precedes_wrong_kind_diagnostic(users, project):
     with pytest.raises(ValidationFailed, match="not a BOM plan"):
         inspect_revision(users["viewer"], frozen["revision_id"])
     revoke(users, remote)
-    with pytest.raises(NotFound, match=r"^Project not found\.$"):
+    with pytest.raises(NotFound, match=r"^Not found\.$"):
         inspect_revision(users["viewer"], frozen["revision_id"])
     restore(users, remote)
     with pytest.raises(ValidationFailed, match="not a BOM plan"):
