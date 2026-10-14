@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { Address, SharedScene } from './api';
 import { selectionKey } from './api';
-import { buildSceneObject } from './geometry';
+import { applySceneTheme, buildSceneObject, themedMaterial, tokenColor } from './geometry';
 import type { Arrangement, SceneObject } from './geometry';
 import { closedDisplay, retainedPoint, sectionPlane } from './display';
 import type { CameraView, Display } from './display';
@@ -99,6 +99,19 @@ function ScopedViewport({ scene: projection, arrangement, selected, related, onS
       renderer.dispose(); renderer.forceContextLoss(); element.remove();
     };
   }, []);
+  // OS or app theme switch: recolour tagged materials in place (no geometry rebuild) and redraw.
+  // The renderer is alpha with no clear colour, so the background follows the themed container.
+  useEffect(() => {
+    const recolour = () => {
+      const state = live.current; if (!state) return;
+      applySceneTheme(state.scene); state.render();
+    };
+    const query = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    query?.addEventListener?.('change', recolour);
+    const observer = new MutationObserver(recolour);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mantine-color-scheme', 'data-theme', 'style', 'class'] });
+    return () => { query?.removeEventListener?.('change', recolour); observer.disconnect(); };
+  }, []);
   useEffect(() => {
     const state = live.current; if (!state) return;
     if (state.object) { state.scene.remove(state.object.group); state.object.dispose(); }
@@ -123,6 +136,7 @@ function ScopedViewport({ scene: projection, arrangement, selected, related, onS
       const object = state.object?.objects.get(selectionKey(address));
       if (!object || (selected && selectionKey(selected) === selectionKey(address))) continue;
       const mark = new THREE.Box3Helper(new THREE.Box3().setFromObject(object), color);
+      themedMaterial(mark.material as THREE.LineBasicMaterial, '--sb-border-strong', '#8a8f98');
       state.scene.add(mark); state.relatedMarks.push(mark);
     }
     state.render();
@@ -138,7 +152,3 @@ function ScopedViewport({ scene: projection, arrangement, selected, related, onS
 }
 
 function disposeMark(mark: THREE.Box3Helper) { mark.geometry.dispose(); (mark.material as THREE.Material).dispose(); }
-function tokenColor(name: string, fallback: string): string {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
-}
