@@ -31,6 +31,8 @@ export type BuildReceipt = {
   outcome: string; exit_code: number | null; message: string;
   outputs: { path: string; sha256: string }[];
   resolution?: string; termination_confirmed?: boolean; cancellation_requested?: boolean; basis?: string;
+  // Username of the person who resolved it; never an internal ID.
+  resolved_by?: string | null;
 } | null;
 export type BuildHistory = {
   build_id: string; state: string; state_token: string; receipt: BuildReceipt;

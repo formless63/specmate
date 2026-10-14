@@ -246,3 +246,12 @@ test('a runner-reported resolved image ID is shown with the pin, even without a 
   expect(screen.getByText(/resolved image sha256:dddddddddddd…/)).toBeTruthy();
   expect(screen.queryByText(/resolved image not reported/)).toBeNull();
 });
+
+test('a deliberately resolved build names the person by username', async () => {
+  vi.mocked(readHistory).mockResolvedValue(history({
+    state: 'failed', cancel_available: false,
+    receipt: { outcome: 'failed', exit_code: null, message: 'Resolved without runner confirmation', outputs: [], resolution: 'abandoned_unreconciled', termination_confirmed: false, basis: 'Runner host retired.', resolved_by: 'synthetic-owner' },
+  }));
+  await open();
+  expect(screen.getByText(/Basis: Runner host retired\. · resolved by synthetic-owner/)).toBeTruthy();
+});

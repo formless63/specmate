@@ -140,7 +140,7 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
           pins={[{ label: 'Resolved configuration', value: detail.configuration.resolved_configuration_id }, { label: 'Option set revision', value: detail.configuration.option_set_revision_id }, { label: 'Configuration snapshot SHA-256', value: detail.configuration.snapshot_sha256 }, { label: 'Resolution SHA-256', value: detail.configuration.resolution_sha256 }]} />
         : <Text size="xs">No configuration pinned: this build consumed only its source revision.</Text>}
       {detail.receipt && <Stack gap={2}><Text size="sm">Receipt: {detail.receipt.outcome}{detail.receipt.exit_code !== null ? ` · exit code ${detail.receipt.exit_code}` : ' · no exit code observed'} · {detail.receipt.message}</Text>
-        {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}</Text>}</Stack>}
+        {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}{detail.receipt.resolved_by ? ` · resolved by ${detail.receipt.resolved_by}` : ''}</Text>}</Stack>}
       {detail.staged_inputs
         ? <Table><Table.Thead><Table.Tr><Table.Th>Staged input</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
           {detail.staged_inputs.map(i => <Table.Tr key={i.path}><Table.Td>{i.path}<Text size="xs">{i.bytes} bytes</Text></Table.Td><Table.Td><Text size="xs">{i.sha256}</Text></Table.Td><Table.Td>{i.rights}</Table.Td></Table.Tr>)}</Table.Tbody></Table>

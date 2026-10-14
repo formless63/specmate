@@ -131,6 +131,17 @@ def stage_result(stage: BuildStage) -> dict:
     }
 
 
+def receipt_view(stage: BuildStage) -> dict | None:
+    """The stored receipt as shown to readers: people by username, never by internal ID."""
+    receipt = stage.receipt
+    if receipt is None or not isinstance(receipt.get("resolved_by"), int):
+        return receipt
+    from django.contrib.auth import get_user_model
+
+    user = get_user_model().objects.filter(pk=receipt["resolved_by"]).first()
+    return {**receipt, "resolved_by": user.get_username() if user else None}
+
+
 def pinned_tool(build: BuildAttempt, stage: BuildStage) -> dict:
     """The exact tool pin recorded at request time, never the current approval.
 
@@ -404,7 +415,7 @@ def get_build(ctx: Context, p: BuildRef) -> dict:
     derived = derive(stage.build, stage)
     return {
         **stage_result(stage),
-        "receipt": stage.receipt,
+        "receipt": receipt_view(stage),
         "pinned": pinned_tool(stage.build, stage),
         "reproducibility": derived["level"] if derived else None,
     }
