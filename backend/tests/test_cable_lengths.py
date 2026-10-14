@@ -377,3 +377,98 @@ def test_stock_pin_change_does_not_report_route_declaration_change(users, projec
     assert result["route_changed"] is False
     assert result["preparation_review_required"] is True
     assert result["document_review_required"] is True
+
+
+def impact_after(user, project, cable, change):
+    original = capture(user, create(user, project, cable))
+    changed = copy.deepcopy(cable)
+    change(changed)
+    updated = op(
+        user,
+        "cable.update",
+        {"draft_id": original["draft"]["draft_id"], "cable": changed},
+        expected_state=original["draft"]["state"],
+    )
+    later = capture(user, updated)
+    return op(
+        user,
+        "cable.length_impact",
+        {"before_revision_id": original["revision_id"], "after_revision_id": later["revision_id"]},
+    )
+
+
+def test_termination_change_requires_document_and_preparation_review(users, project):
+    user = users["owner"]
+    *_, cable = fixture(user, project)
+    cable["lengths"] = length_plan()
+
+    def move_right_end(changed):
+        changed["assignments"][1]["contact_id"] = "a"
+        changed["assignments"][1]["basis"] = "Synthetic change: right end moved to contact a"
+
+    result = impact_after(user, project, cable, move_right_end)
+    # Lengths are unchanged, but the terminated contact is not.
+    assert result["changes"] == [] and result["route_changed"] is False
+    assert result["document_review_required"] is True
+    assert result["preparation_review_required"] is True
+    [section] = result["sections"]
+    assert section["section"] == "terminations" and section["status"] == "changed"
+    assert section["details"] == [
+        {
+            "element_path": "stock.core",
+            "endpoint_id": "right",
+            "before_contact_id": "b",
+            "after_contact_id": "a",
+            "before_basis": "Synthetic terminal table",
+            "after_basis": "Synthetic change: right end moved to contact a",
+        }
+    ]
+
+
+def test_removed_termination_and_label_changes_are_listed_by_section(users, project):
+    user = users["owner"]
+    *_, cable = fixture(user, project)
+
+    def change(changed):
+        changed["assignments"] = changed["assignments"][:1]
+        changed["endpoints"][0]["label"] = "P1"
+        changed["review"] = "unreviewed"
+        changed["review_basis"] = None
+
+    result = impact_after(user, project, cable, change)
+    by_section = {s["section"]: s for s in result["sections"]}
+    assert set(by_section) == {"terminations", "labels", "review"}
+    assert by_section["terminations"]["details"][0]["after_contact_id"] is None
+    assert by_section["labels"]["reviews"] == ["documents"]
+    assert by_section["labels"]["details"] == [
+        {"endpoint_id": "left", "before": None, "after": "P1"}
+    ]
+    assert result["document_review_required"] is True
+
+
+def test_label_only_change_requires_documents_but_not_preparation(users, project):
+    user = users["owner"]
+    *_, cable = fixture(user, project)
+
+    def relabel(changed):
+        changed["endpoints"][1]["label"] = "J2"
+
+    result = impact_after(user, project, cable, relabel)
+    assert [s["section"] for s in result["sections"]] == ["labels"]
+    assert result["document_review_required"] is True
+    assert result["preparation_review_required"] is False
+
+
+def test_same_revision_reports_no_review_and_no_sections(users, project):
+    user = users["owner"]
+    *_, cable = fixture(user, project)
+    cable["lengths"] = length_plan()
+    first = capture(user, create(user, project, cable))
+    result = op(
+        user,
+        "cable.length_impact",
+        {"before_revision_id": first["revision_id"], "after_revision_id": first["revision_id"]},
+    )
+    assert result["sections"] == []
+    assert result["document_review_required"] is False
+    assert result["preparation_review_required"] is False
