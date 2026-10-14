@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "description": "Display identity for exact revision IDs the caller already holds.",
+  "properties": {
+    "revision_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Revision Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "revision_ids"
+  ],
+  "title": "RevisionLabels",
+  "type": "object"
+}

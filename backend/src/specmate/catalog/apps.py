@@ -11,7 +11,12 @@ class CatalogConfig(AppConfig):
             operations,  # noqa: F401
         )
         from specmate.catalog.contracts import LotResult, RepresentationResult, VariantResult
-        from specmate.catalog.discovery import RevisionImpact, SearchCatalog, WhereUsed
+        from specmate.catalog.discovery import (
+            RevisionImpact,
+            RevisionLabels,
+            SearchCatalog,
+            WhereUsed,
+        )
         from specmate.contracts import SCHEMAS
 
         SCHEMAS.update(
@@ -22,5 +27,6 @@ class CatalogConfig(AppConfig):
                 "catalog-search": SearchCatalog,
                 "catalog-where-used": WhereUsed,
                 "catalog-revision-impact": RevisionImpact,
+                "catalog-revision-labels": RevisionLabels,
             }
         )
