@@ -1,0 +1,50 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "columns": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 40,
+      "title": "Columns",
+      "type": "object"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "ownership": {
+      "additionalProperties": {
+        "enum": [
+          "external",
+          "specmate"
+        ],
+        "type": "string"
+      },
+      "minProperties": 1,
+      "propertyNames": {
+        "enum": [
+          "supplier_offer",
+          "stock_observation",
+          "needs"
+        ]
+      },
+      "title": "Ownership",
+      "type": "object"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ownership",
+    "workspace_id",
+    "name"
+  ],
+  "title": "CreateIntegration",
+  "type": "object"
+}

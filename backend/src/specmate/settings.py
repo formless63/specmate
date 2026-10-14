@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "specmate.end_preparation",
     "specmate.inventory",
     "specmate.sourcing",
+    "specmate.integrations",
     "specmate.physical_units",
     "specmate.bom",
     "specmate.assemblies",

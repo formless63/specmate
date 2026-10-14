@@ -21,6 +21,7 @@ const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/
 const AgentRunsPanel = lazy(() => import("./features/agent-runs/AgentRunsPanel").then((module) => ({ default: module.AgentRunsPanel })));
 const DiagnosticsPanel = lazy(() => import("./features/diagnostics/DiagnosticsPanel").then((module) => ({ default: module.DiagnosticsPanel })));
 const ShareRecordsPanel = lazy(() => import("./features/project-access/ShareRecordsPanel").then((module) => ({ default: module.ShareRecordsPanel })));
+const IntegrationsPanel = lazy(() => import("./features/integrations/IntegrationsPanel").then((module) => ({ default: module.IntegrationsPanel })));
 const WorkspaceAccessPanel = lazy(() => import("./features/project-access/WorkspaceAccessPanel").then((module) => ({ default: module.WorkspaceAccessPanel })));
 const IdentityPanel = lazy(() => import("./features/identity/IdentityPanel").then((module) => ({ default: module.IdentityPanel })));
 const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
@@ -164,6 +165,7 @@ function LibraryTool({ toolId, toolLabel, scope, onOpenInProject, lens }: { tool
       busy={scope.busy} onOpen={(projectId) => onOpenInProject(projectId, toolId)} onCreate={scope.createProject} onChanged={scope.refresh} />;
   }
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
+  if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
   const view = libraryView(toolId);
   // Workspace-level lenses work without a project: the workspace comes from the shell scope.
   if (!view && WORKSPACE_LENSES.has(toolId)) return <WorkspaceLens {...lens} toolId={toolId} />;
@@ -280,6 +282,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="agent-runs" library={library("agent-runs")}>{visited.has("agent-runs") && <WorkspaceLens {...lens} toolId="agent-runs" />}</ToolPanel>
     <ToolPanel value="preferences" library={library("preferences")}>{visited.has("preferences") && <WorkspaceLens {...lens} toolId="preferences" />}</ToolPanel>
     <ToolPanel value="diagnostics" library={library("diagnostics")}>{visited.has("diagnostics") && <WorkspaceLens {...lens} toolId="diagnostics" />}</ToolPanel>
+    <ToolPanel value="integrations" library={library("integrations")}>{visited.has("integrations") && <IntegrationsPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="access" library={library("access")}>{visited.has("access") && <Stack><WorkspaceAccessPanel onAccessChanged={onAccessChanged} /><ShareRecordsPanel workspaceId={workspaceId} /></Stack>}</ToolPanel>
   </>;
 }

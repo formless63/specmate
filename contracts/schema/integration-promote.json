@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "observation_id": {
+      "format": "uuid",
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "review_basis": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Review Basis",
+      "type": "string"
+    }
+  },
+  "required": [
+    "observation_id",
+    "review_basis"
+  ],
+  "title": "PromoteObservation",
+  "type": "object"
+}
