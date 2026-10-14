@@ -1,5 +1,5 @@
 import { useRevisionLabel } from "../../lib/revision-labels";
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { LengthsEditor, LengthInspection, LengthImpactView } from "./Lengths";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQueries, useQuery, useQueryClient, type Query, type UseQueryResult } from '@tanstack/react-query';
@@ -78,8 +78,8 @@ function Workspace({ projectId }: { projectId: string }) {
     {authorityBlocked && <Alert color="red"><Stack><Text>Cable access must be rechecked before retained content can be shown.</Text><Button loading={checkingAuthority} onClick={() => void refreshAuthority()}>Refresh cable access</Button></Stack></Alert>}
     {!authorityBlocked && <Card withBorder><Stack>
       <Title order={3}>New reusable definition</Title>
-      <TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <CableEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} />
+      <InspectionScope permission="item.create"><TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+      <CableEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} /></InspectionScope>
       <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => create.mutate()}>Create cable draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
     </Stack></Card>}
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
@@ -113,7 +113,7 @@ function DraftEditor({ draft, committedDraft, hidden, definitions, onSaved, onAu
   }, [committedDraft, base.draft_id]);
   const save = useMutation({ mutationFn: () => command<Draft>("cable.update", { draft_id: base.draft_id, cable: value }, base.state), onSuccess: async data => { setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }, onError: onMutationError });
   if (hidden) return null;
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><CableEditor value={value} onChange={setValue} definitions={definitions} onAuthorityChange={setSourceDenied} /><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor value={value} onChange={setValue} definitions={definitions} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
 function RevisionPicker({ label, kind, value, onChange, definitions }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[] }) {
   const [definition, setDefinition] = useState<string | null>(null);

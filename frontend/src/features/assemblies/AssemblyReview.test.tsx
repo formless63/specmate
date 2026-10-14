@@ -1,3 +1,4 @@
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -46,7 +47,7 @@ function fixture(strict = false) {
     return reply([{ definition_id: 'assembly', name: 'Own assembly', kind: 'assembly' }]);
   }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const panel = <MantineProvider env="test"><QueryClientProvider client={client}><AssemblyPanel projectId="own-project" permissions={['design.edit', 'design.freeze']} /></QueryClientProvider></MantineProvider>;
+  const panel = <MantineProvider env="test"><QueryClientProvider client={client}><PermissionsProvider permissions={['design.edit', 'design.freeze']}><AssemblyPanel projectId="own-project" /></PermissionsProvider></QueryClientProvider></MantineProvider>;
   render(strict ? <StrictMode>{panel}</StrictMode> : panel);
   return state;
 }

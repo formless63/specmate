@@ -5,14 +5,15 @@ import { PopulationEditor } from "./PopulationEditor";
 import { PcbFabricationPanel } from "../pcb-fabrication/PcbFabricationPanel";
 import { FirmwarePanel } from "../firmware/FirmwarePanel";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
-export type PcbPanelProps = { workspaceId: string; permissions?: string[] };
+export type PcbPanelProps = { workspaceId: string };
 
 export function PcbPanel(props: PcbPanelProps) {
-  return <ProjectPanel key={`${props.workspaceId}:${props.permissions?.join(",") ?? ""}`} {...props} />;
+  return <ProjectPanel key={props.workspaceId} {...props} />;
 }
 
-function ProjectPanel({ workspaceId, permissions }: PcbPanelProps) {
+function ProjectPanel({ workspaceId }: PcbPanelProps) {
   const [items, setItems] = useState<IntakeSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [intake, setIntake] = useState<Intake | null>(null);
@@ -27,8 +28,8 @@ function ProjectPanel({ workspaceId, permissions }: PcbPanelProps) {
   const readSequence = useRef(0);
   const denied = useRef(false);
   const [accessLost, setAccessLost] = useState(false);
-  const canImport = !permissions || permissions.includes("source.register");
-  const canExecute = !permissions || permissions.includes("build.execute");
+  const canImport = useCan("source.register");
+  const canExecute = useCan("build.execute");
 
   function failure(reason: unknown) {
     if (lifetime.current.signal.aborted) return;
@@ -140,13 +141,13 @@ function ProjectPanel({ workspaceId, permissions }: PcbPanelProps) {
         {attempt.state === "succeeded" && canImport && !intake.interpretations.some((i) => i.attempt_id === attempt.attempt_id) && <Button size="xs" onClick={() => void accept(attempt.attempt_id)} disabled={busy}>Validate interpretation</Button>}
       </Group>)}
       {report && <ReportView report={report} />}
-      {report && <PcbFabricationPanel key={intake.intake_id} intakeId={intake.intake_id} canExecute={canExecute && !accessLost} />}
+      {report && <PcbFabricationPanel key={intake.intake_id} intakeId={intake.intake_id} blocked={accessLost} />}
       {!!intake.interpretations.length && <PopulationEditor
         workspaceId={workspaceId} intake={intake} drafts={populations}
-        permissions={permissions} onChanged={() => selected && load(selected)} onAccessLost={failure}
+        onChanged={() => selected && load(selected)} onAccessLost={failure}
       />}
     </Stack>}
-    {!accessLost && <FirmwarePanel workspaceId={workspaceId} permissions={permissions} />}
+    {!accessLost && <FirmwarePanel workspaceId={workspaceId} />}
   </Stack>;
 }
 

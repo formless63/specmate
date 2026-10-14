@@ -91,7 +91,9 @@ test('read-only members cannot create, edit, save or retain, with a visible reas
   view(['workspace.read']); await open();
   expect(screen.getByRole('note').textContent).toMatch(/Read-only access/);
   for (const name of ['Create proposal draft', 'Save declarations', 'Retain proposal record']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByLabelText(/Wall thickness/) as HTMLInputElement).disabled).toBe(true);
+  const wall = screen.getByLabelText(/Wall thickness/) as HTMLInputElement;
+  expect(wall.readOnly).toBe(true);
+  expect(wall.disabled).toBe(false);
 });
 
 test('losing access clears the draft, board identities and proposal', async () => {

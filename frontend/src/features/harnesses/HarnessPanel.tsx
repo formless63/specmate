@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -79,8 +79,8 @@ function Workspace({ projectId }: { projectId: string }) {
     <Card withBorder><Stack>
       <Title order={3}>New reusable definition</Title>
       {newBlocked && <Alert>New Harness access is denied. Retained unsaved declarations are hidden. Starting New discards them.</Alert>}
-      {!newBlocked && <><TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <HarnessEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} onReferenceDenied={newReferenceDenied} />
+      {!newBlocked && <><InspectionScope permission="item.create"><TextInput label="Definition name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+      <HarnessEditor value={value} onChange={setValue} definitions={currentDefinitions} onAuthorityChange={setCreateSourceDenied} onReferenceDenied={newReferenceDenied} /></InspectionScope>
       <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => create.mutate({ generation: creationGeneration.current })}>Create harness draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote></>}
       <Button variant="subtle" onClick={() => { creationGeneration.current += 1; setValue(initialHarness()); setName(""); setNewBlocked(false); setCreateSourceDenied(false); newDeniedRefs.current.clear(); }}>New Harness: discard unsaved creation</Button>
       {newBlocked && <Button onClick={() => { void (async () => { try { const generation = creationGeneration.current; const epoch = newDenialEpoch.current; await read("harnesses/authority", value); for (const path of newDeniedRefs.current) await read(path); if (generation !== creationGeneration.current || epoch !== newDenialEpoch.current) return; newDeniedRefs.current.clear(); setNewBlocked(false); } catch { /* Retain denial and unsaved state. */ } })(); }}>Restore new Harness access</Button>}
@@ -138,7 +138,7 @@ export function DraftEditor({ draft, definitions, onSaved, onAuthorityChange, hi
   }
   if (hidden) return null;
   return <Card withBorder><Stack><Title order={3}>Edit draft</Title>{error && <Alert color="red">{error}</Alert>}
-    {blocked || externalDenied ? <><Alert>Harness access must be restored. Unsaved declarations and their original token are retained.</Alert><Button loading={busy} onClick={() => { void restore(); }}>Restore Harness draft access</Button><Button disabled>Save harness draft</Button></> : <><Text size="sm">{state}</Text><fieldset disabled={busy} style={{ border: 0, padding: 0 }}><HarnessEditor value={value} onChange={change} definitions={definitions} onAuthorityChange={setSourceDenied} onReferenceDenied={refDenied} /><Button disabled={sourceDenied || busy} {...editGate.props} onClick={() => { void save(); }}>Save harness draft</Button></fieldset><ReadOnlyNote permission="design.edit">Saving harness drafts is unavailable.</ReadOnlyNote></>}
+    {blocked || externalDenied ? <><Alert>Harness access must be restored. Unsaved declarations and their original token are retained.</Alert><Button loading={busy} onClick={() => { void restore(); }}>Restore Harness draft access</Button><Button disabled>Save harness draft</Button></> : <><Text size="sm">{state}</Text><fieldset disabled={busy} style={{ border: 0, padding: 0 }}><InspectionScope permission="design.edit"><HarnessEditor value={value} onChange={change} definitions={definitions} onAuthorityChange={setSourceDenied} onReferenceDenied={refDenied} /></InspectionScope><Button disabled={sourceDenied || busy} {...editGate.props} onClick={() => { void save(); }}>Save harness draft</Button></fieldset><ReadOnlyNote permission="design.edit">Saving harness drafts is unavailable.</ReadOnlyNote></>}
   </Stack></Card>;
 }
 export function HarnessInspector({ revisionId, authorityScope = 0, onDenied }: { revisionId: string; authorityScope?: number; onDenied?: (revisionId: string, generation: number) => void }) {

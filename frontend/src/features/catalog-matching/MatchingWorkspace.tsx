@@ -2,7 +2,7 @@ import { Alert, Badge, Button, Card, Group, NativeSelect, Stack, Text, Textarea,
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { allLibraryDefinitions, read, type Definition, type Identity } from "../identity/api";
 import { MatchingRequestError, candidateDetail, candidates, evidenceFiles, proposeMatch, reviewMatch, type Candidate, type CandidatePage, type Evidence, type EvidenceFile } from "./api";
-import { useCan } from "../../lib/permissions";
+import { InspectionScope, ReadOnlyNote, useCan } from "../../lib/permissions";
 import { SupplierSuggestions } from "./SupplierSuggestions";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -108,7 +108,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
     <Title order={2}>Reviewed matching</Title>
     <Text>Review correspondence between distinct engineering definitions. Acceptance preserves exact identities and existing consumer pins; compatibility and qualification remain unevaluated.</Text>
     {error && <Alert color="red">{error}</Alert>}
-    {!canPropose && <Text>Read only. Proposals need contributor access and reviews need editor access.</Text>}
+    <ReadOnlyNote permission="item.create">Reviews need editor access.</ReadOnlyNote>
     {accessInvalid && <Alert color="yellow">Access must be refreshed before continuing.</Alert>}
     <RevisionPicker key={`source-${selectorEpoch}`} projectId={projectId} disabled={accessInvalid} label="Source" onChange={setSource} />
     <RevisionPicker key={`target-${selectorEpoch}`} projectId={projectId} disabled={accessInvalid} label="Target" onChange={setTarget} />
@@ -121,11 +121,13 @@ function Workspace({ projectId }: { projectId: string | null }) {
     <Card withBorder>
       <form onSubmit={(event) => void create(event)}><Stack>
         <Title order={3}>Propose correspondence</Title>
+        <InspectionScope permission="item.create">
         <NativeSelect label="Association kind" value={kind} onChange={(event) => setKind(event.currentTarget.value as Candidate["association_kind"])} data={[{ value: "import", label: "Import" }, { value: "supplier", label: "Supplier" }, { value: "model", label: "Model" }]} />
         <TextInput label="Observed source identifier" value={sourceIdentifier} onChange={(event) => setSourceIdentifier(event.currentTarget.value)} maxLength={200} required />
         <TextInput label="Observed target identifier" value={targetIdentifier} onChange={(event) => setTargetIdentifier(event.currentTarget.value)} maxLength={200} required />
         <Textarea label="Proposal basis" value={basis} onChange={(event) => setBasis(event.currentTarget.value)} maxLength={4000} required />
         <EvidenceEditor key={selectorEpoch} label="Proposal" onChange={setEvidence} />
+        </InspectionScope>
         {source && target && source.definition_id === target.definition_id && <Text c="red">Select distinct definitions. Later revisions of one definition use revision adoption.</Text>}
         <Button type="submit" loading={busy} disabled={!canPropose || !source || !target || source.definition_id === target.definition_id}>Create candidate</Button>
       </Stack></form>
@@ -290,9 +292,11 @@ function ReviewPanel({ candidate, canEdit, onUpdated, onRevoked, onError }: { ca
     </Card>)}
     {error && <Alert color="red">{error}</Alert>}
     <form onSubmit={(event) => void submit(event)}><Stack>
+      <InspectionScope permission="design.edit">
       <NativeSelect label="Review decision" value={decision} onChange={(event) => setDecision(event.currentTarget.value)} data={[{ value: "needs_evidence", label: "Needs evidence" }, { value: "accepted", label: "Accept correspondence" }, { value: "rejected", label: "Reject correspondence" }]} />
       <Textarea label="Review basis" value={basis} onChange={(event) => setBasis(event.currentTarget.value)} required maxLength={4000} />
       <EvidenceEditor label="Review" onChange={setEvidence} />
+      </InspectionScope>
       <Button type="submit" disabled={!canEdit} loading={busy}>Append review</Button>
     </Stack></form>
   </Stack></Card>;

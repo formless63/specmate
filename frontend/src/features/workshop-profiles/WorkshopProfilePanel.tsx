@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { ReadOnlyNote, usePermission, InspectionScope } from '../../lib/permissions';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Checkbox, Group, NumberInput, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import type { GroupElement, StockElement, StockSpecification } from '../../../../packages/section-layout/src';
@@ -170,6 +170,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string | null 
       <Text size="sm"><RevisionLabel id={shown.stock_revision_id} role="Stock" />. Unknown values remain unknown; shown lengths are illustration suggestions, not measured dimensions.</Text>
       <WorkshopProfileProvenance profile={shown} stateLabel={frozen ? `Frozen revision ${frozen.number}` : dirty ? 'Unsaved draft' : current ? 'Saved draft' : 'New profile'} />
       {!frozen && <>
+      <InspectionScope permission="item.create">
       <Title order={3}>Author new suggestions</Title>
       <Text size="sm">The basis fields below apply only when you change a value. Recorded practice details above show what is already stored.</Text>
       <Group align="end">
@@ -186,7 +187,9 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string | null 
           <TextInput label="Registered source rights" value={sourceRights} onChange={event => setSourceRights(event.target.value)} />
         </>}
       </Group>
+      </InspectionScope>
       </>}
+      <InspectionScope permission="item.create">
       <Group>
         <Select label="Foil visibility" value={shown.foil_visibility.value ?? 'unknown'} disabled={!!frozen}
           data={['unknown', 'show', 'hide']} onChange={value => modify(next => {
@@ -242,6 +245,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string | null 
           </Group>)}
         </Stack>;
       })}
+      </InspectionScope>
       {projectId && current === null && <Checkbox label="Use in this project" checked={useHere} onChange={e => setUseHere(e.currentTarget.checked)} />}
       <Group><Button onClick={() => void save()} loading={busy} disabled={!!frozen || !profile || !name.trim() || !dirty} {...edit.props}>Save profile</Button>
         <Button variant="light" onClick={() => void freeze()} disabled={!current || dirty || !!frozen || busy} {...freezeGate.props}>Freeze profile</Button></Group>

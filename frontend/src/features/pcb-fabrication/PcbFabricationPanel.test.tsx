@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -21,7 +23,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 // Mantine env="test" skips transition styles but still schedules animation hooks.
 // Honor the test environment's reduced-motion preference for busy-button updates.
-const panel = (intakeId = 'intake-a', canExecute = false) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}><PcbFabricationPanel intakeId={intakeId} canExecute={canExecute} /></MantineProvider>;
+const panel = (intakeId = 'intake-a', canExecute = false) => <MantineProvider env="test" theme={{ respectReducedMotion: true }}><PermissionsProvider permissions={grants({ execute: canExecute })}><PcbFabricationPanel intakeId={intakeId} /></PermissionsProvider></MantineProvider>;
 async function inspect() {
   fireEvent.click(await screen.findByRole('button', { name: 'Inspect fabrication build build-a' }));
   await screen.findByText('Registered export evidence');

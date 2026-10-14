@@ -1,3 +1,4 @@
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
@@ -52,7 +53,7 @@ function setup(options: { draft?: FirmwareRead; revision?: FirmwareRead; command
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
-  const panel = <MantineProvider><FirmwarePanel workspaceId="project-a" permissions={options.permissions} onAccessLost={options.onAccessLost} /></MantineProvider>;
+  const panel = <MantineProvider><PermissionsProvider permissions={options.permissions}><FirmwarePanel workspaceId="project-a" onAccessLost={options.onAccessLost} /></PermissionsProvider></MantineProvider>;
   const view = render(options.strict ? <StrictMode>{panel}</StrictMode> : panel);
   return { bodies, fetchMock, ...view };
 }

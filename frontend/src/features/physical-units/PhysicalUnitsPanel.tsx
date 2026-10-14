@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -79,6 +79,7 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
     {mutation.isSuccess && <Alert color="green">Physical record saved.</Alert>}
     <Card withBorder><Stack>
       <Title order={3}>Register actual unit</Title>
+      <InspectionScope permission="inventory.manage">
       <NativeSelect label="Definition" value={definitionId} onChange={(e) => { setDefinitionId(e.currentTarget.value); setRevisionId(""); setLotId(""); setVariantId(""); setRevisionOffset(0); }}
         data={[{ value: "", label: "Choose definition" }, ...(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: d.name }))]} />
       <NativeSelect label="Exact frozen revision" value={revisionId} onChange={(e) => { setRevisionId(e.currentTarget.value); setLotId(""); setVariantId(""); }}
@@ -92,6 +93,7 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
         data={[{ value: "", label: "No variant asserted" }, ...(catalog.data?.variants ?? []).filter((variant) => !lotId || !catalog.data?.lots.find((lot) => lot.lot_id === lotId)?.variant_id || catalog.data?.lots.find((lot) => lot.lot_id === lotId)?.variant_id === variant.variant_id).map((variant) => ({ value: variant.variant_id, label: `${variant.manufacturer} ${variant.part_number}` }))]} />
       <TextInput label="Assertion source" value={source} onChange={(e) => setSource(e.currentTarget.value)} />
       <NativeSelect label="Assertion status" value={status} onChange={(e) => setStatus(e.currentTarget.value)} data={["declared", "observed", "measured"]} />
+      </InspectionScope>
       <Button loading={mutation.isPending} disabled={!revisionId || !serial.trim() || !source.trim()} onClick={() => submit("physical_units.register", {
         revision_id: revisionId, serial, origin, lot_id: lotId || null, variant_id: variantId || null,
         assertion_source: source, assertion_status: status,

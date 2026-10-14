@@ -1,3 +1,4 @@
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -37,7 +38,7 @@ function fixture() {
   return state;
 }
 function panel(permissions = ['design.edit', 'design.freeze']) {
-  return <MantineProvider env="test"><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AssemblyPanel projectId="project" permissions={permissions} /></QueryClientProvider></MantineProvider>;
+  return <MantineProvider env="test"><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><PermissionsProvider permissions={permissions}><AssemblyPanel projectId="project" /></PermissionsProvider></QueryClientProvider></MantineProvider>;
 }
 async function choose(label: string, value: string) {
   const input = screen.getByRole('combobox', { name: label }); fireEvent.click(input); fireEvent.keyDown(input, { key: 'ArrowDown' });

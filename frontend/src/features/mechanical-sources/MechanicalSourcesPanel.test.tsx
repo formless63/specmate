@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { MechanicalSourcesPanel } from './MechanicalSourcesPanel';
+import { PermissionsProvider } from '../../lib/permissions';
 import type { MechanicalRead, MechanicalSource, TargetChoice } from './api';
 
 const source: MechanicalSource = {
@@ -42,8 +43,9 @@ function setup(options: { permissions?: string[]; strict?: boolean; draft?: Mech
     throw new Error(`Unexpected route ${url}`);
   });
   vi.stubGlobal('fetch', mock);
-  const props = { workspaceId: 'project', permissions: options.permissions ?? ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], onAccessLost: options.lost };
-  const view = render(<MantineProvider>{options.strict ? <StrictMode><MechanicalSourcesPanel {...props} /></StrictMode> : <MechanicalSourcesPanel {...props} />}</MantineProvider>);
+  const props = { workspaceId: 'project', onAccessLost: options.lost };
+  const permissions = options.permissions ?? ['workspace.read', 'item.create', 'design.edit', 'design.freeze'];
+  const view = render(<MantineProvider><PermissionsProvider permissions={permissions}>{options.strict ? <StrictMode><MechanicalSourcesPanel {...props} /></StrictMode> : <MechanicalSourcesPanel {...props} />}</PermissionsProvider></MantineProvider>);
   return { ...view, bodies, mock, deny: (value: boolean) => { denied = value; } };
 }
 async function refresh() { fireEvent.click(screen.getByRole('button', { name: 'Refresh mechanical sources' })); await screen.findByText('Synthetic enclosure'); }

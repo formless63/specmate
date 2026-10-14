@@ -5,6 +5,7 @@ import { command, request, SourceError, type RevisionDetail, type SourcePage } f
 import { MechanicalUncertaintyEditor, MechanicalUncertaintyRead } from './MechanicalUncertainty';
 import type { MechanicalFile, MechanicalRead, MechanicalSource, MechanicalSourcePin, ModelChoice, ModelPin, RecordPage, TargetChoice, TargetPage, TargetPin } from './api';
 import { ExactPins, RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
 const keyFor = (prefix: string, rows: { local_id: string }[]) => {
   let i = 1; while (rows.some(row => row.local_id === `${prefix}${i}`)) i += 1; return `${prefix}${i}`;
@@ -43,7 +44,7 @@ export function MechanicalEvaluation({ read }: { read: MechanicalRead }) {
 }
 
 /** Exact source management only. Native tools and geometry checks require separate execution. */
-export function MechanicalSourcesPanel({ workspaceId, permissions, onAccessLost }: { workspaceId: string; permissions: string[]; onAccessLost?: () => void }) {
+export function MechanicalSourcesPanel({ workspaceId, onAccessLost }: { workspaceId: string; onAccessLost?: () => void }) {
   const [shown, setShown] = useState(true);
   const [records, setRecords] = useState<RecordPage>({ records: [], next_after: null });
   const [sources, setSources] = useState<SourcePage>({ revisions: [], next_after: null });
@@ -212,9 +213,10 @@ export function MechanicalSourcesPanel({ workspaceId, permissions, onAccessLost 
     } catch (reason) { if (active(token)) failed(reason); }
     finally { if (active(token)) setBusy(false); }
   }
-  const edit = permissions.includes('design.edit');
+  const edit = useCan('design.edit');
+  const canFreeze = useCan('design.freeze');
   // A new mechanical source is a workspace item (item.create); revising a draft needs design.edit.
-  const canCreate = permissions.includes('item.create');
+  const canCreate = useCan('item.create');
   function changeTarget(id: string, changes: Partial<TargetPin>) { setForm(prior => prior ? { ...prior, targets: prior.targets.map(t => t.local_id === id ? { ...t, ...changes } : t) } : prior); }
   function changeModel(id: string, changes: Partial<ModelPin>) { setForm(prior => prior ? { ...prior, models: prior.models.map(m => m.local_id === id ? { ...m, ...changes } : m) } : prior); }
   return <Stack>
@@ -232,7 +234,7 @@ export function MechanicalSourcesPanel({ workspaceId, permissions, onAccessLost 
       {records.next_after && <Button variant="subtle" onClick={() => void more('records')}>More mechanical records</Button>}
       {read && <Card withBorder><Stack><Title order={4}>{read.name}{read.revision_number ? ` revision ${read.revision_number}` : ' draft'}</Title><Text size="xs">{read.revision_id ? <RevisionLabel id={read.revision_id} sha256={read.snapshot_sha256} extraPins={[{ label: 'Definition ID', value: read.definition_id }]} /> : <>Draft · state {read.state} <ExactPins pins={[{ label: 'Definition ID', value: read.definition_id }]} /></>}</Text><MechanicalEvaluation read={read} />
         {edit && read.draft_id && !form && <Button onClick={() => { generation.current += 1; setBusy(false); setForm(structuredClone(read.content.mechanical_source)); pendingSave.current = null; }}>Edit mechanical draft</Button>}
-        {permissions.includes('design.freeze') && read.draft_id && !form && <Button disabled={busy || read.evaluation.readiness === 'blocked'} onClick={() => void freeze()}>Freeze mechanical declarations</Button>}
+        {canFreeze && read.draft_id && !form && <Button disabled={busy || read.evaluation.readiness === 'blocked'} onClick={() => void freeze()}>Freeze mechanical declarations</Button>}
       </Stack></Card>}
       {(read?.draft_id ? edit : canCreate) && form && <Stack>
         {!read?.draft_id && <TextInput label="Mechanical source name" value={name} onChange={e => setName(e.currentTarget.value)} />}

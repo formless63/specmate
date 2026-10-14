@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { ReadOnlyNote, usePermission, InspectionScope } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -79,9 +79,11 @@ function Workspace({ projectId }: { projectId: string }) {
     {[definitions.error, identity.error, stock.error, load.error, save.error, freeze.error, refresh.error].filter(Boolean).map((error, i) => <Alert key={i} color="red">{error!.message}</Alert>)}
     {denied && <Alert color="red"><Stack><Text>Preparation source access must be rechecked before retained content is shown. Unsaved values and their editing token are retained.</Text><Button loading={refresh.isPending} onClick={refreshAccess}>Refresh preparation access</Button></Stack></Alert>}
     {!denied && <><Card withBorder><Stack><Title order={3}>{current ? 'Edit preparation draft' : 'New preparation profile'}</Title>
-      {current ? <Text>{current.draft_id} · {current.state}</Text> : <TextInput label="Preparation profile name" value={name} onChange={e => setName(e.currentTarget.value)} />}
+      {current ? <Text>{current.draft_id} · {current.state}</Text> : <InspectionScope permission="item.create"><TextInput label="Preparation profile name" value={name} onChange={e => setName(e.currentTarget.value)} /></InspectionScope>}
+      <InspectionScope permission={current ? 'design.edit' : 'item.create'}>
       <RevisionChoice label="Preparation stock" kinds={['wire_stock']} value={profile.stock_revision_id} onChange={stock_revision_id => changeProfile({ ...profile, stock_revision_id })} definitions={definitions.data ?? []} />
       <ProfileEditor value={profile} onChange={changeProfile} choices={stock.data ? conductiveChoices(stock.data.structure) : []} />
+      </InspectionScope>
       <Group><Button disabled={load.isPending || freeze.isPending || !profile.stock_revision_id || (!current && !name.trim())} loading={save.isPending} {...(current ? editGate : createGate).props} onClick={() => save.mutate({ current, profile, name, generation: generation.current, authorityGeneration: authorityGeneration.current, edits: edits.current })}>Save preparation profile</Button>{current && <Button disabled={save.isPending || load.isPending} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate({ current, generation: generation.current, authorityGeneration: authorityGeneration.current })}>Freeze preparation profile</Button>}<Button variant="subtle" onClick={() => { generation.current += 1; authorityGeneration.current += 1; setCurrent(null); changeProfile(emptyProfile()); setName(''); setDefinition(null); setDraftId(null); setRevisionId(null); }}>New preparation profile</Button></Group><ReadOnlyNote permission={current ? "design.edit" : "item.create"}>Saving and freezing preparation profiles are unavailable.</ReadOnlyNote>
     </Stack></Card>
     <Select label="Existing preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={id => { generation.current += 1; setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />

@@ -145,7 +145,7 @@ function LibraryTool({ toolId, toolLabel, scope, onOpenInProject, lens }: { tool
   if (!view && WORKSPACE_LENSES.has(toolId)) return <WorkspaceLens {...lens} toolId={toolId} />;
   if (view) {
     return <LibraryView view={view} toolLabel={toolLabel} projectId={null} project={null} projects={scope.projects} principalKey={scope.principalKey}
-      permissions={scope.permissions} onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} />;
+      onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} />;
   }
   return <ChooseProject toolLabel={toolLabel} projects={scope.projects} lastProjectId={scope.lastProjectId} onChoose={(projectId) => onOpenInProject(projectId, toolId)} />;
 }
@@ -167,15 +167,15 @@ type LensContext = {
 
 /** One workspace-level lens, mounted at Library scope (projectId null) or inside a project (projectId as context). */
 function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusChanged, upgradeProposalId, setUpgradeProposalId }: LensContext & { toolId: string }) {
-  const { permissions, principalKey, workspaceId } = scope;
+  const { principalKey, workspaceId } = scope;
   const onAccessChanged = scope.refresh;
   const optional = projectId ?? undefined;
   switch (toolId) {
-    case "knowledge": return <Stack><KnowledgePanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} canEdit={permissions.includes("design.edit")} canCreate={permissions.includes("item.create")} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} canEdit={permissions.includes("design.edit")} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>;
+    case "knowledge": return <Stack><KnowledgePanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>;
     case "agent-capabilities": return <AgentCapabilitiesPanel workspaceId={workspaceId} projectId={projectId} />;
     case "diagnostics": return <DiagnosticsPanel workspaceId={workspaceId} active={active === "diagnostics"} onChanged={onStatusChanged} />;
     case "discovery": return <DiscoveryPanel projectId={projectId} />;
-    case "revision-upgrades": return <RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active === "revision-upgrades"} initialProposalId={upgradeProposalId} canEdit={permissions.includes("design.edit")} />;
+    case "revision-upgrades": return <RevisionUpgradeWorkspace projectId={projectId} principalKey={principalKey} active={active === "revision-upgrades"} initialProposalId={upgradeProposalId} />;
     case "matching": return <MatchingWorkspace projectId={projectId} />;
     case "catalog-packs": return <CatalogPacksWorkspace projectId={projectId} />;
     case "firmware-impact": return <FirmwareImpactPanel workspaceId={workspaceId} />;
@@ -185,7 +185,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "shared-scene": return <SharedScenePanel projectId={projectId} />;
     case "context-selection": return <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />;
     case "scene-drawings": return <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />;
-    case "preparation-documents": return <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} canGenerate={permissions.includes("design.edit")} onAccessLost={onAccessChanged} />;
+    case "preparation-documents": return <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} onAccessLost={onAccessChanged} />;
     case "selected-packages": return <SelectedPackagesPanel projectId={projectId} />;
     case "copper": return <CopperPanel projectId={projectId} />;
     default: return null;
@@ -205,12 +205,12 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
   const library = (toolId: string) => {
     const view = libraryView(toolId);
     return view && <LibraryView view={view} toolLabel={toolLabel(toolId)} projectId={projectId} project={project} projects={scope.projects}
-      principalKey={principalKey} permissions={permissions} onOpenInProject={(target, record) => onOpenInProject(target, toolId, record)} />;
+      principalKey={principalKey} onOpenInProject={(target, record) => onOpenInProject(target, toolId, record)} />;
   };
   return <>
     <ToolPanel value="overview" library={library("overview")}>{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} role={role} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} onProjectChanged={onAccessChanged} onLeave={onLeave} />}</ToolPanel>
     <ToolPanel value="builds" library={library("builds")}>{visited.has("builds") && <WorkspaceLens {...lens} toolId="builds" />}</ToolPanel>
-    <ToolPanel value="sources" library={library("sources")}>{visited.has("sources") && <SourcesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="sources" library={library("sources")}>{visited.has("sources") && <SourcesPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="knowledge" library={library("knowledge")}>{visited.has("knowledge") && <WorkspaceLens {...lens} toolId="knowledge" />}</ToolPanel>
     <ToolPanel value="identity" library={library("identity")}>{visited.has("identity") && <IdentityPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="discovery" library={library("discovery")}>{visited.has("discovery") && <WorkspaceLens {...lens} toolId="discovery" />}</ToolPanel>
@@ -223,25 +223,25 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="preparation" library={library("preparation")}>{visited.has("preparation") && <PreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="end-preparation" library={library("end-preparation")}>{visited.has("end-preparation") && <EndPreparationPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="selected-packages" library={library("selected-packages")}>{visited.has("selected-packages") && <WorkspaceLens {...lens} toolId="selected-packages" />}</ToolPanel>
-    <ToolPanel value="occurrence-firmware" library={library("occurrence-firmware")}>{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="occurrence-firmware" library={library("occurrence-firmware")}>{visited.has("occurrence-firmware") && <FirmwareOccurrencesPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="firmware-impact" library={library("firmware-impact")}>{visited.has("firmware-impact") && <WorkspaceLens {...lens} toolId="firmware-impact" />}</ToolPanel>
     <ToolPanel value="configurations" library={library("configurations")}>{visited.has("configurations") && <ConfigurationsPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="mechanical-sources" library={library("mechanical-sources")}>{visited.has("mechanical-sources") && <MechanicalSourcesPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="mechanical-sources" library={library("mechanical-sources")}>{visited.has("mechanical-sources") && <MechanicalSourcesPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="shared-scene" library={library("shared-scene")}>{visited.has("shared-scene") && <WorkspaceLens {...lens} toolId="shared-scene" />}</ToolPanel>
     <ToolPanel value="context-selection" library={library("context-selection")}>{visited.has("context-selection") && <WorkspaceLens {...lens} toolId="context-selection" />}</ToolPanel>
-    <ToolPanel value="assemblies" library={library("assemblies")}>{visited.has("assemblies") && <AssemblyPanel projectId={projectId} permissions={permissions} onAccessLost={onAccessChanged} />}</ToolPanel>
+    <ToolPanel value="assemblies" library={library("assemblies")}>{visited.has("assemblies") && <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />}</ToolPanel>
     <ToolPanel value="facts" library={library("facts")}>{visited.has("facts") && <FactsPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="evidence-kinds" library={library("evidence-kinds")}>{visited.has("evidence-kinds") && <WorkspaceLens {...lens} toolId="evidence-kinds" />}</ToolPanel>
     <ToolPanel value="mechanical-proposals" library={library("mechanical-proposals")}>{visited.has("mechanical-proposals") && <WorkspaceLens {...lens} toolId="mechanical-proposals" />}</ToolPanel>
     <ToolPanel value="scene-drawings" library={library("scene-drawings")}>{visited.has("scene-drawings") && <WorkspaceLens {...lens} toolId="scene-drawings" />}</ToolPanel>
     <ToolPanel value="preparation-documents" library={library("preparation-documents")}>{visited.has("preparation-documents") && <WorkspaceLens {...lens} toolId="preparation-documents" />}</ToolPanel>
-    <ToolPanel value="interfaces" library={library("interfaces")}>{visited.has("interfaces") && <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} /></Stack>}</ToolPanel>
+    <ToolPanel value="interfaces" library={library("interfaces")}>{visited.has("interfaces") && <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>}</ToolPanel>
     <ToolPanel value="cables" library={library("cables")}>{visited.has("cables") && <CablePanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="cable-test-intent" library={library("cable-test-intent")}>{visited.has("cable-test-intent") && <CableTestIntentPanel projectId={projectId} />}</ToolPanel>
     <ToolPanel value="harnesses" library={library("harnesses")}>{visited.has("harnesses") && <HarnessPanel projectId={projectId} />}</ToolPanel>
-    <ToolPanel value="passive-passages" library={library("passive-passages")}>{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} canEdit={permissions.includes("design.edit")} canFreeze={permissions.includes("design.freeze")} />}</ToolPanel>
+    <ToolPanel value="passive-passages" library={library("passive-passages")}>{visited.has("passive-passages") && <PassivePassagesWorkspace projectId={projectId} />}</ToolPanel>
     <ToolPanel value="copper" library={library("copper")}>{visited.has("copper") && <WorkspaceLens {...lens} toolId="copper" />}</ToolPanel>
-    <ToolPanel value="pcb" library={library("pcb")}>{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} permissions={permissions} />}</ToolPanel>
+    <ToolPanel value="pcb" library={library("pcb")}>{visited.has("pcb") && <PcbPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="pcb-disagreement" library={library("pcb-disagreement")}>{visited.has("pcb-disagreement") && <PcbDisagreementPanel workspaceId={workspaceId} />}</ToolPanel>
     <ToolPanel value="inventory" library={library("inventory")}>{visited.has("inventory") && <InventoryPanel workspaceId={workspaceId} projectId={projectId} />}</ToolPanel>
     <ToolPanel value="bom" library={library("bom")}>{visited.has("bom") && <BomPanel projectId={projectId} />}</ToolPanel>

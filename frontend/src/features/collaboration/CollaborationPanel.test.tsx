@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StrictMode } from 'react';
@@ -35,7 +37,7 @@ function fixture() {
   }));
   return { calls, hold: () => { held = deferred<Response>(); return held; }, release: () => { held?.resolve(json({ result: { ...baseReview, state } })); held = null; }, deny: () => { deny = true; }, restore: () => { deny = false; }, failResponse: () => { failResponse = true; } };
 }
-function panel(principalKey = 'owner', active = true, canEdit = true, projectId = 'project', onAccessLost?: () => void) { return <MantineProvider><CollaborationPanel projectId={projectId} principalKey={principalKey} canEdit={canEdit} active={active} onAccessLost={onAccessLost} /></MantineProvider>; }
+function panel(principalKey = 'owner', active = true, canEdit = true, projectId = 'project', onAccessLost?: () => void) { return <MantineProvider><PermissionsProvider permissions={grants({ edit: canEdit })}><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active} onAccessLost={onAccessLost} /></PermissionsProvider></MantineProvider>; }
 async function selectReview() {
   const input = await screen.findByRole('combobox', { name: 'Retained team review' });
   fireEvent.focus(input); fireEvent.keyDown(input, { key: 'ArrowDown' });
@@ -116,7 +118,8 @@ test('project/principal reset rejects held results and clears prepared forms', a
 
 test('viewer can inspect and acknowledge personal inbox but cannot send engineering review responses', async () => {
   const f = fixture(); render(panel('viewer', true, false)); await selectReview();
-  expect((screen.getByRole('button', { name: 'Submit prepared team response' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Submit prepared team response' })).toBeNull();
+  expect(screen.getByRole('note').textContent).toContain('Read-only access: requires Edit');
   fireEvent.click(screen.getByRole('button', { name: 'Mark notification read' }));
   await waitFor(() => expect(f.calls.some(c => c.operation === 'collaboration.mark_read')).toBe(true));
   expect(f.calls.some(c => c.operation === 'collaboration.respond')).toBe(false);
@@ -155,7 +158,7 @@ test('reviews and inbox are workspace reads; a project is only ordering context'
   expect(scoped.length).toBeGreaterThan(0);
   expect(scoped.every(c => c.payload.project_id === 'project')).toBe(true);
   view.unmount();
-  const g = fixture(); render(<MantineProvider><CollaborationPanel principalKey="owner" canEdit active /></MantineProvider>);
+  const g = fixture(); render(<MantineProvider><PermissionsProvider permissions={grants({ edit: true })}><CollaborationPanel principalKey="owner" active /></PermissionsProvider></MantineProvider>);
   await screen.findByRole('combobox', { name: 'Retained team review' });
   const library = g.calls.filter(c => c.operation === 'collaboration.list' || c.operation === 'collaboration.inbox');
   expect(library.every(c => !('project_id' in c.payload))).toBe(true);

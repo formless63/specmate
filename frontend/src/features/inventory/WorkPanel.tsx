@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -32,12 +32,14 @@ export function WorkPanel({ workspaceId, projectId, batches, pending, submit }: 
     <Text size="sm">Pin intended work to an exact frozen revision. Material usage and reported completion counts remain separate. Actual subjects can be linked to this plan in Physical units; neither record establishes qualification.</Text>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
+    <InspectionScope permission="inventory.manage">
     <NativeSelect label="Work target definition" value={definition} onChange={(e) => { setDefinition(e.currentTarget.value); setRevision(""); setRevisionOffset(0); }} data={[{ value: "", label: "Choose definition" }, ...(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: d.name }))]} />
     <NativeSelect label="Work target exact revision" value={revision} onChange={(e) => setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))]} />
     {definition && <Group><Button disabled={revisionOffset === 0} onClick={() => { setRevision(""); setRevisionOffset(Math.max(0, revisionOffset - 50)); }}>Previous work revisions</Button><Button disabled={(identity.data?.revisions.length ?? 0) < 50} onClick={() => { setRevision(""); setRevisionOffset(revisionOffset + 50); }}>Next work revisions</Button></Group>}
     <NativeSelect label="Work kind" value={kind} onChange={(e) => setKind(e.currentTarget.value)} data={["job", "batch"]} />
     <TextInput label="Work label" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
     <TextInput label="Planned unit count (blank means unknown)" value={planned} onChange={(e) => setPlanned(e.currentTarget.value)} />
+    </InspectionScope>
     <Button loading={pending} disabled={!revision || !label.trim() || (!!planned && !positiveCount(planned))} onClick={() => submit("inventory.create_work_batch", { revision_id: revision, kind, label, planned_units: planned ? Number(planned) : null, ...(projectId ? { project_id: projectId } : {}) })} {...manageGate.props}>Register planned work</Button><ReadOnlyNote permission="inventory.manage">Registering work and recording usage are unavailable.</ReadOnlyNote>
     {batches.map((batch) => <Group key={batch.work_batch_id}><Text>{batch.label} · {batch.kind} · reported {batch.reported_completed_units} / {batch.planned_units ?? "Unknown planned count"} · {batch.progress}</Text><Button size="xs" onClick={() => setSelected(batch.work_batch_id)}>Inspect work {batch.label}</Button></Group>)}
     {selected && <WorkHistory key={selected} workId={selected} pending={pending} submit={submit} />}
@@ -57,10 +59,12 @@ function WorkHistory({ workId, pending, submit }: { workId: string; pending: boo
     {work.isError && <Alert color="red">{work.error.message}</Alert>}
     {batch && <>
       <Text><RevisionLabel id={batch.revision_id} role="Work target" />. Reported {batch.reported_completed_units}; planned {batch.planned_units ?? "Unknown"}.</Text>
+      <InspectionScope permission="inventory.manage">
       <TextInput label="Additional reported completed units" value={count} onChange={(e) => setCount(e.currentTarget.value)} />
       <TextInput label="Completion reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
       <TextInput label="Completion assertion source" value={source} onChange={(e) => setSource(e.currentTarget.value)} />
       <NativeSelect label="Completion assertion status" value={status} onChange={(e) => setStatus(e.currentTarget.value)} data={statuses} />
+      </InspectionScope>
       <Button loading={pending} disabled={!positiveCount(count) || !reason.trim() || !source.trim()} onClick={() => submit("inventory.record_work_completion", { work_batch_id: workId, units_completed: Number(count), reason, assertion_source: source, assertion_status: status }, batch.state)} {...manageGate.props}>Record partial completion</Button>
       <Title order={4}>Work assertions</Title>
       {work.data!.completions.map((c) => <Text key={c.completion_id}>{c.units_completed} reported units · {c.reason} · {c.assertion_status}: {c.assertion_source} · {new Date(c.created_at).toLocaleString()}</Text>)}
@@ -94,6 +98,7 @@ export function UsageForm({ detail, batches, pending, submit }: { detail: Detail
   return <Stack>
     <Title order={4}>Consume and return material</Title>
     <Text size="sm">Consumption reduces physical and reserved balances together. A return restores on-hand stock only, never a closed reservation. The selected work target does not imply BOM compatibility with this lot.</Text>
+    <InspectionScope permission="inventory.manage">
     <NativeSelect label="Material usage operation" value={action} onChange={(e) => setAction(e.currentTarget.value)} data={[{ value: "consume", label: "Consume reserved material" }, { value: "return_unused", label: "Return unused issued material" }]} />
     {action === "consume" ? <>
       <NativeSelect label="Reservation to consume" value={reservation} onChange={(e) => setReservation(e.currentTarget.value)} data={[{ value: "", label: "Choose active reservation" }, ...detail.reservations.filter((r) => r.status === "active").map((r) => ({ value: r.reservation_id, label: `${r.purpose} · remaining ${r.remaining_quantity ?? r.amount} ${detail.account.unit}` }))]} />
@@ -110,6 +115,7 @@ export function UsageForm({ detail, batches, pending, submit }: { detail: Detail
     <TextInput label="Material usage reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
     <TextInput label="Material assertion source" value={source} onChange={(e) => setSource(e.currentTarget.value)} />
     <NativeSelect label="Material assertion status" value={status} onChange={(e) => setStatus(e.currentTarget.value)} data={statuses} />
+    </InspectionScope>
     <Button loading={pending} disabled={!batch || work.isError || (action === "consume" && linkedUnits.isError) || !amount.trim() || !reason.trim() || !source.trim() || (action === "consume" ? !reservation : !consumption)} onClick={() => submit(`inventory.${action}`, { quantity: { amount, unit }, reason, assertion_source: source, assertion_status: status, expected_work_state: batch!.state, ...(action === "consume" ? { reservation_id: reservation, work_batch_id: target, physical_unit_id: physicalUnitId || null, remainder } : { consumption_id: origin }) }, detail.account.state)} {...manageGate.props}>Apply material usage</Button>
   </Stack>;
 }

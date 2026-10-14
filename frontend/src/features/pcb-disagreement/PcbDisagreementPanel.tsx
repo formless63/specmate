@@ -1,4 +1,4 @@
-import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { ReadOnlyNote, usePermission, InspectionScope } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -25,8 +25,8 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
   const denied = definitions.isError || identity.isError;
   return <Stack><Title order={2}>PCB source disagreement</Title><Text>Compare independent exact-source assertions without choosing a correct source. Manual statements, accepted native board extraction, unresolved coverage and human review remain distinct.</Text>
     <NativeExtraction workspaceId={workspaceId} />
-    <Card withBorder><Stack><Title order={3}>New assertion or comparison</Title><TextInput label="Source review definition name" value={name} onChange={e => setName(e.currentTarget.value)} /><Select label="New source review kind" value={value.kind} data={[{ value: 'pcb_assertion', label: 'Human source assertion' }, { value: 'pcb_comparison', label: 'Independent source comparison' }]} onChange={kind => { setValue(kind === 'pcb_assertion' ? blankAssertion() : blankComparison()); setCreateDenied(false); }} />
-      {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setCreateDenied} /> : <ComparisonEditor workspaceId={workspaceId} value={value} onChange={setValue} definitions={rows} sourcePinsCurrent={false} onDenied={setCreateDenied} />}
+    <Card withBorder><Stack><Title order={3}>New assertion or comparison</Title><InspectionScope permission="item.create"><TextInput label="Source review definition name" value={name} onChange={e => setName(e.currentTarget.value)} /><Select label="New source review kind" value={value.kind} data={[{ value: 'pcb_assertion', label: 'Human source assertion' }, { value: 'pcb_comparison', label: 'Independent source comparison' }]} onChange={kind => { setValue(kind === 'pcb_assertion' ? blankAssertion() : blankComparison()); setCreateDenied(false); }} />
+      {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setCreateDenied} /> : <ComparisonEditor workspaceId={workspaceId} value={value} onChange={setValue} definitions={rows} sourcePinsCurrent={false} onDenied={setCreateDenied} />}</InspectionScope>
       <Button disabled={!name || definitions.isError || createDenied} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create source review draft</Button><ReadOnlyNote permission="item.create">Creating source review drafts is unavailable.</ReadOnlyNote>{create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}{identity.isError && <Alert color="red">{identity.error.message}</Alert>}{draft.isError && <Alert color="red">{draft.error.message}</Alert>}
@@ -46,7 +46,7 @@ function DraftEditor({ draft, workspaceId, definitions, onDenied, onSaved }: { d
   const pinsCurrent = value.kind === 'pcb_comparison' && initial.kind === 'pcb_comparison' && JSON.stringify([value.left, value.right]) === JSON.stringify([initial.left, initial.right]);
   const findingsCurrent = pinsCurrent && value.kind === "pcb_comparison" && initial.kind === "pcb_comparison" && JSON.stringify(value.correspondences) === JSON.stringify(initial.correspondences);
   return <Card withBorder><Stack><Title order={3}>Edit source review draft</Title><Text>{draft.state}</Text>
-    {value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setDenied} /> : <ComparisonEditor workspaceId={workspaceId} value={value} onChange={setValue} definitions={definitions} projection={draft.projection} sourcePinsCurrent={pinsCurrent} onDenied={setDenied} />}
+    <InspectionScope permission="design.edit">{value.kind === 'pcb_assertion' ? <AssertionEditor value={value} onChange={setValue} onDenied={setDenied} /> : <ComparisonEditor workspaceId={workspaceId} value={value} onChange={setValue} definitions={definitions} projection={draft.projection} sourcePinsCurrent={pinsCurrent} onDenied={setDenied} />}</InspectionScope>
     {!denied && <>{value.kind === "pcb_comparison" && !findingsCurrent && <Text>Save input and correspondence changes before reviewing findings. Findings below describe the saved draft.</Text>}<ProjectionView projection={draft.projection} reviewValue={value.kind === 'pcb_comparison' && findingsCurrent ? value : undefined} onReviewChange={setValue} /></>}
     <Button disabled={denied} loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save source review draft</Button><ReadOnlyNote permission="design.edit">Saving source review drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}
   </Stack></Card>;

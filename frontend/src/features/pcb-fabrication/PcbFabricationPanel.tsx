@@ -3,8 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { command } from '../pcb/api';
 import { options, outputUrl, review, type Options, type Review } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
-export function PcbFabricationPanel({ intakeId, canExecute = false }: { intakeId: string; canExecute?: boolean }) {
+/** `blocked` withdraws execution while the caller's access to the intake is lost. */
+export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: string; blocked?: boolean }) {
+  const canExecute = useCan('build.execute') && !blocked;
   const [state, setState] = useState<{ intakeId: string; options?: Options; review?: Review; error?: string }>({ intakeId });
   const [busy, setBusy] = useState(false);
   const active = useRef<AbortController | null>(null);

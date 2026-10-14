@@ -1,3 +1,4 @@
+import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -54,8 +55,7 @@ afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
 test("explicit option omission saves a basis against the shared draft token", async () => {
   const onChanged = vi.fn();
-  render(<MantineProvider env="test"><PopulationEditor workspaceId="project" intake={intake} drafts={[draft]}
-    permissions={["design.edit"]} onChanged={onChanged} onAccessLost={vi.fn()} /></MantineProvider>);
+  render(<MantineProvider env="test"><PermissionsProvider permissions={["design.edit"]}><PopulationEditor workspaceId="project" intake={intake} drafts={[draft]} onChanged={onChanged} onAccessLost={vi.fn()} /></PermissionsProvider></MantineProvider>);
   fireEvent.click(screen.getByRole("combobox", { name: "R1 population decision" }));
   fireEvent.click(await screen.findByText("Omit"));
   fireEvent.change(screen.getByRole("textbox", { name: "R1 decision basis" }), { target: { value: "Do not fit R1 in this option." } });
@@ -71,8 +71,7 @@ test("explicit option omission saves a basis against the shared draft token", as
 test("denied target refresh clears target choices and informs project panel", async () => {
   vi.mocked(associationTargets).mockRejectedValue(new PcbRequestError(404, "Project not found."));
   const onAccessLost = vi.fn();
-  render(<MantineProvider env="test"><PopulationEditor workspaceId="project" intake={intake} drafts={[draft]}
-    permissions={["design.edit"]} onChanged={vi.fn()} onAccessLost={onAccessLost} /></MantineProvider>);
+  render(<MantineProvider env="test"><PermissionsProvider permissions={["design.edit"]}><PopulationEditor workspaceId="project" intake={intake} drafts={[draft]} onChanged={vi.fn()} onAccessLost={onAccessLost} /></PermissionsProvider></MantineProvider>);
   await waitFor(() => expect(onAccessLost).toHaveBeenCalledWith(expect.objectContaining({ status: 404 })));
   expect(screen.getByRole("alert").textContent).toContain("Project not found.");
 });

@@ -9,10 +9,11 @@ import {
 import { PopulationReviewPanel } from "./PopulationReview";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
 type Props = {
   workspaceId: string; intake: Intake; drafts: PopulationDraft[];
-  permissions?: string[]; onChanged: () => void; onAccessLost: (reason: unknown) => void;
+  onChanged: () => void; onAccessLost: (reason: unknown) => void;
 };
 
 const decisionLabels = [
@@ -29,7 +30,7 @@ function errorText(reason: unknown) {
   return reason instanceof Error ? reason.message : "PCB population request failed.";
 }
 
-export function PopulationEditor({ workspaceId, intake, drafts, permissions, onChanged, onAccessLost }: Props) {
+export function PopulationEditor({ workspaceId, intake, drafts, onChanged, onAccessLost }: Props) {
   const accessLost = useRef(onAccessLost);
   accessLost.current = onAccessLost;
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -41,8 +42,8 @@ export function PopulationEditor({ workspaceId, intake, drafts, permissions, onC
   const [targets, setTargets] = useState<AssociationTargets | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const canEdit = !permissions || permissions.includes("design.edit");
-  const canFreeze = !permissions || permissions.includes("design.freeze");
+  const canEdit = useCan("design.edit");
+  const canFreeze = useCan("design.freeze");
   const interpretation = intake.interpretations.find((item) => item.interpretation_id === newInterpretationId) ?? intake.interpretations.at(-1);
   const draft = drafts.find((item) => item.draft_id === draftId) ?? drafts[0];
   const population = draft?.content.pcb_population;

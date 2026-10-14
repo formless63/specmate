@@ -1,3 +1,5 @@
+import { grants } from "../../test/grants";
+import { PermissionsProvider } from "../../lib/permissions";
 import { StrictMode } from 'react';
 import { MantineProvider } from '@mantine/core';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -52,7 +54,7 @@ function setup(reads: Authority[], commands: Response[] = [], canWrite = true, c
   vi.stubGlobal('fetch', fetchMock);
   const onOpenRevision = vi.fn();
   const onAuthorityFailure = vi.fn();
-  const view = render(<MantineProvider><PropertyAuthorityPanel workspaceId="project-a" canWrite={canWrite} detail={currentDetail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
+  const view = render(<MantineProvider><PermissionsProvider permissions={grants({ register: canWrite })}><PropertyAuthorityPanel workspaceId="project-a" detail={currentDetail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></PermissionsProvider></MantineProvider>);
   return { bodies, fetchMock, onOpenRevision, onAuthorityFailure, view };
 }
 async function openAuthority() {
@@ -182,7 +184,7 @@ test('source replacement fences mutation success and preserves the new review ba
   fetchMock.mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
   fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'Old context' } });
   fireEvent.click(screen.getByRole('button', { name: 'Reconcile projection to interpretation interp-2' }));
-  view.rerender(<MantineProvider><PropertyAuthorityPanel workspaceId="project-a" canWrite detail={{ ...detail, revision_id: 'replacement' }} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider>);
+  view.rerender(<MantineProvider><PermissionsProvider permissions={grants({ register: true })}><PropertyAuthorityPanel workspaceId="project-a" detail={{ ...detail, revision_id: 'replacement' }} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></PermissionsProvider></MantineProvider>);
   fireEvent.change(screen.getByLabelText('Basis'), { target: { value: 'New context review' } });
   const before = fetchMock.mock.calls.length;
   await act(async () => finish(reply({ result: { authority_id: 'authority-1' } })));
@@ -206,7 +208,7 @@ test('same-source later history selection does not suppress an earlier relevant 
 test('StrictMode setup remains active for successful reads', async () => {
   const { view, onOpenRevision, onAuthorityFailure } = setup([authority()]);
   view.unmount();
-  render(<StrictMode><MantineProvider><PropertyAuthorityPanel workspaceId="project-a" canWrite detail={detail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></MantineProvider></StrictMode>);
+  render(<StrictMode><MantineProvider><PermissionsProvider permissions={grants({ register: true })}><PropertyAuthorityPanel workspaceId="project-a" detail={detail} onOpenRevision={onOpenRevision} onAuthorityFailure={onAuthorityFailure} /></PermissionsProvider></MantineProvider></StrictMode>);
   await openAuthority();
   expect(screen.getByText('Board outline authority')).toBeTruthy();
 });

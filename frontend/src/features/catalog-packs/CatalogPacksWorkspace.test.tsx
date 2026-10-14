@@ -136,8 +136,8 @@ test("contributors import pack versions but cannot install or adopt", async () =
   render(<MantineProvider><PermissionsProvider permissions={["workspace.read", "item.create"]}><CatalogPacksWorkspace /></PermissionsProvider></MantineProvider>);
   fireEvent.click(await screen.findByRole("button", { name: "Inspect pack" }));
   await screen.findByText(/Canonical manifest SHA-256/);
-  fireEvent.change(screen.getByLabelText("Pack decision basis"), { target: { value: "Basis" } });
-  expect((screen.getByRole("button", { name: "Install selected version" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByLabelText("Pack decision basis")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Install selected version" })).toBeNull();
   expect(screen.getByText(/Installation and adoption need editor access/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Register exact version" })).toBeTruthy();
   expect(vi.mocked(fetch).mock.calls.every(([path]) => !String(path).includes("project_id"))).toBe(true);

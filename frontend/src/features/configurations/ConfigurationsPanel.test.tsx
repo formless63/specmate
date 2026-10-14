@@ -89,8 +89,8 @@ test('shows explicit decisions, saves selections under CAS and captures a review
 test('read-only principals review resolutions without mutating controls', async () => {
   const bodies = setup(['workspace.read']);
   await openDraft();
-  expect((screen.getByLabelText('Selection for Enclosure finish') as HTMLSelectElement).disabled).toBe(true);
-  expect((screen.getByRole('button', { name: 'Capture resolved snapshot' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByLabelText('Selection for Enclosure finish')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Capture resolved snapshot' })).toBeNull();
   expect((screen.getByRole('button', { name: 'Create configuration' }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getAllByText('Read-only access: requires Edit').length).toBeGreaterThan(0);
   expect(bodies.every((body) => body.operation === 'configuration.resolve')).toBe(true);

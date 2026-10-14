@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
 /**
@@ -88,4 +88,47 @@ export function ReadOnlyNote({ permission, children }: { permission: PermissionN
   const gate = usePermission(permission);
   if (gate.allowed) return null;
   return <p role="note" className="sb-readonly-note" data-readonly-note={permission} style={{ margin: 0, fontSize: "0.875rem", opacity: 0.85 }}>{gate.reason}{children ? `. ${children}` : ""}</p>;
+}
+
+const TEXT_LIKE = (input: HTMLInputElement) => !["checkbox", "radio", "button", "submit", "reset", "file", "range", "color", "hidden"].includes(input.type);
+
+/** Marks every field below `root` read-only in place: text stays visible, selectable and copyable. */
+function lockFields(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>("input, textarea, select").forEach((field) => {
+    if (field.hasAttribute("data-inspect-locked")) return;
+    field.setAttribute("data-inspect-locked", "");
+    field.setAttribute("aria-readonly", "true");
+    if (field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && TEXT_LIKE(field))) field.readOnly = true;
+    // Choice controls have no readonly state; take them out of pointer and tab order instead of greying them.
+    if (field instanceof HTMLSelectElement || (field instanceof HTMLInputElement && !TEXT_LIKE(field)) || field.getAttribute("aria-haspopup")) field.tabIndex = -1;
+  });
+}
+
+function unlockFields(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>("[data-inspect-locked]").forEach((field) => {
+    field.removeAttribute("data-inspect-locked");
+    field.removeAttribute("aria-readonly");
+    if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) field.readOnly = false;
+    field.removeAttribute("tabindex");
+  });
+}
+
+/**
+ * Renders an authoring form as an inspection view when the permission is missing: every field below it
+ * is read-only (values stay as text with a dotted rule) instead of a wall of disabled inputs. With the
+ * permission it is transparent. Wrap only the authoring fields, never the filters or selectors a
+ * read-only member still uses to look things up. The server stays the authority.
+ */
+export function InspectionScope({ permission, children }: { permission: PermissionName; children?: ReactNode }) {
+  const allowed = usePermission(permission).allowed;
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = ref.current;
+    if (!root || allowed) return;
+    lockFields(root);
+    const watch = new MutationObserver(() => lockFields(root));
+    watch.observe(root, { childList: true, subtree: true });
+    return () => { watch.disconnect(); unlockFields(root); };
+  }, [allowed]);
+  return <div ref={ref} style={{ display: "contents" }} {...(allowed ? {} : { "data-inspect": permission })}>{children}</div>;
 }

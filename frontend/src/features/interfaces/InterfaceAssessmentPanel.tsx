@@ -7,6 +7,7 @@ import { randomUUID } from "../../lib/random-id";
 import type { Definition, Identity } from "../identity/api";
 import { command, initialAssessment, operating, read, unknownEvidence, type Assessment, type AssessmentDraft, type Bond, type Dimension, type Inspection, type Result, type Status } from "./assessment-api";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useCan } from "../../lib/permissions";
 
 const dimensions: { id: Dimension; label: string }[] = [
   { id: "mating", label: "Mating" }, { id: "pin_correspondence", label: "Pin correspondence" },
@@ -22,10 +23,12 @@ const canonical = (value: Assessment): string => JSON.stringify(value, (_key, it
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
 
 /** Mount in the interfaces workspace with the current principal and permissions. */
-export function InterfaceAssessmentPanel({ projectId, principalKey, canEdit, canFreeze, active = true }: { projectId: string; principalKey: string; canEdit: boolean; canFreeze: boolean; active?: boolean }) {
-  return <Workspace key={`${projectId}:${principalKey}:${canEdit}:${canFreeze}`} canEdit={canEdit} canFreeze={canFreeze} isActive={active} />;
+export function InterfaceAssessmentPanel({ projectId, principalKey, active = true }: { projectId: string; principalKey: string; active?: boolean }) {
+  return <Workspace key={`${projectId}:${principalKey}`} isActive={active} />;
 }
-function Workspace({ canEdit, canFreeze, isActive }: { canEdit: boolean; canFreeze: boolean; isActive: boolean }) {
+function Workspace({ isActive }: { isActive: boolean }) {
+  const canEdit = useCan("design.edit");
+  const canFreeze = useCan("design.freeze");
   const [scope] = useState(randomUUID);
   const cache = useQueryClient();
   const active = useRef(true);
