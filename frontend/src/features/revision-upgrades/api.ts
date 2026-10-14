@@ -27,6 +27,20 @@ export type Propagation = { status: "not_applicable" } | {
 };
 export type Impact = { status: "not_evaluated" | "unknown" | "reviewed"; basis?: string | null };
 export type Impacts = Record<"electrical" | "mechanical" | "firmware" | "manufacturing" | "evidence", Impact>;
+export type ImpactStatus = "changed" | "unknown" | "no_difference_found" | "none_found" | "not_evaluated";
+export type DisciplineImpact = { status: ImpactStatus; reason: string; sections: string[] };
+export type ImpactSection = { section: string; status: "changed" | "uncomparable"; reviews: string[]; summary: string; details: object[] };
+export type StaleEvidence = { evidence_id: string; kind_label: string; statement: string; subject: string; recorded_at: string; applicability: string; reason: string; evidence_revision_number: number | null; changed_sections: string[] };
+export type EvidenceGroup = { items: StaleEvidence[]; total: number; truncated: boolean; scan_limit_reached: boolean; reason: string };
+/** Derived on read from frozen content and recorded evidence; never adopts anything. */
+export type ComputedImpact = {
+  kind: string; adapter: { name: string | null; status: "computed" | "failed" | "not_available"; reason: string | null };
+  content: { comparable: boolean; from_number: number; to_number: number; content_changed: boolean; changed_sections: string[]; sections_truncated: boolean };
+  sections: ImpactSection[];
+  disciplines: Record<"electrical" | "mechanical" | "firmware" | "manufacturing" | "evidence", DisciplineImpact>;
+  evidence: { becomes_stale: EvidenceGroup; consumer_stale: EvidenceGroup | null; definition_scope_unverified: EvidenceGroup; candidate_recorded: EvidenceGroup };
+  derived_on_read: true; adopted: false; compatibility: string;
+};
 export type Pin = { revision_id: string; definition_id: string; name: string; number: number; sha256: string };
 export type Proposal = {
   proposal_id: string; owning_snapshot_id: string; owning_definition_id: string; owning_sha256: string;
@@ -37,9 +51,10 @@ export type Proposal = {
   assignment_decisions_required?: string[][]; assignment_decisions_allowed?: string[][];
   removed_paths?: string[][]; parent_propagation?: Propagation;
   decision: "unreviewed" | "accepted" | "rejected" | "needs_evidence";
-  impacts: Impacts; compatibility: string; validity: string; qualification: string;
+  impacts: Impacts; computed_impact?: ComputedImpact; compatibility: string; validity: string; qualification: string;
   affected_features: { path: string[]; feature_id: string }[];
   occurrences: { path: string[]; old_revision_id: string | null; candidate_revision_id: string | null; selected: boolean;
+    old_pin?: Pin | null; candidate_pin?: Pin | null;
     old_placement: object | null; candidate_placement: object | null; old_assignments: { firmware_revision_id: string | null } | null;
     candidate_assignments: { firmware_revision_id: string | null } | null }[];
   relationships: object[]; old_relationships: Record<string, unknown>[]; candidate_relationships: Record<string, unknown>[]; contextual_assignments: object[]; limitations: string[];

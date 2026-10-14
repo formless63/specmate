@@ -20,6 +20,7 @@ from specmate.interfaces.queries import read_revision
 from specmate.operations import NotFound, Unsupported, ValidationFailed
 from specmate.queries import get_revision
 from specmate.revision_upgrades.contracts import Impacts
+from specmate.revision_upgrades.impact import computed_impact
 from specmate.revision_upgrades.models import UpgradeProposal
 
 
@@ -419,6 +420,12 @@ def plan_for(user, proposal, target, old, candidate):
     return selected_content(user, target, old, candidate, proposal.paths, proposal.relation)
 
 
+def pin(closure, path):
+    """Display identity of an occurrence pin; the exact revision ID stays alongside it."""
+    node = closure.nodes.get(path)
+    return revision_identity(node.revision).model_dump(mode="json") if node else None
+
+
 def result(user, proposal_id):
     proposal, snapshot, closure, target, old, candidate, reviews = rows(user, proposal_id)
     plan = plan_for(user, proposal, target, old, candidate)
@@ -455,6 +462,9 @@ def result(user, proposal_id):
         "state": state(reviews),
         "decision": latest.decision if latest else "unreviewed",
         "impacts": latest.impacts if latest else Impacts().model_dump(mode="json"),
+        "computed_impact": computed_impact(
+            user, old, candidate, target.revision, proposal.relation
+        ),
         "compatibility": "not_evaluated",
         "validity": "not_evaluated",
         "qualification": "not_evaluated",
@@ -476,6 +486,8 @@ def result(user, proposal_id):
                 "candidate_revision_id": str(replacement.nodes[path].revision.id)
                 if path in replacement.nodes
                 else None,
+                "old_pin": pin(current, path),
+                "candidate_pin": pin(replacement, path),
                 "selected": path in plan.selected,
                 "old_placement": current.nodes[path].occurrence.placement.model_dump(mode="json")
                 if path in current.nodes
