@@ -10,7 +10,7 @@ from specmate.catalog.models import Representation
 from specmate.design.models import Definition, Draft, Revision
 from specmate.design.operations import authorize_design_content, authorize_snapshot
 from specmate.operations import Context, NotFound
-from specmate.pcb.models import PcbIntake, PcbInterpretation
+from specmate.pcb.models import PcbFormatUpgrade, PcbIntake, PcbInterpretation
 from specmate.pcb.operations import IntakeRef, get_intake, intake_for
 from specmate.pcb.population import closure, review_payload
 from specmate.queries import get_draft, get_revision
@@ -22,11 +22,17 @@ router = Router(tags=["pcb"])
 @router.get("/workspaces/{workspace_id}/intakes")
 def list_intakes(request, workspace_id: UUID):
     workspace = authorize(request.user, workspace_id, Perm.WORKSPACE_READ)
+    upgraded = dict(
+        PcbFormatUpgrade.objects.filter(revision__bundle__workspace=workspace).values_list(
+            "revision_id", "from_kicad_major"
+        )
+    )
     return [
         {
             "intake_id": str(i.id),
             "board_path": i.board_path,
             "source_revision_id": str(i.source_revision_id),
+            "upgraded_from_kicad": upgraded.get(i.source_revision_id),
         }
         for i in PcbIntake.objects.filter(source_revision__bundle__workspace=workspace).order_by(
             "created_at"

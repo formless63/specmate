@@ -6,19 +6,26 @@ program to the runner; uploaded scripts are not used as the adapter implementati
 
 from textwrap import indent
 
-PROGRAM = r"""
+from specmate.pcb.formats import CLASSIFIER
+
+PROGRAM = (
+    r"""
 import hashlib,json,os,re,sys
 from pathlib import Path
 os.environ.update(XDG_CONFIG_HOME="/tmp/kicad-config", XDG_CACHE_HOME="/tmp/kicad-cache")
 import pcbnew
+"""
+    + CLASSIFIER
+    + r"""
 if pcbnew.GetBuildVersion() != "10.0.6":
     raise ValueError("Required pcbnew version is 10.0.6")
 source,output=map(Path,sys.argv[1:])
 original=hashlib.sha256(source.read_bytes()).hexdigest()
-head=source.read_bytes()[:4096].decode("utf-8")
-version=re.search(r"\(version\s+(\d+)\)",head)
-if not version or int(version[1]) != 20260206:
-    raise ValueError("Only KiCad board format 20260206 is supported by this adapter")
+head=source.read_bytes()[:4096].decode("utf-8","replace")
+version=re.match(r"\s*\(kicad_pcb\s+\(version\s+(\d+)\)",head)
+version=int(version[1]) if version else None
+if version != 20260206:
+    raise ValueError(format_message("board",version))
 board=pcbnew.LoadBoard(str(source))
 if board is None:
     raise ValueError("KiCad returned no board")
@@ -101,7 +108,8 @@ report=dict(format_version=1,adapter="kicad-intake-v1",tool_version="10.0.6",
 if hashlib.sha256(source.read_bytes()).hexdigest()!=original:
     raise ValueError("Native source changed during extraction")
 output.write_text(json.dumps(report,sort_keys=True,allow_nan=False)+"\n")
-""".strip()
+"""
+).strip()
 
 SCRIPT = (
     "try:\n"

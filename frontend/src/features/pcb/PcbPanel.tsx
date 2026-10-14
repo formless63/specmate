@@ -2,6 +2,7 @@ import { Alert, Anchor, Badge, Button, FileInput, Group, Select, Stack, Table, T
 import { useEffect, useRef, useState } from "react";
 import { command, getIntake, listIntakes, listPopulations, PcbRequestError, preserveFiles, type Intake, type IntakeSummary, type NativeReport, type PopulationDraft } from "./api";
 import { PopulationEditor } from "./PopulationEditor";
+import { UpgradeOffer, UpgradeProvenance } from "./FormatUpgrade";
 import { PcbFabricationPanel } from "../pcb-fabrication/PcbFabricationPanel";
 import { FirmwarePanel } from "../firmware/FirmwarePanel";
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -74,11 +75,12 @@ function ProjectPanel({ workspaceId }: PcbPanelProps) {
     if (!selected) return;
     const refresh = () => { void load(selected); };
     window.addEventListener("focus", refresh);
-    const pending = intake?.attempts.some((a) => !["succeeded", "failed", "cancelled"].includes(a.state));
+    const states = [...(intake?.attempts ?? []), ...(intake?.upgrade?.attempts ?? [])].map((a) => a.state);
+    const pending = states.some((state) => !["succeeded", "failed", "cancelled"].includes(state));
     const timer = pending ? window.setInterval(refresh, 3000) : undefined;
     return () => { window.removeEventListener("focus", refresh); if (timer) window.clearInterval(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, intake?.attempts.map((a) => a.state).join(",")]);
+  }, [selected, [...(intake?.attempts ?? []), ...(intake?.upgrade?.attempts ?? [])].map((a) => a.state).join(",")]);
 
   async function work(action: () => Promise<void>) {
     setBusy(true); setError("");
@@ -108,6 +110,21 @@ function ProjectPanel({ workspaceId }: PcbPanelProps) {
       await load(id);
     });
   }
+  async function requestUpgrade() {
+    const recipe = intake?.upgrade?.available_recipe_id;
+    if (!intake || !recipe) return;
+    const id = intake.intake_id;
+    await work(async () => {
+      await command("pcb.request_upgrade", { intake_id: id, recipe_id: recipe }, lifetime.current.signal);
+      await load(id);
+    });
+  }
+  async function acceptUpgrade(attemptId: string) {
+    await work(async () => {
+      const result = await command<{ intake_id: string }>("pcb.accept_upgrade", { upgrade_attempt_id: attemptId }, lifetime.current.signal);
+      await refreshList(); setSelected(result.intake_id);
+    });
+  }
   const boardOptions = files.filter((f) => f.name.toLowerCase().endsWith(".kicad_pcb")).map((f) => f.webkitRelativePath || f.name);
   const report = intake?.interpretations.at(-1)?.report;
   return <Stack>
@@ -121,17 +138,18 @@ function ProjectPanel({ workspaceId }: PcbPanelProps) {
       <Select label="Board to interpret" description="Optional. Other inputs are preserved with unsupported semantic coverage." clearable data={boardOptions} value={boardPath} onChange={setBoardPath} />
       <Button onClick={() => void importSources()} loading={busy} disabled={!files.length || !name.trim() || !rights.trim()}>Preserve sources</Button>
     </Stack>}
-    <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={items.map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}` }))} />
+    <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={items.map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}${i.upgraded_from_kicad ? ` · upgraded from KiCad ${i.upgraded_from_kicad}` : ""}` }))} />
     <Button variant="subtle" onClick={() => { void refreshList(); if (selected) void load(selected); }}>Refresh intake</Button>
     {intake && <Stack>
       <Text size="sm"><RevisionLabel kind="source" id={intake.source_revision_id} role="source" /></Text>
+      {intake.format_upgrade && <UpgradeProvenance upgrade={intake.format_upgrade} />}
       <Table><Table.Thead><Table.Tr><Table.Th>Original file</Table.Th><Table.Th>Coverage</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{intake.files.map((file) => <Table.Tr key={file.path}>
           <Table.Td><Anchor href={`/api/v0/pcb/intakes/${intake.intake_id}/original?path=${encodeURIComponent(file.path)}`}>{file.path}</Anchor><Text size="xs">SHA-256: {file.sha256}</Text></Table.Td>
           <Table.Td>{file.coverage}</Table.Td><Table.Td>{file.rights}</Table.Td>
         </Table.Tr>)}</Table.Tbody>
       </Table>
-      <Text size="sm">KiCad 10.0.6 board format 20260206 on amd64. Schematic, netlist, fabrication and BOM semantics are currently preserved without parsing.</Text>
+      <Text size="sm">KiCad 10.0.6 board format 20260206 on amd64; older KiCad boards are read through a recorded format upgrade. Schematic, netlist, fabrication and BOM semantics are currently preserved without parsing.</Text>
       {intake.board_path && canExecute && <Stack gap="xs">
         {!intake.available_recipe_id && <Text>Native extraction is unavailable on this installation. Your source files are preserved.</Text>}
         <Button onClick={() => void extract()} loading={busy} disabled={!intake.available_recipe_id}>Request native extraction</Button>
@@ -140,6 +158,7 @@ function ProjectPanel({ workspaceId }: PcbPanelProps) {
         {attempt.diagnostic && <Text c="red">{attempt.diagnostic}</Text>}
         {attempt.state === "succeeded" && canImport && !intake.interpretations.some((i) => i.attempt_id === attempt.attempt_id) && <Button size="xs" onClick={() => void accept(attempt.attempt_id)} disabled={busy}>Validate interpretation</Button>}
       </Group>)}
+      {intake.upgrade && <UpgradeOffer upgrade={intake.upgrade} busy={busy} onRequest={() => void requestUpgrade()} onAccept={(id) => void acceptUpgrade(id)} onOpen={(id) => { void refreshList(); setSelected(id); }} />}
       {report && <ReportView report={report} />}
       {report && <PcbFabricationPanel key={intake.intake_id} intakeId={intake.intake_id} blocked={accessLost} />}
       {!!intake.interpretations.length && <PopulationEditor

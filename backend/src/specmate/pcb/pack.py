@@ -33,3 +33,55 @@ def recipe_for(board_path: str, rights: str) -> dict:
         },
         "outputs": [{"path": REPORT_PATH, "media_type": "application/json", "rights": rights}],
     }
+
+
+UPGRADE_ADAPTER = "kicad-format-upgrade-v1"
+UPGRADE_REPORT_PATH = "kicad-upgrade.json"
+UPGRADED_PREFIX = "upgraded/"
+MAX_UPGRADE_SCHEMATICS = 90
+MAX_UPGRADE_OUTPUT_BYTES = 64 * 1024**2
+
+
+def upgrade_inputs(files) -> list[str]:
+    """Schematics the upgrade stage converts alongside the board, in a stable order."""
+    return sorted(path for path in files if path.lower().endswith(".kicad_sch"))
+
+
+def upgrade_recipe_for(board_path: str, rights: str, schematic_paths: list[str]) -> dict:
+    from specmate.pcb.upgrade_script import SCRIPT as UPGRADE_SCRIPT
+
+    schematics = sorted(schematic_paths)
+    identity = hashlib.sha256("\0".join([board_path, rights, *schematics]).encode()).hexdigest()
+    return {
+        "id": f"kicad-upgrade-v1-{identity[:16]}",
+        "image": IMAGE,
+        "argv": [
+            "/usr/bin/python3",
+            "-c",
+            UPGRADE_SCRIPT,
+            "/outputs",
+            f"/inputs/{board_path}",
+            *(f"/inputs/{path}" for path in schematics),
+        ],
+        "input_mount": "/inputs",
+        "output_mount": "/outputs",
+        "network": "none",
+        "limits": {
+            "cpus": 2,
+            "memory_bytes": 2 * 1024**3,
+            "timeout_seconds": 300,
+            "pids": 256,
+            "max_output_bytes": MAX_UPGRADE_OUTPUT_BYTES,
+        },
+        "outputs": [
+            {"path": UPGRADE_REPORT_PATH, "media_type": "application/json", "rights": rights},
+            *(
+                {
+                    "path": UPGRADED_PREFIX + path,
+                    "media_type": "application/octet-stream",
+                    "rights": rights,
+                }
+                for path in [board_path, *schematics]
+            ),
+        ],
+    }

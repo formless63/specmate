@@ -1,6 +1,6 @@
 import { sha256Hex } from "../../lib/sha256";
 import { randomUUID } from "../../lib/random-id";
-export type IntakeSummary = { intake_id: string; board_path: string; source_revision_id: string };
+export type IntakeSummary = { intake_id: string; board_path: string; source_revision_id: string; upgraded_from_kicad?: number | null };
 type Point = [number, number];
 export type NativeReport = {
   source_sha256: string;
@@ -17,6 +17,26 @@ export type NativeReport = {
   unsupported: string[];
   physical_qualification: false;
 };
+export type UpgradedFile = {
+  path: string; kind: "board" | "schematic"; output_path: string;
+  source_sha256: string; output_sha256: string;
+  from_format_version: number; from_kicad_major: number; to_format_version: number; argv: string[];
+};
+export type FormatUpgradeProvenance = {
+  upgrade_id: string; label: string;
+  from_kicad_major: number; from_format_version: number; to_format_version: number;
+  tool_version: string; image: string; recipe_id: string; build_id: string; upgrade_attempt_id: string;
+  original_intake_id: string; original_source_revision_id: string; original_manifest_sha256: string;
+  report_sha256: string; files: UpgradedFile[]; unsupported: string[]; accepted_at: string;
+};
+export type UpgradeSection = {
+  available_recipe_id: string | null;
+  upgradable_kicad_majors: number[];
+  attempts: {
+    upgrade_attempt_id: string; build_id: string; state: string; diagnostic?: string | null;
+    derived_intake_id: string | null; derived_source_revision_id: string | null;
+  }[];
+};
 export type Intake = IntakeSummary & {
   workspace_id: string;
   source_manifest_sha256: string;
@@ -24,6 +44,10 @@ export type Intake = IntakeSummary & {
   files: { path: string; sha256: string; size: number; rights: string; coverage: string; unsupported: string | string[] | null }[];
   attempts: { attempt_id: string; build_id: string; state: string; diagnostic?: string | null }[];
   interpretations: { interpretation_id: string; attempt_id: string; output_id: string; sha256: string; report: NativeReport }[];
+  /** Present on an intake opened on a recorded upgrade derivative. */
+  format_upgrade?: FormatUpgradeProvenance | null;
+  /** Offer and history of the recorded upgrade on an original board intake. */
+  upgrade?: UpgradeSection | null;
 };
 
 export type PopulationDecision = { component_id: string; status: "populate" | "omit" | null; basis: string | null };
