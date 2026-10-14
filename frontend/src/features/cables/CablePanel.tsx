@@ -3,6 +3,7 @@ import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Titl
 import { useMutation, useQueries, useQuery, useQueryClient, type Query, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
+import { CableViews } from '../cable-views/CableViews';
 import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
 import { authorityDenied, command, read, initialCable, type Cable, type Definition, type Draft, type Identity, type Inspection } from './api';
@@ -173,10 +174,17 @@ function TerminationEditor({ value, index, choices, onChange, denied, body, pino
 }
 export function CableInspector({ revisionId, revisions = [] }: { revisionId: string; revisions?: { revision_id: string; number: number }[] }) {
   const result = useQuery({ queryKey: ['cable-inspection', revisionId], queryFn: () => read<Inspection>(`cables/revisions/${revisionId}`) });
+  const stockId = result.data?.cable.stock_revision_id;
+  const stock = useQuery({ queryKey: ['cable-stock', stockId], queryFn: () => loadFrozenStock(stockId!), enabled: !!stockId && !result.isError });
+  // The cable record does not say which stock end each endpoint is, so every endpoint's contact is listed.
+  const terminationLabels = Object.fromEntries((result.data?.conductors ?? []).map(row => [row.element_path,
+    row.ends.map(end => `${result.data!.cable.endpoints.find(e => e.local_id === end.endpoint_id)?.label ?? end.endpoint_id}: ${end.assignment?.contact_id ?? 'unassigned'}`).join('; ')]));
   return <Card withBorder><Stack><Title order={3}>Frozen cable inspection</Title><Text>Exact revision {revisionId}</Text>
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {result.data && !result.isError && <><Text>Stock revision: {result.data.cable.stock_revision_id}</Text><Text>Review: {result.data.cable.review}; basis: {result.data.cable.review_basis ?? 'unknown'}</Text>
       <Text>Continuity: {result.data.continuity}. Compatibility: {result.data.compatibility}. Physical qualification: {result.data.physical_qualification}.</Text>
+      {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
+      {stock.data && !stock.isError && <CableViews stock={stock.data} name={`Cable stock ${stockId}`} revisionId={stockId} terminationLabels={terminationLabels} />}
       {result.data.lengths && <LengthInspection projection={result.data.lengths} />}
       <LengthImpactView key={`impact:${revisionId}`} afterRevision={revisionId} revisions={revisions} />
       <Table><Table.Thead><Table.Tr><Table.Th>Stable stock feature</Table.Th>{result.data.cable.endpoints.map(e => <Table.Th key={e.local_id}>{e.label ?? e.local_id} ({e.local_id})</Table.Th>)}</Table.Tr></Table.Thead><Table.Tbody>

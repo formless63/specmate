@@ -4,6 +4,7 @@
 // Kept parallel transport, wall winding, ring/disk caps; model/material boundary changed.
 import * as THREE from 'three';
 import type { TubePiece, WireModel } from './model';
+import { createMaterials } from './materials';
 
 export function sweepPiece(piece: TubePiece): THREE.BufferGeometry {
   if (piece.points.length < 2 || piece.points.some(p => p.some(v => !Number.isFinite(v))) ||
@@ -121,24 +122,30 @@ export function sweepPiece(piece: TubePiece): THREE.BufferGeometry {
 }
 
 /** Allocate only the displayed meshes, retaining element identity for inspection. */
-export function buildWireObject(model: WireModel): { group: THREE.Group; dispose: () => void } {
+export function buildWireObject(model: WireModel, options: { environment?: boolean } = {}): { group: THREE.Group; dispose: () => void } {
   const group = new THREE.Group();
   const geometries: THREE.BufferGeometry[] = [];
-  const materials: THREE.Material[] = [];
+  const palette = createMaterials({ environment: options.environment === true });
   for (const piece of model.pieces) {
     const geometry = piece.shape === 'tube' ? sweepPiece(piece) : new THREE.BoxGeometry(...piece.size);
-    const fallback = piece.kind === 'conductor' || piece.kind === 'pigtail' || piece.kind === 'drain' ? '#b58152' : piece.kind === 'shield' ? '#949da6' : '#d6d8da';
-    const material = new THREE.MeshStandardMaterial({ color: piece.color && /^#[0-9a-f]{6}$/i.test(piece.color) ? piece.color : fallback, roughness: 0.6 });
+    const material = palette.materialFor(piece);
+    // One shared tile per texture kind; density follows the piece radius through its UVs.
+    if ((material as THREE.MeshPhysicalMaterial).map) {
+      const k = piece.shape === 'tube' ? Math.min(16, Math.max(3, Math.round(piece.rOuter * 6))) : 4;
+      const uv = geometry.getAttribute('uv') as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i += 1) uv.setXY(i, uv.getX(i) * k, uv.getY(i) * k);
+      uv.needsUpdate = true;
+    }
     const mesh = new THREE.Mesh(geometry, material);
     if (piece.shape === 'web') mesh.position.set(...piece.center);
     mesh.name = piece.id;
     mesh.userData.elementPath = piece.elementPath;
-    group.add(mesh); geometries.push(geometry); materials.push(material);
+    group.add(mesh); geometries.push(geometry);
   }
   let disposed = false;
   return { group, dispose: () => {
     if (disposed) return;
     disposed = true;
-    geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); group.clear();
+    geometries.forEach(g => g.dispose()); palette.dispose(); group.clear();
   } };
 }

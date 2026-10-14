@@ -58,6 +58,34 @@ contracts. The coax's four layers and 3 mm overall diameter remain independently
 anchored to `tests/fixtures/stock-section.json`. Geometry reuse retains TypeScript
 and attribution; no upstream catalog, private design or font is bundled.
 
+## Cable views: appearance, end faces, 3D and information
+
+`packages/section-layout/src/appearance.ts` is the one colour and material model for
+every cable view. A recorded `#rgb`/`#rrggbb` colour is drawn as recorded; a few
+conventional names and a `base/stripe` tracer form are accepted and labelled as
+conventional. Free-text materials are classified (copper and plated coppers, aluminium
+and foil, PVC, polyethylene and foam, fluoropolymers, silicone, polyurethane, elastomers,
+film, paper, textile) into a finish (metallic, foil, gloss, satin, matt, foam, fibre) and a
+surface texture (strands, braid, spiral, tape, foil, foam, fibre). Bare metals with no
+recorded colour use the typical colour of that metal and say so. An unrecorded polymer
+colour, or an unrecorded or unrecognized material, is drawn neutral with a hatch and is
+listed as unknown; nothing is guessed. Selection on an engineering view is a reticle, never a fill.
+
+`end-face.ts` shows one cut end looking into it. The section is drawn as seen from its
+recorded `viewed_from` end; the other end is that drawing mirrored about the vertical axis,
+so each ring reads the opposite way round. Rotation is a viewing input. Every conducting
+element has a terminal marker. A stock whose viewed-from end is unknown has no end face.
+Which stock end each cable endpoint is attached to is not part of the cable record, so
+the cable inspector lists every endpoint's contact for each element instead of assigning ends.
+
+The wire viewer builds physically based materials from the same model with generated
+(code-only) surface textures, uses an image-based light when WebGL allows it, writes a
+plain-text description of what it draws, recovers from a restored WebGL context and
+renders only on events. The information view is a datasheet-style table of layers in their
+drawn colours with recorded facts. Views are mounted in the stock panel, the frozen stock
+viewer and the frozen cable inspection; none of them evaluates continuity, fit, bonding
+or physical qualification.
+
 ## Layered preparation preview
 
 The stock panel can open a lazy interactive 3D view using `packages/wire-geometry`.

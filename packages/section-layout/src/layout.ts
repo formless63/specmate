@@ -5,11 +5,12 @@
  * dimensions replace implicit jacket bores; no preparation defaults or catalog.
  */
 import { figure8Path } from './figure8';
-import type { Section, SectionFeature, StockElement, StockGeometry, StockSpecification } from './model';
+import type { Section, SectionFeature, SectionGroup, StockElement, StockGeometry, StockSpecification } from './model';
 
 export function sectionLayout(stock: StockSpecification): Section {
   const rows: Section['rows'] = [];
   const features: SectionFeature[] = [];
+  const groups: SectionGroup[] = [];
   const unknown: string[] = [];
   let outline: string | null = null;
   const visit = (node: StockElement, path: string, x: number | null, y: number | null): void => {
@@ -18,6 +19,7 @@ export function sectionLayout(stock: StockSpecification): Section {
     if (node.kind === 'group') {
       const members = node.children.filter(c => c.kind === 'group' || c.kind === 'conductor');
       const arranged = node.arrangement !== 'concentric';
+      if (arranged) groups.push({ path, arrangement: node.arrangement, direction: node.direction, members: members.map(m => `${path}.${m.id}`) });
       if (arranged && node.pitch_mm === null) unknown.push(`${path}: arrangement pitch unknown`);
       for (const child of node.children) {
         const index = members.indexOf(child);
@@ -53,20 +55,21 @@ export function sectionLayout(stock: StockSpecification): Section {
       widthMm: round ? node.outer_diameter_mm : node.width_mm,
       heightMm: round ? node.outer_diameter_mm : node.height_mm,
       outerDiameterMm: round ? node.outer_diameter_mm : null,
-      innerDiameterMm: round ? node.inner_diameter_mm : null });
+      innerDiameterMm: round ? node.inner_diameter_mm : null,
+      construction: round ? node.construction : null });
     if (px === null || py === null) {
       unknown.push(`${path}: position unknown`);
       return;
     }
     if (node.kind === 'web') {
       if (node.width_mm === null || node.height_mm === null) unknown.push(`${path}: web dimensions unknown`);
-      else features.push({ path, kind: node.kind, x: px, y: py, color: node.color, material: node.material,
+      else features.push({ path, kind: node.kind, x: px, y: py, color: node.color, material: node.material, construction: null,
         shape: { type: 'web', width: node.width_mm, height: node.height_mm } });
     } else if (node.outer_diameter_mm === null || node.inner_diameter_mm === null) {
       unknown.push(`${path}: layer dimensions unknown`);
     } else if (!Number.isFinite(node.outer_diameter_mm) || !Number.isFinite(node.inner_diameter_mm) || node.outer_diameter_mm <= 0 || node.inner_diameter_mm < 0 || node.inner_diameter_mm >= node.outer_diameter_mm) {
       unknown.push(`${path}: invalid layer boundaries`);
-    } else features.push({ path, kind: node.kind, x: px, y: py, color: node.color, material: node.material,
+    } else features.push({ path, kind: node.kind, x: px, y: py, color: node.color, material: node.material, construction: node.construction,
       shape: { type: 'ring', rOuter: node.outer_diameter_mm / 2, rInner: node.inner_diameter_mm / 2 } });
   };
   visit(stock.structure, stock.structure.id, 0, 0);
@@ -79,7 +82,7 @@ export function sectionLayout(stock: StockSpecification): Section {
     minX: Math.min(...extent.map(b => b.minX)), maxX: Math.max(...extent.map(b => b.maxX)),
     minY: Math.min(...extent.map(b => b.minY)), maxY: Math.max(...extent.map(b => b.maxY)) };
   const complete = unknown.length === 0 && bounds !== null;
-  return { schemaVersion: '1', viewedFrom: stock.viewed_from, rows, features, unknown, bounds, outline,
+  return { schemaVersion: '1', viewedFrom: stock.viewed_from, rows, features, groups, unknown, bounds, outline,
     widthMm: complete ? bounds.maxX - bounds.minX : null,
     heightMm: complete ? bounds.maxY - bounds.minY : null, electricalBonds: [] };
 }

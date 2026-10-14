@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Lazy, event-driven lifecycle adapted from WireHub WireModel3d.tsx (see NOTICE).
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Group, Stack, Text } from '@mantine/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildWireObject } from '../../../../packages/wire-geometry/src/scene';
+import { modelSummary } from '../../../../packages/wire-geometry/src/model';
 import type { WireModel } from '../../../../packages/wire-geometry/src/model';
 
-interface Live { scene: THREE.Scene; object?: ReturnType<typeof buildWireObject>; frame: (end?: 'a' | 'b') => void }
+interface Live { scene: THREE.Scene; object?: ReturnType<typeof buildWireObject>; frame: (end?: 'a' | 'b') => void; environment: boolean; redraw: () => void }
 
 export default function WireViewport({ model }: { model: WireModel }) {
   const host = useRef<HTMLDivElement>(null);
+  const descriptionId = useId();
   const live = useRef<Live | null>(null);
   const reset = useRef<(end?: 'a' | 'b') => void>(() => {});
   const [problem, setProblem] = useState('');
@@ -23,11 +26,19 @@ export default function WireViewport({ model }: { model: WireModel }) {
     catch { setProblem('WebGL is unavailable. The section drawing and element dimensions remain available.'); return; }
     const element = renderer.domElement;
     element.setAttribute('aria-label', 'Interactive prepared wire preview');
+    element.setAttribute('role', 'img'); element.setAttribute('aria-describedby', descriptionId);
     element.style.cssText = 'width:100%;height:360px;display:block;touch-action:none';
     container.appendChild(element);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const scene = new THREE.Scene(); scene.background = new THREE.Color('#e9edf2');
-    scene.add(new THREE.HemisphereLight('#ffffff', '#606975', 3));
+    // Image-based light gives metals and glossy jackets something to reflect. Optional: absent in minimal contexts.
+    let environment = false;
+    try {
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmrem.dispose(); environment = true;
+    } catch { environment = false; }
+    scene.add(new THREE.HemisphereLight('#ffffff', '#606975', environment ? 1.2 : 3));
     const light = new THREE.DirectionalLight('#ffffff', 3); light.position.set(-5, 10, 8); scene.add(light);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 10000);
     const controls = new OrbitControls(camera, element);
@@ -55,7 +66,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
       camera.near = Math.max(radius / 1000, 0.00001); camera.far = distance + radius * 10;
       camera.updateProjectionMatrix(); controls.target.copy(center); controls.update(); render();
     };
-    live.current = { scene, frame };
+    live.current = { scene, frame, environment, redraw: render };
     reset.current = frame;
     const resize = () => {
       const width = container.clientWidth, height = 360;
@@ -65,25 +76,29 @@ export default function WireViewport({ model }: { model: WireModel }) {
     controls.addEventListener('change', render);
     const observer = new ResizeObserver(resize); observer.observe(container); resize();
     document.addEventListener('visibilitychange', render);
-    const lost = (event: Event) => { event.preventDefault(); setProblem('The WebGL context was lost. Close and reopen the 3D preview to retry.'); };
+    const lost = (event: Event) => { event.preventDefault(); setProblem('The WebGL context was lost. The browser may restore it; otherwise close and reopen the 3D preview. The text description below remains available.'); };
+    const restored = () => { setProblem(''); render(); };
     element.addEventListener('webglcontextlost', lost);
+    element.addEventListener('webglcontextrestored', restored);
     return () => {
       reset.current = () => {};
-      observer.disconnect(); document.removeEventListener('visibilitychange', render); element.removeEventListener('webglcontextlost', lost);
+      observer.disconnect(); document.removeEventListener('visibilitychange', render); element.removeEventListener('webglcontextlost', lost); element.removeEventListener('webglcontextrestored', restored); scene.environment?.dispose();
       controls.removeEventListener('change', render); controls.dispose(); live.current?.object?.dispose(); live.current = null;
       renderer.dispose(); renderer.forceContextLoss(); element.remove();
     };
-  }, []);
+  }, [descriptionId]);
   useEffect(() => {
     const state = live.current;
     if (!state) return;
     if (state.object) { state.scene.remove(state.object.group); state.object.dispose(); }
-    state.object = buildWireObject(model); state.scene.add(state.object.group); state.frame();
+    state.object = buildWireObject(model, { environment: state.environment }); state.scene.add(state.object.group); state.frame();
   }, [model]);
+  const description = useMemo(() => modelSummary(model), [model]);
   return <Stack>
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
     <Group><Button variant="light" onClick={() => reset.current()}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button></Group>
     <div ref={host} style={{ display: problem ? 'none' : 'block' }} />
-    <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Colors and leads are illustrative; geometry establishes no fit or qualification.</Text>
+    <Text size="xs" id={descriptionId} data-testid={descriptionId}>{description}</Text>
+    <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Leads are illustrative; geometry establishes no fit or qualification.</Text>
   </Stack>;
 }

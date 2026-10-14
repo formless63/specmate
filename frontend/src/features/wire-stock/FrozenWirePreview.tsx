@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Group, NumberInput, Select, Stack, Table, Text, Title } from '@mantine/core';
-import { renderSectionSvg, sectionLayout } from '../../../../packages/section-layout/src';
+import { sectionLayout } from '../../../../packages/section-layout/src';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
 import { WorkshopProfileProvenance } from '../workshop-profiles/PracticeProvenance';
 import { readProfileRevision } from '../workshop-profiles/api';
@@ -9,6 +9,9 @@ import { adaptFrozenProfile } from './profile-adapter';
 import { listStockRevisions, listViewerDefinitions, loadFrozenStock, matchingProfileRevisions } from './viewer-api';
 import type { RevisionChoice, ViewerDefinition } from './viewer-api';
 import { WirePreparationPreview } from './WirePreparationPreview';
+import { CableViews } from '../cable-views/CableViews';
+import { StockSectionView } from '../cable-views/StockSectionView';
+import { rowLook, Swatch } from '../cable-views/Swatch';
 
 /** Own state, exact snapshots, no setters or command adapters for the current stock draft. */
 const dimension = (value: number | null): string => value === null ? 'Unknown' : `${value} mm`;
@@ -79,7 +82,8 @@ export function FrozenWirePreview({ projectId }: { projectId: string }) {
     {loading && <Text role="status">Loading exact revision…</Text>}
     {stock && section && <>
       <Text>Frozen stock revision: {revisionId}. Section: {section.widthMm === null ? 'Unknown' : section.widthMm} × {section.heightMm === null ? 'Unknown' : section.heightMm} mm · {section.rows.length} material elements.</Text>
-      <div aria-label="Frozen stock section drawing" style={{ maxWidth: 440 }} dangerouslySetInnerHTML={{ __html: renderSectionSvg(section, 'Frozen stock construction') }} />
+      <StockSectionView section={section} title="Frozen stock construction" label="Frozen stock section drawing" />
+      <CableViews stock={stock} name="Frozen stock construction" revisionId={revisionId} tabs={['end-a', 'end-b', 'info']} />
       <Select label="Matching frozen profile" clearable placeholder={profiles.length ? 'Choose a profile revision' : 'No matching frozen profiles'}
         data={profiles.filter(r => r.content.profile.stock_revision_id === revisionId).map(r => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} · ${r.revision_id}` }))} value={profileId} disabled={loading} onChange={setProfileId} />
       <NumberInput label="Frozen preview length mm" min={1} value={length} onChange={value => typeof value === 'number' && value >= 1 && setLength(value)} />
@@ -91,7 +95,7 @@ export function FrozenWirePreview({ projectId }: { projectId: string }) {
         <Table.Thead><Table.Tr><Table.Th>Element</Table.Th><Table.Th>Material / color</Table.Th><Table.Th>Dimensions</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{section.rows.map(row => <Table.Tr key={row.path}>
           <Table.Td>{row.label} ({row.kind})<br />{row.path}</Table.Td>
-          <Table.Td>Material: {row.material ?? 'Unknown'}<br />Color: {row.color ?? 'Unknown'}</Table.Td>
+          <Table.Td><Swatch look={rowLook(row)} />Material: {row.material ?? 'Unknown'}<br />Color: {row.color ?? 'Unknown'}</Table.Td>
           <Table.Td>{row.kind === 'web' ? <>Width: {dimension(row.widthMm)}<br />Height: {dimension(row.heightMm)}</> : <>Outer diameter: {dimension(row.outerDiameterMm)}<br />Inner diameter: {dimension(row.innerDiameterMm)}</>}</Table.Td>
           <Table.Td>{row.source ?? 'Unknown'}</Table.Td>
         </Table.Tr>)}</Table.Tbody>

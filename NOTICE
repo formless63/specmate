@@ -50,3 +50,36 @@ static build; no runtime font CDN). They are licensed under the SIL Open Font Li
 1.1 and are not covered by the application license. The license texts are served at
 /licenses/geist-OFL-1.1.txt and /licenses/geist-mono-OFL-1.1.txt. The fonts are not
 modified or sold separately and keep their reserved names.
+
+Cable views adapt the following from cab-stu by formless63, commit
+6bbf79655deb572df9f11490ca38e4f739ce71fb, licensed MIT by its copyright holder for
+reuse here (retained in packages/section-layout/src and packages/wire-geometry/src):
+- packages/layout/src/end-face.ts: end-face chirality (the end not drawn is the
+  drawing mirrored about the vertical axis, rings read the other way, rotation is a
+  viewing input), terminal placement, and the rule that an unknown viewed-from end
+  has no face; adapted in end-face.ts.
+- packages/render-svg/src/cross-section.ts: the vocabulary of drawing shield
+  constructions (braid, spiral, tape, foil) as distinct explicit-geometry textures;
+  re-expressed in appearance.ts and render.ts with material, finish and unknown-value rules.
+No predecessor catalog data, real designs, fonts, vendor art or comments are included.
+
+MIT permission notice for those adaptations:
+
+  Copyright (c) formless63
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of
+  this software and associated documentation files (the "Software"), to deal in the
+  Software without restriction, including without limitation the rights to use, copy,
+  modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+  and to permit persons to whom the Software is furnished to do so, subject to the
+  following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

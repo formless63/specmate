@@ -8,6 +8,9 @@ import type { StockRecord } from './api';
 import { stockPresets } from './presets';
 import { WirePreparationPreview } from './WirePreparationPreview';
 import { FrozenWirePreview } from './FrozenWirePreview';
+import { CableViews } from '../cable-views/CableViews';
+import { StockSectionView } from '../cable-views/StockSectionView';
+import { rowLook, Swatch } from '../cable-views/Swatch';
 
 const clone = <T,>(value: T): T => structuredClone(value);
 const dimension = (value: number | null): string => value === null ? 'Unknown' : `${Number(value.toFixed(4))} mm`;
@@ -129,7 +132,7 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
     <Text>Section: {dimension(section.widthMm)} × {dimension(section.heightMm)} · {section.rows.length} material elements · view {section.viewedFrom}</Text>
     {section.unknown.length > 0 && <Alert color="yellow">Incomplete geometry: {section.unknown.join('; ')}</Alert>}
     <Group align="flex-start" grow>
-      <div aria-label="Stock section drawing" style={{ maxWidth: 440 }} dangerouslySetInnerHTML={{ __html: renderSectionSvg(section, name) }} />
+      <StockSectionView section={section} title={name} label="Stock section drawing" />
       <Stack style={{ maxWidth: 440 }}><NumberInput label="Preview extrusion length mm" value={length} min={1} onChange={v => typeof v === 'number' && v >= 1 && setLength(v)} />
         <div aria-label="Stock geometry preview" dangerouslySetInnerHTML={{ __html: renderPreviewSvg(geometry, name) }} />
         <Text size="sm">Axial length is compressed in the preview. Display colors for unknown materials are illustrative.</Text>
@@ -137,9 +140,11 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
     </Group>
     <WirePreparationPreview key={current?.draft_id ?? name} section={section} lengthMm={length} />
     <Table><Table.Thead><Table.Tr><Table.Th>Tag / element</Table.Th><Table.Th>Material / color</Table.Th><Table.Th>Dimensions</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-      {section.rows.map(row => <Table.Tr key={row.path}><Table.Td>{row.tag} · {row.path}<br />{row.label} ({row.kind})</Table.Td><Table.Td>{row.material ?? 'Unknown'} / {row.color ?? 'Unknown'}</Table.Td><Table.Td>{dimension(row.widthMm)} × {dimension(row.heightMm)}{row.outerDiameterMm !== null && ` · bore ${dimension(row.innerDiameterMm)}`}</Table.Td><Table.Td>{row.source ?? 'Unknown'}</Table.Td></Table.Tr>)}
+      {section.rows.map(row => <Table.Tr key={row.path}><Table.Td>{row.tag} · {row.path}<br />{row.label} ({row.kind})</Table.Td><Table.Td><Swatch look={rowLook(row)} />{row.material ?? 'Unknown'} / {row.color ?? 'Unknown'}</Table.Td><Table.Td>{dimension(row.widthMm)} × {dimension(row.heightMm)}{row.outerDiameterMm !== null && ` · bore ${dimension(row.innerDiameterMm)}`}</Table.Td><Table.Td>{row.source ?? 'Unknown'}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>
     <Text>{Object.entries(stock.facts).map(([key, fact]) => `${key}: ${fact.value ?? 'Unknown'}${fact.unit ? ` ${fact.unit}` : ''} (${fact.status})`).join(' · ')}</Text>
+    <Title order={3}>End faces and information</Title>
+    <CableViews stock={stock} name={name} tabs={['end-a', 'end-b', 'info']} />
     {projectId && <FrozenWirePreview key={projectId} projectId={projectId} />}
     <Title order={3}>Engineering facts</Title>
     {Object.entries(stock.facts).map(([key, fact]) => <Group key={key} align="flex-end">

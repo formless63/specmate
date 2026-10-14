@@ -53,6 +53,7 @@ export interface SectionRow {
   outerDiameterMm: number | null;
   innerDiameterMm: number | null;
   tag: string;
+  construction?: RoundElement['construction'];
 }
 export interface SectionFeature {
   path: string;
@@ -62,13 +63,25 @@ export interface SectionFeature {
   color: string | null;
   /** Null means unknown material, distinct from the display fallback. */
   material: string | null;
+  /** Recorded construction (stranded, braid, foil ...); null when unrecorded or not applicable. */
+  construction?: RoundElement['construction'];
   shape: { type: 'ring'; rOuter: number; rInner: number } | { type: 'web'; width: number; height: number };
+}
+/** A ring-arranged group: members are placed from 12 o'clock in the stated screen direction. */
+export interface SectionGroup {
+  path: string;
+  arrangement: GroupElement['arrangement'];
+  direction: GroupElement['direction'];
+  /** Paths of the arranged members, in placement order. */
+  members: string[];
 }
 export interface Section {
   schemaVersion: '1';
   viewedFrom: StockSpecification['viewed_from'];
   rows: SectionRow[];
   features: SectionFeature[];
+  /** Arranged groups, kept so end faces can state how each ring reads. */
+  groups?: SectionGroup[];
   unknown: string[];
   widthMm: number | null;
   heightMm: number | null;

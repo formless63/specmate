@@ -1,5 +1,6 @@
 /** Pure display projection. This profile is not an engineering preparation record. */
 import type { Section, SectionFeature } from '../../section-layout/src';
+import { appearanceOf } from '../../section-layout/src';
 import { illustrateLay } from './lay';
 import type { IllustrationLay, IllustrationStatus } from './lay';
 
@@ -36,6 +37,8 @@ interface PieceBase {
   kind: SectionFeature['kind'] | 'pigtail';
   color: string | null;
   material: string | null;
+  /** Recorded construction of the source element, for material appearance only. */
+  construction?: SectionFeature['construction'];
 }
 export interface TubePiece extends PieceBase {
   shape: 'tube';
@@ -101,7 +104,7 @@ export function wireModel(section: Section, lengthMm: number, profile: DisplayPr
     }
     const range = ranges.get(path);
     if (!range) continue;
-    const base = { elementPath: path, kind: feature.kind, color: feature.color, material: feature.material };
+    const base = { elementPath: path, kind: feature.kind, color: feature.color, material: feature.material, construction: feature.construction ?? null };
     if (range.start === range.end) {
       model.omitted.push({ path, reason: 'Fully cut by preview profile' });
       continue;
@@ -168,4 +171,19 @@ export function wireModel(section: Section, lengthMm: number, profile: DisplayPr
   }
   if (model.pieces.length) model.bounds = { min: min as unknown as Vec3, max: max as unknown as Vec3 };
   return model;
+}
+
+/** Plain-text alternative to the 3D view: what is drawn, in which recorded colour and material. */
+export function modelSummary(model: WireModel): string {
+  const byPath = new Map<string, WirePiece[]>();
+  for (const piece of model.pieces) byPath.set(piece.elementPath, [...(byPath.get(piece.elementPath) ?? []), piece]);
+  const lines = [...byPath.entries()].map(([path, pieces]) => {
+    const first = pieces[0]!;
+    const look = appearanceOf({ kind: first.kind === 'pigtail' ? 'drain' : first.kind, color: first.color, material: first.material, construction: first.construction ?? null });
+    const leads = pieces.filter(p => p.kind === 'pigtail').length;
+    return `${path}: ${look.materialLabel === 'Unknown' ? 'material unknown' : look.materialLabel}, colour ${look.colorLabel === 'Unknown' ? 'unknown' : look.colorLabel}${look.fillSource === 'unknown' ? ' (drawn neutral)' : ''}${leads > 0 ? `, ${leads} illustrative lead${leads === 1 ? '' : 's'}` : ''}`;
+  });
+  const size = model.bounds ? `, about ${(model.bounds.max[0] - model.bounds.min[0]).toFixed(1)} mm long` : '';
+  const omitted = model.omitted.length > 0 ? ` ${model.omitted.length} element${model.omitted.length === 1 ? '' : 's'} not drawn: ${model.omitted.map(o => `${o.path} (${o.reason})`).join('; ')}.` : '';
+  return `Straight wire preview of ${model.lengthMm} mm${size}. ${byPath.size} drawn element${byPath.size === 1 ? '' : 's'}: ${lines.join('; ') || 'none'}.${omitted} ${model.illustration.message}`;
 }

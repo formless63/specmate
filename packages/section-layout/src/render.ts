@@ -1,37 +1,150 @@
 /** Standalone SVG drawing and axial preview consume the exact shared section. */
+import { appearanceOf, edgeColor, mixHex } from './appearance';
+import type { Appearance } from './appearance';
 import type { Section, SectionFeature, StockGeometry } from './model';
 
 const esc = (text: string): string => text.replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const n = (value: number): string => String(Math.round(value * 10000) / 10000);
-/** A display choice only: no material fact is inferred from this color. */
-export const displayColor = (feature: Pick<SectionFeature, 'color' | 'kind'>): string =>
-  (feature.color !== null && /^#[0-9a-fA-F]{6}$/.test(feature.color) ? feature.color : null) ?? (feature.kind === 'conductor' || feature.kind === 'drain' ? '#b87333' :
-    feature.kind === 'shield' ? '#87909b' : '#c8cbd0');
+/** Base fill of a feature: recorded colour, a labelled typical metal colour, or an explicit unknown. */
+export const displayColor = (feature: Pick<SectionFeature, 'color' | 'kind' | 'material' | 'construction'>): string => appearanceOf(feature).base;
 
-function shape(feature: SectionFeature): string {
+export interface SectionSvgOptions {
+  /** Element path drawn with a reticle (selection never changes the engineering fill). */
+  selected?: string | null;
+  /** Unique id prefix for gradients/patterns when several drawings share a page. */
+  idPrefix?: string;
+  callouts?: boolean;
+  /** End-face view: mirror about the vertical axis, then turn counter-clockwise on screen. */
+  view?: { mirrored: boolean; rotationDeg: number };
+  /** Terminal markers in screen coordinates (after the view transform). */
+  markers?: { x: number; y: number; tag: string; role: 'conductor' | 'shield' | 'drain' }[];
+}
+const hash = (text: string): string => {
+  let h = 5381;
+  for (let i = 0; i < text.length; i += 1) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+};
+const circle = (x: number, y: number, radius: number): string =>
+  `M${n(x - radius)},${n(y)}a${n(radius)},${n(radius)} 0 1 0 ${n(2 * radius)},0a${n(radius)},${n(radius)} 0 1 0 ${n(-2 * radius)},0`;
+function shapePath(feature: SectionFeature): string {
   const { x, y } = feature;
-  const color = displayColor(feature);
-  if (feature.shape.type === 'web') return `<rect x="${n(x - feature.shape.width / 2)}" y="${n(y - feature.shape.height / 2)}" width="${n(feature.shape.width)}" height="${n(feature.shape.height)}" fill="${color}"/>`;
-  const { rOuter: r, rInner: inner } = feature.shape;
-  const circle = (radius: number): string => `M${n(x - radius)},${n(y)}a${n(radius)},${n(radius)} 0 1 0 ${n(2 * radius)},0a${n(radius)},${n(radius)} 0 1 0 ${n(-2 * radius)},0`;
-  return `<path d="${circle(r)}${inner > 0 ? circle(inner) : ''}" fill="${color}" fill-rule="evenodd"/>`;
+  if (feature.shape.type === 'web') {
+    const w = feature.shape.width, h = feature.shape.height;
+    return `M${n(x - w / 2)},${n(y - h / 2)}h${n(w)}v${n(h)}h${n(-w)}Z`;
+  }
+  const { rOuter, rInner } = feature.shape;
+  return circle(x, y, rOuter) + (rInner > 0 ? circle(x, y, rInner) : '');
 }
 
-export function renderSectionSvg(section: Section, title: string): string {
-  const bounds = section.bounds;
+/** Finish gradients shared by every element of a drawing (objectBoundingBox units). */
+function finishDefs(prefix: string): string {
+  const stops = (list: [number, string, number][]): string => list.map(([o, c, a]) => `<stop offset="${o}" stop-color="${c}" stop-opacity="${a}"/>`).join('');
+  return `<linearGradient id="${prefix}-f-metal" x1="0" y1="0" x2="1" y2="1">${stops([[0, '#ffffff', 0.5], [0.3, '#ffffff', 0], [0.55, '#000000', 0.28], [0.8, '#ffffff', 0.18], [1, '#000000', 0.35]])}</linearGradient>`
+    + `<linearGradient id="${prefix}-f-foil" x1="0" y1="0" x2="1" y2="0.4">${stops([[0, '#ffffff', 0.6], [0.25, '#000000', 0.12], [0.45, '#ffffff', 0.5], [0.7, '#000000', 0.2], [1, '#ffffff', 0.35]])}</linearGradient>`
+    + `<radialGradient id="${prefix}-f-gloss" cx="0.33" cy="0.28" r="0.8">${stops([[0, '#ffffff', 0.5], [0.3, '#ffffff', 0.12], [0.75, '#000000', 0.08], [1, '#000000', 0.32]])}</radialGradient>`
+    + `<radialGradient id="${prefix}-f-satin" cx="0.35" cy="0.3" r="0.85">${stops([[0, '#ffffff', 0.28], [0.5, '#ffffff', 0], [1, '#000000', 0.26]])}</radialGradient>`
+    + `<radialGradient id="${prefix}-f-matt" cx="0.4" cy="0.35" r="0.9">${stops([[0, '#ffffff', 0.1], [1, '#000000', 0.2]])}</radialGradient>`;
+}
+const FINISH_FILL: Record<Appearance['finish'], string> = { metal: 'metal', foil: 'foil', gloss: 'gloss', satin: 'satin', matt: 'matt', foam: 'matt', fibre: 'matt', unknown: 'matt' };
+
+/** Explicit-geometry texture tile for one element; no external resources. */
+function textureDef(id: string, texture: Appearance['texture'], base: string, t: number): string {
+  const dark = mixHex(base, '#000000', 0.5), light = mixHex(base, '#ffffff', 0.45);
+  const sw = n(t * 0.1);
+  const tile = (body: string): string => `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${n(t)}" height="${n(t)}">${body}</pattern>`;
+  switch (texture) {
+    case 'strands':
+      return tile(`<circle cx="${n(t / 2)}" cy="${n(t / 2)}" r="${n(t * 0.44)}" fill="${light}" fill-opacity="0.35" stroke="${dark}" stroke-width="${sw}"/><circle cx="${n(t * 0.4)}" cy="${n(t * 0.38)}" r="${n(t * 0.12)}" fill="#ffffff" fill-opacity="0.55"/>`);
+    case 'braid':
+      return tile(`<path d="M0 ${n(t)}L${n(t)} 0M0 0L${n(t)} ${n(t)}" stroke="${dark}" stroke-width="${sw}" fill="none"/><path d="M${n(-t / 2)} ${n(t / 2)}L${n(t / 2)} ${n(-t / 2)}M${n(t / 2)} ${n(t * 1.5)}L${n(t * 1.5)} ${n(t / 2)}" stroke="${light}" stroke-width="${sw}" fill="none"/>`);
+    case 'spiral':
+      return tile(`<path d="M0 ${n(t)}L${n(t)} 0" stroke="${dark}" stroke-width="${sw}" fill="none"/><path d="M${n(-t / 2)} ${n(t / 2)}L${n(t / 2)} ${n(-t / 2)}M${n(t / 2)} ${n(t * 1.5)}L${n(t * 1.5)} ${n(t / 2)}" stroke="${light}" stroke-width="${sw}" fill="none"/>`);
+    case 'tape':
+      return tile(`<path d="M0 ${n(t / 2)}H${n(t)}" stroke="${dark}" stroke-width="${sw}"/><path d="M${n(t / 2)} 0V${n(t / 2)}M0 ${n(t)}V${n(t / 2)}" stroke="${dark}" stroke-width="${sw}" stroke-opacity="0.6"/>`);
+    case 'foam':
+      return tile(`<circle cx="${n(t * 0.3)}" cy="${n(t * 0.3)}" r="${n(t * 0.16)}" fill="${dark}" fill-opacity="0.28"/><circle cx="${n(t * 0.72)}" cy="${n(t * 0.68)}" r="${n(t * 0.12)}" fill="${light}" fill-opacity="0.5"/>`);
+    case 'fibre':
+      return tile(`<path d="M0 ${n(t * 0.3)}H${n(t)}M0 ${n(t * 0.8)}H${n(t)}M${n(t * 0.5)} 0V${n(t)}" stroke="${dark}" stroke-width="${n(t * 0.05)}" stroke-opacity="0.45"/>`);
+    case 'unknown':
+      return tile(`<path d="M0 ${n(t)}L${n(t)} 0M${n(-t / 2)} ${n(t / 2)}L${n(t / 2)} ${n(-t / 2)}M${n(t / 2)} ${n(t * 1.5)}L${n(t * 1.5)} ${n(t / 2)}" stroke="#5f6870" stroke-width="${sw}" fill="none"/>`);
+    default:
+      return '';
+  }
+}
+
+/** Extent of the section after mirroring and turning (outline of each feature, not its centre). */
+export function viewBounds(section: Section, mirrored: boolean, rotationDeg: number): Section['bounds'] {
+  const pts: { x: number; y: number }[] = [];
+  const c = Math.cos(rotationDeg * Math.PI / 180), s = Math.sin(rotationDeg * Math.PI / 180);
+  const put = (x: number, y: number, rx: number, ry: number): void => {
+    const mx = mirrored ? -x : x;
+    const px = mx * c + y * s, py = -mx * s + y * c;
+    // Conservative: a rotated rectangle's extent is the sum of its projected half sides.
+    const hx = Math.abs(rx * c) + Math.abs(ry * s), hy = Math.abs(rx * s) + Math.abs(ry * c);
+    pts.push({ x: px - hx, y: py - hy }, { x: px + hx, y: py + hy });
+  };
+  for (const f of section.features) {
+    if (f.shape.type === 'ring') {
+      const mx = mirrored ? -f.x : f.x;
+      const px = mx * c + f.y * s, py = -mx * s + f.y * c;
+      pts.push({ x: px - f.shape.rOuter, y: py - f.shape.rOuter }, { x: px + f.shape.rOuter, y: py + f.shape.rOuter });
+    } else put(f.x, f.y, f.shape.width / 2, f.shape.height / 2);
+  }
+  if (pts.length === 0) return null;
+  return { minX: Math.min(...pts.map(p => p.x)), maxX: Math.max(...pts.map(p => p.x)), minY: Math.min(...pts.map(p => p.y)), maxY: Math.max(...pts.map(p => p.y)) };
+}
+
+function reticle(f: SectionFeature, span: number): string {
+  const r = (f.shape.type === 'ring' ? f.shape.rOuter : Math.max(f.shape.width, f.shape.height) / 2) + span * 0.02;
+  const tick = span * 0.025;
+  const ticks = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) =>
+    `M${n(f.x + dx! * r)} ${n(f.y + dy! * r)}L${n(f.x + dx! * (r + tick))} ${n(f.y + dy! * (r + tick))}`).join('');
+  const d = `${circle(f.x, f.y, r)}${ticks}`;
+  return `<g data-selected="true" fill="none"><path d="${d}" stroke="#ffffff" stroke-width="${n(span / 90)}"/><path d="${d}" stroke="#2f7df6" stroke-width="${n(span / 220)}" stroke-dasharray="${n(span / 60)} ${n(span / 120)}"/></g>`;
+}
+
+function stripeArc(f: SectionFeature, color: string): string {
+  if (f.shape.type !== 'ring') return '';
+  const mid = (f.shape.rOuter + f.shape.rInner) / 2, wall = f.shape.rOuter - f.shape.rInner;
+  const a0 = -Math.PI / 2 - 0.45, a1 = -Math.PI / 2 + 0.45;
+  const p = (a: number): string => `${n(f.x + mid * Math.cos(a))} ${n(f.y + mid * Math.sin(a))}`;
+  return `<path data-stripe="true" d="M${p(a0)}A${n(mid)} ${n(mid)} 0 0 1 ${p(a1)}" fill="none" stroke="${color}" stroke-width="${n(wall * 0.55)}" stroke-linecap="butt"/>`;
+}
+
+export function renderSectionSvg(section: Section, title: string, options: SectionSvgOptions = {}): string {
+  const bounds = options.view ? viewBounds(section, options.view.mirrored, options.view.rotationDeg) : section.bounds;
   const span = bounds === null ? 4 : Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1);
   const pad = span * 0.7;
   const minX = (bounds?.minX ?? -2) - pad;
   const minY = (bounds?.minY ?? -2) - pad;
   const width = (bounds === null ? 4 : bounds.maxX - bounds.minX) + 2 * pad;
   const height = (bounds === null ? 4 : bounds.maxY - bounds.minY) + 2 * pad;
+  const prefix = options.idPrefix ?? `sx${hash(`${title}|${section.features.map(f => `${f.path}${f.x}${f.y}${f.color}${f.material}`).join(',')}`)}`;
   const sorted = [...section.features].sort((a, b) => {
     const size = (f: SectionFeature): number => f.shape.type === 'ring' ? f.shape.rOuter : 0;
     return size(b) - size(a);
   });
-  const parts = sorted.map(f => `<g data-element="${esc(f.path)}" data-kind="${f.kind}">${shape(f)}</g>`);
-  for (const row of section.rows) {
+  const defs: string[] = [finishDefs(prefix)];
+  const parts = sorted.map((f, index) => {
+    const look = appearanceOf(f);
+    const d = shapePath(f);
+    const radius = f.shape.type === 'ring' ? f.shape.rOuter : Math.min(f.shape.width, f.shape.height) / 2;
+    const t = Math.min(Math.max(radius / 2.5, span / 300), span / 25);
+    let texture = '';
+    if (look.texture !== 'none' && look.texture !== 'solid-metal' && look.texture !== 'foil') {
+      const id = `${prefix}-t${index}`;
+      defs.push(textureDef(id, look.texture, look.base, t));
+      texture = `<path d="${d}" fill="url(#${id})" fill-rule="evenodd"/>`;
+    }
+    const sheen = `<path d="${d}" fill="url(#${prefix}-f-${FINISH_FILL[look.finish]})" fill-rule="evenodd"/>`;
+    const edge = `<path d="${d}" fill="none" stroke="${edgeColor(look.base)}" stroke-width="${n(span / 400)}" fill-rule="evenodd"/>`;
+    const stripe = look.stripe ? stripeArc(f, look.stripe) : '';
+    return `<g data-element="${esc(f.path)}" data-kind="${f.kind}" data-fill-source="${look.fillSource}" data-material-family="${look.family}" data-texture="${look.texture}" data-finish="${look.finish}"><path d="${d}" fill="${look.base}" fill-rule="evenodd"/>${texture}${sheen}${stripe}${edge}</g>`;
+  });
+  const selected = options.selected ? section.features.find(f => f.path === options.selected) : undefined;
+  if (selected) parts.push(reticle(selected, span));
+  if (options.callouts !== false && !options.view) for (const row of section.rows) {
     const f = section.features.find(item => item.path === row.path);
     if (f === undefined) continue;
     const radius = f.shape.type === 'ring' ? f.shape.rOuter : f.shape.width / 2;
@@ -39,11 +152,21 @@ export function renderSectionSvg(section: Section, title: string): string {
     const sx = f.x + side * radius;
     const ex = sx + side * pad * 0.7;
     const ey = f.y + (Number(row.tag) - section.rows.length / 2) * span * 0.09;
-    parts.push(`<g data-callout="${esc(row.path)}"><path d="M${n(sx)} ${n(f.y)}L${n(ex)} ${n(ey)}" stroke="#222" stroke-width="${n(span / 180)}" fill="none"/><text x="${n(ex)}" y="${n(ey)}" font-size="${n(span / 12)}" text-anchor="${side > 0 ? 'start' : 'end'}">${row.tag}</text></g>`);
+    parts.push(`<g data-callout="${esc(row.path)}" color="currentColor"><path d="M${n(sx)} ${n(f.y)}L${n(ex)} ${n(ey)}" stroke="currentColor" stroke-width="${n(span / 180)}" fill="none"/><text x="${n(ex)}" y="${n(ey)}" font-size="${n(span / 12)}" fill="currentColor" text-anchor="${side > 0 ? 'start' : 'end'}">${row.tag}</text></g>`);
   }
-  const description = section.unknown.length > 0 ? `Incomplete geometry: ${section.unknown.join('; ')}` :
-    `${n(section.widthMm!)} × ${n(section.heightMm!)} mm. ${section.features.length} material elements. Viewed from ${section.viewedFrom}.`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(minX)} ${n(minY)} ${n(width)} ${n(height)}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><desc>${esc(description)}</desc>${parts.join('')}</svg>`;
+  const unknownFills = section.features.filter(f => appearanceOf(f).fillSource === 'unknown').length;
+  const body = options.view
+    ? `<g data-view="end-face" transform="rotate(${n(-options.view.rotationDeg)}) scale(${options.view.mirrored ? -1 : 1} 1)">${parts.join('')}</g>`
+    : parts.join('');
+  const markers = (options.markers ?? []).map(m => {
+    const r = span * 0.022;
+    const fill = m.role === 'conductor' ? '#ffffff' : m.role === 'shield' ? '#cfd6dd' : '#e9d3b0';
+    return `<g data-terminal="${esc(m.tag)}" data-role="${m.role}"><circle cx="${n(m.x)}" cy="${n(m.y)}" r="${n(r)}" fill="${fill}" stroke="#14181d" stroke-width="${n(span / 300)}"/><text x="${n(m.x)}" y="${n(m.y + r * 0.38)}" font-size="${n(r * 1.15)}" text-anchor="middle" fill="#14181d" font-weight="600">${esc(m.tag)}</text></g>`;
+  }).join('');
+  const description = (section.unknown.length > 0 ? `Incomplete geometry: ${section.unknown.join('; ')}` :
+    `${n(section.widthMm!)} × ${n(section.heightMm!)} mm. ${section.features.length} material elements. Viewed from ${section.viewedFrom}.`)
+    + (unknownFills > 0 ? ` ${unknownFills} element${unknownFills === 1 ? '' : 's'} drawn hatched because colour or material is not recorded.` : '');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(minX)} ${n(minY)} ${n(width)} ${n(height)}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><desc>${esc(description)}</desc><defs>${defs.join('')}</defs>${body}${markers}</svg>`;
 }
 
 /** Axonometric cut-face preview of the exported straight extrusion pieces. */
@@ -59,5 +182,12 @@ export function renderPreviewSvg(geometry: StockGeometry, title: string): string
     const x = f.x - width / 2;
     return `<g data-preview-element="${esc(f.path)}"><path d="M${n(x)} ${n(f.y + r)}l${n(dx)} ${n(dy)}l${n(width)} 0l${n(-dx)} ${n(-dy)}Z" fill="${displayColor(f)}" stroke="#444" stroke-width="${n(size / 200)}"/></g>`;
   });
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(-size)} ${n(-2 * size)} ${n(5 * size)} ${n(3.5 * size)}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><desc>Axonometric stock preview. Axial length compressed for display; extrusion length ${geometry.lengthMm} mm. No stripping or bonds.</desc>${pieces.join('')}<g>${section.features.map(shape).join('')}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(-size)} ${n(-2 * size)} ${n(5 * size)} ${n(3.5 * size)}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><desc>Axonometric stock preview. Axial length compressed for display; extrusion length ${geometry.lengthMm} mm. No stripping or bonds.</desc>${pieces.join('')}<g>${section.features.map(f => { const look = appearanceOf(f); return `<path d="${shapePath(f)}" fill="${look.base}" fill-rule="evenodd" stroke="${edgeColor(look.base)}" stroke-width="${n(size / 400)}"/>`; }).join('')}</g></svg>`;
+}
+
+/** Convenience wrapper: draw an end face with terminal markers. */
+export function renderEndFaceSvg(face: import('./end-face').EndFace, title: string, options: Pick<SectionSvgOptions, 'selected' | 'idPrefix'> = {}): string {
+  return renderSectionSvg(face.section, title, { ...options, callouts: false,
+    view: { mirrored: face.mirrored, rotationDeg: face.rotationDeg },
+    markers: face.terminals.map(t => ({ x: t.x, y: t.y, tag: t.tag, role: t.role })) });
 }
