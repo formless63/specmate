@@ -34,7 +34,7 @@ export type SharedScene = {
   relationships: ({ kind: RelationshipKind; local_id: string; context_path: string[] } & Partial<Record<'parent' | 'child' | 'a' | 'b' | 'mounted' | 'support' | 'subject' | 'source' | 'document' | 'orderable', OccurrenceRef | RevisionRef>>)[];
   qualification: { fit: 'not_evaluated'; clearance: 'not_evaluated'; manufacturing: 'not_evaluated'; physical: false };
 };
-export type SceneChoices = { assemblies: { snapshot_id: string; revision_id: string; name: string; number: number }[]; window: string };
+export type SceneChoices = { assemblies: { snapshot_id: string; revision_id: string; definition_id?: string; name: string; number: number }[]; window: string };
 
 /** Identical display references and shared meshes never collapse contextual selection. */
 export const selectionKey = (address: Address) => JSON.stringify([address.snapshot_id, address.path, address.feature_id ?? null]);

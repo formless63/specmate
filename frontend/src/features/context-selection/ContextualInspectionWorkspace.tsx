@@ -2,6 +2,7 @@ import { Alert, Button, Group, Select, Stack, Text, TextInput, Title } from '@ma
 import { useEffect, useRef, useState } from 'react';
 import { request } from '../sources/api';
 import type { SceneChoices } from '../shared-scene/api';
+import { useProbe } from '../probe';
 import { ContextSelectionProvider, useContextSelection } from './ContextSelectionProvider';
 import { ConnectedViews } from './views';
 
@@ -16,11 +17,20 @@ function Workspace({ projectId = null, principalKey }: { projectId?: string | nu
   const [root, setRoot] = useState<string | null>(null), [exact, setExact] = useState('');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const generation = useRef(0), mounted = useRef(false);
+  const probe = useProbe()?.probe ?? null, restored = useRef(false);
   async function refreshChoices() {
     const ticket = ++generation.current; setChoices([]); setBusy(true); setError('');
     try {
       const result = await request<SceneChoices>('shared-scenes/workspace', { cache: 'no-store' });
-      if (mounted.current && ticket === generation.current) setChoices(result.assemblies);
+      if (mounted.current && ticket === generation.current) {
+        setChoices(result.assemblies);
+        // A reload (or shared link) opens the root the URL probe names: object@rev, or the newest listed when no rev.
+        if (!restored.current && probe) {
+          restored.current = true;
+          const match = result.assemblies.find(c => c.definition_id === probe.object && (probe.rev === null || c.number === probe.rev));
+          if (match) setRoot(match.snapshot_id);
+        }
+      }
     } catch (reason) {
       if (mounted.current && ticket === generation.current) { setChoices([]); setRoot(null); setError(reason instanceof Error ? reason.message : 'Scene choices unavailable.'); }
     } finally { if (mounted.current && ticket === generation.current) setBusy(false); }

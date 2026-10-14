@@ -11,7 +11,7 @@ import { contextScene } from './test-fixtures';
 
 vi.mock('../shared-scene/SceneViewport', () => ({ default: ({ related }: { related?: { path: string[] }[] }) => <p>Viewport related: {(related ?? []).map(a => a.path.join('/')).join(',') || 'none'}</p> }));
 const response = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
-const choices = { assemblies: [{ snapshot_id: 'root-snapshot', revision_id: 'root-r1', name: 'Synthetic root', number: 1 }, { snapshot_id: 'root-snapshot-2', revision_id: 'root-r2', name: 'Synthetic root', number: 2 }], window: 'latest_50_frozen_revisions' };
+const choices = { assemblies: [{ snapshot_id: 'root-snapshot', revision_id: 'root-r1', definition_id: 'root', name: 'Synthetic root', number: 1 }, { snapshot_id: 'root-snapshot-2', revision_id: 'root-r2', definition_id: 'root', name: 'Synthetic root', number: 2 }], window: 'latest_50_frozen_revisions' };
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -107,7 +107,7 @@ test('an exact older root revision stays in the URL after selecting a use, and a
   expect(address()).toBe('/design/root@1/~/right/board?lens=shared-scene');
   const url = address()!; first.unmount();
   const [path, search = ''] = url.split('?'); const location = parseLocation(path!, search ? '?' + search : '');
-  render(<Host initial={location.probe} />); await open();
+  render(<Host initial={location.probe} />);
   await waitFor(() => expect(within(screen.getByRole('region', { name: 'Shared contextual selection' })).getByText('Selected occurrence: right/board')).toBeTruthy());
   expect(address()).toBe(url);
   expect(location.probe?.rev).toBe(1);
