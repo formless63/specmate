@@ -272,6 +272,20 @@
         "evidence": {
           "$ref": "#/$defs/EvidenceInput"
         },
+        "mode": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        },
         "required_protocol": {
           "anyOf": [
             {
@@ -285,6 +299,17 @@
           ],
           "default": null,
           "title": "Required Protocol"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureEnvelope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "voltage_max_v": {
           "anyOf": [
@@ -312,6 +337,25 @@
         }
       },
       "title": "OperatingConditions",
+      "type": "object"
+    },
+    "TemperatureEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_c": {
+          "title": "Maximum C",
+          "type": "number"
+        },
+        "minimum_c": {
+          "title": "Minimum C",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_c",
+        "maximum_c"
+      ],
+      "title": "TemperatureEnvelope",
       "type": "object"
     }
   },

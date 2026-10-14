@@ -106,6 +106,7 @@
           "enum": [
             "mating",
             "pin_correspondence",
+            "polarity",
             "levels",
             "current",
             "protocol",

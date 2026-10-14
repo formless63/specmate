@@ -20,6 +20,61 @@
       "title": "Assignment",
       "type": "object"
     },
+    "ConditionalRating": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "dimension": {
+          "enum": [
+            "voltage",
+            "current"
+          ],
+          "title": "Dimension",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceInput"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "maximum": {
+          "title": "Maximum",
+          "type": "number"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "scope": {
+          "$ref": "#/$defs/RatingScope"
+        }
+      },
+      "required": [
+        "local_id",
+        "dimension",
+        "maximum",
+        "scope",
+        "basis"
+      ],
+      "title": "ConditionalRating",
+      "type": "object"
+    },
     "ElectricalContract": {
       "additionalProperties": false,
       "description": "Declared limits and roles, never measured compatibility or conductor identity.",
@@ -52,6 +107,14 @@
           "default": null,
           "title": "Condition"
         },
+        "conditional_ratings": {
+          "items": {
+            "$ref": "#/$defs/ConditionalRating"
+          },
+          "maxItems": 100,
+          "title": "Conditional Ratings",
+          "type": "array"
+        },
         "current_max_a": {
           "anyOf": [
             {
@@ -76,6 +139,32 @@
           ],
           "title": "Direction",
           "type": "string"
+        },
+        "polarity": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "positive",
+            "negative",
+            "reference",
+            "nonpolarized"
+          ],
+          "title": "Polarity",
+          "type": "string"
+        },
+        "polarity_basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Polarity Basis"
         },
         "protocol": {
           "anyOf": [
@@ -147,6 +236,64 @@
       "title": "ElectricalContract",
       "type": "object"
     },
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "source_bundle_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Bundle Revision Id"
+        },
+        "source_path": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Path"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "unverified_citation",
+            "registered_file"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "EvidenceInput",
+      "type": "object"
+    },
     "Orientation": {
       "additionalProperties": false,
       "properties": {
@@ -190,6 +337,57 @@
         }
       },
       "title": "Orientation",
+      "type": "object"
+    },
+    "RatingScope": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureEnvelope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "RatingScope",
+      "type": "object"
+    },
+    "TemperatureEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_c": {
+          "title": "Maximum C",
+          "type": "number"
+        },
+        "minimum_c": {
+          "title": "Minimum C",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_c",
+        "maximum_c"
+      ],
+      "title": "TemperatureEnvelope",
       "type": "object"
     }
   },

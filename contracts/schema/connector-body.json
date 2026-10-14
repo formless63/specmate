@@ -16,6 +16,20 @@
           "title": "Label",
           "type": "string"
         },
+        "number": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Number"
+        },
         "physical_role": {
           "default": "contact",
           "enum": [
