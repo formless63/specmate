@@ -1,6 +1,7 @@
 import { Stack, Table, Text, Title } from '@mantine/core';
+import type { ReactNode } from 'react';
 import { SbStatus, type SbLed } from '../../components/sb';
-import type { ConstraintEvaluation, ConstraintOutcome, ConstraintReason, Resolution } from './api';
+import type { ConstraintEvaluation, ConstraintOutcome, ConstraintReason, ConstraintResult, Resolution } from './api';
 
 /** Outcome LEDs: there is no generic OK; unknown and not evaluated never read as valid. */
 export const OUTCOME_LED: Record<ConstraintOutcome, SbLed> = { valid: 'info', invalid: 'failed', unknown: 'review', not_evaluated: 'not-evaluated' };
@@ -19,8 +20,11 @@ function Reasons({ reasons }: { reasons: ConstraintReason[] }) {
   </Text>)}</Stack>;
 }
 
-/** Per-rule outcomes with rule-level and fact-level reasons, read from one resolution. */
-export function ConstraintResults({ resolution }: { resolution: Resolution }) {
+/**
+ * Per-rule outcomes with rule-level and fact-level reasons, read from one resolution. `proposals`
+ * renders linked development proposals beside each rule; they never change its outcome.
+ */
+export function ConstraintResults({ resolution, proposals }: { resolution: Resolution; proposals?: (rule: ConstraintResult) => ReactNode }) {
   const result = evaluation(resolution);
   if (!result) return <Text size="sm">Constraints were not evaluated for this resolution.</Text>;
   return <Stack gap="xs">
@@ -28,12 +32,13 @@ export function ConstraintResults({ resolution }: { resolution: Resolution }) {
     {result.results.length === 0
       ? <Text size="sm">The pinned option-set revision declares no constraints; nothing is evaluated and compatibility is not assumed.</Text>
       : <Table aria-label="Constraint outcomes">
-        <Table.Thead><Table.Tr><Table.Th>Rule</Table.Th><Table.Th>Outcome</Table.Th><Table.Th>Rule reasons</Table.Th><Table.Th>Fact reasons</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>Rule</Table.Th><Table.Th>Outcome</Table.Th><Table.Th>Rule reasons</Table.Th><Table.Th>Fact reasons</Table.Th>{proposals && <Table.Th>Development</Table.Th>}</Table.Tr></Table.Thead>
         <Table.Tbody>{result.results.map((rule) => <Table.Tr key={rule.key} data-outcome={rule.outcome}>
           <Table.Td><Text size="sm">{rule.label}</Text><Text className="sb-silk">{KIND[rule.kind] ?? rule.kind} · {rule.key}</Text><Text className="sb-silk">{rule.basis}</Text></Table.Td>
           <Table.Td><SbStatus led={OUTCOME_LED[rule.outcome]} dimension="constraint" value={OUTCOME_LABEL[rule.outcome]} /></Table.Td>
           <Table.Td><Reasons reasons={rule.reasons.filter((item) => item.level === 'rule')} /></Table.Td>
           <Table.Td><Reasons reasons={rule.reasons.filter((item) => item.level === 'fact')} /></Table.Td>
+          {proposals && <Table.Td>{proposals(rule)}</Table.Td>}
         </Table.Tr>)}</Table.Tbody>
       </Table>}
     {result.limitations.map((item) => <Text key={item} className="sb-silk">{item}</Text>)}

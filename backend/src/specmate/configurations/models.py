@@ -99,3 +99,88 @@ class ConfigurationAdoption(models.Model):
                 fields=["resolved_configuration", "-created_at"], name="configuration_adoption_rc"
             )
         ]
+
+
+class DevelopmentLink(models.Model):
+    """A development proposal linked to one failing rule of a configuration (CFG-003).
+
+    The proposal is a separate workspace item: a `development_need` definition (adapter
+    board, cable or enclosure work) or an existing mechanical proposal draft. The link
+    records the rule key, the exact option-set revision and the outcome observed when it
+    was made. It never changes a constraint outcome, a resolution or build eligibility.
+    Rows are append-only; unlinking records who removed the link and why.
+    """
+
+    class Target(models.TextChoices):
+        DEVELOPMENT_NEED = "development_need"
+        MECHANICAL_PROPOSAL = "mechanical_proposal"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    configuration = models.ForeignKey(
+        "design.Definition", on_delete=models.PROTECT, related_name="+"
+    )
+    option_set_revision = models.ForeignKey(
+        "design.Revision", on_delete=models.PROTECT, related_name="+"
+    )
+    rule_key = models.CharField(max_length=200)
+    observed_outcome = models.CharField(max_length=20)
+    target = models.CharField(max_length=30, choices=Target.choices)
+    need = models.ForeignKey(
+        "design.Definition", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    mechanical_proposal = models.ForeignKey(
+        "mechanical_proposals.ProposalDraft", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    basis = models.TextField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    request_id = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+    removed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    removed_at = models.DateTimeField(null=True)
+    removal_reason = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(observed_outcome__in=["invalid", "unknown"])
+                & models.Q(basis__regex=r"\S")
+                & models.Q(rule_key__regex=r"\S")
+                & (
+                    models.Q(
+                        target="development_need",
+                        need__isnull=False,
+                        mechanical_proposal__isnull=True,
+                    )
+                    | models.Q(
+                        target="mechanical_proposal",
+                        need__isnull=True,
+                        mechanical_proposal__isnull=False,
+                    )
+                )
+                & (
+                    models.Q(removed_at__isnull=True, removed_by__isnull=True, removal_reason="")
+                    | (
+                        models.Q(removed_at__isnull=False, removed_by__isnull=False)
+                        & models.Q(removal_reason__regex=r"\S")
+                    )
+                ),
+                name="development_link_valid",
+            ),
+            models.UniqueConstraint(
+                fields=["configuration", "rule_key", "need"],
+                condition=models.Q(removed_at__isnull=True, need__isnull=False),
+                name="development_link_need_once",
+            ),
+            models.UniqueConstraint(
+                fields=["configuration", "rule_key", "mechanical_proposal"],
+                condition=models.Q(removed_at__isnull=True, mechanical_proposal__isnull=False),
+                name="development_link_proposal_once",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["configuration", "created_at"], name="development_link_config"),
+            models.Index(fields=["workspace", "created_at"], name="development_link_workspace"),
+        ]

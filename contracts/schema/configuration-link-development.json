@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "MechanicalTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "mechanical_proposal",
+          "title": "Kind",
+          "type": "string"
+        },
+        "proposal_draft_id": {
+          "format": "uuid",
+          "title": "Proposal Draft Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "proposal_draft_id"
+      ],
+      "title": "MechanicalTarget",
+      "type": "object"
+    },
+    "NeedTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "definition_id": {
+          "format": "uuid",
+          "title": "Definition Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "development_need",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "definition_id"
+      ],
+      "title": "NeedTarget",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Link an existing proposal to one invalid or unknown rule of a configuration draft.",
+  "properties": {
+    "basis": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Basis",
+      "type": "string"
+    },
+    "draft_id": {
+      "format": "uuid",
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "rule_key": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "title": "Rule Key",
+      "type": "string"
+    },
+    "target": {
+      "discriminator": {
+        "mapping": {
+          "development_need": "#/$defs/NeedTarget",
+          "mechanical_proposal": "#/$defs/MechanicalTarget"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/NeedTarget"
+        },
+        {
+          "$ref": "#/$defs/MechanicalTarget"
+        }
+      ],
+      "title": "Target"
+    }
+  },
+  "required": [
+    "draft_id",
+    "rule_key",
+    "target",
+    "basis"
+  ],
+  "title": "LinkDevelopment",
+  "type": "object"
+}

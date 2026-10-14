@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "link_id": {
+      "format": "uuid",
+      "title": "Link Id",
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "link_id",
+    "reason"
+  ],
+  "title": "UnlinkDevelopment",
+  "type": "object"
+}

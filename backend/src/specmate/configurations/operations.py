@@ -15,6 +15,7 @@ from specmate.configurations.contracts import (
     ResolveConfiguration,
     ResolvedRef,
 )
+from specmate.configurations.development import development_view
 from specmate.configurations.models import ResolvedConfiguration
 from specmate.configurations.queries import (
     NOT_EVALUATED,
@@ -142,7 +143,16 @@ def resolve_configuration(ctx: Context, p: ResolveConfiguration):
         records, truncated = history(
             ctx, ResolvedConfiguration.objects.filter(draft=draft).order_by("-created_at")
         )
-        return {**preview(ctx, draft), "resolved": records, "history_truncated": truncated}
+        reviewed = preview(ctx, draft)
+        return {
+            **reviewed,
+            "resolved": records,
+            "history_truncated": truncated,
+            # Current linked proposals beside, never inside, the reviewed resolution.
+            "development": development_view(
+                ctx.user, draft.definition_id, reviewed["resolution"]["constraints"]
+            ),
+        }
     snapshot = Snapshot.objects.select_related("definition").filter(id=p.snapshot_id).first()
     if snapshot is None:
         raise NotFound("Configuration snapshot unavailable.")
@@ -154,12 +164,16 @@ def resolve_configuration(ctx: Context, p: ResolveConfiguration):
     configuration = parse_configuration(content, "configuration")
     reader = Reader(ctx.user)
     with pin_workspace(snapshot.definition.workspace_id):
+        resolution = resolve(reader, configuration)
         return {
             "snapshot_id": str(snapshot.id),
             "snapshot_sha256": snapshot.sha256,
             "configuration": content["configuration"],
-            "resolution": resolve(reader, configuration),
+            "resolution": resolution,
             "available": available(reader, configuration),
+            "development": development_view(
+                ctx.user, snapshot.definition_id, resolution["constraints"]
+            ),
         }
 
 
@@ -227,7 +241,13 @@ def capture(ctx: Context, p: CaptureResolution):
     access=Perm.WORKSPACE_READ,
 )
 def read_resolved(ctx: Context, p: ResolvedRef):
-    return resolved_result(ctx, p.resolved_configuration_id)[1]
+    row, result = resolved_result(ctx, p.resolved_configuration_id)
+    # The captured outcome is retained; linked proposals are current and reported beside it.
+    constraints = result["resolution"].get("constraints")
+    return {
+        **result,
+        "development": development_view(ctx.user, row.draft.definition_id, constraints),
+    }
 
 
 @operation(

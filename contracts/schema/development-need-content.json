@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "description": "Typed content of a `development_need` definition. Never physical qualification.",
+  "properties": {
+    "description": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Description",
+      "type": "string"
+    },
+    "need": {
+      "enum": [
+        "adapter_board",
+        "cable",
+        "enclosure"
+      ],
+      "title": "Need",
+      "type": "string"
+    },
+    "physical_qualification": {
+      "const": false,
+      "default": false,
+      "title": "Physical Qualification",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "need",
+    "summary"
+  ],
+  "title": "DevelopmentNeed",
+  "type": "object"
+}

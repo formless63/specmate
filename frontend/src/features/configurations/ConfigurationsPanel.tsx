@@ -6,6 +6,7 @@ import { addProjectReference, command, libraryDefinitions, read, type Definition
 import { SbStatus } from '../../components/sb';
 import { AdoptionReviewPanel } from './AdoptionReview';
 import { ConstraintResults, evaluation, OUTCOME_LABEL, OUTCOME_LED } from './ConstraintResults';
+import { DEVELOPMENT_LABEL, RuleProposals } from './DevelopmentProposals';
 import { OptionSetAuthoring } from './OptionSetEditor';
 import { operation, type BuildInput, type Decision, type DraftResolution, type Selection, type Submission } from './api';
 
@@ -53,7 +54,7 @@ function Workspace({ projectId }: { projectId: string }) {
     {error && <Alert color="red">{error}</Alert>}
     <NativeSelect label="Configuration" value={definition} data={[{ value: '', label: configurations.length ? 'Select a configuration' : 'No configurations in the library' }, ...configurations.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setDefinition(event.currentTarget.value)} />
     {identity && <NativeSelect label="Configuration draft" value={draftId} data={[{ value: '', label: 'Select a draft' }, ...identity.drafts.map((item) => ({ value: item.draft_id, label: `Draft ${item.draft_id.slice(0, 8)} · ${item.state}` }))]} onChange={(event) => setDraftId(event.currentTarget.value)} />}
-    {draftId && <DraftWorkspace key={draftId} draftId={draftId} />}
+    {draftId && <DraftWorkspace key={draftId} draftId={draftId} projectId={projectId} needs={definitions.filter((item) => item.kind === 'development_need')} />}
     <OptionSetAuthoring projectId={projectId} definitions={definitions} onCreated={() => setReload((value) => value + 1)} />
     <CreateConfiguration projectId={projectId} optionSets={definitions.filter((item) => item.kind === 'option_set')} onCreated={(id) => { setReload((value) => value + 1); setDefinition(id); }} />
   </Stack></Card>;
@@ -108,7 +109,7 @@ function selectionMap(selections: Selection[]): Record<string, string> {
   return Object.fromEntries(selections.map((item) => [item.option_key, item.choice_key ?? NONE]));
 }
 
-function DraftWorkspace({ draftId }: { draftId: string }) {
+function DraftWorkspace({ draftId, projectId, needs }: { draftId: string; projectId: string; needs: Definition[] }) {
   const edit = usePermission('design.edit');
   const generation = useRef(0);
   const [preview, setPreview] = useState<DraftResolution | null>(null);
@@ -131,6 +132,13 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
     finally { if (token === generation.current) setBusy(false); }
   }
   useEffect(() => { void refresh(); return () => { generation.current++; }; }, []); // A new draft remounts this workspace.
+  /** Linked proposals change without touching the design: keep unsaved selections. */
+  async function refreshDevelopment() {
+    try {
+      const result = await operation<DraftResolution>('configuration.resolve', { draft_id: draftId });
+      setPreview((current) => current ? { ...current, development: result.development } : current);
+    } catch (failure) { setError((failure as Error).message); }
+  }
   async function save() {
     if (!preview) return;
     const declared = new Set(preview.available.map((item) => item.option_key));
@@ -158,6 +166,7 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
   }
   const resolution = preview?.resolution;
   const constraints = resolution ? evaluation(resolution) : null;
+  const development = preview?.development;
   return <Stack>
     {error && <Alert color="red">{error}</Alert>}
     <Group><Button variant="quiet" disabled={busy} onClick={() => { void refresh(); }}>Refresh resolution</Button></Group>
@@ -171,6 +180,8 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
         <div><dt className="sb-silk">Constraints</dt><dd style={{ margin: 0 }}>{constraints
           ? <SbStatus led={OUTCOME_LED[constraints.outcome]} dimension="overall" value={OUTCOME_LABEL[constraints.outcome]} />
           : <SbStatus led="not-evaluated" dimension="overall" value="not evaluated" />}</dd></div>
+        {development && development.outcome !== development.constraint_outcome && <div><dt className="sb-silk">Development</dt><dd style={{ margin: 0 }}>
+          <SbStatus led={OUTCOME_LED[development.constraint_outcome]} dimension="with proposals" value={DEVELOPMENT_LABEL[development.outcome]} /></dd></div>}
         {constraints && <div><dt className="sb-silk">Rules unknown</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{constraints.counts.unknown}</dd></div>}
         {constraints && <div><dt className="sb-silk">Rules invalid</dt><dd style={{ margin: 0, fontFamily: 'var(--sb-font-data)' }}>{constraints.counts.invalid}</dd></div>}
         <div><dt className="sb-silk">Other compatibility</dt><dd style={{ margin: 0 }}><Text size="sm">Not evaluated</Text></dd></div>
@@ -195,7 +206,10 @@ function DraftWorkspace({ draftId }: { draftId: string }) {
         })}</Table.Tbody>
       </Table>
       {resolution.invalid_selections.map((item) => <Alert key={item.option_key} color="red">{item.option_key}: {item.reason}</Alert>)}
-      <ConstraintResults resolution={resolution} />
+      <ConstraintResults resolution={resolution} proposals={development ? (rule) => <RuleProposals rule={rule} draftId={draftId} projectId={projectId} needs={needs}
+        links={development.links.filter((link) => link.rule_key === rule.key)} onChanged={() => { void refreshDevelopment(); }} /> : undefined} />
+      {development && development.links.some((link) => link.current_outcome === 'absent') && <Text size="sm">Proposals linked to rules this option-set revision does not declare: {[...new Set(development.links.filter((link) => link.current_outcome === 'absent').map((link) => link.rule_key))].join(', ')}</Text>}
+      {development && development.links.length > 0 && <Text className="sb-silk">{development.note}</Text>}
       <ReadOnlyNote permission="design.edit" />
       {edit.allowed && <>
       <Group><Button disabled={!dirty || busy} onClick={() => { void save(); }}>Save selections</Button>

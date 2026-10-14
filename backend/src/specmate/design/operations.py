@@ -318,6 +318,10 @@ def validate_content(kind, content):
         from specmate.mechanical_proposals.adoption import validate_content as validate_adoption
 
         content = validate_adoption(kind, content)
+    if kind == "development_need" or "development_need" in content:
+        from specmate.configurations.development import validate_content as validate_need
+
+        content = validate_need(kind, content)
     if kind == "firmware" or "firmware" in content:
         from specmate.pcb.firmware import validate_content as validate_firmware
 

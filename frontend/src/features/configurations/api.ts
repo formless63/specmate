@@ -35,9 +35,26 @@ export type ResolvedSummary = { resolved_configuration_id: string; status: 'comp
   /** Captured constraint outcome; absent from servers that predate constraint evaluation. */
   constraint_outcome?: ConstraintOutcome };
 export type Available = { option_key: string; label: string; domain: string; required: boolean; default_choice: string | null; choices: { key: string; label: string }[] };
+export type DevelopmentNeedKind = 'adapter_board' | 'cable' | 'enclosure';
+/** A linked proposal; an unreadable one carries no name. */
+export type DevelopmentTarget =
+  | { kind: 'development_need'; readable: true; definition_id: string; name: string; need: DevelopmentNeedKind | null; summary: string | null; draft_id: string | null; latest_revision: number | null; physical_qualification: false }
+  | { kind: 'mechanical_proposal'; readable: true; proposal_draft_id: string; name: string; need: 'enclosure'; latest_retained: { revision_id: string; number: number; status: string } | null; current_decision: string | null; physical_qualification: false }
+  | { kind: 'mechanical_proposal'; readable: false; proposal_draft_id: string };
+export type DevelopmentLink = {
+  link_id: string; workspace_id: string; configuration_definition_id: string; rule_key: string; option_set_revision_id: string;
+  observed_outcome: 'invalid' | 'unknown'; current_outcome?: ConstraintOutcome | 'absent'; target: DevelopmentTarget;
+  basis: string; created_by: string; created_at: string; removed: boolean; removed_at: string | null; removal_reason: string;
+};
+/** Current linked proposals reported beside, never inside, the evaluated resolution. */
+export type Development = {
+  constraint_outcome: ConstraintOutcome; outcome: ConstraintOutcome | 'invalid_with_proposal' | 'unknown_with_proposal'; links: DevelopmentLink[]; note: string;
+};
 export type DraftResolution = {
   draft_id: string; state: string; content_sha256: string; review_sha256: string; resolution: Resolution;
   configuration: ConfigurationBody; available: Available[]; resolved: ResolvedSummary[]; history_truncated: boolean;
+  /** Absent from servers that predate development proposals. */
+  development?: Development;
 };
 export type BuildInput = {
   resolved_configuration_id: string; snapshot_id: string; snapshot_sha256: string; resolution_sha256: string; option_set_revision_id: string;
