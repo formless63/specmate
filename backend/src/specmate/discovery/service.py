@@ -120,6 +120,12 @@ def describe(
     is_owner = installation is not None and installation.owner_id == ctx.user.pk
     native = _native_execution(workspace.id if workspace is not None else None, held)
 
+    # Additive: maker preferences, labelled as preferences (defaults, never engineering facts).
+    preferences = None
+    if workspace is not None:
+        from specmate.preferences.queries import describe_preferences
+
+        preferences = describe_preferences(workspace.id, ctx.user)
     operations = []
     digest_material = []
     for name, spec in sorted(registry.items()):
@@ -163,6 +169,7 @@ def describe(
         "actor": {"via": ctx.via, "installation_owner": is_owner},
         "scope": scope,
         "capabilities": {"native_execution": native},
+        "preferences": preferences,
         "notes": [
             "available means the actor's role satisfies the operation's minimum workspace "
             "permission and no capability is missing; object-level authority, expected-state "

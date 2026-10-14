@@ -1,0 +1,127 @@
+{
+  "$defs": {
+    "PreferenceValues": {
+      "additionalProperties": false,
+      "description": "Only fields present in the request change; an explicit null clears (unsets) one.",
+      "properties": {
+        "connector_families": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Connector Families"
+        },
+        "default_length_unit": {
+          "anyOf": [
+            {
+              "enum": [
+                "mm",
+                "cm",
+                "m",
+                "in",
+                "ft"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Length Unit"
+        },
+        "default_wire_gauge_system": {
+          "anyOf": [
+            {
+              "enum": [
+                "awg",
+                "mm2"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Wire Gauge System"
+        },
+        "preferred_suppliers": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preferred Suppliers"
+        },
+        "wire_colours": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 30,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wire Colours"
+        }
+      },
+      "title": "PreferenceValues",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "scope": {
+      "enum": [
+        "workspace",
+        "user"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "values": {
+      "$ref": "#/$defs/PreferenceValues"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "scope",
+    "values"
+  ],
+  "title": "SetPreferences",
+  "type": "object"
+}
