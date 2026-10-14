@@ -92,6 +92,7 @@ def drawing_replay(ctx, payload, stored):
     summary="Create a durable internal inspection SVG/manifest, without engineering state edits.",
     idempotency_scope=drawing_scope,
     authorize_replay=drawing_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def create_drawing(ctx: Context, payload: CreateDrawing):
     if not ctx.idempotency_key:
@@ -121,6 +122,7 @@ def create_drawing(ctx: Context, payload: CreateDrawing):
     ReadDrawing,
     summary="Inspect a retained drawing with current actor/source authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_drawing(ctx: Context, payload: ReadDrawing):
     drawing = drawing_record(ctx.user, payload.drawing_id)
@@ -146,6 +148,7 @@ def package_bytes(drawing):
     ReadDrawingScene,
     summary="Read a currently authorized exact scene for drawing options.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_drawing_scene(ctx: Context, payload: ReadDrawingScene):
     _, scene = authorized_scene(ctx.user, payload.snapshot_id)

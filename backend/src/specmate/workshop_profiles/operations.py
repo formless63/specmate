@@ -73,6 +73,7 @@ def authorize_profile_replay(ctx, p, stored) -> None:
     summary="Create an independently versioned workshop preparation/display profile.",
     idempotency_scope=profile_scope,
     authorize_replay=authorize_profile_replay,
+    access=Perm.ITEM_CREATE,
 )
 def create_profile(ctx: Context, p: CreateProfile) -> dict:
     workspace = creation_workspace(ctx.user, p.workspace_id)
@@ -93,6 +94,7 @@ def create_profile(ctx: Context, p: CreateProfile) -> dict:
     requires_expected_state=True,
     idempotency_scope=profile_scope,
     authorize_replay=authorize_profile_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def update_profile(ctx: Context, p: UpdateProfile) -> dict:
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -115,6 +117,7 @@ def update_profile(ctx: Context, p: UpdateProfile) -> dict:
     requires_expected_state=True,
     idempotency_scope=profile_scope,
     authorize_replay=authorize_profile_replay,
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze_profile(ctx: Context, p: FreezeProfile) -> dict:
     from specmate.design.operations import CaptureDraft, freeze_draft

@@ -276,6 +276,7 @@ def applicability(row, p, baseline, changed):
     CompareImpact,
     summary="Review exact firmware/hardware changes and historical observation applicability.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def compare(ctx: Context, p: CompareImpact):
     baseline, candidate, assertions = authorized_inputs(ctx, p)

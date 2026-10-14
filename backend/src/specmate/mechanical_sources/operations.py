@@ -498,6 +498,7 @@ def _scope(name, permission=Perm.DESIGN_EDIT):
     summary="Create reusable mechanical source declarations with exact source/target/model pins.",
     idempotency_scope=_scope("mechanical_source.create", Perm.ITEM_CREATE),
     authorize_replay=lambda ctx, payload, stored: _replay(ctx, payload, stored, Perm.ITEM_CREATE),
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, payload: CreateMechanicalSource):
     _scope_closure(ctx, payload, Perm.ITEM_CREATE)
@@ -519,6 +520,7 @@ def create(ctx: Context, payload: CreateMechanicalSource):
     requires_expected_state=True,
     idempotency_scope=_scope("mechanical_source.update"),
     authorize_replay=_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, payload: UpdateMechanicalSource):
     draft = mechanical_draft(ctx, payload.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -548,6 +550,7 @@ def require_freezable(user, definition, content):
     requires_expected_state=True,
     idempotency_scope=_scope("mechanical_source.freeze", Perm.DESIGN_FREEZE),
     authorize_replay=lambda ctx, p, stored: _replay(ctx, p, stored, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, payload: DraftRef):
     draft = mechanical_draft(ctx, payload.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -595,6 +598,7 @@ def read_revision(user, revision_id):
     ReadMechanicalSource,
     summary="Read mechanical declarations and exact provenance under current authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, payload: ReadMechanicalSource):
     if payload.revision_id:

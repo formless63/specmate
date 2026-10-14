@@ -93,6 +93,7 @@ def authorize_stored(ctx, stored):
     summary="Create a body, pinout, boundary mapping or separated assessment.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, p: CreateInterface):
     workspace = item_workspace(ctx.user, p.workspace_id)
@@ -114,6 +115,7 @@ def create(ctx: Context, p: CreateInterface):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdateInterface):
     draft = interface_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -140,6 +142,7 @@ def capture_payload(ctx, p, permission):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def snapshot(ctx: Context, p: CaptureInterface):
     return snapshot_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_EDIT))
@@ -152,6 +155,7 @@ def snapshot(ctx: Context, p: CaptureInterface):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: replay(ctx, p, stored, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda ctx, p: scope(ctx, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, p: CaptureInterface):
     return freeze_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_FREEZE))
@@ -162,6 +166,7 @@ def freeze(ctx: Context, p: CaptureInterface):
     ReadInterface,
     summary="Read a frozen interface and its separated declaration assessment.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadInterface):
     return inspect_revision(ctx.user, p.revision_id)
@@ -172,6 +177,7 @@ def read(ctx: Context, p: ReadInterface):
     TraceInterface,
     summary="Trace declared external/internal passages.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def trace_interface(ctx: Context, p: TraceInterface):
     return trace(ctx.user, p.revision_id, p.external_contact_id)

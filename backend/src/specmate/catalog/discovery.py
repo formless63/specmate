@@ -34,6 +34,7 @@ from specmate.operations import (
     ValidationFailed,
     operation,
 )
+from specmate.operations.core import ACCESS_AUTHENTICATED
 from specmate.queries import get_revision
 from specmate.sources.models import SourceBundle, SourceBundleRevision
 
@@ -405,6 +406,7 @@ def source_revision_labels(user, payload):
     SearchCatalog,
     supports_idempotency=False,
     summary="Search the workspace library; a project context lists its referenced items first.",
+    access=Perm.WORKSPACE_READ,
 )
 def search(ctx: Context, payload: SearchCatalog):
     return search_catalog(ctx.user, payload)
@@ -415,6 +417,7 @@ def search(ctx: Context, payload: SearchCatalog):
     WhereUsed,
     supports_idempotency=False,
     summary="List exact snapshot pins and referencing projects of a revision in its workspace.",
+    access=Perm.WORKSPACE_READ,
 )
 def uses(ctx: Context, payload: WhereUsed):
     return where_used(ctx.user, payload)
@@ -425,6 +428,7 @@ def uses(ctx: Context, payload: WhereUsed):
     RevisionImpact,
     supports_idempotency=False,
     summary="Compare exact revisions and list retained parent pins and project references.",
+    access=Perm.WORKSPACE_READ,
 )
 def impact(ctx: Context, payload: RevisionImpact):
     return revision_impact(ctx.user, payload)
@@ -435,6 +439,7 @@ def impact(ctx: Context, payload: RevisionImpact):
     RevisionLabels,
     supports_idempotency=False,
     summary="Resolve display names for exact revisions the actor can currently read.",
+    access=ACCESS_AUTHENTICATED,
 )
 def labels(ctx: Context, payload: RevisionLabels):
     return revision_labels(ctx.user, payload)

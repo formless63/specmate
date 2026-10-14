@@ -26,6 +26,7 @@ class CreateStock(StrictModel):
     summary="Create standalone typed wire stock.",
     idempotency_scope=lambda ctx, p: stock_scope(ctx, p),
     authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
+    access=Perm.ITEM_CREATE,
 )
 def create_stock(ctx: Context, p: CreateStock) -> dict:
     workspace = creation_workspace(ctx.user, p.workspace_id)
@@ -57,6 +58,7 @@ class UpdateStock(StrictModel):
     requires_expected_state=True,
     idempotency_scope=lambda ctx, p: stock_scope(ctx, p),
     authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
+    access=Perm.DESIGN_EDIT,
 )
 def update_stock(ctx: Context, p: UpdateStock) -> dict:
     draft = scoped_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -81,6 +83,7 @@ class FreezeStock(StrictModel):
     requires_expected_state=True,
     idempotency_scope=lambda ctx, p: stock_scope(ctx, p),
     authorize_replay=lambda ctx, p, stored: stock_scope(ctx, p),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze_stock(ctx: Context, p: FreezeStock) -> dict:
     from specmate.design.operations import CaptureDraft, freeze_draft

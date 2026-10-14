@@ -55,6 +55,7 @@ def authorize_append_replay(ctx, p, stored):
     summary="Resolve an engineering identity and register its fact ledger.",
     idempotency_scope=registration_scope,
     authorize_replay=authorize_registration_replay,
+    access=Perm.ITEM_CREATE,
 )
 def register_subject(ctx: Context, p: RegisterSubject):
     fields = resolve_target(ctx.user, p.target, target_write_permission(p.target))
@@ -77,6 +78,7 @@ def register_subject(ctx: Context, p: RegisterSubject):
     requires_expected_state=True,
     idempotency_scope=assertion_scope,
     authorize_replay=authorize_append_replay,
+    access=Perm.ITEM_CREATE,
 )
 def append_fact(ctx: Context, p: AppendFact):
     subject, rows = subject_with_assertions(ctx.user, p.subject_id, Perm.ITEM_CREATE, lock=True)
@@ -134,6 +136,7 @@ def append_fact(ctx: Context, p: AppendFact):
     ReadFacts,
     summary="Inspect facts, unknowns and all conflicting candidates.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_facts(ctx: Context, p: ReadFacts):
     return read_facts(ctx.user, p.subject_id, p.property, offset=p.offset, limit=p.limit)

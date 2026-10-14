@@ -153,6 +153,7 @@ def search_knowledge(user, payload):
     SearchKnowledge,
     supports_idempotency=False,
     summary="Search permitted knowledge text and attachment metadata with exact entry provenance.",
+    access=Perm.WORKSPACE_READ,
 )
 def search(ctx: Context, payload: SearchKnowledge):
     return search_knowledge(ctx.user, payload)

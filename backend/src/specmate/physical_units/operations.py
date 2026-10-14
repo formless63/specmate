@@ -77,6 +77,7 @@ def _require_key(ctx):
     summary="Assert one obtained or assembled serialized subject at an exact revision.",
     authorize_replay=_replay,
     idempotency_scope=_scope,
+    access=Perm.INVENTORY_MANAGE,
 )
 def register_unit(ctx: Context, p: RegisterPhysicalUnit):
     revision, lot, variant = _unit_references(ctx, p)
@@ -107,6 +108,7 @@ def register_unit(ctx: Context, p: RegisterPhysicalUnit):
     requires_expected_state=True,
     authorize_replay=_replay,
     idempotency_scope=_scope,
+    access=Perm.INVENTORY_MANAGE,
 )
 def link_work_unit(ctx: Context, p: LinkWorkUnit):
     unit, batch = _work_references(ctx, p)

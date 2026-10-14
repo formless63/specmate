@@ -97,6 +97,7 @@ def append_entry(ctx, account, p, kind, after, **causes):
     summary="Register a workspace stock location.",
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def create_location(ctx: Context, p: CreateLocation):
     workspace = authorize(ctx.user, p.workspace_id, Perm.INVENTORY_MANAGE)
@@ -114,6 +115,7 @@ def create_location(ctx: Context, p: CreateLocation):
     summary="Establish a lot/location stock account.",
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def open_stock(ctx: Context, p: OpenStock):
     lot = get_lot(ctx.user, p.lot_id)
@@ -161,6 +163,7 @@ def change_stock(ctx, p, kind):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def receive(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "receipt")
@@ -173,6 +176,7 @@ def receive(ctx: Context, p: ChangeStock):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def adjust(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "adjustment")
@@ -185,6 +189,7 @@ def adjust(ctx: Context, p: ChangeStock):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def establish_quantity(ctx: Context, p: ChangeStock):
     return change_stock(ctx, p, "observation")
@@ -197,6 +202,7 @@ def establish_quantity(ctx: Context, p: ChangeStock):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_RESERVE,
 )
 def reserve(ctx: Context, p: Reserve):
     account = writable_account(ctx, p.account_id, Perm.INVENTORY_RESERVE)
@@ -232,6 +238,7 @@ def reserve(ctx: Context, p: Reserve):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, result: authorize_inventory_replay(ctx, p, result),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_RESERVE,
 )
 def release(ctx: Context, p: Release):
     reservation = get_reservation(ctx.user, p.reservation_id)
@@ -252,6 +259,7 @@ def release(ctx: Context, p: Release):
     ListInventory,
     summary="Read current scoped inventory availability.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inventory_list(ctx: Context, p: ListInventory):
     return list_inventory(
@@ -349,6 +357,7 @@ def writable_work_batch(ctx, work_batch_id, expected_state):
     summary="Register planned work against one exact authorized design revision.",
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def create_work_batch(ctx: Context, p: CreateWorkBatch):
     revision = get_revision(ctx.user, p.revision_id)
@@ -375,6 +384,7 @@ def create_work_batch(ctx: Context, p: CreateWorkBatch):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def record_work_completion(ctx: Context, p: RecordWorkCompletion):
     batch = writable_work_batch(ctx, p.work_batch_id, ctx.require_expected_state())
@@ -409,6 +419,7 @@ def record_work_completion(ctx: Context, p: RecordWorkCompletion):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def consume(ctx: Context, p: Consume):
     inventory_workspace_scope(ctx, p)
@@ -459,6 +470,7 @@ def consume(ctx: Context, p: Consume):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: authorize_inventory_replay(ctx, p, stored),
     idempotency_scope=lambda ctx, p: inventory_workspace_scope(ctx, p),
+    access=Perm.INVENTORY_MANAGE,
 )
 def return_unused(ctx: Context, p: ReturnUnused):
     inventory_workspace_scope(ctx, p)

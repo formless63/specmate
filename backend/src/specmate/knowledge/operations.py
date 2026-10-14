@@ -146,6 +146,7 @@ def _create_replay(ctx, p, stored):
     summary="Create one note, decision or attachment reference and link it to exact objects.",
     idempotency_scope=_create_scope,
     authorize_replay=_create_replay,
+    access=Perm.ITEM_CREATE,
 )
 def create_item(ctx: Context, p: CreateItem):
     workspace, project = _holder(ctx, p)
@@ -177,6 +178,7 @@ def _revise_replay(ctx, p, stored):
     requires_expected_state=True,
     idempotency_scope=_revise_scope,
     authorize_replay=_revise_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def revise_item(ctx: Context, p: ReviseItem):
     item, entries, _ = get_item(ctx.user, p.item_id, Perm.DESIGN_EDIT, lock=True)
@@ -215,6 +217,7 @@ def _link_replay(ctx, p, stored):
     summary="Reference an existing knowledge item from another exact engineering object.",
     idempotency_scope=_link_scope,
     authorize_replay=_link_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def link_item(ctx: Context, p: LinkItem):
     item, _, _ = get_item(ctx.user, p.item_id, Perm.DESIGN_EDIT, lock=True)
@@ -251,6 +254,7 @@ def _unlink_replay(ctx, p, stored):
     summary="Remove one link; the item, its attachments and other links are retained.",
     idempotency_scope=_unlink_scope,
     authorize_replay=_unlink_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def unlink_item(ctx: Context, p: UnlinkItem):
     link = _scoped_link(ctx, p.link_id, lock=True)
@@ -272,6 +276,7 @@ def unlink_item(ctx: Context, p: UnlinkItem):
     ReadItem,
     summary="Inspect one item, its entry history and the links visible to the actor.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_item(ctx: Context, p: ReadItem):
     return read_item(ctx.user, p.item_id)
@@ -282,6 +287,7 @@ def inspect_item(ctx: Context, p: ReadItem):
     ItemsForTarget,
     summary="List readable knowledge items linked to one exact engineering object.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def target_items(ctx: Context, p: ItemsForTarget):
     return items_for_target(ctx.user, p.target, p.offset, p.limit)
@@ -292,6 +298,7 @@ def target_items(ctx: Context, p: ItemsForTarget):
     ListItems,
     summary="List the knowledge items of a workspace, optionally those held by one project.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def list_items(ctx: Context, p: ListItems):
     return list_workspace_items(ctx.user, p.workspace_id, p.project_id, p.offset, p.limit)

@@ -85,6 +85,7 @@ def replay(ctx, p, stored, permission=Perm.DESIGN_EDIT):
     summary="Record independent exact-source assertions or a comparison review.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, p: CreateReview):
     workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
@@ -107,6 +108,7 @@ def create(ctx: Context, p: CreateReview):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdateReview):
     review_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -124,6 +126,7 @@ def update(ctx: Context, p: UpdateReview):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: replay(ctx, p, stored, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda ctx, p: scope(ctx, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, p: CaptureReview):
     draft = review_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -141,6 +144,7 @@ def freeze(ctx: Context, p: CaptureReview):
     ReadReview,
     summary="Inspect exact source assertions, conflicts and review without choosing a source.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadReview):
     return inspect_revision(ctx.user, p.revision_id)

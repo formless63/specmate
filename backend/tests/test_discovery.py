@@ -9,9 +9,11 @@ import pytest
 from django.test import Client
 
 from specmate.access.models import Installation
+from specmate.access.permissions import Perm
 from specmate.builds.models import RunnerCredential
 from specmate.builds.operations import RunnerIdentity
 from specmate.discovery import requirements
+from specmate.discovery.requirements import Requirement
 from specmate.operations import (
     Context,
     NotFound,
@@ -79,13 +81,14 @@ def test_newly_registered_operation_appears_without_any_list_edit(users, project
         (),
         "completed",
         supports_idempotency=False,
+        access=Requirement(requirements.WORKSPACE, Perm.WORKSPACE_READ),
     )
     before = discover(users["viewer"], project)["instance"]["registry_sha256"]
     monkeypatch.setitem(registry, "synthetic.future_read", spec)
     result = discover(users["viewer"], project)
     row = by_name(result)["synthetic.future_read"]
     assert row["availability"]["status"] == "available"
-    assert row["access"]["basis"] == "rule:fresh-evaluation"
+    assert row["access"]["basis"] == "declared"
     assert result["instance"]["registry_sha256"] != before
 
 
@@ -393,9 +396,7 @@ def test_declared_requirements_agree_with_handler_permission_references():
     reviewed_exceptions = {"catalog.register_lot"}  # needs design.edit via editable_revision()
     problems = []
     for name, spec in registry.items():
-        found = requirements.requirement_for(
-            name, supports_idempotency=spec.supports_idempotency, public=spec.public
-        )
+        found = requirements.requirement_for(spec)
         if found is None or found[0].permission is None or name in reviewed_exceptions:
             continue
         tree = ast.parse(textwrap.dedent(inspect.getsource(spec.handler)))
@@ -410,3 +411,26 @@ def test_declared_requirements_agree_with_handler_permission_references():
         if refs and found[0].permission.name not in refs:
             problems.append((name, found[0].permission.name, sorted(refs)))
     assert not problems
+
+
+def test_every_registered_operation_declares_an_access_floor():
+    missing = [name for name, spec in registry.items() if spec.access is None]
+    assert not missing
+    for name, spec in registry.items():
+        if spec.public:  # pre-authentication: login/claim, or a runner credential
+            assert spec.access.kind in {requirements.PUBLIC, requirements.RUNNER_CREDENTIAL}, name
+        else:
+            assert spec.access.kind != requirements.PUBLIC, name
+        if spec.access.kind == requirements.WORKSPACE:
+            assert spec.access.permission is not None, name
+
+
+def test_discovery_reports_the_declared_floors(users, project):
+    body = discover(users["editor"], project)
+    rows = by_name(body)
+    for name, spec in registry.items():
+        row = rows[name]["access"]
+        assert row["kind"] == spec.access.kind, name
+        expected = spec.access.permission.value if spec.access.permission else None
+        assert row["minimum_workspace_permission"] == expected, name
+        assert row["basis"] == "declared", name

@@ -84,6 +84,7 @@ def mutation_replay(ctx, p, stored):
     ),
     idempotency_scope=propose_scope,
     authorize_replay=propose_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def propose(ctx: Context, p: ProposeUpgrade):
     snapshot, closure, old, candidate = queries.references(
@@ -119,6 +120,7 @@ def propose(ctx: Context, p: ProposeUpgrade):
     ReadUpgrade,
     summary="Read a currently authorized proposal and immutable review history.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadUpgrade):
     return queries.result(ctx.user, p.proposal_id)
@@ -134,6 +136,7 @@ def read(ctx: Context, p: ReadUpgrade):
     requires_expected_state=True,
     idempotency_scope=mutation_scope,
     authorize_replay=mutation_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def review(ctx: Context, p: ReviewUpgrade):
     proposal, _, _, target, old, candidate, reviews = queries.rows(
@@ -172,6 +175,7 @@ def review(ctx: Context, p: ReviewUpgrade):
     requires_expected_state=True,
     idempotency_scope=mutation_scope,
     authorize_replay=mutation_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def apply(ctx: Context, p: ApplyUpgrade):
     proposal, _, _, consumer, old, candidate, reviews = queries.rows(
@@ -232,6 +236,7 @@ def apply(ctx: Context, p: ApplyUpgrade):
     ReadAssembly,
     summary="Inspect exact owning assembly occurrences with current source-origin authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_owner(ctx: Context, p: ReadAssembly):
     return queries.inspect_owning(ctx.user, p.snapshot_id)
@@ -242,6 +247,7 @@ def inspect_owner(ctx: Context, p: ReadAssembly):
     ReadConsumers,
     summary="List frozen workspace consumers that pin an exact revision at any depth.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def consumers(ctx: Context, p: ReadConsumers):
     return queries.consumers(ctx.user, p.revision_id, project_id=p.project_id)

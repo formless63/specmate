@@ -15,6 +15,7 @@ from specmate.access.account_names import LocalUsername
 from specmate.access.models import Installation, OwnerSetupToken, WorkspaceMember
 from specmate.access.workspaces import installation_workspace
 from specmate.operations import Conflict, Context, ValidationFailed, operation
+from specmate.operations.core import ACCESS_PUBLIC
 
 OWNER_TOKEN_LIFETIME = timedelta(minutes=30)
 
@@ -52,6 +53,7 @@ class ClaimOwner(BaseModel):
     ClaimOwner,
     summary="Claim installation ownership with a one-time setup token.",
     public=True,
+    access=ACCESS_PUBLIC,
 )
 def claim_owner(ctx: Context, p: ClaimOwner) -> dict:
     installation, _ = Installation.objects.select_for_update().get_or_create(singleton=True)

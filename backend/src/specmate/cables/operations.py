@@ -97,6 +97,7 @@ def retained_authority(ctx, stored, permission):
     summary="Compose exact cable stock and endpoint revisions.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, p: CreateCable):
     workspace = item_workspace(ctx.user, p.workspace_id)
@@ -116,6 +117,7 @@ def create(ctx: Context, p: CreateCable):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdateCable):
     cable_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -140,6 +142,7 @@ def capture_payload(ctx, p, permission):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def snapshot(ctx: Context, p: CaptureCable):
     return snapshot_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_EDIT))
@@ -152,6 +155,7 @@ def snapshot(ctx: Context, p: CaptureCable):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: replay(ctx, p, stored, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda ctx, p: scope(ctx, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, p: CaptureCable):
     return freeze_draft(ctx, capture_payload(ctx, p, Perm.DESIGN_FREEZE))
@@ -162,6 +166,7 @@ def freeze(ctx: Context, p: CaptureCable):
     ReadCable,
     summary="Read frozen cable assignments and conductor identities.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: ReadCable):
     return inspect_revision(ctx.user, p.revision_id)
@@ -172,6 +177,7 @@ def read(ctx: Context, p: ReadCable):
     LengthImpact,
     summary="Compare exact cable length declarations and preparation/document impacts.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_length_impact(ctx: Context, p: LengthImpact):
     return length_impact(ctx.user, p.before_revision_id, p.after_revision_id)

@@ -7,6 +7,7 @@ import struct
 import zlib
 from pathlib import PurePosixPath
 
+from specmate.access.permissions import Perm
 from specmate.catalog_matching.queries import current_actor
 from specmate.knowledge.queries import attachment_result, get_item
 from specmate.knowledge.search_contracts import PreviewAttachment
@@ -228,6 +229,7 @@ def preview_attachment(user, payload):
     PreviewAttachment,
     supports_idempotency=False,
     summary="Inspect a bounded inert preview of an exact currently readable knowledge attachment.",
+    access=Perm.WORKSPACE_READ,
 )
 def preview(ctx: Context, payload: PreviewAttachment):
     return preview_attachment(ctx.user, payload)

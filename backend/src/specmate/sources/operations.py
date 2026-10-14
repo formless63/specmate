@@ -34,6 +34,7 @@ class RegisterBlob(WorkspacePayload):
     RegisterBlob,
     summary="Register exact source bytes in a workspace after verifying declared hash and size.",
     attachments=("content",),
+    access=Perm.SOURCE_REGISTER,
 )
 def register_blob(ctx: Context, p: RegisterBlob) -> dict:
     workspace = authorize(ctx.user, p.workspace_id, Perm.SOURCE_REGISTER)
@@ -149,6 +150,7 @@ class CreateBundle(WorkspacePayload):
     "source.create_original_bundle",
     CreateBundle,
     summary="Preserve an imported original bundle as revision 1 of a new bundle.",
+    access=Perm.SOURCE_REGISTER,
 )
 def create_original_bundle(ctx: Context, p: CreateBundle) -> dict:
     workspace = authorize(ctx.user, p.workspace_id, Perm.SOURCE_REGISTER)
@@ -226,6 +228,7 @@ def _revise_scope(ctx: Context, p: ReviseBundle) -> str:
     requires_expected_state=True,
     idempotency_scope=_revise_scope,
     authorize_replay=_revise_replay,
+    access=Perm.SOURCE_REGISTER,
 )
 def revise_bundle(ctx: Context, p: ReviseBundle) -> dict:
     authorized_head(ctx, p.bundle_id)
@@ -288,6 +291,7 @@ def _derive_scope(ctx: Context, p: DeriveBundle) -> str:
     summary="Start an editable derivative bundle with its own identity from a revision.",
     idempotency_scope=_derive_scope,
     authorize_replay=_derive_replay,
+    access=Perm.SOURCE_REGISTER,
 )
 def derive_bundle(ctx: Context, p: DeriveBundle) -> dict:
     source = _derive_source(ctx, p)

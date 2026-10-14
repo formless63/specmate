@@ -99,6 +99,40 @@ class OperationResult(BaseModel):
     result: dict[str, Any]
 
 
+# Actor kinds that are not a workspace role (see discovery/requirements.py).
+PUBLIC = "public"  # no authentication (session login, first-owner claim)
+AUTHENTICATED = "authenticated"  # any active signed-in account, no workspace scope
+INSTALLATION_OWNER = "installation_owner"
+RUNNER_CREDENTIAL = "runner_credential"  # scoped runner token, not an interactive actor
+TRUSTED_JOB = "trusted_job"  # internal scheduler; no external actor may call it
+OPERATOR = "operator"  # local installation operator (internal transport only)
+WORKSPACE = "workspace"  # a permission of the actor's workspace role and grants
+
+
+@dataclass(frozen=True)
+class Requirement:
+    """Declared minimum access of an operation. A necessary condition only: the handler's
+    authorize() calls remain the enforcement. ``permission`` is a ``Perm`` atom."""
+
+    kind: str
+    permission: Any = None
+
+
+# Declaration shorthands for the non-workspace actor kinds.
+ACCESS_PUBLIC = Requirement(PUBLIC)
+ACCESS_AUTHENTICATED = Requirement(AUTHENTICATED)
+ACCESS_INSTALLATION_OWNER = Requirement(INSTALLATION_OWNER)
+ACCESS_RUNNER = Requirement(RUNNER_CREDENTIAL)
+ACCESS_TRUSTED_JOB = Requirement(TRUSTED_JOB)
+ACCESS_OPERATOR = Requirement(OPERATOR)
+
+
+def _as_requirement(access: Any) -> Requirement | None:
+    if access is None or isinstance(access, Requirement):
+        return access
+    return Requirement(WORKSPACE, access)  # a bare Perm atom
+
+
 @dataclass(frozen=True)
 class OperationSpec:
     name: str
@@ -112,6 +146,7 @@ class OperationSpec:
     authorize_replay: Callable[[Context, BaseModel, Mapping[str, Any]], None] | None = None
     supports_idempotency: bool = True
     idempotency_scope: Callable[[Context, BaseModel], str] | None = None
+    access: Requirement | None = None
 
 
 registry: dict[str, OperationSpec] = {}
@@ -129,6 +164,7 @@ def operation(
     authorize_replay: Callable[[Context, BaseModel, Mapping[str, Any]], None] | None = None,
     supports_idempotency: bool = True,
     idempotency_scope: Callable[[Context, BaseModel], str] | None = None,
+    access: Any = None,
 ):
     def register(handler: Callable[[Context, Any], dict[str, Any]]):
         if name in registry:
@@ -145,6 +181,7 @@ def operation(
             authorize_replay,
             supports_idempotency,
             idempotency_scope,
+            _as_requirement(access),
         )
         return handler
 

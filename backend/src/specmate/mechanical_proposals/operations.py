@@ -185,6 +185,7 @@ def draft_replay(ctx, p, stored):
     "with unknown inputs kept explicit.",
     idempotency_scope=create_scope,
     authorize_replay=create_replay,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, p: CreateProposal):
     user = current_actor(ctx.user)
@@ -208,6 +209,7 @@ def create(ctx: Context, p: CreateProposal):
     requires_expected_state=True,
     idempotency_scope=draft_scope,
     authorize_replay=draft_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, p: UpdateProposal):
     user = current_actor(ctx.user)
@@ -235,6 +237,7 @@ def update(ctx: Context, p: UpdateProposal):
     requires_expected_state=True,
     idempotency_scope=draft_scope,
     authorize_replay=draft_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def retain(ctx: Context, p: RetainProposal):
     user = current_actor(ctx.user)
@@ -286,6 +289,7 @@ def retain(ctx: Context, p: RetainProposal):
     summary="Read a proposal draft and its freshly generated proposal after current "
     "board-source authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, p: DraftRef):
     user = current_actor(ctx.user)
@@ -297,6 +301,7 @@ def read(ctx: Context, p: DraftRef):
     RetainedRef,
     summary="Read an immutable retained proposal under fresh authority and integrity checks.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_retained(ctx: Context, p: RetainedRef):
     return revision_view(revision_record(ctx.user, p.revision_id, p.workspace_id))
@@ -307,6 +312,7 @@ def read_retained(ctx: Context, p: RetainedRef):
     ListProposals,
     summary="List proposal drafts in a workspace, reauthorized before names escape.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def list_proposals(ctx: Context, p: ListProposals):
     user = current_actor(ctx.user)
@@ -338,6 +344,7 @@ def list_proposals(ctx: Context, p: ListProposals):
     ListProposals,
     summary="List accepted board interpretations that can drive a proposal in a workspace.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def board_choices(ctx: Context, p: ListProposals):
     user = current_actor(ctx.user)
@@ -368,6 +375,7 @@ def board_choices(ctx: Context, p: ListProposals):
     summary="Native identities (holes, components) of one accepted board that proposals may "
     "reference. Labels are display text only.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def board_inputs(ctx: Context, p: BoardInputs):
     user = current_actor(ctx.user)

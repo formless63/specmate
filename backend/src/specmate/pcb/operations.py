@@ -115,6 +115,7 @@ def intake_result(intake):
     idempotency_scope=lambda ctx, p: pcb_scope(ctx, p),
     authorize_replay=lambda ctx, p, stored: authorize_pcb_replay(ctx, p, stored),
     summary="Preserve a source revision for PCB intake without parsing or executing it.",
+    access=Perm.SOURCE_REGISTER,
 )
 def register_intake(ctx: Context, p: RegisterIntake):
     workspace = authorize(ctx.user, p.workspace_id, Perm.SOURCE_REGISTER)
@@ -162,6 +163,7 @@ def validate_recipe(intake, recipe):
     authorize_replay=lambda ctx, p, stored: authorize_pcb_replay(ctx, p, stored),
     status="accepted_async",
     summary="Request the pinned isolated PCB interpretation from an exact preserved revision.",
+    access=Perm.BUILD_EXECUTE,
 )
 def request_extraction(ctx: Context, p: RequestExtraction):
     intake = intake_for(ctx, p.intake_id, Perm.BUILD_EXECUTE)
@@ -188,6 +190,7 @@ class AttemptRef(Payload):
     idempotency_scope=lambda ctx, p: pcb_scope(ctx, p),
     authorize_replay=lambda ctx, p, stored: authorize_pcb_replay(ctx, p, stored),
     summary="Validate a successful native report and retain its immutable source/build provenance.",
+    access=Perm.SOURCE_REGISTER,
 )
 def accept_extraction(ctx: Context, p: AttemptRef):
     attempt = (
@@ -260,6 +263,7 @@ def interpretation_result(interpretation):
     IntakeRef,
     summary="Read preserved PCB intake and scoped native interpretations.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def get_intake(ctx: Context, p: IntakeRef):
     intake = intake_for(ctx, p.intake_id)
@@ -465,6 +469,7 @@ def population_replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     summary="Create explicit PCB population options for an exact accepted interpretation.",
     authorize_replay=population_replay,
     idempotency_scope=population_scope,
+    access=Perm.DESIGN_EDIT,
 )
 def create_population(ctx: Context, p: CreatePopulation):
     interpretation = (
@@ -509,6 +514,7 @@ def create_population(ctx: Context, p: CreatePopulation):
     requires_expected_state=True,
     authorize_replay=population_replay,
     idempotency_scope=population_scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update_population(ctx: Context, p: UpdatePopulation):
     draft = population_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -524,6 +530,7 @@ def update_population(ctx: Context, p: UpdatePopulation):
     requires_expected_state=True,
     authorize_replay=lambda ctx, p, stored: population_replay(ctx, p, stored, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda ctx, p: population_scope(ctx, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze_population(ctx: Context, p: PopulationDraftRef):
     draft = population_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -541,6 +548,7 @@ def freeze_population(ctx: Context, p: PopulationDraftRef):
     ReadPopulation,
     summary="Read one scoped population draft and its selected-option projection.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_population(ctx: Context, p: ReadPopulation):
     draft = population_draft(ctx, p.draft_id)

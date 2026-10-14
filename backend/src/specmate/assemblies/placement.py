@@ -20,6 +20,7 @@ class PlacementInputs(StrictModel):
     PlacementInputs,
     summary="Inspect authorized exact nested occurrence choices for placement and mounting.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def inspect_inputs(ctx: Context, p: PlacementInputs):
     user = current_actor(ctx.user)

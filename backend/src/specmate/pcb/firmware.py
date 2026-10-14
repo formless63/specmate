@@ -657,6 +657,7 @@ def _scope(name, permission=Perm.DESIGN_EDIT):
     "toolchain, a frozen board population target and pin assumptions.",
     idempotency_scope=_scope("firmware.create"),
     authorize_replay=_replay,
+    access=Perm.ITEM_CREATE,
 )
 def create_firmware(ctx: Context, p: CreateFirmware) -> dict:
     workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
@@ -676,6 +677,7 @@ def create_firmware(ctx: Context, p: CreateFirmware) -> dict:
     requires_expected_state=True,
     idempotency_scope=_scope("firmware.update"),
     authorize_replay=_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def update_firmware(ctx: Context, p: UpdateFirmware) -> dict:
     draft = firmware_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -705,6 +707,7 @@ def require_freezable(user, definition, content) -> dict:
     requires_expected_state=True,
     idempotency_scope=_scope("firmware.freeze", Perm.DESIGN_FREEZE),
     authorize_replay=lambda ctx, p, stored: _replay(ctx, p, stored, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze_firmware(ctx: Context, p: DraftRef) -> dict:
     draft = firmware_draft(ctx, p.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -751,6 +754,7 @@ def read_revision(user, revision_id) -> dict:
     ReadFirmware,
     summary="Read firmware declarations with current access checks and target/pin findings.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_firmware(ctx: Context, p: ReadFirmware) -> dict:
     if p.revision_id is not None:
@@ -810,6 +814,7 @@ def assignment_review(user, snapshot_id) -> dict:
     AssignmentReview,
     summary="Compare contextual firmware assignments in an assembly with each firmware target.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def review_assignments(ctx: Context, p: AssignmentReview) -> dict:
     return assignment_review(ctx.user, p.assembly_snapshot_id)

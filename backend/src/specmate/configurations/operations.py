@@ -114,6 +114,7 @@ def resolved_result(ctx, row_id, *, permission=Perm.WORKSPACE_READ):
     ResolveConfiguration,
     summary="Resolve a configuration draft or exact snapshot deterministically for review.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def resolve_configuration(ctx: Context, p: ResolveConfiguration):
     if p.draft_id:
@@ -168,6 +169,7 @@ def capture_scope(ctx, p):
     requires_expected_state=True,
     idempotency_scope=capture_scope,
     authorize_replay=capture_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def capture(ctx: Context, p: CaptureResolution):
     draft = configuration_draft(ctx, p.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -202,6 +204,7 @@ def capture(ctx: Context, p: CaptureResolution):
     ResolvedRef,
     summary="Read an immutable resolved configuration under current authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read_resolved(ctx: Context, p: ResolvedRef):
     return resolved_result(ctx, p.resolved_configuration_id)[1]
@@ -212,6 +215,7 @@ def read_resolved(ctx: Context, p: ResolvedRef):
     ResolvedRef,
     summary="Exact resolved inputs for a build; incomplete resolutions are refused.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def build_input(ctx: Context, p: ResolvedRef):
     row, result = resolved_result(ctx, p.resolved_configuration_id)

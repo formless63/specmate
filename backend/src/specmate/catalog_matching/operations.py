@@ -87,6 +87,7 @@ def authorize_review_replay(ctx, payload, stored):
     summary="Record a candidate correspondence between distinct exact engineering identities.",
     idempotency_scope=proposal_scope,
     authorize_replay=authorize_proposal_replay,
+    access=Perm.ITEM_CREATE,
 )
 def propose_match(ctx: Context, payload: ProposeMatch):
     source, target, evidence = proposal_references(ctx, payload)
@@ -110,6 +111,7 @@ def propose_match(ctx: Context, payload: ProposeMatch):
     requires_expected_state=True,
     idempotency_scope=review_scope,
     authorize_replay=authorize_review_replay,
+    access=Perm.DESIGN_EDIT,
 )
 def review_match(ctx: Context, payload: ReviewMatch):
     candidate, _, _, reviews = candidate_rows(ctx.user, payload.candidate_id, edit=True, lock=True)

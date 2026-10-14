@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from specmate.access.permissions import Perm
 from specmate.discovery.service import describe
 from specmate.operations import Context, operation
 
@@ -23,6 +24,7 @@ class Capabilities(BaseModel):
     Capabilities,
     summary="List this instance's operations and which the current actor may call in a workspace.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def capabilities(ctx: Context, p: Capabilities) -> dict:
     return describe(ctx, p.workspace_id, p.project_id, p.include_schemas)

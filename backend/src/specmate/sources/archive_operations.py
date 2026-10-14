@@ -89,6 +89,7 @@ def expansion_scope(ctx, payload):
     summary="Expand a supported preserved ZIP into an inert derivative with exact ancestry.",
     idempotency_scope=expansion_scope,
     authorize_replay=replay_authority,
+    access=Perm.SOURCE_REGISTER,
 )
 def expand_zip(ctx: Context, p: ExpandZip):
     source, file = source_for(ctx, p)

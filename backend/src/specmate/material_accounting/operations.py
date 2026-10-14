@@ -96,6 +96,7 @@ def replay(ctx, payload, stored, permission=Perm.DESIGN_EDIT):
     summary="Create an exact preparation material accounting plan.",
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.ITEM_CREATE,
 )
 def create(ctx: Context, payload: CreatePlan):
     workspace = item_workspace(ctx.user, payload.workspace_id)
@@ -120,6 +121,7 @@ def create(ctx: Context, payload: CreatePlan):
     requires_expected_state=True,
     authorize_replay=replay,
     idempotency_scope=scope,
+    access=Perm.DESIGN_EDIT,
 )
 def update(ctx: Context, payload: UpdatePlan):
     draft = plan_draft(ctx, payload.draft_id, Perm.DESIGN_EDIT, lock=True)
@@ -136,6 +138,7 @@ def update(ctx: Context, payload: UpdatePlan):
     requires_expected_state=True,
     authorize_replay=lambda c, p, r: replay(c, p, r, Perm.DESIGN_FREEZE),
     idempotency_scope=lambda c, p: scope(c, p, Perm.DESIGN_FREEZE),
+    access=Perm.DESIGN_FREEZE,
 )
 def freeze(ctx: Context, payload: CapturePlan):
     draft = plan_draft(ctx, payload.draft_id, Perm.DESIGN_FREEZE, lock=True)
@@ -153,6 +156,7 @@ def freeze(ctx: Context, payload: CapturePlan):
     ReadPlan,
     summary="Inspect an exact material plan build sheet.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def read(ctx: Context, payload: ReadPlan):
     return inspect_revision(ctx.user, payload.revision_id)
@@ -163,6 +167,7 @@ def read(ctx: Context, payload: ReadPlan):
     MaterialPlan,
     summary="Recheck current material-plan dependency and evidence authority.",
     supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
 )
 def check_authority(ctx: Context, payload: MaterialPlan):
     closure(ctx.user, {"material_plan": payload.model_dump(mode="json")}, authority_only=True)

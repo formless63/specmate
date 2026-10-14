@@ -166,6 +166,7 @@ def replay(ctx, p, stored):
     authorize_replay=replay,
     status="accepted_async",
     summary="Request exact schematic/netlist extraction through an approved isolated recipe.",
+    access=Perm.BUILD_EXECUTE,
 )
 def request_native(ctx, p):
     file = request_source(ctx, p)
@@ -256,6 +257,7 @@ def validate_outputs(attempt):
     idempotency_scope=scope,
     authorize_replay=replay,
     summary="Accept exact successful native outputs without selecting an authoritative source.",
+    access=Perm.SOURCE_REGISTER,
 )
 def accept_native(ctx, p):
     attempt = scoped_attempt(ctx.user, p.attempt_id, Perm.SOURCE_REGISTER)
@@ -279,6 +281,7 @@ def accept_native(ctx, p):
     ReadNative,
     supports_idempotency=False,
     summary="Read an exact currently authorized accepted source-net interpretation.",
+    access=Perm.WORKSPACE_READ,
 )
 def read_native(ctx, p):
     return interpretation_result(scoped_interpretation(ctx.user, p.interpretation_id))
