@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "enum": [
+        "drain",
+        "interrupt"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "mode",
+    "reason"
+  ],
+  "title": "SafeStop",
+  "type": "object"
+}
