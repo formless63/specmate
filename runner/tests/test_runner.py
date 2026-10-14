@@ -507,6 +507,51 @@ class ReceiptTests(unittest.TestCase):
         self.assertIsNone(self.persisted()["result"])
 
 
+PROBE_SCRIPT = r"""
+import errno, json, os, socket
+def connect(host, port):
+    s = socket.socket()
+    s.settimeout(2)
+    try:
+        s.connect((host, port))
+        return "connected"
+    except OSError as exc:
+        return errno.errorcode.get(exc.errno, type(exc).__name__)
+    finally:
+        s.close()
+def status(key):
+    for line in open("/proc/self/status"):
+        if line.startswith(key + ":"):
+            return line.split()[1]
+gateways = []
+try:
+    for line in open("/proc/net/route").read().splitlines()[1:]:
+        gateways.append(line.split()[0])
+except OSError:
+    pass
+try:
+    open("/rootfs-write-probe", "w").close()
+    root_write = "written"
+except OSError as exc:
+    root_write = errno.errorcode.get(exc.errno, "error")
+out = {
+    "interfaces": sorted(os.listdir("/sys/class/net")),
+    "routes": gateways,
+    "external": connect("1.1.1.1", 53),
+    "gateway_db_port": connect("172.17.0.1", 5432),
+    "socket_present": [p for p in ("/var/run/docker.sock", "/run/docker.sock")
+                       if os.path.exists(p)],
+    "root_write": root_write,
+    "cap_eff": status("CapEff"),
+    "cap_bnd": status("CapBnd"),
+    "no_new_privs": status("NoNewPrivs"),
+    "uid": os.getuid(),
+    "gid": os.getgid(),
+}
+json.dump(out, open("/outputs/probe.json", "w"))
+"""
+
+
 @unittest.skipUnless(
     os.environ.get("SPECMATE_RUNNER_TEST_IMAGE"),
     "Requires an explicitly supplied cached digest image",
@@ -551,6 +596,35 @@ class DockerIntegrationTests(unittest.TestCase):
             receipt["artifacts"][0]["sha256"], hashlib.sha256(b"synthetic").hexdigest()
         )
         self.assertIsNone(self.docker.inspect(receipt["name"], receipt["identity"]))
+
+    def test_tool_stage_isolation_observed_from_inside_container(self):
+        # Needs python3 in the supplied image (the cached KiCad image has it).
+        receipt = self.prepare(["/usr/bin/python3", "-I", "-c", PROBE_SCRIPT])
+        receipt["lease"]["recipe"]["outputs"] = [
+            {
+                "path": "probe.json",
+                "media_type": "application/json",
+                "rights": "CC0-1.0",
+            }
+        ]
+        self.runner.run_receipt(receipt, recovered=False)
+        self.assertEqual(receipt["result"]["outcome"], "succeeded")
+        out = json.loads(
+            (
+                Path(self.temp.name) / receipt["identity"] / "outputs" / "probe.json"
+            ).read_text()
+        )
+        self.assertEqual(out["interfaces"], ["lo"])
+        self.assertEqual(out["routes"], [])
+        self.assertNotEqual(out["external"], "connected")
+        self.assertNotEqual(out["gateway_db_port"], "connected")
+        self.assertEqual(out["socket_present"], [])
+        self.assertEqual(out["root_write"], "EROFS")
+        self.assertEqual(int(out["cap_eff"], 16), 0)
+        self.assertEqual(int(out["cap_bnd"], 16), 0)
+        self.assertEqual(out["no_new_privs"], "1")
+        self.assertEqual((out["uid"], out["gid"]), (os.getuid(), os.getgid()))
+        self.assertNotEqual(out["uid"], 0)
 
     def test_cancel_running_container_with_descendant(self):
         receipt = self.prepare(["/bin/sh", "-c", "sleep 60 & wait"])
