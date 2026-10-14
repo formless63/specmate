@@ -85,3 +85,81 @@ class ReleaseConfiguration(models.Model):
                 fields=["release", "configuration"], name="release_configuration_unique"
             )
         ]
+
+
+class ReleaseWarning(models.Model):
+    """A later contradiction, security or engineering warning about one release.
+
+    Append-only and separate from the approved record: the release is never rewritten.
+    Supersession and withdrawal are further rows, never edits or deletions.
+    """
+
+    KINDS = ["contradiction", "security", "engineering"]
+    SEVERITIES = ["info", "caution", "critical"]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    release = models.ForeignKey(Release, on_delete=models.PROTECT, related_name="warnings")
+    kind = models.CharField(max_length=20)
+    severity = models.CharField(max_length=20)
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+    # Optional exact references, each inside the release's closure.
+    revision = models.ForeignKey(
+        "design.Revision", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    source_file = models.ForeignKey(
+        "sources.SourceBundleFile", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    # Set when the warning was raised automatically by a contradicting assertion.
+    assertion = models.ForeignKey(
+        "facts.FactAssertion", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    supersedes = models.OneToOneField(
+        "self", null=True, on_delete=models.PROTECT, related_name="superseded_by"
+    )
+    origin = models.CharField(max_length=10, default="manual")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    request_id = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["release", "created_at"], name="release_warning_time")]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(kind__in=["contradiction", "security", "engineering"])
+                & models.Q(severity__in=["info", "caution", "critical"])
+                & models.Q(origin__in=["manual", "automatic"])
+                & models.Q(title__regex=r"\S")
+                & models.Q(body__regex=r"\S"),
+                name="release_warning_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(origin="manual", assertion__isnull=True)
+                | models.Q(origin="automatic", assertion__isnull=False),
+                name="release_warning_origin",
+            ),
+            models.UniqueConstraint(
+                fields=["release", "assertion"],
+                condition=models.Q(assertion__isnull=False),
+                name="release_warning_assertion_once",
+            ),
+        ]
+
+
+class ReleaseWarningWithdrawal(models.Model):
+    """A stated withdrawal of one warning. The warning stays readable."""
+
+    warning = models.OneToOneField(
+        ReleaseWarning, on_delete=models.PROTECT, related_name="withdrawal"
+    )
+    reason = models.TextField()
+    withdrawn_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    request_id = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(reason__regex=r"\S"), name="release_withdrawal_reason"
+            )
+        ]

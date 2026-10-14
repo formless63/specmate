@@ -4,6 +4,7 @@ A release review is the coherent export request of one exact root plus the resol
 configurations it is released as and explicit rights decisions for its exact subjects.
 """
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -64,3 +65,38 @@ class ListReleases(StrictModel):
     project_id: UUID | None = None
     offset: int = Field(default=0, ge=0, le=100_000)
     limit: int = Field(default=50, ge=1, le=100)
+
+
+class WarnRelease(StrictModel):
+    """A later warning about one release; the release record is never edited."""
+
+    release_id: UUID
+    kind: Literal["contradiction", "security", "engineering"]
+    severity: Literal["info", "caution", "critical"]
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=8000)
+    # Optional exact references inside the release closure.
+    revision_id: UUID | None = None
+    source_revision_id: UUID | None = None
+    source_path: str | None = Field(default=None, min_length=1, max_length=512)
+    # Replace an active warning of the same release; the earlier one stays readable.
+    supersedes_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def stated(self):
+        if not self.title.strip() or not self.body.strip():
+            raise ValueError("A warning needs a title and a stated body.")
+        if (self.source_revision_id is None) != (self.source_path is None):
+            raise ValueError("Name a source file by its source revision and exact path.")
+        return self
+
+
+class WithdrawWarning(StrictModel):
+    warning_id: UUID
+    reason: str = Field(min_length=1, max_length=4000)
+
+    @model_validator(mode="after")
+    def stated(self):
+        if not self.reason.strip():
+            raise ValueError("A withdrawal needs a stated reason.")
+        return self

@@ -8,8 +8,8 @@ import { RevisionLabel } from '../../lib/IdentityLabel';
 import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
 import { randomUUID } from '../../lib/random-id';
 import {
-  ApiError, candidates, createRelease, downloadRelease, listConfigurations, listReleases, readRelease, requestJson, reviewRelease, verifyRelease,
-  type CatalogRights, type ReleaseRecord, type ReleaseRequest, type ReleaseReview, type ReleaseReviewBody, type RightsReview, type UnresolvedItem, type Verification,
+  ApiError, candidates, createRelease, downloadRelease, downloadWarnings, warnRelease, withdrawWarning, listConfigurations, listReleases, readRelease, requestJson, reviewRelease, verifyRelease,
+  type CatalogRights, type ReleaseRecord, type ReleaseWarning, type WarningKind, type WarningSeverity, type ReleaseRequest, type ReleaseReview, type ReleaseReviewBody, type RightsReview, type UnresolvedItem, type Verification,
 } from './api';
 
 const ROOT_KINDS = ['assembly', 'cable', 'harness'];
@@ -29,11 +29,12 @@ export function ReleasesPanel({ workspaceId, projectId = null }: { workspaceId: 
       <Title order={4}>{projectId ? 'Releases this project references' : 'Workspace releases'}</Title>
       {releases.isError && <Alert color="red">Releases unavailable: {releases.error.message}</Alert>}
       {releases.data && releases.data.releases.length === 0 && <Text size="sm">No releases recorded{projectId ? ' for this project' : ''}.</Text>}
-      {releases.data && releases.data.releases.length > 0 && <Table striped withTableBorder><Table.Thead><Table.Tr><Table.Th>Release</Table.Th><Table.Th>Root</Table.Th><Table.Th>Status</Table.Th><Table.Th>Unresolved</Table.Th><Table.Th>Released</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
+      {releases.data && releases.data.releases.length > 0 && <Table striped withTableBorder><Table.Thead><Table.Tr><Table.Th>Release</Table.Th><Table.Th>Root</Table.Th><Table.Th>Status</Table.Th><Table.Th>Unresolved</Table.Th><Table.Th>Warnings</Table.Th><Table.Th>Released</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
         {releases.data.releases.map(row => <Table.Tr key={row.release_id}>
           <Table.Td>{row.name}</Table.Td><Table.Td><RevisionLabel id={row.root.revision_id} /></Table.Td>
           <Table.Td><SbStatus led={STATUS_LED[row.status]} dimension="closure" value={row.status} /></Table.Td>
           <Table.Td><SbQuantity value={row.unresolved_count} /></Table.Td>
+          <Table.Td><SbQuantity value={row.active_warnings} /></Table.Td>
           <Table.Td>{row.released_by} · {new Date(row.released_at).toLocaleString()}</Table.Td>
           <Table.Td><Button size="xs" variant="subtle" onClick={() => setSelected(row.release_id)}>Inspect {row.name}</Button></Table.Td>
         </Table.Tr>)}
@@ -115,6 +116,7 @@ function ReleaseDetail({ releaseId }: { releaseId: string }) {
     {record.acknowledgement && <Alert color="yellow" title="Released with acknowledged unresolved items">{record.acknowledgement.reason}</Alert>}
     <ClosureSummary body={record.review} />
     <Unresolved title="Unresolved items at release" items={record.review.unresolved} />
+    <ReleaseWarnings releaseId={releaseId} warnings={data.warnings} onChanged={() => void release.refetch()} />
     {error && <Alert color="red">{error}</Alert>}
     <Group>
       <Button size="xs" loading={busy} onClick={() => void run(async () => setVerified(await verifyRelease(releaseId)))}>Verify release</Button>
@@ -125,6 +127,62 @@ function ReleaseDetail({ releaseId }: { releaseId: string }) {
       {verified.problems.map(problem => <Text key={problem} size="sm">{problem}</Text>)}
     </Stack>}
   </Stack></Card>;
+}
+
+const WARNING_LED = { info: 'info', caution: 'review', critical: 'failed' } satisfies Record<WarningSeverity, SbLed>;
+const WARNING_KINDS: { value: WarningKind; label: string }[] = [{ value: 'contradiction', label: 'Contradiction' }, { value: 'security', label: 'Security' }, { value: 'engineering', label: 'Engineering' }];
+const WARNING_SEVERITIES: WarningSeverity[] = ['info', 'caution', 'critical'];
+
+/** Later warnings sit beside the immutable approval record; they never edit it (EVD-005). */
+function ReleaseWarnings({ releaseId, warnings, onChanged }: { releaseId: string; warnings: ReleaseWarning[]; onChanged: () => void }) {
+  const add = usePermission('item.create');
+  const [kind, setKind] = useState<WarningKind>('engineering');
+  const [severity, setSeverity] = useState<WarningSeverity>('caution');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [supersedes, setSupersedes] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const idempotency = useRef(randomUUID());
+  async function run(action: () => Promise<void>) { setBusy(true); setError(null); try { await action(); onChanged(); } catch (e) { setError(message(e, 'Warning unavailable.')); } finally { setBusy(false); } }
+  const active = warnings.filter(row => row.state === 'active').length;
+  return <Stack gap="xs">
+    <Title order={5}>Later warnings</Title>
+    <Text size="sm">{warnings.length === 0 ? 'No later warnings are recorded for this release.' : `${active} active of ${warnings.length}. Warnings never change the approval record above; superseded and withdrawn warnings stay readable.`}</Text>
+    {warnings.length > 0 && <Table withTableBorder><Table.Thead><Table.Tr><Table.Th>Warning</Table.Th><Table.Th>State</Table.Th><Table.Th>Raised</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
+      {warnings.map(row => <Table.Tr key={row.warning_id}>
+        <Table.Td><Group gap="xs"><SbStatus led={WARNING_LED[row.severity]} dimension={row.kind} value={row.severity} /><Text size="sm" fw={600}>{row.title}</Text></Group>
+          <Text size="sm">{row.body}</Text>
+          {row.revision_id && <Text size="xs" c="dimmed">Pinned revision <RevisionLabel id={row.revision_id} /></Text>}
+          {row.source && <Text size="xs" c="dimmed">Source file {row.source.path}</Text>}
+          {row.origin === 'automatic' && <Text size="xs" c="dimmed">Raised automatically by a contradicting assertion</Text>}
+          {row.withdrawal && <Text size="xs">Withdrawn by {row.withdrawal.withdrawn_by}: {row.withdrawal.reason}</Text>}</Table.Td>
+        <Table.Td>{row.state}</Table.Td>
+        <Table.Td>{row.author} · {new Date(row.created_at).toLocaleString()}</Table.Td>
+        <Table.Td>{row.state === 'active' && add.allowed && <Group gap={4}>
+          <Button size="xs" variant="subtle" disabled={busy} onClick={() => { setSupersedes(row.warning_id); setKind(row.kind); setSeverity(row.severity); setTitle(row.title); }}>Supersede {row.title}</Button>
+          <Button size="xs" variant="subtle" color="red" disabled={busy} onClick={() => setWithdrawing(row.warning_id)}>Withdraw {row.title}</Button>
+        </Group>}</Table.Td>
+      </Table.Tr>)}
+    </Table.Tbody></Table>}
+    {error && <Alert color="red">{error}</Alert>}
+    {withdrawing && <Group align="end"><Textarea label="Withdrawal reason" value={reason} onChange={e => setReason(e.currentTarget.value)} />
+      <Button size="xs" disabled={busy || !reason.trim()} onClick={() => void run(async () => { await withdrawWarning(withdrawing, reason.trim(), randomUUID()); setWithdrawing(null); setReason(''); })}>Withdraw warning</Button>
+      <Button size="xs" variant="default" onClick={() => { setWithdrawing(null); setReason(''); }}>Cancel</Button></Group>}
+    <Group><Button size="xs" variant="default" disabled={busy} onClick={() => void run(() => downloadWarnings(releaseId))}>Export warnings file</Button></Group>
+    {add.allowed ? <InspectionScope permission="item.create"><Stack gap="xs">
+      <Group grow align="end">
+        <Select label="Warning kind" data={WARNING_KINDS} value={kind} allowDeselect={false} onChange={v => setKind((v ?? 'engineering') as WarningKind)} />
+        <Select label="Warning severity" data={WARNING_SEVERITIES} value={severity} allowDeselect={false} onChange={v => setSeverity((v ?? 'caution') as WarningSeverity)} />
+      </Group>
+      <TextInput label="Warning title" value={title} onChange={e => setTitle(e.currentTarget.value)} />
+      <Textarea label="Warning details" value={body} onChange={e => setBody(e.currentTarget.value)} />
+      {supersedes && <Text size="xs">Replaces the selected active warning, which stays readable. <Button size="xs" variant="subtle" onClick={() => setSupersedes(null)}>Do not supersede</Button></Text>}
+      <Group><Button size="xs" disabled={busy || !title.trim() || !body.trim()} onClick={() => void run(async () => { await warnRelease({ release_id: releaseId, kind, severity, title: title.trim(), body: body.trim(), supersedes_id: supersedes }, idempotency.current); idempotency.current = randomUUID(); setTitle(''); setBody(''); setSupersedes(null); })}>Attach warning</Button></Group>
+    </Stack></InspectionScope> : <ReadOnlyNote permission="item.create">Attaching or withdrawing warnings is unavailable.</ReadOnlyNote>}
+  </Stack>;
 }
 
 function ReleaseReviewForm({ workspaceId, projectId, onReleased }: { workspaceId: string; projectId: string | null; onReleased: (id: string) => void }) {

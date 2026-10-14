@@ -21,6 +21,7 @@ from specmate.facts.queries import (
 )
 from specmate.operations import Conflict, Context, ValidationFailed, operation
 from specmate.operations.scope import workspace_scope
+from specmate.releases.warnings import raise_for_assertion
 
 
 def target_write_permission(target):
@@ -128,6 +129,8 @@ def append_fact(ctx: Context, p: AppendFact):
     )
     subject.version += 1
     subject.save(update_fields=["version"])
+    # A new contradiction on a revision a release pins warns that release (EVD-005).
+    raise_for_assertion(subject, rows, assertion)
     return {**subject_result(subject), "assertion": assertion_result(assertion)}
 
 

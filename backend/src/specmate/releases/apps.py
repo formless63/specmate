@@ -7,12 +7,14 @@ class ReleasesConfig(AppConfig):
 
     def ready(self):
         from specmate.contracts import SCHEMAS
-        from specmate.releases import operations  # noqa: F401
+        from specmate.releases import operations, warnings  # noqa: F401
         from specmate.releases.contracts import (
             CreateRelease,
             ListReleases,
             ReleaseRef,
             ReleaseReview,
+            WarnRelease,
+            WithdrawWarning,
         )
 
         SCHEMAS.update(
@@ -21,5 +23,7 @@ class ReleasesConfig(AppConfig):
                 "release-create": CreateRelease,
                 "release-ref": ReleaseRef,
                 "release-list-query": ListReleases,
+                "release-warn": WarnRelease,
+                "release-withdraw-warning": WithdrawWarning,
             }
         )
