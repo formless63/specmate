@@ -66,7 +66,7 @@ function Chooser({ label, choice }: { label: string; choice: ReturnType<typeof u
 /** Frozen need + live stock + dated, reviewed offers. Costs are optional and unknowns stay visible. */
 export function SourcingPanel({ workspaceId }: { workspaceId: string }) {
   const cache = useQueryClient();
-  const manageGate = usePermission("inventory.manage");
+  const manageGate = usePermission("item.create");
   const plan = useRevisionChoice(workspaceId, ["bom_plan", "material_plan"]);
   const item = useRevisionChoice(workspaceId, null);
   const replaced = useRevisionChoice(workspaceId, null);
@@ -105,7 +105,7 @@ export function SourcingPanel({ workspaceId }: { workspaceId: string }) {
     <Title order={4}>Record a reviewed offer</Title>
     {record.isError && <Alert color="red">{record.error.message}</Alert>}
     {record.isSuccess && <Alert color="green">Offer recorded; you are its reviewer.</Alert>}
-    <InspectionScope permission="inventory.manage">
+    <InspectionScope permission="item.create">
       <Chooser label="Offered item" choice={item} />
       <TextInput label="Supplier" value={supplier} onChange={(e) => setSupplier(e.currentTarget.value)} />
       <TextInput label="Supplier reference (optional)" value={ref} onChange={(e) => setRef(e.currentTarget.value)} />
@@ -118,6 +118,6 @@ export function SourcingPanel({ workspaceId }: { workspaceId: string }) {
       {substitution.trim() && <Chooser label="Replaced item" choice={replaced} />}
     </InspectionScope>
     <Button disabled={!ready || (!!substitution.trim() && !replaced.revision)} loading={record.isPending} onClick={() => record.mutate()} {...manageGate.props}>Record offer</Button>
-    <ReadOnlyNote permission="inventory.manage">Recording supplier offers is unavailable.</ReadOnlyNote>
+    <ReadOnlyNote permission="item.create">Recording supplier offers is unavailable.</ReadOnlyNote>
   </Stack></Card>;
 }

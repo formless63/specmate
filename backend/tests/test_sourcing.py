@@ -10,7 +10,7 @@ from specmate.operations import Conflict, NotFound, PermissionDenied, Validation
 from specmate.sourcing.models import SupplierOffer
 from specmate.sourcing.queries import report
 
-from .conftest import op, remove_member, set_grants
+from .conftest import op, remove_member
 from .scope_helpers import workspace_of
 from .test_bom import capture, create, fixture, part
 from .test_transports import api
@@ -299,11 +299,10 @@ def test_validation_future_dates_authority_and_replay(users, sourced, other_work
         offer(users, sourced, sourced["board"], price={"amount": "-1"})
     with pytest.raises(ValidationFailed):
         offer(users, sourced, sourced["board"], review_basis=" ")
-    # Recording needs inventory.manage; viewers can still read the report.
+    # Recording needs item.create (contributor and above); viewers can still read the report.
     with pytest.raises(PermissionDenied):
-        offer(users, sourced, sourced["board"], who="editor")
-    set_grants(users["editor"], ["inventory.manage"], project=sourced["project"])
-    offer(users, sourced, sourced["board"], who="editor")
+        offer(users, sourced, sourced["board"], who="viewer")
+    offer(users, sourced, sourced["board"], who="contributor")
     assert read(users, sourced, who="viewer")["rows"]
     with pytest.raises((NotFound, PermissionDenied)):
         read(users, sourced, who="outsider")

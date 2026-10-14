@@ -113,7 +113,7 @@ Prices, currency and supplier offers are optional. No ERP/accounting installatio
 
 ### Sourcing and optional costs
 
-`sourcing.record_offer` (needs `inventory.manage`) appends an immutable workspace
+`sourcing.record_offer` (needs `item.create`) appends an immutable workspace
 `SupplierOffer`: the exact offered revision, supplier and optional reference, the offer
 source, a review basis, an `offered_on` date (never in the future), an optional
 `valid_until`, optional stated availability and lead time, and an optional price. Price

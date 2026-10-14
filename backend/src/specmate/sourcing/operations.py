@@ -12,7 +12,7 @@ from specmate.sourcing.queries import offer_result, report
 
 def offer_scope(ctx: Context, p: RecordOffer) -> str:
     """Current inventory authority and revision readability, before any retained lookup."""
-    workspace = authorize(ctx.user, p.workspace_id, Perm.INVENTORY_MANAGE)
+    workspace = authorize(ctx.user, p.workspace_id, Perm.ITEM_CREATE)
     for rid in (p.revision_id, p.substitute_for_revision_id):
         if rid is not None:
             get_revision(ctx.user, rid)
@@ -25,7 +25,7 @@ def offer_scope(ctx: Context, p: RecordOffer) -> str:
     summary="Record a dated, reviewed supplier offer; the actor is the reviewer.",
     authorize_replay=lambda ctx, p, stored: offer_scope(ctx, p),
     idempotency_scope=offer_scope,
-    access=Perm.INVENTORY_MANAGE,
+    access=Perm.ITEM_CREATE,
 )
 def record_offer(ctx: Context, p: RecordOffer):
     offer_scope(ctx, p)

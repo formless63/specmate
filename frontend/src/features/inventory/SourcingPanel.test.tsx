@@ -56,7 +56,7 @@ test("shows unknown stock, shortfall, price and freshness as unknown, never zero
 });
 
 test("recording an offer needs only the required fields and sends optional price as null", async () => {
-  const posts = fake(); mount(["workspace.read", "inventory.manage"]);
+  const posts = fake(); mount(["workspace.read", "item.create"]);
   await waitFor(() => expect(screen.getByLabelText("Offered item definition").querySelectorAll("option").length).toBeGreaterThan(2));
   fireEvent.change(screen.getByLabelText("Offered item definition"), { target: { value: "d-part" } });
   await waitFor(() => expect(screen.getByLabelText("Offered item exact revision").querySelectorAll("option").length).toBeGreaterThan(1));
