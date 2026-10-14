@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authorityDenied } from '../cables/api';
 import { HarnessEditor } from './HarnessEditor';
+import { HarnessViews } from '../harness-views/HarnessViews';
 import { command, read, initialHarness, terminalKey, terminalLabel, type Harness, type Definition, type Draft, type Identity, type Inspection } from './api';
 
 export function HarnessPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
@@ -146,6 +147,7 @@ export function HarnessInspector({ revisionId, authorityScope = 0, onDenied }: {
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {value && <><Text>Planned stock pieces: {value.quantities.physical_piece_count ?? 'unknown'}; segment spans: {value.quantities.segment_count ?? 'unknown'}</Text><Text>Continuity: {value.continuity}. Compatibility: {value.compatibility}. Physical qualification: {value.physical_qualification}.</Text>
       <Table><Table.Thead><Table.Tr><Table.Th>Exact stock</Table.Th><Table.Th>Planned sections</Table.Th><Table.Th>Pieces</Table.Th><Table.Th>Planned cut total (mm)</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{value.quantities.stock.map(row => <Table.Tr key={row.stock_revision_id}><Table.Td>{row.stock_revision_id}</Table.Td><Table.Td>{row.section_ids.join(', ')}</Table.Td><Table.Td>{row.piece_count ?? 'unknown'}</Table.Td><Table.Td>{row.planned_cut_total_mm ?? 'unknown'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+      <Title order={4}>Formboard and build sheet</Title><HarnessViews key={`${revisionId}:${quantity}`} revisionId={revisionId} harness={value.harness} quantity={quantity} />
       <Title order={4}>Declared physical ends</Title>{value.harness.sections.map(section => <Stack key={section.local_id}><Text>Section {section.local_id}</Text>{!(section.physical_ends?.length) && <Text>Physical ends unknown; no segment directions imply end assignments.</Text>}{section.physical_ends?.map(end => <Text key={end.local_id}>{end.local_id} · {end.label ?? 'unknown label'} · {end.segment_ends.map(ref => `${ref.segment_id}/${ref.end}`).join(', ')} · endpoint {end.endpoint_id ?? 'unknown'} · {end.review}: {end.basis}</Text>)}</Stack>)}
       <Title order={4}>Segments and retained material</Title>{value.harness.segments.map(s => <Text key={s.local_id}>{s.local_id} → section {s.section_id}; conductive paths: {s.element_paths?.join(', ') ?? 'all declared conductive features'}</Text>)}
       <Title order={4}>Declared relationships</Title><Text>Only explicit relationships touching a selected terminal are shown. This does not trace longitudinal copper or establish measured continuity.</Text>

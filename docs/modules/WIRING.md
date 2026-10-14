@@ -86,6 +86,16 @@ drawn colours with recorded facts. Views are mounted in the stock panel, the fro
 viewer and the frozen cable inspection; none of them evaluates continuity, fit, bonding
 or physical qualification.
 
+The frozen harness inspector also mounts `packages/harness-views`. The formboard draws
+each physical section as a bar at one length scale in its jacket's recorded colour,
+joined at breakouts. A section without a planned cut length is drawn dashed at a
+placeholder length and labelled unknown; legs that share their trunk's section are
+dashed stubs with no length. Placement implies no routing, bonding or fit. The build
+sheet derives a deterministic, self-contained, escaped HTML document with a page per
+stage (kit and cut with exact decimal totals, one page per endpoint listing declared
+terminations in contact order, assembly, test). Stages with no recorded data say so;
+no workshop procedure or soldering order is assumed.
+
 ## Layered preparation preview
 
 The stock panel can open a lazy interactive 3D view using `packages/wire-geometry`.

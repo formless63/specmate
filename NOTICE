@@ -61,6 +61,9 @@ reuse here (retained in packages/section-layout/src and packages/wire-geometry/s
 - packages/render-svg/src/cross-section.ts: the vocabulary of drawing shield
   constructions (braid, spiral, tape, foil) as distinct explicit-geometry textures;
   re-expressed in appearance.ts and render.ts with material, finish and unknown-value rules.
+The formboard and build-sheet views (packages/harness-views) are written for Specmate's
+records using only the behavior of cab-stu's drawing and build sheets (stage structure,
+deterministic self-contained output); no code, sheet format, artwork or font is copied.
 No predecessor catalog data, real designs, fonts, vendor art or comments are included.
 
 MIT permission notice for those adaptations:
