@@ -583,7 +583,7 @@ def test_owning_pack_origin_source_revocation_precedes_paths_and_key_mismatch(
     }
     version = op(editor, "catalog_pack.register", {"manifest": declaration})
     op(
-        editor,
+        owner,
         "catalog_pack.install",
         {
             "pack_id": version["pack_id"],

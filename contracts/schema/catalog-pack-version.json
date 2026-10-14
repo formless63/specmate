@@ -2,7 +2,7 @@
   "$defs": {
     "AuthorityRequest": {
       "additionalProperties": false,
-      "description": "A declared privilege. Declaring it grants nothing; installation must accept it.",
+      "description": "A declared need, shown to the admin who enables the pack. Declaring it grants nothing.",
       "properties": {
         "kind": {
           "enum": [
@@ -33,44 +33,6 @@
         "reason"
       ],
       "title": "AuthorityRequest",
-      "type": "object"
-    },
-    "AuthorityReview": {
-      "additionalProperties": false,
-      "properties": {
-        "baseline": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Baseline",
-          "type": "array"
-        },
-        "new": {
-          "items": {
-            "type": "string"
-          },
-          "title": "New",
-          "type": "array"
-        },
-        "requested": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Requested",
-          "type": "array"
-        },
-        "requires_acceptance": {
-          "title": "Requires Acceptance",
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "requested",
-        "baseline",
-        "new",
-        "requires_acceptance"
-      ],
-      "title": "AuthorityReview",
       "type": "object"
     },
     "DependencyResult": {
@@ -473,17 +435,6 @@
           "title": "Rights",
           "type": "string"
         },
-        "signature_claim": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SignatureClaim"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "version": {
           "maxLength": 100,
           "minLength": 1,
@@ -530,43 +481,10 @@
       ],
       "title": "RecipeReference",
       "type": "object"
-    },
-    "SignatureClaim": {
-      "additionalProperties": false,
-      "properties": {
-        "algorithm": {
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Algorithm",
-          "type": "string"
-        },
-        "signature": {
-          "maxLength": 4000,
-          "minLength": 1,
-          "title": "Signature",
-          "type": "string"
-        },
-        "signer": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Signer",
-          "type": "string"
-        }
-      },
-      "required": [
-        "algorithm",
-        "signer",
-        "signature"
-      ],
-      "title": "SignatureClaim",
-      "type": "object"
     }
   },
   "additionalProperties": false,
   "properties": {
-    "authority_review": {
-      "$ref": "#/$defs/AuthorityReview"
-    },
     "compatibility": {
       "enum": [
         "supported_contract",
@@ -574,6 +492,13 @@
       ],
       "title": "Compatibility",
       "type": "string"
+    },
+    "declared_needs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Declared Needs",
+      "type": "array"
     },
     "dependency_versions": {
       "items": {
@@ -588,14 +513,6 @@
       },
       "title": "Entries",
       "type": "array"
-    },
-    "execution_authority": {
-      "enum": [
-        "none",
-        "declared_not_granted"
-      ],
-      "title": "Execution Authority",
-      "type": "string"
     },
     "manifest": {
       "$ref": "#/$defs/PackManifest"
@@ -615,11 +532,6 @@
       "title": "Pack Id",
       "type": "string"
     },
-    "publisher_status": {
-      "const": "unverified_claim",
-      "title": "Publisher Status",
-      "type": "string"
-    },
     "registered_at": {
       "title": "Registered At",
       "type": "string"
@@ -630,14 +542,6 @@
     },
     "sha256": {
       "title": "Sha256",
-      "type": "string"
-    },
-    "signature_status": {
-      "enum": [
-        "unsigned",
-        "unverified_claim"
-      ],
-      "title": "Signature Status",
       "type": "string"
     },
     "version_id": {
@@ -652,11 +556,8 @@
     "sha256",
     "manifest",
     "manifest_source",
-    "signature_status",
-    "publisher_status",
     "compatibility",
-    "execution_authority",
-    "authority_review",
+    "declared_needs",
     "dependency_versions",
     "registered_by_id",
     "registered_at",

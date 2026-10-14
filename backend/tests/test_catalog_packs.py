@@ -74,9 +74,9 @@ def registered(users, project, revision, **changes):
     )
 
 
-def install(users, version, state="pack-v0", **ctx):
+def install(users, version, state="pack-v0", actor="owner", **ctx):
     return op(
-        users["editor"],
+        users[actor],
         "catalog_pack.install",
         {
             "pack_id": version["pack_id"],
@@ -108,8 +108,9 @@ def test_update_downgrade_disable_retains_owned_copies_originals_and_consumer_pi
 ):
     before = bytes(Snapshot.objects.get(id=revision["snapshot_id"]).canonical)
     v1 = registered(users, project, revision)
-    assert v1["signature_status"] == "unsigned" and v1["publisher_status"] == "unverified_claim"
-    assert v1["execution_authority"] == "none" and v1["manifest"]["rights"] == " declared rights "
+    assert v1["declared_needs"] == [] and v1["manifest"]["rights"] == " declared rights "
+    assert "signature_status" not in v1 and "publisher_status" not in v1
+    assert v1["manifest"]["publisher"] == "Synthetic publisher"
     install(users, v1)
     adopted = adopt(users, v1)
     record = AdoptionEntry.objects.get()
@@ -137,23 +138,16 @@ def test_update_downgrade_disable_retains_owned_copies_originals_and_consumer_pi
         {
             "workspace_id": workspace_of(project),
             "pack_id": v1["pack_id"],
-            "manifest": manifest(
-                revision,
-                version="2.0",
-                signature_claim={
-                    "algorithm": "claimed",
-                    "signer": "Unverified signer",
-                    "signature": "opaque claim",
-                },
-            ),
+            "manifest": manifest(revision, version="2.0"),
         },
     )
-    assert v2["signature_status"] == "unverified_claim"
+    with pytest.raises(ValidationFailed):  # signature claims are not part of the format
+        registered(users, project, revision, version="3.0", signature_claim={"signer": "x"})
     assert get_pack(users["viewer"], v1["pack_id"])["installed_version_id"] == v1["version_id"]
     updated = install(users, v2, adopted["state"])
     downgraded = install(users, v1, updated["state"])
     disabled = op(
-        users["editor"],
+        users["owner"],
         "catalog_pack.disable",
         {"pack_id": v1["pack_id"], "basis": "Stop new use; retain evidence."},
         expected_state=downgraded["state"],
@@ -308,7 +302,9 @@ def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
     )
     shared = freeze(users["owner"], source["draft_id"], source["state"])
     v1 = registered(users, project, shared)
-    install(users, v1, idempotency_key="install")
+    # Installing is an admin decision; the keyed install is made by an admin who then leaves.
+    member(users["editor"], "admin")
+    install(users, v1, actor="editor", idempotency_key="install")
     v2 = op(
         users["editor"],
         "catalog_pack.register",
@@ -321,8 +317,8 @@ def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
     for invoke in (
         lambda: get_version(users["editor"], v2["version_id"]),
         lambda: history(users["editor"], v1["pack_id"]),
-        lambda: install(users, v1),
-        lambda: install(users, v1, idempotency_key="install"),
+        lambda: install(users, v1, actor="editor"),
+        lambda: install(users, v1, actor="editor", idempotency_key="install"),
         lambda: op(
             users["editor"],
             "catalog_pack.register",
@@ -337,7 +333,7 @@ def test_all_retained_source_versions_current_before_reads_conflicts_and_replay(
         assert error.value.details == {}
 
 
-def test_contributor_imports_packs_but_installation_needs_edit(users, project, revision):
+def test_contributor_imports_packs_but_only_admins_install_and_disable(users, project, revision):
     version = op(
         users["contributor"],
         "catalog_pack.register",
@@ -350,7 +346,22 @@ def test_contributor_imports_packs_but_installation_needs_edit(users, project, r
             {"pack_id": version["pack_id"], "version_id": version["version_id"], "basis": "No"},
             expected_state="pack-v0",
         )
-    assert install(users, version)["enabled"] is True
+    with pytest.raises(PermissionDenied):  # editors may edit designs but not enable packs
+        op(
+            users["editor"],
+            "catalog_pack.install",
+            {"pack_id": version["pack_id"], "version_id": version["version_id"], "basis": "No"},
+            expected_state="pack-v0",
+        )
+    installed = install(users, version)
+    assert installed["enabled"] is True
+    with pytest.raises(PermissionDenied):
+        op(
+            users["editor"],
+            "catalog_pack.disable",
+            {"pack_id": version["pack_id"], "basis": "No"},
+            expected_state=installed["state"],
+        )
 
 
 def test_pack_registration_rejects_foreign_workspace_pins_as_not_found(

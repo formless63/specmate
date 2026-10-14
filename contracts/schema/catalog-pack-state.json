@@ -33,13 +33,6 @@
   },
   "additionalProperties": false,
   "properties": {
-    "accepted_authority": {
-      "items": {
-        "type": "string"
-      },
-      "title": "Accepted Authority",
-      "type": "array"
-    },
     "consumer_adoption": {
       "const": "explicit_new_drafts_only",
       "title": "Consumer Adoption",
@@ -49,13 +42,12 @@
       "title": "Enabled",
       "type": "boolean"
     },
-    "execution_authority": {
-      "enum": [
-        "none",
-        "accepted_declaration"
-      ],
-      "title": "Execution Authority",
-      "type": "string"
+    "enabled_needs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Enabled Needs",
+      "type": "array"
     },
     "installed_version_id": {
       "anyOf": [
@@ -68,6 +60,14 @@
         }
       ],
       "title": "Installed Version Id"
+    },
+    "kind": {
+      "enum": [
+        "catalog",
+        "adapter"
+      ],
+      "title": "Kind",
+      "type": "string"
     },
     "pack_id": {
       "format": "uuid",
@@ -103,8 +103,8 @@
     "installed_version_id",
     "enabled",
     "versions",
-    "execution_authority",
-    "accepted_authority",
+    "kind",
+    "enabled_needs",
     "consumer_adoption"
   ],
   "title": "PackResult",

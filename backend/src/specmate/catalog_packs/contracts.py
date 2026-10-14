@@ -51,18 +51,12 @@ class PackEntry(Contract):
         return self
 
 
-class SignatureClaim(Contract):
-    algorithm: str = Field(min_length=1, max_length=100)
-    signer: str = Field(min_length=1, max_length=200)
-    signature: ExactText = Field(min_length=1, max_length=4000)
-
-
 AUTHORITY_KINDS = ("execution", "network_egress", "in_process_code")
 SUPPORTED_CONTRACT_VERSIONS = ("1",)
 
 
 class AuthorityRequest(Contract):
-    """A declared privilege. Declaring it grants nothing; installation must accept it."""
+    """A declared need, shown to the admin who enables the pack. Declaring it grants nothing."""
 
     kind: Literal["execution", "network_egress", "in_process_code"]
     scope: ExactText = Field(min_length=1, max_length=200, pattern=r"^[^\s:][^:\n]*$")
@@ -88,7 +82,6 @@ class PackManifest(Contract):
     capabilities: list[str] = Field(default_factory=list, max_length=50)
     requested_authority: list[AuthorityRequest] = Field(default_factory=list, max_length=20)
     dependencies: list[UUID] = Field(default_factory=list, max_length=50)
-    signature_claim: SignatureClaim | None = None
     entries: list[PackEntry] = Field(min_length=1, max_length=100)
 
     @model_validator(mode="after")
@@ -127,9 +120,6 @@ class InstallPack(Contract):
     pack_id: UUID
     version_id: UUID
     basis: str = Field(min_length=1, max_length=4000)
-    # Exactly the authority keys this version adds over the enabled version. Content-only
-    # updates leave it empty; new privileges can never ride in on a content acceptance.
-    accept_authority: list[str] = Field(default_factory=list, max_length=20)
 
 
 class DisablePack(Contract):
@@ -159,13 +149,6 @@ class EngineeringPin(Contract):
     sha256: str
 
 
-class AuthorityReview(Contract):
-    requested: list[str]
-    baseline: list[str]
-    new: list[str]
-    requires_acceptance: bool
-
-
 class DependencyResult(Contract):
     version_id: UUID
     package_key: str
@@ -185,11 +168,9 @@ class VersionResult(Contract):
     sha256: str
     manifest: PackManifest
     manifest_source: FilePin | None
-    signature_status: Literal["unsigned", "unverified_claim"]
-    publisher_status: Literal["unverified_claim"]
     compatibility: Literal["supported_contract", "unsupported_contract"]
-    execution_authority: Literal["none", "declared_not_granted"]
-    authority_review: AuthorityReview
+    # Plain list of declared needs ("kind:scope"); never a grant or a trust statement.
+    declared_needs: list[str]
     dependency_versions: list[DependencyResult]
     registered_by_id: int
     registered_at: str
@@ -211,6 +192,7 @@ class PackResult(Contract):
     installed_version_id: UUID | None
     enabled: bool
     versions: list[VersionSummary]
-    execution_authority: Literal["none", "accepted_declaration"]
-    accepted_authority: list[str]
+    kind: Literal["catalog", "adapter"]
+    # Declared needs of the enabled version; empty when disabled.
+    enabled_needs: list[str]
     consumer_adoption: Literal["explicit_new_drafts_only"]

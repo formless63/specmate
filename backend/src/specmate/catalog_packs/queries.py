@@ -39,7 +39,9 @@ def supported(manifest):
 
 
 def manifest_of(version):
-    return PackManifest.model_validate_json(bytes(version.canonical))
+    body = json.loads(bytes(version.canonical))
+    body.pop("signature_claim", None)  # retired field; legacy rows still read
+    return PackManifest.model_validate(body)
 
 
 def version_closure(user, versions):
@@ -100,30 +102,17 @@ def requested_keys(manifest):
     return sorted(request.key for request in manifest.requested_authority)
 
 
-def accepted_authority(decisions):
-    """Authority accepted with the currently enabled version; empty once disabled."""
+def enabled_version(versions, decisions):
     active = active_version(decisions)
-    if active is None:
-        return []
-    install = next(
-        row for row in reversed(decisions) if row.action == "install" and row.version_id == active
-    )
-    return sorted(install.accepted_authority)
+    return next((version for version in versions if version.id == active), None)
 
 
-def authority_review(version, decisions):
-    requested = requested_keys(manifest_of(version))
-    baseline = accepted_authority(decisions)
-    new = sorted(set(requested) - set(baseline))
-    return {
-        "requested": requested,
-        "baseline": baseline,
-        "new": new,
-        "requires_acceptance": bool(new),
-    }
+def latest_kind(versions):
+    return manifest_of(versions[-1]).kind if versions else "catalog"
 
 
 def pack_result(pack, versions, decisions):
+    enabled = enabled_version(versions, decisions)
     result = {
         "pack_id": str(pack.id),
         "workspace_id": str(pack.workspace_id),
@@ -142,8 +131,8 @@ def pack_result(pack, versions, decisions):
             }
             for version in versions
         ],
-        "execution_authority": "accepted_declaration" if accepted_authority(decisions) else "none",
-        "accepted_authority": accepted_authority(decisions),
+        "kind": manifest_of(enabled).kind if enabled else latest_kind(versions),
+        "enabled_needs": requested_keys(manifest_of(enabled)) if enabled else [],
         "consumer_adoption": "explicit_new_drafts_only",
     }
     return PackResult.model_validate(result).model_dump(mode="json")
@@ -155,7 +144,6 @@ def get_pack(user, pack_id):
 
 def version_result(version):
     manifest = manifest_of(version)
-    decisions = list(version.pack.decisions.order_by("sequence"))
     source = version.manifest_source
     result = {
         "version_id": str(version.id),
@@ -170,11 +158,8 @@ def version_result(version):
         }
         if source
         else None,
-        "signature_status": "unverified_claim" if manifest.signature_claim else "unsigned",
-        "publisher_status": "unverified_claim",
         "compatibility": "supported_contract" if supported(manifest) else "unsupported_contract",
-        "execution_authority": "declared_not_granted" if manifest.requested_authority else "none",
-        "authority_review": authority_review(version, decisions),
+        "declared_needs": requested_keys(manifest),
         "dependency_versions": [
             {
                 "version_id": str(pin.dependency_id),
@@ -270,7 +255,6 @@ def history(user, pack_id, *, after=0, limit=25):
                 "version_id": str(row.version_id),
                 "version": by_id[row.version_id].version,
                 "basis": row.basis,
-                "accepted_authority": sorted(row.accepted_authority),
                 "decided_by_id": row.decided_by_id,
                 "decided_at": row.created_at.isoformat(),
                 "adoptions": [

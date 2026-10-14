@@ -1,8 +1,8 @@
 # Catalog pack adoption
 
 Catalog packs are inert, versioned workspace library content. A typed manifest records package
-identity, publisher and capability claims, contract compatibility, declared rights,
-signature claims, exact dependency versions and up to 100 entries. Entries identify
+identity, publisher and capability text, contract compatibility, declared rights,
+declared needs, exact dependency versions and up to 100 entries. Entries identify
 content, workshop profiles, rule/model files or recipe references. Engineering pins
 include an exact revision and snapshot hash; registered files include exact bundle
 revision, path, hash and declared rights. Labels, paths and rights preserve whitespace.
@@ -20,13 +20,13 @@ like a missing one, and a database guard rejects such entries independently.
 optional `workspace_id` defaults to the actor's workspace. It stores canonical manifest bytes and their hash, with immutable
 normalized entry/dependency pins. Optional manifest-file provenance is checked against
 registered bytes, hash and typed manifest content. The intrinsic manifest is authored
-through structured fields; external JSON preparation is optional. Publisher, capability
-and signature claims are unverified metadata. An absent signature is `unsigned`.
-Hash agreement identifies bytes, not publisher trust or redistribution permission.
-Executable entry types and requested authority are rejected; recipe IDs/digests are
+through structured fields; external JSON preparation is optional. Publisher and capability
+text is informational; there are no signatures or trust badges. Hash agreement
+identifies bytes, not redistribution permission.
+Executable entry types are rejected; declared needs are listed plainly; recipe IDs/digests are
 inert references and never modify the approved-recipe registry.
 
-Install, adopt and disable require `design.edit`. `catalog_pack.install` explicitly chooses an exact registered version. Registration
+Adopt requires `design.edit`; install (enable, update, rollback) and disable require `workspace.admin`. `catalog_pack.install` explicitly chooses an exact registered version. Registration
 does not update an installed version. Install decisions can upgrade or downgrade;
 they preserve every previous manifest and decision. Unsupported contract versions are
 inspectable but cannot be installed/adopted. A disable decision stops new adoption
@@ -69,6 +69,6 @@ The browser exposes structured registration, exact revision/file/dependency sele
 version inspection, explicit install/downgrade/adoption/disable review forms and retained
 decision/provenance history. Current access is refreshed before continuing retained
 selections after denial. Capability acceptance still requires the integrated browser
-checkpoint. External catalog-format converters, signature verification, model/rule
+checkpoint. External catalog-format converters, model/rule
 interpretation engines, executable extension/tool-pack installation and cross-workspace
 import are further supported-format work, not implied by registration.

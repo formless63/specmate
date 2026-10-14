@@ -29,12 +29,12 @@ function Workspace({ projectId }: { projectId: string | null }) {
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [acceptAuthority, setAcceptAuthority] = useState(false);
   const generation = useRef(0);
   // Importing an inert pack version is additive (contributors may); install, adopt and
   // disable change what the workspace uses and need design.edit.
   const canImport = useCan("item.create") && !blocked;
   const canEdit = useCan("design.edit") && !blocked;
+  const canAdmin = useCan("workspace.admin") && !blocked;
   const invalidate = (reason: unknown) => { setError(message(reason)); setBlocked(true); setPacks([]); setSelected(null); setVersion(null); setDecisions([]); setEntryKeys([]); setBasis(""); setBusy(false); };
 
   async function loadPacks(after?: string) {
@@ -50,7 +50,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
 
   async function inspect(packId: string, versionId?: string) {
     const token = ++generation.current;
-    setSelected(null); setVersion(null); setDecisions([]); setEntryKeys([]); setBasis(""); setAcceptAuthority(false); setBusy(true); setError("");
+    setSelected(null); setVersion(null); setDecisions([]); setEntryKeys([]); setBasis(""); setBusy(true); setError("");
     try {
       const current = await read<Pack>(`catalog-packs/packs/${packId}`);
       const history = await read<{ results: Decision[]; next_after: number | null }>(`catalog-packs/packs/${packId}/history?limit=25`);
@@ -77,7 +77,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
     const token = ++generation.current;
     setBusy(true); setError("");
     try {
-      await command<Pack>(`catalog_pack.${action}`, { pack_id: selected.pack_id, ...(action !== "disable" ? { version_id: version.version_id } : {}), ...(action === "adopt" ? { entry_keys: entryKeys } : {}), ...(action === "install" ? { accept_authority: acceptAuthority ? version.authority_review.new : [] } : {}), basis }, selected.state);
+      await command<Pack>(`catalog_pack.${action}`, { pack_id: selected.pack_id, ...(action !== "disable" ? { version_id: version.version_id } : {}), ...(action === "adopt" ? { entry_keys: entryKeys } : {}), basis }, selected.state);
       if (token !== generation.current) return;
       await inspect(selected.pack_id, version.version_id);
       const page = await loadPacks(); setPacks(page.results); setNextPack(page.next_after);
@@ -93,11 +93,11 @@ function Workspace({ projectId }: { projectId: string | null }) {
 
   return <Stack>
     <Title order={2}>Catalog packs</Title>
-    <Text>Version inert catalog content, profiles, model/rule files and recipe references. Installation and adoption grant no executable authority; old consumers retain their exact pins.</Text>
+    <Text>Version inert catalog content, profiles, model/rule files and recipe references. Admins enable and disable packs and adapters; disabling stops new use, and old consumers retain their exact pins.</Text>
     {error && <Alert color="red">{error}</Alert>}
     {blocked && <Alert color="yellow">Refresh access before continuing. Retained choices and history were cleared.</Alert>}
     <ReadOnlyNote permission="item.create">Installation and adoption need editor access.</ReadOnlyNote>
-    {canImport && !canEdit && <ReadOnlyNote permission="design.edit">You can import pack versions. Installation and adoption need editor access.</ReadOnlyNote>}
+    {canImport && !canEdit && <ReadOnlyNote permission="design.edit">You can import pack versions. Adoption needs editor access.</ReadOnlyNote>}
     {!blocked && canImport && <RegisterForm projectId={projectId} packs={packs} canEdit={canImport} onRegistered={registered} onDenied={invalidate} />}
     <Title order={3}>Registered packs</Title>
     {packs.map((pack) => <Card withBorder key={pack.pack_id}><Group><Text>{pack.package_key}</Text><Badge>{pack.enabled ? "Enabled" : "Not enabled"}</Badge></Group><Button variant="light" disabled={busy} onClick={() => void inspect(pack.pack_id)}>Inspect pack</Button></Card>)}
@@ -112,14 +112,14 @@ function Workspace({ projectId }: { projectId: string | null }) {
       <Text>Select content to create fresh local editable drafts; other selected entries remain inert references.</Text>
       {version.entries.map((entry) => <Checkbox key={entry.key} label={`Adopt ${entry.label} (${entry.key})`} checked={entryKeys.includes(entry.key)} disabled={!canEdit} onChange={(event) => { const checked = event.currentTarget.checked; setEntryKeys((current) => checked ? [...current, entry.key] : current.filter((key) => key !== entry.key)); }} />)}
       <Group>
-        {version.authority_review.requires_acceptance && <Checkbox label={`Also accept the newly requested authority: ${version.authority_review.new.join(", ")}`} checked={acceptAuthority} onChange={(event) => setAcceptAuthority(event.currentTarget.checked)} />}
-        <Button disabled={!canEdit || !basis.trim() || version.compatibility !== "supported_contract" || (version.authority_review.requires_acceptance && !acceptAuthority)} loading={busy} onClick={() => void decide("install")}>Install selected version</Button>
+        {canAdmin && <Button disabled={!basis.trim() || version.compatibility !== "supported_contract"} loading={busy} onClick={() => void decide("install")}>{version.manifest.kind === "adapter" ? "Enable adapter version" : "Install selected version"}</Button>}
         <Button disabled={!canEdit || !basis.trim() || entryKeys.length === 0 || !selected.enabled || selected.installed_version_id !== version.version_id} loading={busy} onClick={() => void decide("adopt")}>Adopt selected entries</Button>
-        <Button color="orange" disabled={!canEdit || !basis.trim() || !selected.enabled} loading={busy} onClick={() => void decide("disable")}>Disable new adoption</Button>
-      </Group></>}
+        {canAdmin && <Button color="orange" disabled={!basis.trim() || !selected.enabled} loading={busy} onClick={() => void decide("disable")}>Disable new adoption</Button>}
+      </Group>
+      {!canAdmin && <ReadOnlyNote permission="workspace.admin">Enabling, rolling back and disabling packs need workspace admin access.</ReadOnlyNote>}</>}
       <Title order={4}>Retained decisions</Title>
       {decisions.map((decision) => <Card withBorder key={decision.decision_id}>
-        <Text fw={600}>{decision.sequence}: {decision.action} · version {decision.version}</Text><Text>{decision.basis}</Text>{decision.accepted_authority.length > 0 && <Text size="sm">Accepted authority: {decision.accepted_authority.join(", ")}</Text>}<Text size="sm">Decision {decision.decision_id} · actor {decision.decided_by_id} · {decision.decided_at}</Text>
+        <Text fw={600}>{decision.sequence}: {decision.action} · version {decision.version}</Text><Text>{decision.basis}</Text><Text size="sm">Decision {decision.decision_id} · actor {decision.decided_by_id} · {decision.decided_at}</Text>
         {decision.adoptions.map((adoption) => <Stack gap={0} key={adoption.key}><Text>Entry {adoption.key}: {adoption.status.replaceAll("_", " ")}</Text><Text size="sm">Source revision: {adoption.source_revision_id ?? "inert file/recipe reference"}</Text>{adoption.definition_id && <><Text size="sm">New local definition {adoption.definition_id} · draft {adoption.draft_id}</Text><Text size="sm">Open this definition in Identity to inspect, edit and explicitly freeze the adopted draft.</Text></>}</Stack>)}
         <Button variant="light" onClick={() => void inspect(selected.pack_id, decision.version_id)}>Inspect historical version {decision.version}</Button>
       </Card>)}
@@ -141,15 +141,13 @@ function RegisterForm({ projectId, packs, canEdit, onRegistered, onDenied }: { p
   const [entries, setEntries] = useState<{ id: string; value: Entry }[]>([{ id: "first", value: blankEntry() }]);
   const [linkedManifest, setLinkedManifest] = useState(false);
   const [manifestSource, setManifestSource] = useState<FilePin | null>(null);
-  const [signedClaim, setSignedClaim] = useState(false);
-  const [algorithm, setAlgorithm] = useState(""); const [signer, setSigner] = useState(""); const [signature, setSignature] = useState("");
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const active = useRef(true);
   const completeEntries = entries.every(({ value }) => ["content", "profile"].includes(value.category) ? !!value.revision_id && !!value.revision_sha256 : ["rule", "model"].includes(value.category) ? !!value.source : !!value.recipe?.recipe_id && !!value.recipe?.version && /^[a-f0-9]{64}$/.test(value.recipe?.digest ?? ""));
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
-    const manifest: Manifest = { format: "specmate.catalog-pack", kind: "catalog", contract_version: contractVersion, compatible_contract_versions: [contractVersion], package_key: packageKey, label, version, publisher, rights, capabilities: capabilities.split(",").map((claim) => claim.trim()).filter(Boolean), requested_authority: [], dependencies, signature_claim: signedClaim ? { algorithm, signer, signature } : null, entries: entries.map((entry) => entry.value) };
+    const manifest: Manifest = { format: "specmate.catalog-pack", kind: "catalog", contract_version: contractVersion, compatible_contract_versions: [contractVersion], package_key: packageKey, label, version, publisher, rights, capabilities: capabilities.split(",").map((claim) => claim.trim()).filter(Boolean), requested_authority: [], dependencies, entries: entries.map((entry) => entry.value) };
     try { const result = await command<Version>("catalog_pack.register", { pack_id: packId || null, manifest, manifest_source: linkedManifest ? manifestSource : null }); if (active.current) await onRegistered(result); }
     catch (reason) { if (active.current) { setError(message(reason)); if (!(reason instanceof PackRequestError) || ![409, 422].includes(reason.status)) onDenied(reason); } }
     finally { if (active.current) setBusy(false); }
@@ -166,9 +164,7 @@ function RegisterForm({ projectId, packs, canEdit, onRegistered, onDenied }: { p
     <TextInput label="Required contract version" value={contractVersion} onChange={(event) => setContractVersion(event.currentTarget.value)} required maxLength={100} />
     <TextInput label="Capability claims, separated by commas" value={capabilities} onChange={(event) => setCapabilities(event.currentTarget.value)} />
     <MultiSelect label="Exact dependency versions" data={packs.flatMap((pack) => pack.versions.map((entry) => ({ value: entry.version_id, label: `${pack.package_key} · ${entry.version} · ${entry.version_id}` })))} value={dependencies} onChange={setDependencies} searchable />
-    <Checkbox label="Retain an unverified signature claim" checked={signedClaim} onChange={(event) => setSignedClaim(event.currentTarget.checked)} />
-    {signedClaim && <><TextInput label="Claimed signature algorithm" value={algorithm} onChange={(event) => setAlgorithm(event.currentTarget.value)} required maxLength={100} /><TextInput label="Claimed signer" value={signer} onChange={(event) => setSigner(event.currentTarget.value)} required maxLength={200} /><Textarea label="Unverified signature text" value={signature} onChange={(event) => setSignature(event.currentTarget.value)} required maxLength={4000} /></>}
-    <Text size="sm">Publisher, capability and signature claims remain unverified. Pack rights are declared metadata and do not establish redistribution permission.</Text>
+    <Text size="sm">Publisher and capability text is informational. Pack rights are declared metadata and do not establish redistribution permission.</Text>
     <Checkbox label="Link an exact registered manifest file" checked={linkedManifest} onChange={(event) => setLinkedManifest(event.currentTarget.checked)} />
     {linkedManifest && <SourcePicker label="Manifest" onChange={setManifestSource} onDenied={onDenied} />}
     {entries.map((entry, index) => <Card withBorder key={entry.id}><EntryEditor index={index + 1} value={entry.value} projectId={projectId} onChange={(value) => setEntries((current) => current.map((row) => row.id === entry.id ? { ...row, value } : row))} onDenied={onDenied} />{entries.length > 1 && <Button variant="light" onClick={() => setEntries((current) => current.filter((row) => row.id !== entry.id))}>Remove entry {index + 1}</Button>}</Card>)}
@@ -216,10 +212,9 @@ function SourcePicker({ label, onChange, onDenied }: { label: string; onChange: 
 
 function FileView({ pin }: { pin: FilePin }) { return <Stack gap={0}><Text size="sm"><RevisionLabel kind="source" id={pin.source_bundle_revision_id} role="Bundle" /></Text><Text size="sm" style={{ whiteSpace: "pre-wrap" }}>Path: {pin.source_path}</Text><Text size="sm">SHA-256 {pin.sha256}</Text><Text size="sm" style={{ whiteSpace: "pre-wrap" }}>Declared file rights: {pin.rights}</Text></Stack>; }
 function VersionView({ version }: { version: Version }) {
-  return <Stack gap="xs"><Text>Canonical manifest SHA-256 {version.sha256}</Text><Text style={{ whiteSpace: "pre-wrap" }}>Declared publisher: {version.manifest.publisher}</Text><Text style={{ whiteSpace: "pre-wrap" }}>Declared pack rights: {version.manifest.rights}</Text><Text>Signature: {version.signature_status.replaceAll("_", " ")} · publisher claim unverified · {version.compatibility.replaceAll("_", " ")}</Text><Text>Kind: {version.manifest.kind} · compatible contract versions: {version.manifest.compatible_contract_versions.join(", ")}</Text><Text>Capability claims: {version.manifest.capabilities.join(", ") || "none"}.</Text>
-    {version.manifest.requested_authority.length === 0 ? <Text>Requested authority: none.</Text> : <Stack gap={0}><Text fw={600}>Requested authority (declared, not granted; verification of use is separate)</Text>{version.manifest.requested_authority.map((request) => <Text key={`${request.kind}:${request.scope}`} style={{ whiteSpace: "pre-wrap" }}>{request.kind.replaceAll("_", " ")} · {request.scope} · {request.reason}</Text>)}<Text>{version.authority_review.requires_acceptance ? `New over the enabled version, needs separate acceptance: ${version.authority_review.new.join(", ")}` : "Nothing beyond the currently accepted authority."}</Text></Stack>}
+  return <Stack gap="xs"><Text>Canonical manifest SHA-256 {version.sha256}</Text><Text style={{ whiteSpace: "pre-wrap" }}>Publisher: {version.manifest.publisher}</Text><Text style={{ whiteSpace: "pre-wrap" }}>Declared pack rights: {version.manifest.rights}</Text><Text>{version.compatibility.replaceAll("_", " ")}</Text><Text>Kind: {version.manifest.kind === "adapter" ? "adapter (executable)" : "catalog (content only)"} · compatible contract versions: {version.manifest.compatible_contract_versions.join(", ")}</Text><Text>Capability claims: {version.manifest.capabilities.join(", ") || "none"}.</Text>
+    {version.manifest.requested_authority.length === 0 ? <Text>Declared needs: none.</Text> : <Stack gap={0}><Text fw={600}>Declared needs</Text>{version.manifest.requested_authority.map((request) => <Text key={`${request.kind}:${request.scope}`} style={{ whiteSpace: "pre-wrap" }}>{request.kind.replaceAll("_", " ")} · {request.scope} · {request.reason}</Text>)}</Stack>}
     <Text>Exact dependencies: {version.dependency_versions.length === 0 ? "none" : version.dependency_versions.map((dependency) => `${dependency.package_key} ${dependency.version} (${dependency.enabled ? "enabled" : "not enabled"}) ${dependency.version_id}`).join("; ")}</Text><Text size="sm">Registered {version.registered_at} · actor {version.registered_by_id}</Text>
-    {version.manifest.signature_claim && <Text style={{ whiteSpace: "pre-wrap" }}>Unverified signature claim: {version.manifest.signature_claim.algorithm} · {version.manifest.signature_claim.signer} · {version.manifest.signature_claim.signature}</Text>}
     {version.manifest_source && <><Text fw={600}>Exact manifest source</Text><FileView pin={version.manifest_source} /></>}
     {version.entries.map((entry) => <Card withBorder key={entry.key}><Text fw={600} style={{ whiteSpace: "pre-wrap" }}>{entry.label} · {entry.key} · {entry.category}</Text><Text style={{ whiteSpace: "pre-wrap" }}>Declared entry rights: {entry.rights}</Text><Text>{entry.interpretation.replaceAll("_", " ")}</Text>{entry.engineering && <><Text>Source: {entry.engineering.name} · {entry.engineering.kind} · revision {entry.engineering.number}</Text><Text size="sm"><RevisionLabel id={entry.engineering.revision_id} extraPins={[{ label: 'Definition ID', value: entry.engineering.definition_id }]} /></Text><Text size="sm">Snapshot SHA-256 {entry.engineering.sha256}</Text></>}{entry.source && <FileView pin={entry.source} />}{entry.recipe && <Text>Inert recipe {entry.recipe.recipe_id} · version {entry.recipe.version} · digest {entry.recipe.digest}</Text>}</Card>)}
   </Stack>;

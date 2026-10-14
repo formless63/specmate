@@ -93,8 +93,8 @@ upstream notices, not private narrative. Never build an image from the parent wo
 
 ## Extension and operator surfaces
 
-Review publisher identity, signatures/digests, authority changes and dependency closure.
-A sandbox extension cannot request hidden in-process code loading. Operators can access
+Admins decide what to enable; review declared needs, digests and dependency closure first.
+There is no signature or publisher-trust check, and in-process code is fully trusted. Operators can access
 Temporal UI and administrative operations; workspace membership, including the admin role,
 is not sufficient.
 Do not proxy an unauthenticated Temporal service to the public web.

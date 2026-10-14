@@ -2,7 +2,7 @@
   "$defs": {
     "AuthorityRequest": {
       "additionalProperties": false,
-      "description": "A declared privilege. Declaring it grants nothing; installation must accept it.",
+      "description": "A declared need, shown to the admin who enables the pack. Declaring it grants nothing.",
       "properties": {
         "kind": {
           "enum": [
@@ -187,36 +187,6 @@
       ],
       "title": "RecipeReference",
       "type": "object"
-    },
-    "SignatureClaim": {
-      "additionalProperties": false,
-      "properties": {
-        "algorithm": {
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Algorithm",
-          "type": "string"
-        },
-        "signature": {
-          "maxLength": 4000,
-          "minLength": 1,
-          "title": "Signature",
-          "type": "string"
-        },
-        "signer": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Signer",
-          "type": "string"
-        }
-      },
-      "required": [
-        "algorithm",
-        "signer",
-        "signature"
-      ],
-      "title": "SignatureClaim",
-      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -308,17 +278,6 @@
       "minLength": 1,
       "title": "Rights",
       "type": "string"
-    },
-    "signature_claim": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/SignatureClaim"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
     },
     "version": {
       "maxLength": 100,
