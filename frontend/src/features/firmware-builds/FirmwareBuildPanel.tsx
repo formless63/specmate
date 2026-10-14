@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
 import { compileOptions, compileOutputUrl, compileReview, listResolvedConfigurations, type CompileOptions, type CompileReview, type FirmwareBuildRef, type ResolvedChoices } from './api';
-import { Lineage } from '../builds/BuildsPanel';
+import { Lineage, jobState, pretty } from '../builds/BuildsPanel';
+import { SbJobCard, SbUnknown } from '../../components/sb';
 import { cancelBuild, readHistory, retryBuild } from '../builds/api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
@@ -105,8 +106,10 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
       <TextInput label="Source execution review basis" value={basis} onChange={event => setBasis(event.currentTarget.value)} />
       <Button disabled={busy || !consent || !basis.trim()} onClick={() => void compile()}>Request firmware compile</Button>
     </Stack>}
-    {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}{build.retry_of ? ` · retry of ${build.retry_of}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button>
-      <BuildControls build={build} canExecute={canExecute} onChanged={() => refresh(null)} /></Group>)}
+    {available?.builds.map(build => <SbJobCard key={build.build_id} title={build.build_id} state={jobState(build.state)} stateWords={pretty(build.state)} dimension="compile"
+      detail={<>{build.failure ?? ''}{build.retry_of ? ` retry of ${build.retry_of}` : ''}</>}
+      actions={<><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button>
+      <BuildControls build={build} canExecute={canExecute} onChanged={() => refresh(null)} /></>} />)}
     {available?.truncated && <Text>Showing the latest 100 builds; earlier history is retained.</Text>}
     {review && <Stack><Title order={4}>Registered compiler handoff</Title>
       <Lineage lineage={review.lineage} retryOf={review.retry_of} /><CompilerPins inputs={review.inputs} />
@@ -118,7 +121,7 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
 }
 function CompilerPins({ inputs }: { inputs: CompileOptions['inputs'] }) {
   return <Stack gap="xs"><Text size="xs"><RevisionLabel id={inputs.firmware_revision_id} role="Firmware" snapshotId={inputs.firmware_snapshot_sha256} /></Text>
-    <Text size="sm">Declared compiler {inputs.toolchain.name} {inputs.toolchain.version ?? 'unknown'} · framework {inputs.toolchain.framework ?? 'unknown'} · ABI label {inputs.toolchain.board_id ?? 'unknown'} (hardware identity unevaluated)</Text>
+    <Text size="sm">Declared compiler {inputs.toolchain.name} {inputs.toolchain.version ?? <SbUnknown />} · framework {inputs.toolchain.framework ?? <SbUnknown />} · ABI label {inputs.toolchain.board_id ?? <SbUnknown />} (hardware identity unevaluated)</Text>
     <Text size="xs"><RevisionLabel id={inputs.target.population_revision_id} role="Population" /> · option {inputs.target.option_id} · native component {inputs.target.component_id}</Text>
     {inputs.occurrence && <Text size="xs">Assembly {inputs.occurrence.assembly_snapshot_id} · snapshot {inputs.occurrence.assembly_snapshot_sha256} · occurrence {inputs.occurrence.path.join(' / ')}</Text>}
     {inputs.sources.map(source => <Stack gap={2} key={source.local_id}><Text size="xs"><RevisionLabel kind="source" id={source.source_revision_id} role="Source" /> · manifest {source.source_manifest_sha256}</Text>{source.files.map(file => <Text size="xs" key={file.path}>{file.path} · {file.sha256} · {file.role} · {file.rights}</Text>)}</Stack>)}

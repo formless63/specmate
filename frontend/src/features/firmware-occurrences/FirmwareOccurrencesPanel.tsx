@@ -1,3 +1,4 @@
+import { SbIdentityBadge, SbUnknown } from "../../components/sb";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
@@ -131,7 +132,7 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
     {error && <Alert color="red">{error}</Alert>}
     {inspection && <>
       <Table><Table.Thead><Table.Tr><Table.Th>Contextual path</Table.Th><Table.Th>Exact board revision</Table.Th><Table.Th>Firmware revision</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-        {inspection.occurrences.map((item) => <Table.Tr key={JSON.stringify(item.path)}><Table.Td>{item.path.join('/')} · {item.display_ref || item.name}</Table.Td><Table.Td><RevisionLabel id={item.revision_id} /></Table.Td><Table.Td>{item.firmware_revision_id ?? 'Unassigned'}</Table.Td></Table.Tr>)}
+        {inspection.occurrences.map((item) => <Table.Tr key={JSON.stringify(item.path)}><Table.Td><SbIdentityBadge kind="occurrence" /> {item.path.join('/')} · {item.display_ref || item.name}</Table.Td><Table.Td><RevisionLabel id={item.revision_id} /></Table.Td><Table.Td>{item.firmware_revision_id ?? 'Unassigned'}</Table.Td></Table.Tr>)}
       </Table.Tbody></Table>
       {owner.snapshot_id && <>
         <NativeSelect label="Frozen board occurrence for compilation" value={path} data={[{ value: '', label: 'Select an exact frozen board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
@@ -165,16 +166,16 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
 
 function Declaration({ label, value }: { label: string; value: FirmwareRead }) {
   const declaration = value.content.firmware;
-  return <Stack gap="xs"><Title order={4}>{label}: {value.name}</Title>
+  return <Stack gap="xs"><Group gap="xs"><SbIdentityBadge kind="frozen" /><Title order={4}>{label}: {value.name}</Title></Group>
     <Text><RevisionLabel id={value.revision_id} sha256={value.snapshot_sha256} /></Text>
     <Text><RevisionLabel id={declaration.target.population_revision_id} role="Target population" /> · Option {declaration.target.option_id} · Native component {declaration.target.component_id}</Text>
     <Text>Interpretation {value.evaluation.target.interpretation_id} · <RevisionLabel kind="source" id={value.evaluation.target.board_source_revision_id} role="Board source" /></Text>
-    <Text>Declared toolchain {declaration.toolchain.name} · Version {declaration.toolchain.version ?? 'unknown'} · Support unverified</Text>
+    <Text>Declared toolchain {declaration.toolchain.name} · Version {declaration.toolchain.version ?? <SbUnknown />} · Support unverified</Text>
     {declaration.configuration.map((entry) => <Text key={entry.key}>{entry.key}={entry.status === 'secret_reference' ? '[secret reference]' : entry.status === 'unknown' ? '[unknown]' : entry.value}</Text>)}
     {declaration.sources.map((source) => <Stack key={source.local_id} gap="xs"><Text><RevisionLabel kind="source" id={source.source_revision_id} role="Source" /> · Manifest {source.source_manifest_sha256}</Text>
       {source.files.map((file) => <Text key={file.path}>{file.path} · {file.role} · {file.sha256} · {file.rights}</Text>)}
     </Stack>)}
-    {declaration.pins.map((pin) => <Text key={pin.signal}>{pin.signal} · {pin.function} · Native pad {pin.pad_id ?? 'unknown'} · Peripheral {pin.peripheral ?? 'unknown'}</Text>)}
+    {declaration.pins.map((pin) => <Text key={pin.signal}>{pin.signal} · {pin.function} · Native pad {pin.pad_id ?? <SbUnknown />} · Peripheral {pin.peripheral ?? <SbUnknown />}</Text>)}
     {value.evaluation.findings.filter((finding) => finding.status !== 'valid').map((finding, index) => <Text key={index}>{finding.status}: {finding.message}</Text>)}
   </Stack>;
 }

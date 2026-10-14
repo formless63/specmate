@@ -3,6 +3,7 @@ import { Alert, Badge, Button, Card, Checkbox, Group, Select, Stack, Table, Text
 import { useState } from 'react';
 import { command, preserve, registerBlob, SourceError, type EditReview, type RevisionDetail } from './api';
 import { randomUUID } from '../../lib/random-id';
+import { SbProvenance } from '../../components/sb';
 import { ExactPins, RevisionLabel } from "../../lib/IdentityLabel";
 
 const MAX_FILES = 1000;
@@ -171,9 +172,7 @@ export function EditHandoff({ workspaceId, detail, busy, setBusy, onAuthorityFai
 export function EditProvenanceCard({ detail }: { detail: RevisionDetail }) {
   const edit = detail.edit_submission;
   if (!edit) return null;
-  return <Card withBorder><Text fw={600}>Edit re-entry provenance</Text>
-    <Text>Baseline <span className="sb-mono">r{edit.baseline_number}</span> <ExactPins pins={[{ label: 'Baseline revision ID', value: edit.baseline_revision_id }]} /></Text>
-    <Text size="sm">Baseline manifest SHA-256: {edit.baseline_manifest_sha256}</Text>
+  return <Card withBorder><SbProvenance label="Edit re-entry provenance" summary={`Baseline r${edit.baseline_number}`} pins={[{ label: 'Baseline revision ID', value: edit.baseline_revision_id }, { label: 'Baseline manifest SHA-256', value: edit.baseline_manifest_sha256 }]} />
     <Text>Submitted as: {edit.target === 'next_revision' ? 'next revision of the derivative' : 'separate derivative'}</Text>
     {edit.source.kind === 'zip' ? <Text size="sm">Edited archive: {edit.source.path} · <ExactPins pins={[{ label: 'Edited archive revision ID', value: edit.source.revision_id }]} /> · SHA-256 {edit.source.sha256} · parser {edit.source.parser}</Text> : <Text size="sm">Edited files registered individually</Text>}
     <Text size="sm">Handoff marker: {edit.marker}{edit.root_prefix ? ` · root folder ${edit.root_prefix}/` : ''}</Text>

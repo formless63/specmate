@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -38,10 +39,10 @@ test('shows pinned construction independently of the edited draft and locks froz
   const fetcher = installApi();
   render(<MantineProvider><WireStockPanel projectId="project1" /></MantineProvider>);
   await choose('Saved stock', /Editable stock/);
-  expect(screen.getByText(/Section: 8 mm × 8 mm/)).toBeTruthy();
+  expect(screen.getByText(byContent(/Section: 8 mm × 8 mm/))).toBeTruthy();
   await choose('Frozen stock definition', /Synthetic stock/);
   await choose('Exact stock revision', /Synthetic stock · r1/);
-  await screen.findByText(/Section: 3 × 3 mm/); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
+  await screen.findByText(byContent(/Section: 3 mm × 3 mm/)); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   await choose('Matching frozen profile', /Synthetic stripping · revision 1 · profile-r1/);
   await screen.findAllByText('profile-r1', { selector: 'code' });
   const frozen = within(screen.getByRole('region', { name: 'Frozen stock profile viewer' }));
@@ -53,11 +54,11 @@ test('shows pinned construction independently of the edited draft and locks froz
   expect(cut.value).toBe('12'); expect(cut.closest('fieldset')!.disabled).toBe(true);
   expect(frozen.queryByRole('button', { name: 'Reset preview profile' })).toBeNull();
   fireEvent.change(screen.getByLabelText('stock.jacket outer diameter mm'), { target: { value: '9' } });
-  expect(screen.getByText(/Section: 9 mm × 9 mm/)).toBeTruthy();
-  expect(screen.getByText(/Section: 3 × 3 mm/)).toBeTruthy(); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getByText(byContent(/Section: 9 mm × 9 mm/))).toBeTruthy();
+  expect(screen.getByText(byContent(/Section: 3 mm × 3 mm/))).toBeTruthy(); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(fetcher.mock.calls.every(([, options]) => !(options as RequestInit | undefined)?.method)).toBe(true);
   await choose('Exact stock revision', /Synthetic stock · r2/);
-  await screen.findByText(/Section: 8 × 8 mm/); expect(screen.getAllByText('stock-r2', { selector: 'code' }).length).toBeGreaterThan(0);
+  await screen.findByText(byContent(/Section: 8 mm × 8 mm/)); expect(screen.getAllByText('stock-r2', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.queryAllByText('profile-r1', { selector: 'code' })).toHaveLength(0);
 });
 test('rejects mismatching profile reads without drawing them against selected stock', async () => {
@@ -93,10 +94,10 @@ test('shows readable frozen material dimensions, unknowns and fact sources witho
   expect(jacket.textContent).toContain('Inner diameter: 2.4 mm');
   expect(jacket.textContent).toContain('Original synthetic arithmetic fixture');
   const shield = rows.find(row => row.textContent?.includes('stock.screen'))!;
-  expect(shield.textContent).toContain('Inner diameter: Unknown');
-  expect(shield.textContent).toContain('Material: Unknown');
-  expect(shield.textContent).toContain('Color: Unknown');
-  expect(screen.getByRole('table', { name: 'Frozen construction facts' }).textContent).toContain('Unknown');
+  expect(shield.textContent).toContain('Inner diameter: – – – unknown');
+  expect(shield.textContent).toContain('Material: – – –');
+  expect(shield.textContent).toContain('Color: – – –');
+  expect(screen.getByRole('table', { name: 'Frozen construction facts' }).textContent).toContain('unknown');
   expect(document.querySelector('pre')).toBeNull();
 });
 

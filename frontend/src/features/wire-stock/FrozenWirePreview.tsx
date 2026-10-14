@@ -12,11 +12,12 @@ import { WirePreparationPreview } from './WirePreparationPreview';
 import { CableViews } from '../cable-views/CableViews';
 import { StockSectionView } from '../cable-views/StockSectionView';
 import { rowLook, Swatch } from '../cable-views/Swatch';
+import { SbIdentityBadge, SbQuantity, SbUnknown } from "../../components/sb";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 /** Own state, exact snapshots, no setters or command adapters for the current stock draft. */
-const dimension = (value: number | null): string => value === null ? 'Unknown' : `${value} mm`;
+const dimension = (value: number | null) => <SbQuantity value={value} unit="mm" />;
 
 export function FrozenWirePreview({ projectId }: { projectId?: string | null }) {
   const [definitions, setDefinitions] = useState<ViewerDefinition[]>([]);
@@ -73,7 +74,7 @@ export function FrozenWirePreview({ projectId }: { projectId?: string | null }) 
     return () => { live = false; };
   }, [profileId, revisionId]);
   return <section aria-label="Frozen stock profile viewer"><Stack>
-    <Title order={3}>Frozen stock and workshop profile</Title>
+    <Group gap="xs"><SbIdentityBadge kind="frozen" /><Title order={3}>Frozen stock and workshop profile</Title></Group>
     <Text>Inspect an exact saved construction and a matching frozen profile. The editable draft above remains separate.</Text>
     {error && <Alert color="red" role="alert">{error}</Alert>}
     <Group>
@@ -83,7 +84,7 @@ export function FrozenWirePreview({ projectId }: { projectId?: string | null }) 
     </Group>
     {loading && <Text role="status">Loading exact revision…</Text>}
     {stock && section && <>
-      <Text><RevisionLabel id={revisionId} role="stock" />. Section: {section.widthMm === null ? 'Unknown' : section.widthMm} × {section.heightMm === null ? 'Unknown' : section.heightMm} mm · {section.rows.length} material elements.</Text>
+      <Text><RevisionLabel id={revisionId} role="stock" />. Section: <SbQuantity value={section.widthMm} unit="mm" /> × <SbQuantity value={section.heightMm} unit="mm" /> · {section.rows.length} material elements.</Text>
       <StockSectionView section={section} title="Frozen stock construction" label="Frozen stock section drawing" />
       <CableViews stock={stock} name="Frozen stock construction" revisionId={revisionId} tabs={['end-a', 'end-b', 'info']} />
       <Select label="Matching frozen profile" clearable placeholder={profiles.length ? 'Choose a profile revision' : 'No matching frozen profiles'}
@@ -97,16 +98,16 @@ export function FrozenWirePreview({ projectId }: { projectId?: string | null }) 
         <Table.Thead><Table.Tr><Table.Th>Element</Table.Th><Table.Th>Material / color</Table.Th><Table.Th>Dimensions</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{section.rows.map(row => <Table.Tr key={row.path}>
           <Table.Td>{row.label} ({row.kind})<br />{row.path}</Table.Td>
-          <Table.Td><Swatch look={rowLook(row)} />Material: {row.material ?? 'Unknown'}<br />Color: {row.color ?? 'Unknown'}</Table.Td>
+          <Table.Td><Swatch look={rowLook(row)} />Material: {row.material ?? <SbUnknown />}<br />Color: {row.color ?? <SbUnknown />}</Table.Td>
           <Table.Td>{row.kind === 'web' ? <>Width: {dimension(row.widthMm)}<br />Height: {dimension(row.heightMm)}</> : <>Outer diameter: {dimension(row.outerDiameterMm)}<br />Inner diameter: {dimension(row.innerDiameterMm)}</>}</Table.Td>
-          <Table.Td>{row.source ?? 'Unknown'}</Table.Td>
+          <Table.Td>{row.source ?? <SbUnknown />}</Table.Td>
         </Table.Tr>)}</Table.Tbody>
       </Table></Table.ScrollContainer>
       {Object.keys(stock.facts).length > 0 && <Table aria-label="Frozen construction facts">
         <Table.Thead><Table.Tr><Table.Th>Fact</Table.Th><Table.Th>Value</Table.Th><Table.Th>Status</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{Object.entries(stock.facts).map(([name, fact]) => <Table.Tr key={name}>
-          <Table.Td>{name}</Table.Td><Table.Td>{fact.value === null ? 'Unknown' : `${fact.value}${fact.unit ? ` ${fact.unit}` : ''}`}</Table.Td>
-          <Table.Td>{fact.status}</Table.Td><Table.Td>{fact.source ?? 'Unknown'}</Table.Td>
+          <Table.Td>{name}</Table.Td><Table.Td><SbQuantity value={fact.value} unit={fact.unit ?? undefined} /></Table.Td>
+          <Table.Td>{fact.status}</Table.Td><Table.Td>{fact.source ?? <SbUnknown />}</Table.Td>
         </Table.Tr>)}</Table.Tbody>
       </Table>}
       {profile && <WorkshopProfileProvenance profile={profile.content.profile} />}

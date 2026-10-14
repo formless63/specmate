@@ -2,6 +2,8 @@ import { Alert, Anchor, Button, Card, Group, Stack, Table, Text, Title } from '@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { command } from '../pcb/api';
 import { options, outputUrl, review, type Options, type Review } from './api';
+import { jobState, pretty } from '../builds/BuildsPanel';
+import { SbJobCard } from '../../components/sb';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
@@ -70,7 +72,8 @@ export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: s
     {visible?.error && <Alert color="red">{visible.error}</Alert>}
     {visible?.options?.unavailable_reason && <Text>{visible.options.unavailable_reason}</Text>}
     {visible?.options && <Text size="xs">Latest {visible.options.limit} builds at most.</Text>}
-    {visible?.options?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}</Text><Button variant="light" disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect fabrication build {build.build_id}</Button></Group>)}
+    {visible?.options?.builds.map(build => <SbJobCard key={build.build_id} title={build.build_id} state={jobState(build.state)} stateWords={pretty(build.state)} dimension="fabrication"
+      actions={<Button variant="light" disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect fabrication build {build.build_id}</Button>} />)}
     {visible?.review && <FabricationReview item={visible.review} />}
   </Stack></Card>;
 }

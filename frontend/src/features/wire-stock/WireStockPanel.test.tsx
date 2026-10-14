@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -12,7 +13,7 @@ const show = (projectId?: string) => render(<MantineProvider><WireStockPanel pro
 
 test('produces standalone section and preview without device or connector configuration', () => {
   show();
-  expect(screen.getByText(/Section: 3 mm × 3 mm · 4 material elements/)).toBeTruthy();
+  expect(screen.getByText(byContent(/Section: 3 mm × 3 mm · 4 material elements/))).toBeTruthy();
   expect(screen.getByLabelText('Stock section drawing').querySelectorAll('[data-element]')).toHaveLength(4);
   expect(screen.getByLabelText('Stock geometry preview').querySelectorAll('[data-preview-element]')).toHaveLength(4);
   // Stock is a library item: saving never needs a project.
@@ -31,7 +32,7 @@ test('saving editor changes persists the exact stock through the shared operatio
   vi.stubGlobal('fetch', fetchMock);
   show('project-1');
   fireEvent.change(screen.getByLabelText('stock.jacket outer diameter mm'), { target: { value: '3.2' } });
-  expect(screen.getByText(/Section: 3.2 mm × 3.2 mm/)).toBeTruthy();
+  expect(screen.getByText(byContent(/Section: 3.2 mm × 3.2 mm/))).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Save stock' }));
   await screen.findByText('Saved Synthetic saved coax (draft-v1).');
   const posts = fetchMock.mock.calls.filter(([, options]) => (options as RequestInit)?.method === 'POST').map(([, options]) => JSON.parse((options as RequestInit).body as string));

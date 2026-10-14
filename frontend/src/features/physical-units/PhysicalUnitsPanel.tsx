@@ -6,6 +6,7 @@ import type { Catalog, Definition, Identity } from "../identity/api";
 import { read } from "../identity/api";
 import { command, request, type Command, type Inventory, type WorkBatch } from "../inventory/api";
 import { revisionOptionLabel } from "../../lib/revision-labels";
+import { SbIdentityBadge, SbQuantity } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Unit = {
@@ -101,24 +102,24 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
     </Stack></Card>
     <Card withBorder><Stack>
       <Title order={3}>Actual subjects</Title>
-      {(units.data?.units ?? []).map((unit) => <Group key={unit.unit_id}><Text>{unit.serial} · {unit.origin} · <RevisionLabel id={unit.revision_id} /> · {unit.work_batch_id ? "linked to work" : "no work link"}</Text><Button size="xs" onClick={() => { setSelectedUnit(unit.unit_id); setSelectedWork(""); setUsageOffset(0); }}>Inspect</Button></Group>)}
+      {(units.data?.units ?? []).map((unit) => <Group key={unit.unit_id}><Text><SbIdentityBadge kind="unit" /> {unit.serial} · {unit.origin} · <RevisionLabel id={unit.revision_id} /> · {unit.work_batch_id ? "linked to work" : "no work link"}</Text><Button size="xs" onClick={() => { setSelectedUnit(unit.unit_id); setSelectedWork(""); setUsageOffset(0); }}>Inspect</Button></Group>)}
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous units</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={(units.data?.units.length ?? 0) < 50} onClick={() => setOffset(offset + 50)}>Next units</Button></Group>
       {selected && <Stack>
-        <Title order={4}>{selected.serial}</Title>
+        <Group gap="xs"><SbIdentityBadge kind="unit" /><Title order={4}>{selected.serial}</Title></Group>
         <Text>Assertion: {selected.assertion_status} · {selected.assertion_source}. Lot: {selected.lot_id ?? "Unspecified"}. Qualification: not established.</Text>
         {!selected.work_batch_id && <>
           <NativeSelect label="Exact planned work" value={selectedWork} onChange={(e) => setSelectedWork(e.currentTarget.value)}
             data={[{ value: "", label: "Choose planned work" }, ...exactWork.map((batch) => ({ value: batch.work_batch_id, label: `${batch.label} · ${batch.work_batch_id}` }))]} />
           <TextInput label="Work link assertion source" value={linkSource} onChange={(e) => setLinkSource(e.currentTarget.value)} />
           <NativeSelect label="Work link assertion status" value={linkStatus} onChange={(e) => setLinkStatus(e.currentTarget.value)} data={["declared", "observed", "measured"]} />
-          {workUnits.data && <Text>Planned {workUnits.data.work_batch.planned_units ?? "unknown"}; reported complete {workUnits.data.work_batch.reported_completed_units}; actual linked units {workUnits.data.linked_unit_count}.</Text>}
+          {workUnits.data && <Text>Planned <SbQuantity value={workUnits.data.work_batch.planned_units} unit="units" />; reported complete {workUnits.data.work_batch.reported_completed_units}; actual linked units {workUnits.data.linked_unit_count}.</Text>}
           <Button loading={mutation.isPending} disabled={!work || !linkSource.trim()} onClick={() => submit("physical_units.link_work", {
             unit_id: selected.unit_id, work_batch_id: selectedWork,
             assertion_source: linkSource, assertion_status: linkStatus,
           }, work?.state)} {...manageGate.props}>Link actual unit to planned work</Button>
         </>}
         {selected.work_batch_id && <Text>Linked planned work: {selected.work_batch_id}. Reported completions remain separate.</Text>}
-        {detail.data && <><Title order={4}>Attributed material usage</Title>{detail.data.usage.length === 0 && <Text>No material usage on this page.</Text>}{detail.data.usage.map((entry) => <Text key={entry.entry_id}>{entry.kind}: {entry.amount} {entry.unit} · {entry.reason}</Text>)}<Group><Button disabled={usageOffset === 0} onClick={() => setUsageOffset(Math.max(0, usageOffset - 50))}>Previous usage</Button><Button disabled={detail.data.usage.length < 50} onClick={() => setUsageOffset(usageOffset + 50)}>Next usage</Button></Group></>}
+        {detail.data && <><Title order={4}>Attributed material usage</Title>{detail.data.usage.length === 0 && <Text>No material usage on this page.</Text>}{detail.data.usage.map((entry) => <Text key={entry.entry_id}>{entry.kind}: <SbQuantity value={entry.amount} unit={entry.unit} /> · {entry.reason}</Text>)}<Group><Button disabled={usageOffset === 0} onClick={() => setUsageOffset(Math.max(0, usageOffset - 50))}>Previous usage</Button><Button disabled={detail.data.usage.length < 50} onClick={() => setUsageOffset(usageOffset + 50)}>Next usage</Button></Group></>}
       </Stack>}
     </Stack></Card>
   </Stack>;

@@ -65,7 +65,7 @@ async function open(frozen = false) {
   fireEvent.change(screen.getByLabelText('Owning assembly'), { target: { value: 'asm' } });
   await screen.findByLabelText('Assembly draft or frozen revision');
   fireEvent.change(screen.getByLabelText('Assembly draft or frozen revision'), { target: { value: frozen ? 'revision:frozen-asm' : 'draft:assembly-draft' } });
-  await screen.findByRole('cell', { name: 'left/board · A1' });
+  await screen.findByRole('cell', { name: /left\/board · A1/ });
 }
 async function review() {
   fireEvent.change(screen.getByLabelText('Exact board occurrence'), { target: { value: JSON.stringify(['right', 'board']) } });
@@ -128,7 +128,7 @@ test('focus denial discards retained rows, configuration and source evidence', a
   deny(); fireEvent(window, new Event('focus'));
   await screen.findByText('Source authority unavailable');
   expect(screen.queryByText('BLINK_MS=900')).toBeNull();
-  expect(screen.queryByRole('cell', { name: 'left/board · A1' })).toBeNull();
+  expect(screen.queryByRole('cell', { name: /left\/board · A1/ })).toBeNull();
   expect(screen.queryAllByText('source-exact', { selector: 'code' })).toHaveLength(0);
 });
 
@@ -166,9 +166,9 @@ test('response-loss retry survives denied refresh and later authority restoratio
   deny(); fireEvent(window, new Event('focus'));
   await screen.findByText('Source authority unavailable');
   expect(screen.queryByText('BLINK_MS=900')).toBeNull();
-  expect(screen.queryByRole('cell', { name: 'left/board · A1' })).toBeNull();
+  expect(screen.queryByRole('cell', { name: /left\/board · A1/ })).toBeNull();
   restore(); fireEvent.click(screen.getByRole('button', { name: 'Refresh occurrence firmware' }));
-  await screen.findByRole('cell', { name: 'left/board · A1' });
+  await screen.findByRole('cell', { name: /left\/board · A1/ });
   fireEvent.click(screen.getByRole('button', { name: 'Retry reviewed firmware adoption' }));
   await waitFor(() => expect(bodies.filter(body => body.operation === 'firmware_occurrence.adopt')).toHaveLength(2));
   const calls = bodies.filter(body => body.operation === 'firmware_occurrence.adopt');
@@ -217,6 +217,6 @@ test('StrictMode cleanup fences the first delayed inspection and keeps the curre
   await open();
   await act(async () => { pending.resolve(response({ error: { message: 'Detached inspection denied' } }, 404)); await pending.promise; });
   expect(screen.queryByText('Detached inspection denied')).toBeNull();
-  expect(screen.getByRole('cell', { name: 'left/board · A1' })).toBeTruthy();
+  expect(screen.getByRole('cell', { name: /left\/board · A1/ })).toBeTruthy();
   expect((screen.getByRole('button', { name: 'Refresh occurrence firmware' }) as HTMLButtonElement).disabled).toBe(false);
 });

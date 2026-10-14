@@ -3,10 +3,19 @@ import { useState } from "react";
 import { evidenceLabel, scopeLabel, type Graph } from "../copper/api";
 import { CopperProvenance } from "../copper/CopperProvenance";
 import type { Evidence, Interpretation } from "./api";
+import { SbQuantity, SbStatus, type SbLed } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const readable = (value: string) => value.replaceAll("_", " ");
 const PAGE_SIZE = 20;
+/** One LED per result state: unknown and not-evaluated stay distinct, blocked/invalid/conflicting fail, a modeled result is active. */
+export function queryLed(status: string): SbLed {
+  if (status === "unknown") return "review";
+  if (status === "not_evaluated") return "not-evaluated";
+  if (status === "modeled_blocked" || /invalid|conflict|blocked/.test(status)) return "failed";
+  if (status.startsWith("modeled_")) return "active";
+  return "review";
+}
 const queryMeaning: Record<string, string> = {
   dc_continuity: "Declared resistors allow resistive DC paths; ideal capacitors block steady-state DC. Missing parameters and unsupported operating behavior remain unknown.",
   shortness: "Ideal shortness requires exactly zero resistance for a supported path. Any positive resistor remains resistive; this is not a measured short-circuit result.",
@@ -46,7 +55,7 @@ export function PathExplanation({ result, graph }: { result: Interpretation; gra
     </Stack>;
   }
   return <Stack style={{ overflowWrap: "anywhere" }}><Title order={3}>Declared model query result</Title>
-    <Text fw={600}>{readable(result.status)} · {readable(result.reason)}</Text>
+    <SbStatus dimension="query result" led={queryLed(result.status)} value={`${readable(result.status)} · ${readable(result.reason)}`} />
     <Text>Query semantics: {readable(result.query)}. Candidate reachability is a declared model result; no returned path is physical proof. No candidate path does not prove physical disconnection.</Text>
     <Text>{queryMeaning[result.query] ?? "This query has no supported explanation of its semantics; no behavior is inferred."}</Text>
     <Text><RevisionLabel id={result.revision_id} role="Model" sha256={result.sha256} /> · review {result.review_id ?? "not accepted"}</Text><Text size="sm">Review state: {result.review_state}</Text>
@@ -60,7 +69,7 @@ export function PathExplanation({ result, graph }: { result: Interpretation; gra
     {result.paths.length > 0 && <NativeSelect label="Candidate path to explain" value={String(pathIndex)} data={result.paths.map((p, index) => ({ value: String(index), label: `Candidate path ${index + 1} · ${readable(p.status)}` }))} onChange={(e) => { setPathIndex(Number(e.currentTarget.value)); setStepPage(0); }} />}
     {path && <Card withBorder><Stack><Title order={4}>Candidate path {pathIndex + 1} · {readable(path.status)}</Title>
       <Text>{path.terminal_ids.map(label).join(" → ")}</Text>{path.reasons.map((reason) => <Text key={reason}>{readable(reason)}</Text>)}<Text>Ideal shortness: {readable(path.shortness)}</Text>
-      {path.series_resistance_ohm !== null && <Text>Series declared resistance: {path.series_resistance_ohm} Ω</Text>}
+      {path.series_resistance_ohm !== null && <Text>Series declared resistance: <SbQuantity value={path.series_resistance_ohm} unit="Ω" /></Text>}
       {path.series_impedance_ohm && <Text>Series impedance: {path.series_impedance_ohm.real} + j({path.series_impedance_ohm.imaginary}) Ω · {readable(path.series_impedance_ohm.precision)}. Derived model approximation, not a measurement.</Text>}
       {!!path.conflicting_condition_ids?.length && <Alert color="yellow">Mutually exclusive requirements conflict: {path.conflicting_condition_ids.join(", ")}. These states cannot establish a combined proof.</Alert>}
       {(path.condition_requirements ?? []).map((c) => <Text key={c.condition_id}>Path requires {c.condition_id}: {c.states.join(", ")} · {c.states.length > 1 ? "multiple exclusive states; incompatible requirements" : "required declared state"}</Text>)}
@@ -69,7 +78,7 @@ export function PathExplanation({ result, graph }: { result: Interpretation; gra
         <Text fw={600}>{readable(step.kind)} · {readable(step.status)}{step.direction ? ` · traversal ${step.direction}` : ""}</Text><Text size="xs">Step record identity: {step.record_id}</Text>
         {terminal(step.from_terminal_id, "From")}{terminal(step.to_terminal_id, "To")}<Text>Basis: {step.basis}</Text><SourceEvidence evidence={step.evidence} />
         {step.provenance ? <CopperProvenance value={step.provenance} /> : <Text size="sm">Declaration scope: model {result.revision_id} · SHA-256 {result.sha256} · review {result.review_id ?? "not accepted"}. No copper origin was supplied for this step.</Text>}
-        {step.resistance_ohm !== undefined && <Text>Declared ideal resistance: {step.resistance_ohm} Ω</Text>}{step.capacitance_f !== undefined && <Text>Declared ideal capacitance: {step.capacitance_f} F</Text>}
+        {step.resistance_ohm !== undefined && <Text>Declared ideal resistance: <SbQuantity value={step.resistance_ohm} unit="Ω" /></Text>}{step.capacitance_f !== undefined && <Text>Declared ideal capacitance: <SbQuantity value={step.capacitance_f} unit="F" /></Text>}
         {step.condition_requirement && <Text>Requires {step.condition_requirement.condition_id} = {step.condition_requirement.state}; query state {step.assigned_state ?? "unspecified"} · declared ideal contact.</Text>}{step.condition && <Text>Unevaluated condition: {step.condition}</Text>}
       </Stack></Card>)}
       <Group><Button disabled={stepPage === 0} onClick={() => setStepPage(stepPage - 1)}>Previous path steps</Button><Button disabled={(stepPage + 1) * PAGE_SIZE >= path.steps.length} onClick={() => setStepPage(stepPage + 1)}>Next path steps</Button></Group>

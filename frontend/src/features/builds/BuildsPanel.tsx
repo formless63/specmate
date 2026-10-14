@@ -16,10 +16,10 @@ const EXPLAIN: Record<string, string> = {
   failed: 'Ended without success. Failure details and any verified partial outputs are retained.',
   cancelled: 'A runner confirmed the process stopped after a cancellation request.',
 };
-const pretty = (value: string) => value.replaceAll('_', ' ');
+export const pretty = (value: string) => value.replaceAll('_', ' ');
 // Only the runner-confirmed states map to terminal looks; interrupted and requested-cancellation stay in review.
 const JOB_STATE: Record<string, JobState> = { waiting_dispatch: 'queued', queued: 'queued', leased: 'running', running: 'running', succeeded: 'succeeded', failed: 'failed', cancelled: 'cancelled', interrupted: 'review', cancellation_requested: 'review' };
-const jobState = (state: string): JobState => JOB_STATE[state] ?? 'review';
+export const jobState = (state: string): JobState => JOB_STATE[state] ?? 'review';
 // Attempts are numbered from the first request of a retry chain.
 const attemptLabel = (lineage: { build_id: string }[], id: string | null) => {
   const index = id ? lineage.findIndex(a => a.build_id === id) : -1;

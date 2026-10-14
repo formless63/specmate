@@ -1,3 +1,4 @@
+import { byContent } from "../../test/text";
 import { grants } from "../../test/grants";
 import { PermissionsProvider } from "../../lib/permissions";
 import { MantineProvider } from '@mantine/core';
@@ -134,7 +135,7 @@ test('retry needs the grant and calls the generic build.retry with the exact sta
   vi.mocked(compileOptions).mockResolvedValue(failed(true));
   vi.mocked(readHistory).mockResolvedValue(hist({}));
   vi.mocked(retryBuild).mockResolvedValue({ build_id: 'build-new' });
-  const { unmount } = render(panel(false)); await screen.findByText(/build-bad · failed/);
+  const { unmount } = render(panel(false)); await screen.findByText("build-bad");
   expect(screen.queryByRole('button', { name: /Retry build-bad/ })).toBeNull(); unmount();
   render(panel(true)); fireEvent.click(await screen.findByRole('button', { name: 'Retry build-bad as a new attempt' }));
   await waitFor(() => expect(retryBuild).toHaveBeenCalledWith('build-bad', 'tok-1', expect.any(String)));
@@ -143,7 +144,7 @@ test('the requester can cancel without the grant; others cannot', async () => {
   vi.mocked(readHistory).mockResolvedValue(hist({ state: 'running', cancel_available: true, retry_available: false }));
   vi.mocked(cancelBuild).mockResolvedValue({});
   vi.mocked(compileOptions).mockResolvedValue(failed(false, true));
-  const { unmount } = render(panel(false)); await screen.findByText(/build-bad · failed/);
+  const { unmount } = render(panel(false)); await screen.findByText("build-bad");
   expect(screen.queryByRole('button', { name: /cancellation of build-bad/ })).toBeNull(); unmount();
   vi.mocked(compileOptions).mockResolvedValue(failed(true, true));
   render(panel(false)); fireEvent.click(await screen.findByRole('button', { name: 'Request cancellation of build-bad' }));
@@ -153,7 +154,7 @@ test('the requester can cancel without the grant; others cannot', async () => {
 test('only actions valid for the current state are offered', async () => {
   vi.mocked(compileOptions).mockResolvedValue({ ...failed(true), builds: [{ build_id: 'build-bad', state: 'cancellation_requested', failure: null, retry_of: null, requested_by_viewer: true, state_token: 'tok-2', cancel_available: false, retry_available: false }] });
   vi.mocked(readHistory).mockResolvedValue(hist({ state: 'cancellation_requested', cancel_available: false, retry_available: false }));
-  render(panel(true)); await screen.findByText(/build-bad · cancellation requested/);
+  render(panel(true)); await screen.findByText(byContent(/cancellation requested/));
   expect(readHistory).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', { name: /cancellation of build-bad/ })).toBeNull();
   expect(screen.queryByRole('button', { name: /Retry build-bad/ })).toBeNull();
