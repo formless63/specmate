@@ -69,7 +69,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
     <Text>Inspect an exact frozen assembly across disciplines. Every nested use retains its own selection, placements, source pins and firmware assignment. Unknown geometry and unplaced items remain in the occurrence list.</Text>
     <Button loading={loading} onClick={() => void refresh()}>Refresh scene access</Button>
     {error && <Alert color="red" role="alert">{error}</Alert>}
-    <Select label="Frozen assembly scene" searchable value={snapshot} data={choices.assemblies.map(a => ({ value: a.snapshot_id, label: `${a.name} · revision ${a.number}` }))} onChange={inspect} disabled={loading} />
+    <Select label="Frozen assembly scene" aria-label="Frozen assembly scene" searchable value={snapshot} data={choices.assemblies.map(a => ({ value: a.snapshot_id, label: `${a.name} · revision ${a.number}` }))} onChange={inspect} disabled={loading} />
     <Text size="xs">Choices cover the latest 50 frozen assembly revisions and current readable closures. An older exact snapshot can be opened below.</Text>
     <Group align="end"><TextInput label="Exact frozen assembly snapshot ID" value={exact} onChange={e => setExact(e.currentTarget.value)} /><Button disabled={!exact.trim() || loading} onClick={() => inspect(exact.trim())}>Inspect exact scene</Button></Group>
     {loading && <Text>Checking current scene and source access…</Text>}
