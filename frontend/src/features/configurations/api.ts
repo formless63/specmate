@@ -45,6 +45,8 @@ export type DevelopmentLink = {
   link_id: string; workspace_id: string; configuration_definition_id: string; rule_key: string; option_set_revision_id: string;
   observed_outcome: 'invalid' | 'unknown'; current_outcome?: ConstraintOutcome | 'absent'; target: DevelopmentTarget;
   basis: string; created_by: string; created_at: string; removed: boolean; removed_at: string | null; removal_reason: string;
+  /** Server hint: the creator or a design editor may remove this link. Absent from older servers. */
+  can_unlink?: boolean;
 };
 /** Current linked proposals reported beside, never inside, the evaluated resolution. */
 export type Development = {

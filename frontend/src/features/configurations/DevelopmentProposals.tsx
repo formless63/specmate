@@ -14,7 +14,41 @@ export const DEVELOPMENT_LABEL: Record<Development['outcome'], string> = {
 };
 const FAILING = new Set(['invalid', 'unknown']);
 
-function LinkedProposal({ link }: { link: DevelopmentLink }) {
+const UNLINK_REASON = 'Only the link creator or a design editor can remove this link';
+
+/** Removal asks for a reason; the server decides and its refusal is shown. */
+function UnlinkAction({ link, onChanged }: { link: DevelopmentLink; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  // One key per reason: a retry of the same request replays, an edited reason is a new request.
+  const [key, setKey] = useState(() => randomUUID());
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const allowed = link.can_unlink === true;
+  async function submit() {
+    setBusy(true); setError('');
+    try { await operation('configuration.unlink_development', { link_id: link.link_id, reason: reason.trim() }, { key }); setOpen(false); onChanged(); }
+    catch (failure) { setError((failure as Error).message); }
+    finally { setBusy(false); }
+  }
+  if (!open) return <Group><Button size="xs" variant="quiet" disabled={!allowed} {...(allowed ? {} : { title: UNLINK_REASON, 'data-readonly-reason': UNLINK_REASON })}
+    aria-label={`Remove link ${link.rule_key}`} onClick={() => setOpen(true)}>Remove link</Button></Group>;
+  return <Stack gap={4} role="group" aria-label={`Remove link ${link.rule_key}`}>
+    {error && <Alert color="red">{error}</Alert>}
+    <TextInput size="xs" label="Removal reason" value={reason} onChange={(event) => { setReason(event.currentTarget.value); setKey(randomUUID()); }} />
+    <Group gap="xs">
+      <Button size="xs" disabled={!reason.trim() || busy} onClick={() => { void submit(); }}>Confirm removal</Button>
+      <Button size="xs" variant="quiet" disabled={busy} onClick={() => { setOpen(false); setError(''); }}>Cancel</Button>
+    </Group>
+    <Text className="sb-silk">The proposal stays in the library; only this link is removed, with its reason kept.</Text>
+  </Stack>;
+}
+
+function LinkedProposal({ link, onChanged }: { link: DevelopmentLink; onChanged: () => void }) {
+  return <Stack gap={2}><LinkedTarget link={link} /><UnlinkAction link={link} onChanged={onChanged} /></Stack>;
+}
+
+function LinkedTarget({ link }: { link: DevelopmentLink }) {
   const target = link.target;
   if (!target.readable) return <Text size="sm" data-link={link.link_id}>Mechanical proposal · <Text span className="sb-silk">Not readable by you</Text></Text>;
   const kind = target.need ? NEED_LABEL[target.need] : 'Development need';
@@ -105,7 +139,7 @@ export function RuleProposals({ rule, links, draftId, projectId, needs, onChange
   const failing = FAILING.has(rule.outcome);
   return <Stack gap={4}>
     {links.length === 0 && <Text size="sm">{failing ? 'No proposal' : '-'}</Text>}
-    {links.map((link) => <LinkedProposal key={link.link_id} link={link} />)}
+    {links.map((link) => <LinkedProposal key={link.link_id} link={link} onChanged={onChanged} />)}
     {failing && !open && <Group><Button size="xs" variant="quiet" {...create.props} onClick={() => setOpen(true)}>Propose development</Button></Group>}
     {failing && open && <ProposeForm rule={rule} draftId={draftId} projectId={projectId} needs={needs} onDone={() => { setOpen(false); onChanged(); }} onCancel={() => setOpen(false)} />}
   </Stack>;

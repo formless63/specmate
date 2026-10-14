@@ -302,6 +302,10 @@ def test_needs_are_typed_workspace_items_that_projects_reference(users, project,
 
 def test_unlink_is_recorded_once_and_rows_stay_append_only(users, project, painted):
     created = propose(users["contributor"], painted, "paint-sealing")
+    # The hint mirrors the operation: the creator and design editors, not viewers.
+    for name, expected in (("contributor", True), ("editor", True), ("viewer", False)):
+        links = resolve(users[name], painted)["development"]["links"]
+        assert links[0]["can_unlink"] is expected
     with pytest.raises(PermissionDenied):
         op(
             users["viewer"],

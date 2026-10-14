@@ -155,8 +155,8 @@ function invalidSetup(permissions: string[], linked: boolean) {
   base.resolution.constraints = evaluation;
   const link = { link_id: 'link-1', workspace_id: 'ws-1', configuration_definition_id: 'cfg', rule_key: 'paint-sealing', option_set_revision_id: 'set-rev', observed_outcome: 'invalid', current_outcome: 'invalid',
     target: { kind: 'development_need', readable: true, definition_id: 'need-1', name: 'Synthetic adapter', need: 'adapter_board', summary: 'Adapter work.', draft_id: 'need-draft', latest_revision: null, physical_qualification: false },
-    basis: 'Fails the sealing rule.', created_by: 'contributor', created_at: '2026-01-01T00:00:00Z', removed: false, removed_at: null, removal_reason: '' };
-  const hidden = { ...link, link_id: 'link-2', rule_key: 'sensor-current', observed_outcome: 'unknown', current_outcome: 'unknown', target: { kind: 'mechanical_proposal', readable: false, proposal_draft_id: 'mp-1' } };
+    basis: 'Fails the sealing rule.', created_by: 'contributor', created_at: '2026-01-01T00:00:00Z', removed: false, removed_at: null, removal_reason: '', can_unlink: true };
+  const hidden = { ...link, can_unlink: false, link_id: 'link-2', rule_key: 'sensor-current', observed_outcome: 'unknown', current_outcome: 'unknown', target: { kind: 'mechanical_proposal', readable: false, proposal_draft_id: 'mp-1' } };
   const development = () => ({ constraint_outcome: 'invalid', outcome: proposed ? 'invalid_with_proposal' : 'invalid', links: proposed ? [link, hidden] : [], note: 'Linked proposals never change a rule outcome.' });
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes('/catalog/definitions?')) return response({ workspace_id: 'ws-1', project_id: 'project-a', results: [], next_after: null });
@@ -168,12 +168,37 @@ function invalidSetup(permissions: string[], linked: boolean) {
       if (body.operation === 'configuration.resolve') return response({ result: { ...base, development: development() } });
       if (body.operation === 'configuration.propose_development') { proposed = true; return response({ result: { ...link, target: { ...link.target, definition_id: 'need-1' } } }); }
       if (body.operation === 'project.add_reference') return response({ result: {} });
+      if (body.operation === 'configuration.unlink_development') {
+        if (body.payload.reason === 'refuse') return response({ error: { message: 'This development link was already removed.' } }, 409);
+        proposed = false; return response({ result: { ...link, removed: true } });
+      }
     }
     throw new Error(`Unexpected request ${url}`);
   }));
   render(<MantineProvider><PermissionsProvider permissions={permissions}><ConfigurationsPanel projectId="project-a" /></PermissionsProvider></MantineProvider>);
   return bodies;
 }
+
+test('removes a link with a reason, shows a server refusal and gates links the actor cannot remove', async () => {
+  const bodies = invalidSetup(['workspace.read', 'item.create'], true);
+  await openDraft();
+  await screen.findByText('Adapter board · Synthetic adapter');
+  const hidden = screen.getByRole('button', { name: 'Remove link sensor-current' }) as HTMLButtonElement;
+  expect(hidden.disabled).toBe(true);
+  expect(hidden.getAttribute('title')).toBe('Only the link creator or a design editor can remove this link');
+  fireEvent.click(screen.getByRole('button', { name: 'Remove link paint-sealing' }));
+  const confirm = screen.getByRole('button', { name: 'Confirm removal' }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText('Removal reason'), { target: { value: 'refuse' } });
+  fireEvent.click(confirm);
+  await screen.findByText('This development link was already removed.');
+  fireEvent.change(screen.getByLabelText('Removal reason'), { target: { value: 'Sealing chosen instead.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm removal' }));
+  await waitFor(() => expect(screen.queryByText('Adapter board · Synthetic adapter')).toBeNull());
+  const removals = bodies.filter((body) => body.operation === 'configuration.unlink_development');
+  expect(removals.map((body) => body.payload)).toEqual([{ link_id: 'link-1', reason: 'refuse' }, { link_id: 'link-1', reason: 'Sealing chosen instead.' }]);
+  expect(removals[1]!.idempotency_key).toBeTruthy();
+});
 
 test('proposes development beside a failing rule; the outcome stays invalid, with proposal', async () => {
   const bodies = invalidSetup(['workspace.read', 'item.create'], false);

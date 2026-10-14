@@ -200,6 +200,15 @@ def target_view(user, link):
     return mechanical_view(user, link.mechanical_proposal_id)
 
 
+def may_unlink(user, link):
+    """Presentation hint mirroring `unlink_development`; the operation still decides."""
+    try:
+        authorize_item(user, link, Perm.DESIGN_EDIT)
+    except (NotFound, PermissionDenied):
+        return False
+    return link.removed_at is None
+
+
 def link_view(user, link, current=None):
     view = {
         "link_id": str(link.id),
@@ -215,6 +224,7 @@ def link_view(user, link, current=None):
         "removed": link.removed_at is not None,
         "removed_at": link.removed_at.isoformat() if link.removed_at else None,
         "removal_reason": link.removal_reason,
+        "can_unlink": may_unlink(user, link),
     }
     if current is not None:
         view["current_outcome"] = current
