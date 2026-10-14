@@ -557,14 +557,18 @@ def test_consumed_pagination_records_reauthorize_after_committed_membership_revo
     baseline = search(users["viewer"], "Needle", **options)
     assert baseline["results"][0]["item_id"] == rows[stage == "cursor"][0]["item_id"]
     assert baseline["next_after"] == (cursor if stage == "lookahead" else None)
-    revoked_item, revoked_scope = rows[stage == "lookahead"]
+    # The cursor and lookahead records are positions inside the member's workspace query;
+    # only returned records are rendered. Workspace membership covers every record on the
+    # page, so a revocation committed while the returned record renders fails the page closed.
+    returned_item, _ = rows[stage == "cursor"]
+    _, revoked_scope = rows[stage == "lookahead"]
     original = module.snippet
     revoked = False
 
     def render_then_revoke(text, query):
         nonlocal revoked
         result = original(text, query)
-        if text == revoked_item["current"]["title"] and not revoked:
+        if text == returned_item["current"]["title"] and not revoked:
             committed_revoke(revoked_scope, users["viewer"])
             revoked = True
         return result

@@ -17,18 +17,13 @@ from specmate.wire_stock.queries import get_stock, list_stocks
 from specmate.wire_stock.schemas import StockSpecification, validate_stock_content
 
 from .conftest import op, set_role
+from .scope_helpers import workspace_of
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
 
 
 def fixture(name="coax"):
     return json.loads((FIXTURES / f"wire-stock-{name}.json").read_text())["stock"]
-
-
-def workspace_of(project):
-    from specmate.access.models import Project
-
-    return str(Project.objects.get(id=project).workspace_id)
 
 
 def create(users, project, stock=None, *, actor="owner", **ctx):
