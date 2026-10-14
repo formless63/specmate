@@ -4,7 +4,7 @@ import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
 import { compileOptions, compileOutputUrl, compileReview, type CompileOptions, type CompileReview, type FirmwareBuildRef } from './api';
 import { Lineage } from '../builds/BuildsPanel';
-import { cancelBuild, readHistory, retryBuild, type BuildHistory } from '../builds/api';
+import { cancelBuild, readHistory, retryBuild } from '../builds/api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = FirmwareBuildRef & { canExecute?: boolean };
@@ -80,7 +80,7 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
       <Button disabled={busy || !consent || !basis.trim()} onClick={() => void compile()}>Request firmware compile</Button>
     </Stack>}
     {available?.builds.map(build => <Group key={build.build_id}><Text>{build.build_id} · {build.state.replaceAll('_', ' ')}{build.failure ? ` · ${build.failure}` : ''}{build.retry_of ? ` · retry of ${build.retry_of}` : ''}</Text><Button disabled={busy || build.state !== 'succeeded'} onClick={() => void refresh(build.build_id)}>Inspect firmware handoff {build.build_id}</Button>
-      {build.state !== 'succeeded' && <BuildControls buildId={build.build_id} state={build.state} canExecute={canExecute} requestedByViewer={build.requested_by_viewer} onChanged={() => refresh(null)} />}</Group>)}
+      <BuildControls build={build} canExecute={canExecute} onChanged={() => refresh(null)} /></Group>)}
     {available?.truncated && <Text>Showing the latest 100 builds; earlier history is retained.</Text>}
     {review && <Stack><Title order={4}>Registered compiler handoff</Title>
       <Lineage lineage={review.lineage} retryOf={review.retry_of} /><CompilerPins inputs={review.inputs} />
@@ -101,35 +101,30 @@ function CompilerPins({ inputs }: { inputs: CompileOptions['inputs'] }) {
   </Stack>;
 }
 
-/** Offers only what the server's current-state rules allow (cancel_available / retry_available, as the Builds panel does).
- * Cancel needs the requester or build.execute; retry needs build.execute. The server remains the authority. */
-function BuildControls({ buildId, state, canExecute, requestedByViewer, onChanged }: { buildId: string; state: string; canExecute: boolean; requestedByViewer: boolean; onChanged: () => Promise<void> }) {
-  const [history, setHistory] = useState<BuildHistory>();
+/** Offers only what the list row's server-computed flags allow (the rule build.history uses). Cancel needs the
+ * requester or build.execute; retry needs build.execute. History is read only on click, for a fresh state token. */
+function BuildControls({ build, canExecute, onChanged }: { build: CompileOptions['builds'][number]; canExecute: boolean; onChanged: () => Promise<void> }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const key = useRef<{ name: string; value: string } | null>(null);
-  useEffect(() => {
-    let live = true; setHistory(undefined);
-    readHistory(buildId).then(h => { if (live) setHistory(h); }, () => { if (live) setHistory(undefined); });
-    return () => { live = false; };
-  }, [buildId, state]);
   const run = async (action: 'cancel' | 'retry') => {
-    if (!history) return;
     setBusy(true); setError('');
     try {
-      const name = `${action}:${history.state_token}`;
+      const fresh = await readHistory(build.build_id);
+      if (action === 'cancel' ? !fresh.cancel_available : !fresh.retry_available) { setError('That action is no longer available.'); await onChanged(); return; }
+      const name = `${action}:${fresh.state_token}`;
       if (key.current?.name !== name) key.current = { name, value: randomUUID() };
-      if (action === 'cancel') await cancelBuild(buildId, history.state_token, key.current.value);
-      else await retryBuild(buildId, history.state_token, key.current.value);
-      key.current = null; setHistory(undefined); await onChanged();
+      if (action === 'cancel') await cancelBuild(build.build_id, fresh.state_token, key.current.value);
+      else await retryBuild(build.build_id, fresh.state_token, key.current.value);
+      key.current = null; await onChanged();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Build action failed.'); }
     finally { setBusy(false); }
   };
-  const canCancel = history?.cancel_available && (canExecute || requestedByViewer);
-  const canRetry = history?.retry_available && canExecute;
+  const canCancel = build.cancel_available && (canExecute || build.requested_by_viewer);
+  const canRetry = build.retry_available && canExecute;
   return <Group gap="xs">
-    {canCancel && <Button variant="subtle" disabled={busy} onClick={() => void run('cancel')}>Request cancellation of {buildId}</Button>}
-    {canRetry && <Button variant="subtle" disabled={busy} onClick={() => void run('retry')}>Retry {buildId} as a new attempt</Button>}
+    {canCancel && <Button variant="subtle" disabled={busy} onClick={() => void run('cancel')}>Request cancellation of {build.build_id}</Button>}
+    {canRetry && <Button variant="subtle" disabled={busy} onClick={() => void run('retry')}>Retry {build.build_id} as a new attempt</Button>}
     {error && <Text size="xs" c="red">{error}</Text>}
   </Group>;
 }

@@ -10,8 +10,9 @@ from pydantic import ValidationError
 from specmate.access.permissions import Perm, authorize
 from specmate.assemblies.queries import get_snapshot
 from specmate.builds.models import BuildAttempt
-from specmate.builds.operations import RequestBuild, request_build
+from specmate.builds.operations import RequestBuild, request_build, stage_result
 from specmate.builds.recipes import Recipe, approved_recipe
+from specmate.builds.recovery import _actions as stage_actions
 from specmate.builds.recovery import _lineage as lineage
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
@@ -364,9 +365,13 @@ def options(ctx, p):
     except Unsupported as exc:
         reason = str(exc)
     builds = []
-    for build in BuildAttempt.objects.filter(recipe_id=recipe_id(spec)).order_by("-created_at")[
-        :101
-    ]:
+    rows = list(
+        BuildAttempt.objects.filter(recipe_id=recipe_id(spec)).order_by("-created_at")[:101]
+    )
+    retried = set(
+        BuildAttempt.objects.filter(retry_of__in=rows).values_list("retry_of_id", flat=True)
+    )
+    for build in rows:
         scoped_build(ctx, CompileRef(**p.model_dump(), build_id=build.id))
         builds.append(
             {
@@ -375,6 +380,13 @@ def options(ctx, p):
                 "failure": build.stage.receipt.get("message") if build.stage.receipt else None,
                 "retry_of": str(build.retry_of_id) if build.retry_of_id else None,
                 "requested_by_viewer": ctx.user.pk == build.requested_by_id,
+                "state_token": stage_result(build.stage)["state_token"],
+                # The same current-state rule build.history applies.
+                **{
+                    k: v
+                    for k, v in stage_actions(build.stage, build.id in retried).items()
+                    if k in ("cancel_available", "retry_available")
+                },
             }
         )
     return {

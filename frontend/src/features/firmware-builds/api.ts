@@ -8,7 +8,7 @@ export type CompilerInputs = Firmware & {
 };
 export type CompileOptions = {
   inputs: CompilerInputs; available_recipe_id: string | null; unavailable_reason: string | null;
-  builds: { build_id: string; state: string; failure: string | null; retry_of: string | null; requested_by_viewer: boolean }[]; truncated: boolean;
+  builds: { build_id: string; state: string; failure: string | null; retry_of: string | null; requested_by_viewer: boolean; state_token: string; cancel_available: boolean; retry_available: boolean }[]; truncated: boolean;
 };
 export type CompileReview = {
   reference: FirmwareBuildRef & { build_id: string }; retry_of: string | null;
