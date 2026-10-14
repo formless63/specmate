@@ -6,6 +6,7 @@ import { compileOptions, compileOutputUrl, compileReview, listResolvedConfigurat
 import { Lineage, jobState, pretty } from '../builds/BuildsPanel';
 import { SbJobCard, SbUnknown } from '../../components/sb';
 import { cancelBuild, readHistory } from '../builds/api';
+import { ReusableResultOffer } from '../builds/ReusableResultOffer';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 import type { ResolvedSummary } from '../configurations/api';
@@ -98,6 +99,8 @@ function CompilerWorkspace({ reference }: { reference: FirmwareBuildRef }) {
     {available?.unavailable_reason && <Alert color="yellow">{available.unavailable_reason}</Alert>}
     {available && <CompilerPins inputs={available.inputs} />}
     {canExecute && available?.available_recipe_id && <Stack>
+      {available.inputs.sources[0] && <ReusableResultOffer onInspect={id => void refresh(id)}
+        request={{ workspace_id: available.workspace_id, source_revision_id: available.inputs.sources[0].source_revision_id, recipe_id: available.available_recipe_id, resolved_configuration_id: configurationId }} />}
       <Checkbox label="Authorize isolated compiler processing of these exact source files" checked={consent} onChange={event => setConsent(event.currentTarget.checked)} />
       {choices && <Select label="Resolved configuration (optional)" placeholder="None: build without a pinned configuration" clearable value={configurationId} onChange={setConfigurationId} nothingFoundMessage="No resolved configurations in this workspace"
         data={choices.resolved.map(row => ({ value: row.resolved_configuration_id, disabled: !buildable(row), label: `${row.resolved_configuration_id.slice(0, 8)} · ${row.status === 'complete' ? 'complete' : 'incomplete, cannot be built'} · ${constraintLabel(row)} · ${row.basis}` }))}

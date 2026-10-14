@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { JOB_LED, SbJobCard, SbProvenance, SbStatus, type JobState, type SbLed } from '../../components/sb';
 import { randomUUID } from '../../lib/random-id';
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { ReusableResultOffer } from './ReusableResultOffer';
 import { abandonBuild, cancelBuild, listBuilds, readHistory, reproduceBuild, retryBuild, type BuildHistory, type BuildList, type PinnedTool, type ReproducibilityLevel } from './api';
 
 const EXPLAIN: Record<string, string> = {
@@ -158,6 +159,8 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
           <Table.Td>{o.accepted ? <ReproLevel level={o.reproducibility} /> : <Text size="xs">not applicable</Text>}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
       <Text size="sm">History</Text>
       <ol aria-label="Build events">{detail.events.map((e, i) => <li key={i}><Text size="xs">{e.at} · {pretty(e.kind)}{typeof e.detail.reason === 'string' ? ` · ${pretty(e.detail.reason)}` : ''}</Text></li>)}</ol>
+      <ReusableResultOffer excludeBuildId={detail.build_id} onInspect={id => void load(id)}
+        request={{ workspace_id: workspaceId, source_revision_id: detail.source_revision_id, recipe_id: detail.recipe_id, resolved_configuration_id: detail.configuration?.resolved_configuration_id ?? null }} />
       <Group>
         {detail.cancel_available && <Button variant="risk" {...(canCancel ? {} : execute.props)} disabled={!canCancel || busy} onClick={() => void act('cancel')}>Request cancellation</Button>}
         {detail.retry_available && <Button variant="primary" {...execute.props} disabled={!execute.allowed || busy} onClick={() => void act('retry')}>Retry as a new attempt</Button>}

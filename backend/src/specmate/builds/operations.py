@@ -867,10 +867,11 @@ def _request_context(ctx: Context, p: ReusableLookup):
         raise NotFound("Source revision not found.")
     recipe = approved_recipe(p.recipe_id)
     configuration = configuration_input(ctx, workspace, p.resolved_configuration_id)
-    from specmate.firmware_builds.operations import authorize_request
+    from specmate.firmware_builds.operations import authorize_reuse
 
-    # Compiler recipes keep their separate explicit-consent request path.
-    authorize_request(ctx, p, recipe)
+    # Reuse runs nothing, so compiler recipes need no source-execution consent here, but
+    # the current firmware closure and its exact source pin are still enforced.
+    authorize_reuse(ctx, p, recipe)
     return workspace, project, source, recipe, configuration
 
 

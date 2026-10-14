@@ -139,6 +139,17 @@ def authorize_request(ctx, p, recipe):
             raise ValidationFailed("Compiler build source differs from its exact firmware pin.")
 
 
+def authorize_reuse(ctx, p, recipe):
+    """Shared build.find_reusable/build.reuse hook for compiler recipes.
+
+    Reuse executes nothing, so it needs no source-execution consent; it still requires
+    build.execute over the current firmware closure and the exact pinned source revision.
+    """
+    source = recipe_inputs(ctx.user, recipe, Perm.BUILD_EXECUTE)
+    if source is not None and source.id != p.source_revision_id:
+        raise ValidationFailed("Compiler build source differs from its exact firmware pin.")
+
+
 def execution_allowed(build):
     recipe = Recipe.model_validate(build.recipe)
     source = recipe_inputs(build.requested_by, recipe, Perm.BUILD_EXECUTE)

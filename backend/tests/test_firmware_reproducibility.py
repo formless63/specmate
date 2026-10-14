@@ -216,3 +216,27 @@ def retry(user, ref, build_id, key="fw-retry", **extra):
         expected_state=token(build_id),
         idempotency_key=key,
     )
+
+
+def test_identical_compile_request_is_offered_reuse_without_execution_consent(
+    users, project, firmware, board, settings
+):
+    root = firmware_root(users, project, firmware, board)
+    _, first, _ = approved_build(users, firmware, root, settings, ["right"])
+    build = BuildAttempt.objects.get(id=first["build_id"])
+    lookup = {
+        "workspace_id": str(build.workspace_id),
+        "source_revision_id": str(build.source_revision_id),
+        "recipe_id": build.recipe_id,
+    }
+    before = BuildAttempt.objects.count()
+    offer = op(users["owner"], "build.find_reusable", lookup)["reusable"]
+    # Matching uses the reproducibility input key; one acceptance is provenance only.
+    assert offer["build_id"] == first["build_id"]
+    assert offer["reproducibility"] == "provenance"
+    reused = op(users["owner"], "build.reuse", {**lookup, "result_build_id": first["build_id"]})
+    assert reused["build_id"] == first["build_id"] and reused["reuse_id"]
+    assert BuildAttempt.objects.count() == before
+    # Reuse needs build.execute; a viewer is refused before any lookup result is disclosed.
+    with pytest.raises(PermissionDenied):
+        op(users["viewer"], "build.find_reusable", lookup)

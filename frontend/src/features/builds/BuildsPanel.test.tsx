@@ -3,9 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { PermissionsProvider } from '../../lib/permissions';
 import { BuildsPanel } from './BuildsPanel';
-import { abandonBuild, cancelBuild, listBuilds, readHistory, reproduceBuild, retryBuild, type BuildHistory, type PinnedTool } from './api';
+import { abandonBuild, cancelBuild, findReusable, listBuilds, readHistory, reproduceBuild, retryBuild, reuseResult, type BuildHistory, type PinnedTool } from './api';
 
-vi.mock('./api', () => ({ listBuilds: vi.fn(), readHistory: vi.fn(), cancelBuild: vi.fn(), retryBuild: vi.fn(), abandonBuild: vi.fn(), reproduceBuild: vi.fn() }));
+vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), listBuilds: vi.fn(), readHistory: vi.fn(), cancelBuild: vi.fn(), retryBuild: vi.fn(), abandonBuild: vi.fn(), reproduceBuild: vi.fn(), findReusable: vi.fn(), reuseResult: vi.fn() }));
 
 const summary = (id: string, state: string, retryOf: string | null = null) => ({
   build_id: id, stage_id: `stage-${id}`, state, state_token: 'stage-v3', terminal: false, cancellation_requested: false,
@@ -30,6 +30,7 @@ beforeEach(() => {
   vi.mocked(retryBuild).mockResolvedValue({ build_id: 'build-b' });
   vi.mocked(abandonBuild).mockResolvedValue({});
   vi.mocked(reproduceBuild).mockResolvedValue({ build_id: 'build-r', reproduction_of: 'build-a' });
+  vi.mocked(findReusable).mockResolvedValue({ reusable: null });
 });
 
 const pinned: PinnedTool = {
@@ -200,4 +201,32 @@ test('an older build without a staged record says its output rights are unknown'
   await open();
   expect(screen.getByText(/not recorded for this older build/)).toBeTruthy();
   expect(screen.getByText(/Output rights: unknown/)).toBeTruthy();
+});
+
+const offered = { build_id: 'build-ok', state: 'succeeded', state_token: 'stage-v4', created_at: '2026-01-02T00:00:00Z', reproducibility: 'provenance' as const,
+  outputs: [{ output_id: 'out-1', path: 'result.txt', sha256: 'abc', size: 4, media_type: 'text/plain', rights: 'MIT' }] };
+test('a failed build shows a reusable identical result with its level, never itself, and only with build.execute', async () => {
+  vi.mocked(readHistory).mockResolvedValue(history({ state: 'failed', cancel_available: false, retry_available: true }));
+  vi.mocked(findReusable).mockResolvedValue({ reusable: offered });
+  render(panel(['workspace.read']));
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' }));
+  await screen.findByLabelText('Build history');
+  expect(findReusable).not.toHaveBeenCalled();
+  expect(screen.queryByText('Reusable result available')).toBeNull();
+  cleanup();
+  await open();
+  expect(await screen.findByText('Reusable result available')).toBeTruthy();
+  expect(findReusable).toHaveBeenCalledWith({ workspace_id: 'p1', source_revision_id: 'rev-1', recipe_id: 'synthetic-check-r1', resolved_configuration_id: null });
+  expect(screen.getByText(/Attempt build-ok succeeded/)).toBeTruthy();
+  expect(screen.getAllByText('provenance only').length).toBeGreaterThan(0);
+  vi.mocked(reuseResult).mockResolvedValue({ ...offered, reuse_id: 'reuse-9' });
+  fireEvent.click(screen.getByRole('button', { name: 'Reuse result of build-ok' }));
+  expect((await screen.findByRole('link', { name: 'result.txt' })).getAttribute('href')).toBe('/api/v0/builds/reuse/reuse-9/outputs/out-1');
+  expect(retryBuild).not.toHaveBeenCalled();
+  cleanup();
+  // The attempt being viewed is never offered as a reuse of itself.
+  vi.mocked(findReusable).mockResolvedValue({ reusable: { ...offered, build_id: 'build-a' } });
+  await open();
+  await waitFor(() => expect(findReusable).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText('Reusable result available')).toBeNull();
 });

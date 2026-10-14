@@ -67,3 +67,23 @@ export const abandonBuild = (buildId: string, basis: string, expectedState: stri
   command<unknown>('build.abandon', { build_id: buildId, basis }, { expectedState, idempotencyKey });
 export const reproduceBuild = (buildId: string, expectedState: string, idempotencyKey: string) =>
   command<{ build_id: string; reproduction_of: string }>('build.reproduce', { build_id: buildId }, { expectedState, idempotencyKey });
+
+/** The exact request a reusable result must match (BLD-005); same shape as build.request. */
+export type ReuseRequest = { workspace_id: string; source_revision_id: string; recipe_id: string; resolved_configuration_id?: string | null };
+export type ReusableOutput = { output_id: string; path: string; sha256: string; size: number; media_type: string; rights: string };
+export type ReusableResult = {
+  build_id: string; state: string; state_token: string; created_at: string;
+  /** Derived from recorded comparisons; null only if nothing was accepted. */
+  reproducibility: ReproducibilityLevel | null;
+  outputs: ReusableOutput[];
+};
+const reuseBody = (request: ReuseRequest) => ({
+  workspace_id: request.workspace_id, source_revision_id: request.source_revision_id, recipe_id: request.recipe_id,
+  ...(request.resolved_configuration_id ? { resolved_configuration_id: request.resolved_configuration_id } : {}),
+});
+export const findReusable = (request: ReuseRequest) =>
+  command<{ reusable: ReusableResult | null }>('build.find_reusable', reuseBody(request), read);
+export const reuseResult = (request: ReuseRequest, buildId: string) =>
+  command<ReusableResult & { reuse_id: string }>('build.reuse', { ...reuseBody(request), result_build_id: buildId }, read);
+export const reusedOutputUrl = (reuseId: string, outputId: string) =>
+  `/api/v0/builds/reuse/${encodeURIComponent(reuseId)}/outputs/${encodeURIComponent(outputId)}`;

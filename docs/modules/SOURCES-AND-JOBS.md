@@ -24,9 +24,14 @@ build request creates a distinct attempt while prior evidence remains immutable.
 Successful output is available only after verified terminal acceptance and a current
 workspace membership check. Mixed source-rights policies remain a future capability.
 Result reuse is explicit: `build.find_reusable` offers a succeeded same-workspace attempt
-with identical staged inputs, recipe and configuration pin, and `build.reuse` records a
-`BuildReuse` link instead of building. Reads through the link (`build.reuse_output`) recheck
-current workspace authority; matching hashes alone grant no disclosure permission.
+with the identical `input_key` (staged inputs with rights, recipe and configuration pin;
+the same key reproducibility comparisons use), and `build.reuse` records a `BuildReuse`
+link instead of building. Both need `build.execute`; reuse runs nothing, so compiler
+recipes need no source-execution consent, but the current firmware closure and exact
+source pin are still enforced. The firmware compile request and the Builds detail show
+the matched attempt and its reproducibility level. Reads through the link
+(`build.reuse_output`) recheck current workspace authority; matching hashes alone grant
+no disclosure permission.
 
 ## Cancellation, recovery and retry
 

@@ -7,12 +7,12 @@ import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { command } from '../sources/api';
 import { FirmwareBuildPanel } from './FirmwareBuildPanel';
-import { cancelBuild, readHistory, retryBuild, type BuildHistory } from '../builds/api';
+import { cancelBuild, findReusable, readHistory, retryBuild, reuseResult, type BuildHistory } from '../builds/api';
 import { reproduceCompile, retryCompile } from './api';
 import { compileOptions, compileReview, listResolvedConfigurations, type CompileOptions, type CompileReview } from './api';
 
 vi.mock('./api', async original => ({ ...(await original<typeof import('./api')>()), compileOptions: vi.fn(), compileReview: vi.fn(), listResolvedConfigurations: vi.fn(), retryCompile: vi.fn(), reproduceCompile: vi.fn() }));
-vi.mock('../builds/api', () => ({ cancelBuild: vi.fn(), readHistory: vi.fn(), retryBuild: vi.fn() }));
+vi.mock('../builds/api', async original => ({ ...(await original<typeof import('../builds/api')>()), cancelBuild: vi.fn(), readHistory: vi.fn(), retryBuild: vi.fn(), findReusable: vi.fn(), reuseResult: vi.fn() }));
 vi.mock('../sources/api', async original => ({ ...(await original<typeof import('../sources/api')>()), command: vi.fn() }));
 const options: CompileOptions = {
   workspace_id: 'workspace-one', available_recipe_id: 'approved-compiler', unavailable_reason: null, builds: [{ build_id: 'build-one', state: 'succeeded', failure: null, retry_of: 'build-zero', requested_by_viewer: false, state_token: 'tok-0', cancel_available: false, retry_available: false }], truncated: false,
@@ -28,7 +28,7 @@ const evidence: CompileReview = {
   outputs: [{ output_id: 'output-one', path: 'handoff.json', sha256: 'handoff-hash', rights: 'MIT', size: 100, media_type: 'application/json' }],
 };
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); vi.mocked(compileOptions).mockResolvedValue(options); vi.mocked(compileReview).mockResolvedValue(evidence); vi.mocked(command).mockResolvedValue({ build_id: 'new-one' });
-  vi.mocked(listResolvedConfigurations).mockResolvedValue({ truncated: false, resolved: [] }); });
+  vi.mocked(listResolvedConfigurations).mockResolvedValue({ truncated: false, resolved: [] }); vi.mocked(findReusable).mockResolvedValue({ reusable: null }); });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 const panel = (canExecute = false, firmware = 'firmware-one') => <MantineProvider env="test"><PermissionsProvider permissions={grants({ execute: canExecute })}><FirmwareBuildPanel firmware_revision_id={firmware} /></PermissionsProvider></MantineProvider>;
 
@@ -213,4 +213,28 @@ test('the picker labels each configuration with its constraint outcome and warns
   fireEvent.change(screen.getByLabelText('Source execution review basis'), { target: { value: 'Reviewed synthetic source' } });
   fireEvent.click(screen.getByRole('button', { name: 'Request firmware compile' }));
   await waitFor(() => expect(command).toHaveBeenCalledWith('firmware_build.request', expect.objectContaining({ resolved_configuration_id: 'unknown-1' }), expect.anything()));
+});
+
+const reusable = { build_id: 'build-one', state: 'succeeded', state_token: 'stage-v4', created_at: '2026-01-02T00:00:00Z', reproducibility: 'byte_reproducible' as const,
+  outputs: [{ output_id: 'output-one', path: 'firmware.hex', sha256: 'hex-hash', size: 20, media_type: 'text/plain', rights: 'MIT' }] };
+test('an identical compile request offers the matched attempt for reuse, gated by build.execute', async () => {
+  vi.mocked(findReusable).mockResolvedValue({ reusable });
+  vi.mocked(reuseResult).mockResolvedValue({ ...reusable, reuse_id: 'reuse-1' });
+  render(panel(false));
+  await screen.findByRole('button', { name: 'Inspect firmware handoff build-one' });
+  expect(findReusable).not.toHaveBeenCalled();
+  expect(screen.queryByText('Reusable result available')).toBeNull();
+  cleanup();
+  vi.mocked(findReusable).mockResolvedValue({ reusable });
+  render(panel(true));
+  expect(await screen.findByText('Reusable result available')).toBeTruthy();
+  expect(findReusable).toHaveBeenCalledWith({ workspace_id: 'workspace-one', source_revision_id: 'source-one', recipe_id: 'approved-compiler', resolved_configuration_id: null });
+  expect(screen.getByText(/Attempt build-one succeeded/)).toBeTruthy();
+  expect(screen.getByText('byte-identical')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Reuse result of build-one' }));
+  const link = await screen.findByRole('link', { name: 'firmware.hex' });
+  expect(link.getAttribute('href')).toBe('/api/v0/builds/reuse/reuse-1/outputs/output-one');
+  expect(reuseResult).toHaveBeenCalledWith(expect.objectContaining({ source_revision_id: 'source-one' }), 'build-one');
+  // Reuse runs nothing: no compile request was sent.
+  expect(command).not.toHaveBeenCalled();
 });
