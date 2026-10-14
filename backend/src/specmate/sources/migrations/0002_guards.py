@@ -118,9 +118,28 @@ FOR EACH ROW EXECUTE FUNCTION specmate_preserve_workspace();
 
 CREATE TRIGGER sources_sourcebundle_workspace_fixed BEFORE UPDATE ON sources_sourcebundle
 FOR EACH ROW EXECUTE FUNCTION specmate_preserve_workspace();
+
+CREATE FUNCTION specmate_validate_bundle_ancestry() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.derived_from_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM sources_sourcebundlerevision r
+    JOIN sources_sourcebundle origin ON origin.id = r.bundle_id
+    WHERE r.id = NEW.derived_from_id AND origin.workspace_id = NEW.workspace_id
+  ) THEN
+    RAISE EXCEPTION 'Derived bundles stay in their origin workspace';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER sources_bundle_ancestry_same_workspace
+BEFORE INSERT OR UPDATE OF workspace_id, derived_from_id ON sources_sourcebundle
+FOR EACH ROW EXECUTE FUNCTION specmate_validate_bundle_ancestry();
 """
 
 REVERSE = r"""
+DROP TRIGGER IF EXISTS sources_bundle_ancestry_same_workspace ON sources_sourcebundle;
+DROP FUNCTION IF EXISTS specmate_validate_bundle_ancestry();
 DROP TRIGGER IF EXISTS sources_sourcebundle_workspace_fixed ON sources_sourcebundle;
 DROP TRIGGER IF EXISTS sources_sourceblob_workspace_fixed ON sources_sourceblob;
 DROP TRIGGER IF EXISTS sources_edit_bundle_identity ON sources_sourcebundle;

@@ -18,7 +18,7 @@ from specmate.operations import (
 )
 from specmate.sources import blobstore, zip_intake
 from specmate.sources.api import download_file, list_revisions, read_revision
-from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleFile, SourceBundleRevision
+from specmate.sources.models import SourceBlob, SourceBundle, SourceBundleRevision
 
 from .conftest import op, remove_member, set_role
 from .test_sources import files, register, sha
@@ -486,29 +486,18 @@ def test_db_rejects_expansion_with_cross_workspace_derivative(users, workspace, 
     from django.db import transaction
     from django.db.utils import DatabaseError
 
-    from specmate.sources.models import SourceArchiveExpansion
-
     source = preserve(users, workspace, archive())
-    bundle = SourceBundle.objects.create(
-        workspace_id=other_workspace,
-        name="Mismatched scope",
-        role="derivative",
-        derived_from_id=source["revision_id"],
-        created_by=users["outsider"],
-    )
-    revision = SourceBundleRevision.objects.create(
-        bundle=bundle,
-        number=1,
-        manifest=b"{}",
-        manifest_sha256=sha(b"{}"),
-        created_by=users["outsider"],
-    )
+    # A derivative in another workspace cannot exist at all, so no expansion can bind to it:
+    # the bundle ancestry guard rejects it before any revision or expansion row.
     with pytest.raises(DatabaseError), transaction.atomic():
-        SourceArchiveExpansion.objects.create(
-            revision=revision,
-            archive_file=SourceBundleFile.objects.get(revision_id=source["revision_id"]),
-            parser="specmate-classic-zip-v1",
+        SourceBundle.objects.create(
+            workspace_id=other_workspace,
+            name="Mismatched scope",
+            role="derivative",
+            derived_from_id=source["revision_id"],
+            created_by=users["outsider"],
         )
+    assert not SourceBundle.objects.filter(workspace_id=other_workspace).exists()
 
 
 def test_source_integrity_failure_creates_no_derivative(users, workspace, monkeypatch):

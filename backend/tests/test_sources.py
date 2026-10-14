@@ -202,6 +202,51 @@ def test_bytes_registered_elsewhere_are_not_usable(users, workspace, other_works
         )
 
 
+def test_derived_bundles_stay_in_their_origin_workspace(users, workspace, other_workspace):
+    register(users["outsider"], other_workspace, ORIGINAL)
+    foreign = op(
+        users["outsider"],
+        "source.create_original_bundle",
+        {"workspace_id": other_workspace, "name": "Foreign", "files": files(ORIGINAL)},
+    )
+    register(users["editor"], workspace, ORIGINAL)
+    local = op(
+        users["editor"],
+        "source.create_original_bundle",
+        {"workspace_id": workspace, "name": "Local", "files": files(ORIGINAL)},
+    )
+    derived = op(
+        users["editor"],
+        "source.derive_bundle",
+        {"source_revision_id": local["revision_id"], "name": "Working copy"},
+    )
+    # The operation hides a foreign origin before any write.
+    with pytest.raises(NotFound):
+        op(
+            users["editor"],
+            "source.derive_bundle",
+            {"source_revision_id": foreign["revision_id"], "name": "Crossing copy"},
+        )
+    # The database rejects a cross-workspace ancestry on insert and on update.
+    editor = users["editor"]
+    with pytest.raises(DatabaseError), transaction.atomic():
+        SourceBundle.objects.create(
+            workspace_id=workspace,
+            name="Crossing",
+            role="derivative",
+            derived_from_id=foreign["revision_id"],
+            created_by=editor,
+        )
+    with pytest.raises(DatabaseError), transaction.atomic():
+        SourceBundle.objects.filter(id=derived["bundle_id"]).update(
+            derived_from_id=foreign["revision_id"]
+        )
+    assert (
+        str(SourceBundle.objects.get(id=derived["bundle_id"]).derived_from_id)
+        == (local["revision_id"])
+    )
+
+
 @pytest.mark.parametrize("paths", [("a", "a/b"), ("a/b", "a"), ("A", "a/b")])
 def test_colliding_bundle_intake_rolls_back_and_corrected_retry_succeeds(users, workspace, paths):
     register(users["editor"], workspace, ORIGINAL)
