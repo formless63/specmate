@@ -73,3 +73,58 @@ class ProposalRevision(models.Model):
                 name="proposal_revision_status",
             ),
         ]
+
+
+class ProposalDecision(models.Model):
+    """Append-only review decision on one retained proposal; the highest version is current.
+
+    Never edits the retained revision, a frozen item or any design draft. Acceptance records
+    the design definition/draft it created or linked through the shared design operations.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    revision = models.ForeignKey(
+        ProposalRevision, on_delete=models.PROTECT, related_name="decisions"
+    )
+    workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")
+    version = models.PositiveIntegerField()
+    decision = models.CharField(max_length=20)
+    reason = models.TextField()
+    linked_definition = models.ForeignKey(
+        "design.Definition", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    linked_draft = models.ForeignKey(
+        "design.Draft", null=True, on_delete=models.PROTECT, related_name="+"
+    )
+    link_mode = models.CharField(max_length=10, blank=True, default="")
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    request_id = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["revision", "version"], name="proposal_decision_ver"),
+            models.CheckConstraint(
+                condition=models.Q(version__gte=1)
+                & ~models.Q(reason="")
+                & models.Q(decision__in=["accepted", "rejected", "deferred"])
+                & (
+                    (
+                        models.Q(decision="accepted")
+                        & models.Q(link_mode__in=["created", "linked"])
+                        & models.Q(linked_draft__isnull=False)
+                        & models.Q(linked_definition__isnull=False)
+                    )
+                    | (
+                        ~models.Q(decision="accepted")
+                        & models.Q(link_mode="")
+                        & models.Q(linked_draft__isnull=True)
+                        & models.Q(linked_definition__isnull=True)
+                    )
+                ),
+                name="proposal_decision_valid",
+            ),
+        ]
+        indexes = [models.Index(fields=["workspace", "created_at"])]

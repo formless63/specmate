@@ -26,7 +26,14 @@ export type Proposal = {
   qualification: { physical: false; fit: string; clearance: string; printability: string; manufacturing: string };
   board: { interpretation_id: string; interpretation_sha256: string; source_revision_id: string; source_sha256: string; adapter: string; tool_version: string };
 };
-export type RevisionSummary = { revision_id: string; number: number; sha256: string; status: Proposal['status'] };
+export type DecisionKind = 'accepted' | 'rejected' | 'deferred';
+export type RevisionSummary = { revision_id: string; number: number; sha256: string; status: Proposal['status']; current_decision?: DecisionKind | null };
+export type Decision = {
+  decision_id: string; revision_id: string; version: number; decision: DecisionKind; reason: string;
+  link_mode: 'created' | 'linked' | null; definition_id: string | null; draft_id: string | null; decided_by_id: number; created_at: string;
+};
+export type Decisions = { decision_state: string; current_decision: Decision | null; decisions: Decision[] };
+export type DecidePayload = { decision: DecisionKind; reason: string; draftName?: string; linkDraftId?: string };
 export type Draft = {
   draft_id: string; workspace_id: string; interpretation_id: string; name: string; parameters: Parameters;
   version: number; state: string; proposal: Proposal; revisions: RevisionSummary[]; updated_at: string;
@@ -38,7 +45,7 @@ export type BoardInputs = {
   holes: { pad_id: string; position: [number, number]; drill: [number, number]; mounting_status: string }[];
   components: { component_id: string; reference: string; value: string; footprint: string; position: [number, number]; side: 'front' | 'back' }[];
 };
-export type Retained = {
+export type Retained = Partial<Decisions> & {
   revision_id: string; draft_id: string; workspace_id: string; number: number; interpretation_id: string; interpretation_sha256: string;
   generator: string; draft_version: number; status: Proposal['status']; sha256: string; created_at: string;
   document?: { draft_id: string; draft_name: string; draft_version: number; parameters: Parameters; proposal: Proposal };
@@ -55,3 +62,9 @@ export const updateDraft = (draftId: string, parameters: Parameters, state: stri
   command<Draft>('mechanical_proposal.update', { draft_id: draftId, parameters }, { expectedState: state, idempotencyKey: key });
 export const retainDraft = (draftId: string, state: string, key: string) =>
   command<Retained>('mechanical_proposal.retain', { draft_id: draftId }, { expectedState: state, idempotencyKey: key });
+export const decideRetained = (revisionId: string, payload: DecidePayload, state: string, key: string) =>
+  command<Decisions & { revision_id: string; recorded: Decision }>('mechanical_proposal.decide', {
+    revision_id: revisionId, decision: payload.decision, reason: payload.reason,
+    ...(payload.draftName ? { draft_name: payload.draftName } : {}),
+    ...(payload.linkDraftId ? { link_draft_id: payload.linkDraftId } : {}),
+  }, { expectedState: state, idempotencyKey: key });

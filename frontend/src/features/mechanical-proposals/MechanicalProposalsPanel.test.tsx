@@ -8,7 +8,7 @@ import { MechanicalProposalsPanel } from './MechanicalProposalsPanel';
 
 vi.mock('./api', async original => ({
   ...(await original<typeof import('./api')>()),
-  listBoards: vi.fn(), boardInputs: vi.fn(), listDrafts: vi.fn(), readDraft: vi.fn(), readRetained: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), retainDraft: vi.fn(),
+  listBoards: vi.fn(), boardInputs: vi.fn(), listDrafts: vi.fn(), readDraft: vi.fn(), readRetained: vi.fn(), createDraft: vi.fn(), updateDraft: vi.fn(), retainDraft: vi.fn(), decideRetained: vi.fn(),
 }));
 
 const pad = '00000000-0000-0000-0000-0000000000a1';
@@ -113,4 +113,55 @@ test('retaining reads the exact retained record and labels it as a record, not a
   await screen.findByText('Retained record 1');
   expect(api.retainDraft).toHaveBeenCalledWith('draft-1', 'proposal-v1', expect.any(String));
   expect(screen.getByText(/SHA-256 c{64}/)).toBeTruthy();
+});
+
+const retainedRecord = (extra: Partial<api.Retained> = {}): api.Retained => ({ revision_id: 'rev-1', draft_id: 'draft-1', workspace_id: 'project-1', number: 1, interpretation_id: 'board-1', interpretation_sha256: 'a'.repeat(64), generator: 'g', draft_version: 1, status: 'incomplete', sha256: 'c'.repeat(64), created_at: 'now', decision_state: 'decision-v0', current_decision: null, decisions: [], document: { draft_id: 'draft-1', draft_name: 'Case', draft_version: 1, parameters: empty, proposal: proposal() }, ...extra });
+const summary = { revision_id: 'rev-1', number: 1, sha256: 'c'.repeat(64), status: 'incomplete' as const };
+async function inspect() {
+  vi.mocked(api.readDraft).mockResolvedValue(draft({ revisions: [summary] }));
+  view(['workspace.read', 'item.create', 'design.edit']); await open();
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect retained record 1' }));
+  await screen.findByText('Review decision');
+}
+
+test('a decision needs a reason, is sent under the decision state, and the history is re-read', async () => {
+  vi.mocked(api.readRetained).mockResolvedValueOnce(retainedRecord());
+  await inspect();
+  const record = screen.getByRole('button', { name: 'Record decision' }) as HTMLButtonElement;
+  expect(record.disabled).toBe(true);
+  fireEvent.click(screen.getByText('Reject'));
+  fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Wrong board.' } });
+  expect(record.disabled).toBe(false);
+  const decision: api.Decision = { decision_id: 'd1', revision_id: 'rev-1', version: 1, decision: 'rejected', reason: 'Wrong board.', link_mode: null, definition_id: null, draft_id: null, decided_by_id: 1, created_at: 'now' };
+  vi.mocked(api.decideRetained).mockResolvedValue({ revision_id: 'rev-1', decision_state: 'decision-v1', current_decision: decision, decisions: [decision], recorded: decision });
+  vi.mocked(api.readRetained).mockResolvedValueOnce(retainedRecord({ decision_state: 'decision-v1', current_decision: decision, decisions: [decision] }));
+  fireEvent.click(record);
+  await waitFor(() => expect(api.decideRetained).toHaveBeenCalledWith('rev-1', { decision: 'rejected', reason: 'Wrong board.' }, 'decision-v0', expect.any(String)));
+  await screen.findByText('Wrong board.');
+});
+
+test('accepting requires a target and a stale decision keeps the typed reason', async () => {
+  vi.mocked(api.readRetained).mockResolvedValueOnce(retainedRecord());
+  await inspect();
+  fireEvent.click(screen.getByText('Accept'));
+  fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Looks right.' } });
+  const record = screen.getByRole('button', { name: 'Record decision' }) as HTMLButtonElement;
+  expect(record.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText('New draft name'), { target: { value: 'Housing' } });
+  expect(record.disabled).toBe(false);
+  vi.mocked(api.decideRetained).mockRejectedValue(new SourceError(409, 'Review decisions changed'));
+  fireEvent.click(record);
+  await screen.findByText(/nothing was recorded/);
+  expect((screen.getByLabelText(/Reason/) as HTMLTextAreaElement).value).toBe('Looks right.');
+  expect(api.decideRetained).toHaveBeenCalledWith('rev-1', { decision: 'accepted', reason: 'Looks right.', draftName: 'Housing' }, 'decision-v0', expect.any(String));
+});
+
+test('read-only members see decisions but cannot record one', async () => {
+  vi.mocked(api.readDraft).mockResolvedValue(draft({ revisions: [summary] }));
+  vi.mocked(api.readRetained).mockResolvedValueOnce(retainedRecord());
+  view(['workspace.read']); await open();
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect retained record 1' }));
+  await screen.findByText('Review decision');
+  expect((screen.getByRole('button', { name: 'Record decision' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByLabelText(/Reason/) as HTMLTextAreaElement).disabled).toBe(true);
 });

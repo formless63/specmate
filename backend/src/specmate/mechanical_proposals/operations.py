@@ -14,10 +14,13 @@ from pydantic import ValidationError as PydanticValidationError
 
 from specmate.access.permissions import Perm, authorize, authorize_item
 from specmate.catalog_matching.queries import current_actor
+from specmate.design.models import Draft
+from specmate.design.operations import CreateDefinition, create_definition, scoped_draft
 from specmate.mechanical_proposals.contracts import (
     GENERATOR,
     BoardInputs,
     CreateProposal,
+    DecideProposal,
     DraftRef,
     ListProposals,
     Parameters,
@@ -26,7 +29,11 @@ from specmate.mechanical_proposals.contracts import (
     UpdateProposal,
 )
 from specmate.mechanical_proposals.generators import UnknownReference, generate
-from specmate.mechanical_proposals.models import ProposalDraft, ProposalRevision
+from specmate.mechanical_proposals.models import (
+    ProposalDecision,
+    ProposalDraft,
+    ProposalRevision,
+)
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.scope import workspace_scope
 from specmate.pcb.models import PcbInterpretation
@@ -35,6 +42,8 @@ from specmate.pcb.report import Report
 from specmate.sources.authority import authorize_revision
 
 LIST_LIMIT = 100
+ADOPTION_KIND = "enclosure_proposal"
+ADOPTION_KEY = "proposal_adoption"
 
 
 def canonical_bytes(document) -> bytes:
@@ -110,7 +119,17 @@ def draft_view(user, draft):
         "updated_at": draft.updated_at.isoformat(),
         "proposal": compute(user, draft.workspace_id, draft.interpretation_id, parameters),
         "revisions": [
-            {"revision_id": str(r.id), "number": r.number, "sha256": r.sha256, "status": r.status}
+            {
+                "revision_id": str(r.id),
+                "number": r.number,
+                "sha256": r.sha256,
+                "status": r.status,
+                "current_decision": (
+                    latest.decision
+                    if (latest := r.decisions.order_by("-version").first())
+                    else None
+                ),
+            }
             for r in draft.revisions.order_by("number")
         ],
     }
@@ -133,6 +152,36 @@ def revision_record(user, revision_id, workspace_id=None):
     return revision
 
 
+def decision_state(decisions) -> str:
+    return f"decision-v{len(decisions)}"
+
+
+def decision_view(decision):
+    return {
+        "decision_id": str(decision.id),
+        "revision_id": str(decision.revision_id),
+        "version": decision.version,
+        "decision": decision.decision,
+        "reason": decision.reason,
+        "link_mode": decision.link_mode or None,
+        "definition_id": str(decision.linked_definition_id)
+        if decision.linked_definition_id
+        else None,
+        "draft_id": str(decision.linked_draft_id) if decision.linked_draft_id else None,
+        "decided_by_id": decision.decided_by_id,
+        "created_at": decision.created_at.isoformat(),
+    }
+
+
+def decisions_view(revision):
+    decisions = list(revision.decisions.order_by("version"))
+    return {
+        "decision_state": decision_state(decisions),
+        "current_decision": decision_view(decisions[-1]) if decisions else None,
+        "decisions": [decision_view(d) for d in decisions],
+    }
+
+
 def revision_view(revision, with_proposal=True):
     view = {
         "revision_id": str(revision.id),
@@ -149,6 +198,7 @@ def revision_view(revision, with_proposal=True):
     }
     if with_proposal:
         view["document"] = json.loads(bytes(revision.canonical))
+        view.update(decisions_view(revision))
     return view
 
 
@@ -399,4 +449,103 @@ def board_inputs(ctx: Context, p: BoardInputs):
             }
             for c in sorted(report.components, key=lambda c: str(c.id))[:500]
         ],
+    }
+
+
+# ---------------------------------------------------------------- review decisions
+
+
+def decide_scope(ctx, p: DecideProposal):
+    user = current_actor(ctx.user)
+    revision = revision_record(user, p.revision_id)
+    return workspace_scope(ctx, revision.workspace_id, Perm.DESIGN_EDIT)
+
+
+def decide_replay(ctx, p, stored):
+    user = current_actor(ctx.user)
+    authorize(user, stored["workspace_id"], Perm.DESIGN_EDIT)
+    revision_record(user, p.revision_id, stored["workspace_id"])
+
+
+def linked_draft(ctx, workspace_id, draft_id):
+    """An existing design draft of this workspace; only referenced, never edited."""
+    draft = scoped_draft(ctx, draft_id, Perm.DESIGN_EDIT)
+    if str(draft.definition.workspace_id) != str(workspace_id):
+        raise NotFound("Draft not found.")
+    return draft
+
+
+@operation(
+    "mechanical_proposal.decide",
+    DecideProposal,
+    summary="Append an accept, reject or defer decision with a reason on a retained proposal. "
+    "Acceptance creates a design draft or links an existing one; the retained record and any "
+    "frozen item stay unchanged.",
+    requires_expected_state=True,
+    idempotency_scope=decide_scope,
+    authorize_replay=decide_replay,
+)
+def decide(ctx: Context, p: DecideProposal):
+    user = current_actor(ctx.user)
+    revision = revision_record(user, p.revision_id)
+    authorize(user, revision.workspace_id, Perm.DESIGN_EDIT)
+    # Serialize concurrent decisions on this retained record.
+    ProposalRevision.objects.select_for_update().filter(id=revision.id).first()
+    decisions = list(revision.decisions.order_by("version"))
+    if ctx.require_expected_state() != decision_state(decisions):
+        raise Conflict(
+            "Review decisions changed since they were read; nothing was recorded.",
+            details={"current_state": decision_state(decisions)},
+        )
+    if decisions and decisions[-1].decision == "accepted":
+        raise Conflict("An accepted proposal is final; its draft already exists.")
+    definition = draft = None
+    mode = ""
+    if p.decision == "accepted":
+        if p.link_draft_id is not None:
+            draft = linked_draft(ctx, revision.workspace_id, p.link_draft_id)
+            definition = draft.definition
+            mode = "linked"
+        else:
+            authorize(user, revision.workspace_id, Perm.ITEM_CREATE)
+            created = create_definition(
+                ctx,
+                CreateDefinition(
+                    workspace_id=revision.workspace_id,
+                    kind=ADOPTION_KIND,
+                    name=p.draft_name,
+                    content={
+                        ADOPTION_KEY: {
+                            "retained_proposal_id": str(revision.id),
+                            "retained_sha256": revision.sha256,
+                            "proposal_draft_id": str(revision.draft_id),
+                            "interpretation_id": str(revision.interpretation_id),
+                            "interpretation_sha256": revision.interpretation_sha256,
+                            "generator": revision.generator,
+                            "status": revision.status,
+                            "physical_qualification": False,
+                        }
+                    },
+                ),
+            )
+            draft = Draft.objects.select_related("definition").get(id=created["draft_id"])
+            definition = draft.definition
+            mode = "created"
+    decision = ProposalDecision.objects.create(
+        revision=revision,
+        workspace_id=revision.workspace_id,
+        version=len(decisions) + 1,
+        decision=p.decision,
+        reason=p.reason.strip(),
+        linked_definition=definition,
+        linked_draft=draft,
+        link_mode=mode,
+        decided_by=user,
+        request_id=ctx.request_id,
+    )
+    return {
+        "workspace_id": str(revision.workspace_id),
+        "revision_id": str(revision.id),
+        **decisions_view(revision),
+        "recorded": decision_view(decision),
     }
