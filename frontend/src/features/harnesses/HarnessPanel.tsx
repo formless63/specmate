@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { authorityDenied } from '../cables/api';
 import { HarnessEditor } from './HarnessEditor';
 import { HarnessViews } from '../harness-views/HarnessViews';
+import { useProbedSelection } from '../cable-views/useProbedSelection';
 import { command, read, initialHarness, terminalKey, terminalLabel, type Harness, type Definition, type Draft, type Identity, type Inspection } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
@@ -72,6 +73,9 @@ function Workspace({ projectId }: { projectId: string }) {
   }
   const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
   const workspaceDenied = definitions.isError || identity.isError;
+  useProbedSelection({ kind: 'harness', definitions: definitions.isError ? undefined : definitions.data, definitionId,
+    revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined,
+    pickDefinition: id => { replaceEditor(); setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }, pickRevision: setRevisionId });
   return <Stack>
     <Button variant="subtle" onClick={() => { replaceEditor(); setDraftId(null); setRevisionId(null); }}>Discard retained Harness editor</Button><Text>Discarding closes the selected draft and its unsaved declarations.</Text>
     <Title order={2}>Branched harnesses</Title>

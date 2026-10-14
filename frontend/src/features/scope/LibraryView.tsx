@@ -1,9 +1,10 @@
 import { Alert, Button, Group, Popover, SegmentedControl, Select, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { usePermission } from "../../lib/permissions";
-import { probeMark, useProbe, useProbeOrLocal, useRelated } from "../probe";
+import { SelectedDefinitionViews } from "../cable-views/SelectedDefinitionViews";
+import { probeMark, readLibraryRecord, useProbe, useProbeOrLocal, useRelated } from "../probe";
 import { floatingKind, KNOWN_KINDS, type LibraryView as View } from "../shell/scope";
 import { addReference, listLibrary, readProjectDetail, removeReference, type LibraryRecord, type Project } from "../workspace/api";
 import { ReferenceForm, type ReferenceChoice } from "./ReferenceForm";
@@ -96,12 +97,21 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
     retry: false,
   });
   const actions = useReferenceActions();
+  const showsViews = (record: LibraryRecord) => record.family === "definition" && (record.kind === "cable" || record.kind === "harness");
   const rows = useMemo(() => (records.data?.pages ?? []).flatMap((page) => page.results), [records.data]);
   const edit = usePermission("project.edit");
   const archived = !!project?.archived;
   const filtered = !!query || !!kindFilter;
   const showKindFilter = view.family === "definition" && view.kinds.length !== 1;
   const kindOptions = (view.kinds.length ? view.kinds : KNOWN_KINDS).map((kind) => ({ value: kind, label: words(kind) }));
+  // A deep link can select an item the list does not show (another page or filter): its views still open.
+  const offList = !!selected && records.isSuccess && !rows.some((row) => row.record_id === selected);
+  const probed = useQuery({
+    queryKey: ["workspace", "library-record", principalKey, selected, projectId],
+    queryFn: () => readLibraryRecord(selected!, projectId),
+    enabled: offList && view.family === "definition", retry: false,
+  });
+  const offListRecord = offList && probed.data && showsViews(probed.data) && (view.kinds.length === 0 || view.kinds.includes(probed.data.kind ?? "")) ? probed.data : null;
   const title = projectId && mode === "project" ? `${view.title} in this project` : `${view.title} in the library`;
 
   return <section className="sb-dash sb-library" aria-label={title}>
@@ -159,10 +169,13 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
           </Table.Tr>
           {open && <Table.Tr className="sb-ws-detail"><Table.Td colSpan={7}>
             <UsedInList record={row} currentProjectId={projectId} toolLabel={toolLabel} onOpen={onOpenInProject} />
+            {showsViews(row) && <SelectedDefinitionViews key={row.record_id} record={row} />}
           </Table.Td></Table.Tr>}
         </Fragment>;
       })}</Table.Tbody>
     </Table></div>}
+    {offListRecord && <section aria-label={`Selected ${offListRecord.label}`}><Text className="sb-silk">Selected</Text><Text className="sb-dash-row-title">{offListRecord.label}</Text>
+      <SelectedDefinitionViews key={offListRecord.record_id} record={offListRecord} /></section>}
     <Group gap="xs">
       {rows.length > 0 && <Text className="sb-silk" role="status">{rows.length} shown{records.hasNextPage ? " · more available" : ""}</Text>}
       {records.hasNextPage && <Button variant="quiet" size="xs" onClick={() => void records.fetchNextPage()} loading={records.isFetchingNextPage}>Load more</Button>}

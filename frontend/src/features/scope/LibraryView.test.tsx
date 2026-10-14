@@ -7,6 +7,9 @@ import { project, record, ROLE_PERMISSIONS, workspaceServer } from "../../test/w
 import { LIBRARY_VIEWS } from "../shell/scope";
 import type { Project } from "../workspace/api";
 import { LibraryView } from "./LibraryView";
+import { ProbeProvider } from "../probe";
+import { shieldedPair } from "../cable-views/fixtures";
+import { initialCable } from "../cables/api";
 
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
@@ -95,4 +98,44 @@ test("an empty project list offers the whole library", async () => {
   expect(await screen.findByText("This project references no cable yet.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Show the whole library" }));
   expect(await screen.findByText("Loose lead")).toBeTruthy();
+});
+
+// Selecting a cable row opens its views for the selected revision (the probe), here through real child reads.
+const unknownOrient = { viewing_side: "unknown" };
+function cableReads(path: string): Response | undefined {
+  const json = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
+  if (path.startsWith("/api/v0/catalog/definitions/")) return json({ definition_id: "d1", name: "Patch lead", kind: "cable", revisions: [{ revision_id: "rev-1", number: 1 }, { revision_id: "rev-2", number: 2 }], drafts: [] });
+  if (path.startsWith("/api/v0/cables/revisions/")) {
+    const cable = { ...initialCable(), stock_revision_id: "stock-1" };
+    return json({ revision_id: path.split("/").pop(), snapshot_id: "s", cable, conductors: [], continuity: "not_evaluated", compatibility: "not_evaluated", physical_qualification: "not_evaluated",
+      endpoints: cable.endpoints.map((e) => ({ ...e, body: { kind: "connector_body", contacts: [], drawing_orientation: unknownOrient }, pinout: { kind: "pinout", assignments: [], orientation: unknownOrient } })) });
+  }
+  if (path.includes("/snapshot")) return json({ content: { stock: shieldedPair() } });
+  if (path.includes("revision-labels")) return json({ labels: [], source_labels: [] });
+  return undefined;
+}
+
+test("selecting a cable row opens its section view at the selected frozen revision", async () => {
+  const { fetchMock } = workspaceServer({ projects: [bench, rig], library: [patch, loose] }, cableReads);
+  show();
+  fireEvent.click(await screen.findByRole("button", { name: "Show uses of Patch lead" }));
+  expect(await screen.findByLabelText("Cable section drawing")).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path]) => String(path).includes("cables/revisions/rev-2"))).toBe(true);
+  expect(screen.getByRole("tab", { name: "3D model" })).toBeTruthy();
+});
+
+test("a link to a cable that is not on the visible page still opens its views at the exact revision", async () => {
+  const stray = record("d9", "Far lead", { latest_revision: 2, latest_revision_id: "rev-2" });
+  const { fetchMock } = workspaceServer({ projects: [bench], library: [loose] }, (path) => {
+    if (path.startsWith("/api/v0/workspace/library/d9")) return new Response(JSON.stringify(stray), { status: 200 });
+    if (path.startsWith("/api/v0/catalog/definitions/d9")) return new Response(JSON.stringify({ definition_id: "d9", name: "Far lead", kind: "cable", revisions: [{ revision_id: "rev-1", number: 1 }, { revision_id: "rev-2", number: 2 }], drafts: [] }), { status: 200 });
+    return cableReads(path);
+  });
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={ROLE_PERMISSIONS.editor!}><ProbeProvider probe={{ object: "d9", rev: 1, path: [] }} onProbe={() => {}}>
+    <LibraryView view={LIBRARY_VIEWS.cables!} toolLabel="Cables" projectId={null} project={null} projects={[bench]} principalKey="7" onOpenInProject={() => {}} />
+  </ProbeProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
+  expect(await screen.findByLabelText("Cable section drawing")).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path]) => String(path).includes("cables/revisions/rev-1"))).toBe(true);
+  expect(fetchMock.mock.calls.some(([path]) => String(path).includes("cables/revisions/rev-2"))).toBe(false);
 });
