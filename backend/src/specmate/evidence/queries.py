@@ -15,7 +15,7 @@ from specmate.builds.models import BuildAttempt
 from specmate.design.models import Revision
 from specmate.evidence.contracts import EvidenceItem, EvidenceList, ListEvidence
 from specmate.evidence.models import RecordedResult
-from specmate.evidence.recorded import observation_range, pin_states
+from specmate.evidence.recorded import newer_assertions, observation_range, pin_states
 from specmate.evidence.taxonomy import FACT_METHOD_KIND, KIND_INFO, fact_kind
 from specmate.facts.models import FactAssertion
 from specmate.facts.queries import authorize_assertions, resolve_target, subject_target
@@ -349,7 +349,7 @@ def unit_items(user, p, kinds, scan):
 RECORDED_NOTE = "That the recorded result still holds for newer revisions of its inputs."
 
 
-def recorded_item(record, pins):
+def recorded_item(record, pins, fresh=None):
     result = record.result
     by_role = {pin["role"]: pin for pin in pins}
     if record.source == RecordedResult.Source.INTERFACE_ASSESSMENT:
@@ -400,6 +400,12 @@ def recorded_item(record, pins):
         f"revision {pin['latest_number']}. The recorded result is kept unchanged."
         for pin in stale
     ] + warnings
+    if fresh:
+        warnings.insert(
+            0,
+            "Stale: new fact assertions arrived in this comparison's scope after it was "
+            "recorded. The recorded result is kept unchanged; compare again to include them.",
+        )
     return {
         **describe("generated_check", [RECORDED_NOTE]),
         "evidence_id": f"recorded:{record.id}",
@@ -422,7 +428,7 @@ def recorded_item(record, pins):
         "recorded_at": record.recorded_at.isoformat(),
         "actor_id": record.recorded_by_id,
         "warnings": warnings,
-        "stale": bool(stale),
+        "stale": bool(stale) or bool(fresh),
     }
 
 
@@ -437,7 +443,7 @@ def recorded_items(user, p, scan):
         for record in chunk:
             yield (
                 (record.recorded_at, str(record.id)),
-                recorded_item(record, states.get(record.id, [])),
+                recorded_item(record, states.get(record.id, []), newer_assertions(record)),
             )
         if len(chunk) < CHUNK:
             return

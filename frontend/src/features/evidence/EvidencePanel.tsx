@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Group, MultiSelect, Stack, Table, Text, Tit
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SubjectTestForm } from "./SubjectTestForm";
+import { ApplicabilityPanel } from "./ApplicabilityPanel";
 import { KIND_ORDER, evidenceQuery, observationRange, read, recordedPath, type EvidenceItem, type EvidenceKind, type EvidenceList, type KindDescription, type RecordedResult } from "./api";
 
 function KindBadge({ item }: { item: EvidenceItem }) {
@@ -25,10 +26,19 @@ function RecordedSnapshot({ recordId }: { recordId: string }) {
     {open && snapshot.data && <Stack gap={2}>
       <Text size="xs">Result SHA-256 {snapshot.data.result_sha256} · {snapshot.data.algorithm_version}</Text>
       {snapshot.data.note && <Text size="xs">Note: {snapshot.data.note}</Text>}
+      {snapshot.data.newer_assertions === true && <Text size="xs" c="orange">New fact assertions arrived in this comparison's scope after it was recorded.</Text>}
       {snapshot.data.source === "firmware_impact" && <RecordedObservations result={snapshot.data.result} />}
       {snapshot.data.pins.map((pin) => <Text size="xs" key={`${pin.role}:${pin.revision_id}`}>{pin.role.replaceAll("_", " ")}: revision {pin.number} ({pin.revision_id}){pin.newer_revision_exists ? ` · newer revision ${pin.latest_number} exists` : " · latest"}</Text>)}
     </Stack>}
   </>;
+}
+
+/** Says what went stale: a newer input revision, new fact assertions in scope, or both. */
+function staleText(item: EvidenceItem): string {
+  const assertions = item.warnings.some((w) => w.startsWith("Stale: new fact assertions"));
+  const revision = item.warnings.some((w) => w.startsWith("Stale: pinned"));
+  if (assertions && revision) return "Stale: newer input revision and new fact assertions";
+  return assertions ? "Stale: new fact assertions" : "Stale: newer input revision";
 }
 
 function Row({ item }: { item: EvidenceItem }) {
@@ -41,7 +51,7 @@ function Row({ item }: { item: EvidenceItem }) {
   ].filter(Boolean) as string[];
   return <Table.Tr>
     <Table.Td><KindBadge item={item} /><Text size="xs">{item.source.replaceAll("_", " ")}</Text>
-      {item.stale === true && <Badge color="orange" variant="draft">Stale: newer input revision</Badge>}
+      {item.stale === true && <Badge color="orange" variant="draft">{staleText(item)}</Badge>}
       {item.stale === false && <Text size="xs">Recorded inputs are the latest revisions</Text>}</Table.Td>
     <Table.Td><Text>{item.statement}</Text><Text size="xs">Status: {item.status.replaceAll("_", " ")}</Text>
       {item.conditions.map((c) => <Text size="xs" key={c.property}>Condition {c.property}: {c.status === "known" ? JSON.stringify(c.value) : "unknown"}</Text>)}</Table.Td>
@@ -75,6 +85,7 @@ function EvidenceWorkspace({ workspaceId }: { workspaceId: string }) {
       {(taxonomy.data?.kinds ?? []).map((kind) => <Text size="sm" key={kind.kind}><strong>{kind.label}</strong>: {kind.summary} Never establishes: {kind.does_not_establish.join(" ")}</Text>)}
     </Stack></Card>
     <Card withBorder><SubjectTestForm workspaceId={workspaceId} /></Card>
+    <ApplicabilityPanel workspaceId={workspaceId} />
     <MultiSelect label="Show evidence kinds" placeholder="All kinds" clearable data={KIND_ORDER.map((kind) => ({ value: kind, label: labels.get(kind) ?? kind }))} value={kinds} onChange={(value) => { setKinds(value as EvidenceKind[]); setOffset(0); }} />
     {evidence.isError && <Alert color="red">{evidence.error.message}</Alert>}
     {evidence.data && !evidence.isError && <>

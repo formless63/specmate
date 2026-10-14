@@ -62,6 +62,18 @@
       "title": "Kind",
       "type": "string"
     },
+    "newer_assertions": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Newer Assertions"
+    },
     "note": {
       "title": "Note",
       "type": "string"

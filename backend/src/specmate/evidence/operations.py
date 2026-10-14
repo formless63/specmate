@@ -1,6 +1,8 @@
 from specmate.access.permissions import Perm
+from specmate.evidence.applicability import read_applicability
 from specmate.evidence.contracts import (
     ListEvidence,
+    ReadApplicability,
     ReadRecordedResult,
     ReadTaxonomy,
     RecordFirmwareImpact,
@@ -122,3 +124,14 @@ def record_test(ctx: Context, p: RecordSubjectTest):
 )
 def read_test(ctx: Context, p: ReadSubjectTest):
     return read_subject_test(ctx.user, p)
+
+
+@operation(
+    "evidence.applicability",
+    ReadApplicability,
+    summary="Read evidence for a definition against one revision: exact, stale or inapplicable.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def evidence_applicability(ctx: Context, p: ReadApplicability):
+    return read_applicability(ctx.user, p)
