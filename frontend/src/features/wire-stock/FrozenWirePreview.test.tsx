@@ -40,10 +40,10 @@ test('shows pinned construction independently of the edited draft and locks froz
   await choose('Saved stock', /Editable stock/);
   expect(screen.getByText(/Section: 8 mm × 8 mm/)).toBeTruthy();
   await choose('Frozen stock definition', /Synthetic stock/);
-  await choose('Exact stock revision', /Revision 1/);
-  await screen.findByText(/Frozen stock revision: stock-r1. Section: 3 × 3 mm/);
+  await choose('Exact stock revision', /Synthetic stock · r1/);
+  await screen.findByText(/Section: 3 × 3 mm/); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   await choose('Matching frozen profile', /Synthetic stripping · revision 1 · profile-r1/);
-  await screen.findByText(/Frozen profile revision: profile-r1/);
+  await screen.findAllByText('profile-r1', { selector: 'code' });
   const frozen = within(screen.getByRole('region', { name: 'Frozen stock profile viewer' }));
   const elementSelect = frozen.getByRole('combobox', { name: 'Preview element' });
   fireEvent.click(elementSelect);
@@ -54,17 +54,17 @@ test('shows pinned construction independently of the edited draft and locks froz
   expect(frozen.queryByRole('button', { name: 'Reset preview profile' })).toBeNull();
   fireEvent.change(screen.getByLabelText('stock.jacket outer diameter mm'), { target: { value: '9' } });
   expect(screen.getByText(/Section: 9 mm × 9 mm/)).toBeTruthy();
-  expect(screen.getByText(/Frozen stock revision: stock-r1. Section: 3 × 3 mm/)).toBeTruthy();
+  expect(screen.getByText(/Section: 3 × 3 mm/)).toBeTruthy(); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(fetcher.mock.calls.every(([, options]) => !(options as RequestInit | undefined)?.method)).toBe(true);
-  await choose('Exact stock revision', /Revision 2/);
-  await screen.findByText(/Frozen stock revision: stock-r2. Section: 8 × 8 mm/);
-  expect(screen.queryByText(/Frozen profile revision: profile-r1/)).toBeNull();
+  await choose('Exact stock revision', /Synthetic stock · r2/);
+  await screen.findByText(/Section: 8 × 8 mm/); expect(screen.getAllByText('stock-r2', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.queryAllByText('profile-r1', { selector: 'code' })).toHaveLength(0);
 });
 test('rejects mismatching profile reads without drawing them against selected stock', async () => {
   installApi(profileRevision('stock-r2'));
   render(<MantineProvider><FrozenWirePreview projectId="project1" /></MantineProvider>);
   await choose('Frozen stock definition', /Synthetic stock/);
-  await choose('Exact stock revision', /Revision 1/);
+  await choose('Exact stock revision', /Synthetic stock · r1/);
   await choose('Matching frozen profile', /profile-r1/);
   await screen.findByText('Profile and selected stock revision do not match.');
   expect(screen.queryByRole('button', { name: 'Open 3D preview' })).toBeNull();
@@ -72,10 +72,10 @@ test('rejects mismatching profile reads without drawing them against selected st
 test('project changes clear selected snapshots and do not retain the prior frozen view', async () => {
   installApi();
   const view = render(<MantineProvider><FrozenWirePreview projectId="project1" /></MantineProvider>);
-  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Revision 1/);
-  await screen.findByText(/Frozen stock revision: stock-r1/);
+  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Synthetic stock · r1/);
+  await screen.findAllByText('stock-r1', { selector: 'code' });
   view.rerender(<MantineProvider><FrozenWirePreview projectId="project2" /></MantineProvider>);
-  await waitFor(() => expect(screen.queryByText(/Frozen stock revision: stock-r1/)).toBeNull());
+  await waitFor(() => expect(screen.queryAllByText('stock-r1', { selector: 'code' })).toHaveLength(0));
 });
 
 test('shows readable frozen material dimensions, unknowns and fact sources without raw JSON', async () => {
@@ -84,7 +84,7 @@ test('shows readable frozen material dimensions, unknowns and fact sources witho
   if (screenElement.kind !== 'group' && screenElement.kind !== 'web') screenElement.inner_diameter_mm = null;
   installApi(profileRevision(), stock);
   render(<MantineProvider><FrozenWirePreview projectId="project1" /></MantineProvider>);
-  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Revision 1/);
+  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Synthetic stock · r1/);
   const table = await screen.findByRole('table', { name: 'Frozen construction materials' });
   const rows = within(table).getAllByRole('row');
   expect(rows).toHaveLength(5);
@@ -110,7 +110,7 @@ test('renders recorded frozen suggestion basis and registered source details dir
   };
   installApi(profile);
   render(<MantineProvider><FrozenWirePreview projectId="project1" /></MantineProvider>);
-  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Revision 1/);
+  await choose('Frozen stock definition', /Synthetic stock/); await choose('Exact stock revision', /Synthetic stock · r1/);
   await choose('Matching frozen profile', /profile-r1/);
   const recorded = await screen.findByRole('region', { name: 'Recorded workshop practices' });
   expect(recorded.textContent).toContain('Basis: documented');

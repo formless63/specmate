@@ -6,6 +6,7 @@ import {
   FUNCTIONS, type AssignmentReview, type ConfigEntry, type Firmware, type FirmwareRead, type FirmwareSource, type FirmwareSummary,
   type PinAssumption, type PopulationReview, type SourceFileRole, type TargetSummary, type Toolchain,
 } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const ROLES: SourceFileRole[] = ['application', 'library', 'configuration', 'board_support', 'lockfile', 'other'];
 const FAMILIES: Toolchain['family'][] = ['platformio', 'esp_idf', 'arduino_cli', 'zephyr', 'cmake_gcc', 'other'];
@@ -21,7 +22,7 @@ export function FirmwareEvaluation({ read }: { read: FirmwareRead }) {
       <Text size="sm">Declaration review: toolchain support and compilation require separate evidence · Flashing: not performed · Device operation: not observed</Text></Group>
     {evaluation.readiness === 'blocked' && <Alert color="red">Invalid target or pin assumptions block freezing. These declarations do not describe a working build.</Alert>}
     <Text size="sm">Target: {evaluation.target.population_name} revision {evaluation.target.population_number} · option {evaluation.target.option_name ?? `${evaluation.target.option_id} (missing)`} · {evaluation.target.component ? `${evaluation.target.component.reference} ${evaluation.target.component.value}` : 'component not in board'}{evaluation.target.declared_part ? ` · declared part label ${evaluation.target.declared_part} (not verified)` : ''}</Text>
-    <Text size="xs" style={{ overflowWrap: 'anywhere' }}>Population snapshot {evaluation.target.population_snapshot_sha256} · interpretation {evaluation.target.interpretation_id} ({evaluation.target.interpretation_sha256}) · board source revision {evaluation.target.board_source_revision_id}</Text>
+    <Text size="xs" style={{ overflowWrap: 'anywhere' }}>Population snapshot {evaluation.target.population_snapshot_sha256} · interpretation {evaluation.target.interpretation_id} ({evaluation.target.interpretation_sha256}) · <RevisionLabel kind="source" id={evaluation.target.board_source_revision_id} role="board source" /></Text>
     {evaluation.sources.map(source => <Text size="xs" key={source.local_id} style={{ overflowWrap: 'anywhere' }}>Source {source.local_id}: {source.bundle_name} revision {source.revision_number} · manifest {source.manifest_sha256} · {source.files.map(f => `${f.path} (${f.role}, ${f.rights}, ${f.sha256.slice(0, 12)})`).join(', ')}</Text>)}
     <Table><Table.Thead><Table.Tr><Table.Th>Status</Table.Th><Table.Th>Check</Table.Th><Table.Th>Subject</Table.Th><Table.Th>Finding</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>{evaluation.findings.map((f, index) => <Table.Tr key={index}><Table.Td><Badge color={statusColor[f.status]}>{f.status.replace('_', ' ')}</Badge></Table.Td><Table.Td>{f.code}</Table.Td><Table.Td>{f.subject.signal ?? f.subject.key ?? ''}</Table.Td><Table.Td>{f.message}</Table.Td></Table.Tr>)}</Table.Tbody></Table>

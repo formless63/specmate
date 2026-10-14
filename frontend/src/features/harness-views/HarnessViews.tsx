@@ -6,6 +6,7 @@ import type { HarnessView, StockMap } from '../../../../packages/harness-views/s
 import { sectionLayout } from '../../../../packages/section-layout/src';
 import { PrintOutput } from './PrintOutput';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
+import { useRevisionTexts } from '../../lib/revision-labels';
 
 function download(name: string, body: string, type: string): void {
   const url = URL.createObjectURL(new Blob([body], { type }));
@@ -19,15 +20,17 @@ export function HarnessViews({ revisionId, harness, quantity = 1, title }: { rev
   const reads = useQueries({ queries: stockIds.map(id => ({ queryKey: ['cable-stock', id], queryFn: () => loadFrozenStock(id) })) });
   const failed = reads.find(r => r.isError);
   const loading = reads.some(r => r.isPending);
+  const pinIds = useMemo(() => [revisionId, ...stockIds, ...harness.endpoints.flatMap(e => [e.body_revision_id, e.pinout_revision_id])], [revisionId, stockIds, harness]);
+  const labels = useRevisionTexts(pinIds);
   const stocks: StockMap = useMemo(() => Object.fromEntries(stockIds.flatMap((id, i) => {
     const spec = reads[i]?.data;
-    return spec ? [[id, { name: `Stock ${id}`, section: sectionLayout(spec) }]] : [];
-  })), [stockIds, reads]);
+    return spec ? [[id, { name: labels[id] ?? 'Stock (name unavailable)', section: sectionLayout(spec) }]] : [];
+  })), [stockIds, reads, labels]);
   const [selected, setSelected] = useState<string | null>(null);
-  const name = title ?? `Harness ${revisionId}`;
+  const name = title ?? labels[revisionId] ?? 'Harness';
   const board = useMemo(() => formboardLayout(harness, stocks), [harness, stocks]);
   const svg = useMemo(() => renderFormboardSvg(board, `${name} formboard`, { selected }), [board, name, selected]);
-  const model = useMemo(() => buildSheetModel({ title: name, revisionId, harness, stocks, quantity }), [name, revisionId, harness, stocks, quantity]);
+  const model = useMemo(() => buildSheetModel({ title: name, revisionId, harness, stocks, quantity, labels }), [name, revisionId, harness, stocks, quantity, labels]);
   const html = useMemo(() => renderBuildSheetHtml(model, { formboardSvg: renderFormboardSvg(board, `${name} formboard`, { idPrefix: 'sheet' }) }), [model, board, name]);
   const bar = board.bars.find(b => b.sectionId === selected);
   if (harness.sections.length === 0) return <Text>No physical sections are declared, so there is nothing to draw.</Text>;

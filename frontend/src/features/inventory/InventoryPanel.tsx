@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { WorkPanel, UsageForm } from "./WorkPanel";
 import { command, read, request, type Account, type Command, type Detail, type Inventory, type WorkBatch } from "./api";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const units: Record<string, string[]> = { count: ["ea"], length: ["m", "cm", "mm"], mass: ["kg", "g"] };
 
@@ -104,7 +105,7 @@ function StockForm({ account, pending, submit }: { account: Account; pending: bo
   const blocked = unknown && action !== "establish_quantity";
   return <Stack>
     <Title order={3}>{account.lot_label} at {account.location_name}</Title>
-    <Text size="sm">Exact revision: {account.revision_id}. Current assertion: {account.assertion_status} · {account.assertion_source}. Stock observations do not qualify a physical item.</Text>
+    <Text size="sm"><RevisionLabel id={account.revision_id} />. Current assertion: {account.assertion_status} · {account.assertion_source}. Stock observations do not qualify a physical item.</Text>
     {unknown && <Alert color="yellow">Stock quantity is unknown. Record an explicit quantity assertion before receiving, adjusting or reserving stock.</Alert>}
     <NativeSelect label="Stock operation" value={action} onChange={(event) => setAction(event.currentTarget.value)} data={[{ value: "establish_quantity", label: "Record quantity assertion" }, { value: "receive", label: "Receive stock" }, { value: "adjust", label: "Adjust stock" }, { value: "reserve", label: "Reserve stock" }]} />
     <TextInput label="Operation quantity" value={amount} onChange={(event) => setAmount(event.currentTarget.value)} />

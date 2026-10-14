@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { command, preserve, request, SourceError, type RevisionDetail, type SourcePage } from './api';
 import { EditHandoff, EditProvenanceCard } from './EditHandoff';
 import { PropertyAuthorityPanel } from '../source-authority/PropertyAuthority';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function SourcesPanel(props: { projectId: string; permissions?: string[] }) {
   return <SourceWorkspace key={props.projectId} {...props} />;
@@ -91,12 +92,12 @@ function SourceWorkspace({ projectId, permissions }: { projectId: string; permis
       {file && file.size > 16 * 1024 * 1024 && <Text c="red">This file exceeds the panel's 16 MiB limit.</Text>}
       <Button disabled={!file || file.size > 16 * 1024 * 1024 || !name.trim() || !rights.trim()} loading={busy} onClick={() => void save()}>Preserve source</Button>
     </Stack></Card>}
-    <Stack gap="xs">{page.revisions.map(revision => <Card withBorder key={revision.revision_id}><Group justify="space-between"><div><Text>{revision.name} · {revision.role} · revision {revision.number}</Text><Text size="xs">{revision.revision_id}</Text></div><Button disabled={busy} onClick={() => void inspect(revision.revision_id)}>Inspect {revision.name} revision {revision.number}</Button></Group></Card>)}</Stack>
+    <Stack gap="xs">{page.revisions.map(revision => <Card withBorder key={revision.revision_id}><Group justify="space-between"><div><Text><RevisionLabel id={revision.revision_id} known={{ name: revision.name, kind: revision.role, number: revision.number }} /></Text></div><Button disabled={busy} onClick={() => void inspect(revision.revision_id)}>Inspect {revision.name} revision {revision.number}</Button></Group></Card>)}</Stack>
     {page.next_after && <Button disabled={busy} onClick={() => void refresh(page.next_after!)}>More sources</Button>}
     {detail && <Card withBorder><Stack><Title order={3}>Exact source revision</Title>
-      <Text>{detail.name} · {detail.role} · revision {detail.number}</Text><Text>Revision: {detail.revision_id}</Text><Text size="sm">Manifest SHA-256: {detail.manifest_sha256}</Text>
+      <Text><RevisionLabel id={detail.revision_id} known={{ name: detail.name, kind: detail.role, number: detail.number }} /></Text><Text size="sm">Manifest SHA-256: {detail.manifest_sha256}</Text>
       <Button variant="subtle" disabled={busy} onClick={() => void inspect(detail.revision_id)}>Refresh exact source</Button>
-      {detail.expansion && <Card withBorder><Text fw={600}>ZIP expansion provenance</Text><Text>Archive revision: {detail.expansion.source_revision_id}</Text><Text>Archive path: {detail.expansion.path}</Text><Text size="sm">Archive SHA-256: {detail.expansion.sha256}</Text><Text>Inherited declared rights: {detail.expansion.rights}</Text><Text size="sm">Parser: {detail.expansion.parser} · Execution: none</Text></Card>}
+      {detail.expansion && <Card withBorder><Text fw={600}>ZIP expansion provenance</Text><Text><RevisionLabel kind="source" id={detail.expansion.source_revision_id} role="Archive" /></Text><Text>Archive path: {detail.expansion.path}</Text><Text size="sm">Archive SHA-256: {detail.expansion.sha256}</Text><Text>Inherited declared rights: {detail.expansion.rights}</Text><Text size="sm">Parser: {detail.expansion.parser} · Execution: none</Text></Card>}
       <EditProvenanceCard detail={detail} />
       {detail.manifest.ancestry.map(id => <Text key={id}>Parent revision: {id}</Text>)}
       <Table.ScrollContainer minWidth={700}><Table><Table.Thead><Table.Tr><Table.Th>Path</Table.Th><Table.Th>Bytes</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Declared rights</Table.Th><Table.Th>Original bytes</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{detail.manifest.files.map(entry => <Table.Tr key={entry.path}><Table.Td>{entry.path}</Table.Td><Table.Td>{entry.bytes}</Table.Td><Table.Td style={{ overflowWrap: 'anywhere' }}>{entry.sha256}</Table.Td><Table.Td>{entry.rights}</Table.Td><Table.Td><a href={`/api/v0/sources/revisions/${detail.revision_id}/file?${new URLSearchParams({ path: entry.path })}`}>Download {entry.path}</a></Table.Td></Table.Tr>)}</Table.Tbody></Table></Table.ScrollContainer>

@@ -53,10 +53,10 @@ function fixture() {
 }
 async function selectRight() {
   await choose('Package root definition', 'Synthetic assembly (assembly)');
-  await choose('Exact package root revision', 'Revision 1 · root-revision');
+  await choose('Exact package root revision', 'Revision 1');
   fireEvent.click(await screen.findByRole('button', { name: 'right/board · J1' }));
   fireEvent.click(screen.getByRole('button', { name: 'Review exact selected package' }));
-  await screen.findByText('Selected revision: board-revision');
+  await screen.findAllByText('board-revision', { selector: 'code' });
 }
 
 test('fresh review uses contextual stable path and never a replay key', async () => {
@@ -64,7 +64,8 @@ test('fresh review uses contextual stable path and never a replay key', async ()
   expect(f.calls).toHaveLength(1);
   expect(f.calls[0]).toMatchObject({ operation: 'selected_package.review', payload: { root_revision_id: 'root-revision', occurrence_path: ['right', 'board'], purpose: 'authorized_review', rights_reviews: [] } });
   expect(f.calls[0]?.idempotency_key).toBeUndefined();
-  expect(screen.getByText('Selected root · board-revision · firmware right-fw')).toBeTruthy();
+  expect(screen.getByText(/firmware right-fw/)).toBeTruthy();
+  expect(screen.getAllByText('board-revision', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.queryByText(/firmware left-fw/)).toBeNull();
   expect(screen.getByText(/port.a.*external contract unknown/)).toBeTruthy();
 });
@@ -92,13 +93,13 @@ test('revoked download clears review and selection projection until explicit ful
   const f = fixture(); render(wrap()); await selectRight(); f.denyDownload();
   fireEvent.click(screen.getByRole('button', { name: 'Download reviewed package' }));
   await screen.findByText('Source unavailable.');
-  expect(screen.queryByText('Selected revision: board-revision')).toBeNull();
+  expect(screen.queryAllByText('board-revision', { selector: 'code' })).toHaveLength(0);
   expect(screen.queryByRole('button', { name: 'right/board · J1' })).toBeNull();
   f.restore(); fireEvent.click(screen.getByRole('button', { name: 'Refresh package selection access' }));
   await screen.findByRole('button', { name: 'right/board · J1' });
   expect(screen.queryByRole('button', { name: 'Download reviewed package' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Review exact selected package' }));
-  await screen.findByText('Selected revision: board-revision');
+  await screen.findAllByText('board-revision', { selector: 'code' });
 });
 
 test('project replacement clears old review and prevents an old deferred download', async () => {
@@ -111,7 +112,7 @@ test('project replacement clears old review and prevents an old deferred downloa
   fireEvent.click(screen.getByRole('button', { name: 'Download reviewed package' }));
   view.rerender(wrap('another-project'));
   resolveDownload(new Response('old-deferred-archive'));
-  await waitFor(() => expect(screen.queryByText('Selected revision: board-revision')).toBeNull());
+  await waitFor(() => expect(screen.queryAllByText('board-revision', { selector: 'code' })).toHaveLength(0));
   expect(screen.queryByRole('button', { name: 'Download reviewed package' })).toBeNull();
   expect(save).not.toHaveBeenCalled();
   expect(f.calls).toHaveLength(1);

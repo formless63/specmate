@@ -1,6 +1,8 @@
 import { Alert, Button, Group, NativeSelect, Stack, Text, Title } from "@mantine/core";
 import { useRef, useState } from "react";
 import { revisionImpact, type DefinitionRevisions, type ImpactPage } from "./api";
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { ExactPins } from "../../lib/IdentityLabel";
 
 export function RevisionImpact({ definition }: { definition: DefinitionRevisions }) {
   const [current, setCurrent] = useState("");
@@ -9,7 +11,7 @@ export function RevisionImpact({ definition }: { definition: DefinitionRevisions
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
-  const options = [{ value: "", label: "Select exact revision" }, ...definition.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))];
+  const options = [{ value: "", label: "Select exact revision" }, ...definition.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(definition.name, r.number) }))];
   function choose(set: (value: string) => void, value: string) {
     generation.current++; set(value); setReport(null); setError(""); setBusy(false);
   }
@@ -42,7 +44,7 @@ export function RevisionImpact({ definition }: { definition: DefinitionRevisions
       <Text size="xs">Current snapshot SHA-256 {report.current_sha256}</Text>
       <Text size="xs">Proposed snapshot SHA-256 {report.candidate_sha256}</Text>
       {report.results.length === 0 && <Text>No visible parent snapshots pin the existing revision.</Text>}
-      {report.results.map(row => <Stack gap={0} key={row.snapshot_id}><Text>{row.label}</Text><Text size="xs">Snapshot {row.snapshot_id} · project {row.project_id} · exact revision pin retained</Text></Stack>)}
+      {report.results.map(row => <Stack gap={0} key={row.snapshot_id}><Text>{row.label}</Text><Text size="xs">Exact revision pin retained <ExactPins pins={[{ label: 'Snapshot ID', value: row.snapshot_id }, { label: 'Project ID', value: row.project_id }]} /></Text></Stack>)}
       {report.next_after && <Button disabled={busy} onClick={() => void compare(report.next_after ?? undefined)}>More affected pins</Button>}
     </Stack>}
   </Stack>;

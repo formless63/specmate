@@ -104,7 +104,7 @@ test('grouped dimensional needs preserve unknown/fractional rows and select thei
   fireEvent.click(screen.getByRole('button', { name:'Read exact contextual BOM' }));
   await screen.findByRole('button', { name:'BOM use right/board · need right-wipe context' });
   fireEvent.click(screen.getByLabelText('Group BOM rows by reusable revision'));
-  expect(screen.getByText('wipe-r1 · 2 contextual rows')).toBeTruthy();
+  expect(screen.getByText(/· 2 contextual rows/)).toBeTruthy(); expect(screen.getAllByText('wipe-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.getByText(/Unknown m/)).toBeTruthy(); expect(screen.getByText(/0.125 m/)).toBeTruthy();
   expect(shared().getByText('Stable feature: component:one')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name:'BOM use left/board · need left-wipe context' }));
@@ -121,9 +121,9 @@ test('older held BOM denial cannot discard a newer deliberately selected coheren
   render(show()); await open(); tab('BOM context');
   fireEvent.change(screen.getByLabelText('Exact contextual BOM plan revision ID'),{target:{value:'bom-r1'}}); fireEvent.click(screen.getByRole('button',{name:'Read exact contextual BOM'}));
   fireEvent.change(screen.getByLabelText('Exact contextual BOM plan revision ID'),{target:{value:'bom-r2'}}); fireEvent.click(screen.getByRole('button',{name:'Read exact contextual BOM'}));
-  await screen.findByText(/Frozen BOM revision bom-r2/);
+  await screen.findAllByText('bom-r2', { selector: 'code' });
   await act(async()=>{finish(response({error:{message:'Older plan source denied.'}},404));await held;});
   expect(screen.queryByText('Older plan source denied.')).toBeNull();
-  expect(screen.getByText(/Frozen BOM revision bom-r2/)).toBeTruthy();
+  expect(screen.getAllByText('bom-r2', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(shared().getByText('Selected occurrence: right/board')).toBeTruthy();
 });

@@ -61,9 +61,9 @@ test('create pins exact preserved file bytes and rights through the shared opera
   const { bodies } = setup(); await refresh(); fireEvent.click(screen.getByRole('button', { name: 'New mechanical source' }));
   fireEvent.change(screen.getByLabelText('Mechanical source name'), { target: { value: 'New reusable enclosure' } });
   fireEvent.change(screen.getByLabelText('Exact accessible source revision ID'), { target: { value: 'source-rev' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Add exact source' })); await screen.findByText(/source1 · revision source-rev/);
+  fireEvent.click(screen.getByRole('button', { name: 'Add exact source' })); await screen.findAllByText('source-rev', { selector: 'code' });
   fireEvent.change(screen.getByLabelText('Exact accessible target revision ID'), { target: { value: 'hardware-rev' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Add exact target' })); await screen.findByText(/target1 · revision hardware-rev/);
+  fireEvent.click(screen.getByRole('button', { name: 'Add exact target' })); await screen.findAllByText(/target1/);
   fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' }));
   await screen.findByRole('button', { name: 'Edit mechanical draft' });
   expect(bodies[0]).toMatchObject({ operation: 'mechanical_source.create', payload: { project_id: 'project', name: 'New reusable enclosure',
@@ -174,7 +174,7 @@ test('an exact path pins only its file from a larger source bundle', async () =>
     files: [{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT' }, ...Array.from({ length: 201 }, (_, i) => ({ path: `sibling${i}.step`, sha256: 'd'.repeat(64), rights: 'unknown' }))],
   } }));
   fireEvent.click(screen.getByRole('button', { name: 'Add exact source' }));
-  await screen.findByText(/source1 · revision source-rev/);
+  await screen.findAllByText('source-rev', { selector: 'code' });
   fireEvent.click(screen.getByRole('button', { name: 'Save mechanical draft' }));
   await screen.findByRole('button', { name: 'Edit mechanical draft' });
   expect(bodies[0].payload.mechanical_source.sources[0].files).toEqual([{ path: 'body.step', sha256: 'b'.repeat(64), rights: 'MIT', role: 'supporting', format: 'other' }]);

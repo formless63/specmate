@@ -20,8 +20,9 @@ test("exact endpoints, native pins and unsupported declaration remain distinct d
   expect(screen.getAllByText(/endpoint_id=output · contact_id=b/)).toHaveLength(2);
   expect(screen.getAllByText(/component_id=ic-uuid · pad_id=pad-uuid/)).toHaveLength(2);
   expect(screen.getAllByText("Native net identity: board-net-17").length).toBeGreaterThan(0);
-  expect(screen.getAllByText(/Interpretation: native-report · Source revision: board-source-rev/).length).toBeGreaterThan(0);
-  expect(screen.getByText(/Source bundle revision: datasheet-rev · Path: facts.txt/)).toBeTruthy();
+  expect(screen.getAllByText(/Interpretation: native-report/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('board-source-rev', { selector: 'code' }).length).toBeGreaterThan(0);
+  expect(screen.getByText(/Path: facts.txt/)).toBeTruthy();
   expect(screen.getByText(/Source SHA-256: facts-hash · Rights: CC0-1.0/)).toBeTruthy();
   expect(screen.getByText(/Declaration scope: model model-rev/)).toBeTruthy();
   expect(screen.getByText("unsupported active behavior")).toBeTruthy();

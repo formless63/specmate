@@ -30,14 +30,15 @@ test('exact revision selection shows net membership separately from resistor bou
   }));
   render(wrap(<CopperPanel projectId="project" />));
   await choose('Copper graph definition', 'Synthetic assembly (assembly)');
-  await choose('Frozen graph revision', 'Revision 2 · root');
+  await choose('Frozen graph revision', 'Revision 2');
   expect(await screen.findByText('3 terminals · 2 declared components · 1 boundaries')).toBeTruthy();
   await choose('Inspect copper terminal', 'board-a · R1.1 (pad)');
   expect(screen.getByText('Evidence: Reported net membership')).toBeTruthy();
   const table = screen.getByRole('table');
   expect(within(table).getByText('J1.1')).toBeTruthy(); expect(within(table).queryByText('R1.2')).toBeNull();
   expect(screen.getByText('Resistor passage keeps the nets separate.')).toBeTruthy();
-  expect(screen.getAllByText('Interpretation: report-one · Source revision: source-one').length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/Interpretation: report-one/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('source-one', { selector: 'code' }).length).toBeGreaterThan(0);
   await choose('Inspect copper terminal', 'board-a · R1.2 (pad)');
   expect(within(screen.getByRole('table')).queryByText('J1.1')).toBeNull();
   expect(screen.getByText('Native net identity: net-b')).toBeTruthy();
@@ -66,7 +67,7 @@ test.each(['definitions', 'identity'])('denied %s refresh hides retained graph a
     return new Response(JSON.stringify(data), { status: 200 });
   }));
   render(wrap(<CopperPanel projectId="project" />, client));
-  await choose('Copper graph definition', 'Synthetic assembly (assembly)'); await choose('Frozen graph revision', 'Revision 1 · root');
+  await choose('Copper graph definition', 'Synthetic assembly (assembly)'); await choose('Frozen graph revision', 'Revision 1');
   expect(await screen.findByText('Resistor passage keeps the nets separate.')).toBeTruthy();
   denied = true; await act(async () => { await client.refetchQueries({ queryKey: target === 'identity' ? ['copper-identity', 'design', 0] : ['copper-definitions', 'project'] }); });
   expect(await screen.findByText(`Denied ${target}.`)).toBeTruthy();

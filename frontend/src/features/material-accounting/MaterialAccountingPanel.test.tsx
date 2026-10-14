@@ -42,7 +42,7 @@ test('save and freeze preserve independent unsaved observations and exact editin
   fireEvent.change(screen.getByLabelText('Piece 1 extra waste beyond cut mm per piece'), { target: { value: '0' } });
   fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · v1');
   fireEvent.change(screen.getByLabelText('Piece 1 installed material mm per piece'), { target: { value: '999' } });
-  fireEvent.click(screen.getByText('Freeze saved material plan')); await screen.findByText(/Plan plan-rev · plan-hash/);
+  fireEvent.click(screen.getByText('Freeze saved material plan')); await screen.findAllByText('plan-rev', { selector: 'code' });
   expect(commands.at(-1)).toMatchObject({ operation: 'material_plan.freeze', expected_state: 'v1' });
   expect(commands[0]!.payload.plan.pieces[0]!.extra_waste.amount_mm).toBe('0');
   expect((screen.getByLabelText('Piece 1 installed material mm per piece') as HTMLInputElement).value).toBe('999');
@@ -133,12 +133,12 @@ test.each([false, true])('detached frozen read denial is fenced only by genuine 
     return response(readBody(url));
   }));
   render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
-  await select('Frozen material revision', 'Revision 1 · first'); await waitFor(() => expect(firstStarted).toBe(true));
+  await select('Frozen material revision', 'Revision 1'); await waitFor(() => expect(firstStarted).toBe(true));
   if (replacement) fireEvent.click(screen.getByText('Discard unsaved material values and start new'));
-  else { await select('Frozen material revision', 'Revision 2 · second'); await screen.findByText('Plan plan-rev · plan-hash'); }
+  else { await select('Frozen material revision', 'Revision 2'); await screen.findAllByText('plan-rev', { selector: 'code' }); }
   await act(async () => { first.resolve(response({ error: { message: 'Detached source revoked.' } }, 403)); });
   if (replacement) { expect(screen.getByLabelText('Material subject exact revision ID')).toBeTruthy(); expect(screen.queryByText('Refresh material accounting access')).toBeNull(); }
-  else { expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); expect(screen.getByText('Refresh material accounting access')).toBeTruthy(); expect(screen.queryByText('Plan plan-rev · plan-hash')).toBeNull(); }
+  else { expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); expect(screen.getByText('Refresh material accounting access')).toBeTruthy(); expect(screen.queryAllByText('plan-rev', { selector: 'code' })).toHaveLength(0); }
 });
 
 test('a later detached denial keeps recovery closed when an earlier refresh succeeds', async () => {
@@ -150,7 +150,7 @@ test('a later detached denial keeps recovery closed when an earlier refresh succ
     if (url.includes('catalog/definitions') && firstReads > 1) recoveredIdentity = true;
     return response(readBody(url));
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await select('Frozen material revision', 'Revision 1 · first'); await waitFor(() => expect(firstStarted).toBe(true));
+  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await select('Frozen material revision', 'Revision 1'); await waitFor(() => expect(firstStarted).toBe(true));
   fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('Initial source denied.'); fireEvent.click(screen.getByText('Refresh material accounting access'));
   await act(async () => { first.resolve(response({ error: { message: 'Later source denied.' } }, 404)); recovery.resolve(response({ result: { authorized: true } })); });
   await waitFor(() => expect(recoveredIdentity).toBe(true));

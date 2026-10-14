@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../workspace/api';
 import { command, initialPlan, inspectTarget, keyOf, read, terminalText, type Definition, type Draft, type Evidence, type Identity, type Inspection, type Label, type Pair, type TestPlan } from './api';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function CableTestIntentPanel({ projectId }: { projectId: string }) {
   const cache = useQueryClient();
@@ -87,7 +89,7 @@ export function CableTestIntentPanel({ projectId }: { projectId: string }) {
     {!hidden && <Select label="Test-plan definition" disabled={create.isPending} searchable data={(definitions.data ?? []).filter(d => d.kind === 'cable_test_plan').map(d => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={id => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setSaved(null); setOffset(0); }} />}
     {!hidden && identity.data && <>
       <Select label="Test-plan draft" disabled={create.isPending} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setSaved(null); } }} />
-      <Select label="Frozen test plan" data={identity.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} value={revisionId} onChange={setRevisionId} />
+      <Select label="Frozen test plan" data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} value={revisionId} onChange={setRevisionId} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>Earlier plans</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(n => n + 50)}>Later plans</Button></Group>
     </>}
     {editorDraft && <DraftEditor key={`${projectId}:${editorDraft.draft_id}`} draft={editorDraft} committed={saved} hidden={hidden || draft.isFetching} refresh={refresh} onValueChange={v => { if (activeEditor.current.generation === editorGeneration && draftId) activePlan.current = { draftId, value: v }; }} onError={e => { if (activeEditor.current.generation === editorGeneration) error(e); }} onSaved={async d => { if (activeEditor.current.generation !== editorGeneration) return; setSaved(d); await cache.invalidateQueries({ queryKey: ['test-plan-draft', d.draft_id] }); }} onFrozen={async (r, d) => { if (activeEditor.current.generation !== editorGeneration) return; setRevisionId(r); setSaved(d); await cache.invalidateQueries({ queryKey: ['test-plan-draft', d.draft_id] }); await cache.invalidateQueries({ queryKey: ['test-plan-identity', definitionId] }); }} />}
@@ -247,7 +249,7 @@ export function PlanInspector({ revisionId, hidden = false, refresh = 0, onAcces
   return <Card withBorder><Stack><Title order={3}>Frozen test plan</Title><Button loading={query.isFetching} onClick={() => { explicitRefresh.current = { pending: true }; void query.refetch(); }}>Refresh frozen test-plan access</Button>
     {blocked && !query.isError && <Alert color="red">Frozen test-plan access must be explicitly rechecked.</Alert>}
     {query.isError && <Alert color="red">{query.error.message}</Alert>}
-    {available && <><Text>Exact plan {query.data!.revision_id} · SHA-256 {query.data!.sha256}</Text><Text>Root {query.data!.test_plan.root_revision_id} · snapshot {query.data!.root_snapshot_id} · SHA-256 {query.data!.root_sha256}</Text><Text>Occurrence {query.data!.test_plan.occurrence_path.join('/') || 'standalone'} · cable {query.data!.test_plan.cable_revision_id} · SHA-256 {query.data!.cable_sha256}</Text>
+    {available && <><Text><RevisionLabel id={query.data!.revision_id} role="plan" /> · SHA-256 {query.data!.sha256}</Text><Text><RevisionLabel id={query.data!.test_plan.root_revision_id} role="Root" snapshotId={query.data!.root_snapshot_id} sha256={query.data!.root_sha256} /></Text><Text>Occurrence {query.data!.test_plan.occurrence_path.join('/') || 'standalone'} · <RevisionLabel id={query.data!.test_plan.cable_revision_id} role="cable" sha256={query.data!.cable_sha256} /></Text>
       <PairTable pairs={query.data!.test_plan.pairs} /><LabelTable labels={query.data!.test_plan.labels} />
       {query.data!.evidence.map(row => <Text key={`${row.kind}:${row.local_id}`}>{row.kind} {row.local_id}: {row.evidence.status} · {row.evidence.citation ?? row.evidence.source_path ?? 'unknown'} · {row.evidence.source_bundle_revision_id ?? 'no registered revision'} · SHA-256 {row.evidence.sha256 ?? 'unknown'} · rights {row.evidence.rights ?? 'unknown'}</Text>)}
       <Text>Physical test: {query.data!.physical_test}. Physical continuity: {query.data!.physical_continuity}. Qualification: {query.data!.physical_qualification}.</Text>

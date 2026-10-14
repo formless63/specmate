@@ -8,6 +8,7 @@ import { ContextSelectionProvider, useContextSelection } from './ContextSelectio
 import { exactKey, sameOccurrence, selectedFeature, selectedNode } from './selection';
 import { groupBomRows, readBom, validBomContext } from './reads';
 import type { LoadedBom } from './reads';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const Viewport = lazy(() => import('../shared-scene/SceneViewport'));
 const viewNames = ['tree', 'board', 'cable', 'scene', 'inspector', 'schematic', 'bom'] as const;
@@ -26,10 +27,10 @@ export function ConnectedViews() {
   if (!state.scene || state.status !== 'ready') return null;
   const selection = state.selection, node = selectedNode(state);
   return <Stack>
-    <Text size="xs">Exact root revision {state.scene.root.revision_id} · snapshot {state.scene.snapshot_id} · SHA-256 {state.scene.sha256}</Text>
+    <Text size="xs"><RevisionLabel id={state.scene.root.revision_id} role="root" snapshotId={state.scene.snapshot_id} sha256={state.scene.sha256} /></Text>
     <Card withBorder role="region" aria-label="Shared contextual selection">
       {selection?.kind === 'occurrence' ? <><Text>Selected occurrence: {selection.address.path.join('/')}</Text><Text size="sm">Stable feature: {selection.address.feature_id ?? 'Whole occurrence'}</Text><Text size="xs">Context identity: {exactKey(selection.address)}</Text></>
-        : selection?.kind === 'revision' ? <Text>Independent reusable revision: {selection.revision_id}. No contextual occurrence is selected.</Text>
+        : selection?.kind === 'revision' ? <Text><RevisionLabel id={selection.revision_id} role="Independent reusable" />. No contextual occurrence is selected.</Text>
           : <Text>No contextual occurrence selected.</Text>}
       <Group><Button variant="subtle" onClick={() => controller.clear()}>Clear shared selection</Button>
         {node && <Button variant="subtle" onClick={() => controller.selectRevision(node.revision_id)}>Select reusable revision independently</Button>}</Group>
@@ -93,7 +94,7 @@ function BoardView() {
   return <Stack><Title order={3}>Exact native board context</Title>
     <OccurrenceChoices nodes={boards} prefix="Board" />
     {node?.kind === 'pcb_population' ? <>
-      <Text>Board occurrence: {node.address.path.join('/')} · exact revision {node.revision_id}</Text>
+      <Text>Board occurrence: {node.address.path.join('/')} · <RevisionLabel id={node.revision_id} /></Text>
       <Text size="sm">Native source and interpretation remain pinned. Illustration X/Y uses native X/−Y; depth and feature correspondence to a schematic remain unknown.</Text>
       <Select label="Board feature display" value={role} allowDeselect={false} data={[{ value: 'native_component', label: 'Native components' }, { value: 'native_pad', label: 'Native pads' }]} onChange={value => setRole(value!)} />
       {polygons.length > 0 && width > 0 && height > 0 && <svg role="img" aria-label={`Native board plane for ${node.address.path.join('/')}`} viewBox={`${minX - radius * 2} ${minY - radius * 2} ${width + radius * 4} ${height + radius * 4}`} style={{ width: '100%', height: 260 }}>
@@ -150,7 +151,7 @@ function InspectorView() {
   const { state } = useContextSelection();
   const node = selectedNode(state), feature = selectedFeature(state);
   return <Stack><Title order={3}>Exact contextual inspector</Title>
-    {node ? <><Text>Inspector occurrence: {node.address.path.join('/')}</Text><Text size="xs">Definition {node.definition_id} · revision {node.revision_id} · snapshot {node.snapshot_sha256}</Text>
+    {node ? <><Text>Inspector occurrence: {node.address.path.join('/')}</Text><Text size="xs"><RevisionLabel id={node.revision_id} extraPins={[{ label: 'Definition ID', value: node.definition_id }]} snapshotId={node.snapshot_sha256} /></Text>
       <Text size="sm">Firmware for this use: {node.firmware?.revision_id ?? 'Unassigned'}</Text><Text size="sm">Canonical placement {node.placement.status} · world placement {node.world_status}</Text>
       <Text size="xs">{JSON.stringify(node.local_transform)} · {JSON.stringify(node.world_transform)}</Text>
       {feature && <><Text>Inspector feature: {feature.feature_id} · {feature.role}</Text><Text size="xs">{JSON.stringify(feature.data)}</Text></>}
@@ -206,7 +207,7 @@ function BomView() {
     <Select label="Contextual BOM purpose" value={purpose} allowDeselect={false} data={['assembly_contents', 'procurement', 'pcb_fabrication', 'pcb_population', 'consumables']} onChange={next => { serial.current += 1; setPurpose(next as Purpose); setLoaded(null); setBusy(false); }} />
     <Button disabled={!id.trim()} loading={busy} onClick={() => void load()}>Read exact contextual BOM</Button>
     {error && <Alert color="red" role="alert">{error}</Alert>}
-    {loaded && <><Text size="xs">Frozen BOM revision {loaded.inspection.revision_id} · assembly revision {loaded.root.revision_id} · root snapshot {loaded.root.snapshot_id}</Text>
+    {loaded && <><Text size="xs"><RevisionLabel id={loaded.inspection.revision_id} role="BOM" /> · <RevisionLabel id={loaded.root.revision_id} role="assembly" snapshotId={loaded.root.snapshot_id} /></Text>
       <Checkbox label="Group BOM rows by reusable revision" checked={grouped} onChange={e => { setGrouped(e.currentTarget.checked); setPage(0); }} />
       <TextInput label="Filter contextual BOM rows" value={filter} onChange={e => { setFilter(e.currentTarget.value); setPage(0); }} />
       {node && !rows.some(row => sameOccurrence(row.address, node.address)) && <Text>Selected occurrence is outside this BOM purpose, scope or filter; its exact selection is retained.</Text>}
@@ -220,7 +221,7 @@ function BomView() {
 function BomGroupCard({ revisionId, rows }: { revisionId: string; rows: BomInspection['rows'] }) {
   const { state, controller } = useContextSelection();
   const [page, setPage] = useState(0);
-  return <Card withBorder><Text>{revisionId} · {rows.length} contextual rows</Text><Text size="xs">Grouping shares display only. Quantities are not recomputed or combined.</Text>
+  return <Card withBorder><Text><RevisionLabel id={revisionId} /> · {rows.length} contextual rows</Text><Text size="xs">Grouping shares display only. Quantities are not recomputed or combined.</Text>
         {rows.slice(page * 50, (page + 1) * 50).map((row, index) => <Group key={JSON.stringify([row.address, row.need_id, index])}>
           <Button variant="light" disabled={!row.address.path.length} aria-pressed={state.selection?.kind === 'occurrence' && sameOccurrence(row.address, state.selection.address)} onClick={() => controller.selectOccurrence(row.address)}>BOM use {row.address.path.join('/') || 'Root'}{row.need_id ? ` · need ${row.need_id} context` : ''}</Button>
           <Text size="sm">{row.quantity.amount ?? 'Unknown'} {row.quantity.unit} · {row.reason}</Text>

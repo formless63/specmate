@@ -65,10 +65,11 @@ test("assembly create, edit and freeze send shared operations with expected stat
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Pinned child revision" })).toBeTruthy());
   fireEvent.focus(screen.getByRole("combobox", { name: "Pinned child revision" }));
   fireEvent.keyDown(screen.getByRole("combobox", { name: "Pinned child revision" }), { key: "ArrowDown" });
-  fireEvent.click(await within(screen.getByRole("listbox", { name: "Pinned child revision", hidden: true })).findByText("Revision 1 · exact-revision"));
+  fireEvent.click(await within(screen.getByRole("listbox", { name: "Pinned child revision", hidden: true })).findByText("Synthetic · r1"));
   await waitFor(() => expect(screen.getByText("Add occurrence").closest("button")?.disabled).toBe(false));
   fireEvent.click(screen.getByText("Add occurrence"));
-  await screen.findByText("Local ID: second-board · Exact revision: exact-revision");
+  await screen.findByText(/Local ID: second-board/);
+  expect(screen.getAllByText("exact-revision", { selector: 'code' }).length).toBeGreaterThan(0);
   fireEvent.click(screen.getByText("Freeze assembly revision"));
   await waitFor(() => expect(calls).toHaveLength(3));
   expect(calls[0]).toMatchObject({ operation: "assembly.create", payload: { project_id: "project-1", name: "Synthetic" } });

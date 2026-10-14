@@ -5,16 +5,23 @@ from typing import Literal
 from uuid import UUID
 
 from django.db.models import Q
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from specmate.access.permissions import Perm, authorize, visible_projects
 from specmate.catalog.models import ManufacturerVariant, PhysicalLot
-from specmate.design.models import Definition, Snapshot
+from specmate.design.models import Definition, Revision, Snapshot
 from specmate.design.operations import authorize_snapshot
 from specmate.inventory.models import StockAccount
-from specmate.operations import Context, NotFound, ValidationFailed, operation
+from specmate.operations import (
+    Context,
+    NotFound,
+    PermissionDenied,
+    Unauthenticated,
+    ValidationFailed,
+    operation,
+)
 from specmate.queries import get_revision
-from specmate.sources.models import SourceBundle
+from specmate.sources.models import SourceBundle, SourceBundleRevision
 
 SearchKind = Literal["project", "definition", "source_bundle", "variant", "lot", "stock"]
 
@@ -48,6 +55,27 @@ class WhereUsed(BaseModel):
 
 class RevisionImpact(WhereUsed):
     candidate_revision_id: UUID
+
+
+class RevisionLabels(BaseModel):
+    """Display identity for exact design and source revision IDs the caller already holds."""
+
+    model_config = ConfigDict(extra="forbid")
+    revision_ids: list[UUID] = Field(default_factory=list, max_length=50)
+    source_revision_ids: list[UUID] = Field(default_factory=list, max_length=50)
+
+    @field_validator("revision_ids", "source_revision_ids")
+    @classmethod
+    def unique_ids(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError("Revision IDs must be unique.")
+        return value
+
+    @model_validator(mode="after")
+    def at_least_one(self):
+        if not self.revision_ids and not self.source_revision_ids:
+            raise ValueError("At least one revision ID is required.")
+        return self
 
 
 def visible_page(queryset, payload, render):
@@ -221,6 +249,68 @@ def revision_impact(user, payload):
     }
 
 
+def revision_labels(user, payload):
+    """Name, kind and number for each exact revision the actor may read.
+
+    Authorization matches reading the revision itself (project read plus the complete
+    pinned closure). A revision that is missing, outside the actor's projects or not
+    fully readable yields the same unreadable entry, with no name, kind or number.
+    """
+    authorized: set = set()
+    labels = []
+    for revision_id in payload.revision_ids:
+        entry = {"revision_id": str(revision_id), "readable": False}
+        revision = (
+            Revision.objects.select_related("definition", "snapshot__definition")
+            .filter(id=revision_id)
+            .first()
+        )
+        if revision is not None:
+            try:
+                authorize(user, revision.definition.project_id, Perm.PROJECT_READ)
+                authorize_snapshot(user, revision.snapshot, _authorized=authorized)
+            except (NotFound, PermissionDenied):
+                pass
+            else:
+                entry.update(
+                    readable=True,
+                    definition_id=str(revision.definition_id),
+                    name=revision.definition.name,
+                    kind=revision.definition.kind,
+                    number=revision.number,
+                )
+        labels.append(entry)
+    return {"labels": labels, "source_labels": source_revision_labels(user, payload)}
+
+
+def source_revision_labels(user, payload):
+    """Source revision names use the same current authority as reading the source revision."""
+    from specmate.catalog_matching.queries import current_actor
+    from specmate.sources.authority import authorize_revision
+
+    rows = []
+    for revision_id in payload.source_revision_ids:
+        entry = {"revision_id": str(revision_id), "readable": False}
+        revision = (
+            SourceBundleRevision.objects.select_related("bundle").filter(id=revision_id).first()
+        )
+        if revision is not None:
+            try:
+                authorize_revision(current_actor(user), revision)
+            except (NotFound, PermissionDenied, Unauthenticated):
+                pass
+            else:
+                entry.update(
+                    readable=True,
+                    bundle_id=str(revision.bundle_id),
+                    name=revision.bundle.name,
+                    kind=revision.bundle.role,
+                    number=revision.number,
+                )
+        rows.append(entry)
+    return rows
+
+
 @operation(
     "catalog.search",
     SearchCatalog,
@@ -249,3 +339,13 @@ def uses(ctx: Context, payload: WhereUsed):
 )
 def impact(ctx: Context, payload: RevisionImpact):
     return revision_impact(ctx.user, payload)
+
+
+@operation(
+    "catalog.revision_labels",
+    RevisionLabels,
+    supports_idempotency=False,
+    summary="Resolve display names for exact revisions the actor can currently read.",
+)
+def labels(ctx: Context, payload: RevisionLabels):
+    return revision_labels(ctx.user, payload)

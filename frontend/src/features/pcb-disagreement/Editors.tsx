@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { RevisionPicker } from '../harnesses/RevisionPicker';
 import { getIntake, listIntakes } from '../pcb/api';
 import { blankInput, blankSource, isUuid, label, read, terminalLabel, type Assertion, type Comparison, type Definition, type FilePin, type Frozen, type Input, type NativeAccepted, type NativeAttempts, type Projection, type SourceFiles, type Terminal } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function SourcePicker({ value, onChange, onDenied }: { value: FilePin; onChange: (v: FilePin) => void; onDenied: (v: boolean) => void }) {
   const files = useQuery({ queryKey: ['pcb-review-source', value.source_revision_id], queryFn: () => read<SourceFiles>(`pcb-disagreement/sources/${value.source_revision_id}`), enabled: isUuid(value.source_revision_id) });
@@ -77,7 +78,7 @@ export function ComparisonEditor({ projectId, value, onChange, definitions, proj
 }
 export function SourceSummary({ value }: { value: Projection['assertion'] }) {
   if (!value) return null;
-  return <Stack gap="xs"><Text fw={600}>{label(value.method)} · {value.source_role}</Text><Text>{label(value.coverage)} · {value.coverage_basis}</Text><Text size="sm">Source revision: {value.source.source_revision_id} · {value.source.path}</Text><Text size="sm">Source SHA-256: {value.source.sha256} · Rights: {value.source.rights}</Text>{value.extractor && <Text size="sm">Extractor: {value.extractor.adapter} · Tool {value.extractor.tool_version} · Report SHA-256: {value.extractor.report_sha256}</Text>}{value.unsupported.map(text => <Text size="sm" key={text}>{text}</Text>)}</Stack>;
+  return <Stack gap="xs"><Text fw={600}>{label(value.method)} · {value.source_role}</Text><Text>{label(value.coverage)} · {value.coverage_basis}</Text><Text size="sm"><RevisionLabel kind="source" id={value.source.source_revision_id} role="Source" /> · {value.source.path}</Text><Text size="sm">Source SHA-256: {value.source.sha256} · Rights: {value.source.rights}</Text>{value.extractor && <Text size="sm">Extractor: {value.extractor.adapter} · Tool {value.extractor.tool_version} · Report SHA-256: {value.extractor.report_sha256}</Text>}{value.unsupported.map(text => <Text size="sm" key={text}>{text}</Text>)}</Stack>;
 }
 export function AssertionTable({ terminals }: { terminals: Terminal[] }) {
   const [page, setPage] = useState(0);

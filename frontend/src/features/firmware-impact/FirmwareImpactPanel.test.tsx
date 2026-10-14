@@ -116,7 +116,7 @@ test('context selection preserves exact frozen snapshot and occurrence path', as
   fireEvent.change(frozen, { target: { value: 'assembly-revision' } });
   const occurrence = await screen.findByLabelText('Baseline exact board occurrence');
   fireEvent.change(occurrence, { target: { value: '["left","board"]' } });
-  await waitFor(() => expect(screen.getByText(/Baseline assigned firmware: Synthetic firmware/)).toBeTruthy());
+  await waitFor(() => expect(screen.getAllByText('Synthetic firmware')).toBeTruthy());
   fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
   await waitFor(() => expect(compareImpact).toHaveBeenCalledWith(expect.objectContaining({ baseline: { firmware_revision_id: 'firmware-one', assembly_snapshot_id: 'assembly-snapshot', path: ['left', 'board'] } })));
 });
@@ -191,8 +191,8 @@ test('assembly occurrence-first choices inspect exact assigned readable library 
   await occurrenceMode('Baseline'); await occurrenceMode('Candidate');
   fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
   fireEvent.change(screen.getByLabelText('Candidate exact board occurrence'), { target: { value: '["right"]' } });
-  await screen.findByText(/Baseline assigned firmware: Library controller 7/);
-  await screen.findByText(/Candidate assigned firmware: Library controller 9/);
+  await screen.findAllByText('Library controller 7');
+  await screen.findAllByText('Library controller 9');
   expect(screen.queryByLabelText('Baseline firmware revision')).toBeNull();
   expect(screen.queryAllByRole('option', { name: 'unassigned · A1' })).toHaveLength(0);
   fireEvent.click(screen.getByRole('button', { name: 'Compare firmware impact' }));
@@ -205,7 +205,7 @@ test('changing from assigned context to standalone removes foreign firmware and 
   reusedInputs(); render(panel()); fireEvent.click(screen.getByRole('button', { name: 'Show firmware impact' }));
   await screen.findAllByRole('option', { name: 'Select a frozen firmware revision' }); await occurrenceMode('Baseline');
   fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
-  await screen.findByText(/Baseline assigned firmware: Library controller 7/);
+  await screen.findAllByText('Library controller 7');
   fireEvent.change(screen.getByLabelText('Baseline input mode'), { target: { value: 'standalone' } });
   expect(screen.queryByText(/Library controller 7/)).toBeNull();
   expect((screen.getByLabelText('Baseline firmware revision') as HTMLSelectElement).value).toBe('');
@@ -246,10 +246,10 @@ test('a newer exact contextual choice prevents late prior firmware metadata from
   vi.mocked(read).mockImplementation(async path => path === 'pcb/firmware-revisions/library-one' ? new Promise(resolve => { finish = resolve; }) : original(path));
   fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["left"]' } });
   fireEvent.change(screen.getByLabelText('Baseline exact board occurrence'), { target: { value: '["right"]' } });
-  await screen.findByText(/Baseline assigned firmware: Library controller 9/);
+  await screen.findAllByText('Library controller 9');
   await act(async () => finish({ name: 'Obsolete library firmware', revision_id: 'library-one', revision_number: 1, snapshot_sha256: 'old-hash' }));
   expect(screen.queryByText(/Obsolete library firmware/)).toBeNull();
-  expect(screen.getByText(/Baseline assigned firmware: Library controller 9/)).toBeTruthy();
+  expect(screen.getAllByText('Library controller 9')).toBeTruthy();
 });
 
 test('detached context denial cannot clear a replacement firmware selection', async () => {

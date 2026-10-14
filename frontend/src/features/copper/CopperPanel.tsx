@@ -3,6 +3,8 @@ import { CopperProvenance } from './CopperProvenance';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { evidenceLabel, read, scopeLabel, type Definition, type Graph, type Identity } from './api';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function CopperPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
@@ -20,7 +22,7 @@ function Workspace({ projectId }: { projectId: string }) {
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     <Select label="Copper graph definition" searchable value={denied ? null : definition} data={rows.map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} disabled={definitions.isError} onChange={v => { setDefinition(v); setRevision(null); setOffset(0); }} />
-    {current && <><Select label="Frozen graph revision" searchable value={revision} data={current.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} onChange={setRevision} /><Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier graph revisions</Button><Button disabled={current.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later graph revisions</Button></Group></>}
+    {current && <><Select label="Frozen graph revision" searchable value={revision} data={current.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(current.name, r.number) }))} onChange={setRevision} /><Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier graph revisions</Button><Button disabled={current.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later graph revisions</Button></Group></>}
     <Group align="end"><TextInput label="Exact graph revision ID" value={exact} onChange={e => setExact(e.currentTarget.value)} /><Button disabled={!exact.trim() || denied} onClick={() => { setRevision(exact.trim()); }}>Inspect exact graph</Button></Group>
     {revision && !denied && <CopperInspector key={revision} revisionId={revision} />}
   </Stack>;
@@ -38,7 +40,7 @@ export function CopperInspector({ revisionId }: { revisionId: string }) {
   const nodes = component ? value!.nodes.filter(n => members.has(n.id)) : [];
   const edges = component ? value!.edges.filter(e => edgeIds.has(e.id)) : [];
   const boundaries = value?.boundaries.filter(b => !component || !b.members.length || b.members.some(id => members.has(id))) ?? [];
-  return <Card withBorder><Stack><Title order={3}>Frozen copper inspection</Title><Text>Exact revision: {revisionId}</Text>
+  return <Card withBorder><Stack><Title order={3}>Frozen copper inspection</Title><Text><RevisionLabel id={revisionId} /></Text>
     <Button variant="light" loading={query.isFetching} onClick={() => void query.refetch()}>Refresh graph access</Button>
     {query.isError && <Alert color="red">{query.error.message}</Alert>}
     {query.isFetching && <Text>Loading currently authorized graph…</Text>}

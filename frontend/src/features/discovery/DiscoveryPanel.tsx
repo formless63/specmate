@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Group, NativeSelect, Stack, Text, TextInput
 import { useRef, useState, type FormEvent } from "react";
 import { revisionsOf, searchCatalog, whereUsed, type DefinitionRevisions, type SearchKind, type SearchPage, type SearchRecord, type UsePage } from "./api";
 import { RevisionImpact } from "./RevisionImpact";
+import { ExactPins, RevisionLabel } from "../../lib/IdentityLabel";
 
 const kinds: { value: SearchKind; label: string }[] = [
   { value: "definition", label: "Reusable definitions" },
@@ -134,7 +135,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
       {page.results.map((record) => <Group key={record.record_id} justify="space-between">
         <Stack gap={0}><Text>{record.label} {record.definition_kind && <Badge>{record.definition_kind}</Badge>}</Text>
           <Text size="xs">ID {record.record_id} · project {record.project_id}</Text>
-          {record.revision_id && <Text size="xs">Exact revision {record.revision_id}</Text>}
+          {record.revision_id && <Text size="xs"><RevisionLabel id={record.revision_id} /></Text>}
           {record.association_basis && <Text size="xs">Association: {record.association_basis}</Text>}
         </Stack>
         {(record.revision_id || submitted?.kind === "definition") && <Button size="xs" variant="light" disabled={busy} onClick={() => void inspect(record)}>Inspect uses</Button>}
@@ -145,16 +146,16 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
       {definition.revisions.length === 0 && <Text>No frozen revisions.</Text>}
       {definition.revisions.map((revision) => <Group key={revision.revision_id}>
         <Button size="xs" variant="light" disabled={busy} onClick={() => void inspectRevision(revision.revision_id)}>Inspect revision {revision.number}</Button>
-        <Text size="xs">{revision.revision_id}</Text>
+        <Text size="xs"><RevisionLabel id={revision.revision_id} /></Text>
       </Group>)}
       {moreRevisions && <Button variant="light" disabled={busy} onClick={() => void loadRevisions()}>More revisions</Button>}
       <RevisionImpact key={definition.definition_id} definition={definition} />
     </Stack></Card>}
     {uses && <Card withBorder><Stack><Title order={3}>Exact revision pins</Title>
-      <Text size="xs">Revision {uses.revision_id}</Text>
+      <Text size="xs"><RevisionLabel id={uses.revision_id} /></Text>
       {uses.results.length === 0 && <Text>No visible parent snapshots pin this revision.</Text>}
       {uses.results.map((item) => <Stack key={item.snapshot_id} gap={0}>
-        <Text>{item.label}</Text><Text size="xs">Snapshot {item.snapshot_id} · definition {item.definition_id} · project {item.project_id}</Text>
+        <Text>{item.label}</Text><ExactPins pins={[{ label: 'Snapshot ID', value: item.snapshot_id }, { label: 'Definition ID', value: item.definition_id }, { label: 'Project ID', value: item.project_id }]} />
       </Stack>)}
       {uses.next_after && <Button variant="light" disabled={busy} onClick={() => void inspectRevision(uses.revision_id, uses.next_after ?? undefined)}>More uses</Button>}
     </Stack></Card>}

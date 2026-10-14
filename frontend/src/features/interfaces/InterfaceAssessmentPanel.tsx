@@ -6,6 +6,7 @@ import { TemperatureEditor, RatingScopeFacts } from "./InterfaceConditions";
 import { randomUUID } from "../../lib/random-id";
 import type { Definition, Identity } from "../identity/api";
 import { command, initialAssessment, operating, read, unknownEvidence, type Assessment, type AssessmentDraft, type Bond, type Dimension, type Inspection, type Result, type Status } from "./assessment-api";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const dimensions: { id: Dimension; label: string }[] = [
   { id: "mating", label: "Mating" }, { id: "pin_correspondence", label: "Pin correspondence" },
@@ -89,7 +90,7 @@ function Workspace({ projectId, canEdit, canFreeze, isActive }: { projectId: str
     {canEdit && <Button disabled={!ready} onClick={() => { setCreating(true); setDraftId(null); setRevisionId(null); }}>New assessment</Button>}
     {creating && <div hidden={!ready}><Author key="new" projectId={projectId} ready={ready} canFreeze={false} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async saved => { if (!active.current) return; setDefinition(saved.definition_id); setDraftId(saved.draft_id); setCreating(false); await refresh(); }} /></div>}
     {canEdit && draft.data && <div hidden={!ready}><Author key={draft.data.draft_id} projectId={projectId} initial={draft.data} ready={ready} canFreeze={canFreeze} current={() => active.current} onChecking={() => setCheckingMutation(true)} onChecked={finishMutation} onSaved={async () => { if (active.current) await refresh(); }} onFrozen={id => { if (active.current) { setRevisionId(id); void refresh(); } }} /></div>}
-    {ready && inspection.data && <><Text>Frozen revision {inspection.data.revision_id} · snapshot {inspection.data.snapshot_id} · SHA-256 {inspection.data.sha256}</Text><AssessmentResults result={inspection.data.assessment} /></>}
+    {ready && inspection.data && <><Text><RevisionLabel id={inspection.data.revision_id} snapshotId={inspection.data.snapshot_id} sha256={inspection.data.sha256} /></Text><AssessmentResults result={inspection.data.assessment} /></>}
   </Stack>;
 }
 
@@ -156,7 +157,7 @@ export function AssessmentEditor({ value, onChange }: { value: Assessment; onCha
 }
 
 export function AssessmentResults({ result }: { result: Result }) {
-  return <Stack><Title order={3}>Separated assessment results</Title><Text>Exact left pinout {result.left_pinout_revision_id} · exact right pinout {result.right_pinout_revision_id}</Text>
+  return <Stack><Title order={3}>Separated assessment results</Title><Text><RevisionLabel id={result.left_pinout_revision_id} role="left pinout" /> · <RevisionLabel id={result.right_pinout_revision_id} role="exact right pinout" /></Text>
     {dimensions.map(d => <Card key={d.id} withBorder><Stack><Title order={4}>{d.label}</Title>{result.findings.filter(f => f.dimension === d.id).map((f, i) => <Stack gap="xs" key={`${f.pair_id}:${i}`}>
       <Group><Badge color={f.status === "invalid" ? "red" : f.status === "flagged" ? "orange" : f.status === "unknown" ? "gray" : "blue"}>{f.status === "satisfied" ? "Satisfied by declarations" : f.status === "invalid" ? "Invalid / conflicting declaration" : f.status === "flagged" ? "Flagged for review (allowed, not confirmed)" : "Unknown"}</Badge><Text>{f.pair_id ? `Contact row ${f.pair_id}` : "Exact pinout pair"} · {f.basis.replaceAll("_", " ")}</Text></Group><Text>{f.explanation}</Text>
       {Object.entries(f.facts).filter(([key]) => !["pair", "left", "right", "evidence", "rating_scope"].includes(key)).map(([key, fact]) => <Text size="sm" key={key}>{key.replaceAll("_", " ")}: {fact == null ? "unknown" : String(fact)}</Text>)}

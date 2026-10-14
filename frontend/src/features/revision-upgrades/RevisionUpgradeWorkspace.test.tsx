@@ -50,7 +50,7 @@ test("selects one repeated occurrence and saves exact proposal pins", async () =
   fireEvent.click(screen.getByRole("button", { name: "Save upgrade proposal" }));
   expect(await screen.findByText("Exact proposal proposal-one")).toBeTruthy();
   expect(calls).toHaveLength(1);
-  expect(screen.getByText(/old-one ·/)).toBeTruthy();
+  expect(screen.getAllByText('old-one', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.getByText(/left \(selected\)/)).toBeTruthy();
   expect(screen.getAllByText(/Unknown → Unknown/)).toHaveLength(2);
 });

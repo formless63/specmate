@@ -94,7 +94,7 @@ test('nested repeated board selection shows exact config/source pins and require
   const { bodies } = setup();
   await open(); await review();
   expect(screen.getByText('API_KEY=[secret reference]')).toBeTruthy();
-  expect(screen.getByText(/Source revision source-exact/)).toBeTruthy();
+  expect(screen.getAllByText('source-exact', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.getByText(/Native component native-mcu/)).toBeTruthy();
   expect(screen.getByText(/Compilation: not performed/)).toBeTruthy();
   expect((screen.getByRole('button', { name: 'Adopt reviewed firmware selection' }) as HTMLButtonElement).disabled).toBe(true);
@@ -128,7 +128,7 @@ test('focus denial discards retained rows, configuration and source evidence', a
   await screen.findByText('Source authority unavailable');
   expect(screen.queryByText('BLINK_MS=900')).toBeNull();
   expect(screen.queryByRole('cell', { name: 'left/board · A1' })).toBeNull();
-  expect(screen.queryByText(/Source revision source-exact/)).toBeNull();
+  expect(screen.queryAllByText('source-exact', { selector: 'code' })).toHaveLength(0);
 });
 
 test('lost response retry keeps the reviewed request key and payload', async () => {

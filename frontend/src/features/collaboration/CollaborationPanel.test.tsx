@@ -52,7 +52,8 @@ async function prepare() {
 
 test('authorized exact comparison renders declared values, absent/null, captured parents, source rights and limits', async () => {
   fixture(); render(panel()); await selectReview();
-  expect(screen.getByText('Original authorized parent · exact snapshot exact-parent-snapshot')).toBeTruthy();
+  expect(screen.getByText('Original authorized parent')).toBeTruthy();
+  expect(screen.getAllByText('exact-parent-snapshot', { selector: 'code' }).length).toBeGreaterThan(0);
   expect(screen.getByRole('cell', { name: '"12.5"' })).toBeTruthy();
   expect(screen.getByRole('cell', { name: '"13.75"' })).toBeTruthy();
   expect(screen.getByRole('cell', { name: 'Absent' })).toBeTruthy();

@@ -12,6 +12,8 @@ import { WirePreparationPreview } from './WirePreparationPreview';
 import { CableViews } from '../cable-views/CableViews';
 import { StockSectionView } from '../cable-views/StockSectionView';
 import { rowLook, Swatch } from '../cable-views/Swatch';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 /** Own state, exact snapshots, no setters or command adapters for the current stock draft. */
 const dimension = (value: number | null): string => value === null ? 'Unknown' : `${value} mm`;
@@ -76,18 +78,18 @@ export function FrozenWirePreview({ projectId }: { projectId: string }) {
     {error && <Alert color="red" role="alert">{error}</Alert>}
     <Group>
       <Select label="Frozen stock definition" data={definitions.filter(d => d.kind === 'wire_stock').map(d => ({ value: d.definition_id, label: d.name }))} value={definitionId} disabled={loading} onChange={id => { setDefinitionId(id); setRevisionId(null); setProfileId(null); }} />
-      <Select label="Exact stock revision" data={revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} value={revisionId} disabled={loading || !definitionId} onChange={setRevisionId} />
+      <Select label="Exact stock revision" data={revisions.map(r => ({ value: r.revision_id, label: revisionOptionLabel(definitions.find(d => d.definition_id === definitionId)?.name, r.number) }))} value={revisionId} disabled={loading || !definitionId} onChange={setRevisionId} />
       <Button variant="subtle" disabled={loading} onClick={() => setRefresh(n => n + 1)}>Refresh frozen choices</Button>
     </Group>
     {loading && <Text role="status">Loading exact revision…</Text>}
     {stock && section && <>
-      <Text>Frozen stock revision: {revisionId}. Section: {section.widthMm === null ? 'Unknown' : section.widthMm} × {section.heightMm === null ? 'Unknown' : section.heightMm} mm · {section.rows.length} material elements.</Text>
+      <Text><RevisionLabel id={revisionId} role="stock" />. Section: {section.widthMm === null ? 'Unknown' : section.widthMm} × {section.heightMm === null ? 'Unknown' : section.heightMm} mm · {section.rows.length} material elements.</Text>
       <StockSectionView section={section} title="Frozen stock construction" label="Frozen stock section drawing" />
       <CableViews stock={stock} name="Frozen stock construction" revisionId={revisionId} tabs={['end-a', 'end-b', 'info']} />
       <Select label="Matching frozen profile" clearable placeholder={profiles.length ? 'Choose a profile revision' : 'No matching frozen profiles'}
         data={profiles.filter(r => r.content.profile.stock_revision_id === revisionId).map(r => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} · ${r.revision_id}` }))} value={profileId} disabled={loading} onChange={setProfileId} />
       <NumberInput label="Frozen preview length mm" min={1} value={length} onChange={value => typeof value === 'number' && value >= 1 && setLength(value)} />
-      {profile && <Text>Frozen profile revision: {profile.revision_id}. Suggestions are read-only.</Text>}
+      {profile && <Text><RevisionLabel id={profile.revision_id} role="profile" />. Suggestions are read-only.</Text>}
       {(!profileId || profile) && <WirePreparationPreview key={`${revisionId}:${profile?.revision_id ?? 'local'}`} section={section} lengthMm={length} appliedProfile={applied} />}
       <Title order={4}>Frozen construction materials</Title>
       <Text size="sm">Construction: {stock.construction}. Viewed from: {stock.viewed_from}. Hidden material remains in this table.</Text>

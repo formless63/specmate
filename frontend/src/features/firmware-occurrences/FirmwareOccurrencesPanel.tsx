@@ -5,6 +5,7 @@ import { FirmwareBuildPanel } from '../firmware-builds/FirmwareBuildPanel';
 import type { FirmwareRead, FirmwareSummary } from '../firmware/api';
 import { read, type Definition, type Identity } from '../identity/api';
 import { operation, type Adoption, type OccurrenceInspection, type Owner, type SelectionReview, type Submission } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function FirmwareOccurrencesPanel({ projectId, permissions }: { projectId: string; permissions?: string[] }) {
   return <Workspace key={projectId} projectId={projectId} canEdit={permissions?.includes('design.edit') ?? true} canExecute={permissions?.includes('build.execute') ?? false} />;
@@ -128,7 +129,7 @@ function OccurrenceWorkspace({ owner, firmware, canEdit, canExecute }: { owner: 
     {error && <Alert color="red">{error}</Alert>}
     {inspection && <>
       <Table><Table.Thead><Table.Tr><Table.Th>Contextual path</Table.Th><Table.Th>Exact board revision</Table.Th><Table.Th>Firmware revision</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-        {inspection.occurrences.map((item) => <Table.Tr key={JSON.stringify(item.path)}><Table.Td>{item.path.join('/')} · {item.display_ref || item.name}</Table.Td><Table.Td>{item.revision_id}</Table.Td><Table.Td>{item.firmware_revision_id ?? 'Unassigned'}</Table.Td></Table.Tr>)}
+        {inspection.occurrences.map((item) => <Table.Tr key={JSON.stringify(item.path)}><Table.Td>{item.path.join('/')} · {item.display_ref || item.name}</Table.Td><Table.Td><RevisionLabel id={item.revision_id} /></Table.Td><Table.Td>{item.firmware_revision_id ?? 'Unassigned'}</Table.Td></Table.Tr>)}
       </Table.Tbody></Table>
       {owner.snapshot_id && <>
         <NativeSelect label="Frozen board occurrence for compilation" value={path} data={[{ value: '', label: 'Select an exact frozen board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
@@ -145,7 +146,7 @@ function OccurrenceWorkspace({ owner, firmware, canEdit, canExecute }: { owner: 
       </>}
     </>}
     {preview && <Card withBorder><Stack>
-      <Text>{preview.message}</Text><Text>Occurrence {preview.path.join('/')} · Exact population {preview.occurrence_revision_id}</Text>
+      <Text>{preview.message}</Text><Text>Occurrence {preview.path.join('/')} · <RevisionLabel id={preview.occurrence_revision_id} role="population" /></Text>
       {preview.previous && <Declaration label="Previously assigned" value={preview.previous} />}
       {preview.candidate && <Declaration label="Proposed firmware" value={preview.candidate} />}
       <Textarea label="Firmware adoption review basis" disabled={busy} value={basis} onChange={(event) => { setBasis(event.currentTarget.value); setSubmission(null); }} />
@@ -163,12 +164,12 @@ function OccurrenceWorkspace({ owner, firmware, canEdit, canExecute }: { owner: 
 function Declaration({ label, value }: { label: string; value: FirmwareRead }) {
   const declaration = value.content.firmware;
   return <Stack gap="xs"><Title order={4}>{label}: {value.name}</Title>
-    <Text>Frozen revision {value.revision_id} · SHA-256 {value.snapshot_sha256}</Text>
-    <Text>Target population {declaration.target.population_revision_id} · Option {declaration.target.option_id} · Native component {declaration.target.component_id}</Text>
-    <Text>Interpretation {value.evaluation.target.interpretation_id} · Board source {value.evaluation.target.board_source_revision_id}</Text>
+    <Text><RevisionLabel id={value.revision_id} sha256={value.snapshot_sha256} /></Text>
+    <Text><RevisionLabel id={declaration.target.population_revision_id} role="Target population" /> · Option {declaration.target.option_id} · Native component {declaration.target.component_id}</Text>
+    <Text>Interpretation {value.evaluation.target.interpretation_id} · <RevisionLabel kind="source" id={value.evaluation.target.board_source_revision_id} role="Board source" /></Text>
     <Text>Declared toolchain {declaration.toolchain.name} · Version {declaration.toolchain.version ?? 'unknown'} · Support unverified</Text>
     {declaration.configuration.map((entry) => <Text key={entry.key}>{entry.key}={entry.status === 'secret_reference' ? '[secret reference]' : entry.status === 'unknown' ? '[unknown]' : entry.value}</Text>)}
-    {declaration.sources.map((source) => <Stack key={source.local_id} gap="xs"><Text>Source revision {source.source_revision_id} · Manifest {source.source_manifest_sha256}</Text>
+    {declaration.sources.map((source) => <Stack key={source.local_id} gap="xs"><Text><RevisionLabel kind="source" id={source.source_revision_id} role="Source" /> · Manifest {source.source_manifest_sha256}</Text>
       {source.files.map((file) => <Text key={file.path}>{file.path} · {file.role} · {file.sha256} · {file.rights}</Text>)}
     </Stack>)}
     {declaration.pins.map((pin) => <Text key={pin.signal}>{pin.signal} · {pin.function} · Native pad {pin.pad_id ?? 'unknown'} · Peripheral {pin.peripheral ?? 'unknown'}</Text>)}

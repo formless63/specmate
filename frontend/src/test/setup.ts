@@ -13,3 +13,8 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => false,
   }),
 });
+
+// Display labels are cached for a short time; tests start from an empty cache.
+import { afterEach } from "vitest";
+import { clearRevisionLabels } from "../lib/revision-labels";
+afterEach(() => clearRevisionLabels());

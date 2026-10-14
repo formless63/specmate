@@ -11,7 +11,8 @@ import type { Appearance } from '../../section-layout/src';
 import { sumDecimals } from './model';
 import type { End, HarnessTerminal, HarnessView, StockMap } from './model';
 
-export interface BuildSheetInput { title: string; revisionId: string; harness: HarnessView; stocks: StockMap; quantity: number }
+/** `labels` maps exact revision IDs to display names such as `Power harness r4`; unlabelled IDs print as given. */
+export interface BuildSheetInput { title: string; revisionId: string; harness: HarnessView; stocks: StockMap; quantity: number; labels?: Record<string, string> }
 export interface CutRow {
   sectionId: string; stockRevisionId: string; stockName: string; lengthMm: string | null; basis: string | null;
   segments: string[]; look: Appearance; totalMm: string | null;
@@ -24,7 +25,7 @@ export interface EndPage { endpointId: string; label: string; bodyRevisionId: st
 export interface JointRow { jointId: string; kind: string; members: string; basis: string }
 export interface BreakoutRow { breakoutId: string; trunk: string; legs: string; fates: number }
 export interface BuildSheetModel {
-  title: string; revisionId: string; quantity: number; review: string;
+  title: string; revisionId: string; quantity: number; review: string; labels: Record<string, string>;
   cuts: CutRow[]; totalCutMm: string | null; totalCutAllMm: string | null; pieceCount: number;
   ends: EndPage[]; otherJoints: JointRow[]; breakouts: BreakoutRow[];
   assembly: { recorded: false; note: string }; test: { recorded: false; note: string };
@@ -81,7 +82,7 @@ export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
   const otherJoints: JointRow[] = harness.joints.filter(j => j.kind !== 'termination').map(j => ({ jointId: j.local_id, kind: j.kind, members: j.members.map(terminalText).join(' ↔ '), basis: j.basis }));
   const breakouts: BreakoutRow[] = harness.breakouts.map(b => ({ breakoutId: b.local_id, trunk: `${b.trunk.segment_id} / ${b.trunk.end.toUpperCase()}`, legs: b.legs.map(l => `${l.segment_id} / ${l.end.toUpperCase()}`).join(', '), fates: b.fates.length }));
   return {
-    title: input.title, revisionId: input.revisionId, quantity, review: harness.review ? `${harness.review}${harness.review_basis ? `: ${harness.review_basis}` : ''}` : 'unknown',
+    title: input.title, revisionId: input.revisionId, quantity, labels: input.labels ?? {}, review: harness.review ? `${harness.review}${harness.review_basis ? `: ${harness.review_basis}` : ''}` : 'unknown',
     cuts, totalCutMm: sumDecimals(lengths, 1), totalCutAllMm: sumDecimals(lengths, quantity), pieceCount: harness.sections.length * quantity,
     ends, otherJoints, breakouts,
     assembly: { recorded: false, note: 'No assembly steps (shells, hardware, strain relief) are recorded in this harness revision. Follow the workshop procedure; none is assumed here.' },
@@ -99,7 +100,8 @@ const CSS = `@layer cs{.cs-root{font:13px/1.4 system-ui,sans-serif;color:#14181d
 export function renderBuildSheetHtml(model: BuildSheetModel, options: { formboardSvg?: string } = {}): string {
   const cell = (t: string): string => `<td>${esc(t)}</td>`;
   const head = (...cols: string[]): string => `<thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>`;
-  const header = (stage: string): string => `<header><h1>${esc(model.title)}</h1><p class="cs-note">Revision ${esc(model.revisionId)} · quantity ${model.quantity} · review ${esc(model.review)}</p><h2>${esc(stage)}</h2></header>`;
+  const lab = (id: string): string => model.labels[id] ?? id;
+  const header = (stage: string): string => `<header><h1>${esc(model.title)}</h1><p class="cs-note">Revision ${esc(lab(model.revisionId))} · quantity ${model.quantity} · review ${esc(model.review)}</p><h2>${esc(stage)}</h2></header>`;
   const pages: string[] = [];
   pages.push(`<section class="cs-page" data-stage="kit">${header('1. Kit and cut')}`
     + (options.formboardSvg ? `<div class="cs-fig">${options.formboardSvg}</div>` : '')
@@ -109,7 +111,7 @@ export function renderBuildSheetHtml(model: BuildSheetModel, options: { formboar
     + model.notes.map(n => `<p class="cs-warn">${esc(n)}</p>`).join('') + '</section>');
   for (const [i, end] of model.ends.entries()) {
     pages.push(`<section class="cs-page" data-stage="end" data-endpoint="${esc(end.endpointId)}">${header(`${i + 2}. End: ${end.label}`)}`
-      + `<p class="cs-note">Body revision ${esc(end.bodyRevisionId)} · pinout revision ${esc(end.pinoutRevisionId)}${end.physicalEnds.length ? ` · ${esc(end.physicalEnds.join('; '))}` : ' · no physical end declared'}</p>`
+      + `<p class="cs-note">Body ${esc(lab(end.bodyRevisionId))} · pinout ${esc(lab(end.pinoutRevisionId))}${end.physicalEnds.length ? ` · ${esc(end.physicalEnds.join('; '))}` : ' · no physical end declared'}</p>`
       + (end.landings.length === 0 ? '<p>No terminations are declared for this endpoint.</p>'
         : `<table>${head('#', 'Contact', 'Conductor', 'Span / end', 'Joint', 'Basis')}<tbody>${end.landings.map(l =>
           `<tr>${cell(String(l.number))}${cell(l.contactId)}<td>${swatch(l.elementLook)}${esc(l.elementPath)} <span class="cs-note">${esc(l.elementLabel)}</span></td>${cell(`${l.segment} / ${l.segmentEnd.toUpperCase()}`)}${cell(l.jointId)}${cell(l.basis)}</tr>`).join('')}</tbody></table>`)
@@ -120,5 +122,7 @@ export function renderBuildSheetHtml(model: BuildSheetModel, options: { formboar
     + (model.otherJoints.length ? `<table>${head('Joint', 'Kind', 'Members', 'Basis')}<tbody>${model.otherJoints.map(j => `<tr>${cell(j.jointId)}${cell(j.kind)}${cell(j.members)}${cell(j.basis)}</tr>`).join('')}</tbody></table>` : '')
     + (model.breakouts.length ? `<table>${head('Breakout', 'Trunk', 'Legs', 'Fates recorded')}<tbody>${model.breakouts.map(b => `<tr>${cell(b.breakoutId)}${cell(b.trunk)}${cell(b.legs)}${cell(String(b.fates))}</tr>`).join('')}</tbody></table>` : '') + '</section>');
   pages.push(`<section class="cs-page" data-stage="test">${header(`${base + 1}. Test`)}<p>${esc(model.test.note)}</p><p class="cs-note">A sheet printed from this view is not a qualification record.</p></section>`);
+  const pinned = [...new Set([model.revisionId, ...model.ends.flatMap(e => [e.bodyRevisionId, e.pinoutRevisionId]), ...model.cuts.map(c => c.stockRevisionId)])].filter(id => model.labels[id]);
+  if (pinned.length) pages.push(`<section class="cs-page" data-stage="pins">${header(`${base + 2}. Exact pins`)}<p class="cs-note">Names above identify these exact frozen revisions.</p><table>${head('Name', 'Exact revision ID')}<tbody>${pinned.map(id => `<tr>${cell(model.labels[id]!)}${cell(id)}</tr>`).join('')}</tbody></table></section>`);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(model.title)} build sheet</title><style>${CSS}</style></head><body><div class="cs-root">${pages.join('')}</div></body></html>`;
 }

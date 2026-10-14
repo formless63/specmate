@@ -41,7 +41,7 @@ const show = () => render(<MantineProvider><WorkshopProfilePanel projectId="proj
 test('saves independent sourced display and per-end cut suggestions, then freezes exact profile', async () => {
   show();
   fireEvent.click(await screen.findByRole('combobox', { name: 'Start from frozen stock' }));
-  fireEvent.click(await screen.findByText(`Synthetic coax · ${revision}`));
+  fireEvent.click(await screen.findByText('Synthetic coax'));
   await screen.findByLabelText('stock.jacket end a cutback mm');
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Synthetic strip drawing' } });
   fireEvent.change(screen.getByLabelText('Basis note or citation'), { target: { value: 'Illustration for bench training' } });
@@ -121,7 +121,7 @@ test('fresh selection shows frozen suggestion provenance instead of new-edit def
   expect(screen.getByLabelText('Basis note or citation')).toHaveProperty('value', '');
   expect(screen.getByRole('combobox', { name: 'Basis for new edits' })).toHaveProperty('value', 'Workshop preference');
   fireEvent.click(screen.getByRole('combobox', { name: 'Frozen profile revision' }));
-  fireEvent.click(await screen.findByText(/Revision 1/));
+  fireEvent.click(await screen.findByText(/ · r1$/));
   await screen.findByText(/Viewing immutable revision 1/);
   const provenance = screen.getByRole('region', { name: 'Recorded workshop practices' });
   expect(provenance.textContent).toContain('Cutback: 40 mm · Basis: documented');
@@ -130,7 +130,8 @@ test('fresh selection shows frozen suggestion provenance instead of new-edit def
   expect(provenance.textContent).toContain('Illustration lay direction: positive · Basis: documented');
   expect(provenance.textContent).toContain('Unverified citation: Synthetic direction instruction');
   expect(provenance.textContent).toContain('Omit occluded material: No · Basis: documented');
-  expect(provenance.textContent).toContain(`bundle revision ${revision} · path “ instructions/occlusion.txt ”`);
+  expect(provenance.textContent).toContain(revision);
+  expect(provenance.textContent).toContain('path “ instructions/occlusion.txt ”');
   expect(provenance.textContent).toContain(`SHA-256 ${'b'.repeat(64)} · rights “ synthetic-test ”`);
   expect(provenance.textContent).toContain('Locator: line 2');
   expect(provenance.textContent).toContain('Prepend cut: 3 mm · Basis: inferred');
@@ -145,7 +146,7 @@ test('fresh selection shows frozen suggestion provenance instead of new-edit def
 test('keeps registered source path and rights exact when authoring a documented suggestion', async () => {
   show();
   fireEvent.click(await screen.findByRole('combobox', { name: 'Start from frozen stock' }));
-  fireEvent.click(await screen.findByText(`Synthetic coax · ${revision}`));
+  fireEvent.click(await screen.findByText('Synthetic coax'));
   await screen.findByRole('combobox', { name: 'Foil visibility' });
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Synthetic documented practice' } });
   fireEvent.click(screen.getByRole('combobox', { name: 'Basis for new edits' }));
@@ -173,7 +174,7 @@ test.each([
 ] as const)('%s permissions gate Save profile and Freeze profile', async (_name, permissions, saveOff, freezeReason) => {
   render(<MantineProvider><PermissionsProvider permissions={[...permissions]}><WorkshopProfilePanel projectId="project-1" /></PermissionsProvider></MantineProvider>);
   fireEvent.click(await screen.findByRole('combobox', { name: 'Start from frozen stock' }));
-  fireEvent.click(await screen.findByText(`Synthetic coax · ${revision}`));
+  fireEvent.click(await screen.findByText('Synthetic coax'));
   await screen.findByLabelText('stock.jacket end a cutback mm');
   fireEvent.change(screen.getByLabelText('Profile name'), { target: { value: 'Synthetic strip drawing' } });
   fireEvent.change(screen.getByLabelText('stock.jacket end a cutback mm'), { target: { value: '12' } });

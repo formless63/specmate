@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { command as sourceCommand } from '../sources/api';
 import type { Assembly, Draft, OccurrenceRef, Placement, Relationship } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export type PlacementInputs = { draft_id: string; state: string; occurrences: { path: string[]; revision_id: string; snapshot_sha256: string; name: string; kind: string; display_ref: string; placement: Placement; feature_existence: 'not_evaluated' }[] };
 function refLabel(ref: OccurrenceRef) { return `${ref.path.join('/') || 'Root'}${ref.feature_id ? ` / unverified feature ${ref.feature_id}` : ' / whole occurrence'}`; }
@@ -40,7 +41,7 @@ export function MountingEditor({ draft, busy, onSave, onDenied, authorized = tru
     <TextInput label="Support unverified stable feature ID (optional)" value={supportFeature} onChange={event => setSupportFeature(event.currentTarget.value)} />
     <Text>Feature identifiers are declarations tied to these exact occurrence paths and frozen revisions. Their existence and correspondence remain unknown here. No solver, placement inference, fit, clearance or physical approval is performed.</Text>
     {inputs && <Table><Table.Thead><Table.Tr><Table.Th>Exact context</Table.Th><Table.Th>Revision</Table.Th><Table.Th>Snapshot</Table.Th><Table.Th>Canonical placement in containing frame</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-      {inputs.occurrences.map(row => <Table.Tr key={JSON.stringify(row.path)}><Table.Td>{row.path.join('/')}</Table.Td><Table.Td>{row.revision_id}</Table.Td><Table.Td>{row.snapshot_sha256}</Table.Td><Table.Td>{row.placement.status === 'unknown' ? 'Unknown' : `${row.placement.translation?.join(', ')} mm; quaternion ${row.placement.rotation_xyzw?.join(', ')}`}</Table.Td></Table.Tr>)}
+      {inputs.occurrences.map(row => <Table.Tr key={JSON.stringify(row.path)}><Table.Td>{row.path.join('/')}</Table.Td><Table.Td><RevisionLabel id={row.revision_id} /></Table.Td><Table.Td>{row.snapshot_sha256}</Table.Td><Table.Td>{row.placement.status === 'unknown' ? 'Unknown' : `${row.placement.translation?.join(', ')} mm; quaternion ${row.placement.rotation_xyzw?.join(', ')}`}</Table.Td></Table.Tr>)}
     </Table.Tbody></Table>}
     <Button disabled={busy || !mounted || !support || !localId || !inputs || inputs.state !== draft.state} onClick={save}>Add mounting declaration</Button>
   </Stack></Card>;

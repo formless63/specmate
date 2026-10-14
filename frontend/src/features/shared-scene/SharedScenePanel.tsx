@@ -3,6 +3,7 @@ import { Component, lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { request, selectionKey } from './api';
 import type { Address, Geometry, SceneChoices, SceneNode, SharedScene } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const Viewport = lazy(() => import('./SceneViewport'));
 const none: SceneChoices = { assemblies: [], window: 'latest_50_frozen_revisions' };
@@ -70,7 +71,7 @@ function Workspace({ projectId }: { projectId: string }) {
     <Group align="end"><TextInput label="Exact frozen assembly snapshot ID" value={exact} onChange={e => setExact(e.currentTarget.value)} /><Button disabled={!exact.trim() || loading} onClick={() => inspect(exact.trim())}>Inspect exact scene</Button></Group>
     {loading && <Text>Checking current scene and source access…</Text>}
     {scene && <>
-      <Text size="xs">Root revision {scene.root.revision_id} · snapshot {scene.snapshot_id} · SHA-256 {scene.sha256}</Text>
+      <Text size="xs"><RevisionLabel id={scene.root.revision_id} role="Root" snapshotId={scene.snapshot_id} sha256={scene.sha256} /></Text>
       <Text size="sm">Canonical frame: {scene.frame} · {scene.units} · {scene.matrix_convention}</Text>
       <Text size="sm">Fit, clearance and manufacturing: not evaluated. Physical qualification: false.</Text>
       <Group><Button onClick={() => setShow3d(v => !v)}>{show3d ? 'Close scene view' : 'Open scene view'}</Button><Select label="Display arrangement" value={arrangement} allowDeselect={false} data={[{ value: 'canonical', label: 'Canonical placed illustrations' }, { value: 'inspection', label: 'Separate local illustrations for inspection' }]} onChange={value => setArrangement(value as 'canonical' | 'inspection')} /></Group>
@@ -97,7 +98,7 @@ function SceneInspector({ node, selected, geometry, onSelect }: { node: SceneNod
   const ids = new Set([...node.geometry_ids, ...node.features.flatMap(f => f.geometry_id ? [f.geometry_id] : [])]);
   return <Card withBorder><Stack gap="xs"><Title order={3}>Selected occurrence</Title>
     <Text>Context: {node.address.path.join('/')} · {node.kind}</Text>
-    <Text size="xs">Definition {node.definition_id} · exact revision {node.revision_id} · snapshot SHA-256 {node.snapshot_sha256}</Text>
+    <Text size="xs"><RevisionLabel id={node.revision_id} extraPins={[{ label: 'Definition ID', value: node.definition_id }]} /> · snapshot SHA-256 {node.snapshot_sha256}</Text>
     <Text size="sm">Local placement: {node.placement.status} · World placement: {node.world_status}. {node.placement_limit}</Text>
     <Text size="xs">Parent from local: {node.local_transform ? JSON.stringify(node.local_transform) : 'Unknown'}</Text>
     <Text size="xs">Root from local: {node.world_transform ? JSON.stringify(node.world_transform) : 'Unknown'}</Text>

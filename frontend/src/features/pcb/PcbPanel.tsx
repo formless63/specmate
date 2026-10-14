@@ -4,6 +4,7 @@ import { command, getIntake, listIntakes, listPopulations, PcbRequestError, pres
 import { PopulationEditor } from "./PopulationEditor";
 import { PcbFabricationPanel } from "../pcb-fabrication/PcbFabricationPanel";
 import { FirmwarePanel } from "../firmware/FirmwarePanel";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export type PcbPanelProps = { projectId: string; permissions?: string[] };
 
@@ -122,7 +123,7 @@ function ProjectPanel({ projectId, permissions }: PcbPanelProps) {
     <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={items.map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}` }))} />
     <Button variant="subtle" onClick={() => { void refreshList(); if (selected) void load(selected); }}>Refresh intake</Button>
     {intake && <Stack>
-      <Text size="sm">Exact source revision: {intake.source_revision_id}</Text>
+      <Text size="sm"><RevisionLabel kind="source" id={intake.source_revision_id} role="source" /></Text>
       <Table><Table.Thead><Table.Tr><Table.Th>Original file</Table.Th><Table.Th>Coverage</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{intake.files.map((file) => <Table.Tr key={file.path}>
           <Table.Td><Anchor href={`/api/v0/pcb/intakes/${intake.intake_id}/original?path=${encodeURIComponent(file.path)}`}>{file.path}</Anchor><Text size="xs">SHA-256: {file.sha256}</Text></Table.Td>

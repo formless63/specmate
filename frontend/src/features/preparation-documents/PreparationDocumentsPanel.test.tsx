@@ -60,7 +60,7 @@ async function choose(label: string, option: string) {
   expect(listbox).not.toBeNull();
   fireEvent.click(await within(listbox as HTMLElement).findByRole('option', { name: option, hidden: true }));
 }
-async function root() { await choose('Document root definition', 'Original synthetic assembly (assembly)'); await choose('Document root revision', 'Revision 1 · root-revision'); }
+async function root() { await choose('Document root definition', 'Original synthetic assembly (assembly)'); await choose('Document root revision', 'Original synthetic assembly · r1'); }
 async function review() { fireEvent.click(screen.getByRole('button', { name: 'Review coordinated documents' })); await screen.findByRole('heading', { name: 'Current reviewed document inputs' }); }
 async function generate() { fireEvent.click(screen.getByRole('button', { name: 'Generate reviewed document set' })); await screen.findByRole('heading', { name: 'Retained immutable document set' }); }
 
@@ -68,9 +68,9 @@ test('exact contextual binding preserves physical end IDs, null quantity and six
   const f = fixture(); render(panel()); await root(); await review();
   fireEvent.click(screen.getByRole('button', { name: 'Bind right · harness' }));
   await choose('Cut profile shared definition', 'Original cut profile (preparation_profile)');
-  await choose('Cut profile shared revision', 'Revision 1 · cut-revision');
+  await choose('Cut profile shared revision', 'Original cut profile · r1');
   await choose('End profile shared definition', 'Original end profile (end_preparation_profile)');
-  await choose('End profile shared revision', 'Revision 1 · ends-revision');
+  await choose('End profile shared revision', 'Original end profile · r1');
   await choose('Profile A physical end shared', 'output-end');
   await choose('Profile B physical end shared', 'input-end');
   fireEvent.change(screen.getByLabelText('End mapping basis shared'), { target: { value: 'Original reversed exact end mapping' } });
@@ -220,7 +220,7 @@ test('incomplete staged mapping remains editable after tab return without comple
   const f = fixture(); const view = render(panel()); await root(); await review();
   fireEvent.click(screen.getByRole('button', { name: 'Bind right · harness' }));
   await choose('End profile shared definition', 'Original end profile (end_preparation_profile)');
-  await choose('End profile shared revision', 'Revision 1 · ends-revision');
+  await choose('End profile shared revision', 'Original end profile · r1');
   fireEvent.change(screen.getByLabelText('End mapping basis shared'), { target: { value: '' } });
   const original = f.fetch.getMockImplementation()!;
   f.fetch.mockImplementation((url: string, options?: RequestInit) => {

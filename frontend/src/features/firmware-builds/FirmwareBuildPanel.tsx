@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { command } from '../sources/api';
 import { compileOptions, compileOutputUrl, compileReview, type CompileOptions, type CompileReview, type FirmwareBuildRef } from './api';
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = FirmwareBuildRef & { canExecute?: boolean };
 export function FirmwareBuildPanel({ firmware_revision_id, assembly_snapshot_id = null, path = [], canExecute = false }: Props) {
@@ -86,11 +87,11 @@ function CompilerWorkspace({ reference, canExecute }: { reference: FirmwareBuild
   </Stack></Card>;
 }
 function CompilerPins({ inputs }: { inputs: CompileOptions['inputs'] }) {
-  return <Stack gap="xs"><Text size="xs">Firmware {inputs.firmware_revision_id} · snapshot {inputs.firmware_snapshot_sha256}</Text>
+  return <Stack gap="xs"><Text size="xs"><RevisionLabel id={inputs.firmware_revision_id} role="Firmware" snapshotId={inputs.firmware_snapshot_sha256} /></Text>
     <Text size="sm">Declared compiler {inputs.toolchain.name} {inputs.toolchain.version ?? 'unknown'} · framework {inputs.toolchain.framework ?? 'unknown'} · ABI label {inputs.toolchain.board_id ?? 'unknown'} (hardware identity unevaluated)</Text>
-    <Text size="xs">Population {inputs.target.population_revision_id} · option {inputs.target.option_id} · native component {inputs.target.component_id}</Text>
+    <Text size="xs"><RevisionLabel id={inputs.target.population_revision_id} role="Population" /> · option {inputs.target.option_id} · native component {inputs.target.component_id}</Text>
     {inputs.occurrence && <Text size="xs">Assembly {inputs.occurrence.assembly_snapshot_id} · snapshot {inputs.occurrence.assembly_snapshot_sha256} · occurrence {inputs.occurrence.path.join(' / ')}</Text>}
-    {inputs.sources.map(source => <Stack gap={2} key={source.local_id}><Text size="xs">Source revision {source.source_revision_id} · manifest {source.source_manifest_sha256}</Text>{source.files.map(file => <Text size="xs" key={file.path}>{file.path} · {file.sha256} · {file.role} · {file.rights}</Text>)}</Stack>)}
+    {inputs.sources.map(source => <Stack gap={2} key={source.local_id}><Text size="xs"><RevisionLabel kind="source" id={source.source_revision_id} role="Source" /> · manifest {source.source_manifest_sha256}</Text>{source.files.map(file => <Text size="xs" key={file.path}>{file.path} · {file.sha256} · {file.role} · {file.rights}</Text>)}</Stack>)}
     <Text size="sm">Configuration: {inputs.configuration.map(entry => `${entry.key}: ${entry.status === 'known' ? entry.value : entry.status}`).join(', ') || 'none declared'}</Text>
     <Text size="sm">Pin assumptions: {inputs.pins.map(pin => `${pin.signal}: ${pin.pad_id ?? 'unknown pad'} / ${pin.function}`).join(', ') || 'none declared'}</Text>
   </Stack>;

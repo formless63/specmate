@@ -2,6 +2,7 @@ import { Alert, Button, Card, Checkbox, Group, Stack, Table, Text, TextInput, Ti
 import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadUrl, type Attachment } from "./api";
 import { previewAttachment, searchKnowledge, type Preview, type SearchInput, type SearchPage, type SearchRow } from "./search-api";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 /** Reusable current-project knowledge search. Retained host tabs must pass active. */
 export function KnowledgeSearchPanel({ projectId, principalKey, active = true }: { projectId: string; principalKey: string; active?: boolean }) {
@@ -74,7 +75,7 @@ function Workspace({ projectId, active }: { projectId: string; active: boolean }
       {result.next_after && <Button onClick={() => submitted.current && void search({ ...submitted.current, after: result.next_after! })}>Next permitted matches</Button>}
     </>}
     {active && preview && <Card withBorder><Stack><Title order={3}>Exact attachment inspection</Title>
-      <Text>{preview.attachment.label || preview.attachment.path} · {preview.attachment.path}</Text><Text size="xs">Item {preview.item_id} · entry {preview.entry_id} · source {preview.attachment.bundle_revision_id} · original SHA-256 {preview.attachment.sha256}</Text>
+      <Text>{preview.attachment.label || preview.attachment.path} · {preview.attachment.path}</Text><Text size="xs">Item {preview.item_id} · entry {preview.entry_id} · <RevisionLabel kind="source" id={preview.attachment.bundle_revision_id} role="source" /> · original SHA-256 {preview.attachment.sha256}</Text>
       <Text>Owner project {preview.attachment.blob_project_id} · {preview.attachment.size} original bytes · rights {preview.attachment.rights}</Text>
       <Text>Integrity: {preview.integrity.replaceAll("_", " ")}. Physical and engineering qualification: not evaluated.</Text>
       {preview.kind === "text" && <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{preview.text}</pre>}

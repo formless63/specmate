@@ -2,6 +2,8 @@ import { Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextI
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { read } from './api';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export type Declaration = { amount_mm: string | null; basis: 'unknown' | 'human_declaration'; explanation: string | null };
 export type Allowance = { kind: 'slack' | 'preparation' | 'trim'; amount_mm: string | null; explanation: string; scope: 'whole_length' | 'endpoint'; endpoint_id: string | null };
@@ -60,19 +62,19 @@ const amount = (value: string | null | undefined) => value == null ? 'unknown' :
 export function LengthInspection({ projection }: { projection: Projection }) {
   return <Stack><Title order={4}>Declared lengths and model suggestions</Title><Text>Suggestions require manual review and never replace declarations. Geometry routes and prepend remain unsupported; clearance and physical qualification are not evaluated.</Text>
     <Table><Table.Thead><Table.Tr><Table.Th>Length identity</Table.Th><Table.Th>Human declaration</Table.Th><Table.Th>Reviewed model suggestion</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{projection.rows.map(row => <Table.Tr key={row.target}>
-      <Table.Td>{row.target}<Text size="xs">Stock revision {row.stock_revision_id}{row.element_kind ? ` · ${row.element_kind} · ${row.element_path}` : ''}</Text></Table.Td>
+      <Table.Td>{row.target}<Text size="xs"><RevisionLabel id={row.stock_revision_id} role="Stock" />{row.element_kind ? ` · ${row.element_kind} · ${row.element_path}` : ''}</Text></Table.Td>
       <Table.Td>{amount(row.declaration.amount_mm)}<Text size="sm">{row.declaration.basis}: {row.declaration.explanation ?? 'unknown basis'}</Text></Table.Td>
       <Table.Td>{amount(row.suggested_mm)} · {row.status}{row.declaration_matches_suggestion === false && <Alert color="orange">Declaration differs from model suggestion.</Alert>}{row.model && <><Text>Source: {row.model.source}; {row.model.review}: {row.model.review_basis ?? 'unknown review basis'}</Text>{row.model.allowances.map((a, i) => <Text key={i}>{a.kind} {amount(a.amount_mm)} · {a.scope}{a.endpoint_id ? ` ${a.endpoint_id}` : ''} · {a.explanation}</Text>)}</>}</Table.Td>
     </Table.Tr>)}</Table.Tbody></Table>
   </Stack>;
 }
-export function LengthImpactView({ afterRevision, revisions }: { afterRevision: string; revisions: { revision_id: string; number: number }[] }) {
+export function LengthImpactView({ afterRevision, name, revisions }: { afterRevision: string; name?: string; revisions: { revision_id: string; number: number }[] }) {
   const [before, setBefore] = useState<string | null>(null);
   const result = useQuery({ queryKey: ['cable-length-impact', before, afterRevision], queryFn: () => read<Impact>(`cables/length-impact?before_revision_id=${encodeURIComponent(before ?? '')}&after_revision_id=${encodeURIComponent(afterRevision)}`), enabled: !!before, retry: false });
-  return <Card withBorder><Stack><Title order={4}>Preparation and document impacts</Title><Select label="Compare lengths from frozen revision" data={revisions.filter(r => r.revision_id !== afterRevision).map(r => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} value={before} onChange={setBefore} />
+  return <Card withBorder><Stack><Title order={4}>Preparation and document impacts</Title><Select label="Compare lengths from frozen revision" data={revisions.filter(r => r.revision_id !== afterRevision).map(r => ({ value: r.revision_id, label: revisionOptionLabel(name, r.number) }))} value={before} onChange={setBefore} />
     <Button disabled={!before} loading={result.isFetching} onClick={() => result.refetch()}>Refresh length impact access</Button>
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
-    {result.data && !result.isError && !result.isFetching && <><Text>Route changed: {String(result.data.route_changed)}. Preparation review required: {String(result.data.preparation_review_required)}. Document review required: {String(result.data.document_review_required)}.</Text><Text>Stock revision changed: {String(result.data.stock_revision_changed)}. No stock facts or cut declarations were written by this comparison.</Text><Text size="xs">Before {result.data.before_revision_id} · {result.data.before_sha256}; after {result.data.after_revision_id} · {result.data.after_sha256}</Text>
+    {result.data && !result.isError && !result.isFetching && <><Text>Route changed: {String(result.data.route_changed)}. Preparation review required: {String(result.data.preparation_review_required)}. Document review required: {String(result.data.document_review_required)}.</Text><Text>Stock revision changed: {String(result.data.stock_revision_changed)}. No stock facts or cut declarations were written by this comparison.</Text><Text size="xs"><RevisionLabel id={result.data.before_revision_id} role="Before" sha256={result.data.before_sha256} />; <RevisionLabel id={result.data.after_revision_id} role="after" sha256={result.data.after_sha256} /></Text>
       {result.data.changes.map(change => <Text key={change.target}>{change.target}: declared {amount(change.before?.declaration.amount_mm)} → {amount(change.after?.declaration.amount_mm)}; suggestion {amount(change.before?.suggested_mm)} → {amount(change.after?.suggested_mm)}</Text>)}
       {!result.data.changes.length && <Text>No length-plan changes.</Text>}
     </>}

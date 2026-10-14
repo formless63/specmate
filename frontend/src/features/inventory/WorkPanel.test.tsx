@@ -68,7 +68,7 @@ test("registers work using a selected exact revision and keeps the unknown plan 
   const calls = server(); mount();
   await screen.findByRole("option", { name: "Target" });
   fireEvent.change(screen.getByLabelText("Work target definition"), { target: { value: "target-definition" } });
-  await screen.findByText("Revision 1 · target-revision");
+  await screen.findByText("Target · r1");
   fireEvent.change(screen.getByLabelText("Work target exact revision"), { target: { value: "target-revision" } });
   fireEvent.change(screen.getByLabelText("Work label"), { target: { value: "Partial assembly" } });
   fireEvent.click(screen.getByText("Register planned work"));
@@ -96,7 +96,7 @@ async function fillConsumption() {
   fireEvent.click(await screen.findByText("Manage Material batch"));
   fireEvent.change(await screen.findByLabelText("Reservation to consume"), { target: { value: "reserved-1" } });
   fireEvent.change(screen.getByLabelText("Material work target"), { target: { value: "work-1" } });
-  await screen.findByText("Exact work revision: target-revision");
+  await screen.findAllByText("target-revision", { selector: "code" });
   fireEvent.change(screen.getByLabelText("Material usage quantity"), { target: { value: "400" } });
   fireEvent.change(screen.getByLabelText("Material usage unit"), { target: { value: "cm" } });
   fireEvent.change(screen.getByLabelText("Unused reservation remainder"), { target: { value: "release" } });

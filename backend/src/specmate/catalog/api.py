@@ -5,9 +5,11 @@ from ninja import Query, Router
 from specmate.catalog import queries
 from specmate.catalog.discovery import (
     RevisionImpact,
+    RevisionLabels,
     SearchCatalog,
     WhereUsed,
     revision_impact,
+    revision_labels,
     search_catalog,
     where_used,
 )
@@ -29,6 +31,11 @@ def uses(request, payload: Query[WhereUsed]):
 @router.get("/revision-impact")
 def impact(request, payload: Query[RevisionImpact]):
     return revision_impact(request.user, payload)
+
+
+@router.get("/revision-labels")
+def labels(request, payload: Query[RevisionLabels]):
+    return revision_labels(request.user, payload)
 
 
 def page(offset, limit):

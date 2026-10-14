@@ -7,6 +7,8 @@ import {
   type PopulationDraft, type PopulationOption, PcbRequestError,
 } from "./api";
 import { PopulationReviewPanel } from "./PopulationReview";
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Props = {
   projectId: string; intake: Intake; drafts: PopulationDraft[];
@@ -141,7 +143,7 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
     </Group>}
     <Select label="Population set" value={draft?.draft_id ?? null} onChange={setDraftId} data={drafts.map((item) => ({ value: item.draft_id, label: item.name }))} />
     {draft && population && report && <Stack>
-      <Text size="sm">Exact interpretation: {population.interpretation_id} · source revision: {population.source_revision_id}</Text>
+      <Text size="sm">Exact interpretation: {population.interpretation_id} · <RevisionLabel kind="source" id={population.source_revision_id} role="source" /></Text>
       <Group><Badge>{draft.state}</Badge><Badge>{draft.revisions.length} frozen revision(s)</Badge></Group>
       <Group align="end">
         <Select label="Population option" value={activeOption?.local_id ?? null} onChange={setOptionId} data={population.options.map((item) => ({ value: item.local_id, label: item.name }))} />
@@ -170,7 +172,7 @@ export function PopulationEditor({ projectId, intake, drafts, permissions, onCha
       })}>Freeze reviewed population revision</Button>}
       {!!draft.revisions.length && <Stack>
         <Select label="Inspect frozen population revision" value={frozenRevision?.revision_id ?? null}
-          onChange={setRevisionId} data={draft.revisions.map((item) => ({ value: item.revision_id, label: `Revision #${item.number} · ${item.revision_id}` }))} />
+          onChange={setRevisionId} data={draft.revisions.map((item) => ({ value: item.revision_id, label: revisionOptionLabel(draft.name, item.number) }))} />
         {frozenRevision && <PopulationReviewPanel key={`revision:${frozenRevision.revision_id}`} kind="revision" id={frozenRevision.revision_id} onAccessLost={onAccessLost} />}
       </Stack>}
     </Stack>}

@@ -9,6 +9,8 @@ import {
 import type { Basis, ElementPractice, EndPractice, LeadDisplay, ProfileRecord,
   ProfileRevision, Source, StockChoice, Suggestion, WorkshopProfile } from './api';
 import { WorkshopProfileProvenance } from './PracticeProvenance';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const unknown = <T,>(): Suggestion<T> => ({ value: null, basis: 'unknown', source: null, note: null });
 const blankEnd = (): EndPractice => ({ cutback_mm: unknown(), prepend_cut_mm: unknown(), lead: null });
@@ -128,7 +130,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
     {message && <Alert color="green">{message}</Alert>}
     <Group align="end">
       <Select label="Start from frozen stock" placeholder="Select an exact stock revision" disabled={busy}
-        data={stocks.filter(row => row.base_revision_id).map(row => ({ value: row.base_revision_id!, label: `${row.name} · ${row.base_revision_id}` }))}
+        data={stocks.filter(row => row.base_revision_id).map(row => ({ value: row.base_revision_id!, label: row.name }))}
         value={current?.content.profile ? null : profile?.stock_revision_id ?? null} onChange={id => { if (id) void chooseStock(id); }} />
       <Select label="Saved profile" data={profiles.map(row => ({ value: row.draft_id, label: row.name }))}
         value={current?.draft_id ?? null} onChange={id => { const row = profiles.find(item => item.draft_id === id); if (row) void chooseProfile(row); }} />
@@ -136,7 +138,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
     </Group>
     {current && <Group>
       <Select label="Frozen profile revision" placeholder="View an exact revision" clearable
-        data={revisions.map(row => ({ value: row.revision_id, label: `Revision ${row.number} · ${row.revision_id}` }))}
+        data={revisions.map(row => ({ value: row.revision_id, label: revisionOptionLabel(current?.name ?? name, row.number) }))}
         value={frozen?.revision_id ?? null} onChange={async id => {
           if (!id) {
             setFrozen(null);
@@ -158,7 +160,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string }) {
       {frozen && <Text>Viewing immutable revision {frozen.number}. Select the draft to edit current suggestions.</Text>}
     </Group>}
     {shown && <>
-      <Text size="sm">Stock revision: {shown.stock_revision_id}. Unknown values remain unknown; shown lengths are illustration suggestions, not measured dimensions.</Text>
+      <Text size="sm"><RevisionLabel id={shown.stock_revision_id} role="Stock" />. Unknown values remain unknown; shown lengths are illustration suggestions, not measured dimensions.</Text>
       <WorkshopProfileProvenance profile={shown} stateLabel={frozen ? `Frozen revision ${frozen.number}` : dirty ? 'Unsaved draft' : current ? 'Saved draft' : 'New profile'} />
       {!frozen && <>
       <Title order={3}>Author new suggestions</Title>

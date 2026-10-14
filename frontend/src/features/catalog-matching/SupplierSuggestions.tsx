@@ -2,6 +2,7 @@ import { Alert, Button, Card, NativeSelect, Stack, Text, Title } from "@mantine/
 import { useEffect, useRef, useState } from "react";
 import { read } from "../identity/api";
 import { supplierSuggestions, type SupplierSuggestion, type SupplierSuggestionPage } from "./api";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Variant = { variant_id: string; manufacturer: string; part_number: string; association_basis: string };
 
@@ -70,7 +71,7 @@ function Workspace({ sourceRevisionId, targetProjectId, canEdit, onUse, onDenied
           <Text>{value.manufacturer} · {value.part_number} · Exact identifier pair; unreviewed, compatibility not evaluated.</Text>
           <Text size="sm">Source association {value.source_variant_id}: {value.source_association_basis}</Text>
           <Text size="sm">Target association {value.target_variant_id}: {value.target_association_basis}</Text>
-          <Text size="sm">Target definition {value.target.definition_id} · revision {value.target.revision_id} · SHA-256 {value.target.sha256}</Text>
+          <Text size="sm"><RevisionLabel role="Target" id={value.target.revision_id} extraPins={[{ label: 'Definition ID', value: value.target.definition_id }]} /> · SHA-256 {value.target.sha256}</Text>
           <Button variant="light" disabled={!canEdit} onClick={() => onUse(value)}>Use exact pins in proposal</Button>
         </Stack></Card>)}
         {page.next_after && <Button onClick={() => void suggest(page.next_after!)}>More supplier suggestions</Button>}

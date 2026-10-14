@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Definition, Identity } from "../identity/api";
 import { read, type Detail, type Submit, type WorkBatch, type WorkDetail } from "./api";
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const quantityUnits: Record<string, string[]> = { count: ["ea"], length: ["m", "cm", "mm"], mass: ["kg", "g"] };
 const statuses = ["declared", "observed", "measured"];
@@ -31,7 +33,7 @@ export function WorkPanel({ projectId, batches, pending, submit }: { projectId: 
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     <NativeSelect label="Work target definition" value={definition} onChange={(e) => { setDefinition(e.currentTarget.value); setRevision(""); setRevisionOffset(0); }} data={[{ value: "", label: "Choose definition" }, ...(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: d.name }))]} />
-    <NativeSelect label="Work target exact revision" value={revision} onChange={(e) => setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))]} />
+    <NativeSelect label="Work target exact revision" value={revision} onChange={(e) => setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))]} />
     {definition && <Group><Button disabled={revisionOffset === 0} onClick={() => { setRevision(""); setRevisionOffset(Math.max(0, revisionOffset - 50)); }}>Previous work revisions</Button><Button disabled={(identity.data?.revisions.length ?? 0) < 50} onClick={() => { setRevision(""); setRevisionOffset(revisionOffset + 50); }}>Next work revisions</Button></Group>}
     <NativeSelect label="Work kind" value={kind} onChange={(e) => setKind(e.currentTarget.value)} data={["job", "batch"]} />
     <TextInput label="Work label" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
@@ -54,7 +56,7 @@ function WorkHistory({ workId, pending, submit }: { workId: string; pending: boo
   return <Stack>
     {work.isError && <Alert color="red">{work.error.message}</Alert>}
     {batch && <>
-      <Text>Work target revision: {batch.revision_id}. Reported {batch.reported_completed_units}; planned {batch.planned_units ?? "Unknown"}.</Text>
+      <Text><RevisionLabel id={batch.revision_id} role="Work target" />. Reported {batch.reported_completed_units}; planned {batch.planned_units ?? "Unknown"}.</Text>
       <TextInput label="Additional reported completed units" value={count} onChange={(e) => setCount(e.currentTarget.value)} />
       <TextInput label="Completion reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
       <TextInput label="Completion assertion source" value={source} onChange={(e) => setSource(e.currentTarget.value)} />
@@ -102,7 +104,7 @@ export function UsageForm({ detail, batches, pending, submit }: { detail: Detail
       <NativeSelect label="Unused reservation remainder" value={remainder} onChange={(e) => setRemainder(e.currentTarget.value)} data={[{ value: "retain", label: "Retain reservation" }, { value: "release", label: "Release reservation remainder" }]} />
     </> : <><NativeSelect label="Original consumption" value={origin} onChange={(e) => setOrigin(e.currentTarget.value)} data={[{ value: "", label: "Choose issued material" }, ...detail.entries.filter((entry) => entry.kind === "consumption" && entry.returnable_quantity && entry.returnable_quantity !== "0").map((entry) => ({ value: entry.entry_id, label: `${entry.entry_id} · returnable ${entry.returnable_quantity} ${detail.account.unit}` }))]} />{consumption && <Text size="sm">Return keeps original attribution: {consumption.physical_unit_id ? `unit ${consumption.physical_unit_id}` : "batch usage without a unit"}.</Text>}</>}
     {work.isError && <Alert color="red">{work.error.message}</Alert>}
-    {batch && <Text size="sm">Exact work revision: {batch.revision_id}</Text>}
+    {batch && <Text size="sm"><RevisionLabel id={batch.revision_id} role="work" /></Text>}
     <TextInput label="Material usage quantity" value={amount} onChange={(e) => setAmount(e.currentTarget.value)} />
     <NativeSelect label="Material usage unit" value={unit} onChange={(e) => setUnit(e.currentTarget.value)} data={quantityUnits[detail.account.dimension]} />
     <TextInput label="Material usage reason" value={reason} onChange={(e) => setReason(e.currentTarget.value)} />

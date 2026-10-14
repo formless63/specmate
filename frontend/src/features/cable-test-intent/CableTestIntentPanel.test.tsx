@@ -190,7 +190,9 @@ test('detached frozen-plan denial hides the same plan after a newer refresh succ
   let rejectOld!: (r: Response) => void;
   let calls = 0;
   const inspection = { revision_id: 'same-plan', sha256: 'private-plan-hash', root_sha256: 'root', root_snapshot_id: 'snapshot', cable_sha256: 'cable', test_plan: plan(), evidence: [], physical_test: 'not_performed', physical_continuity: 'not_evaluated', physical_qualification: 'not_evaluated' };
-  vi.stubGlobal('fetch', vi.fn(async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    // Display-name lookups are independent reads and do not count as plan reads.
+    if (String(url).includes('catalog/revision-labels')) return response({ labels: [], source_labels: [] });
     calls += 1;
     if (calls === 2) return new Promise<Response>(resolve => { rejectOld = resolve; });
     return response(inspection);
@@ -251,7 +253,7 @@ test('shared-plan frozen denial hides draft and target; deferred failed and succ
   fireEvent.change(screen.getByLabelText('Label stable ID'), { target: { value: 'unsaved-label' } });
   fireEvent.change(screen.getByLabelText('Label text'), { target: { value: 'Unsaved label text' } });
   fireEvent.change(screen.getByLabelText('Label declaration basis'), { target: { value: 'Unsaved label basis' } });
-  await select('Frozen test plan', 'Revision 1 · plan-r1');
+  await select('Frozen test plan', 'Revision 1');
   await screen.findByText(/protected-source-hash/);
   mode = 'denied';
   fireEvent.click(screen.getByRole('button', { name: 'Refresh frozen test-plan access' }));
@@ -308,7 +310,7 @@ test.each([false, true])('delayed inspector denial ignores only actual editor re
   await select('Test-plan definition', 'Shared exact plan');
   await select('Test-plan draft', 'draft · draft-v1');
   await screen.findByLabelText('Pair stable ID');
-  await select('Frozen test plan', 'Revision 1 · plan-r1');
+  await select('Frozen test plan', 'Revision 1');
   await screen.findByText(/protected-source-hash/);
   fireEvent.click(screen.getByRole('button', { name: 'Refresh frozen test-plan access' }));
   await waitFor(() => expect(rejectOld).toBeDefined());
@@ -317,8 +319,8 @@ test.each([false, true])('delayed inspector denial ignores only actual editor re
     await select('Test-plan draft', 'other-draft · draft-v1');
     await screen.findByText('Allowed other label');
   } else {
-    await select('Frozen test plan', 'Revision 2 · plan-r2');
-    await screen.findByText(/Exact plan plan-r2/);
+    await select('Frozen test plan', 'Revision 2');
+    await screen.findAllByText('plan-r2', { selector: 'code' });
   }
   await act(async () => rejectOld(response({ error: { message: 'Previous inspector authority revoked' } }, 404)));
   if (replaceEditor) {

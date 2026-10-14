@@ -6,6 +6,8 @@ import { authorityDenied } from '../cables/api';
 import { HarnessEditor } from './HarnessEditor';
 import { HarnessViews } from '../harness-views/HarnessViews';
 import { command, read, initialHarness, terminalKey, terminalLabel, type Harness, type Definition, type Draft, type Identity, type Inspection } from './api';
+import { revisionOptionLabel } from "../../lib/revision-labels";
+import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function HarnessPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
@@ -89,7 +91,7 @@ function Workspace({ projectId }: { projectId: string }) {
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && !workspaceDenied && <>
       <Select label="Edit harness draft" value={draftId} onChange={id => { if (id !== draftId) replaceEditor(); setDraftId(id); }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
-      <Select label="Inspect frozen harness" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number} · ${r.revision_id}` }))} />
+      <Select label="Inspect frozen harness" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}
     {inspectorDenied && <Alert color="red">Frozen Harness access must be rechecked before retained draft declarations or inspection are shown.</Alert>}
@@ -145,12 +147,12 @@ export function HarnessInspector({ revisionId, authorityScope = 0, onDenied }: {
   const result = useQuery({ queryKey: ['harness-inspect', revisionId, quantity], queryFn: async () => { const generation = authorityScope; try { return await read<Inspection>(`harnesses/revisions/${revisionId}?quantity=${quantity}`); } catch (reason) { if (authorityDenied(reason)) onDenied?.(revisionId, generation); throw reason; } }, retry: false });
   const value = result.isError || result.isFetching ? undefined : result.data;
   const relationships = value?.declared_relationships.filter(r => r.members.some(t => terminalKey(t) === terminal)) ?? [];
-  return <Card withBorder><Stack><Title order={3}>Frozen harness inspection</Title><Text>Exact revision {revisionId}</Text>
+  return <Card withBorder><Stack><Title order={3}>Frozen harness inspection</Title><Text><RevisionLabel id={revisionId} /></Text>
     <Button loading={result.isFetching} onClick={() => { void result.refetch(); }}>Refresh frozen Harness access</Button>
     <NumberInput label="Harness quantity" min={1} max={1000000} allowDecimal={false} value={quantity} onChange={v => { if (typeof v === 'number' && Number.isInteger(v) && v >= 1) setQuantity(v); }} />
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {value && <><Text>Planned stock pieces: {value.quantities.physical_piece_count ?? 'unknown'}; segment spans: {value.quantities.segment_count ?? 'unknown'}</Text><Text>Continuity: {value.continuity}. Compatibility: {value.compatibility}. Physical qualification: {value.physical_qualification}.</Text>
-      <Table><Table.Thead><Table.Tr><Table.Th>Exact stock</Table.Th><Table.Th>Planned sections</Table.Th><Table.Th>Pieces</Table.Th><Table.Th>Planned cut total (mm)</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{value.quantities.stock.map(row => <Table.Tr key={row.stock_revision_id}><Table.Td>{row.stock_revision_id}</Table.Td><Table.Td>{row.section_ids.join(', ')}</Table.Td><Table.Td>{row.piece_count ?? 'unknown'}</Table.Td><Table.Td>{row.planned_cut_total_mm ?? 'unknown'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+      <Table><Table.Thead><Table.Tr><Table.Th>Exact stock</Table.Th><Table.Th>Planned sections</Table.Th><Table.Th>Pieces</Table.Th><Table.Th>Planned cut total (mm)</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{value.quantities.stock.map(row => <Table.Tr key={row.stock_revision_id}><Table.Td><RevisionLabel id={row.stock_revision_id} /></Table.Td><Table.Td>{row.section_ids.join(', ')}</Table.Td><Table.Td>{row.piece_count ?? 'unknown'}</Table.Td><Table.Td>{row.planned_cut_total_mm ?? 'unknown'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
       <Title order={4}>Formboard and build sheet</Title><HarnessViews key={`${revisionId}:${quantity}`} revisionId={revisionId} harness={value.harness} quantity={quantity} />
       <Title order={4}>Declared physical ends</Title>{value.harness.sections.map(section => <Stack key={section.local_id}><Text>Section {section.local_id}</Text>{!(section.physical_ends?.length) && <Text>Physical ends unknown; no segment directions imply end assignments.</Text>}{section.physical_ends?.map(end => <Text key={end.local_id}>{end.local_id} · {end.label ?? 'unknown label'} · {end.segment_ends.map(ref => `${ref.segment_id}/${ref.end}`).join(', ')} · endpoint {end.endpoint_id ?? 'unknown'} · {end.review}: {end.basis}</Text>)}</Stack>)}
       <Title order={4}>Segments and retained material</Title>{value.harness.segments.map(s => <Text key={s.local_id}>{s.local_id} → section {s.section_id}; conductive paths: {s.element_paths?.join(', ') ?? 'all declared conductive features'}</Text>)}
