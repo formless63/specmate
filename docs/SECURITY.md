@@ -74,10 +74,10 @@ needs it; downloads record hashes and permitted destinations.
 | Reversible draft edits | Bounded grant can cover many edits. |
 | Run native sources/tools | Separate approved capability with limits. |
 | Reserve/consume/adjust stock | Separate workshop-write authority. |
-| Freeze/review/release | Explicit corresponding engineering authority. |
-| Share/publish/export for distribution | Closure, rights and visibility review. |
-| Purchase/order/flash/printer operation | Not baseline; separately enabled integration authority. |
-| Reset databases/change deployment | Never inherited by runtime engineering agents. |
+| Freeze/review/release | Explicit engineering authority; release shares `design.freeze`. |
+| Export/download/share | Workspace reads (`workspace.read`) with recorded sharing; closure, rights and visibility review applies. |
+| Purchase/order/flash/printer operation | Not baseline capabilities; no permission atom exists for them. |
+| Reset databases/change deployment | Management commands, not registered operations; never grantable to runs. |
 
 ## Public source privacy
 

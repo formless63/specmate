@@ -1306,7 +1306,7 @@
       "id": "AGT-005",
       "group": "AGT",
       "title": "Authority separation",
-      "requirement": "Separate source execution, inventory, release, sharing, purchase, flash and print permissions.",
+      "requirement": "Keep source execution and inventory as separate grants; release shares design.freeze; export and download are workspace reads with recorded sharing; purchase, flash and print are not baseline capabilities.",
       "horizon": "baseline",
       "document": "agent-guides/README.md",
       "acceptance_ids": [
