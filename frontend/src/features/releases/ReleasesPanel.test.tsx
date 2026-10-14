@@ -51,7 +51,7 @@ function fixture() {
       switch (request.operation) {
         case 'release.list': return response({ result: { releases: [], total: 0 } });
         case 'configuration.list_resolved': return response({ result: { resolved: [], truncated: false } });
-        case 'export_package.candidates': return response({ result: { root_revision_id: ROOT, scene_drawings: [], preparation_document_sets: [], test_plans: [], pcb_fabrication_builds: [] } });
+        case 'export_package.candidates': return response({ result: { root_revision_id: ROOT, scene_drawings: [], preparation_document_sets: [], test_plans: [], pcb_fabrication_builds: [], firmware_builds: [] } });
         case 'release.review': return response({ result: { review: body(request.payload.quantity), sha256: 'review-hash' } });
         case 'release.create': return response({ result: { release_id: 'release-1' } });
         case 'release.read': return response({ result: {
