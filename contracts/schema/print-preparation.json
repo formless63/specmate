@@ -1,0 +1,397 @@
+{
+  "$defs": {
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Citation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "citation",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Orientation": {
+      "additionalProperties": false,
+      "description": "Rotation about X, then Y, then Z in degrees from the model's own frame.",
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "rotation_deg": {
+          "anyOf": [
+            {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "maximum": 360,
+                  "minimum": -360,
+                  "type": "number"
+                },
+                {
+                  "maximum": 360,
+                  "minimum": -360,
+                  "type": "number"
+                },
+                {
+                  "maximum": 360,
+                  "minimum": -360,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rotation Deg"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "as_modelled",
+            "rotated"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "Orientation",
+      "type": "object"
+    },
+    "PartPin": {
+      "additionalProperties": false,
+      "description": "Exact mechanical model file; the mechanical definition is the part identity.",
+      "properties": {
+        "mechanical_revision_id": {
+          "format": "uuid",
+          "title": "Mechanical Revision Id",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        },
+        "source_local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "title": "Source Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mechanical_revision_id",
+        "snapshot_sha256",
+        "source_local_id",
+        "path"
+      ],
+      "title": "PartPin",
+      "type": "object"
+    },
+    "ProfilePins": {
+      "additionalProperties": false,
+      "properties": {
+        "material": {
+          "$ref": "#/$defs/RevisionPin"
+        },
+        "printer": {
+          "$ref": "#/$defs/RevisionPin"
+        },
+        "process": {
+          "$ref": "#/$defs/RevisionPin"
+        }
+      },
+      "required": [
+        "printer",
+        "process",
+        "material"
+      ],
+      "title": "ProfilePins",
+      "type": "object"
+    },
+    "RevisionPin": {
+      "additionalProperties": false,
+      "properties": {
+        "revision_id": {
+          "format": "uuid",
+          "title": "Revision Id",
+          "type": "string"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "revision_id",
+        "snapshot_sha256"
+      ],
+      "title": "RevisionPin",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_revision_id": {
+          "format": "uuid",
+          "title": "Bundle Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locator": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Locator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_revision_id",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    },
+    "Suggestion_Literal__mm____in___": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "inferred",
+            "preference"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "enum": [
+                "mm",
+                "in"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Suggestion[Literal['mm', 'in']]",
+      "type": "object"
+    },
+    "Supports": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "none",
+            "auto",
+            "buildplate_only"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "title": "Supports",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "copies": {
+      "default": 1,
+      "maximum": 32,
+      "minimum": 1,
+      "title": "Copies",
+      "type": "integer"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "model_units": {
+      "$ref": "#/$defs/Suggestion_Literal__mm____in___"
+    },
+    "orientation": {
+      "$ref": "#/$defs/Orientation"
+    },
+    "output_format": {
+      "default": "gcode",
+      "enum": [
+        "gcode",
+        "3mf"
+      ],
+      "title": "Output Format",
+      "type": "string"
+    },
+    "part": {
+      "$ref": "#/$defs/PartPin"
+    },
+    "profiles": {
+      "$ref": "#/$defs/ProfilePins"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "slicer_tool": {
+      "const": "prusaslicer-2.5.0",
+      "default": "prusaslicer-2.5.0",
+      "title": "Slicer Tool",
+      "type": "string"
+    },
+    "supports": {
+      "$ref": "#/$defs/Supports"
+    },
+    "technology": {
+      "enum": [
+        "fdm",
+        "resin"
+      ],
+      "title": "Technology",
+      "type": "string"
+    },
+    "variant_label": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Variant Label",
+      "type": "string"
+    }
+  },
+  "required": [
+    "variant_label",
+    "technology",
+    "part",
+    "profiles"
+  ],
+  "title": "PrintPreparation",
+  "type": "object"
+}

@@ -41,7 +41,11 @@ def load_catalog(path: Path | None = None) -> list[dict]:
     tools = data["tools"]
     seen = set()
     for tool in tools:
-        if tool["id"] in seen or image_digest(tool["image"]) is None or not tool["platforms"]:
+        # A locally built tool may be listed before any installation has built and pinned
+        # it: its image is null and it reports ``not_pinned`` until a digest is recorded.
+        unpinned = tool["image"] is None and tool["source"] == "local-build"
+        pinned = tool["image"] is not None and image_digest(tool["image"]) is not None
+        if tool["id"] in seen or not (pinned or unpinned) or not tool["platforms"]:
             raise ToolError(f"Invalid tool catalog entry {tool['id']!r}")
         seen.add(tool["id"])
     return tools
@@ -114,16 +118,21 @@ def tool_report(
     host_arch: str | None = None,
 ) -> dict:
     """One tool's operator view. ``image`` None means availability was not evaluated."""
-    digest = image_digest(tool["image"])
+    digest = image_digest(tool["image"] or "")
     approved = sorted(
         rid
         for rid, raw in recipes.items()
-        if isinstance(raw, dict) and image_digest(raw.get("image", "")) == digest
+        if digest is not None
+        and isinstance(raw, dict)
+        and image_digest(raw.get("image") or "") == digest
     )
     arches = sorted({p.split("/", 1)[1] for p in tool["platforms"] if "/" in p})
     arch_ok = None if host_arch is None else host_arch in arches
     is_enabled = tool["id"] in enabled
-    if image is None:
+    if digest is None:
+        state = "not_pinned"
+        image_state = "not_pinned"
+    elif image is None:
         state = "enabled" if is_enabled else "not_enabled"
         image_state = "not_evaluated"
     else:
@@ -171,7 +180,13 @@ def build_reports(stack_dir: Path, run: Runner = subprocess.run) -> list[dict]:
     enabled = read_enabled(stack_dir / "tools-enabled.json")
     arch = host_architecture()
     return [
-        tool_report(t, enabled, recipes, image=inspect_image(t["image"], run), host_arch=arch)
+        tool_report(
+            t,
+            enabled,
+            recipes,
+            image=inspect_image(t["image"], run) if t["image"] else {"state": "not_pinned"},
+            host_arch=arch,
+        )
         for t in load_catalog()
     ]
 
@@ -187,6 +202,12 @@ def enable_tool(
     stack_dir: Path, tool_id: str, *, pull: bool = False, run: Runner = subprocess.run
 ) -> dict:
     tool = _find(tool_id)
+    if tool["image"] is None:
+        raise ToolError(
+            f"{tool_id} has no pinned image in this catalog. Build it with:\n"
+            f"  {tool['acquire']}\nthen approve its exact recipes with the built image digest; "
+            "an unpinned catalog tool is not gated by enablement."
+        )
     arch = host_architecture()
     if not any(p.endswith("/" + arch) for p in tool["platforms"]):
         raise ToolError(

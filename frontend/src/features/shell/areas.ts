@@ -55,6 +55,7 @@ export const AREAS: AreaDef[] = [
     { id: "preparation-documents", label: "Bench documents" },
     { id: "selected-packages", label: "Selected packages" },
     { id: "export-packages", label: "Export packages" },
+    { id: "printing", label: "Print preparation" },
   ] },
   { id: "inventory", label: "Inventory", key: "6", tools: [
     { id: "inventory", label: "Inventory" },

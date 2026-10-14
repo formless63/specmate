@@ -49,6 +49,7 @@ from specmate.physical_units.api import router as physical_units_router
 from specmate.preferences.api import router as preferences_router
 from specmate.preparation.api import router as preparation_router
 from specmate.preparation_documents.api import router as preparation_documents_router
+from specmate.printing.api import router as printing_router
 from specmate.releases.api import create_router as releases_router
 from specmate.revision_upgrades.api import router as upgrades_router
 from specmate.selected_packages.api import create_router as selected_packages_router
@@ -92,6 +93,7 @@ api.add_router("/v0/diagnostics", diagnostics_router)
 api.add_router("/v0/pcb", pcb_router)
 api.add_router("/v0/pcb-disagreement", disagreement_router)
 api.add_router("/v0/pcb-fabrication", fabrication_router)
+api.add_router("/v0/printing", printing_router)
 api.add_router("/v0/material-accounting", material_accounting_router)
 api.add_router("/v0/mechanical-sources", mechanical_sources_router)
 api.add_router("/v0/mechanical-proposals", mechanical_proposals_router)

@@ -1,0 +1,201 @@
+{
+  "$defs": {
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Citation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "citation",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "citation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "SourceFile": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_revision_id": {
+          "format": "uuid",
+          "title": "Bundle Revision Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "source_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "locator": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Locator",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "rights": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Rights",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "bundle_revision_id",
+        "path",
+        "sha256",
+        "rights"
+      ],
+      "title": "SourceFile",
+      "type": "object"
+    },
+    "Suggestion_Union_Annotated_float__Strict_strict_True____Annotated_int__Strict_strict_True____Annotated_str__Strict_strict_True____": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "inferred",
+            "preference"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "citation": "#/$defs/Citation",
+                  "source_file": "#/$defs/SourceFile"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Citation"
+                },
+                {
+                  "$ref": "#/$defs/SourceFile"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "Suggestion[Union[Annotated[float, Strict(strict=True)], Annotated[int, Strict(strict=True)], Annotated[str, Strict(strict=True)]]]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "limitations": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "parameters": {
+      "maxProperties": 64,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,63}$": {
+          "$ref": "#/$defs/Suggestion_Union_Annotated_float__Strict_strict_True____Annotated_int__Strict_strict_True____Annotated_str__Strict_strict_True____"
+        }
+      },
+      "title": "Parameters",
+      "type": "object"
+    },
+    "role": {
+      "enum": [
+        "printer",
+        "process",
+        "material"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1",
+      "default": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "technology": {
+      "enum": [
+        "fdm",
+        "resin"
+      ],
+      "title": "Technology",
+      "type": "string"
+    }
+  },
+  "required": [
+    "role",
+    "technology"
+  ],
+  "title": "PrintProfile",
+  "type": "object"
+}
