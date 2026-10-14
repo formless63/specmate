@@ -32,6 +32,7 @@ test("variables resolve semantic roles for both colour schemes with a non-accent
     expect(values["--sb-accent"]).toBe(role.interaction.primary);
     expect(values["--sb-focus"]).toBe(role.interaction.keyboard_focus);
     expect(values["--sb-focus"]).not.toBe(values["--sb-accent"]);
+    expect(values["--sb-border-control"]).toBe(role.border.control);
     expect(values["--mantine-color-body"]).toBe(role.surface.canvas);
   }
 });

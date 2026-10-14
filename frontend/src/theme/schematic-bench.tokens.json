@@ -11,7 +11,7 @@
       "ink-800": "#222225",
       "ink-700": "#34343A",
       "ink-600": "#4A4A52",
-      "ink-500": "#6E6E76",
+      "ink-500": "#85858D",
       "ink-400": "#9A9AA2",
       "ink-100": "#EDEDED",
       "white": "#FFFFFF",
@@ -19,12 +19,14 @@
       "paper-100": "#EFEFEB",
       "paper-200": "#D9D9D4",
       "paper-300": "#B9B9B2",
+      "paper-500": "#7E7E78",
+      "ink-650": "#63636B",
       "paper-400": "#A6A6A0",
       "paper-600": "#6A6A70",
       "paper-700": "#4A4A50",
       "paper-950": "#0C0C0D",
       "kapton-400": "#E2B714",
-      "kapton-700": "#8C6B00",
+      "kapton-700": "#806200",
       "cyan-400": "#3FD4F0",
       "cyan-700": "#00758A",
       "violet-300": "#C9B6FF",
@@ -81,12 +83,13 @@
       },
       "border": {
         "subtle": "#222225",
-        "strong": "#34343A"
+        "strong": "#34343A",
+        "control": "#63636B"
       },
       "text": {
         "primary": "#EDEDED",
         "secondary": "#9A9AA2",
-        "tertiary": "#6E6E76",
+        "tertiary": "#85858D",
         "disabled": "#4A4A52"
       },
       "interaction": {
@@ -114,7 +117,8 @@
       },
       "border": {
         "subtle": "#D9D9D4",
-        "strong": "#B9B9B2"
+        "strong": "#B9B9B2",
+        "control": "#7E7E78"
       },
       "text": {
         "primary": "#0C0C0D",
@@ -123,8 +127,8 @@
         "disabled": "#A6A6A0"
       },
       "interaction": {
-        "primary": "#8C6B00",
-        "selected_glow": "rgba(140,107,0,.12)",
+        "primary": "#806200",
+        "selected_glow": "rgba(128,98,0,.12)",
         "compare": "#5B3FB8",
         "keyboard_focus": "#0C0C0D"
       },
@@ -144,7 +148,8 @@
       "surface.panel": "Panes: tree, inspector, tables",
       "surface.raised": "Menus, dialogs, palette (with overlay shadow)",
       "border.subtle": "Hairlines between rows and panes",
-      "border.strong": "Control outlines, wires at rest, crosshairs",
+      "border.strong": "Decorative structure only: pane edges, wires at rest, crosshairs",
+      "border.control": "Input rules and control outlines; >= 3:1 on every surface (WCAG 1.4.11)",
       "text.primary": "Names, values, headings",
       "text.secondary": "Help, secondary values, units",
       "text.tertiary": "Silkscreen labels, metadata",

@@ -102,6 +102,7 @@ function roleVariables(role: typeof tokens.semantic.dark, scheme: "dark" | "ligh
     "--sb-surface-raised": role.surface.raised,
     "--sb-border-subtle": role.border.subtle,
     "--sb-border-strong": role.border.strong,
+    "--sb-border-control": role.border.control,
     "--sb-text-primary": role.text.primary,
     "--sb-text-secondary": role.text.secondary,
     "--sb-text-tertiary": role.text.tertiary,
@@ -124,7 +125,7 @@ function roleVariables(role: typeof tokens.semantic.dark, scheme: "dark" | "ligh
     "--mantine-color-default": role.surface.panel,
     "--mantine-color-default-hover": role.surface.raised,
     "--mantine-color-default-color": role.text.primary,
-    "--mantine-color-default-border": role.border.strong,
+    "--mantine-color-default-border": role.border.control,
     "--mantine-color-error": status.invalid,
     "--mantine-color-anchor": role.interaction.primary,
   };
