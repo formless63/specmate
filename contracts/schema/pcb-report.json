@@ -87,6 +87,82 @@
       "title": "ArcEdge",
       "type": "object"
     },
+    "BezierEdge": {
+      "additionalProperties": false,
+      "description": "Cubic Bezier with its exact control points.",
+      "properties": {
+        "c1": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "C1",
+          "type": "array"
+        },
+        "c2": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "C2",
+          "type": "array"
+        },
+        "end": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "kind": {
+          "const": "bezier",
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "start",
+        "c1",
+        "c2",
+        "end"
+      ],
+      "title": "BezierEdge",
+      "type": "object"
+    },
     "CircleEdge": {
       "additionalProperties": false,
       "properties": {
@@ -565,6 +641,7 @@
               "discriminator": {
                 "mapping": {
                   "arc": "#/$defs/ArcEdge",
+                  "bezier": "#/$defs/BezierEdge",
                   "circle": "#/$defs/CircleEdge",
                   "line": "#/$defs/LineEdge"
                 },
@@ -576,6 +653,9 @@
                 },
                 {
                   "$ref": "#/$defs/ArcEdge"
+                },
+                {
+                  "$ref": "#/$defs/BezierEdge"
                 },
                 {
                   "$ref": "#/$defs/CircleEdge"
@@ -643,6 +723,7 @@
               "discriminator": {
                 "mapping": {
                   "arc": "#/$defs/ArcEdge",
+                  "bezier": "#/$defs/BezierEdge",
                   "circle": "#/$defs/CircleEdge",
                   "line": "#/$defs/LineEdge"
                 },
@@ -654,6 +735,9 @@
                 },
                 {
                   "$ref": "#/$defs/ArcEdge"
+                },
+                {
+                  "$ref": "#/$defs/BezierEdge"
                 },
                 {
                   "$ref": "#/$defs/CircleEdge"

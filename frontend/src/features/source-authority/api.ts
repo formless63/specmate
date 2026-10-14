@@ -1,7 +1,7 @@
 export type Point = [number, number];
 export type OutlineValue = { outline: Point[][] | null; cutouts: Point[][] | null; reason?: string[] };
 export type OutlineSummary =
-  | { status: 'known'; outline_polygons: number; cutouts: number; vertices: number; bbox_mm: [number, number, number, number]; net_area_mm2: number; geometry?: 'exact-arcs'; tolerance_mm?: number; arcs?: number; circles?: number }
+  | { status: 'known'; outline_polygons: number; cutouts: number; vertices: number; bbox_mm: [number, number, number, number]; net_area_mm2: number; geometry?: 'exact-arcs'; tolerance_mm?: number; arcs?: number; circles?: number; beziers?: number; area_basis?: 'exact' | 'approximate-within-tolerance' }
   | { status: 'unknown'; reason: string[] };
 export type Candidate = {
   interpretation_id: string; report_sha256: string; build_id: string; source_revision_id: string; source_path: string;

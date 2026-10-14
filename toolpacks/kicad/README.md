@@ -157,7 +157,7 @@ The intake program extracts `Edge.Cuts` lines, arcs and circles as exact edges
 (`outline_exact`/`cutouts_exact`; arcs keep start, mid, end plus derived centre,
 radius and sweep). `outline`/`cutouts` are then display tessellations with chord
 sagitta at most `outline_tolerance_mm` (0.005 mm). Bounds and area come from the exact
-geometry. Rectangles, polygons and Bezier edges on `Edge.Cuts` remain unsupported, as
+geometry. Cubic Bezier edges keep their control points, are tessellated adaptively (control-polygon flatness bound), take bounds from curve extrema and report area as approximate within tolerance. Zero-length items are ignored and gaps over 0.01 mm are never bridged (an outline with such gaps stays unsupported). Rectangles and polygons on `Edge.Cuts` remain unsupported, as
 do arc outlines for the fabrication program (qualified for line outlines only). The
 geometry module `backend/src/specmate/pcb/outline_geometry.py` is embedded in the
 program, which is why the recipe argument limit is 32768 bytes.

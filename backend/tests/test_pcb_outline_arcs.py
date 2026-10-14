@@ -3,6 +3,7 @@
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 from itertools import pairwise
@@ -220,13 +221,12 @@ def image_cached():
     return probe.returncode == 0
 
 
-@pytest.mark.skipif(not image_cached(), reason="pinned KiCad image is not cached")
-def test_real_kicad_extracts_exact_arcs_and_circle_from_original_board(tmp_path):
+def run_native(tmp_path, board_text):
     inputs, outputs = tmp_path / "in", tmp_path / "out"
     inputs.mkdir()
     outputs.mkdir()
     outputs.chmod(0o777)
-    (inputs / "board.kicad_pcb").write_bytes(FIXTURE.read_bytes())
+    (inputs / "board.kicad_pcb").write_text(board_text)
     script = tmp_path / "script.py"
     script.write_text(SCRIPT)
     run = subprocess.run(  # noqa: S603
@@ -256,7 +256,12 @@ def test_real_kicad_extracts_exact_arcs_and_circle_from_original_board(tmp_path)
         check=False,
     )
     assert run.returncode == 0, run.stderr
-    payload = json.loads((outputs / "r.json").read_text())
+    return json.loads((outputs / "r.json").read_text())
+
+
+@pytest.mark.skipif(not image_cached(), reason="pinned KiCad image is not cached")
+def test_real_kicad_extracts_exact_arcs_and_circle_from_original_board(tmp_path):
+    payload = run_native(tmp_path, FIXTURE.read_text())
     report = Report.model_validate(payload)
     assert report.coverage.outline == "closed-polygons-with-arcs"
     kinds = [e.kind for loop in report.outline_exact for e in loop]
@@ -270,3 +275,83 @@ def test_real_kicad_extracts_exact_arcs_and_circle_from_original_board(tmp_path)
     # KiCad's own chain of the same edges reproduces the exact bounds.
     xs = [p[0] for p in report.outline[0]]
     assert min(xs) == pytest.approx(0, abs=1e-6) and max(xs) == pytest.approx(40, abs=1e-6)
+
+
+def parabola_lobe():
+    """Cubic Bezier for x = 10t, y = 40t(1-t) closed by its chord.
+
+    Independent expectations: chord-to-parabola area is 2/3 * base * height = 200/3 and the
+    only y extremum is 10 at t = 1/2, which no control point or endpoint attains.
+    """
+    return [
+        g.bezier((0, 0), (10 / 3, 40 / 3), (20 / 3, 40 / 3), (10, 0)),
+        g.line((10, 0), (0, 0)),
+    ]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_bezier_bbox_from_extrema_and_area_approximate_within_tolerance(reverse):
+    edges = parabola_lobe()
+    result = g.build(list(reversed(edges)) if reverse else edges)
+    assert result and result["outline_exact"]
+    measured = g.metrics(result["outline_exact"], [])
+    assert measured["bbox_mm"] == pytest.approx([0, 0, 10, 10], abs=1e-9)
+    assert measured["area_approximate"] is True
+    chord_error = 10 * TOL  # inscribed polygon: area error <= length * tolerance
+    assert 0 <= 200 / 3 - measured["net_area_mm2"] <= chord_error
+    assert (
+        g.metrics([g.build(rounded_rectangle())["outline_exact"][0]], [])["area_approximate"]
+        is False
+    )
+
+
+def test_bezier_tessellation_is_adaptive_and_within_tolerance():
+    edge = parabola_lobe()[0]
+    fine = [(0.0, 0.0), *g._bezier_points(edge, TOL)]
+    coarse = g._bezier_points(edge, 0.5)
+    assert len(coarse) < len(fine) - 1
+    for a, b in pairwise(fine):
+        # The curve is y = 0.4x(10 - x): the vertical gap to a chord of horizontal width w
+        # is 0.1 w^2, and the perpendicular gap is that scaled by w / chord length.
+        w = b[0] - a[0]
+        assert 0.1 * w**2 * w / math.dist(a, b) <= TOL + 1e-12
+    assert all(p[1] == pytest.approx(0.4 * p[0] * (10 - p[0]), abs=1e-9) for p in fine)
+
+
+def test_report_accepts_bezier_outline_and_labels_area():
+    result = g.build(parabola_lobe())
+    payload = exact_report(result)
+    Report.model_validate(payload)
+    status, value = projected_value(payload)
+    shown = summary(status, value)
+    assert shown["beziers"] == 1 and shown["area_basis"] == "approximate-within-tolerance"
+    payload["outline_exact"][0][0]["c1"] = [3, 4]
+    with pytest.raises(ValidationError):
+        Report.model_validate(payload)
+
+
+def test_zero_length_edges_are_degenerate_and_real_edges_are_not():
+    assert g.is_degenerate(g.bezier((1, 2), (1, 2), (1, 2), (1, 2)))
+    assert g.is_degenerate(g.line((3, 3), (3, 3)))
+    assert not g.is_degenerate(g.bezier((0, 0), (0, 0), (0, 0), (5, 0)))
+    assert not g.is_degenerate(g.arc((15, 20), (10, 15), (10, 25)))
+
+
+@pytest.mark.skipif(not image_cached(), reason="pinned KiCad image is not cached")
+def test_real_kicad_extracts_bezier_edge_with_exact_control_points(tmp_path):
+    text = FIXTURE.read_text()
+    straight = re.search(r"\t\(gr_line\n\t\t\(start 4 0\)\n\t\t\(end 36 0\)\n", text)
+    assert straight, "fixture top edge not found"
+    # Replace the straight top edge by a collinear cubic: geometry and area are unchanged.
+    curve = "\t(gr_curve\n\t\t(pts (xy 4 0) (xy 14.5 0) (xy 25.5 0) (xy 36 0))\n"
+    payload = run_native(tmp_path, text[: straight.start()] + curve + text[straight.end() :])
+    report = Report.model_validate(payload)
+    beziers = [e for loop in report.outline_exact for e in loop if e.kind == "bezier"]
+    assert len(beziers) == 1
+    assert (beziers[0].c1, beziers[0].c2) == ((14.5, 0), (25.5, 0))
+    measured = report.outline_metrics()
+    assert measured["area_approximate"] is True
+    assert measured["net_area_mm2"] == pytest.approx(
+        expected_rounded_area() - math.pi * 9, abs=1e-3
+    )
+    assert measured["bbox_mm"] == pytest.approx([0, 0, 40, 25], abs=1e-4)

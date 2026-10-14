@@ -96,7 +96,7 @@ edges += [d for fp in board.GetFootprints() for d in fp.GraphicalItems()
 polygons=pcbnew.SHAPE_POLY_SET()
 exact=None
 curved=any(isinstance(d,pcbnew.PCB_SHAPE) and d.GetShape() in
-    (pcbnew.SHAPE_T_ARC,pcbnew.SHAPE_T_CIRCLE) for d in edges)
+    (pcbnew.SHAPE_T_ARC,pcbnew.SHAPE_T_CIRCLE,pcbnew.SHAPE_T_BEZIER) for d in edges)
 if curved:
     def mm(p):
         return (round(pcbnew.ToMM(p.x),6),round(pcbnew.ToMM(p.y),6))
@@ -107,12 +107,24 @@ if curved:
             primitives.append(line(mm(d.GetStart()),mm(d.GetEnd())))
         elif kind==pcbnew.SHAPE_T_ARC:
             primitives.append(arc(mm(d.GetStart()),mm(d.GetArcMid()),mm(d.GetEnd())))
+        elif kind==pcbnew.SHAPE_T_BEZIER:
+            primitives.append(bezier(mm(d.GetStart()),mm(d.GetBezierC1()),
+                mm(d.GetBezierC2()),mm(d.GetEnd())))
         elif kind==pcbnew.SHAPE_T_CIRCLE:
             primitives.append(circle(mm(d.GetCenter()),round(pcbnew.ToMM(d.GetRadius()),6)))
         else:
             primitives=None
             break
-    exact=build(primitives) if primitives else None
+    if primitives:
+        kept=[e for e in primitives if not is_degenerate(e)]
+        if len(kept)!=len(primitives):
+            unsupported.append(f"{len(primitives)-len(kept)} zero-length Edge.Cuts item(s) ignored")
+        exact=build(kept)
+        if not exact:
+            open_count=chain(kept)[1]
+            if open_count:
+                unsupported.append(f"{open_count} Edge.Cuts item(s) do not close into loops "
+                    f"within {CHAIN_EPSILON_MM} mm; gaps are never bridged")
 line_edges=edges and all(isinstance(d,pcbnew.PCB_SHAPE)
     and d.GetShape()==pcbnew.SHAPE_T_SEGMENT for d in edges)
 if exact:
@@ -126,7 +138,7 @@ elif not curved and line_edges and board.GetBoardPolygonOutlines(polygons,False)
             cutouts.append([point(p.CPoint(k)) for k in range(p.PointCount())])
 else:
     unsupported.append("outline absent, open, or contains unsupported geometry "
-        "(only lines, arcs and circles are supported)")
+        "(only lines, arcs, circles and Bezier curves are supported)")
 if len({c["reference"] for c in components})!=len(components):
     unsupported.append("duplicate references: terminal labels are ambiguous; use pad UUIDs")
 unsupported += ["schematic parity and electrical intent not extracted",

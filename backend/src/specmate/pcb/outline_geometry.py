@@ -8,6 +8,7 @@ Stroke width of Edge.Cuts items is ignored (the centreline is the outline).
 """
 
 import math
+from itertools import pairwise
 
 TOLERANCE_MM = 0.005  # maximum chord sagitta of display tessellation
 CHAIN_EPSILON_MM = 0.01  # endpoint gap treated as closed, as KiCad's outline builder does
@@ -53,12 +54,31 @@ def arc(start, mid, end):
     }
 
 
+def bezier(start, c1, c2, end):
+    """Cubic Bezier edge keeping its exact control points."""
+    return {
+        "kind": "bezier",
+        "start": list(start),
+        "c1": list(c1),
+        "c2": list(c2),
+        "end": list(end),
+    }
+
+
 def circle(center, radius):
     return {"kind": "circle", "center": list(center), "radius": radius}
 
 
 def _ends(edge):
     return tuple(edge["start"]), tuple(edge["end"])
+
+
+def is_degenerate(edge, epsilon=CHAIN_EPSILON_MM):
+    """A line or Bezier whose points all coincide has no extent and is not an edge."""
+    if edge["kind"] not in ("line", "bezier"):
+        return False
+    pts = [edge[k] for k in ("start", "c1", "c2", "end") if k in edge]
+    return all(_dist(p, pts[0]) <= epsilon for p in pts)
 
 
 def chain(edges, epsilon=CHAIN_EPSILON_MM):
@@ -103,7 +123,45 @@ def reverse(edge):
         return line(edge["end"], edge["start"])
     if edge["kind"] == "arc":
         return arc(edge["end"], edge["mid"], edge["start"])
+    if edge["kind"] == "bezier":
+        return bezier(edge["end"], edge["c2"], edge["c1"], edge["start"])
     return edge
+
+
+def _flat(p0, p1, p2, p3, tolerance):
+    """Control-polygon flatness bound: curve deviates from its chord by <= 3/4 max."""
+    dx, dy = p3[0] - p0[0], p3[1] - p0[1]
+    length = math.hypot(dx, dy)
+    if length < 1e-12:
+        d = max(_dist(p1, p0), _dist(p2, p0))
+    else:
+        d = max(abs((p[0] - p0[0]) * dy - (p[1] - p0[1]) * dx) / length for p in (p1, p2))
+    return 0.75 * d <= tolerance
+
+
+def _mid(a, b):
+    return ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+
+
+def _bezier_points(edge, tolerance):
+    """Adaptive de Casteljau subdivision; returns vertices after start, ending at end."""
+    out = []
+
+    def split(p0, p1, p2, p3, depth):
+        if depth >= 20 or _flat(p0, p1, p2, p3, tolerance):
+            out.append(p3)
+            return
+        a, b, c = _mid(p0, p1), _mid(p1, p2), _mid(p2, p3)
+        d, e = _mid(a, b), _mid(b, c)
+        f = _mid(d, e)
+        split(p0, a, d, f, depth + 1)
+        split(f, e, c, p3, depth + 1)
+
+    pts = [tuple(edge[k]) for k in ("start", "c1", "c2", "end")]
+    split(*pts, 0)
+    if len(out) > MAX_STEPS:
+        raise ValueError("curve cannot be tessellated within the tolerance")
+    return out
 
 
 def _arc_points(edge, tolerance):
@@ -138,22 +196,30 @@ def tessellate(loop, tolerance=TOLERANCE_MM):
     else:
         pts = [tuple(first["start"])]
         for edge in loop:
-            pts.extend(
-                _arc_points(edge, tolerance) if edge["kind"] == "arc" else [tuple(edge["end"])]
-            )
+            if edge["kind"] == "arc":
+                pts.extend(_arc_points(edge, tolerance))
+            elif edge["kind"] == "bezier":
+                pts.extend(_bezier_points(edge, tolerance))
+            else:
+                pts.append(tuple(edge["end"]))
         pts.pop()  # the closing vertex equals the first one within the chaining epsilon
     return [[round(x, 6), round(y, 6)] for x, y in pts]
 
 
-def signed_area(loop):
-    """Exact signed area (shoelace plus arc integrals); positive for increasing atan2."""
+def signed_area(loop, tolerance=TOLERANCE_MM):
+    """Signed area: exact for lines, arcs and circles; Bezier edges contribute the
+    area under their tessellation at the tolerance (approximate within tolerance)."""
     if loop[0]["kind"] == "circle":
         return math.pi * loop[0]["radius"] ** 2
     total = 0.0
     for edge in loop:
-        if edge["kind"] == "line":
-            (x0, y0), (x1, y1) = edge["start"], edge["end"]
-            total += x0 * y1 - x1 * y0
+        if edge["kind"] in ("line", "bezier"):
+            path = [tuple(edge["start"])]
+            if edge["kind"] == "bezier":
+                path += _bezier_points(edge, tolerance)
+            else:
+                path.append(tuple(edge["end"]))
+            total += sum(a[0] * b[1] - b[0] * a[1] for a, b in pairwise(path))
         else:
             (cx, cy), r = edge["center"], edge["radius"]
             a0 = math.atan2(edge["start"][1] - cy, edge["start"][0] - cx)
@@ -167,8 +233,42 @@ def signed_area(loop):
     return total / 2
 
 
-def area(loop):
-    return abs(signed_area(loop))
+def area(loop, tolerance=TOLERANCE_MM):
+    return abs(signed_area(loop, tolerance))
+
+
+def is_approximate(loops):
+    """True when any loop's area rests on a tessellated Bezier edge."""
+    return any(e["kind"] == "bezier" for loop in loops for e in loop)
+
+
+def _bezier_extrema(edge):
+    pts = [edge[k] for k in ("start", "c1", "c2", "end")]
+    ts = [0.0, 1.0]
+    for axis in (0, 1):
+        p0, p1, p2, p3 = (p[axis] for p in pts)
+        a, b, c = -p0 + 3 * p1 - 3 * p2 + p3, 2 * (p0 - 2 * p1 + p2), p1 - p0
+        if abs(a) < 1e-12:
+            roots = [-c / b] if abs(b) > 1e-12 else []
+        else:
+            disc = b * b - 4 * a * c
+            roots = (
+                [] if disc < 0 else [(-b + sign * math.sqrt(disc)) / (2 * a) for sign in (1, -1)]
+            )
+        ts += [t for t in roots if 0 < t < 1]
+    points = []
+    for t in ts:
+        u = 1 - t
+        points.append(
+            tuple(
+                u**3 * pts[0][i]
+                + 3 * u * u * t * pts[1][i]
+                + 3 * u * t * t * pts[2][i]
+                + t**3 * pts[3][i]
+                for i in (0, 1)
+            )
+        )
+    return points
 
 
 def bbox(loop):
@@ -180,6 +280,9 @@ def bbox(loop):
     xs = [p[0] for e in loop for p in (e["start"], e["end"])]
     ys = [p[1] for e in loop for p in (e["start"], e["end"])]
     for edge in loop:
+        if edge["kind"] == "bezier":
+            xs += [p[0] for p in _bezier_extrema(edge)]
+            ys += [p[1] for p in _bezier_extrema(edge)]
         if edge["kind"] != "arc":
             continue
         (cx, cy), r = edge["center"], edge["radius"]
@@ -242,4 +345,5 @@ def metrics(outline_exact, cutouts_exact):
         ],
         "net_area_mm2": sum(area(loop) for loop in outline_exact)
         - sum(area(loop) for loop in cutouts_exact),
+        "area_approximate": is_approximate([*outline_exact, *cutouts_exact]),
     }

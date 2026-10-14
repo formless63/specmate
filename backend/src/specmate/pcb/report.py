@@ -75,13 +75,23 @@ class ArcEdge(Record):
     sweep_deg: FiniteNumber
 
 
+class BezierEdge(Record):
+    """Cubic Bezier with its exact control points."""
+
+    kind: Literal["bezier"]
+    start: Point
+    c1: Point
+    c2: Point
+    end: Point
+
+
 class CircleEdge(Record):
     kind: Literal["circle"]
     center: Point
     radius: FiniteNumber = Field(gt=0)
 
 
-Edge = Annotated[LineEdge | ArcEdge | CircleEdge, Field(discriminator="kind")]
+Edge = Annotated[LineEdge | ArcEdge | BezierEdge | CircleEdge, Field(discriminator="kind")]
 Loop = Annotated[list[Edge], Field(min_length=1, max_length=10000)]
 
 

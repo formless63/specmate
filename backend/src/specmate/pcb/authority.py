@@ -134,6 +134,10 @@ def summary(status: str, value: dict) -> dict:
             "tolerance_mm": value["tolerance_mm"],
             "arcs": curves.count("arc"),
             "circles": curves.count("circle"),
+            "beziers": curves.count("bezier"),
+            "area_basis": "approximate-within-tolerance"
+            if measured["area_approximate"]
+            else "exact",
         }
     else:
         measured = polygon_metrics(value["outline"], value["cutouts"])
