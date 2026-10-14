@@ -77,3 +77,16 @@ test('hidden tabs and documents suppress drawing and reveal renders the retained
   expect(lifecycle.dispose).toHaveBeenCalledTimes(1);
   expect(lifecycle.loss).toHaveBeenCalledTimes(1);
 });
+
+test('top and front camera presets reframe the retained model on demand', async () => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect = lifecycle.disconnected; });
+  const { fireEvent, screen } = await import('@testing-library/react');
+  const section = sectionLayout(stockPresets.coax!);
+  render(<MantineProvider><WireViewport model={wireModel(section, 50, unpreparedProfile())} /></MantineProvider>);
+  for (const name of ['Top view', 'Front view']) {
+    const before = lifecycle.render.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name }));
+    expect(lifecycle.render.mock.calls.length).toBeGreaterThan(before);
+  }
+  expect(lifecycle.construct).toHaveBeenCalledTimes(1);
+});

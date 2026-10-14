@@ -54,3 +54,44 @@ test('3D tab loads nothing until opened, then describes the model in text', asyn
   expect(screen.getByRole('button', { name: 'Open 3D view' })).toBeTruthy();
   expect(screen.queryByTestId('wire-viewport-description')).toBeNull();
 });
+
+test('side tab draws an illustrative cutaway until a preparation is given, and selection is shared', () => {
+  show();
+  fireEvent.click(screen.getByRole('tab', { name: 'Side view' }));
+  const drawing = () => screen.getByLabelText('Cable side drawing');
+  expect(drawing().querySelector('svg')!.getAttribute('data-mode')).toBe('cutaway');
+  expect(screen.getByRole('radio', { name: 'Prepared ends' })).toHaveProperty('disabled', true);
+  expect(screen.getByRole('table', { name: 'Side view layers' }).textContent).toContain('Illustrative step (not a dimension)');
+  fireEvent.click(drawing().querySelector('[data-element="stock.jacket"] rect')!);
+  expect(drawing().querySelectorAll('[data-selected]').length).toBe(2);
+});
+
+test('side tab draws prepared ends and states unknown extents', () => {
+  const preparation = { label: 'synthetic preparation', profile: {
+    a: { instructions: [{ kind: 'layer_strip', element_path: 'stock.jacket', treatment: 'strip_back', length: { nominal_mm: '25', minus_mm: '1', plus_mm: '1', datum: 'from_stock_cut_end' } }] },
+    b: { instructions: [] } } };
+  show(shieldedPair(), { preparation, tabs: ['side'] });
+  expect(screen.getByLabelText('Cable side drawing').querySelector('svg')!.getAttribute('data-mode')).toBe('prepared');
+  const table = screen.getByRole('table', { name: 'Side view layers' }).textContent!;
+  expect(table).toContain('Stops 25 mm from the cut end (−1 / +1)');
+  expect(table).toContain('no preparation instruction');
+  expect(screen.getByText('Preparation extent unknown')).toBeTruthy();
+  fireEvent.click(screen.getByRole('radio', { name: 'Construction cutaway' }));
+  expect(screen.getByLabelText('Cable side drawing').querySelector('svg')!.getAttribute('data-mode')).toBe('cutaway');
+});
+
+test('a frozen end preparation is applied only when pinned to this exact stock revision', async () => {
+  const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+  const { findByText, waitFor } = await import('@testing-library/react');
+  const instructions = [{ kind: 'layer_strip', element_path: 'stock.jacket', treatment: 'strip_back', length: { nominal_mm: '18', minus_mm: null, plus_mm: null, datum: 'from_stock_cut_end' } }];
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('workspace/definitions') ? []
+    : { revision_id: url.split('/').pop(), profile: { stock_revision_id: url.endsWith('other-prep') ? 'other-stock' : 'stock-rev', a: { instructions }, b: { instructions: [] } } }), { status: 200 })));
+  render(<QueryClientProvider client={new QueryClient()}><MantineProvider><CableViews stock={shieldedPair()} name="Synthetic pair" revisionId="stock-rev" tabs={['side']} choosePreparation /></MantineProvider></QueryClientProvider>);
+  const id = screen.getByLabelText('Side view end preparation exact revision ID');
+  fireEvent.change(id, { target: { value: 'other-prep' } });
+  await findByText(document.body, 'This profile is pinned to a different stock revision and is not drawn.');
+  expect(screen.getByLabelText('Cable side drawing').querySelector('svg')!.getAttribute('data-mode')).toBe('cutaway');
+  fireEvent.change(id, { target: { value: 'same-prep' } });
+  await waitFor(() => expect(screen.getByLabelText('Cable side drawing').querySelector('svg')!.getAttribute('data-mode')).toBe('prepared'));
+  expect(screen.getByRole('table', { name: 'Side view layers' }).textContent).toContain('Stops 18 mm from the cut end');
+});

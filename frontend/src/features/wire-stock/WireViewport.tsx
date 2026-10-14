@@ -9,13 +9,16 @@ import { buildWireObject } from '../../../../packages/wire-geometry/src/scene';
 import { modelSummary } from '../../../../packages/wire-geometry/src/model';
 import type { WireModel } from '../../../../packages/wire-geometry/src/model';
 
-interface Live { scene: THREE.Scene; object?: ReturnType<typeof buildWireObject>; frame: (end?: 'a' | 'b') => void; environment: boolean; redraw: () => void }
+/** Camera presets: end-on at A or B, looking down (top) or at the cable's length (front), as cab-stu's 3D wire offered. */
+export type CameraView = 'a' | 'b' | 'top' | 'front';
+const DIRECTIONS: Record<CameraView, [number, number, number]> = { a: [-1, 0.03, 0.02], b: [1, 0.03, 0.02], top: [0, 1, 0.02], front: [0, 0.03, 1] };
+interface Live { scene: THREE.Scene; object?: ReturnType<typeof buildWireObject>; frame: (view?: CameraView) => void; environment: boolean; redraw: () => void }
 
 export default function WireViewport({ model }: { model: WireModel }) {
   const host = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
   const live = useRef<Live | null>(null);
-  const reset = useRef<(end?: 'a' | 'b') => void>(() => {});
+  const reset = useRef<(view?: CameraView) => void>(() => {});
   const [problem, setProblem] = useState('');
   useEffect(() => {
     const container = host.current;
@@ -49,11 +52,11 @@ export default function WireViewport({ model }: { model: WireModel }) {
     const render = () => {
       if (container.clientWidth > 0 && document.visibilityState !== 'hidden') renderer.render(scene, camera);
     };
-    const frame = (end?: 'a' | 'b') => {
+    const frame = (view?: CameraView) => {
       const bounds = live.current?.object ? new THREE.Box3().setFromObject(live.current.object.group) : new THREE.Box3();
       const center = bounds.isEmpty() ? new THREE.Vector3() : bounds.getCenter(new THREE.Vector3());
       const radius = bounds.isEmpty() ? 1 : Math.max(bounds.getSize(new THREE.Vector3()).length() / 2, 0.001);
-      const direction = (end ? new THREE.Vector3(end === 'a' ? -1 : 1, 0.03, 0.02) : new THREE.Vector3(-0.35, 0.8, 1)).normalize();
+      const direction = (view ? new THREE.Vector3(...DIRECTIONS[view]) : new THREE.Vector3(-0.35, 0.8, 1)).normalize();
       const right = new THREE.Vector3(0, 1, 0).cross(direction).normalize();
       const up = direction.clone().cross(right).normalize();
       const tanV = Math.tan(camera.fov * Math.PI / 360), tanH = tanV * camera.aspect;
@@ -99,7 +102,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
   const description = useMemo(() => modelSummary(model), [model]);
   return <Stack>
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
-    <Group><Button variant="light" onClick={() => reset.current()}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button></Group>
+    <Group><Button variant="light" onClick={() => reset.current()}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button><Button variant="light" onClick={() => reset.current('top')}>Top view</Button><Button variant="light" onClick={() => reset.current('front')}>Front view</Button></Group>
     <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block' }} />
     <Text size="xs" id={descriptionId} data-testid={descriptionId}>{description}</Text>
     <Text size="sm">Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Leads are illustrative; geometry establishes no fit or qualification.</Text>
