@@ -27,6 +27,7 @@ def test_download_records_who_what_when_and_listing_is_scoped(users, workspace, 
     query = {"workspace_id": workspace}
     own = op(users["viewer"], "share.list", query)
     assert own["total"] == 1 and own["shares"][0]["id"] == str(row.id)
+    assert own["shares"][0]["shared_by_username"] == users["viewer"].get_username()
     assert op(users["editor"], "share.list", query)["total"] == 1  # any member sees all
     with pytest.raises(NotFound):
         op(users["outsider"], "share.list", query)
