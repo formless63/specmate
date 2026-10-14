@@ -156,13 +156,17 @@ def exact_report(result=None):
         "outline_exact": result["outline_exact"],
         "cutouts_exact": result["cutouts_exact"],
         "outline_tolerance_mm": result["tolerance_mm"],
+        "outline_bridged_gaps": result["bridged_gaps"],
+        "chaining_tolerance_mm": result["chaining_tolerance_mm"],
         "mounting_holes": [],
         "component_passages": [],
         "coverage": {
             "components": "identity-reference-value-footprint-and-flags",
             "pads": "identity-and-basic-geometry",
             "nets": "pad-membership-not-connectivity-proof",
-            "outline": "closed-polygons-with-arcs",
+            "outline": "closed-polygons-bridged"
+            if result["bridged_gaps"]
+            else "closed-polygons-with-arcs",
             "holes": "nonplated-pad-drills-not-reviewed-mounts",
             "placements": "native-absolute",
         },
@@ -355,3 +359,67 @@ def test_real_kicad_extracts_bezier_edge_with_exact_control_points(tmp_path):
         expected_rounded_area() - math.pi * 9, abs=1e-3
     )
     assert measured["bbox_mm"] == pytest.approx([0, 0, 40, 25], abs=1e-4)
+
+
+def gapped_rectangle(gap):
+    """Rounded rectangle whose top edge stops `gap` mm short of the top-right arc."""
+    edges = rounded_rectangle()
+    edges[0] = g.line((4, 0), (36 - gap, 0))
+    return edges
+
+
+def test_small_gap_is_bridged_listed_and_does_not_change_exact_values():
+    result = g.build(gapped_rectangle(0.03))
+    assert result and result["chaining_tolerance_mm"] == g.BRIDGE_MM == 0.05
+    assert result["bridged_gaps"] == [{"at": [35.97, 0], "to": [36, 0], "size_mm": 0.03}]
+    measured = g.metrics(result["outline_exact"], [])
+    # The gap lies on the top edge's own line, so the straight chord adds no area.
+    assert measured["net_area_mm2"] == pytest.approx(expected_rounded_area(), abs=1e-4)
+    assert [35.97, 0] in result["outline"][0] and [36, 0] in result["outline"][0]
+    payload = exact_report(result)
+    Report.model_validate(payload)
+    status, value = projected_value(payload)
+    shown = summary(status, value)
+    assert shown["bridged_gaps"] == 1 and shown["max_bridged_gap_mm"] == pytest.approx(0.03)
+
+
+def test_off_line_gap_area_includes_the_bridging_chord():
+    edges = rounded_rectangle()
+    # Move the top-right corner arc's start 0.04 mm down: the chord is a slanted bridge.
+    k = 4 * (1 - math.sqrt(0.5))
+    edges[1] = g.arc((36, 0.04), (40 - k, k), (40, 4))
+    result = g.build(edges)
+    assert [gap["size_mm"] for gap in result["bridged_gaps"]] == [0.04]
+    polygon_area = (
+        abs(
+            sum(
+                a[0] * b[1] - b[0] * a[1]
+                for a, b in pairwise([*result["outline"][0], result["outline"][0][0]])
+            )
+        )
+        / 2
+    )
+    exact = g.metrics(result["outline_exact"], [])["net_area_mm2"]
+    assert 0 <= exact - polygon_area <= 100 * TOL
+
+
+def test_gap_above_the_chaining_tolerance_is_refused():
+    assert g.build(gapped_rectangle(0.06)) is None
+    result = g.build(gapped_rectangle(0.05))
+    assert result and result["bridged_gaps"][0]["size_mm"] == pytest.approx(0.05)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda p: p.update(outline_bridged_gaps=[]),  # silently dropped gap
+        lambda p: p["outline_bridged_gaps"][0].update(size_mm=0.02),
+        lambda p: p["coverage"].update(outline="closed-polygons-with-arcs"),
+        lambda p: p.update(outline_bridged_gaps=None),
+    ],
+)
+def test_report_never_accepts_unlisted_or_misdescribed_bridges(change):
+    payload = exact_report(g.build(gapped_rectangle(0.03)))
+    Report.model_validate(payload)
+    with pytest.raises(ValidationError):
+        Report.model_validate(mutate(payload, change))

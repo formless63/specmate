@@ -11,7 +11,9 @@ import math
 from itertools import pairwise
 
 TOLERANCE_MM = 0.005  # maximum chord sagitta of display tessellation
-CHAIN_EPSILON_MM = 0.01  # endpoint gap treated as closed, as KiCad's outline builder does
+CHAIN_EPSILON_MM = 0.01  # items whose points all lie within this are zero-length, not edges
+COINCIDENT_MM = 1e-4  # endpoints closer than this coincide; larger gaps are bridged explicitly
+BRIDGE_MM = 0.05  # largest endpoint gap that is bridged (and always reported)
 MAX_STEPS = 4096
 
 
@@ -81,12 +83,13 @@ def is_degenerate(edge, epsilon=CHAIN_EPSILON_MM):
     return all(_dist(p, pts[0]) <= epsilon for p in pts)
 
 
-def chain(edges, epsilon=CHAIN_EPSILON_MM):
-    """Group line/arc edges into closed loops (circles are loops of one edge).
+def chain(edges, epsilon=BRIDGE_MM):
+    """Group line/arc/Bezier edges into closed loops (circles are loops of one edge).
 
     Returns (loops, open_count). A loop is a list of edges, each reversed when needed
-    so that every edge starts where the previous one ended. Edges that do not close
-    are counted in open_count and omitted.
+    so that every edge starts near where the previous one ended; endpoint gaps up to
+    epsilon are bridged (see loop_gaps). Edges that do not close are counted in
+    open_count and omitted.
     """
     loops, pending = [], []
     for edge in edges:
@@ -98,24 +101,36 @@ def chain(edges, epsilon=CHAIN_EPSILON_MM):
         current = [pending.pop(0)]
         head = tuple(current[0]["start"])
         tail = tuple(current[0]["end"])
-        while _dist(head, tail) > epsilon:
+        while _dist(head, tail) > COINCIDENT_MM:
+            best = None
             for i, edge in enumerate(pending):
                 s, e = _ends(edge)
-                if _dist(s, tail) <= epsilon:
-                    current.append(pending.pop(i))
-                    tail = e
-                    break
-                if _dist(e, tail) <= epsilon:
-                    current.append(reverse(pending.pop(i)))
-                    tail = s
-                    break
-            else:
+                for d, flip in ((_dist(s, tail), False), (_dist(e, tail), True)):
+                    if d <= epsilon and (best is None or d < best[0]):
+                        best = (d, i, flip)
+            if best is None or (len(current) > 1 and _dist(head, tail) <= best[0]):
                 break
+            edge = pending.pop(best[1])
+            edge = reverse(edge) if best[2] else edge
+            current.append(edge)
+            tail = tuple(edge["end"])
         if _dist(head, tail) <= epsilon and (len(current) > 1 or current[0]["kind"] == "arc"):
             loops.append(current)
         else:
             open_count += len(current)
     return loops, open_count
+
+
+def loop_gaps(loop):
+    """Every endpoint gap in a loop larger than coincidence, as explicit records."""
+    if loop[0]["kind"] == "circle":
+        return []
+    gaps = []
+    for a, b in zip(loop, [*loop[1:], loop[0]], strict=True):
+        size = _dist(a["end"], b["start"])
+        if size > COINCIDENT_MM:
+            gaps.append({"at": list(a["end"]), "to": list(b["start"]), "size_mm": round(size, 6)})
+    return gaps
 
 
 def reverse(edge):
@@ -195,14 +210,17 @@ def tessellate(loop, tolerance=TOLERANCE_MM):
         ]
     else:
         pts = [tuple(first["start"])]
-        for edge in loop:
+        for i, edge in enumerate(loop):
+            if i and _dist(loop[i - 1]["end"], edge["start"]) > COINCIDENT_MM:
+                pts.append(tuple(edge["start"]))  # bridged gap: straight chord
             if edge["kind"] == "arc":
                 pts.extend(_arc_points(edge, tolerance))
             elif edge["kind"] == "bezier":
                 pts.extend(_bezier_points(edge, tolerance))
             else:
                 pts.append(tuple(edge["end"]))
-        pts.pop()  # the closing vertex equals the first one within the chaining epsilon
+        if _dist(pts[-1], pts[0]) <= COINCIDENT_MM:
+            pts.pop()  # the closing vertex repeats the first one
     return [[round(x, 6), round(y, 6)] for x, y in pts]
 
 
@@ -230,6 +248,9 @@ def signed_area(loop, tolerance=TOLERANCE_MM):
                 + r * cx * (math.sin(a1) - math.sin(a0))
                 - r * cy * (math.cos(a1) - math.cos(a0))
             )
+    for a, b in zip(loop, [*loop[1:], loop[0]], strict=True):
+        if _dist(a["end"], b["start"]) > COINCIDENT_MM:  # bridged gap
+            total += a["end"][0] * b["start"][1] - b["start"][0] * a["end"][1]
     return total / 2
 
 
@@ -316,7 +337,7 @@ def classify(loops, tolerance=TOLERANCE_MM):
     return outline, cutouts
 
 
-def build(edges, tolerance=TOLERANCE_MM, epsilon=CHAIN_EPSILON_MM):
+def build(edges, tolerance=TOLERANCE_MM, epsilon=BRIDGE_MM):
     """Exact edge list -> dict of exact loops and tessellated polygons, or None."""
     loops, open_count = chain(edges, epsilon)
     if open_count or not loops:
@@ -330,6 +351,8 @@ def build(edges, tolerance=TOLERANCE_MM, epsilon=CHAIN_EPSILON_MM):
         "outline": [tessellate(loops[i], tolerance) for i in outer],
         "cutouts": [tessellate(loops[i], tolerance) for i in holes],
         "tolerance_mm": tolerance,
+        "chaining_tolerance_mm": epsilon,
+        "bridged_gaps": [g for i in [*outer, *holes] for g in loop_gaps(loops[i])],
     }
 
 

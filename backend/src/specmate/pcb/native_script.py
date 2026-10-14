@@ -124,7 +124,7 @@ if curved:
             open_count=chain(kept)[1]
             if open_count:
                 unsupported.append(f"{open_count} Edge.Cuts item(s) do not close into loops "
-                    f"within {CHAIN_EPSILON_MM} mm; gaps are never bridged")
+                    f"within the {BRIDGE_MM} mm chaining tolerance; larger gaps are never bridged")
 line_edges=edges and all(isinstance(d,pcbnew.PCB_SHAPE)
     and d.GetShape()==pcbnew.SHAPE_T_SEGMENT for d in edges)
 if exact:
@@ -155,13 +155,16 @@ report=dict(format_version=1,adapter="kicad-intake-v1",tool_version="10.0.6",
     coverage={"components":"identity-reference-value-footprint-and-flags",
         "pads":"identity-and-basic-geometry",
         "nets":"pad-membership-not-connectivity-proof",
-        "outline":("closed-polygons-with-arcs" if exact else "closed-line-polygons")
+        "outline":("closed-polygons-bridged" if exact and exact["bridged_gaps"] else
+            "closed-polygons-with-arcs" if exact else "closed-line-polygons")
             if outline else "unsupported",
         "holes":"nonplated-pad-drills-not-reviewed-mounts","placements":"native-absolute"},
     unsupported=unsupported,physical_qualification=False)
 if exact:
     report.update(outline_exact=exact["outline_exact"],cutouts_exact=exact["cutouts_exact"],
-        outline_tolerance_mm=exact["tolerance_mm"])
+        outline_tolerance_mm=exact["tolerance_mm"],
+        outline_bridged_gaps=exact["bridged_gaps"],
+        chaining_tolerance_mm=exact["chaining_tolerance_mm"])
 if hashlib.sha256(source.read_bytes()).hexdigest()!=original:
     raise ValueError("Native source changed during extraction")
 output.write_text(json.dumps(report,sort_keys=True,allow_nan=False)+"\n")

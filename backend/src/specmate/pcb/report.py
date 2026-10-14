@@ -12,6 +12,9 @@ Point = tuple[FiniteNumber, FiniteNumber]
 Label = Annotated[str, Field(max_length=1024)]
 
 
+EXACT_COVERAGE = ("closed-polygons-with-arcs", "closed-polygons-bridged")
+
+
 class Record(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -116,15 +119,28 @@ def _check_loop(loop) -> None:
             ):
                 raise ValueError("arc centre, radius or sweep disagree with start, mid and end")
     for a, b in zip(raw, [*raw[1:], raw[0]], strict=True):
-        if geometry._dist(a["end"], b["start"]) > geometry.CHAIN_EPSILON_MM:
+        if geometry._dist(a["end"], b["start"]) > geometry.BRIDGE_MM:
             raise ValueError("exact outline loop is not closed and continuous")
+
+
+class BridgedGap(Record):
+    """An endpoint gap in the native outline that extraction closed with a straight chord."""
+
+    at: Point
+    to: Point
+    size_mm: FiniteNumber = Field(gt=0)
 
 
 class Coverage(Record):
     components: Literal["identity-reference-value-footprint-and-flags"]
     pads: Literal["identity-and-basic-geometry"]
     nets: Literal["pad-membership-not-connectivity-proof"]
-    outline: Literal["closed-line-polygons", "closed-polygons-with-arcs", "unsupported"]
+    outline: Literal[
+        "closed-line-polygons",
+        "closed-polygons-with-arcs",
+        "closed-polygons-bridged",
+        "unsupported",
+    ]
     holes: Literal["nonplated-pad-drills-not-reviewed-mounts"]
     placements: Literal["native-absolute"]
 
@@ -147,6 +163,10 @@ class Report(Record):
     outline_exact: list[Loop] | None = Field(default=None, max_length=10000)
     cutouts_exact: list[Loop] | None = Field(default=None, max_length=10000)
     outline_tolerance_mm: FiniteNumber | None = Field(default=None, gt=0, le=1)
+    # Gaps closed between exact edges (never silent): required with exact geometry, and
+    # non-empty exactly when coverage is "closed-polygons-bridged".
+    outline_bridged_gaps: list[BridgedGap] | None = Field(default=None, max_length=10000)
+    chaining_tolerance_mm: FiniteNumber | None = Field(default=None, gt=0, le=1)
     mounting_holes: list[Hole] = Field(max_length=100000)
     component_passages: list[Passage] = Field(max_length=100000)
     coverage: Coverage
@@ -189,12 +209,33 @@ class Report(Record):
             len(polygon) < 3 for polygon in (*self.outline, *self.cutouts)
         ):
             raise ValueError("outline coverage disagrees with geometry")
-        exact = (self.outline_exact, self.cutouts_exact, self.outline_tolerance_mm)
-        if (self.coverage.outline == "closed-polygons-with-arcs") != all(
-            x is not None for x in exact
-        ) or (any(x is not None for x in exact) and any(x is None for x in exact)):
+        exact = (
+            self.outline_exact,
+            self.cutouts_exact,
+            self.outline_tolerance_mm,
+            self.outline_bridged_gaps,
+            self.chaining_tolerance_mm,
+        )
+        if (self.coverage.outline in EXACT_COVERAGE) != all(x is not None for x in exact) or (
+            any(x is not None for x in exact) and any(x is None for x in exact)
+        ):
             raise ValueError("exact outline fields disagree with outline coverage")
         if self.outline_exact is not None:
+            listed = [
+                {"at": list(g.at), "to": list(g.to), "size_mm": g.size_mm}
+                for g in self.outline_bridged_gaps
+            ]
+            found = [
+                gap
+                for loop in (*self.outline_exact, *self.cutouts_exact)
+                for gap in geometry.loop_gaps([e.model_dump() for e in loop])
+            ]
+            if listed != found or max((g["size_mm"] for g in found), default=0) > (
+                self.chaining_tolerance_mm
+            ):
+                raise ValueError("bridged gaps must list every gap within the chaining tolerance")
+            if bool(found) != (self.coverage.outline == "closed-polygons-bridged"):
+                raise ValueError("bridged coverage disagrees with listed gaps")
             if len(self.outline_exact) != len(self.outline) or len(self.cutouts_exact) != len(
                 self.cutouts
             ):

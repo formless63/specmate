@@ -163,6 +163,52 @@
       "title": "BezierEdge",
       "type": "object"
     },
+    "BridgedGap": {
+      "additionalProperties": false,
+      "description": "An endpoint gap in the native outline that extraction closed with a straight chord.",
+      "properties": {
+        "at": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "At",
+          "type": "array"
+        },
+        "size_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Size Mm",
+          "type": "number"
+        },
+        "to": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "To",
+          "type": "array"
+        }
+      },
+      "required": [
+        "at",
+        "to",
+        "size_mm"
+      ],
+      "title": "BridgedGap",
+      "type": "object"
+    },
     "CircleEdge": {
       "additionalProperties": false,
       "properties": {
@@ -293,6 +339,7 @@
           "enum": [
             "closed-line-polygons",
             "closed-polygons-with-arcs",
+            "closed-polygons-bridged",
             "unsupported"
           ],
           "title": "Outline",
@@ -574,6 +621,20 @@
       "title": "Adapter",
       "type": "string"
     },
+    "chaining_tolerance_mm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Chaining Tolerance Mm"
+    },
     "component_passages": {
       "items": {
         "$ref": "#/$defs/Passage"
@@ -714,6 +775,22 @@
       "maxItems": 10000,
       "title": "Outline",
       "type": "array"
+    },
+    "outline_bridged_gaps": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/BridgedGap"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outline Bridged Gaps"
     },
     "outline_exact": {
       "anyOf": [

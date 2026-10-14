@@ -111,6 +111,8 @@ def projected_value(report: dict) -> tuple[str, dict]:
                 outline_exact=report["outline_exact"],
                 cutouts_exact=report["cutouts_exact"],
                 tolerance_mm=report["outline_tolerance_mm"],
+                bridged_gaps=report["outline_bridged_gaps"],
+                chaining_tolerance_mm=report["chaining_tolerance_mm"],
             )
         return "known", value
     unsupported = [u for u in report["unsupported"] if "outline" in u.lower()]
@@ -135,6 +137,8 @@ def summary(status: str, value: dict) -> dict:
             "arcs": curves.count("arc"),
             "circles": curves.count("circle"),
             "beziers": curves.count("bezier"),
+            "bridged_gaps": len(value["bridged_gaps"]),
+            "max_bridged_gap_mm": max((g["size_mm"] for g in value["bridged_gaps"]), default=0),
             "area_basis": "approximate-within-tolerance"
             if measured["area_approximate"]
             else "exact",
