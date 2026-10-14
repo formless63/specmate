@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "Acknowledgement": {
+      "additionalProperties": false,
+      "description": "An explicit decision to release with the reviewed unresolved items still open.",
+      "properties": {
+        "reason": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "Acknowledgement",
+      "type": "object"
+    },
+    "PcbBuildRef": {
+      "additionalProperties": false,
+      "properties": {
+        "build_id": {
+          "format": "uuid",
+          "title": "Build Id",
+          "type": "string"
+        },
+        "intake_id": {
+          "format": "uuid",
+          "title": "Intake Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intake_id",
+        "build_id"
+      ],
+      "title": "PcbBuildRef",
+      "type": "object"
+    },
+    "RightsReview": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Basis",
+          "type": "string"
+        },
+        "decision": {
+          "default": "unknown",
+          "enum": [
+            "permitted",
+            "withheld",
+            "unknown"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "subject": {
+          "maxLength": 650,
+          "minLength": 1,
+          "title": "Subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject"
+      ],
+      "title": "RightsReview",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "acknowledgement": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Acknowledgement"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "bom_plan_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bom Plan Revision Id"
+    },
+    "bom_purpose": {
+      "default": "procurement",
+      "enum": [
+        "assembly_contents",
+        "procurement",
+        "pcb_fabrication",
+        "pcb_population",
+        "consumables"
+      ],
+      "title": "Bom Purpose",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Notes",
+      "type": "string"
+    },
+    "pcb_fabrication_builds": {
+      "items": {
+        "$ref": "#/$defs/PcbBuildRef"
+      },
+      "maxItems": 64,
+      "title": "Pcb Fabrication Builds",
+      "type": "array"
+    },
+    "preparation_document_set_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Preparation Document Set Ids",
+      "type": "array"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "purpose": {
+      "const": "authorized_review",
+      "default": "authorized_review",
+      "title": "Purpose",
+      "type": "string"
+    },
+    "quantity": {
+      "anyOf": [
+        {
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantity"
+    },
+    "resolved_configuration_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Resolved Configuration Ids",
+      "type": "array"
+    },
+    "reviewed_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Reviewed Sha256",
+      "type": "string"
+    },
+    "rights_reviews": {
+      "items": {
+        "$ref": "#/$defs/RightsReview"
+      },
+      "maxItems": 4000,
+      "title": "Rights Reviews",
+      "type": "array"
+    },
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    },
+    "scene_drawing_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Scene Drawing Ids",
+      "type": "array"
+    },
+    "test_plan_revision_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Test Plan Revision Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "root_revision_id",
+    "name",
+    "reviewed_sha256"
+  ],
+  "title": "CreateRelease",
+  "type": "object"
+}

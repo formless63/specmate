@@ -117,6 +117,8 @@ required private dependency and claim completeness; block or emit an explicitly 
 package. Verification of a package does not imply physical qualification.
 [Coherent export packages](modules/export-packages.md) pin system, cable, PCB, mechanical,
 spreadsheet and test outputs of one exact root and check that they cite identical revisions.
+A [reviewed release](modules/releases.md) freezes that closure with configurations, rights,
+evidence applicability and explicitly acknowledged unresolved items.
 
 ## Interfaces for extensions and integrations
 

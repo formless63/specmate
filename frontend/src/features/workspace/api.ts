@@ -70,7 +70,7 @@ export function runOperation<T>(
 /* ---- Workspace reads: the library, the project list and resolved references ---- */
 
 export type LibraryFamily = "definition" | "source_bundle" | "physical_unit" | "stock_account" | "fact_subject";
-export type ReferenceKind = "definition" | "revision" | "source_bundle" | "physical_unit" | "work_batch";
+export type ReferenceKind = "definition" | "revision" | "source_bundle" | "physical_unit" | "work_batch" | "release";
 export type UsedIn = { reference_id: string; project_id: string; project_name: string; archived: boolean; pin: "floating" | "exact"; revision: number | null; role: string };
 export type LibraryRecord = {
   record_id: string;

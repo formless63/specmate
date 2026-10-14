@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "release_id": {
+      "format": "uuid",
+      "title": "Release Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "release_id"
+  ],
+  "title": "ReleaseRef",
+  "type": "object"
+}

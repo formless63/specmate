@@ -42,7 +42,8 @@
             "revision",
             "source_bundle",
             "physical_unit",
-            "work_batch"
+            "work_batch",
+            "release"
           ],
           "title": "Kind",
           "type": "string"
