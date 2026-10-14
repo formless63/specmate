@@ -16,8 +16,9 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   Element.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
-    if (url.endsWith('/stocks')) return new Response(JSON.stringify([stock]));
-    if (url.endsWith('/workshop-profiles')) return new Response(JSON.stringify(savedProfile ? [savedProfile] : []));
+    if (url.startsWith('/api/v0/stocks')) return new Response(JSON.stringify([stock]));
+    if (url.startsWith('/api/v0/access/projects/')) return new Response(JSON.stringify({ project_id: 'project-1', state: 'project-v1' }));
+    if (url.startsWith('/api/v0/workshop-profiles?')) return new Response(JSON.stringify(savedProfile ? [savedProfile] : []));
     if (url.endsWith(`/revisions/${revision}/snapshot`)) return new Response(JSON.stringify({ content: { stock: coax.stock } }));
     if (url.endsWith('/revisions')) return new Response('[]');
     if (url === '/api/v0/operations' && options?.method === 'POST') {
@@ -28,6 +29,7 @@ beforeEach(() => {
           state: 'draft-v1', base_revision_id: null, content: { profile: command.payload.profile } };
         return new Response(JSON.stringify({ result: savedProfile }));
       }
+      if (command.operation === 'project.add_reference') return new Response(JSON.stringify({ result: { state: 'project-v2' } }));
       if (command.operation === 'workshop_profile.freeze') {
         return new Response(JSON.stringify({ result: { revision_id: 'profile-revision', number: 1, draft: { state: 'draft-v2' } } }));
       }
@@ -55,7 +57,9 @@ test('saves independent sourced display and per-end cut suggestions, then freeze
   await screen.findByText('Saved Synthetic strip drawing (draft-v1).');
   const created = calls[0]!;
   expect(created.operation).toBe('workshop_profile.create');
-  expect(created.payload.project_id).toBe('project-1');
+  // The profile joins the library; "Use in this project" adds a separate reference.
+  expect(created.payload).not.toHaveProperty('project_id');
+  expect(calls[1]).toMatchObject({ operation: 'project.add_reference', expected_state: 'project-v1', payload: { project_id: 'project-1', kind: 'definition', target_id: 'profile-definition' } });
   const profile = created.payload.profile as Record<string, any>;
   expect(profile.stock_revision_id).toBe(revision);
   expect(profile.foil_visibility).toMatchObject({ value: 'hide', basis: 'preference', note: 'Illustration for bench training' });
@@ -65,7 +69,7 @@ test('saves independent sourced display and per-end cut suggestions, then freeze
   expect(profile.element_rules['stock.jacket'].b.cutback_mm.value).toBeNull();
   expect(JSON.stringify(profile)).not.toMatch(/bond|rating|measured/);
   fireEvent.click(screen.getByRole('button', { name: 'Freeze profile' }));
-  await waitFor(() => expect(calls[1]).toMatchObject({ operation: 'workshop_profile.freeze', expected_state: 'draft-v1' }));
+  await waitFor(() => expect(calls[2]).toMatchObject({ operation: 'workshop_profile.freeze', expected_state: 'draft-v1' }));
 });
 
 test('without a frozen stock revision, no profile can be saved', async () => {
@@ -107,8 +111,8 @@ test('fresh selection shows frozen suggestion provenance instead of new-edit def
     number: 1, sha256: 'a'.repeat(64), content: { profile: frozenProfile } };
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
     if (options?.method === 'POST') throw new Error('Viewing must not save.');
-    if (url.endsWith('/stocks')) return new Response(JSON.stringify([stock]));
-    if (url.endsWith('/workshop-profiles')) return new Response(JSON.stringify([record]));
+    if (url.startsWith('/api/v0/stocks')) return new Response(JSON.stringify([stock]));
+    if (url.startsWith('/api/v0/workshop-profiles?')) return new Response(JSON.stringify([record]));
     if (url.endsWith(`/revisions/${revision}/snapshot`)) return new Response(JSON.stringify({ content: { stock: coax.stock } }));
     if (url.endsWith('/workshop-profile-definitions/profile-definition/revisions')) return new Response(JSON.stringify([exact]));
     if (url.endsWith('/workshop-profile-revisions/profile-revision')) return new Response(JSON.stringify(exact));
@@ -168,9 +172,9 @@ test('keeps registered source path and rights exact when authoring a documented 
 });
 
 test.each([
-  ['read-only', ['project.read'], true, 'Read-only access: requires Edit'],
-  ['editor', ['project.read', 'design.edit'], false, 'Read-only access: requires Freeze'],
-  ['editor with freeze', ['project.read', 'design.edit', 'design.freeze'], false, null],
+  ['viewer', ['workspace.read'], true, 'Read-only access: requires Contributor access'],
+  ['contributor', ['workspace.read', 'item.create'], false, 'Read-only access: requires Freeze'],
+  ['editor', ['workspace.read', 'item.create', 'design.edit', 'design.freeze'], false, null],
 ] as const)('%s permissions gate Save profile and Freeze profile', async (_name, permissions, saveOff, freezeReason) => {
   render(<MantineProvider><PermissionsProvider permissions={[...permissions]}><WorkshopProfilePanel projectId="project-1" /></PermissionsProvider></MantineProvider>);
   fireEvent.click(await screen.findByRole('combobox', { name: 'Start from frozen stock' }));
@@ -180,8 +184,8 @@ test.each([
   fireEvent.change(screen.getByLabelText('stock.jacket end a cutback mm'), { target: { value: '12' } });
   const save = screen.getByRole('button', { name: 'Save profile' }) as HTMLButtonElement;
   expect(save.disabled).toBe(saveOff);
-  expect(save.title).toBe(saveOff ? 'Read-only access: requires Edit' : '');
-  expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  expect(save.title).toBe(saveOff ? 'Read-only access: requires Contributor access' : '');
+  expect(screen.queryAllByText(/Read-only access: requires Contributor access/).length > 0).toBe(saveOff);
   if (saveOff) { expect(calls).toHaveLength(0); return; }
   fireEvent.click(save);
   await screen.findByText('Saved Synthetic strip drawing (draft-v1).');

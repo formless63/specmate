@@ -42,10 +42,12 @@ async function read<T>(url: string, options?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export const listProfiles = (projectId: string): Promise<ProfileRecord[]> =>
-  read(`/api/v0/projects/${encodeURIComponent(projectId)}/workshop-profiles`);
-export const listStocks = (projectId: string): Promise<StockChoice[]> =>
-  read(`/api/v0/projects/${encodeURIComponent(projectId)}/stocks`);
+const context = (projectId?: string | null) => projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+/** Library profiles; a project id only lists the profiles it references first. */
+export const listProfiles = (projectId?: string | null): Promise<ProfileRecord[]> =>
+  read(`/api/v0/workshop-profiles${context(projectId)}`);
+export const listStocks = (projectId?: string | null): Promise<StockChoice[]> =>
+  read(`/api/v0/stocks${context(projectId)}`);
 export const listProfileRevisions = (definitionId: string): Promise<ProfileRevision[]> =>
   read(`/api/v0/workshop-profile-definitions/${encodeURIComponent(definitionId)}/revisions`);
 export const readProfileRevision = (revisionId: string): Promise<ProfileRevision> =>
@@ -64,9 +66,10 @@ async function command<T>(operation: string, payload: object, expectedState?: st
   });
   return response.result;
 }
-export function saveProfile(projectId: string, name: string, profile: WorkshopProfile, current: ProfileRecord | null): Promise<ProfileRecord> {
+/** New profiles join the workspace library; the server resolves the actor's workspace. */
+export function saveProfile(name: string, profile: WorkshopProfile, current: ProfileRecord | null): Promise<ProfileRecord> {
   return command(current ? 'workshop_profile.update' : 'workshop_profile.create',
-    current ? { draft_id: current.draft_id, profile } : { project_id: projectId, name, profile }, current?.state);
+    current ? { draft_id: current.draft_id, profile } : { name, profile }, current?.state);
 }
 export function freezeProfile(current: ProfileRecord): Promise<{ revision_id: string; number: number; draft: { state: string } }> {
   return command('workshop_profile.freeze', { draft_id: current.draft_id }, current.state);

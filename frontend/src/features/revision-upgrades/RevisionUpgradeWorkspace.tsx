@@ -2,7 +2,6 @@ import { Alert, Badge, Button, Checkbox, Group, NativeSelect, Stack, Table, Text
 import { useEffect, useRef, useState } from "react";
 import { applyUpgrade, findConsumers, inspectAssembly, loadProposal, proposeUpgrade, reviewUpgrade } from "./api";
 import type { Applied, Assembly, Consumers, Feature, Impacts, Proposal, Relation } from "./api";
-import { read, type Definition } from "../identity/api";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 
 type Decision = { decision: "" | "retain" | "remove"; basis: string };
@@ -11,7 +10,7 @@ const same = (a: string[], b: string[]) => pathKey(a) === pathKey(b);
 const decisionOptions = [{ value: "", label: "No decision" }, { value: "retain", label: "Retain as authored" }, { value: "remove", label: "Remove from the consuming context" }];
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-type Props = { projectId: string; canEdit: boolean; onApplied?: (draft: Applied) => void; initialProposalId?: string | null; principalKey?: string; active?: boolean };
+type Props = { projectId?: string | null; canEdit: boolean; onApplied?: (draft: Applied) => void; initialProposalId?: string | null; principalKey?: string; active?: boolean };
 const disciplines = ["electrical", "mechanical", "firmware", "manufacturing", "evidence"] as const;
 const placement = (value: object | null) => {
   if (!value) return "absent";
@@ -100,12 +99,10 @@ function Workspace({ projectId, canEdit: canEditProp, onApplied, initialProposal
     if (current === epoch.current && activeRef.current) apply(result);
   }
   async function checkedProposal(id: string) {
-    const [p, definitions] = await Promise.all([
-      loadProposal(id), read<Definition[]>(`projects/${projectId}/definitions`),
-    ]);
-    if (p.proposal_id !== id || !Array.isArray(definitions) || !definitions.some((d) => d.definition_id === p.owning_definition_id)) {
-      throw new Error("Upgrade proposal is unavailable in the selected project.");
-    }
+    // Proposals are workspace records; the server authorizes them freshly. A project is
+    // navigation context only and never decides whether a proposal is available.
+    const p = await loadProposal(id);
+    if (p.proposal_id !== id) throw new Error("Upgrade proposal is unavailable.");
     return p;
   }
   useEffect(() => {
@@ -160,11 +157,11 @@ function Workspace({ projectId, canEdit: canEditProp, onApplied, initialProposal
       <TextInput label={relation === "later_revision" ? "Candidate later revision ID" : "Candidate replacement revision ID"} value={candidateRevision} onChange={(e) => changeIdentity(setCandidateRevision, e.currentTarget.value)} />
     </Group>
     {relation === "declared_replacement" && <Textarea label="Replacement declaration" description="Why this different identity replaces the old use. Recorded as a reviewer declaration, not compatibility evidence." value={replacementBasis} onChange={(e) => setReplacementBasis(e.currentTarget.value)} />}
-    <Button variant="quiet" disabled={busy || !oldRevision} onClick={() => void run(() => receive(findConsumers(projectId, oldRevision), setConsumers))}>Find consumers of the old revision</Button>
+    <Button variant="quiet" disabled={busy || !oldRevision} onClick={() => void run(() => receive(findConsumers(oldRevision, projectId), setConsumers))}>Find consumers of the old revision</Button>
     {active && !busy && consumers && <Stack gap="xs">
       <Text fw={600}>Frozen consumers in this project pinning {consumers.revision.name} revision {consumers.revision.number}</Text>
-      {!consumers.consumers.length && <Text>No currently readable consumer pins this exact revision.</Text>}
-      {consumers.consumers.map((c) => <Group key={c.owning_snapshot_id} gap="xs"><Badge variant="frozen">{c.number === null ? "snapshot" : `revision ${c.number}`}</Badge><Text>{c.name} · {c.owning_snapshot_id} · uses {c.uses.map((u) => u.path.join(" / ")).join("; ")}</Text><Button variant="quiet" size="xs" aria-label={`Use owning snapshot ${c.owning_snapshot_id}`} onClick={() => { invalidate(); setSnapshot(c.owning_snapshot_id); void run(() => receive(inspectAssembly(c.owning_snapshot_id), setAssembly)); }}>Inspect uses</Button></Group>)}
+      {!consumers.consumers.length && <Text>No frozen consumer in the workspace pins this exact revision.</Text>}
+      {consumers.consumers.map((c) => <Group key={c.owning_snapshot_id} gap="xs"><Badge variant="frozen">{c.number === null ? "snapshot" : `revision ${c.number}`}</Badge>{c.in_project && <Badge variant="light">In this project</Badge>}<Text>{c.name} · {c.owning_snapshot_id} · uses {c.uses.map((u) => u.path.join(" / ")).join("; ")}</Text><Button variant="quiet" size="xs" aria-label={`Use owning snapshot ${c.owning_snapshot_id}`} onClick={() => { invalidate(); setSnapshot(c.owning_snapshot_id); void run(() => receive(inspectAssembly(c.owning_snapshot_id), setAssembly)); }}>Inspect uses</Button></Group>)}
       {consumers.truncated && <Text>Only the most recent consumers are listed.</Text>}
     </Stack>}
     <TextInput label="Owning assembly snapshot ID" value={snapshot} onChange={(e) => changeIdentity(setSnapshot, e.currentTarget.value)} />

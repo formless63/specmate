@@ -18,7 +18,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 /** Own state, exact snapshots, no setters or command adapters for the current stock draft. */
 const dimension = (value: number | null): string => value === null ? 'Unknown' : `${value} mm`;
 
-export function FrozenWirePreview({ projectId }: { projectId: string }) {
+export function FrozenWirePreview({ projectId }: { projectId?: string | null }) {
   const [definitions, setDefinitions] = useState<ViewerDefinition[]>([]);
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [revisions, setRevisions] = useState<RevisionChoice[]>([]);

@@ -9,6 +9,9 @@ import type { ReactNode } from "react";
 export type PermissionName =
   | "project.read"
   | "project.admin"
+  | "workspace.read"
+  | "item.create"
+  | "project.edit"
   | "design.edit"
   | "design.freeze"
   | "source.register"
@@ -19,6 +22,9 @@ export type PermissionName =
 const REQUIRES: Record<PermissionName, string> = {
   "project.read": "Read",
   "project.admin": "Administration",
+  "workspace.read": "Read",
+  "item.create": "Contributor access",
+  "project.edit": "Project editing",
   "design.edit": "Edit",
   "design.freeze": "Freeze",
   "source.register": "Source registration",

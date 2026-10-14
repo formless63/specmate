@@ -15,7 +15,8 @@ test("compares explicit exact pins and clears retained impact after a denied ref
       revision_id: "old", candidate_revision_id: "new", current_number: 1, candidate_number: 2,
       definition_kind: "part", content_changed: true, dependency_pins_changed: false,
       current_sha256: "first-hash", candidate_sha256: "second-hash", next_after: null,
-      results: [{ snapshot_id: "snap", project_id: "p", label: "Retained bracket consumer" }],
+      results: [{ snapshot_id: "snap", definition_id: "parent", label: "Retained bracket consumer" }],
+      project_references: [], project_references_truncated: false,
     }), { status: denied ? 404 : 200 });
   }));
   render(<MantineProvider><RevisionImpact definition={{ definition_id: "def", name: "Bracket", revisions: [{ revision_id: "old", number: 1 }, { revision_id: "new", number: 2 }] }} /></MantineProvider>);

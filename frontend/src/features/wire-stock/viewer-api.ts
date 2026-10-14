@@ -1,5 +1,6 @@
 import type { StockSpecification } from '../../../../packages/section-layout/src';
 import type { ProfileRevision } from '../workshop-profiles/api';
+import { allLibraryDefinitions } from '../identity/api';
 
 export interface ViewerDefinition { definition_id: string; name: string; kind: string }
 export interface RevisionChoice { revision_id: string; number: number }
@@ -9,8 +10,9 @@ async function read<T>(path: string): Promise<T> {
   if (!response.ok) throw new Error(body.error?.message ?? `Preview read failed (${response.status}).`);
   return body as T;
 }
-export const listViewerDefinitions = (projectId: string): Promise<ViewerDefinition[]> =>
-  read(`projects/${encodeURIComponent(projectId)}/definitions`);
+/** Library definitions; a project id only lists its references first. */
+export const listViewerDefinitions = (projectId?: string | null): Promise<ViewerDefinition[]> =>
+  allLibraryDefinitions(projectId);
 export async function listStockRevisions(definitionId: string): Promise<RevisionChoice[]> {
   const result: RevisionChoice[] = [];
   for (let offset = 0; ; offset += 100) {

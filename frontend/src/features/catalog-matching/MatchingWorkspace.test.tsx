@@ -8,22 +8,23 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const evidence = { status: "registered_file" as const, source_bundle_revision_id: "bundle-revision", source_path: "docs/part.txt ", sha256: "a".repeat(64), rights: " declared rights " };
 const candidate: Candidate = {
-  candidate_id: "candidate-1", source: { revision_id: "revision-source", definition_id: "def-source", project_id: "p1", name: "Source item", kind: "part", number: 2, sha256: "b".repeat(64) },
-  target: { revision_id: "revision-target", definition_id: "def-target", project_id: "p1", name: "Target item", kind: "model", number: 3, sha256: "c".repeat(64) },
+  candidate_id: "candidate-1", source: { revision_id: "revision-source", definition_id: "def-source", workspace_id: "w1", name: "Source item", kind: "part", number: 2, sha256: "b".repeat(64) },
+  target: { revision_id: "revision-target", definition_id: "def-target", workspace_id: "w1", name: "Target item", kind: "model", number: 3, sha256: "c".repeat(64) },
   association_kind: "supplier", observed_source_identifier: "SYN-100", observed_target_identifier: "SYN100",
   basis: "Similar identifiers require review.", evidence, state: "match-v0", decision: "unreviewed",
   meaning: "reviewed_correspondence_only", created_at: "2026-01-01T00:00:00Z", proposed_by_id: 1, reviews: [],
 };
-const projects = [{ project_id: "p1", name: "Synthetic project", permissions: ["project.read", "design.edit"] }];
-
 function initial(path: string) {
-  if (path === "/api/v0/projects") return reply(projects);
-  if (path === "/api/v0/projects/p1/definitions") return reply([{ definition_id: "def-source", name: "Source item", kind: "part" }, { definition_id: "def-target", name: "Target item", kind: "model" }]);
+  if (path.startsWith("/api/v0/catalog/definitions?")) {
+    // The library, ordered for the optional project context; never limited to it.
+    expect(new URL(path, "http://test.local").searchParams.get("project_id")).toBe("p1");
+    return reply({ workspace_id: "w1", project_id: "p1", results: [{ definition_id: "def-source", name: "Source item", kind: "part" }, { definition_id: "def-target", name: "Target item", kind: "model" }], next_after: null });
+  }
   if (path.startsWith("/api/v0/catalog/definitions/")) {
     const source = path.includes("def-source");
     return reply({ definition_id: source ? "def-source" : "def-target", name: source ? "Source item" : "Target item", kind: "part", revisions: [{ revision_id: source ? "revision-source" : "revision-target", number: source ? 2 : 3 }], drafts: [] });
   }
-  if (path.startsWith("/api/v0/catalog-matching/projects/p1/evidence-files")) return reply({ results: [{ file_id: 7, bundle_name: "Supplier sheet", bundle_number: 4, ...evidence, media_type: "text/plain" }], next_after: null });
+  if (path.startsWith("/api/v0/catalog-matching/evidence-files")) return reply({ results: [{ file_id: 7, bundle_name: "Supplier sheet", bundle_number: 4, ...evidence, media_type: "text/plain" }], next_after: null });
   return null;
 }
 async function selectSource() {
@@ -128,7 +129,7 @@ test("proposes exact pins with registered evidence and appends reviewed correspo
 test("focus rechecks access and clears revoked history, identifiers, options and mutations", async () => {
   let revoked = false;
   vi.stubGlobal("fetch", vi.fn(async (path: string) => {
-    if (revoked) return reply({ error: { message: "Project not found." } }, 404);
+    if (revoked) return reply({ error: { message: "Not found." } }, 404);
     const base = initial(path); if (base) return base;
     if (path.startsWith("/api/v0/catalog-matching/revisions/")) return reply({ results: [candidate], next_after: null });
     if (path.endsWith("/candidates/candidate-1")) return reply(candidate);
@@ -141,7 +142,7 @@ test("focus rechecks access and clears revoked history, identifiers, options and
   revoked = true;
   fireEvent(window, new Event("focus"));
   await waitFor(() => expect(screen.queryByText("Correspondence review")).toBeNull());
-  await waitFor(() => expect(screen.getAllByText("Project not found.").length).toBeGreaterThan(0));
+  await waitFor(() => expect(screen.getAllByText("Not found.").length).toBeGreaterThan(0));
   expect(screen.queryAllByText('def-target', { selector: 'code' })).toHaveLength(0);
   expect(screen.queryByRole("option", { name: "Source item · part" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Append review" })).toBeNull();
@@ -195,4 +196,25 @@ test("stale review shows current retained decisions and requires a new explicit 
   expect(screen.getByText("Match review changed.")).toBeTruthy();
   expect((screen.getByLabelText(/Review basis/) as HTMLTextAreaElement).value).toBe("");
   expect(envelopes).toHaveLength(1);
+});
+
+test("contributors may propose but not review; viewers do neither", async () => {
+  const { PermissionsProvider } = await import("../../lib/permissions");
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+    const base = initial(path); if (base) return base;
+    if (path.startsWith("/api/v0/catalog-matching/revisions/")) return reply({ results: [candidate], next_after: null });
+    if (path.endsWith("/candidates/candidate-1")) return reply(candidate);
+    throw new Error(`Unexpected path ${path}`);
+  }));
+  const view = render(<MantineProvider><PermissionsProvider permissions={["workspace.read", "item.create"]}><MatchingWorkspace projectId="p1" /></PermissionsProvider></MantineProvider>);
+  await selectSource(); await selectTarget();
+  fireEvent.click(await screen.findByRole("button", { name: "Review candidate" }));
+  await screen.findByText("Correspondence review");
+  expect((screen.getByRole("button", { name: "Create candidate" }) as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole("button", { name: "Append review" }) as HTMLButtonElement).disabled).toBe(true);
+  view.unmount();
+  render(<MantineProvider><PermissionsProvider permissions={["workspace.read"]}><MatchingWorkspace projectId="p1" /></PermissionsProvider></MantineProvider>);
+  await selectSource(); await selectTarget();
+  expect((screen.getByRole("button", { name: "Create candidate" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText(/Read only/)).toBeTruthy();
 });

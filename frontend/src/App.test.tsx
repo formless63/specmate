@@ -46,6 +46,8 @@ function server({ authenticated = false, denyInventory = false, includePermissio
     }
     if (path.startsWith("/api/v0/diagnostics/projects/")) return reply({ project_id: "p", evaluated_at: "2026-01-01T00:00:00Z", work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" }, queue: { states: {}, pending: 0, active: 0, oldest_pending_seconds: null }, dispatch: { undelivered: 0, oldest_undelivered_seconds: null }, runner: { state: "not_enrolled", credentials_usable: 0, stages_holding_lease: 0, stages_lease_expired: 0 }, tools: [], storage: { state: "not_initialized", code: null, sampled: 0 }, workflow_engine: { state: "not_evaluated" }, builds: [], can_execute: false, findings: [] });
     if (path.startsWith("/api/v0/collaboration/projects/")) return reply({ results: [], next_after: null });
+    if (path.startsWith("/api/v0/catalog/definitions?")) return reply({ workspace_id: "workspace", project_id: null, results: [], next_after: null });
+    if (path.startsWith("/api/v0/stocks")) return reply([]);
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
     if (path.startsWith("/api/v0/preparation-documents/projects/")) return reply({ document_sets: [] });
     if (path.startsWith("/api/v0/knowledge/projects/")) return reply({ items: [], offset: 0, limit: 50, has_more: false });
@@ -106,11 +108,11 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   openTool("Identities");
   await screen.findByRole("heading", { name: "Reusable identities" });
   expect(screen.getByRole("tablist", { name: "Library tools" })).toBeTruthy();
-  expect(fetchMock).toHaveBeenCalledWith("/api/v0/projects/project-a/definitions", expect.anything());
+  expect(fetchMock).toHaveBeenCalledWith("/api/v0/catalog/definitions?limit=100&project_id=project-a", expect.anything());
   expect(fetchMock.mock.calls.some(([path]) => path.includes("/stocks") || path.includes("/intakes") || path.includes("/inventory/"))).toBe(false);
   openTool("Wire stock");
   await screen.findByRole("heading", { name: "Wire stock" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/projects/project-a/stocks", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/stocks?project_id=project-a", expect.anything()));
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
   openTool("PCB intake");
   await screen.findByRole("heading", { name: "PCB intake" });
@@ -221,8 +223,8 @@ test("overview start points and open-work links open the owning tool through the
 });
 
 test.each([
-  ["a read-only member", ["project.read"], true],
-  ["an editor", ["project.read", "design.edit", "source.register"], false],
+  ["a read-only member", ["workspace.read"], true],
+  ["a contributor", ["workspace.read", "item.create", "source.register"], false],
 ])("project permissions reach tool panels: %s sees Save stock %s", async (_name, permissions, off) => {
   server({ authenticated: true, permissions }); renderApp();
   await screen.findByText("Signed in as local-user");
@@ -231,7 +233,7 @@ test.each([
   await screen.findByRole("heading", { name: "Wire stock" });
   const save = screen.getByRole("button", { name: "Save stock" }) as HTMLButtonElement;
   expect(save.disabled).toBe(off);
-  expect(save.title).toBe(off ? "Read-only access: requires Edit" : "");
+  expect(save.title).toBe(off ? "Read-only access: requires Contributor access" : "");
   expect((screen.getByRole("button", { name: "Freeze saved stock" }) as HTMLButtonElement).disabled).toBe(true);
   openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });

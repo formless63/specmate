@@ -13,15 +13,17 @@ const kinds: { value: SearchKind; label: string }[] = [
   { value: "stock", label: "Stock accounts" },
 ];
 
-export function DiscoveryPanel({ projectId }: { projectId: string }) {
-  return <DiscoveryWorkspace key={projectId} projectId={projectId} />;
+/** Library discovery. `projectId` is optional context: its referenced items are listed first. */
+export function DiscoveryPanel({ projectId }: { projectId?: string | null }) {
+  return <DiscoveryWorkspace key={projectId ?? "library"} projectId={projectId ?? null} />;
 }
 
-function DiscoveryWorkspace({ projectId }: { projectId: string }) {
+function DiscoveryWorkspace({ projectId }: { projectId: string | null }) {
   const [kind, setKind] = useState<SearchKind>("definition");
-  const [scope, setScope] = useState("all");
+  // At project scope the project's own items come first; one control shows the plain library.
+  const [scope, setScope] = useState(projectId ? "current" : "all");
   const [query, setQuery] = useState("");
-  const [submitted, setSubmitted] = useState<{ kind: SearchKind; query: string; projectId?: string } | null>(null);
+  const [submitted, setSubmitted] = useState<{ kind: SearchKind; query: string; projectId: string | null } | null>(null);
   const [page, setPage] = useState<SearchPage | null>(null);
   const [definition, setDefinition] = useState<DefinitionRevisions | null>(null);
   const [definitionOffset, setDefinitionOffset] = useState(0);
@@ -37,7 +39,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
     if (!trimmed) return;
     const token = ++generation.current;
     setBusy(true); setError(""); setPage(null); setDefinition(null); setUses(null);
-    const scopedProject = scope === "current" ? projectId : undefined;
+    const scopedProject = scope === "current" ? projectId : null;
     setSubmitted({ kind, query: trimmed, projectId: scopedProject });
     try {
       const result = await searchCatalog(kind, trimmed, scopedProject);
@@ -69,7 +71,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
     setDefinitionOffset(0); setMoreRevisions(false);
     try {
       if (record.revision_id) {
-        const result = await whereUsed(record.revision_id);
+        const result = await whereUsed(record.revision_id, undefined, submitted?.projectId);
         if (token === generation.current) setUses(result);
       } else if (submitted?.kind === "definition") {
         const result = await revisionsOf(record.record_id);
@@ -109,7 +111,7 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
     const previous = uses;
     setBusy(true); setError(""); setUses(null);
     try {
-      const next = await whereUsed(revisionId, after);
+      const next = await whereUsed(revisionId, after, submitted?.projectId ?? (scope === "current" ? projectId : null));
       if (token === generation.current) setUses(after && previous
         ? { ...next, results: [...previous.results, ...next.results] } : next);
     } catch (reason) {
@@ -121,10 +123,10 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
 
   return <Stack>
     <Title order={2}>Discovery</Title>
-    <Text>Search records in your accessible projects. Results and exact revision pins reflect your current access.</Text>
+    <Text>Search the workspace library. Every member sees the same records; at project scope the items this project references are listed first.</Text>
     <form onSubmit={(event) => void search(event)}><Group align="end">
       <NativeSelect label="Record type" value={kind} data={kinds} onChange={(event) => setKind(event.currentTarget.value as SearchKind)} />
-      <NativeSelect label="Search scope" value={scope} data={[{ value: "all", label: "All accessible projects" }, { value: "current", label: "Selected project" }]} onChange={(event) => setScope(event.currentTarget.value)} />
+      {projectId && <NativeSelect label="Search order" value={scope} data={[{ value: "current", label: "This project's items first" }, { value: "all", label: "Whole library" }]} onChange={(event) => setScope(event.currentTarget.value)} />}
       <TextInput label="Search terms" value={query} onChange={(event) => setQuery(event.currentTarget.value)} maxLength={200} />
       <Button type="submit" disabled={!query.trim()} loading={busy}>Search</Button>
     </Group></form>
@@ -133,8 +135,8 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
       <Title order={3}>Search results</Title>
       {page.results.length === 0 && <Text>No visible matches.</Text>}
       {page.results.map((record) => <Group key={record.record_id} justify="space-between">
-        <Stack gap={0}><Text>{record.label} {record.definition_kind && <Badge>{record.definition_kind}</Badge>}</Text>
-          <Text size="xs">ID {record.record_id} · project {record.project_id}</Text>
+        <Stack gap={0}><Text>{record.label} {record.definition_kind && <Badge>{record.definition_kind}</Badge>} {record.in_project && <Badge variant="light">In this project</Badge>}</Text>
+          <Text size="xs">ID {record.record_id}</Text>
           {record.revision_id && <Text size="xs"><RevisionLabel id={record.revision_id} /></Text>}
           {record.association_basis && <Text size="xs">Association: {record.association_basis}</Text>}
         </Stack>
@@ -149,15 +151,21 @@ function DiscoveryWorkspace({ projectId }: { projectId: string }) {
         <Text size="xs"><RevisionLabel id={revision.revision_id} /></Text>
       </Group>)}
       {moreRevisions && <Button variant="light" disabled={busy} onClick={() => void loadRevisions()}>More revisions</Button>}
-      <RevisionImpact key={definition.definition_id} definition={definition} />
+      <RevisionImpact key={definition.definition_id} definition={definition} projectId={submitted?.projectId ?? null} />
     </Stack></Card>}
-    {uses && <Card withBorder><Stack><Title order={3}>Exact revision pins</Title>
+    {uses && <Card withBorder><Stack><Title order={3}>Used in</Title>
       <Text size="xs"><RevisionLabel id={uses.revision_id} /></Text>
-      {uses.results.length === 0 && <Text>No visible parent snapshots pin this revision.</Text>}
+      <Title order={4}>Parent definitions (exact revision pins)</Title>
+      {uses.results.length === 0 && <Text>No parent snapshots pin this revision.</Text>}
       {uses.results.map((item) => <Stack key={item.snapshot_id} gap={0}>
-        <Text>{item.label}</Text><ExactPins pins={[{ label: 'Snapshot ID', value: item.snapshot_id }, { label: 'Definition ID', value: item.definition_id }, { label: 'Project ID', value: item.project_id }]} />
+        <Text>{item.label} {item.in_project && <Badge variant="light">In this project</Badge>}</Text><ExactPins pins={[{ label: 'Snapshot ID', value: item.snapshot_id }, { label: 'Definition ID', value: item.definition_id }]} />
       </Stack>)}
       {uses.next_after && <Button variant="light" disabled={busy} onClick={() => void inspectRevision(uses.revision_id, uses.next_after ?? undefined)}>More uses</Button>}
+      <Title order={4}>Projects (references)</Title>
+      {uses.project_references.length === 0 && <Text>No project references this revision or its definition.</Text>}
+      {uses.project_references.map((use) => <Text key={use.reference_id}>{use.project_name}{use.archived ? " (archived)" : ""} · {use.role} · {use.relation === "project_reference_exact" ? "exact revision" : "floating definition"}{use.in_project ? " · this project" : ""}</Text>)}
+      {uses.project_references_truncated && <Text size="xs">Only the first project references are listed.</Text>}
+      <Text size="xs">A project reference is a declared use, not a captured pin.</Text>
     </Stack></Card>}
   </Stack>;
 }
