@@ -15,10 +15,12 @@ type SbShellProps = {
   /** Called for every lens or area change; the owner mounts the tool on first visit. */
   onToolChange: (toolId: string) => void;
   chrome: ShellChrome;
+  /** Live job status for the top bar; without one the bar says plainly that status is not evaluated. */
+  statusIndicator?: ReactNode;
   children: ReactNode;
 };
 
-export function SbShell({ projectName, permissions, activeTool, onToolChange, chrome, children }: SbShellProps) {
+export function SbShell({ projectName, permissions, activeTool, onToolChange, chrome, statusIndicator, children }: SbShellProps) {
   const area = areaOfTool(activeTool);
   const wide = useMediaQuery(`(min-width: ${breakpoints.lg}px)`, false, { getInitialValueInEffect: false });
   const narrow = useMediaQuery(`(max-width: ${breakpoints.sm - 1}px)`, false, { getInitialValueInEffect: false });
@@ -77,10 +79,10 @@ export function SbShell({ projectName, permissions, activeTool, onToolChange, ch
           {compact && <span className="sb-keycap" aria-hidden="true">K</span>}
         </button>
         <span style={{ flex: 1 }} />
-        {!narrow && <span className="sb-status" role="status" aria-label="Job status">
+        {!narrow && (statusIndicator ?? <span className="sb-status" role="status" aria-label="Job status">
           <span className="sb-led" data-state="not-evaluated" aria-hidden="true" />
           <span className="sb-silk">Status not evaluated</span>
-        </span>}
+        </span>)}
         {compact && chrome.accountMenu ? chrome.accountMenu : <Group gap={6} wrap="nowrap" aria-label="Account">
           <span className="sb-account" title={chrome.username}><VisuallyHidden>Signed in as {chrome.username}</VisuallyHidden><span aria-hidden="true">{chrome.username}</span></span>
           {chrome.signOutControl}

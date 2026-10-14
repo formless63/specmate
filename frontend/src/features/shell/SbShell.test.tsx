@@ -1,6 +1,6 @@
 import { MantineProvider, Tabs } from "@mantine/core";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AREAS, DEFAULT_TOOL, areaOfTool, describeAccess, isReadOnly } from "./areas";
 import { SbShell } from "./SbShell";
@@ -36,7 +36,7 @@ function Harness({ permissions = ["project.read"] }: { permissions?: string[] })
 test("every tool belongs to exactly one area and the seven areas use keys 1-7", () => {
   const ids = AREAS.flatMap((area) => area.tools.map((tool) => tool.id));
   expect(new Set(ids).size).toBe(ids.length);
-  expect(ids).toHaveLength(35);
+  expect(ids).toHaveLength(36);
   expect(AREAS.map((area) => area.key)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
   expect(areaOfTool("pcb").label).toBe("Design");
   expect(describeAccess([]).known).toBe(false);
@@ -135,4 +135,14 @@ test("Ctrl K opens the jump palette and choosing a tool navigates across areas",
   fireEvent.click(await screen.findByText("Physical units", { selector: "*" }, { timeout: 3000 }).then((node) => node.closest("button") ?? node));
   expect(screen.getByRole("tablist", { name: "Inventory tools" })).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Physical units" }).getAttribute("aria-selected")).toBe("true");
+});
+
+test("the top bar shows a supplied status indicator and otherwise says status is not evaluated", () => {
+  const view = (indicator?: ReactNode) => <MantineProvider><SbShell projectName="Demo workshop" permissions={["project.read"]} activeTool="identity" chrome={chrome}
+    statusIndicator={indicator} onToolChange={() => {}}><Tabs.Panel value="identity">x</Tabs.Panel></SbShell></MantineProvider>;
+  const { rerender } = render(view());
+  expect(screen.getByText("Status not evaluated")).toBeTruthy();
+  rerender(view(<span role="status" aria-label="Job status">2 running</span>));
+  expect(screen.queryByText("Status not evaluated")).toBeNull();
+  expect(screen.getByText("2 running")).toBeTruthy();
 });

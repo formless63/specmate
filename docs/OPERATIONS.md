@@ -63,6 +63,30 @@ Expired work is not all blindly restarted. Closing a browser does not cancel wor
 requested. A safe stop can drain work or explicitly interrupt it. A stopped installation
 cannot receive requests; make missed schedules and time-sensitive work visible on restart.
 
+## Diagnostics and safe stop
+
+Diagnostics keep four causes apart, each with its own recovery path: a tool that is not
+approved, enrolled or pinned (`tool_unavailable`); storage that is missing, unreadable,
+read-only, full or has lost recorded bytes (`storage_failure`); withdrawn execution or
+runner authority (`permission_denied`); and lease-expired or interrupted work whose
+outcome is unknown (`stale_evidence`). Dispatch backlog and an installation stop are
+reported separately. A check that did not run is `not_evaluated`, never healthy; the
+workflow engine is not queried by these reads.
+
+Any project member with read access can read that project's queue, runner, tool, storage
+and finding state (`GET /api/v0/diagnostics/projects/{id}/status`), which feeds the
+workbench status area. It never includes other projects' work or storage numbers. The
+local operator uses `python manage.py work_control diagnose` for installation-wide detail.
+
+`work_control drain` refuses new build requests while accepted work finishes.
+`work_control interrupt` also cancels unstarted stages with a not-started receipt and
+asks active stages to stop; they stay `cancellation_requested` until their own runner
+confirms, and become `interrupted` if the lease expires first. Interrupted work is never
+requeued or marked complete: only its owning runner can reconcile, otherwise a new build
+is requested. `work_control reconcile` marks lease-expired stages interrupted and lists
+them; `resume` accepts work again. Stopping containers remains a separate operator step,
+taken once the report shows no unfinished or unreconciled stage.
+
 ## Resources
 
 Compact defaults use small bounded connection pools and one heavy native stage at a time.
