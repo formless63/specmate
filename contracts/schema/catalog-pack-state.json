@@ -33,6 +33,13 @@
   },
   "additionalProperties": false,
   "properties": {
+    "accepted_authority": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Accepted Authority",
+      "type": "array"
+    },
     "consumer_adoption": {
       "const": "explicit_new_drafts_only",
       "title": "Consumer Adoption",
@@ -43,7 +50,10 @@
       "type": "boolean"
     },
     "execution_authority": {
-      "const": "none",
+      "enum": [
+        "none",
+        "accepted_declaration"
+      ],
       "title": "Execution Authority",
       "type": "string"
     },
@@ -94,6 +104,7 @@
     "enabled",
     "versions",
     "execution_authority",
+    "accepted_authority",
     "consumer_adoption"
   ],
   "title": "PackResult",

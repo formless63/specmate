@@ -1,5 +1,40 @@
 {
   "$defs": {
+    "AuthorityRequest": {
+      "additionalProperties": false,
+      "description": "A declared privilege. Declaring it grants nothing; installation must accept it.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "execution",
+            "network_egress",
+            "in_process_code"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "scope": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\s:][^:\\n]*$",
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "scope",
+        "reason"
+      ],
+      "title": "AuthorityRequest",
+      "type": "object"
+    },
     "FilePin": {
       "additionalProperties": false,
       "properties": {
@@ -135,6 +170,15 @@
           "title": "Capabilities",
           "type": "array"
         },
+        "compatible_contract_versions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Compatible Contract Versions",
+          "type": "array"
+        },
         "contract_version": {
           "default": "1",
           "maxLength": 100,
@@ -166,6 +210,15 @@
           "title": "Format",
           "type": "string"
         },
+        "kind": {
+          "default": "catalog",
+          "enum": [
+            "catalog",
+            "adapter"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "label": {
           "maxLength": 200,
           "minLength": 1,
@@ -185,9 +238,9 @@
         },
         "requested_authority": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/AuthorityRequest"
           },
-          "maxItems": 0,
+          "maxItems": 20,
           "title": "Requested Authority",
           "type": "array"
         },

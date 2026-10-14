@@ -1,5 +1,113 @@
 {
   "$defs": {
+    "AuthorityRequest": {
+      "additionalProperties": false,
+      "description": "A declared privilege. Declaring it grants nothing; installation must accept it.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "execution",
+            "network_egress",
+            "in_process_code"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "scope": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[^\\s:][^:\\n]*$",
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "scope",
+        "reason"
+      ],
+      "title": "AuthorityRequest",
+      "type": "object"
+    },
+    "AuthorityReview": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Baseline",
+          "type": "array"
+        },
+        "new": {
+          "items": {
+            "type": "string"
+          },
+          "title": "New",
+          "type": "array"
+        },
+        "requested": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requested",
+          "type": "array"
+        },
+        "requires_acceptance": {
+          "title": "Requires Acceptance",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "requested",
+        "baseline",
+        "new",
+        "requires_acceptance"
+      ],
+      "title": "AuthorityReview",
+      "type": "object"
+    },
+    "DependencyResult": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "package_key": {
+          "title": "Package Key",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "version_id": {
+          "format": "uuid",
+          "title": "Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version_id",
+        "package_key",
+        "version",
+        "sha256",
+        "enabled"
+      ],
+      "title": "DependencyResult",
+      "type": "object"
+    },
     "EngineeringPin": {
       "additionalProperties": false,
       "properties": {
@@ -285,6 +393,15 @@
           "title": "Capabilities",
           "type": "array"
         },
+        "compatible_contract_versions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Compatible Contract Versions",
+          "type": "array"
+        },
         "contract_version": {
           "default": "1",
           "maxLength": 100,
@@ -316,6 +433,15 @@
           "title": "Format",
           "type": "string"
         },
+        "kind": {
+          "default": "catalog",
+          "enum": [
+            "catalog",
+            "adapter"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "label": {
           "maxLength": 200,
           "minLength": 1,
@@ -335,9 +461,9 @@
         },
         "requested_authority": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/AuthorityRequest"
           },
-          "maxItems": 0,
+          "maxItems": 20,
           "title": "Requested Authority",
           "type": "array"
         },
@@ -438,6 +564,9 @@
   },
   "additionalProperties": false,
   "properties": {
+    "authority_review": {
+      "$ref": "#/$defs/AuthorityReview"
+    },
     "compatibility": {
       "enum": [
         "supported_contract",
@@ -445,6 +574,13 @@
       ],
       "title": "Compatibility",
       "type": "string"
+    },
+    "dependency_versions": {
+      "items": {
+        "$ref": "#/$defs/DependencyResult"
+      },
+      "title": "Dependency Versions",
+      "type": "array"
     },
     "entries": {
       "items": {
@@ -454,7 +590,10 @@
       "type": "array"
     },
     "execution_authority": {
-      "const": "none",
+      "enum": [
+        "none",
+        "declared_not_granted"
+      ],
       "title": "Execution Authority",
       "type": "string"
     },
@@ -517,6 +656,8 @@
     "publisher_status",
     "compatibility",
     "execution_authority",
+    "authority_review",
+    "dependency_versions",
     "registered_by_id",
     "registered_at",
     "entries"

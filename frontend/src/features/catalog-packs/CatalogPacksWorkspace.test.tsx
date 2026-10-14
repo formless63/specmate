@@ -8,9 +8,9 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 beforeEach(() => vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }));
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const sha = "a".repeat(64);
-const manifest: Manifest = { format: "specmate.catalog-pack", contract_version: "1", package_key: "synthetic.parts", label: " Synthetic catalog ", version: "1.0", publisher: "Declared publisher", rights: " unknown rights ", capabilities: [], requested_authority: [], dependencies: [], signature_claim: null, entries: [{ key: "part", label: " Adopted item ", category: "content", revision_id: "source-revision", revision_sha256: sha, rights: "unknown" }] };
-const version: Version = { version_id: "version-1", pack_id: "pack-1", sha256: "b".repeat(64), manifest, manifest_source: null, signature_status: "unsigned", publisher_status: "unverified_claim", compatibility: "supported_contract", execution_authority: "none", registered_at: "2026-01-01T00:00:00Z", registered_by_id: 1, entries: [{ ...manifest.entries[0]!, engineering: { definition_id: "source-definition", revision_id: "source-revision", name: "Source item", kind: "part", number: 2, sha256: sha }, interpretation: "draft_copy_available" }] };
-const initialPack: Pack = { pack_id: "pack-1", workspace_id: "workspace-1", package_key: "synthetic.parts", state: "pack-v0", installed_version_id: null, enabled: false, versions: [{ version_id: "version-1", version: "1.0", label: manifest.label, sha256: version.sha256 }], execution_authority: "none" };
+const manifest: Manifest = { format: "specmate.catalog-pack", kind: "catalog", contract_version: "1", compatible_contract_versions: ["1"], package_key: "synthetic.parts", label: " Synthetic catalog ", version: "1.0", publisher: "Declared publisher", rights: " unknown rights ", capabilities: [], requested_authority: [], dependencies: [], signature_claim: null, entries: [{ key: "part", label: " Adopted item ", category: "content", revision_id: "source-revision", revision_sha256: sha, rights: "unknown" }] };
+const version: Version = { version_id: "version-1", pack_id: "pack-1", sha256: "b".repeat(64), manifest, manifest_source: null, signature_status: "unsigned", publisher_status: "unverified_claim", compatibility: "supported_contract", execution_authority: "none", authority_review: { requested: [], baseline: [], new: [], requires_acceptance: false }, dependency_versions: [], registered_at: "2026-01-01T00:00:00Z", registered_by_id: 1, entries: [{ ...manifest.entries[0]!, engineering: { definition_id: "source-definition", revision_id: "source-revision", name: "Source item", kind: "part", number: 2, sha256: sha }, interpretation: "draft_copy_available" }] };
+const initialPack: Pack = { pack_id: "pack-1", workspace_id: "workspace-1", package_key: "synthetic.parts", state: "pack-v0", installed_version_id: null, enabled: false, versions: [{ version_id: "version-1", version: "1.0", label: manifest.label, sha256: version.sha256 }], execution_authority: "none", accepted_authority: [] };
 function common(path: string) {
   if (path.startsWith("/api/v0/catalog/definitions?")) return response({ workspace_id: "workspace-1", project_id: "project-1", results: [{ definition_id: "source-definition", name: "Source item", kind: "part" }], next_after: null });
   if (path.startsWith("/api/v0/catalog/definitions/source-definition")) return response({ revisions: [{ revision_id: "source-revision", number: 2 }] });
@@ -32,9 +32,9 @@ test("registers structured exact content, installs it, and deliberately creates 
       const envelope = JSON.parse(String(init?.body));
       expect(envelope.idempotency_key).toBeTruthy();
       if (envelope.operation === "catalog_pack.register") { expect(envelope.payload.manifest).toEqual(manifest); expect(envelope.payload.pack_id).toBeNull(); expect(envelope.payload).not.toHaveProperty("project_id"); registered = true; return response({ result: version }); }
-      if (envelope.operation === "catalog_pack.install") { expect(envelope.expected_state).toBe("pack-v0"); current = { ...current, state: "pack-v1", enabled: true, installed_version_id: "version-1" }; decisions.push({ decision_id: "install-1", sequence: 1, action: "install", version_id: "version-1", version: "1.0", basis: envelope.payload.basis, decided_by_id: 1, decided_at: "2026-01-02T00:00:00Z", adoptions: [] }); return response({ result: current }); }
+      if (envelope.operation === "catalog_pack.install") { expect(envelope.expected_state).toBe("pack-v0"); current = { ...current, state: "pack-v1", enabled: true, installed_version_id: "version-1" }; decisions.push({ decision_id: "install-1", sequence: 1, action: "install", version_id: "version-1", version: "1.0", basis: envelope.payload.basis, accepted_authority: [], decided_by_id: 1, decided_at: "2026-01-02T00:00:00Z", adoptions: [] }); return response({ result: current }); }
       expect(envelope.operation).toBe("catalog_pack.adopt"); expect(envelope.expected_state).toBe("pack-v1"); expect(envelope.payload.entry_keys).toEqual(["part"]);
-      current = { ...current, state: "pack-v2" }; decisions.push({ decision_id: "adopt-1", sequence: 2, action: "adopt", version_id: "version-1", version: "1.0", basis: envelope.payload.basis, decided_by_id: 1, decided_at: "2026-01-03T00:00:00Z", adoptions: [{ key: "part", source_revision_id: "source-revision", definition_id: "new-definition", draft_id: "new-draft", status: "draft_created" }] }); return response({ result: current });
+      current = { ...current, state: "pack-v2" }; decisions.push({ decision_id: "adopt-1", sequence: 2, action: "adopt", version_id: "version-1", version: "1.0", basis: envelope.payload.basis, accepted_authority: [], decided_by_id: 1, decided_at: "2026-01-03T00:00:00Z", adoptions: [{ key: "part", source_revision_id: "source-revision", definition_id: "new-definition", draft_id: "new-draft", status: "draft_created" }] }); return response({ result: current });
     }
     if (path.startsWith("/api/v0/catalog-packs/packs?")) return response({ results: registered ? [current] : [], next_after: null });
     if (path === "/api/v0/catalog-packs/packs/pack-1") return response(current);
@@ -141,4 +141,30 @@ test("contributors import pack versions but cannot install or adopt", async () =
   expect(screen.getByText(/Installation and adoption need editor access/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Register exact version" })).toBeTruthy();
   expect(vi.mocked(fetch).mock.calls.every(([path]) => !String(path).includes("project_id"))).toBe(true);
+});
+
+test("an update requesting authority cannot be installed without separately accepting it", async () => {
+  const { PermissionsProvider } = await import("../../lib/permissions");
+  const request = { kind: "network_egress" as const, scope: "api.example.test", reason: "Fetch listings." };
+  const privileged: Version = { ...version, execution_authority: "declared_not_granted", manifest: { ...manifest, requested_authority: [request] }, authority_review: { requested: ["network_egress:api.example.test"], baseline: [], new: ["network_egress:api.example.test"], requires_acceptance: true } };
+  let installed: { accept_authority: string[] } | null = null;
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    const base = common(path); if (base) return base;
+    if (path.startsWith("/api/v0/catalog-packs/packs?")) return response({ results: [initialPack], next_after: null });
+    if (path === "/api/v0/catalog-packs/packs/pack-1") return response(initialPack);
+    if (path.includes("/packs/pack-1/history")) return response({ results: [], next_after: null });
+    if (path === "/api/v0/catalog-packs/versions/version-1") return response(privileged);
+    if (path === "/api/v0/operations") { installed = JSON.parse(String(init?.body)).payload; return response({ result: initialPack }); }
+    throw new Error(`Unexpected path ${path}`);
+  }));
+  render(<MantineProvider><PermissionsProvider permissions={["workspace.read", "item.create", "design.edit"]}><CatalogPacksWorkspace /></PermissionsProvider></MantineProvider>);
+  fireEvent.click(await screen.findByRole("button", { name: "Inspect pack" }));
+  await screen.findByText(/Requested authority \(declared, not granted/);
+  fireEvent.change(screen.getByLabelText("Pack decision basis"), { target: { value: "Reviewed." } });
+  const install = screen.getByRole("button", { name: "Install selected version" }) as HTMLButtonElement;
+  expect(install.disabled).toBe(true);
+  fireEvent.click(screen.getByLabelText(/Also accept the newly requested authority/));
+  expect(install.disabled).toBe(false);
+  fireEvent.click(install);
+  await waitFor(() => expect(installed?.accept_authority).toEqual(["network_egress:api.example.test"]));
 });
