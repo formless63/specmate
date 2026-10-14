@@ -6,7 +6,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { AssessmentResults, InterfaceAssessmentPanel } from "./InterfaceAssessmentPanel";
 import { initialAssessment, operating, type AssessmentDraft, type Result } from "./assessment-api";
-import { PermissionsProvider } from "../../lib/permissions";
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -264,7 +263,7 @@ test("fresh nested JSON key order after saving does not prevent freeze, while ch
 
 test("a frozen result is recorded only by an explicit contributor action", async () => {
   const f = fixture();
-  render(wrap(<PermissionsProvider permissions={["workspace.read"]}>{panel("viewer", false)}</PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={["workspace.read"]}><InterfaceAssessmentPanel projectId="project" principalKey="viewer" /></PermissionsProvider>));
   await choose("Saved assessment", "Original separated review");
   await choose("Frozen assessment revision", "Revision 1");
   await screen.findByText("Declared mating pair with explicit basis");
@@ -274,7 +273,7 @@ test("a frozen result is recorded only by an explicit contributor action", async
   expect(f.calls.some(call => call.operation.startsWith("evidence."))).toBe(false);
   cleanup();
   const g = fixture();
-  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create"]}>{panel("contributor", false)}</PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create"]}><InterfaceAssessmentPanel projectId="project" principalKey="contributor" /></PermissionsProvider>));
   await choose("Saved assessment", "Original separated review");
   await choose("Frozen assessment revision", "Revision 1");
   await screen.findByText("Declared mating pair with explicit basis");
