@@ -85,6 +85,6 @@ test('every select in the panel exposes an accessible name, including the frozen
   await screen.findByRole('button', { name: 'right/board · J1' });
   const boxes = screen.getAllByRole('combobox');
   expect(boxes.length).toBeGreaterThan(1);
-  for (const box of boxes) expect(box.getAttribute('aria-label') ?? box.labels?.[0]?.textContent ?? '').not.toBe('');
+  for (const box of boxes) expect(box.getAttribute('aria-label') ?? (box as HTMLInputElement).labels?.[0]?.textContent ?? '').not.toBe('');
   expect(screen.getByRole('combobox', { name: 'Frozen assembly scene' })).toBeTruthy();
 });
