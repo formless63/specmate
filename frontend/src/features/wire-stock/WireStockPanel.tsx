@@ -14,6 +14,11 @@ import { CableViews } from '../cable-views/CableViews';
 import { StockSectionView } from '../cable-views/StockSectionView';
 import { SbQuantity, SbQuantityField, SbUnknown } from '../../components/sb';
 import { rowLook, Swatch } from '../cable-views/Swatch';
+import { FromPreference, usePreferenceDefaults } from '../preferences/usePreferenceDefaults';
+
+/** Element kinds whose display colour a wire-colour preference may pre-fill. */
+const COLOUR_KINDS: StockElement['kind'][] = ['conductor', 'insulation', 'jacket'];
+type Marks = Record<string, string>;
 
 const clone = <T,>(value: T): T => structuredClone(value);
 const dimension = (value: number | null) => <SbQuantity value={value === null ? null : Number(value.toFixed(4))} unit="mm" />;
@@ -47,7 +52,7 @@ function newElement(kind: StockElement['kind'], siblings: StockElement[]): Stock
   if (kind === 'web') return { ...base, kind, width_mm: null, height_mm: null };
   return { ...base, kind, outer_diameter_mm: null, inner_diameter_mm: null, construction: null, area_mm2: null };
 }
-function ElementEditor({ node, path, onChange }: { node: StockElement; path: string; onChange: (path: string, patch: Partial<StockElement>) => void }) {
+function ElementEditor({ node, path, onChange, colour, marks, setMarks }: { node: StockElement; path: string; onChange: (path: string, patch: Partial<StockElement>) => void; colour: string | null; marks: Marks; setMarks: (update: (current: Marks) => Marks) => void }) {
   const [addKind, setAddKind] = useState<StockElement['kind']>('conductor');
   const structure = usePermission('item.create');
   const numberField = (label: string, key: string, value: number | null) => <MmEntry label={`${path} ${label}`} value={value} onChange={v => onChange(path, { [key]: v })} />;
@@ -65,13 +70,19 @@ function ElementEditor({ node, path, onChange }: { node: StockElement; path: str
         {node.arrangement !== 'concentric' && numberField('pitch mm', 'pitch_mm', node.pitch_mm)}
       </Group>
       <Group><Select label={`${path} add element kind`} value={addKind} data={['group', 'conductor', 'dielectric', 'insulation', 'shield', 'drain', 'filler', 'web', 'jacket']} onChange={v => v && setAddKind(v as StockElement['kind'])} />
-        <Button variant="light" onClick={() => onChange(path, { children: [...node.children, newElement(addKind, node.children)] })} {...structure.props}>Add element to {path}</Button></Group>
-      {node.children.map(child => <Stack key={child.id}><ElementEditor node={child} path={`${path}.${child.id}`} onChange={onChange} />
+        <Button variant="light" onClick={() => {
+          const added = newElement(addKind, node.children);
+          // A wire-colour preference fills only the display colour, and stays marked until edited or cleared.
+          if (colour && COLOUR_KINDS.includes(added.kind)) { added.color = colour; setMarks(current => ({ ...current, [added.id]: colour })); }
+          onChange(path, { children: [...node.children, added] });
+        }} {...structure.props}>Add element to {path}</Button></Group>
+      {node.children.map(child => <Stack key={child.id}><ElementEditor node={child} path={`${path}.${child.id}`} onChange={onChange} colour={colour} marks={marks} setMarks={setMarks} />
         <Button color="red" variant="subtle" size="xs" onClick={() => onChange(path, { children: node.children.filter(c => c.id !== child.id) })} {...structure.props}>Remove {path}.{child.id}</Button></Stack>)}
     </> : <>
       <Group>
         {node.kind === 'web' ? <>{numberField('width mm', 'width_mm', node.width_mm)}{numberField('height mm', 'height_mm', node.height_mm)}</> : <>{numberField('outer diameter mm', 'outer_diameter_mm', node.outer_diameter_mm)}{numberField('inner diameter mm', 'inner_diameter_mm', node.inner_diameter_mm)}</>}
-        <TextInput label={`${path} color`} value={node.color ?? ''} placeholder="Unknown (#RRGGBB)" onChange={e => onChange(path, { color: e.target.value || null })} />
+        <TextInput label={`${path} color`} value={node.color ?? ''} placeholder="Unknown (#RRGGBB)" onChange={e => { setMarks(({ [node.id]: _gone, ...rest }) => rest); onChange(path, { color: e.target.value || null }); }} />
+        {marks[node.id] !== undefined && node.color === marks[node.id] && <FromPreference what={`${path} colour`} onClear={() => { setMarks(({ [node.id]: _gone, ...rest }) => rest); onChange(path, { color: null }); }} />}
       </Group>
     </>}
   </Stack>;
@@ -91,6 +102,13 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
   const edit = usePermission('item.create');
   const [useHere, setUseHere] = useState(true);
   const freezeGate = usePermission('design.freeze');
+  const preferences = usePreferenceDefaults();
+  const [marks, setMarks] = useState<Marks>({});
+  const [gauge, setGauge] = useState<string | null>(null);
+  const [gaugeFromPreference, setGaugeFromPreference] = useState(false);
+  const [gaugeTouched, setGaugeTouched] = useState(false);
+  const preferredGauge = preferences.text('default_wire_gauge_system');
+  useEffect(() => { if (preferredGauge && !gaugeTouched) { setGauge(preferredGauge); setGaugeFromPreference(true); } }, [preferredGauge, gaugeTouched]);
   const section = useMemo(() => sectionLayout(stock), [stock]);
   const geometry = useMemo(() => stockGeometry(section, length), [section, length]);
   useEffect(() => {
@@ -135,6 +153,8 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
         if (key && stockPresets[key]) { setStock(clone(stockPresets[key])); setName(`Synthetic ${key}`); setCurrent(null); setDirty(true); setMessage(''); }
       }} />
       <TextInput label="Stock name" value={name} disabled={current !== null} onChange={e => setName(e.target.value)} />
+      <Group align="flex-end" gap="xs"><Select label="Conductor size system" description="Entry convention only; stored areas stay in mm²." clearable value={gauge} data={[{ value: 'awg', label: 'AWG' }, { value: 'mm2', label: 'mm²' }]} onChange={v => { setGaugeTouched(true); setGaugeFromPreference(false); setGauge(v); }} />
+        {gaugeFromPreference && gauge === preferredGauge && <FromPreference what="conductor size system" onClear={() => { setGaugeTouched(true); setGaugeFromPreference(false); setGauge(null); }} />}</Group>
       <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }); setDirty(true); } }} />
     </Group>
     {projectId && current === null && <Checkbox label="Use in this project" checked={useHere} onChange={e => setUseHere(e.currentTarget.checked)} />}
@@ -179,6 +199,6 @@ export function WireStockPanel({ projectId }: { projectId?: string | null }) {
       <TextInput label={`${key} source`} value={fact.source ?? ''} onChange={e => { setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, source: e.target.value || null } } }); setDirty(true); }} />
     </Group>)}
     <Title order={3}>Construction editor</Title>
-    <ElementEditor node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); setDirty(true); setMessage('Unsaved changes.'); }} />
+    <ElementEditor colour={preferences.list('wire_colours')[0] ?? null} marks={marks} setMarks={setMarks} node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); setDirty(true); setMessage('Unsaved changes.'); }} />
   </Stack>;
 }

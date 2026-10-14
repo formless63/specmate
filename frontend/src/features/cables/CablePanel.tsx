@@ -11,6 +11,7 @@ import type { Inspection as InterfaceInspection } from '../interfaces/api';
 import { authorityDenied, command, read, initialCable, type Cable, type Definition, type Draft, type Identity, type Inspection } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
 
 export function CablePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
 function Workspace({ projectId }: { projectId: string }) {
@@ -115,11 +116,11 @@ function DraftEditor({ draft, committedDraft, hidden, definitions, onSaved, onAu
   if (hidden) return null;
   return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor value={value} onChange={setValue} definitions={definitions} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
-function RevisionPicker({ label, kind, value, onChange, definitions }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[] }) {
+function RevisionPicker({ label, kind, value, onChange, definitions, nameFilter }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[]; nameFilter?: string | null }) {
   const [definition, setDefinition] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const identity = useQuery({ queryKey: ["cable-reference", definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
-  return <Stack gap="xs"><Select label={`${label} definition`} searchable value={definitions.some(d => d.definition_id === definition) ? definition : null} data={definitions.filter((d) => d.kind === kind).map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setDefinition(v); setOffset(0); }} /><Select label={`${label} revision`} value={identity.isError ? null : value || null} disabled={identity.isError} onChange={(v) => onChange(v ?? "")} data={(identity.isError ? [] : identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))} />{identity.data && !identity.isError && <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}<TextInput label={`${label} exact revision ID`} description="An accessible revision from another project can also be supplied." value={value} onChange={(e) => onChange(e.currentTarget.value)} />{identity.isError && <Alert color="red">{identity.error.message}</Alert>}</Stack>;
+  return <Stack gap="xs"><Select label={`${label} definition`} searchable value={definitions.some(d => d.definition_id === definition) ? definition : null} data={definitions.filter((d) => d.kind === kind && (!nameFilter || d.name.toLowerCase().includes(nameFilter.toLowerCase()))).map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setDefinition(v); setOffset(0); }} /><Select label={`${label} revision`} value={identity.isError ? null : value || null} disabled={identity.isError} onChange={(v) => onChange(v ?? "")} data={(identity.isError ? [] : identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))} />{identity.data && !identity.isError && <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}<TextInput label={`${label} exact revision ID`} description="An accessible revision from another project can also be supplied." value={value} onChange={(e) => onChange(e.currentTarget.value)} />{identity.isError && <Alert color="red">{identity.error.message}</Alert>}</Stack>;
 }
 
 function elements(node: StockElement, prefix = ''): { value: string; label: string }[] {
@@ -142,14 +143,23 @@ export function CableEditor({ value, onChange, definitions, onAuthorityChange }:
   const denied = stock.isError || sources.some(source => source.isError);
   useEffect(() => onAuthorityChange?.(denied), [denied, onAuthorityChange]);
   const choices = stock.data && !denied ? elements(stock.data.structure) : [];
+  // A connector-family preference only narrows the body picker by name; it never selects a body or asserts compatibility.
+  const families = usePreferenceDefaults().list('connector_families');
+  const familyKey = families.join('\u0000');
+  const [family, setFamily] = useState<string | null>(null);
+  const [familyFromPreference, setFamilyFromPreference] = useState(false);
+  const [familyTouched, setFamilyTouched] = useState(false);
+  useEffect(() => { if (familyKey && !familyTouched) { setFamily(familyKey.split('\u0000')[0] ?? null); setFamilyFromPreference(true); } }, [familyKey, familyTouched]);
   return <Stack>
     <RevisionPicker label="Cable stock" kind="wire_stock" value={value.stock_revision_id} onChange={stock_revision_id => onChange({ ...value, stock_revision_id })} definitions={definitions} />
     {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
+    {families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={v => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(v); }} />
+      {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(null); }} />}</Group>}
     {value.endpoints.map((endpoint, index) => <Card key={index} withBorder><Stack>
       <Title order={4}>Endpoint {index + 1}</Title>
       <TextInput label={`Endpoint ${index + 1} stable ID`} description="Renaming an ID retains its current assignments." value={endpoint.local_id} onChange={event => { const local_id = event.currentTarget.value; onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, local_id } : e), assignments: value.assignments.map(a => a.endpoint_id === endpoint.local_id ? { ...a, endpoint_id: local_id } : a) }); }} />
       <TextInput label={`Endpoint ${index + 1} label`} value={endpoint.label ?? ''} onChange={event => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, label: event.currentTarget.value || null } : e) })} />
-      <RevisionPicker label={`Endpoint ${index + 1} body`} kind="connector_body" value={endpoint.body_revision_id} onChange={body_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, body_revision_id } : e) })} definitions={definitions} />
+      <RevisionPicker label={`Endpoint ${index + 1} body`} kind="connector_body" nameFilter={family} value={endpoint.body_revision_id} onChange={body_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, body_revision_id } : e) })} definitions={definitions} />
       <RevisionPicker label={`Endpoint ${index + 1} pinout`} kind="pinout" value={endpoint.pinout_revision_id} onChange={pinout_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, pinout_revision_id } : e) })} definitions={definitions} />
       <TerminationEditor value={value} index={index} choices={choices} onChange={onChange} denied={denied} body={sourceFor('cable-body', endpoint.body_revision_id)} pinout={sourceFor('cable-pinout', endpoint.pinout_revision_id)} />
     </Stack></Card>)}

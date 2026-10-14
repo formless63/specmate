@@ -1,7 +1,8 @@
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
-import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, TagsInput, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
 import type { Projection } from "../assemblies/api";
 import { blankPlan, command, read, unknownCount, unknownDemand, type DemandQuantity, type Waste, type Count, type Definition, type Draft, type Identity, type Inspection, type Need, type Plan, type Purpose } from "./api";
 import { revisionOptionLabel } from "../../lib/revision-labels";
@@ -20,6 +21,12 @@ function Workspace({ projectId }: { projectId: string }) {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  const preferences = usePreferenceDefaults();
+  const preferredSuppliers = preferences.list("preferred_suppliers").join("\u0000");
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [suppliersFromPreference, setSuppliersFromPreference] = useState(false);
+  const [suppliersTouched, setSuppliersTouched] = useState(false);
+  useEffect(() => { if (preferredSuppliers && !suppliersTouched) { setSuppliers(preferredSuppliers.split("\u0000")); setSuppliersFromPreference(true); } }, [preferredSuppliers, suppliersTouched]);
   const definitions = useQuery({ queryKey: ["bom-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["bom-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["bom-draft", draftId], queryFn: () => read<Draft>(`bom/drafts/${draftId}`), enabled: !!draftId });
@@ -32,6 +39,8 @@ function Workspace({ projectId }: { projectId: string }) {
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
     <Card withBorder><Stack><Title order={3}>New BOM plan</Title>
       <InspectionScope permission="item.create"><TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
+      <Group align="flex-end" gap="xs"><TagsInput label="Supplier shortlist" description="Planning aid only; not saved with the plan and never a sourcing decision." value={suppliers} onChange={v => { setSuppliersTouched(true); setSuppliersFromPreference(false); setSuppliers(v); }} />
+        {suppliersFromPreference && suppliers.length > 0 && <FromPreference what="supplier shortlist" onClear={() => { setSuppliersTouched(true); setSuppliersFromPreference(false); setSuppliers([]); }} />}</Group>
       <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} /></InspectionScope>
       <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...createGate.props}>Create BOM draft</Button><ReadOnlyNote permission="item.create">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
@@ -96,6 +105,12 @@ function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions
   const contexts = [{ path: [] as string[], revision_id: value.assembly_revision_id }, ...(tree.data?.occurrences ?? []).map(n => ({ path: n.address.path, revision_id: n.revision_id }))];
   const [context, setContext] = useState("[]");
   const [need, setNeed] = useState<Need>({ local_id: "", context_path: [], revision_id: "", purpose: "consumables", quantity: unknownDemand(), basis: "" });
+  // The default length unit pre-fills only the unit of a new need; its amount stays unknown.
+  const preferredUnit = usePreferenceDefaults().text("default_length_unit");
+  const lengthUnit = (["m", "cm", "mm"] as const).find(unit => unit === preferredUnit) ?? null;
+  const [unitFromPreference, setUnitFromPreference] = useState(false);
+  const [unitTouched, setUnitTouched] = useState(false);
+  useEffect(() => { if (lengthUnit && !unitTouched) { setNeed(current => ({ ...current, quantity: { ...current.quantity, unit: lengthUnit } })); setUnitFromPreference(true); } }, [lengthUnit, unitTouched]);
   return <Stack>
     <RevisionPicker title="Root assembly" definitions={definitions.filter(d => d.kind === "assembly")} value={value.assembly_revision_id} onChange={id => onChange({ ...blankPlan(), assembly_revision_id: id, quantity: value.quantity })} />
     <CountInput title="Planned assembly quantity" value={value.quantity} onChange={quantity => onChange({ ...value, quantity })} />
@@ -117,7 +132,8 @@ function PlanEditor({ value, definitions, onChange }: { value: Plan; definitions
       <TextInput label="Need stable ID" value={need.local_id} onChange={e => setNeed({ ...need, local_id: e.currentTarget.value })} />
       <RevisionPicker title="Need item" definitions={definitions} value={need.revision_id} onChange={id => setNeed({ ...need, revision_id: id })} />
       <Select label="Need purpose" data={purposes.slice(2)} value={need.purpose} onChange={p => setNeed({ ...need, purpose: p as Need["purpose"] })} />
-      <DemandInput title="Need net demand per root assembly" value={need.quantity} onChange={quantity => setNeed({ ...need, quantity })} />
+      <Group align="flex-end" gap="xs"><DemandInput title="Need net demand per root assembly" value={need.quantity} onChange={quantity => { if (quantity.unit !== need.quantity.unit) { setUnitTouched(true); setUnitFromPreference(false); } setNeed({ ...need, quantity }); }} />
+        {unitFromPreference && need.quantity.unit === lengthUnit && <FromPreference what="need quantity unit" onClear={() => { setUnitTouched(true); setUnitFromPreference(false); setNeed({ ...need, quantity: { ...need.quantity, unit: "ea" } }); }} />}</Group>
       <WasteInput title="Need" value={need.waste} unit={need.quantity.unit} onChange={waste => setNeed({ ...need, waste })} />
       <TextInput label="Need basis" value={need.basis} onChange={e => setNeed({ ...need, basis: e.currentTarget.value })} />
       <Button disabled={!need.local_id || !need.revision_id || !need.basis} onClick={() => onChange({ ...value, needs: [...value.needs, { ...need, context_path: JSON.parse(context) as string[] }] })}>Add process need</Button>
