@@ -426,6 +426,24 @@ def test_registered_http_and_job_authority_transport(users, project, pair):
         inspect(old_actor, review["review_id"])
 
 
+def test_registered_http_forbidden_and_missing_reference_errors_are_indistinguishable(
+    users, project, pair
+):
+    review = open_review(users, project, pair)
+    outsider = api(users["outsider"])
+    missing_id = "00000000-0000-0000-0000-000000000000"
+    private = post_op(outsider, "collaboration.read", {"review_id": review["review_id"]})
+    missing = post_op(outsider, "collaboration.read", {"review_id": missing_id})
+    assert private.status_code == missing.status_code == 404
+    assert private.json() == missing.json()
+    private_pair = post_op(outsider, "collaboration.compare", pair[0])
+    missing_pair = post_op(
+        outsider, "collaboration.compare", {**pair[0], "old_revision_id": missing_id}
+    )
+    assert private_pair.status_code == missing_pair.status_code == 404
+    assert private_pair.json() == missing_pair.json()
+
+
 def test_supported_upgrade_proposal_pins_and_separate_adoption(users, project, pair):
     owner = users["owner"]
     owning = freeze(owner, create(owner, project, [occ("left", pair[1]), occ("right", pair[1])]))

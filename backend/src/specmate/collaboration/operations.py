@@ -34,6 +34,7 @@ def retained(ctx, name, scope):
             stored_authority(ctx, record.result)
 
 
+@queries.private_inputs
 def stored_authority(ctx, stored):
     if "notification_id" in stored:
         queries.notification_row(ctx.user, stored["notification_id"])
@@ -47,6 +48,7 @@ def stored_authority(ctx, stored):
                 raise NotFound("Change review receipt unavailable.")
 
 
+@queries.private_inputs
 def create_authority(ctx, p):
     authorize(ctx.user, p.project_id, Perm.DESIGN_EDIT)
     queries.revision_pair(ctx.user, p.old_revision_id, p.candidate_revision_id)
@@ -111,6 +113,7 @@ def create(ctx: Context, p: CreateReview):
     return queries.summary(ctx.user, review.id, permission=Perm.DESIGN_EDIT)
 
 
+@queries.private_inputs
 def mutation_scope(ctx, p):
     review, _, _, _ = queries.review_rows(ctx.user, p.review_id, Perm.DESIGN_EDIT)
     if isinstance(p, RespondReview):
@@ -137,6 +140,7 @@ def mutation_replay(ctx, p, stored):
     stored_authority(ctx, stored)
 
 
+@queries.private_inputs
 def editable(ctx, p):
     review, _, _, entries = queries.review_rows(ctx.user, p.review_id, Perm.DESIGN_EDIT, lock=True)
     if isinstance(p, RespondReview):

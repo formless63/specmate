@@ -1,6 +1,7 @@
 """Fresh full closure precedes comparisons, history, inbox labels and pagination."""
 
 import json
+from functools import wraps
 
 from specmate.access.models import Membership
 from specmate.access.permissions import Perm, authorize
@@ -21,6 +22,20 @@ from specmate.revision_upgrades import queries as upgrades
 MAX_ENTRIES = 500
 
 
+def private_inputs(function):
+    """Missing and forbidden references share one response, without existence hints."""
+
+    @wraps(function)
+    def guarded(*args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        except NotFound:
+            raise NotFound("Change review inputs unavailable.") from None
+
+    return guarded
+
+
+@private_inputs
 def revision_pair(user, old_id, candidate_id):
     user = current_actor(user)
     return get_revision(user, old_id), get_revision(user, candidate_id)
@@ -125,6 +140,7 @@ def compare(user, payload):
     }
 
 
+@private_inputs
 def knowledge_pin(user, pin):
     if pin is None:
         return None
@@ -135,6 +151,7 @@ def knowledge_pin(user, pin):
     return entry, {"item_id": str(item.id), **entry_result(entry, attachments.get(entry.id, []))}
 
 
+@private_inputs
 def review_rows(user, review_id, permission=Perm.PROJECT_READ, *, lock=False):
     user = current_actor(user)
     query = ChangeReview.objects.select_related("knowledge_entry")
@@ -246,6 +263,7 @@ def project_reviews(user, payload):
     return visible_page(query, payload, render)
 
 
+@private_inputs
 def notification_row(user, notification_id, *, lock=False):
     user = current_actor(user)
     query = InternalNotification.objects.select_related("entry__review")
