@@ -132,7 +132,7 @@ test("Ctrl K opens the jump palette and choosing a tool navigates across areas",
   fireEvent.click(screen.getByRole("button", { name: "Jump to a tool or area" }));
   const box = await screen.findByRole("combobox", { name: "Jump to an area or tool" }).catch(() => screen.findByPlaceholderText("Jump to an area or tool"));
   fireEvent.change(box, { target: { value: "Physical units" } });
-  fireEvent.click(await screen.findByText("Physical units", { selector: "*" }, { timeout: 3000 }).then((node) => node.closest("button") ?? node));
+  fireEvent.click(await screen.findByText("Physical units", { selector: "*" }).then((node) => node.closest("button") ?? node));
   expect(screen.getByRole("tablist", { name: "Inventory tools" })).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Physical units" }).getAttribute("aria-selected")).toBe("true");
 });

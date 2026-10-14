@@ -45,7 +45,7 @@ test('authored terminal pairs preserve unknown intent and exact identifiers; lab
   expect(values.at(-1)?.labels[0]).toMatchObject({ local_id: 'marker', text: 'Printed identity', evidence: { status: 'unknown' } });
   expect(commands[0]).toMatchObject({ operation: 'cable_test_plan.inspect_target', payload: { root_revision_id: 'cable-r1', cable_revision_id: 'cable-r1', occurrence_path: [] } });
   expect(commands[0]).not.toHaveProperty('idempotency_key');
-}, 10_000);
+});
 
 test('target denial removes source-derived choices and recovers unsaved authoring fields', async () => {
   let denied = false;
@@ -286,7 +286,7 @@ test('shared-plan frozen denial hides draft and target; deferred failed and succ
   fireEvent.click(screen.getByRole('button', { name: 'Save test-plan draft' }));
   await waitFor(() => expect(commands).toHaveLength(1));
   expect(commands[0]).toMatchObject({ operation: 'cable_test_plan.update', expected_state: 'draft-v1', payload: { test_plan: { labels: [{ text: 'Protected label' }, { text: 'Unsaved label text' }] } } });
-}, 10_000);
+});
 
 test.each([false, true])('delayed inspector denial ignores only actual editor replacement, replacement=%s', async replaceEditor => {
   const fixture = sharedPlanFixture();
@@ -332,7 +332,7 @@ test.each([false, true])('delayed inspector denial ignores only actual editor re
     expect(screen.queryByText('Protected pair expectation')).toBeNull();
     expect(screen.queryByRole('link')).toBeNull();
   }
-}, 10_000);
+});
 
 test.each([
   ['read-only', ['project.read'], true, true],
