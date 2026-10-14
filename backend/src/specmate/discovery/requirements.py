@@ -69,6 +69,15 @@ EXPLICIT: dict[str, Requirement] = {
     "build.cancel": _p(Perm.PROJECT_READ),  # requester may cancel; others need build.execute
     "build.get": _p(Perm.PROJECT_READ),
     "build.output": _p(Perm.PROJECT_READ),
+    "build.retry": _p(Perm.BUILD_EXECUTE),
+    "build.abandon": _p(Perm.PROJECT_READ),  # requester may abandon; others need build.execute
+    "diagnostics.installation": Requirement(OPERATOR),
+    "installation.safe_stop": Requirement(OPERATOR),
+    "installation.resume": Requirement(OPERATOR),
+    "installation.reconcile": Requirement(OPERATOR),
+    # Project-less reads: authorization is per returned object, not a project role.
+    "catalog.revision_labels": Requirement(AUTHENTICATED),
+    "evidence.taxonomy": Requirement(AUTHENTICATED),
     "firmware_build.request": _p(Perm.BUILD_EXECUTE),
     "pcb.request_extraction": _p(Perm.BUILD_EXECUTE),
     "pcb_disagreement.request_native": _p(Perm.BUILD_EXECUTE),

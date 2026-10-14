@@ -65,7 +65,24 @@ def compare(users, data):
 
 
 def observation(users, target):
+    """Record a synthetic device-test result.
+
+    A physical measurement attaches only to an actual physical unit; a result recorded on a
+    revision, occurrence or project subject is a design-scope reported observation, so it uses the
+    source-observation method and carries no instrument metadata.
+    """
     ledger = subject(users["owner"], target)
+    evidence = [{"kind": "citation", "citation": "Synthetic result"}]
+    if target["kind"] == "physical_unit":
+        provenance = {
+            "method": "measurement",
+            "observed_at": "2026-01-01T12:00:00Z",
+            "instrument": "Synthetic tester",
+            "procedure": "Synthetic test only.",
+            "evidence": evidence,
+        }
+    else:
+        provenance = {"method": "source_observation", "evidence": evidence}
     return append(
         users["owner"],
         ledger,
@@ -73,13 +90,7 @@ def observation(users, target):
             "device_test",
             role="actual",
             value={"kind": "boolean", "value": True},
-            provenance={
-                "method": "measurement",
-                "observed_at": "2026-01-01T12:00:00Z",
-                "instrument": "Synthetic tester",
-                "procedure": "Synthetic test only.",
-                "evidence": [{"kind": "citation", "citation": "Synthetic result"}],
-            },
+            provenance=provenance,
         ),
     )["assertion"]
 
