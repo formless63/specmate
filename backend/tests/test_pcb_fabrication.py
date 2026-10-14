@@ -11,6 +11,7 @@ from django.test import RequestFactory
 
 from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageOutput
+from specmate.builds.rights import derive_for_record, derive_for_revision
 from specmate.operations import (
     IdempotencyMismatch,
     NotFound,
@@ -94,7 +95,13 @@ def requested(users, intake, accepted, fabrication_recipe):
 
 
 def register_test_outputs(
-    requested, mutate=None, invalid=None, source_revision_id=None, copper=2, project=None
+    requested,
+    mutate=None,
+    invalid=None,
+    source_revision_id=None,
+    copper=2,
+    project=None,
+    rights=RIGHTS,
 ):
     stage = BuildStage.objects.get(build_id=requested["build_id"])
     media = output_media(copper)
@@ -156,7 +163,7 @@ def register_test_outputs(
             sha256=hashlib.sha256(content).hexdigest(),
             size=len(content),
             media_type="text/plain" if invalid == "media" else media[path],
-            rights="wrong-rights" if invalid == "rights" else RIGHTS,
+            rights="wrong-rights" if invalid == "rights" else rights,
             source_revision_id=source_revision_id or stage.build.source_revision_id,
         )
     stage.state = "succeeded"
@@ -584,11 +591,13 @@ def test_two_layer_report_cannot_satisfy_a_four_layer_build(users, intake, accep
 PROJECT = b'{"meta": {"version": 3}}\n'
 
 
-@pytest.fixture
-def project_requested(users, workspace, settings):
+def request_with_project(users, workspace, settings, project_rights=RIGHTS):
     """A preserved board with its same-stem project file, accepted intake and request."""
     files = []
-    for path, content in (("board.kicad_pcb", BOARD), ("board.kicad_pro", PROJECT)):
+    for path, content, rights in (
+        ("board.kicad_pcb", BOARD, RIGHTS),
+        ("board.kicad_pro", PROJECT, project_rights),
+    ):
         op(
             users["editor"],
             "source.register_blob",
@@ -605,7 +614,7 @@ def project_requested(users, workspace, settings):
                 "path": path,
                 "sha256": hashlib.sha256(content).hexdigest(),
                 "media_type": "application/octet-stream",
-                "rights": RIGHTS,
+                "rights": rights,
             }
         )
     source = op(
@@ -628,6 +637,11 @@ def project_requested(users, workspace, settings):
     return intake, requested
 
 
+@pytest.fixture
+def project_requested(users, workspace, settings):
+    return request_with_project(users, workspace, settings)
+
+
 def test_project_file_companion_is_accepted_and_must_match_the_report(users, project_requested):
     intake, requested = project_requested
     digest = hashlib.sha256(PROJECT).hexdigest()
@@ -635,6 +649,38 @@ def test_project_file_companion_is_accepted_and_must_match_the_report(users, pro
     register_test_outputs(requested, project={"path": "board.kicad_pro", "sha256": digest})
     result = op(users["viewer"], "pcb_fabrication.read", payload)
     assert result["report"]["project"]["sha256"] == digest
+
+
+def test_project_bundle_with_mixed_per_file_rights_fabricates_with_derived_output_rights(
+    users, workspace, settings
+):
+    """A board and its project file under different rights are neither refused nor collapsed:
+    outputs carry the server-derived most restrictive rights of every staged input."""
+    intake, requested = request_with_project(users, workspace, settings, "proprietary")
+    build = BuildAttempt.objects.get(id=requested["build_id"])
+    assert sorted(e["rights"] for e in build.staged_inputs) == sorted([RIGHTS, "proprietary"])
+    derived = derive_for_record(build.staged_inputs)[0]
+    assert derived == derive_for_revision(build.source_revision) == "proprietary"
+    payload = {"intake_id": intake["intake_id"], "build_id": requested["build_id"]}
+    project = {"path": "board.kicad_pro", "sha256": hashlib.sha256(PROJECT).hexdigest()}
+    register_test_outputs(requested, project=project, rights=derived)
+    result = op(users["viewer"], "pcb_fabrication.read", payload)
+    assert result["report"]["project"] == project
+    assert {o["rights"] for o in result["outputs"]} == {"proprietary"}
+
+
+def test_mixed_rights_outputs_claiming_only_the_board_rights_are_rejected(
+    users, workspace, settings
+):
+    intake, requested = request_with_project(users, workspace, settings, "proprietary")
+    project = {"path": "board.kicad_pro", "sha256": hashlib.sha256(PROJECT).hexdigest()}
+    register_test_outputs(requested, project=project, rights=RIGHTS)
+    with pytest.raises(ValidationFailed):
+        op(
+            users["viewer"],
+            "pcb_fabrication.read",
+            {"intake_id": intake["intake_id"], "build_id": requested["build_id"]},
+        )
 
 
 @pytest.mark.parametrize("claimed", [None, {"path": "board.kicad_pro", "sha256": "c" * 64}])

@@ -17,6 +17,7 @@ from specmate.access.models import Installation, WorkspaceMember
 from specmate.builds.dispatch import ack_outbox, ready_outbox, record_dispatch_failure
 from specmate.builds.models import BuildAttempt, BuildOutbox, BuildStage, StageEvent, StageOutput
 from specmate.builds.operations import authenticate_runner
+from specmate.builds.recipes import MAX_ARG_BYTES
 from specmate.operations import (
     Conflict,
     Context,
@@ -674,7 +675,7 @@ def test_build_rejects_limits_outside_runner_capability_without_outbox(
     "change",
     [
         {"argv": ["relative-command"]},
-        {"argv": ["/tool", "x" * 8193]},
+        {"argv": ["/tool", "x" * (MAX_ARG_BYTES + 1)]},
         {"image": "example.invalid/Uppercase@sha256:" + "1" * 64},
         {"paths": ["file", "file/nested.txt"]},
         {"paths": ["directory/" * 32 + "result.txt"]},

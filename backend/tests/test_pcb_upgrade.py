@@ -16,6 +16,7 @@ from django.test import Client
 
 from specmate.access.models import WorkspaceMember
 from specmate.builds.models import BuildStage, StageOutput
+from specmate.builds.recipes import MAX_ARG_BYTES
 from specmate.operations import NotFound, PermissionDenied, Unsupported, ValidationFailed
 from specmate.pcb.formats import CLASSIFIER, format_message, kicad_major
 from specmate.pcb.models import PcbFormatUpgrade, PcbIntake
@@ -209,7 +210,7 @@ def test_format_classifier_gives_specific_messages():
 
 def test_upgrade_recipe_is_bounded_and_pins_exact_inputs_and_outputs():
     recipe = upgrade_recipe_for(BOARD_PATH, RIGHTS, ["z.kicad_sch", "a.kicad_sch"])
-    assert len(UPGRADE_SCRIPT) <= 8192 and len(EXTRACT_SCRIPT) <= 8192
+    assert len(UPGRADE_SCRIPT) <= MAX_ARG_BYTES and len(EXTRACT_SCRIPT) <= MAX_ARG_BYTES
     assert recipe["argv"][3:] == [
         "/outputs",
         f"/inputs/{BOARD_PATH}",
