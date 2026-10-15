@@ -155,21 +155,21 @@ export function BuildsPanel({ workspaceId, principalKey, active = true, onAccess
       {detail.receipt && <Stack gap={2}><Text size="sm">Receipt: {detail.receipt.outcome}{detail.receipt.exit_code !== null ? ` · exit code ${detail.receipt.exit_code}` : ' · no exit code observed'} · {detail.receipt.message}</Text>
         {detail.receipt.resolution && <Text size="sm">Resolved without runner confirmation ({pretty(detail.receipt.resolution)}); process termination is unconfirmed. Basis: {detail.receipt.basis}{detail.receipt.resolved_by ? ` · resolved by ${detail.receipt.resolved_by}` : ''}</Text>}</Stack>}
       {detail.staged_inputs
-        ? <Table><Table.Thead><Table.Tr><Table.Th>Staged input</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
-          {detail.staged_inputs.map(i => <Table.Tr key={i.path}><Table.Td>{i.path}<Text size="xs">{i.bytes} bytes</Text></Table.Td><Table.Td><Text size="xs">{i.sha256}</Text></Table.Td><Table.Td>{i.rights}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+        ? <Table.ScrollContainer minWidth={560}><Table><Table.Thead><Table.Tr><Table.Th>Staged input</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+          {detail.staged_inputs.map(i => <Table.Tr key={i.path}><Table.Td>{i.path}<Text size="xs">{i.bytes} bytes</Text></Table.Td><Table.Td><Text size="xs">{i.sha256}</Text></Table.Td><Table.Td>{i.rights}</Table.Td></Table.Tr>)}</Table.Tbody></Table></Table.ScrollContainer>
         : <Text size="xs">Per-file input rights were not recorded for this older build; output rights are unknown.</Text>}
       {detail.state === 'succeeded' && <Stack gap={2} aria-label="Reproducibility">
         <ReproLevel level={detail.reproducibility?.level} />
         <Text size="xs">{detail.reproducibility ? LEVEL[detail.reproducibility.level].explain : 'Reproducibility evidence was not reported.'} A tool success is not engineering or physical qualification.</Text>
-        {(detail.comparisons ?? []).length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Compared output</Table.Th><Table.Th>Other attempt</Table.Th><Table.Th>Bytes</Table.Th><Table.Th>Comparator</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+        {(detail.comparisons ?? []).length > 0 && <Table.ScrollContainer minWidth={640}><Table><Table.Thead><Table.Tr><Table.Th>Compared output</Table.Th><Table.Th>Other attempt</Table.Th><Table.Th>Bytes</Table.Th><Table.Th>Comparator</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
           {(detail.comparisons ?? []).map(c => <Table.Tr key={`${c.path}:${c.other_build_id}`}><Table.Td>{c.path}</Table.Td><Table.Td><Text size="xs">{c.other_build_id}</Text></Table.Td>
             <Table.Td>{c.byte_identical ? 'identical' : 'differ'}</Table.Td>
-            <Table.Td>{c.byte_identical ? 'not needed' : c.comparator ? `${c.comparator}: ${pretty(c.result)}` : 'none declared for this type'}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
+            <Table.Td>{c.byte_identical ? 'not needed' : c.comparator ? `${c.comparator}: ${pretty(c.result)}` : 'none declared for this type'}</Table.Td></Table.Tr>)}</Table.Tbody></Table></Table.ScrollContainer>}
       </Stack>}
       <Text size="xs">Output rights: {detail.output_rights.rights} ({detail.output_rights.basis === 'uniform' ? 'all inputs share these rights' : detail.output_rights.basis === 'most_restrictive' ? 'most restrictive input' : 'cannot be determined from the inputs'}).</Text>
-      {detail.outputs.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Verified output</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th><Table.Th>Status</Table.Th><Table.Th>Reproducibility</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
+      {detail.outputs.length > 0 && <Table.ScrollContainer minWidth={760}><Table><Table.Thead><Table.Tr><Table.Th>Verified output</Table.Th><Table.Th>SHA-256</Table.Th><Table.Th>Rights</Table.Th><Table.Th>Status</Table.Th><Table.Th>Reproducibility</Table.Th></Table.Tr></Table.Thead><Table.Tbody>
         {detail.outputs.map(o => <Table.Tr key={o.path}><Table.Td>{o.path}<Text size="xs">{o.size} bytes</Text></Table.Td><Table.Td><Text size="xs">{o.sha256}</Text></Table.Td><Table.Td>{o.rights}</Table.Td><Table.Td>{o.accepted ? 'Accepted' : 'Retained evidence only; not an accepted artifact'}</Table.Td>
-          <Table.Td>{o.accepted ? <ReproLevel level={o.reproducibility} /> : <Text size="xs">not applicable</Text>}</Table.Td></Table.Tr>)}</Table.Tbody></Table>}
+          <Table.Td>{o.accepted ? <ReproLevel level={o.reproducibility} /> : <Text size="xs">not applicable</Text>}</Table.Td></Table.Tr>)}</Table.Tbody></Table></Table.ScrollContainer>}
       <Text size="sm">History</Text>
       <ol aria-label="Build events">{detail.events.map((e, i) => <li key={i}><Text size="xs">{e.at} · {pretty(e.kind)}{typeof e.detail.reason === 'string' ? ` · ${pretty(e.detail.reason)}` : ''}</Text></li>)}</ol>
       <ReusableResultOffer excludeBuildId={detail.build_id} onInspect={id => void load(id)}
