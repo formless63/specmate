@@ -8,8 +8,9 @@ from specmate.design.operations import draft_state
 from specmate.interfaces.board_contracts import ProposeBoard, TraceBoard
 from specmate.interfaces.boards import propose_board, trace_board
 from specmate.interfaces.conventions import stock_conventions
+from specmate.interfaces.end_assembly_contracts import ResolveEnd
 from specmate.interfaces.operations import interface_draft
-from specmate.interfaces.queries import end_expectations, inspect_revision, trace
+from specmate.interfaces.queries import end_expectations, inspect_revision, resolve_end, trace
 from specmate.operations import Context, ValidationFailed
 
 router = Router(tags=["interfaces"])
@@ -99,3 +100,9 @@ def parse(model, payload):
 def conventions_for_stock(request, revision_id: UUID):
     """Frozen conductor conventions that apply to one frozen wire stock revision."""
     return stock_conventions(request.user, revision_id)
+
+
+@router.post("/end-stacks/resolve")
+def end_stack(request, payload: ResolveEnd):
+    """One end stack's layers, labelled terminals and joins (read-only)."""
+    return resolve_end(request.user, payload)

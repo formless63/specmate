@@ -21,11 +21,13 @@ from specmate.interfaces.contracts import (
     TraceInterface,
     UpdateInterface,
 )
+from specmate.interfaces.end_assembly_contracts import ResolveEnd
 from specmate.interfaces.queries import (
     authorize_content,
     dependency_revisions,
     inspect_revision,
     parse_content,
+    resolve_end,
     trace,
 )
 from specmate.operations import Context, NotFound, ValidationFailed, operation
@@ -93,7 +95,10 @@ def authorize_stored(ctx, stored):
 @operation(
     "interface.create",
     CreateInterface,
-    summary="Create a body, pinout, boundary mapping, port, board or separated assessment.",
+    summary=(
+        "Create a body, pinout, boundary mapping, port, board, end assembly or separated "
+        "assessment."
+    ),
     authorize_replay=replay,
     idempotency_scope=scope,
     access=Perm.ITEM_CREATE,
@@ -207,3 +212,14 @@ def board_trace(ctx: Context, p: TraceBoard):
 )
 def board_propose(ctx: Context, p: ProposeBoard):
     return propose_board(ctx.user, p)
+
+
+@operation(
+    "end_assembly.resolve",
+    ResolveEnd,
+    summary="Resolve one cable end stack's layers, labelled terminals and joins.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def end_resolve(ctx: Context, p: ResolveEnd):
+    return resolve_end(ctx.user, p)

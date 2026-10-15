@@ -152,7 +152,13 @@ def render(projection):
                     text = (
                         end["endpoint_id"]
                         + " / "
-                        + ("contact " + assignment["contact_id"] if assignment else "unassigned")
+                        + (
+                            "unassigned"
+                            if not assignment
+                            else "contact " + assignment["contact_id"]
+                            if assignment.get("contact_id")
+                            else assignment["layer_id"] + " " + assignment["terminal_label"]
+                        )
                     )
                     drawing.append(label(x, y, text))
                     if assignment:

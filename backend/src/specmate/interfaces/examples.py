@@ -483,3 +483,164 @@ def av_colour_code(signal_set_revision_id):
             },
         ],
     }
+
+
+def din_adapter_end(board_revision_id, plug_revision_id, plug_pinout_revision_id, shell=None):
+    """End assembly, board form: wire -> AV adapter board -> 10-pin plug -> shell.
+
+    The board layer names its carried plug, so the board's reviewed pad/contact
+    correspondence joins the board to the connector layer; nothing is joined by label.
+    """
+    return {
+        "kind": "end_assembly",
+        "description": "Synthetic console end: adapter board on a 10-pin plug in a shell",
+        "stack": {
+            "layers": [
+                {
+                    "kind": "board",
+                    "layer_id": "board",
+                    "board_revision_id": board_revision_id,
+                    "carried_connector_id": "plug",
+                },
+                {
+                    "kind": "connector",
+                    "layer_id": "connector",
+                    "body_revision_id": plug_revision_id,
+                    "pinout_revision_id": plug_pinout_revision_id,
+                },
+                {"kind": "shell", "layer_id": "shell", "part_revision_id": shell},
+            ],
+            "joins": [],
+        },
+        "review": "reviewed",
+        "review_basis": "Synthetic end drawing written for this example",
+    }
+
+
+# The inline form's hand-soldered part: a blanking resistor between a conductor and pin 16.
+BLANKING_CONTACT = "16"
+
+
+def rgb_inline_end(plug_revision_id, plug_pinout_revision_id, hood=None):
+    """End assembly, inline form: wire -> blanking resistor -> 21-pin plug -> hood.
+
+    The resistor's lead 2 is soldered to the blanking contact; lead 1 is where a conductor
+    lands. The plug's shell contact is bonded to the hood by a declared bond.
+    """
+    return {
+        "kind": "end_assembly",
+        "description": "Synthetic monitor end: 21-pin plug with an inline blanking resistor",
+        "stack": {
+            "layers": [
+                {
+                    "kind": "inline",
+                    "layer_id": "inline",
+                    "parts": [
+                        {
+                            "local_id": "r1",
+                            "label": "Blanking resistor",
+                            "component": {
+                                "kind": "resistor",
+                                "value": "220R",
+                                "reference": "R1",
+                                "resistance_ohm": "220",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "kind": "connector",
+                    "layer_id": "connector",
+                    "body_revision_id": plug_revision_id,
+                    "pinout_revision_id": plug_pinout_revision_id,
+                },
+                {"kind": "shell", "layer_id": "hood", "part_revision_id": hood},
+            ],
+            "joins": [
+                {
+                    "local_id": "r1-to-blanking",
+                    "a": {"layer_id": "inline", "terminal_id": "r1.2"},
+                    "b": {"layer_id": "connector", "terminal_id": BLANKING_CONTACT},
+                    "kind": "solder",
+                    "basis": "Synthetic end drawing written for this example",
+                },
+                {
+                    "local_id": "shell-bond",
+                    "a": {"layer_id": "connector", "terminal_id": "shell"},
+                    "b": {"layer_id": "hood", "terminal_id": "body"},
+                    "kind": "bond",
+                    "basis": "Synthetic end drawing written for this example",
+                },
+            ],
+        },
+        "review": "reviewed",
+        "review_basis": "Synthetic end drawing written for this example",
+    }
+
+
+# (core number, adapter board pad at end A, 21-pin contact at end B) for each coax centre.
+DEMO_CENTRES = [
+    (1, "r", "15"),
+    (2, "g", "11"),
+    (3, "b", "7"),
+    (4, "cs", "20"),
+    (5, "al", "3"),
+    (6, "ar", "1"),
+]
+# Each screen returns its own signal: video screens to video ground, audio to audio ground.
+DEMO_SCREENS = [
+    (1, "gnd", "5"),
+    (2, "gnd", "5"),
+    (3, "gnd", "17"),
+    (4, "gnd", "17"),
+    (5, "agnd", "4"),
+    (6, "agnd", "4"),
+]
+
+
+def _land(endpoint_id, element_path, layer_id, terminal_id):
+    return {
+        "endpoint_id": endpoint_id,
+        "element_path": element_path,
+        "layer_id": layer_id,
+        "terminal_id": terminal_id,
+    }
+
+
+def av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
+    """Six-coax console-to-monitor cable: board end at stock end A, inline end at B.
+
+    The blanking resistor's cable-side lead stays unterminated: this stock has no
+    conductor for it, and the cable says so rather than inventing one.
+    """
+    basis = "Synthetic wiring table written for this example"
+    assignments = []
+    for core, pad, contact in DEMO_CENTRES:
+        path = f"stock.core-{core}.center"
+        assignments.append(_land("a", path, "board", pad))
+        assignments.append(_land("b", path, "connector", contact))
+    for core, pad, contact in DEMO_SCREENS:
+        path = f"stock.core-{core}.screen"
+        assignments.append(_land("a", path, "board", pad))
+        assignments.append(_land("b", path, "connector", contact))
+    return {
+        "schema_version": "0.2",
+        "stock_revision_id": stock_revision_id,
+        "endpoints": [
+            {
+                "local_id": "a",
+                "label": "Console end",
+                "stock_end": "a",
+                "end_assembly_revision_id": end_a_revision_id,
+            },
+            {
+                "local_id": "b",
+                "label": "Monitor end",
+                "stock_end": "b",
+                "end_assembly_revision_id": end_b_revision_id,
+            },
+        ],
+        "assignments": [{**a, "basis": basis} for a in assignments],
+        "review": "reviewed",
+        "review_basis": basis,
+    }

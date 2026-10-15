@@ -119,8 +119,8 @@ listed as unknown; nothing is guessed. Selection on an engineering view is a ret
 recorded `viewed_from` end; the other end is that drawing mirrored about the vertical axis,
 so each ring reads the opposite way round. Rotation is a viewing input. Every conducting
 element has a terminal marker. A stock whose viewed-from end is unknown has no end face.
-Which stock end each cable endpoint is attached to is not part of the cable record, so
-the cable inspector lists every endpoint's contact for each element instead of assigning ends.
+Each cable end records which stock end it uses (`a`, `b` or `unknown`); an unknown stock
+end is never guessed, so the inspector lists every end's termination for each element.
 
 The wire viewer builds physically based materials from the same model with generated
 (code-only) surface textures, uses an image-based light when WebGL allows it, writes a
@@ -226,11 +226,12 @@ illustrations establish no physical wire length, BOM quantity, clearance or qual
 ## Two-end cable assignments
 
 A `cable` definition composes one exact `wire_stock` revision and two stable local
-endpoint IDs. Each endpoint pins an exact connector body and logical pinout revision;
-the body must be the exact revision selected by that pinout. Declared terminations
-identify the endpoint, full stock element path, contact ID and declaration basis.
-Conductors, shields and drains retain separate identities at both ends. A contact and
-a stock feature may each be assigned once per endpoint. Keying features, insulation
+endpoint IDs (content schema 0.2). Each end is an **end stack**, pinned from an exact
+`end_assembly` revision or declared ad hoc, and records the stock end it uses. Declared
+terminations identify the endpoint, full stock element path, a layer and a terminal of
+that layer, and the declaration basis. Conductors, shields and drains retain separate
+identities at both ends. A stock feature may be terminated once per endpoint; several
+features may land on one terminal (for example screens on one ground pad). Keying features, insulation
 and groups cannot be assigned as conductors. Shared screen appearance or pigtail
 geometry never creates a bond. Branches, joints and multi-end topology remain separate
 work under CAB-002; this two-end editor does not narrow that requirement.
@@ -248,6 +249,43 @@ concurrency-aware editing and frozen inspection. The inspection aligns each stab
 stock feature across both endpoints and shows pinned body/pinout roles and unknown
 ratings. HTTP reads are under `/api/v0/cables`; mutation and agent adapters use the
 same named operations. Existing stock section and geometry projections are unchanged.
+
+## End stacks and end assemblies
+
+An end stack is ordered from the wire outward and has at most one layer of each kind:
+
+- **board**: an exact `board` revision (labelled pads and declared paths). When the layer
+  names one of the board's carried connectors, that carried connector must be the stack's
+  exact connector body, and the board's *reviewed* pad/contact correspondence joins the
+  pads to the connector layer. An unreviewed correspondence reads `unknown`.
+- **inline**: hand-soldered parts (for example a series or blanking resistor), each with
+  the shared `InlineComponent` description and two leads, `<part>.1` and `<part>.2`.
+- **connector**: an exact connector body revision and its chosen pinout variant; the
+  pinout must pin that exact body revision. Contacts show the variant's typed signals.
+- **shell**: an optional exact part revision. It is mechanical: its single terminal,
+  `body`, joins nothing unless a `bond` join or a termination names it.
+
+Every other connection is an explicit join (`solder`, `crimp`, `mated`, `integrated` or
+`bond`) between terminals of two layers, with a basis; nothing is joined by label. A
+reusable `end_assembly` (an interface kind, edited in the Library's End assemblies lens)
+holds one stack and a review; cable ends pin its exact revision.
+
+`end_assembly.resolve` (and `POST /api/v0/interfaces/end-stacks/resolve`) returns a
+stack's layers, labelled terminals and joins. For pads and inline leads it lists the
+connector contacts each is declared to reach, naming every step (board path summary,
+landing, join) and the contact's typed signal; a step through an unreviewed landing or
+an unknown/switch path makes the reach `unknown`. Reaches are declared topology, never
+continuity. The copper graph projects the stack: declared joins, straight board copper
+and reviewed landings join copper; component and switch paths and inline parts stay
+`not_evaluated` boundaries; unreviewed landings are `unknown` boundaries.
+
+Schema 0.1 content (one connector per end, terminations to contacts) remains readable:
+it is read as a one-layer connector stack named `connector`, stock end `unknown`, with
+each termination on that layer's contact. Frozen 0.1 bytes are never rewritten; the
+`cables` migration upgrades editable drafts only, and inspection reports the stored
+schema version. Connector-only consumers (test intent terminals, end preparation,
+documents, exports) read the connector layer; terminations on a board pad or inline lead
+carry no `contact_id` and those consumers report them by layer and terminal label.
 
 ## Branched harnesses and explicit relationships
 

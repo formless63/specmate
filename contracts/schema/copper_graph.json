@@ -216,7 +216,8 @@
             "shield_bond",
             "through",
             "native_net",
-            "board_copper"
+            "board_copper",
+            "join"
           ],
           "title": "Kind",
           "type": "string"
@@ -319,7 +320,8 @@
               "contact": "#/$defs/ContactTerminal",
               "endpoint": "#/$defs/EndpointTerminal",
               "pad": "#/$defs/PadTerminal",
-              "segment": "#/$defs/SegmentTerminal"
+              "segment": "#/$defs/SegmentTerminal",
+              "stack_terminal": "#/$defs/StackTerminal"
             },
             "propertyName": "kind"
           },
@@ -344,6 +346,9 @@
             },
             {
               "$ref": "#/$defs/CarriedContactTerminal"
+            },
+            {
+              "$ref": "#/$defs/StackTerminal"
             }
           ],
           "title": "Terminal"
@@ -424,6 +429,37 @@
         "element_path"
       ],
       "title": "SegmentTerminal",
+      "type": "object"
+    },
+    "StackTerminal": {
+      "additionalProperties": false,
+      "description": "A board pad, inline part lead or shell body in one cable end's stack.",
+      "properties": {
+        "endpoint_id": {
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "stack_terminal",
+          "default": "stack_terminal",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "terminal_id": {
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "layer_id",
+        "terminal_id"
+      ],
+      "title": "StackTerminal",
       "type": "object"
     }
   },

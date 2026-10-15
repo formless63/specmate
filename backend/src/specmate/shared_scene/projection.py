@@ -168,7 +168,9 @@ class Resources:
             if gid:
                 geometry_ids.append(gid)
         elif kind == "cable":
-            cable = content["cable"]
+            from specmate.cables.contracts import upgrade_content
+
+            cable = upgrade_content(content["cable"])
             stock = self.revision(cable_stock_id(cable))
             length = ((cable.get("lengths") or {}).get("finished", {}).get("declaration", {})).get(
                 "amount_mm"
@@ -178,15 +180,26 @@ class Resources:
                 geometry_ids.append(gid)
             provenance.append({"role": "stock", **identity(stock)})
             for endpoint in cable["endpoints"]:
-                for field, role in (
-                    ("body_revision_id", "endpoint_body"),
-                    ("pinout_revision_id", "endpoint_pinout"),
-                ):
+                pins = []
+                if endpoint["end_assembly_revision_id"]:
+                    pins.append(("end_assembly_revision_id", "endpoint_end_assembly", endpoint))
+                for layer in (endpoint["stack"] or {}).get("layers", []):
+                    pins += [
+                        (field, role, layer)
+                        for field, role in (
+                            ("body_revision_id", "endpoint_body"),
+                            ("pinout_revision_id", "endpoint_pinout"),
+                            ("board_revision_id", "endpoint_board"),
+                            ("part_revision_id", "endpoint_shell"),
+                        )
+                        if layer.get(field)
+                    ]
+                for field, role, source in pins:
                     provenance.append(
                         {
                             "role": role,
                             "endpoint_id": endpoint["local_id"],
-                            **identity(self.revision(UUID(endpoint[field]))),
+                            **identity(self.revision(UUID(source[field]))),
                         }
                     )
                 feature(
@@ -196,7 +209,7 @@ class Resources:
                 feature(
                     "termination:" + assignment["endpoint_id"] + ":" + assignment["element_path"],
                     "termination",
-                    assignment["contact_id"],
+                    f"{assignment['layer_id']}/{assignment['terminal_id']}",
                     assignment,
                 )
             limitations.append("Endpoint placements and installed cable route are unknown.")

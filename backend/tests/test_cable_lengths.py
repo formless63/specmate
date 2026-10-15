@@ -417,6 +417,8 @@ def test_termination_change_requires_document_and_preparation_review(users, proj
         {
             "element_path": "stock.core",
             "endpoint_id": "right",
+            "before_target": "connector / b",
+            "after_target": "connector / a",
             "before_contact_id": "b",
             "after_contact_id": "a",
             "before_basis": "Synthetic terminal table",

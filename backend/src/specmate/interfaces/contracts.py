@@ -11,6 +11,7 @@ from specmate.interfaces.assessment_contracts import InterfaceAssessment
 from specmate.interfaces.board_contracts import Board
 from specmate.interfaces.condition_contracts import ConditionalRating, Polarity
 from specmate.interfaces.convention_contracts import ConductorConvention
+from specmate.interfaces.end_assembly_contracts import EndAssembly
 from specmate.interfaces.signal_contracts import SignalImpedance, SignalLevel, SignalRef, SignalSet
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
@@ -298,7 +299,8 @@ Interface = Annotated[
     | SignalSet
     | Port
     | Board
-    | ConductorConvention,
+    | ConductorConvention
+    | EndAssembly,
     Field(discriminator="kind"),
 ]
 INTERFACE_ADAPTER = TypeAdapter(Interface)
@@ -310,6 +312,7 @@ KINDS = {
     "signal_set",
     "port",
     "conductor_convention",
+    "end_assembly",
 }
 # Kinds that may also exist untyped: a generic board definition (for example a part in an
 # assembly) has no interface content until its terminals and paths are declared.

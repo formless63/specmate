@@ -248,9 +248,9 @@ class Seeder:
             "Demo 10-pin round DIN plug", examples.round_din_10_plug(din["revision_id"])
         )
         # A bought black-box adapter board carrying the plug (PCB-006).
-        interface("Demo AV adapter board", examples.av_adapter_board(plug["revision_id"]))
+        board = interface("Demo AV adapter board", examples.av_adapter_board(plug["revision_id"]))
         self.tally("board")
-        interface("Demo 21-pin RGB plug", examples.rgb_21_plug(rgb["revision_id"]))
+        rgb_plug = interface("Demo 21-pin RGB plug", examples.rgb_21_plug(rgb["revision_id"]))
         for variant in ("Console A AV", "Console B AV"):
             device = f"{variant} out"
             interface(f"Demo {device}", examples.console_port(variants[variant], device))
@@ -275,6 +275,48 @@ class Seeder:
         self.tally("convention")
         interface("Demo AV colour code", examples.av_colour_code(signals))
         self.tally("convention")
+        # Reusable cable ends: a board form and an inline-part form (CAB-001).
+        plug_variant = interface(
+            "Demo 10-pin plug Console A AV",
+            examples.console_pinout(signals, plug["revision_id"], "Console A AV"),
+        )
+        self.tally("pinout variant")
+        rgb_plug_variant = interface(
+            "Demo 21-pin RGB plug RGB input",
+            examples.rgb_pinout(signals, rgb_plug["revision_id"], "sink"),
+        )
+        self.tally("pinout variant")
+        shell = self.define("part", "Demo small round overmould shell")
+        hood = self.define("part", "Demo 21-pin hood")
+        end_a = interface(
+            "Demo 10-pin DIN plug + AV adapter board + shell",
+            examples.din_adapter_end(
+                board["revision_id"],
+                plug["revision_id"],
+                plug_variant["revision_id"],
+                shell["revision_id"],
+            ),
+        )
+        end_b = interface(
+            "Demo 21-pin RGB plug with inline blanking resistor + hood",
+            examples.rgb_inline_end(
+                rgb_plug["revision_id"], rgb_plug_variant["revision_id"], hood["revision_id"]
+            ),
+        )
+        self.tally("end assembly")
+        self.tally("end assembly")
+        cable = self.call(
+            "cable.create",
+            {
+                "workspace_id": self.ws,
+                "name": "Demo console to RGB monitor cable",
+                "cable": examples.av_demo_cable(
+                    stock["revision_id"], end_a["revision_id"], end_b["revision_id"]
+                ),
+            },
+        )
+        self.freeze("cable.freeze", cable)
+        self.tally("cable")
 
     def library(self) -> dict:
         symbols = self.source(

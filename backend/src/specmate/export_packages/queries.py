@@ -547,11 +547,25 @@ def cable_section(scope, package, p):
                         end["endpoint_id"],
                         assignment.get("contact_id") if assignment else None,
                         "assigned" if assignment else "unassigned",
+                        assignment.get("layer_id") if assignment else None,
+                        assignment.get("terminal_id") if assignment else None,
                     ]
                 )
         package.add(
             f"{base}/conductors.csv",
-            table(["element_path", "kind", "label", "endpoint_id", "contact_id", "status"], rows),
+            table(
+                [
+                    "element_path",
+                    "kind",
+                    "label",
+                    "endpoint_id",
+                    "contact_id",
+                    "status",
+                    "layer_id",
+                    "terminal_id",
+                ],
+                rows,
+            ),
             "text/csv",
             "cable",
             "cable",
