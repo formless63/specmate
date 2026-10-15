@@ -149,13 +149,13 @@ export function ConventionEditor({ value, onChange, definitions }: { value: Conv
     const index = stockRule(el.path);
     if (use === null) { if (index >= 0) onChange({ ...value, rules: value.rules.filter((_, i) => i !== index) }); return; }
     if (index >= 0) ruleAt(index, { use });
-    else onChange({ ...value, rules: [...value.rules, { element_path: el.path, colour: null, colour_hex: null, element_kind: null, use, preference: "preferred", basis: null }] });
+    else onChange({ ...value, rules: [...value.rules, { element_path: el.path, color: null, color_hex: null, element_kind: null, use, preference: "preferred", basis: null }] });
   };
   const hexValid = hex === "" || /^#[0-9a-fA-F]{6}$/.test(hex);
   const heads = <><Table.Th>Use</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Preference</Table.Th><Table.Th>Basis</Table.Th></>;
   return <Stack gap="xs">
     <Group align="end">
-      <Select label="Convention scope" value={value.scope} data={[{ value: "stock", label: "One exact wire stock" }, { value: "colour_code", label: "General color code" }]} onChange={(scope) => onChange({ ...value, scope: (scope ?? "stock") as Convention["scope"], stock_revision_id: null, rules: [] })} />
+      <Select label="Convention scope" value={value.scope} data={[{ value: "stock", label: "One exact wire stock" }, { value: "color_code", label: "General color code" }]} onChange={(scope) => onChange({ ...value, scope: (scope ?? "stock") as Convention["scope"], stock_revision_id: null, rules: [] })} />
       <TextInput label="Description" value={value.description ?? ""} onChange={(e) => onChange({ ...value, description: e.currentTarget.value || null })} />
     </Group>
     <RevisionPicker label="Signal set" kind="signal_set" definitions={definitions} value={value.signal_set_revision_id || null} onChange={(id) => onChange({ ...value, signal_set_revision_id: id, rules: value.rules.map((r) => ({ ...r, use: { ...r.use, signal_key: null } })) })} />
@@ -173,13 +173,13 @@ export function ConventionEditor({ value, onChange, definitions }: { value: Conv
         </Table.Tr>;
       })}</Table.Tbody>
     </Table></Table.ScrollContainer>}
-    {value.scope === "colour_code" && <>
+    {value.scope === "color_code" && <>
       <Table.ScrollContainer minWidth={900}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
         <Table.Thead><Table.Tr><Table.Th>Color</Table.Th><Table.Th>Kind</Table.Th>{heads}<Table.Th /></Table.Tr></Table.Thead>
         <Table.Tbody>{value.rules.map((rule, i) => {
-          const who = `${rule.colour ?? "color"}${rule.element_kind ? ` ${KIND_LABELS[rule.element_kind].toLowerCase()}` : ""}`;
-          return <Table.Tr key={`${rule.colour}:${rule.element_kind}:${i}`}>
-            <Table.Td><Text size="sm">{rule.colour}</Text>{rule.colour_hex ? <Text className="sb-mono" size="xs" c="dimmed">{rule.colour_hex}</Text> : <Text size="xs" c="dimmed">No exact display color</Text>}</Table.Td>
+          const who = `${rule.color ?? "color"}${rule.element_kind ? ` ${KIND_LABELS[rule.element_kind].toLowerCase()}` : ""}`;
+          return <Table.Tr key={`${rule.color}:${rule.element_kind}:${i}`}>
+            <Table.Td><Text size="sm">{rule.color}</Text>{rule.color_hex ? <Text className="sb-mono" size="xs" c="dimmed">{rule.color_hex}</Text> : <Text size="xs" c="dimmed">No exact display color</Text>}</Table.Td>
             <Table.Td>{rule.element_kind ? KIND_LABELS[rule.element_kind] : "Any"}</Table.Td>
             <UseCells who={who} clearable={false} use={rule.use} signals={signals} onUse={(use) => use && ruleAt(i, { use })} preference={rule.preference} onPreference={(preference) => ruleAt(i, { preference })} basis={rule.basis} onBasis={(basis) => ruleAt(i, { basis })} />
             <Table.Td><Button size="xs" variant="subtle" aria-label={`Remove ${who}`} onClick={() => onChange({ ...value, rules: value.rules.filter((_, j) => j !== i) })}>Remove</Button></Table.Td>
@@ -190,7 +190,7 @@ export function ConventionEditor({ value, onChange, definitions }: { value: Conv
         <TextInput label="Color name" value={color} onChange={(e) => setColor(e.currentTarget.value)} />
         <TextInput label="Exact display color" description="#RRGGBB; a stock matches only this exact color" error={hexValid ? undefined : "Use #RRGGBB"} value={hex} onChange={(e) => setHex(e.currentTarget.value)} />
         <Select label="Applies to" clearable placeholder="Any" value={colorKind} data={CONDUCTIVE_KINDS.map((k) => ({ value: k, label: KIND_LABELS[k] }))} onChange={(k) => setColorKind(k as ConductiveKind | null)} />
-        <Button disabled={!color.trim() || !hexValid || value.rules.some((r) => r.colour?.trim().toLowerCase() === color.trim().toLowerCase() && r.element_kind === colorKind)} onClick={() => { onChange({ ...value, rules: [...value.rules, { element_path: null, colour: color.trim(), colour_hex: hex || null, element_kind: colorKind, use: blankUse("spare"), preference: "preferred", basis: null }] }); setColor(""); setHex(""); }}>Add color rule</Button>
+        <Button disabled={!color.trim() || !hexValid || value.rules.some((r) => r.color?.trim().toLowerCase() === color.trim().toLowerCase() && r.element_kind === colorKind)} onClick={() => { onChange({ ...value, rules: [...value.rules, { element_path: null, color: color.trim(), color_hex: hex || null, element_kind: colorKind, use: blankUse("spare"), preference: "preferred", basis: null }] }); setColor(""); setHex(""); }}>Add color rule</Button>
       </Group>
     </>}
     <Group><Select label="Convention review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: (v ?? "unreviewed") as Convention["review"] })} /><TextInput label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></Group>
@@ -201,8 +201,8 @@ export function ConventionEditor({ value, onChange, definitions }: { value: Conv
 export function ConventionRows({ view }: { view: ConventionView }) {
   return <Table.ScrollContainer minWidth={640}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
     <Table.Thead><Table.Tr><Table.Th>{view.scope === "stock" ? "Conductor" : "Color"}</Table.Th><Table.Th>Kind</Table.Th><Table.Th>Usually used for</Table.Th><Table.Th>Preference</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
-    <Table.Tbody>{view.rows.map((row) => <Table.Tr key={row.element_path ?? `${row.colour}:${row.element_kind}`}>
-      <Table.Td className="sb-signal-name">{row.element_label ?? row.colour}{row.colour_hex && <Text className="sb-mono" size="xs" c="dimmed">{row.colour_hex}</Text>}{row.element_path && <Text className="sb-mono" size="xs" c="dimmed">{row.element_path}</Text>}</Table.Td>
+    <Table.Tbody>{view.rows.map((row) => <Table.Tr key={row.element_path ?? `${row.color}:${row.element_kind}`}>
+      <Table.Td className="sb-signal-name">{row.element_label ?? row.color}{row.color_hex && <Text className="sb-mono" size="xs" c="dimmed">{row.color_hex}</Text>}{row.element_path && <Text className="sb-mono" size="xs" c="dimmed">{row.element_path}</Text>}</Table.Td>
       <Table.Td>{row.element_kind ? KIND_LABELS[row.element_kind] : "Any"}</Table.Td>
       <Table.Td><Group gap={6} wrap="nowrap"><Text size="sm">{useText(row.use)}</Text>{row.use.signal && row.use.kind === "signal" && <SignalTypeChip type={row.use.signal.type} />}</Group></Table.Td>
       <Table.Td>{PREFERENCES.find((p) => p.value === row.preference)?.label}</Table.Td>

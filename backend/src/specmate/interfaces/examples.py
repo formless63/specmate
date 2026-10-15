@@ -230,7 +230,7 @@ def regional_console_pinout(set_revision_id, body_revision_id):
 def _video_pin(contact, behavior, impedance):
     return {
         "contact_id": contact,
-        "behaviour": behavior,
+        "behavior": behavior,
         "level": _level(0.7, "Vpp"),
         "impedance": _ohm(impedance),
         "coupling": "dc" if behavior == "drives" else "ac",
@@ -242,19 +242,19 @@ def _video_pin(contact, behavior, impedance):
 def console_port(pinout_revision_id, device, sync_needs_resistor=True):
     """A synthetic console AV output; contact 1 differs by variant (see DIN_PIN_1)."""
     pins = [_video_pin(c, "drives", 75) for c in ("2", "4", "6")]
-    pins.append({"contact_id": "8", "behaviour": "drives", "level": _level(5, "V")})
+    pins.append({"contact_id": "8", "behavior": "drives", "level": _level(5, "V")})
     if device == "Console B AV out":
         pins.append(
             {
                 "contact_id": "1",
-                "behaviour": "drives",
+                "behavior": "drives",
                 "level": _level(9, "V"),
                 "must_not_connect": True,
                 "must_not_connect_reason": "Supply output; never wire to a signal input",
             }
         )
     else:
-        pin = {"contact_id": "1", "behaviour": "drives", "basis": BASIS}
+        pin = {"contact_id": "1", "behavior": "drives", "basis": BASIS}
         if sync_needs_resistor:
             pin["needs_in_cable"] = [
                 {"conditioning": "series_resistor", "value": "470 ohm", "basis": BASIS}
@@ -279,7 +279,7 @@ def rgb_monitor_port(pinout_revision_id):
         "pinout_revision_id": pinout_revision_id,
         "role": "sink",
         "pins": [_video_pin(c, "accepts", 75) for c in ("7", "11", "15")]
-        + [{"contact_id": "20", "behaviour": "accepts", "coupling": "ac"}],
+        + [{"contact_id": "20", "behavior": "accepts", "coupling": "ac"}],
     }
 
 
@@ -465,25 +465,25 @@ def av_coax_convention(signal_set_revision_id, stock_revision_id):
     }
 
 
-def av_colour_code(signal_set_revision_id):
+def av_color_code(signal_set_revision_id):
     """A general color code: matches by exact display color, never by wire label."""
     return {
         "kind": "conductor_convention",
-        "scope": "colour_code",
+        "scope": "color_code",
         "signal_set_revision_id": signal_set_revision_id,
         "description": "Synthetic AV color habits",
         "rules": [
             {
-                "colour": "Red",
-                "colour_hex": "#c0392b",
+                "color": "Red",
+                "color_hex": "#c0392b",
                 "element_kind": "conductor",
                 "use": {"kind": "signal_type", "signal_type": "analog_video"},
                 "preference": "allowed",
                 "basis": "Synthetic habit",
             },
             {
-                "colour": "Gray",
-                "colour_hex": "#8a8a8a",
+                "color": "Gray",
+                "color_hex": "#8a8a8a",
                 "element_kind": "conductor",
                 "use": {"kind": "spare"},
                 "preference": "avoid",

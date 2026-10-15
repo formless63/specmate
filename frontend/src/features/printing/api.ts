@@ -35,10 +35,10 @@ export type ProfileRead = ProfileRecord & { parameters: ParameterRow[] };
 export type RevisionRow = { revision_id: string; number: number; sha256: string; frozen_at: string };
 
 export type Pin = { revision_id: string; snapshot_sha256: string };
-export type Orientation = { status: 'unknown' | 'as_modelled' | 'rotated'; rotation_deg: [number, number, number] | null; basis: string | null };
+export type Orientation = { status: 'unknown' | 'as_modeled' | 'rotated'; rotation_deg: [number, number, number] | null; basis: string | null };
 export type Supports = { status: 'unknown' | 'none' | 'auto' | 'buildplate_only'; basis: string | null };
 export type PrintPreparation = {
-  schema_version: '1'; variant_label: string; technology: Technology;
+  schema_version: '2'; variant_label: string; technology: Technology;
   part: { mechanical_revision_id: string; snapshot_sha256: string; source_local_id: string; path: string };
   model_units: Suggestion<'mm' | 'in'>;
   profiles: Record<Role, Pin>;

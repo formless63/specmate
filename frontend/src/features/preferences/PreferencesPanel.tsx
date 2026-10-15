@@ -5,7 +5,7 @@ import { SbUnknown } from "../../components/sb";
 import { LIST_KEYS, readPreferences, savePreferences, type Layer, type Preferences } from "./api";
 
 const LABELS: Record<string, string> = {
-  preferred_suppliers: "Preferred suppliers", wire_colours: "Wire colors", connector_families: "Connector families",
+  preferred_suppliers: "Preferred suppliers", wire_colors: "Wire colors", connector_families: "Connector families",
   default_length_unit: "Default length unit", default_wire_gauge_system: "Wire gauge system",
 };
 const LENGTH = ["mm", "cm", "m", "in", "ft"];

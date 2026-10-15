@@ -12,7 +12,7 @@ import { PREFILL_TARGETS } from "./usePreferenceDefaults";
 
 const effective = {
   preferred_suppliers: { value: ["Acme Supply"], source: "workspace" },
-  wire_colours: { value: ["red", "black"], source: "user" },
+  wire_colors: { value: ["red", "black"], source: "user" },
   connector_families: { value: ["Alpha"], source: "workspace" },
   default_length_unit: { value: "m", source: "workspace" },
   default_wire_gauge_system: { value: "awg", source: "user" },
@@ -75,7 +75,7 @@ test("a preference never fills an engineering fact, rating or dimension", async 
   expect(added.color).toBe("red");
   for (const key of ["outer_diameter_mm", "inner_diameter_mm", "area_mm2", "construction", "material", "source"]) expect(added[key]).toBeNull();
   // Only naming/convention targets exist; none is a fact or rating field.
-  expect(Object.keys(PREFILL_TARGETS).sort()).toEqual(["connector_families", "default_length_unit", "wire_colours"]);
+  expect(Object.keys(PREFILL_TARGETS).sort()).toEqual(["connector_families", "default_length_unit", "wire_colors"]);
   for (const target of Object.values(PREFILL_TARGETS)) expect(target).not.toMatch(/fact|rating|limit|voltage|current|impedance|tolerance|dimension|diameter/i);
 });
 

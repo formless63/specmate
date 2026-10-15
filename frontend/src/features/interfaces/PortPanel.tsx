@@ -131,7 +131,7 @@ export function PortEditor({ value, onChange, definitions }: { value: Port; onCh
         return <Table.Tr key={row.contact_id}>
           <Table.Td className="sb-mono">{who}</Table.Td>
           <Table.Td><EndSignal row={{ ...row, ...conditionalRow(row, value.selected_conditions) }} /></Table.Td>
-          <Table.Td><Select size="xs" aria-label={`Device behavior at contact ${who}`} value={p.behaviour} data={BEHAVIOR} onChange={(v) => put(row.contact_id, { behaviour: (v ?? "unknown") as PortPin["behaviour"] })} /></Table.Td>
+          <Table.Td><Select size="xs" aria-label={`Device behavior at contact ${who}`} value={p.behavior} data={BEHAVIOR} onChange={(v) => put(row.contact_id, { behavior: (v ?? "unknown") as PortPin["behavior"] })} /></Table.Td>
           <Table.Td><NumberInput size="xs" aria-label={`Level at contact ${who} (blank = unknown)`} placeholder="unknown" value={p.level.nominal ?? ""} onChange={(raw) => { const n = raw === "" ? null : Number(raw); put(row.contact_id, { level: { ...quantity(p.level, Number.isFinite(n) ? n : null), unit: n === null ? "unknown" : p.level.unit && p.level.unit !== "unknown" ? p.level.unit : "V" } }); }} /></Table.Td>
           <Table.Td><Select size="xs" aria-label={`Level unit at contact ${who}`} disabled={p.level.status !== "known"} placeholder="unknown" value={p.level.status === "known" ? p.level.unit ?? "V" : null} data={["V", "Vpp", "dBu", "dBV"]} onChange={(unit) => put(row.contact_id, { level: { ...p.level, unit: unit ?? "V" } })} /></Table.Td>
           <Table.Td><NumberInput size="xs" aria-label={`Impedance at contact ${who} (blank = unknown)`} placeholder="unknown" value={p.impedance.nominal ?? ""} onChange={(raw) => { const n = raw === "" ? null : Number(raw); put(row.contact_id, { impedance: { ...quantity(p.impedance, Number.isFinite(n) ? n : null), unit: "ohm" } }); }} /></Table.Td>
@@ -196,7 +196,7 @@ export function CableEndInspector({ revisionId }: { revisionId: string }) {
           return <Table.Tr key={row.contact_id}>
             <Table.Td className="sb-mono">{row.number ?? row.contact_id}</Table.Td>
             <Table.Td><EndSignal row={row} /></Table.Td>
-            <Table.Td>{d && d.behaviour !== "unknown" ? d.behaviour : <SbUnknown what="Behavior" />}</Table.Td>
+            <Table.Td>{d && d.behavior !== "unknown" ? d.behavior : <SbUnknown what="Behavior" />}</Table.Td>
             <Table.Td>{d ? <DeclaredValue value={d.level} unit={d.level.unit ?? ""} what="Level" /> : <SbUnknown what="Level" />}</Table.Td>
             <Table.Td>{d ? <DeclaredValue value={d.impedance} unit="ohm" what="Impedance" /> : <SbUnknown what="Impedance" />}</Table.Td>
             <Table.Td>{d && d.coupling !== "unknown" ? d.coupling.toUpperCase() : <SbUnknown what="Coupling" />}</Table.Td>

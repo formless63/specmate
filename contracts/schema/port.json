@@ -61,7 +61,7 @@
           "default": null,
           "title": "Basis"
         },
-        "behaviour": {
+        "behavior": {
           "default": "unknown",
           "enum": [
             "drives",
@@ -70,7 +70,7 @@
             "none",
             "unknown"
           ],
-          "title": "Behaviour",
+          "title": "Behavior",
           "type": "string"
         },
         "contact_id": {
@@ -355,8 +355,8 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "0.1",
-      "default": "0.1",
+      "const": "0.2",
+      "default": "0.2",
       "title": "Schema Version",
       "type": "string"
     },

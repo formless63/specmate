@@ -390,7 +390,13 @@ def slice_spec(revision, preparation: PrintPreparation, closure) -> dict:
 
 def preparation_result(user, definition, content, draft=None, revision=None) -> dict:
     preparation = parse_preparation(content, definition.kind)
-    base = {**record_base(definition, draft, revision), "content": content, **STATUS}
+    # Content is shown in the current schema; stored frozen bytes are never rewritten.
+    shown = (
+        {**content, PREPARATION_KEY: preparation.model_dump(mode="json")}
+        if preparation
+        else content
+    )
+    base = {**record_base(definition, draft, revision), "content": shown, **STATUS}
     if preparation is None:
         return {**base, "part_identity": None, "parameters": [], "slicing": None}
     closure = preparation_closure(user, definition, preparation)

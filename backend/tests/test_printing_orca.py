@@ -204,7 +204,7 @@ def orca_body(part, profiles, **changes):
     body = preparation(
         part,
         profiles,
-        orientation={"status": "as_modelled", "basis": "Flat face down as modeled"},
+        orientation={"status": "as_modeled", "basis": "Flat face down as modeled"},
         copies=1,
         output_format="3mf",
     )

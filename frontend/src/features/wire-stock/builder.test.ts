@@ -154,6 +154,21 @@ describe('construction builder', () => {
     expect(readBuilder(stock)).toEqual(spec);
   });
 
+  it('reopens a multi-coax stock saved with the older "centre" element ids', () => {
+    const base = blankSpec('multicoax');
+    const spec: BuilderSpec = { ...base, source: 'Synthetic', conductor: { ...base.conductor, diameter_mm: 0.3, material: 'copper' },
+      insulation: { od_mm: 0.8, material: 'PE' }, cores: coreLooks('multicoax', 2, 'sequence'),
+      multi: { ...base.multi, center_mm: 0.15, dielectric_od_mm: 0.7, screen: 'braid', screen_thickness_mm: 0.05, jacket: true, jacket_od_mm: 1.1, looks: coaxLooks(6, 'sequence') },
+      shield: 'braid', braid_thickness_mm: 0.1, jacket: { od_mm: 5, wall_mm: 0.5, material: 'PVC', color: '#303030' } };
+    const stock = generate(spec);
+    expect(readBuilder(stock)).toEqual(spec);
+    expect(JSON.stringify(stock)).not.toContain('"centre"');
+    const legacy = JSON.parse(JSON.stringify(stock).replaceAll('"id":"center"', '"id":"centre"'));
+    expect(JSON.stringify(legacy)).toContain('"centre"');
+    expect(readBuilder(legacy)).toEqual(readBuilder(stock));
+    expect(readBuilder(legacy)?.multi.center_mm).toBe(0.15);
+  });
+
   it('keeps multi-coax lay-up unknown when a size is unknown', () => {
     const stock = generate({ ...blankSpec('multicoax'), source: null });
     expect(stock.structure.children[0]).toMatchObject({ pitch_mm: null });

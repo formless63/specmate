@@ -92,13 +92,13 @@ test("a stock convention maps elements by label to signals by name; unstated ele
 
 test("a color code is authored by color with an exact display color and element kind", async () => {
   stub();
-  render(wrap(<Harness initial={{ ...(initialInterface("conductor_convention") as Convention), scope: "colour_code", signal_set_revision_id: "set-r1" }} />));
+  render(wrap(<Harness initial={{ ...(initialInterface("conductor_convention") as Convention), scope: "color_code", signal_set_revision_id: "set-r1" }} />));
   fireEvent.change(screen.getByLabelText("Color name"), { target: { value: "Red" } });
   fireEvent.change(screen.getByLabelText(/Exact display color/), { target: { value: "#c0392b" } });
   await select("Applies to", "Conductor");
   fireEvent.click(screen.getByText("Add color rule"));
   await select("Use of Red conductor", "Carries a signal type");
-  await waitFor(() => expect(latest?.rules[0]).toMatchObject({ element_path: null, colour: "Red", colour_hex: "#c0392b", element_kind: "conductor", use: { kind: "signal_type", signal_type: "analog_video" } }));
+  await waitFor(() => expect(latest?.rules[0]).toMatchObject({ element_path: null, color: "Red", color_hex: "#c0392b", element_kind: "conductor", use: { kind: "signal_type", signal_type: "analog_video" } }));
   fireEvent.change(screen.getByLabelText(/Exact display color/), { target: { value: "red" } });
   expect(screen.getByText("Use #RRGGBB")).toBeTruthy();
 });
@@ -106,8 +106,8 @@ test("a color code is authored by color with an exact display color and element 
 const VIEW: ConventionView = { scope: "stock", effect: "preference", effect_note: "A convention ranks proposals and flags deviations. It is a preference: it never makes a check pass, and a conductor without a rule stays unknown.",
   stock: { revision_id: "stock-r1", definition_id: "stock", name: "Six-coax AV stock", number: 1 }, signal_set: { revision_id: "set-r1", name: "Workshop AV signals", number: 1 },
   rows: [
-    { element_path: "stock.core-1.center", element_label: "Core 1 (red) / Center", element_kind: "conductor", colour: null, colour_hex: null, use: { kind: "signal", signal_key: "video_red", signal_type: null, signal: { signal_set_revision_id: "set-r1", key: "video_red", name: "Red video", type: "analog_video", set_name: "AV", set_revision_number: 1 } }, preference: "preferred", basis: "Shop habit" },
-    { element_path: "stock.core-1.screen", element_label: "Core 1 (red) / Screen", element_kind: "shield", colour: null, colour_hex: null, use: { kind: "return_of", signal_key: "video_red", signal_type: null, signal: { signal_set_revision_id: "set-r1", key: "video_red", name: "Red video", type: "analog_video", set_name: "AV", set_revision_number: 1 } }, preference: "preferred", basis: null },
+    { element_path: "stock.core-1.center", element_label: "Core 1 (red) / Center", element_kind: "conductor", color: null, color_hex: null, use: { kind: "signal", signal_key: "video_red", signal_type: null, signal: { signal_set_revision_id: "set-r1", key: "video_red", name: "Red video", type: "analog_video", set_name: "AV", set_revision_number: 1 } }, preference: "preferred", basis: "Shop habit" },
+    { element_path: "stock.core-1.screen", element_label: "Core 1 (red) / Screen", element_kind: "shield", color: null, color_hex: null, use: { kind: "return_of", signal_key: "video_red", signal_type: null, signal: { signal_set_revision_id: "set-r1", key: "video_red", name: "Red video", type: "analog_video", set_name: "AV", set_revision_number: 1 } }, preference: "preferred", basis: null },
   ],
   unmapped: [{ element_path: "stock.core-2.center", element_label: "Core 2 (yellow) / Center", element_kind: "conductor" }] };
 
@@ -137,8 +137,8 @@ test("a stock view lists exact conventions with rows, others by name, and color 
   const applicable: Applicable = { stock_revision_id: "stock-r1", effect: "preference", effect_note: VIEW.effect_note, conventions: [
     { definition_id: "c1", name: "Six-coax AV convention", revision_id: "c-r1", number: 1, scope: "stock", review: "reviewed", rule_count: 2, exact: true, convention: VIEW },
     { definition_id: "c2", name: "Older habit", revision_id: "c-r2", number: 3, scope: "stock", review: "unreviewed", rule_count: 4, exact: false },
-    { definition_id: "c3", name: "AV color code", revision_id: "c-r3", number: 1, scope: "colour_code", review: "reviewed", rule_count: 1, exact: false,
-      matches: [{ element_path: "stock.core-1.center", element_label: "Core 1 (red) / Center", rule: { ...VIEW.rows[0]!, element_path: null, colour: "Red", colour_hex: "#c0392b", use: { kind: "signal_type", signal_key: null, signal_type: "analog_video", signal: null } } }] },
+    { definition_id: "c3", name: "AV color code", revision_id: "c-r3", number: 1, scope: "color_code", review: "reviewed", rule_count: 1, exact: false,
+      matches: [{ element_path: "stock.core-1.center", element_label: "Core 1 (red) / Center", rule: { ...VIEW.rows[0]!, element_path: null, color: "Red", color_hex: "#c0392b", use: { kind: "signal_type", signal_key: null, signal_type: "analog_video", signal: null } } }] },
   ] };
   vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("stock-revisions/stock-r1/conventions") ? applicable : {}))));
   render(wrap(<StockConventions revisionId="stock-r1" />));

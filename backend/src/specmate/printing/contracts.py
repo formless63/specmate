@@ -422,9 +422,17 @@ Degrees = Annotated[float, Field(ge=-360, le=360, allow_inf_nan=False)]
 class Orientation(Strict):
     """Rotation about X, then Y, then Z in degrees from the model's own frame."""
 
-    status: Literal["unknown", "as_modelled", "rotated"] = "unknown"
+    status: Literal["unknown", "as_modeled", "rotated"] = "unknown"
     rotation_deg: tuple[Degrees, Degrees, Degrees] | None = None
     basis: str | None = Field(default=None, min_length=1, max_length=2000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade(cls, value):
+        # Pre-1.0: schema 1 preparations spelled the as-modeled status "as_modelled".
+        if isinstance(value, dict) and value.get("status") == "as_modelled":
+            return {**value, "status": "as_modeled"}
+        return value
 
     @model_validator(mode="after")
     def coherent(self):
@@ -457,8 +465,20 @@ SLICER_TOOLS = (ORCA_TOOL_ID, "prusaslicer-2.5.0")
 SlicerTool = Literal["orcaslicer-2.4.2", "prusaslicer-2.5.0"]
 
 
+def upgrade_preparation_content(value):
+    """Map schema 1 print preparation content to schema 2 without validating it: the
+    "as_modelled" orientation status is now "as_modeled". Other content is unchanged."""
+    if not isinstance(value, dict) or value.get("schema_version", "1") != "1":
+        return value
+    out = {**value, "schema_version": "2"}
+    orientation = out.get("orientation")
+    if isinstance(orientation, dict) and orientation.get("status") == "as_modelled":
+        out["orientation"] = {**orientation, "status": "as_modeled"}
+    return out
+
+
 class PrintPreparation(Strict):
-    schema_version: Literal["1"] = "1"
+    schema_version: Literal["2"] = "2"
     variant_label: str = Field(min_length=1, max_length=200)
     technology: Technology
     part: PartPin
@@ -474,6 +494,13 @@ class PrintPreparation(Strict):
     limitations: list[Annotated[str, Field(min_length=1, max_length=2000)]] = Field(
         default_factory=list, max_length=50
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade(cls, value):
+        # Pre-1.0: schema 1 (stored or submitted) is read through the schema 2 shape; the
+        # orientation validator normalizes the status spelling.
+        return upgrade_preparation_content(value)
 
 
 class CreatePrintProfile(Strict):

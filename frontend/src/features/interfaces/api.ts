@@ -29,18 +29,18 @@ export type Mapping = { kind: "interface_map"; schema_version?: "0.1"; assembly_
 export const CONDITIONING = ["series_resistor", "series_capacitor", "shunt_resistor", "attenuator", "other"] as const;
 export type CableNeed = { conditioning: typeof CONDITIONING[number]; value: string | null; basis: string };
 export type PortPin = {
-  contact_id: string; behaviour: "drives" | "accepts" | "passes" | "none" | "unknown"; level: DeclaredQuantity; impedance: DeclaredQuantity;
+  contact_id: string; behavior: "drives" | "accepts" | "passes" | "none" | "unknown"; level: DeclaredQuantity; impedance: DeclaredQuantity;
   coupling: "ac" | "dc" | "unknown"; termination: "source_terminated" | "load_terminated" | "none" | "unknown";
   needs_in_cable: CableNeed[]; must_not_connect: boolean; must_not_connect_reason: string | null; basis: string | null;
 };
-export type Port = { kind: "port"; schema_version?: "0.1"; device_label: string; pinout_revision_id: string; role: PinoutRole; selected_conditions: Record<string, string>; pins: PortPin[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
+export type Port = { kind: "port"; schema_version?: "0.2"; device_label: string; pinout_revision_id: string; role: PinoutRole; selected_conditions: Record<string, string>; pins: PortPin[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
 export type ConventionUseKind = "signal" | "signal_type" | "return_of" | "spare" | "do_not_use";
 export type ConventionUse = { kind: ConventionUseKind; signal_key: string | null; signal_type: SignalType | null };
 export type ConductiveKind = "conductor" | "shield" | "drain";
-export type ConventionRule = { element_path: string | null; colour: string | null; colour_hex: string | null; element_kind: ConductiveKind | null; use: ConventionUse; preference: "preferred" | "allowed" | "avoid"; basis: string | null };
+export type ConventionRule = { element_path: string | null; color: string | null; color_hex: string | null; element_kind: ConductiveKind | null; use: ConventionUse; preference: "preferred" | "allowed" | "avoid"; basis: string | null };
 /** A shop's habit for what each conductor carries: a preference that never makes a check pass. */
-export type Convention = { kind: "conductor_convention"; schema_version?: "0.1"; scope: "stock" | "colour_code"; stock_revision_id: string | null; signal_set_revision_id: string; description: string | null; rules: ConventionRule[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
-export type ConventionRow = { element_path: string | null; element_label: string | null; element_kind: ConductiveKind | null; colour: string | null; colour_hex: string | null; use: ConventionUse & { signal: ResolvedSignal | null }; preference: ConventionRule["preference"]; basis: string | null };
+export type Convention = { kind: "conductor_convention"; schema_version?: "0.2"; scope: "stock" | "color_code"; stock_revision_id: string | null; signal_set_revision_id: string; description: string | null; rules: ConventionRule[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
+export type ConventionRow = { element_path: string | null; element_label: string | null; element_kind: ConductiveKind | null; color: string | null; color_hex: string | null; use: ConventionUse & { signal: ResolvedSignal | null }; preference: ConventionRule["preference"]; basis: string | null };
 export type ConventionView = {
   scope: Convention["scope"]; effect: "preference"; effect_note: string;
   stock: { revision_id: string; definition_id: string; name: string; number: number } | null;
@@ -83,7 +83,7 @@ export const SIGNAL_TYPE_LABELS: Record<SignalType, string> = {
   ground_return: "Ground / return", shield: "Screen", chassis: "Chassis", data: "Data", control: "Control", other: "Other", unknown: "Type unknown",
 };
 export const unknownPortPin = (contactId: string): PortPin => ({
-  contact_id: contactId, behaviour: "unknown", level: { ...unknownQuantity(), unit: "unknown" }, impedance: { ...unknownQuantity(), unit: "ohm" },
+  contact_id: contactId, behavior: "unknown", level: { ...unknownQuantity(), unit: "unknown" }, impedance: { ...unknownQuantity(), unit: "ohm" },
   coupling: "unknown", termination: "unknown", needs_in_cable: [], must_not_connect: false, must_not_connect_reason: null, basis: null,
 });
 

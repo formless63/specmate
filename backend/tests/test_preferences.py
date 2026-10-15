@@ -37,7 +37,7 @@ def test_workspace_defaults_and_user_override_merge_with_sources(users, workspac
             "scope": "workspace",
             "values": {
                 "preferred_suppliers": ["Acme Parts"],
-                "wire_colours": ["red", "black"],
+                "wire_colors": ["red", "black"],
                 "default_length_unit": "mm",
             },
         },
@@ -62,20 +62,20 @@ def test_explicit_null_clears_and_partial_update_keeps_others(users, workspace):
         {
             "workspace_id": workspace,
             "scope": "workspace",
-            "values": {"wire_colours": ["red"], "connector_families": ["Example family"]},
+            "values": {"wire_colors": ["red"], "connector_families": ["Example family"]},
         },
     )
     after = call(
         users["owner"],
-        {"workspace_id": workspace, "scope": "workspace", "values": {"wire_colours": None}},
+        {"workspace_id": workspace, "scope": "workspace", "values": {"wire_colors": None}},
         expected="preferences-v1",
     )
     assert after["workspace"]["values"] == {"connector_families": ["Example family"]}
-    assert after["effective"]["wire_colours"]["source"] == "none"
+    assert after["effective"]["wire_colors"]["source"] == "none"
 
 
 def test_authority_scope_and_state(users, workspace, other_workspace):
-    body = {"workspace_id": workspace, "scope": "workspace", "values": {"wire_colours": ["red"]}}
+    body = {"workspace_id": workspace, "scope": "workspace", "values": {"wire_colors": ["red"]}}
     with pytest.raises(PermissionDenied):
         call(users["contributor"], body)
     call(users["editor"], body)
@@ -101,7 +101,7 @@ def test_authority_scope_and_state(users, workspace, other_workspace):
     [
         {"connector_families": [{"name": "Example family", "rating": 5}]},
         {"connector_rating_amps": 5},
-        {"wire_colours": ["red", "RED"]},
+        {"wire_colors": ["red", "RED"]},
         {"default_length_unit": "furlong"},
     ],
 )

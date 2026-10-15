@@ -247,7 +247,7 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
     <details className="sb-builder-elements" open={builder === null || undefined}>
       <summary><Title order={3} component="span">Element editor (advanced)</Title></summary>
       <Text size="sm" c="dimmed">Every stored element, including ones the builder computes. Editing here can take the construction out of the builder.</Text>
-      <ElementEditor color={preferences.list('wire_colours')[0] ?? null} marks={marks} setMarks={setMarks} node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); changed(); }} />
+      <ElementEditor color={preferences.list('wire_colors')[0] ?? null} marks={marks} setMarks={setMarks} node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); changed(); }} />
     </details>
   </Stack>;
 }

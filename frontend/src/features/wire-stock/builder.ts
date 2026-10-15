@@ -246,7 +246,7 @@ export function generate(spec: BuilderSpec, keep?: Pick<StockSpecification, 'vie
     const coaxes = m.looks.map((look, i) => {
       const name = coaxName(look);
       const parts: RoundElement[] = [
-        round(spec, 'centre', `${name} center`, 'conductor', m.center_mm, 0, { material: spec.conductor.material, color: spec.conductor.color, construction: spec.conductor.construction, area_mm2: spec.conductor.area_mm2 }),
+        round(spec, 'center', `${name} center`, 'conductor', m.center_mm, 0, { material: spec.conductor.material, color: spec.conductor.color, construction: spec.conductor.construction, area_mm2: spec.conductor.area_mm2 }),
         round(spec, 'dielectric', `${name} dielectric`, 'dielectric', m.dielectric_od_mm, m.center_mm, { material: m.dielectric_material, color: m.jacket ? null : look.color }),
       ];
       let outer = m.dielectric_od_mm;
@@ -306,6 +306,7 @@ export function generate(spec: BuilderSpec, keep?: Pick<StockSpecification, 'vie
 
 type Node = StockElement;
 const child = (g: GroupElement | undefined, id: string): Node | undefined => g?.children.find(c => c.id === id);
+const centerOf = (g: GroupElement | undefined): Node | undefined => child(g, 'center');
 const asRound = (n: Node | undefined): RoundElement | undefined => n && n.kind !== 'group' && n.kind !== 'web' ? n : undefined;
 const asGroup = (n: Node | undefined): GroupElement | undefined => n?.kind === 'group' ? n : undefined;
 const half = (od: Known, inner: Known): Known => od === null || inner === null ? null : Number(((od - inner) / 2).toFixed(9));
@@ -322,7 +323,14 @@ function same(a: unknown, b: unknown): boolean {
 }
 
 /** The builder description that regenerates `stock` exactly, or null when it was edited element by element. */
-export function readBuilder(stock: StockSpecification): BuilderSpec | null {
+/** Stocks saved before the American spelling pass use the element id 'centre'; read them as 'center'. */
+function currentIds(node: StockElement): StockElement {
+  const renamed = node.id === 'centre' ? { ...node, id: 'center' } : node;
+  return renamed.kind === 'group' ? { ...renamed, children: renamed.children.map(currentIds) } : renamed;
+}
+
+export function readBuilder(saved: StockSpecification): BuilderSpec | null {
+  const stock = { ...saved, structure: currentIds(saved.structure) as StockSpecification['structure'] };
   const root = stock.structure;
   const ids = root.children.map(c => c.id);
   let template: TemplateKind;
@@ -339,13 +347,13 @@ export function readBuilder(stock: StockSpecification): BuilderSpec | null {
   } else return null;
   const coaxGroups = template === 'multicoax' ? ((asGroup(child(root, 'units'))?.children ?? []) as GroupElement[]).filter(c => c.id.startsWith('coax-')) : [];
   const c1 = coaxGroups[0];
-  const conductor = template === 'multicoax' ? (cores.length ? asRound(child(cores[0], 'conductor')) : asRound(child(c1, 'centre'))) : template === 'coax' ? asRound(child(root, 'center')) : asRound(child(cores[0], 'conductor'));
+  const conductor = template === 'multicoax' ? (cores.length ? asRound(child(cores[0], 'conductor')) : asRound(centerOf(c1))) : template === 'coax' ? asRound(child(root, 'center')) : asRound(child(cores[0], 'conductor'));
   const insulation = template === 'multicoax' ? (cores.length ? asRound(child(cores[0], 'insulation')) : asRound(child(c1, 'dielectric')))
     : template === 'coax' ? asRound(child(root, 'dielectric')) : asRound(child(cores[0], 'insulation'));
   if (!conductor || !insulation || (template !== 'coax' && template !== 'multicoax' && cores.length === 0) || (template === 'multicoax' && coaxGroups.length === 0)) return null;
   const cScreen = asRound(child(c1, 'screen')), cJacket = asRound(child(c1, 'jacket'));
   const multi: MultiCoax = template === 'multicoax' ? {
-    center_mm: asRound(child(c1, 'centre'))?.outer_diameter_mm ?? null,
+    center_mm: asRound(centerOf(c1))?.outer_diameter_mm ?? null,
     dielectric_od_mm: asRound(child(c1, 'dielectric'))?.outer_diameter_mm ?? null,
     dielectric_material: asRound(child(c1, 'dielectric'))?.material ?? null,
     screen: cScreen?.construction === 'foil' ? 'foil' : cScreen ? 'braid' : 'none',

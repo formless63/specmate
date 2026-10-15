@@ -288,7 +288,7 @@ class Seeder:
             examples.av_coax_convention(signals, stock["revision_id"]),
         )
         self.tally("convention")
-        interface("Demo AV color code", examples.av_colour_code(signals))
+        interface("Demo AV color code", examples.av_color_code(signals))
         self.tally("convention")
         # Reusable cable ends: a board form and an inline-part form (CAB-001).
         plug_variant = interface(
@@ -985,7 +985,7 @@ class Seeder:
                 "scope": "workspace",
                 "values": {
                     "preferred_suppliers": ["Demo Supply"],
-                    "wire_colours": ["red", "black"],
+                    "wire_colors": ["red", "black"],
                     "default_length_unit": "mm",
                 },
             },
