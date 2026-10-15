@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { StockRecordPage } from './StockRecordPage';
+import { emptyFormula } from '../preparation/api';
 import { exampleCoax, generate } from './builder';
 import { PermissionsProvider } from '../../lib/permissions';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
@@ -18,6 +19,10 @@ function server() {
     calls.push(path);
     if (deny) return reply({ error: { message: 'Access withdrawn' } }, 403);
     if (path.includes('/workspace/library/')) return reply({ record_id: 's1', label: 'Selected synthetic stock', kind: 'wire_stock', family: 'definition', latest_revision: newest, latest_revision_id: `r${newest}`, used_in: [], used_in_total: 0, referenceable: true });
+    if (path.includes('/workspace/library-table?')) return reply({ results: path.includes('kinds=preparation_profile') ? [{ record_id: 'profile-one', label: 'Practice one' }] : [], next_after: null });
+    if (path.includes('/catalog/definitions/profile-one')) return reply({ definition_id: 'profile-one', drafts: [{ draft_id: 'profile-draft', state: 'draft-v4' }], revisions: [] });
+    if (path.includes('/preparation/drafts/profile-draft')) return reply({ definition_id: 'profile-one', draft_id: 'profile-draft', state: 'draft-v4', content: { preparation_profile: { stock_revision_id: 'r2', formulas: [emptyFormula(1)] } } });
+    if (path.endsWith('/preparation/authority')) return reply({ readable: true });
     if (path.includes('/catalog/definitions/')) { const offset = Number(new URL(path, 'http://local').searchParams.get('offset') ?? 0); return reply({ definition_id: 's1', revisions: offset === 50 ? [{ number: 75, revision_id: 'r75' }] : [{ number: 1, revision_id: 'r1' }, { number: 2, revision_id: 'r2' }] }); }
     if (path.includes('/snapshot')) { const stock = generate(exampleCoax()); const jacket = stock.structure.children.find(child => child.kind === 'jacket'); if (jacket && jacket.kind !== 'group' && jacket.kind !== 'web') jacket.outer_diameter_mm = path.includes('/r1/') ? 3 : path.includes('/r75/') ? 7.5 : 6; return reply({ content: { stock } }); }
     if (path.includes('/stocks?')) return reply([{ definition_id: 's1', draft_id: 'd1', name: 'Selected synthetic stock', state: draftState, content: { stock: saved } }]);
@@ -26,6 +31,7 @@ function server() {
     if (path.endsWith('/operations')) { const command = JSON.parse(String(init?.body)); posts.push(command); if (held) await held;
       if (conflict) return reply({ error: { message: 'Draft changed since expected state.' } }, 409);
       if (command.operation === 'wire_stock.freeze') { newest = 3; draftState = 'draft-v6'; return reply({ result: { number: 3, revision_id: 'r3', draft: { state: draftState } } }); }
+      if (command.operation === 'preparation.update') return reply({ result: { definition_id: 'profile-one', draft_id: 'profile-draft', state: 'draft-v5', content: { preparation_profile: command.payload.profile } } });
       saved = command.payload.stock; draftState = 'draft-v5'; return reply({ result: { definition_id: 's1', draft_id: 'd1', name: 'Selected synthetic stock', state: draftState, content: { stock: saved } } });
     }
     return reply({ results: [], next_after: null });
@@ -43,7 +49,7 @@ const tab = (name: string) => fireEvent.click(screen.getByRole('tab', { name: ne
 test('direct stock opens one latest frozen state, no all-content startup or duplicate picker', async () => {
   const api = server(); mount();
   expect(await screen.findByRole('img', { name: 'Selected stock model 6 mm' })).toBeTruthy();
-  expect(screen.getByText('Frozen r2')).toBeTruthy(); expect(screen.queryByLabelText('Frozen stock definition')).toBeNull(); expect(screen.queryByLabelText('Stock name')).toBeNull();
+  expect(screen.getByText('Frozen r2')).toBeTruthy(); expect(screen.queryByLabelText('Frozen stock definition')).toBeNull(); expect(screen.queryByRole('textbox', { name: 'Stock name' })).toBeNull();
   expect(api.calls.filter(path => path.includes('/snapshot'))).toEqual(['/api/v0/revisions/r2/snapshot']);
   expect(api.calls.some(path => path.includes('/stocks') || path.includes('/workshop-profile'))).toBe(false);
 });
@@ -67,8 +73,8 @@ test('draft uses bounded read; save original CAS and freeze returned state only'
 });
 test('success then authority denial withdraws retained model, spec and inspector; unsaved draft recovers', async () => {
   const api = server(); mount({ draftRequested: true }); await screen.findByLabelText('Stock name'); fireEvent.change(screen.getByLabelText('Jacket outer diameter'), { target: { value: '3.3' } });
-  api.deny(true); fireEvent.click(screen.getByRole('button', { name: 'Refresh record' })); await screen.findByText('Stock unavailable'); expect(screen.queryByRole('img')).toBeNull(); expect(screen.queryByTitle('Selected stock specification')).toBeNull(); expect(screen.queryByLabelText('Jacket outer diameter')).toBeNull();
-  api.deny(false); fireEvent.click(screen.getByRole('button', { name: 'Refresh record' })); await screen.findByLabelText('Jacket outer diameter'); expect((screen.getByLabelText('Jacket outer diameter') as HTMLInputElement).value).toBe('3.3'); expect(screen.getByText('Draft v4 · unsaved')).toBeTruthy();
+  api.deny(true); fireEvent.click(screen.getByRole('button', { name: 'Refresh record' })); await screen.findByText('Stock unavailable'); expect(screen.queryByRole('img')).toBeNull(); expect(screen.queryByTitle('Selected stock specification')).toBeNull(); expect(screen.queryByRole('textbox', { name: 'Jacket outer diameter' })).toBeNull();
+  api.deny(false); fireEvent.click(screen.getByRole('button', { name: 'Refresh record' })); await screen.findByRole('textbox', { name: 'Stock name' }); expect((screen.getByLabelText('Jacket outer diameter') as HTMLInputElement).value).toBe('3.3'); expect(screen.getByText('Draft v4 · unsaved')).toBeTruthy();
 });
 test('newer server draft does not overwrite dirty buffer or its CAS after refresh', async () => {
   const api = server(); mount({ draftRequested: true }); await screen.findByLabelText('Stock name'); fireEvent.change(screen.getByLabelText('Jacket outer diameter'), { target: { value: '3.4' } }); api.advance(); fireEvent.click(screen.getByRole('button', { name: 'Refresh record' }));
@@ -79,11 +85,11 @@ test('new record starts unknown and uses construction central drawing; viewer ca
 });
 test('spec sheet and facts come from selected frozen state after draft visits', async () => {
   server(); const { rerender } = mount({ draftRequested: true }); await screen.findByLabelText('Stock name'); fireEvent.change(screen.getByLabelText('Jacket outer diameter'), { target: { value: '3.5' } });
-  rerender({ draftRequested: false, revisionNumber: 1 }); await screen.findByText('Frozen r1'); tab('Spec sheet'); const frame = screen.getByTitle('Selected stock specification') as HTMLIFrameElement; expect(frame.srcdoc).toContain('Frozen r1'); expect(frame.srcdoc).toContain('3 mm OD'); expect(frame.srcdoc).not.toContain('3.5 mm OD');
-  rerender({ draftRequested: true, revisionNumber: null }); await screen.findByLabelText('Jacket outer diameter'); expect((screen.getByLabelText('Jacket outer diameter') as HTMLInputElement).value).toBe('3.5');
+  rerender({ draftRequested: false, revisionNumber: 1 }); await screen.findByRole('tab', { name: /^Spec sheet$/ }); expect(screen.getByText('Frozen r1')).toBeTruthy(); tab('Spec sheet'); const frame = screen.getByTitle('Selected stock specification') as HTMLIFrameElement; expect(frame.srcdoc).toContain('Frozen r1'); expect(frame.srcdoc).toContain('3 mm OD'); expect(frame.srcdoc).not.toContain('3.5 mm OD');
+  rerender({ draftRequested: true, revisionNumber: null }); await screen.findByRole('textbox', { name: 'Stock name' }); expect((screen.getByLabelText('Jacket outer diameter') as HTMLInputElement).value).toBe('3.5');
 });
 test('inactive view disposes model and rechecks authority before showing it again', async () => {
-  const api = server(); const { rerender } = mount(); await screen.findByRole('img', { name: /Selected stock model/ }); rerender({ active: false }); expect(screen.getByRole('img', { name: /Selected stock model/ }).getAttribute('data-active')).toBe('false'); api.deny(true); rerender({ active: true }); await screen.findByText('Stock unavailable'); expect(screen.queryByRole('img')).toBeNull();
+  const api = server(); const { rerender } = mount(); await screen.findByRole('img', { name: /Selected stock model/ }); rerender({ active: false }); expect(screen.getByRole('img', { name: /Selected stock model/, hidden: true }).getAttribute('data-active')).toBe('false'); expect(screen.queryByRole('img')).toBeNull(); api.deny(true); rerender({ active: true }); await screen.findByText('Stock unavailable'); expect(screen.queryByRole('img')).toBeNull();
 });
 
 test('save response advances CAS without replacing edits made during its request', async () => {
@@ -106,4 +112,19 @@ test('central section jacket handle edits the actual draft and requires saving a
 
 test('create name is locked until its accepted identity is known', async () => {
   const api = server(); const { callbacks } = mount({ definitionId: null }); fireEvent.change(screen.getByLabelText('Stock name'), { target: { value: 'Submitted identity' } }); const release = api.hold(); fireEvent.click(screen.getByRole('button', { name: 'Save stock' })); expect((screen.getByLabelText('Stock name') as HTMLInputElement).disabled).toBe(true); await act(async () => release()); await waitFor(() => expect(callbacks.onCreated).toHaveBeenCalledWith('s1', true));
+});
+
+test('contextual preparation retains a dirty exact profile and original CAS across record refresh, rail hide, focus and denied parent recovery', async () => {
+  const api = server(); const { rerender } = mount(); await screen.findByText('Frozen r2'); tab('Practices');
+  fireEvent.click(screen.getByText('Cut arithmetic profiles')); await screen.findByLabelText('cut preparation name');
+  fireEvent.click(screen.getByText('Saved cut preparation profiles')); fireEvent.click(screen.getByRole('combobox', { name: 'cut preparation definition' })); fireEvent.click(await screen.findByRole('option', { name: 'Practice one' }));
+  fireEvent.click(await screen.findByRole('combobox', { name: 'cut preparation draft' })); fireEvent.click(await screen.findByRole('option', { name: 'draft-v4' })); fireEvent.click(screen.getByRole('button', { name: 'Load cut preparation draft (replace local edits)' })); await screen.findByText('draft-v4 · saved draft');
+  fireEvent.change(screen.getByLabelText('Formula 1 label'), { target: { value: 'Unsaved contextual formula' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh record' })); await waitFor(() => expect((screen.getByLabelText('Formula 1 label') as HTMLInputElement).value).toBe('Unsaved contextual formula'));
+  rerender({ active: false }); expect(screen.queryByRole('textbox', { name: 'Formula 1 label' })).toBeNull(); rerender({ active: true }); await waitFor(() => expect((screen.getByLabelText('Formula 1 label') as HTMLInputElement).value).toBe('Unsaved contextual formula'));
+  api.deny(true); act(() => window.dispatchEvent(new Event('focus'))); fireEvent.click(screen.getByRole('button', { name: 'Refresh record' })); await screen.findByText('Stock unavailable'); expect(screen.queryByRole('textbox', { name: 'Formula 1 label' })).toBeNull(); expect(screen.queryByRole('img')).toBeNull();
+  api.deny(false); fireEvent.click(screen.getByRole('button', { name: 'Refresh record' })); await screen.findByText('Frozen r2');
+  const recovery = screen.queryByRole('button', { name: 'Refresh cut preparation access' }); if (recovery) fireEvent.click(recovery);
+  await waitFor(() => expect((screen.getByLabelText('Formula 1 label') as HTMLInputElement).value).toBe('Unsaved contextual formula'));
+  fireEvent.click(screen.getByRole('button', { name: 'Save cut preparation' })); await waitFor(() => expect(api.posts).toHaveLength(1)); expect(api.posts[0]?.expected_state).toBe('draft-v4'); expect(api.posts[0]?.payload).toEqual(expect.objectContaining({ profile: expect.objectContaining({ stock_revision_id: 'r2', formulas: [expect.objectContaining({ label: 'Unsaved contextual formula' })] }) }));
 });
