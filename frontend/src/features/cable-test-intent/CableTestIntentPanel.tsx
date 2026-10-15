@@ -123,7 +123,7 @@ export function DraftEditor({ draft, committed, hidden = false, refresh = 0, onE
   </Stack></Card></fieldset></div>;
 }
 
-export function PlanEditor({ value, onChange, hidden = false, refresh = 0, disabled = false, onAuthorityChange, onAccessDenied }: { onAccessDenied?: (error: Error) => void; disabled?: boolean; value: TestPlan; onChange: (v: TestPlan) => void; hidden?: boolean; refresh?: number; onAuthorityChange?: (denied: boolean) => void }) {
+export function PlanEditor({ value, onChange, hidden = false, refresh = 0, disabled = false, onAuthorityChange, onAccessDenied, fixedTarget = false, active = true, principalKey }: { principalKey?: string; fixedTarget?: boolean; active?: boolean; onAccessDenied?: (error: Error) => void; disabled?: boolean; value: TestPlan; onChange: (v: TestPlan) => void; hidden?: boolean; refresh?: number; onAuthorityChange?: (denied: boolean) => void }) {
   const [authorityBlocked, setAuthorityBlocked] = useState(false);
   const refreshRef = useRef({ epoch: refresh, pending: false });
   if (refreshRef.current.epoch !== refresh) refreshRef.current = { epoch: refresh, pending: true };
@@ -143,8 +143,8 @@ export function PlanEditor({ value, onChange, hidden = false, refresh = 0, disab
   const currentScope = useRef(scopeKey); currentScope.current = scopeKey;
   const explicitRefresh = useRef({ pending: false, scope: scopeKey });
   const target = useQuery({
-    queryKey: ['test-plan-target', value.root_revision_id, value.cable_revision_id, value.occurrence_path, refresh],
-    enabled,
+    queryKey: ['test-plan-target', value.root_revision_id, value.cable_revision_id, value.occurrence_path, refresh, principalKey],
+    enabled: enabled && active,
     queryFn: async () => {
       const manual = explicitRefresh.current;
       try {
@@ -167,7 +167,7 @@ export function PlanEditor({ value, onChange, hidden = false, refresh = 0, disab
       }
     },
   });
-  const denied = hidden || authorityBlocked || !enabled || target.isError || target.isFetching || !target.data;
+  const denied = hidden || !active || authorityBlocked || !enabled || target.isError || target.isFetching || !target.data;
   useEffect(() => onAuthorityChange?.(denied), [denied, onAuthorityChange]);
   const choices = denied ? [] : target.data!.terminals.map(t => ({ value: keyOf(t.terminal), label: `${terminalText(t.terminal)}${t.label ? ` · ${t.label}` : ''}` }));
   const lookup = (key: string | null) => denied ? undefined : target.data!.terminals.find(t => keyOf(t.terminal) === key)?.terminal;
@@ -181,9 +181,9 @@ export function PlanEditor({ value, onChange, hidden = false, refresh = 0, disab
     onChange({ ...value, labels: [...value.labels, label] }); setLabelId(''); setLabelText('');
   };
   return <Stack>
-    <TextInput disabled={disabled} label="Exact cable revision ID" value={value.cable_revision_id} onChange={e => onChange({ ...value, cable_revision_id: e.currentTarget.value })} />
+    {!fixedTarget && <><TextInput disabled={disabled} label="Exact cable revision ID" value={value.cable_revision_id} onChange={e => onChange({ ...value, cable_revision_id: e.currentTarget.value })} />
     <TextInput disabled={disabled} label="Exact scope root revision ID" description="For a standalone cable use its revision ID. For an occurrence use its frozen assembly root." value={value.root_revision_id} onChange={e => onChange({ ...value, root_revision_id: e.currentTarget.value })} />
-    <TextInput disabled={disabled} label="Occurrence path" description="Stable local IDs separated by /; empty for standalone." value={value.occurrence_path.join('/')} onChange={e => onChange({ ...value, occurrence_path: e.currentTarget.value ? e.currentTarget.value.split('/') : [] })} />
+    <TextInput disabled={disabled} label="Occurrence path" description="Stable local IDs separated by /; empty for standalone." value={value.occurrence_path.join('/')} onChange={e => onChange({ ...value, occurrence_path: e.currentTarget.value ? e.currentTarget.value.split('/') : [] })} /></>}
     <Button disabled={!enabled || disabled} loading={target.isFetching} onClick={() => { explicitRefresh.current = { pending: true, scope: scopeKey }; void target.refetch(); }}>Refresh exact target access</Button>
     {authorityBlocked && !target.isError && <Alert color="red">Target access must be explicitly rechecked before retained expectations can be shown.</Alert>}
     {target.isError && <Alert color="red">{target.error.message}</Alert>}

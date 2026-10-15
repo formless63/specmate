@@ -12,7 +12,7 @@ import { AREAS, areaOfTool, describeAccess, primaryTools, toolLabel, type AreaDe
 
 const STATUS_LINE_HEIGHT = 24;
 const NO_ACTIONS: SpotlightActionGroupData[] = [];
-const RECORD_ONLY_TOOLS = new Set(["cables"]);
+const RECORD_ONLY_TOOLS = new Set(["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"]);
 
 type SbShellProps = {
   /** The current scope's name: "Library" or the project's name. */

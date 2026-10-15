@@ -181,14 +181,8 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/inventory/workspaces/w1?offset=0&limit=50", expect.anything()));
 });
 
-test("selected packages, firmware and mechanical tools mount with scoped read controls", async () => {
+test("firmware and mechanical tools mount with scoped read controls", async () => {
   await openAuthenticatedProjectTools();
-  await openTool("Selected packages");
-  await screen.findByRole("heading", { name: "Selected assembly packages" });
-  expect(await screen.findByRole("button", { name: "Review exact selected package" })).toBeTruthy();
-  await openTool("Export packages");
-  await screen.findByRole("heading", { name: "Coherent export packages" });
-  expect(screen.getByRole("button", { name: "Review export package" })).toBeTruthy();
   await openTool("Board firmware");
   await screen.findByRole("heading", { name: "Firmware on repeated boards" });
   expect(screen.getByRole("button", { name: "Show occurrence firmware" })).toBeTruthy();
@@ -217,11 +211,8 @@ test("shared, assembly, connected and drawing views mount with scoped read contr
   expect(screen.getByRole("button", { name: "Inspect drawing scene" })).toBeTruthy();
 });
 
-test("documents, interfaces and knowledge mount with scoped read controls", async () => {
+test("interfaces and knowledge mount with scoped read controls", async () => {
   await openAuthenticatedProjectTools();
-  await openTool("Bench documents");
-  await screen.findByRole("heading", { name: "Coordinated documents" });
-  expect((screen.getByRole("button", { name: "Generate reviewed document set" }) as HTMLButtonElement).disabled).toBe(true);
   await openTool("Connectors");
   await screen.findByRole("heading", { name: "Connector bodies" });
   expect(screen.queryByRole("button", { name: "New assessment" })).toBeNull();
@@ -322,7 +313,7 @@ const libraryFamilies = [
   ["designs", ["cables", "harnesses", "assemblies", "intents", "end-assemblies", "configurations"]],
   ["electrical", ["signals", "ports", "conventions", "interfaces", "passive-passages", "pcb", "pcb-disagreement"]],
   ["parts and sources", ["identity", "wire-stock", "workshop-profiles", "occurrence-firmware", "mechanical-sources", "sources", "facts"]],
-  ["making", ["bom", "material-accounting", "preparation", "end-preparation", "cable-test-intent", "inventory", "physical-units"]],
+  ["making", ["bom", "material-accounting", "preparation", "end-preparation", "inventory", "physical-units"]],
 ] as const;
 
 test.each(libraryFamilies)("Library %s editors mount without a project", async (_family, toolIds) => {

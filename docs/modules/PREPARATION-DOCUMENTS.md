@@ -7,6 +7,31 @@ identical root revision, snapshot, exact design/source pins, rights declarations
 configuration and generator/format identity. These are declared engineering
 information; generation never demonstrates physical continuity, fit or test success.
 
+The design Documents view opens on Build sheet, with Continuity spec, BOM,
+Drawing sheet, Labels and Export alongside it. Frozen roots use the shared selected-
+root projection; cable drafts use the local working declarations with an UNRELEASED
+mark. Unsupported working adapters remain unavailable rather than reusing a frozen
+assessment. Harness editors can supply a separate Formboard print adapter.
+Quantity, rights, disposition and exact practice overrides remain explicit inputs.
+Copying workspace title-block defaults is deliberate and keeps the copied version.
+
+`preparation_documents.defaults` reads initial unknown rights/disposition and exact
+wiring contexts for one authorized frozen root. `preparation_documents.preview`
+returns the same manifest/state as review together with authorized typed sections.
+Neither creates files, history, idempotency rows or engineering state. The view does
+not load workspace-wide document history or definition contents on entry. Practice
+choices use bounded metadata pages only when opened; selected revisions are read
+separately. Current access errors withdraw cached sheets and metadata, while prepared
+configuration and independent test-plan CAS buffers remain private.
+
+Print opens the rendered sheet alone. CSV/XLSX, labels SVG and a generic text-only
+P-touch archive are presentation exports over these same rows; Unicode identities,
+unknowns and viewed provenance are preserved. Formula-like CSV strings are prefixed
+with an apostrophe; XLSX uses explicit inline string cells. Reviewed retained sets,
+selected-design packages and coherent export packages continue to use their existing
+fresh authority, rights and exact manifest-hash download checks. Frontend presentation
+files do not replace or rewrite retained document artifacts.
+
 The cable editor's Schematic view is a live declaration sheet over the currently
 viewed frozen cable or local working draft. Unsaved landing edits appear immediately;
 draft sheets are marked UNRELEASED. It reuses the cable drawing's authorized pinned

@@ -2,6 +2,7 @@ import type { DocumentSettingsSnapshot } from "../settings/api";
 import { apiErrorMessage } from "../../lib/api-errors";
 import { sha256Hex } from '../../lib/sha256';
 import { ApiError, requestJson as request, runOperation } from '../workspace/api';
+import type { DocumentSections } from '../../../../packages/docs/src/model';
 export { ApiError } from '../workspace/api';
 export const requestJson = <T,>(path: string) => request<T>(path, { cache: 'no-store' });
 export type RightsReview = { subject: string; decision: 'unknown' | 'permitted' | 'withheld'; basis: string };
@@ -12,6 +13,10 @@ export type ContextPin = { address: { root_snapshot_id: string; path: string[]; 
 export type Output = { filename: string; sha256: string; size: number; media_type: string; rights: string; inputs_sha256: string };
 export type Manifest = { inputs_sha256: string; readiness: string; inputs: { root: { revision_id: string; snapshot_id: string; snapshot_sha256: string; name: string; kind: string }; generator: string; format: string; physical_test: string; physical_continuity: string; fit: string; physical_qualification: boolean; revision_pins: { revision_id: string; snapshot_id: string; snapshot_sha256: string; name: string; kind: string }[]; source_pins: { bundle_revision_id: string; path: string; sha256: string; rights: string; source_manifest_sha256: string; ancestry: unknown[] }[]; rights_reviews: { subject: string; review: RightsReview }[]; configuration: Configuration }; context_pins: ContextPin[]; document_assessments: Record<string, { status: string; physical_qualification: string; limitations?: unknown[]; missing_end_profiles?: unknown[]; missing_or_empty_intent?: unknown[]; unassigned_count?: number }>; issues: { path: string[]; code: string; status: string; message: string }[]; outputs: Output[] };
 export type Review = { manifest: Manifest; state: string };
+export type Defaults = { configuration: Configuration; root: Manifest['inputs']['root']; context_pins: ContextPin[]; rights_subjects: string[] };
+export type Preview = Review & { sections: DocumentSections };
+export async function defaults(rootRevisionId: string) { return (await runOperation<Defaults>('preparation_documents.defaults', { root_revision_id: rootRevisionId })).result; }
+export async function preview(config: Configuration) { return (await runOperation<Preview>('preparation_documents.preview', config)).result; }
 export type RootCurrency = { root_revision_number: number; status: 'latest' | 'superseded'; newer_revision: { revision_id: string; number: number; definition_id: string; kind: string; name: string; frozen_at: string } | null };
 export type Receipt = { root_currency?: RootCurrency; document_set_id: string; manifest: Manifest; sha256: string; generator: string; created_at: string; created_by_id: number };
 export const emptyConfiguration = (): Configuration => ({ root_revision_id: '', quantity: 1, bom_plan_revision_id: null, standalone_decision: 'unknown', standalone_basis: null, bindings: [], purpose: 'authorized_review', rights_reviews: [], output_rights: 'unknown', output_rights_basis: null });

@@ -92,7 +92,7 @@ test("direct record is drawing first with Issues default and exact revision; vie
   expect(screen.queryByLabelText("Cable definition")).toBeNull();
   const field = await edit(); fireEvent.change(field, { target: { value: "Unsaved retained" } });
   fireEvent.click(screen.getByRole("radio", { name: "Documents" }));
-  expect(screen.getByText("No document viewer is available for this cable.")).toBeTruthy();
+  expect(await screen.findByTitle("Build sheet preview")).toBeTruthy();
   fireEvent.click(screen.getByRole("radio", { name: "Build" }));
   expect((screen.getByLabelText("Working basis") as HTMLInputElement).value).toBe("Unsaved retained");
   act(() => history.push("/library")); act(() => history.push("/designs/c2@1"));

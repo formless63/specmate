@@ -90,6 +90,7 @@ const ContextualInspectionWorkspace = lazy(() => import("./features/context-sele
 const CollaborationPanel = lazy(() => import("./features/collaboration/CollaborationPanel").then((module) => ({ default: module.CollaborationPanel })));
 const KnowledgeSearchPanel = lazy(() => import("./features/knowledge/KnowledgeSearchPanel").then((module) => ({ default: module.KnowledgeSearchPanel })));
 const KnowledgePanel = lazy(() => import("./features/knowledge/KnowledgePanel").then((module) => ({ default: module.KnowledgePanel })));
+const FrozenRootDocuments = lazy(() => import("./components/editor/FrozenRootDocuments").then(module => ({ default: module.FrozenRootDocuments })));
 const PreparationDocumentsPanel = lazy(() => import("./features/preparation-documents/PreparationDocumentsPanel").then((module) => ({ default: module.PreparationDocumentsPanel })));
 const MechanicalProposalsPanel = lazy(() => import("./features/mechanical-proposals/MechanicalProposalsPanel").then((module) => ({ default: module.MechanicalProposalsPanel })));
 const LibraryHome = lazy(() => import("./features/library-gallery/LibraryHome").then((module) => ({ default: module.LibraryHome })));
@@ -118,7 +119,11 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
     ? selected.data.family === "definition" ? toolForKind(selected.data.kind)
       : ({ source_bundle: "sources", stock_account: "inventory", physical_unit: "physical-units", fact_subject: "facts" } as Record<string, string>)[selected.data.family] ?? "identity"
     : null;
-  const active = url.probe && ["designs", "identity"].includes(url.lens) && recordTool ? recordTool : url.lens;
+  const documentRoute = ["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(url.lens) && !!selected.data && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data.kind ?? "");
+  const active = url.probe && (["designs", "identity"].includes(url.lens) || documentRoute) && recordTool ? recordTool : url.lens;
+  useEffect(() => {
+    if (documentRoute && recordTool) navigation?.navigate({ area: "designs", lens: recordTool, filters: { ...navigation.location.filters, view: "documents", sheet: url.lens === "cable-test-intent" ? "continuity" : ["selected-packages", "export-packages"].includes(url.lens) ? "export" : "build" } }, { replace: true });
+  }, [documentRoute, recordTool, url.lens, navigation]);
   useEffect(() => {
     if (url.lens === "identity" && recordTool && recordTool !== "identity") navigation?.navigate({ area: areaOfTool(recordTool).id, lens: recordTool }, { replace: true });
   }, [url.lens, recordTool, navigation]);
@@ -164,7 +169,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   };
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
-  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && !["interfaces", "ports", "end-assemblies"].includes(active));
+  const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
+  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && !["interfaces", "ports", "end-assemblies"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -183,8 +189,12 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
         <ToolPanel value="history">{tools.has("history") && <Stack><Text component="h1" fw={600}>History</Text><Text>Workspace change history is not available yet. Open a record to inspect its retained revisions.</Text></Stack>}</ToolPanel>
         {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
         {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
-          {tools.has(tool.id) && <LibraryTool key={createKeys[tool.id] ?? 0} toolId={tool.id} toolLabel={tool.label} record={selected.isError ? undefined : selected.data} scope={scope} onOpenInProject={openInProject}
-            lens={{ scope, projectId: tool.id === "knowledge" ? notesProject : null, active, setActive, onStatusChanged: () => setStatusTick(n => n + 1), upgradeProposalId, setUpgradeProposalId }} />}
+          {tools.has(tool.id) && (["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) && (!url.probe || url.lens !== tool.id || documentRoute || selected.isPending || selected.isError) ? url.lens !== tool.id || !url.probe ? null : selected.isError ? <Stack gap="xs">
+            <Text role="status">This document context is unavailable.</Text><Group>
+              <Button size="xs" onClick={() => void selected.refetch()}>Retry current record access</Button>
+              <Button size="xs" variant="quiet" onClick={() => navigation?.navigate({ area: "designs", lens: "designs", project: null, probe: null, filters: {} })}>Browse designs</Button>
+            </Group></Stack> : <Text role="status">Opening document context…</Text> : <LibraryTool key={createKeys[tool.id] ?? 0} toolId={tool.id} toolLabel={tool.label} record={selected.isError ? undefined : selected.data} scope={scope} onOpenInProject={openInProject}
+            lens={{ scope, projectId: tool.id === "knowledge" ? notesProject : null, active, setActive, onStatusChanged: () => setStatusTick(n => n + 1), upgradeProposalId, setUpgradeProposalId }} />)}
         </ToolPanel>)}
       </RecordFocusContext.Provider></Fragment>
     </SbShell>
@@ -236,10 +246,10 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
-  if (["harnesses", "assemblies"].includes(toolId)) return <Stack>
+  if (["harnesses", "assemblies"].includes(toolId)) return <FrozenRootDocuments kind={toolId === "harnesses" ? "harness" : "assembly"} record={record} workspaceId={scope.workspaceId} principalKey={scope.principalKey} active={lens.active === toolId}><Stack>
     {record && ["cable", "harness"].includes(record.kind ?? "") && toolForKind(record.kind) === toolId && <SelectedDefinitionViews key={record.record_id} record={record} />}
     <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />
-  </Stack>;
+  </Stack></FrozenRootDocuments>;
   // Make panels own their lists and purpose-specific exact selections.
   if (["inventory", "physical-units", "material-accounting", "bom"].includes(toolId)) return <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />;
   const view = TYPED_LIBRARY_VIEWS[toolId] ?? libraryView(toolId);

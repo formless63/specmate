@@ -60,3 +60,31 @@ test("working sheet follows unsaved landings and retains UNRELEASED without adop
   expect(sheetHtml(after)).toContain('class="unreleased">UNRELEASED');
   expect(drawingSvg(after)).toContain("UNRELEASED");
 });
+
+test("real-shaped reviewed end instructions and nonempty BOM print readable treatments, exact nullable dimensions and required quantities", () => {
+  const input = sections();
+  input.end_preparation = [{ address: at, section_id: null, profile_revision_id: "exact-profile-r2", projection: {
+    mapping_review: "reviewed", mapping_basis: "Deliberate a to supply mapping", actual_bonds: "not_evaluated",
+    ends: [{ profile_end: "a", endpoint: { local_id: "supply", label: "Supply" }, review: "reviewed", instructions: [
+      { instruction: { local_id: "strip-jacket", kind: "layer_strip", element_path: "stock.jacket", treatment: "strip_back", length: { nominal_mm: "12.50", minus_mm: "0", plus_mm: "0.25", datum: "from_stock_cut_end", basis: "Reviewed dimension" }, basis: "Expose the declared section", source: { kind: "citation", citation: "Synthetic practice sheet A" } }, status: "reviewed_intent", unresolved: [], bond_created: false },
+      { instruction: { local_id: "shield-bond", kind: "bond_expectation", element_path: "stock.shield", treatment: "bond", target: { kind: "endpoint_contact", body_revision_id: "exact-body-r1", contact_id: "shell/端子" }, basis: "Authored expectation" }, status: "reviewed_intent", unresolved: [], bond_created: false },
+    ], missing_instructions: [{ element_path: "stock.drain", kind: "drain_treatment", status: "unknown" }] }],
+  } }];
+  input.terminations[0]!.rows = [{ ...((input.terminations[0]!.rows as object[])[0]), part_notes: ["Declared resistor 470 Ω", "Series part, continuity not evaluated"] }];
+  input.procurement = { purpose: "procurement", status: "partial", rows: [
+    { address: { path: ["supply"] }, revision_id: "exact-part-r1", name: "Synthetic connector", quantity: { amount: 2, unit: "ea", status: "known" }, required_quantity: { amount: 3, unit: "ea", status: "known" }, basis: "Two installed and one declared spare" },
+    { address: { path: ["cable"] }, revision_id: "exact-stock-r2", name: "Synthetic wire", required_quantity: { amount: null, unit: "mm", status: "unknown" }, basis: "Length remains unknown" },
+  ] };
+  const sheet = frozenSheet("Synthetic cable", "exact-root-r1", input);
+  const end = sheet.tables.find(table => table.name === "End preparation")!;
+  expect(end.rows).toHaveLength(3); expect(end.rows[0]?.slice(9, 13)).toEqual(["12.50", "0", "0.25", "from stock cut end"]);
+  expect(end.rows[1]?.[16]).toBe("exact-body-r1/shell/端子"); expect(end.rows[2]?.[13]).toBe("unknown");
+  expect(sheet.tables.find(table => table.name === "BOM")?.rows).toEqual([
+    ["supply", "Synthetic connector", "exact-part-r1", 3, "ea", "known", "Two installed and one declared spare"],
+    ["cable", "Synthetic wire", "exact-stock-r2", null, "mm", "unknown", "Length remains unknown"],
+  ]);
+  const html = sheetHtml(sheet);
+  expect(html).toContain("strip back · 12.50 mm (−0/+0.25 mm)"); expect(html).toContain("Synthetic practice sheet A");
+  expect(html).toContain("Declared resistor 470 Ω; Series part, continuity not evaluated");
+  expect(html).not.toContain('{"'); expect(html).not.toContain('["'); expect(html).toContain("not evaluated");
+});

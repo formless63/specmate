@@ -17,12 +17,13 @@ vi.mock("../cables/CableRecordEditor", async () => {
 beforeEach(() => { localStorage.setItem("specmate.library.layout", "table"); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const board = record("b1", "Main board", { kind: "board", latest_revision: 2, latest_revision_id: "r2" });
+const cableRecord = record("c1", "Synthetic cable", { kind: "cable", latest_revision: 2, latest_revision_id: "cable-r2" });
 const population = record("pop1", "Main board population", { kind: "pcb_population" });
 function serve() {
-  return workspaceServer({ projects: [project("p1", "Bench")], library: [board, population] }, path => {
+  return workspaceServer({ projects: [project("p1", "Bench")], library: [board, population, cableRecord] }, path => {
     const url = new URL(path, "http://test"); const match = /^\/api\/v0\/workspace\/library\/([^/]+)$/.exec(url.pathname);
     if (!match) return undefined;
-    const found = [board, population].find(row => row.record_id === decodeURIComponent(match[1]!));
+    const found = [board, population, cableRecord].find(row => row.record_id === decodeURIComponent(match[1]!));
     return found ? reply(found) : reply({ error: { message: "Item not found." } }, 404);
   });
 }
@@ -104,4 +105,22 @@ test("confirmed cable frames omit the redundant selection strip while exact prob
   await at("/designs/c1@2/~/ends/A?project=p1&view=documents");
   fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
   expect(await screen.findByRole("menuitem", { name: "Cable intents" })).toBeTruthy();
+});
+
+test("a retired document root link opens the same exact cable Documents view without a global picker or context strip", async () => {
+  const { fetchMock } = serve(); start("/make/c1@1/~/opaque/end%20A?lens=preparation-documents&project=p1");
+  await at("/designs/c1@1/~/opaque/end%20A?project=p1&view=documents&sheet=build");
+  expect(await screen.findByRole("region", { name: "Cable record frame" })).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
+  expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/preparation-documents/workspace"))).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
+  for (const name of ["Bench documents", "Cable test plans", "Selected packages", "Export packages"]) expect(screen.queryByRole("menuitem", { name })).toBeNull();
+});
+
+test("a denied retired document root has an explicit unavailable state and record retry", async () => {
+  serve(); start("/make/not-readable@2?lens=preparation-documents");
+  await screen.findByText("This document context is unavailable.");
+  expect(screen.getByRole("button", { name: "Retry current record access" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Browse designs" })).toBeTruthy();
+  expect(screen.queryByText("Opening document context…")).toBeNull();
 });

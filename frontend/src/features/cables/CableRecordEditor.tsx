@@ -16,6 +16,7 @@ import { authorityDenied, cableProblems, command, initialCable, read, type Cable
 const revisionPageOffset = (number: number) => Math.floor((number - 1) / 50) * 50;
 const KnowledgePanel = lazy(() => import("../knowledge/KnowledgePanel").then(module => ({ default: module.KnowledgePanel })));
 const Schematic = lazy(() => import("../../components/editor/Schematic").then(module => ({ default: module.Schematic })));
+const Documents = lazy(() => import("../../components/editor/Documents").then(module => ({ default: module.Documents })));
 export type CableEditorSnapshot = {
   definitionId: string; revisionId: string | null; draftId: string | null;
   working: Cable; saved: Cable | null; dirty: boolean;
@@ -76,6 +77,8 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
   };
   const intents = useRef(new Map<string, string>());
   const view = (navigation?.location.filters?.view ?? "build") as EditorView;
+  const [documentsVisited, setDocumentsVisited] = useState(view === "documents");
+  useEffect(() => { if (view === "documents") setDocumentsVisited(true); }, [view]);
   const identity = useQuery({ queryKey: ["cable-identity", record.record_id, page], queryFn: () => read<Identity>(`catalog/definitions/${record.record_id}?offset=${page}`), retry: false });
   const newestIdentity = useQuery({ queryKey: ["cable-editor-draft-list", record.record_id], queryFn: () => read<Identity>(`catalog/definitions/${record.record_id}?offset=0`), retry: false });
   const draftId = newestIdentity.data?.drafts.at(-1)?.draft_id ?? null;
@@ -125,15 +128,18 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
     ...sources.resolved.flatMap(result => result.data?.body_revision_id ? [["cable-body", result.data.body_revision_id]] : []),
     ["cable-intent-check", editing ? null : revisionId, editing ? draftId : null, cable.intent_revision_id ?? null, base?.state ?? null],
   ]);
-  const refreshAuthority = useCallback(async () => {
-    setMessage(null);
-    try {
+  const assertAuthority = useCallback(async () => {
       const keys = new Set((JSON.parse(authorityKeys) as unknown[][]).map(canonicalJson));
       const queries = cache.getQueryCache().findAll({ type: "active" }).filter(query => keys.has(canonicalJson(query.queryKey)));
       await Promise.all(queries.map(query => cache.fetchQuery({ queryKey: query.queryKey, queryFn: query.options.queryFn, staleTime: 0 })));
+  }, [cache, authorityKeys]);
+  const refreshAuthority = useCallback(async () => {
+    setMessage(null);
+    try {
+      await assertAuthority();
       setMutationDenied(false);
     } catch { setMessage("Current authority could not be confirmed. Retained edits remain hidden."); }
-  }, [cache, authorityKeys]);
+  }, [assertAuthority]);
   useEffect(() => {
     const refresh = () => { if (active && blocked) void refreshAuthority(); };
     window.addEventListener("focus", refresh); return () => window.removeEventListener("focus", refresh);
@@ -208,7 +214,7 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
       endForms={cable.endpoints.map((_end, index) => editing ? <fieldset disabled={busy} className="engineering-fields" key={index}><InspectionScope permission="design.edit"><EndCard index={index} value={cable} onChange={editWorking} errors={{}} family={sources.family} definitions={definitions.data ?? []} choices={sources.choices} denied={sources.denied} resolved={sources.resolved[index]!} /></InspectionScope></fieldset> : <Stack key={index}>{stacks[index]?.layers.map(layer => <Text key={layer.layer_id} size="sm">{layer.name ?? layer.kind}</Text>)}</Stack>)} /></div>}
     {view === "schematic" && renderWorkbench && (viewSlots?.schematic?.(snapshot) ?? <Suspense fallback={<Text>Reading schematic viewer…</Text>}><Schematic name={record.label} cable={cable} stock={sources.stock.data} stacks={stacks} conductors={editing ? undefined : frozen.data?.conductors}
       selection={selection} onSelect={select} unreleased={editing} state={editing ? dirty ? "Working draft · unsaved changes" : "Saved draft" : `Exact frozen r${number}`} /></Suspense>)}
-    {view === "documents" && renderWorkbench && (viewSlots?.documents?.(snapshot) ?? <div className="engineering-view-unavailable"><Stack><Text>No document viewer is available for this cable.</Text><Text size="xs">{editing ? dirty ? "Unreleased working state; unsaved changes are retained." : "Saved draft; no frozen revision selected." : `Viewing exact frozen r${number}.`}</Text><Button size="xs" variant="quiet" onClick={() => navigation?.navigate({ filters: { ...navigation.location.filters, view: "build" } })}>Return to Build</Button></Stack></div>)}
+    {(documentsVisited || view === "documents") && <div hidden={view !== "documents" || !renderWorkbench}>{viewSlots?.documents?.(snapshot) ?? <Suspense fallback={<Text>Reading document viewer…</Text>}><Documents name={record.label} snapshot={snapshot} workspaceId={workspaceId} principalKey={principalKey} active={active && view === "documents" && renderWorkbench} authorizeWorking={assertAuthority} cable={cable} stock={sources.stock.data} stacks={stacks} conductors={editing ? undefined : frozen.data?.conductors} /></Suspense>}</div>}
     <Drawer closeButtonProps={{ "aria-label": "Close cable versions" }} opened={versions && active} onClose={() => setVersions(false)} position="right" title="Cable versions" size="min(420px, 100vw)">{blocked ? <Text>Current access must be confirmed before versions can be shown.</Text> : <Stack gap="sm">
       <Text size="sm">{editing ? "Working draft" : `Viewing frozen r${number}`} · frozen revisions keep their exact pins.</Text>
       {!editing && base && <Button size="xs" {...editGate.props} onClick={() => { enterDraft.current = requestedRevision !== null; setEditing(true); probe?.setProbe({ object: record.record_id, rev: null, path: [] }); }}>Edit current draft</Button>}

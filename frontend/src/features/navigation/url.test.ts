@@ -40,7 +40,7 @@ test.each(redirects)("/%s?lens=%s redirects to %s", (area, lens, expected) => {
 test("every existing tool has a stable reachable canonical home", () => {
   for (const area of AREAS) for (const tool of area.tools) {
     const location = { ...HOME, area: area.id, lens: tool.id };
-    expect(parseLocation(formatLocation(location).split("?")[0]!, formatLocation(location).split("?")[1] ? `?${formatLocation(location).split("?")[1]}` : "").lens, tool.id).toBe(tool.id === "cables" ? "designs" : tool.id);
+    expect(parseLocation(formatLocation(location).split("?")[0]!, formatLocation(location).split("?")[1] ? `?${formatLocation(location).split("?")[1]}` : "").lens, tool.id).toBe(["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) ? "designs" : tool.id);
   }
 });
 
@@ -97,4 +97,9 @@ test.each([
 ])("Settings %s has canonical home %s", (lens, home) => {
   expect(formatLocation({ ...HOME, area: "settings", lens })).toBe(home);
   expect(parseLocation(home, "").lens).toBe(lens);
+});
+
+test.each(["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"])("retired %s picker routes to Designs while exact historical identity remains kind-aware", tool => {
+  expect(formatLocation(parseLocation("/make", `?lens=${tool}`))).toBe("/designs");
+  expect(parseLocation("/make/record@2/~/opaque/end%20A", `?lens=${tool}&project=p1`)).toMatchObject({ lens: tool, project: "p1", probe: { object: "record", rev: 2, path: ["opaque", "end A"] } });
 });
