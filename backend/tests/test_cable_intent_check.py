@@ -13,6 +13,8 @@ port facts), not read back from the implementation:
 - chassis and blanking are optional and not wired.
 """
 
+import json
+
 import pytest
 
 from specmate.interfaces import examples
@@ -190,6 +192,15 @@ def test_draft_check_and_recording_as_evidence(users, project, demo):
     assert outcomes(record["result"]) == CORRECT
     read = op(users["viewer"], "evidence.read_recorded", {"record_id": record["record_id"]})
     assert read["stale"] is False
+    # The recorded check is listed with the rest of the workspace's evidence.
+    listed = op(users["viewer"], "evidence.list", {"workspace_id": record["workspace_id"]})
+    assert "cable_intent_check" in json.dumps(listed, default=str)
+    applicable = op(
+        users["viewer"],
+        "evidence.applicability",
+        {"workspace_id": record["workspace_id"], "revision_id": frozen_cable},
+    )
+    assert "cable_intent_check" in json.dumps(applicable, default=str)
 
 
 def test_search_limit_reads_unknown(users, project, demo, monkeypatch):
