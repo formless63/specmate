@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from django.http import JsonResponse
 from ninja import Query, Router
 from pydantic import ValidationError
 
@@ -18,6 +19,7 @@ from specmate.interfaces.queries import (
     resolve_end,
     trace,
 )
+from specmate.interfaces.related import RelatedQuery, connector_relations
 from specmate.operations import Context, ValidationFailed
 
 router = Router(tags=["interfaces"])
@@ -38,6 +40,14 @@ def draft(request, draft_id: UUID):
 @router.get("/revisions/{revision_id}")
 def revision(request, revision_id: UUID):
     return inspect_revision(request.user, revision_id)
+
+
+@router.get("/revisions/{revision_id}/related")
+def related(request, revision_id: UUID, query: Query[RelatedQuery]):
+    return JsonResponse(
+        connector_relations(request.user, revision_id, query),
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 @router.get("/revisions/{revision_id}/trace")

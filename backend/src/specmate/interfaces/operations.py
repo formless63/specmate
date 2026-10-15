@@ -33,6 +33,7 @@ from specmate.interfaces.queries import (
     resolve_end,
     trace,
 )
+from specmate.interfaces.related import ReadConnectorRelations, connector_relations
 from specmate.operations import Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.operations.scope import workspace_scope
@@ -240,3 +241,14 @@ def end_resolve(ctx: Context, p: ResolveEnd):
 )
 def intent_propose(ctx: Context, p: ProposeIntent):
     return propose_intent(ctx.user, p)
+
+
+@operation(
+    "interface.related",
+    ReadConnectorRelations,
+    summary="List bounded current-authority relations for one exact connector body revision.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def related(ctx: Context, p: ReadConnectorRelations):
+    return connector_relations(ctx.user, p.revision_id, p)

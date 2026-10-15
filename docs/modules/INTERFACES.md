@@ -43,3 +43,16 @@ project. Feature and operation tests cover the two pinouts on one body (INT-001)
 exact repeated occurrence addressing (INT-002), strict failures, current authorization,
 replay, atomic validation rollback and concurrent writes. Integrated generic hooks,
 root navigation and browser journeys are integration checkpoint obligations.
+
+`interface.related` and `GET /interfaces/revisions/{body_revision_id}/related` list
+bounded connector-record relations for an exact authorized body revision. They return
+only names, kinds, exact revision IDs/numbers and the direct body revision pins of
+pinouts, device ports and saved end stacks. The page compares those pins with the
+selected body revision; a pin to another revision never implies compatibility.
+
+Pages use the latest frozen revision per related definition at a signed page anchor,
+ordered by kind and definition ID. The cursor preserves that anchor while every read
+rechecks current actor, workspace and complete dependency/source authority. Inaccessible
+relations are omitted; candidate scans and returned pages are bounded separately, with
+an explicit continuation/scan-limit flag and no hidden total or hidden IDs in cursors.
+A transitive mating dependency alone is not a direct connector association.
