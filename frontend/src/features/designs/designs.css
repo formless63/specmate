@@ -1,4 +1,6 @@
 .design-list { display: grid; gap: 14px; min-width: 0; }
+.design-list .lg-grid > [role="listitem"] { min-width: 0; }
+.design-list .lg-grid .lg-card { width: 100%; height: 100%; }
 .design-toolbar { display: grid; grid-template-columns: minmax(160px, 2fr) repeat(3, minmax(130px, 1fr)) auto; gap: 8px; align-items: end; }
 .design-table { font-size: 12px; }
 .design-table th { white-space: nowrap; }
