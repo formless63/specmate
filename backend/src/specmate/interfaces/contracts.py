@@ -9,6 +9,7 @@ from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.contracts import FiniteNumber
 from specmate.interfaces.assessment_contracts import InterfaceAssessment
 from specmate.interfaces.condition_contracts import ConditionalRating, Polarity
+from specmate.interfaces.convention_contracts import ConductorConvention
 from specmate.interfaces.signal_contracts import SignalImpedance, SignalLevel, SignalRef, SignalSet
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
@@ -289,7 +290,13 @@ def unique(values):
 
 
 Interface = Annotated[
-    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment | SignalSet | Port,
+    ConnectorBody
+    | Pinout
+    | InterfaceMap
+    | InterfaceAssessment
+    | SignalSet
+    | Port
+    | ConductorConvention,
     Field(discriminator="kind"),
 ]
 INTERFACE_ADAPTER = TypeAdapter(Interface)
@@ -300,6 +307,7 @@ KINDS = {
     "interface_assessment",
     "signal_set",
     "port",
+    "conductor_convention",
 }
 
 

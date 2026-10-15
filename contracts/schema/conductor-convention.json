@@ -1,0 +1,253 @@
+{
+  "$defs": {
+    "ConventionRule": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "colour": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Colour"
+        },
+        "colour_hex": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Colour Hex"
+        },
+        "element_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "conductor",
+                "shield",
+                "drain"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Kind"
+        },
+        "element_path": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "minLength": 1,
+              "pattern": "^[a-z][a-z0-9_.-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Element Path"
+        },
+        "preference": {
+          "default": "preferred",
+          "enum": [
+            "preferred",
+            "allowed",
+            "avoid"
+          ],
+          "title": "Preference",
+          "type": "string"
+        },
+        "use": {
+          "$ref": "#/$defs/ConventionUse"
+        }
+      },
+      "required": [
+        "use"
+      ],
+      "title": "ConventionRule",
+      "type": "object"
+    },
+    "ConventionUse": {
+      "additionalProperties": false,
+      "description": "What a conductor is conventionally used for.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "signal",
+            "signal_type",
+            "return_of",
+            "spare",
+            "do_not_use"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "signal_key": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signal Key"
+        },
+        "signal_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "analog_video",
+                "sync",
+                "analog_audio",
+                "digital_audio",
+                "power",
+                "ground_return",
+                "shield",
+                "chassis",
+                "data",
+                "control",
+                "other",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signal Type"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ConventionUse",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "kind": {
+      "const": "conductor_convention",
+      "default": "conductor_convention",
+      "title": "Kind",
+      "type": "string"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/ConventionRule"
+      },
+      "maxItems": 1000,
+      "title": "Rules",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scope": {
+      "default": "stock",
+      "enum": [
+        "stock",
+        "colour_code"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "signal_set_revision_id": {
+      "format": "uuid",
+      "title": "Signal Set Revision Id",
+      "type": "string"
+    },
+    "stock_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stock Revision Id"
+    }
+  },
+  "required": [
+    "signal_set_revision_id"
+  ],
+  "title": "ConductorConvention",
+  "type": "object"
+}

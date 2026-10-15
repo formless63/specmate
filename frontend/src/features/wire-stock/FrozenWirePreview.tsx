@@ -15,6 +15,7 @@ import { rowLook, Swatch } from '../cable-views/Swatch';
 import { SbIdentityBadge, SbQuantity, SbUnknown } from "../../components/sb";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { StockConventions } from "../interfaces/StockConventions";
 
 /** Own state, exact snapshots, no setters or command adapters for the current stock draft. */
 const dimension = (value: number | null) => <SbQuantity value={value} unit="mm" />;
@@ -87,6 +88,7 @@ export function FrozenWirePreview({ projectId }: { projectId?: string | null }) 
       <Text><RevisionLabel id={revisionId} role="stock" />. Section: <SbQuantity value={section.widthMm} unit="mm" /> × <SbQuantity value={section.heightMm} unit="mm" /> · {section.rows.length} material elements.</Text>
       <StockSectionView section={section} title="Frozen stock construction" label="Frozen stock section drawing" />
       <CableViews stock={stock} name="Frozen stock construction" revisionId={revisionId} tabs={['end-a', 'end-b', 'info']} />
+      {revisionId && <StockConventions revisionId={revisionId} />}
       <Select label="Matching frozen profile" clearable placeholder={profiles.length ? 'Choose a profile revision' : 'No matching frozen profiles'}
         data={profiles.filter(r => r.content.profile.stock_revision_id === revisionId).map(r => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} · ${r.revision_id}` }))} value={profileId} disabled={loading} onChange={setProfileId} />
       <NumberInput label="Frozen preview length mm" min={1} value={length} onChange={value => typeof value === 'number' && value >= 1 && setLength(value)} />

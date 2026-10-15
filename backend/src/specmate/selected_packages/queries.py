@@ -416,6 +416,7 @@ def build_package(user, p):
                 "interface_map",
                 "signal_set",
                 "port",
+                "conductor_convention",
                 "wire_stock",
                 "workshop_profile",
                 "end_preparation_profile",

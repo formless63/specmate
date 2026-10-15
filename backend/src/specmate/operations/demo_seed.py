@@ -252,6 +252,24 @@ class Seeder:
             self.tally("port")
         interface("Demo RGB monitor 21-pin input", examples.rgb_monitor_port(roles["sink"]))
         self.tally("port")
+        # A six-coax stock whose conductors a shop convention maps to the AV signals.
+        stock_draft = self.call(
+            "wire_stock.create",
+            {
+                "workspace_id": self.ws,
+                "name": "Demo six-coax AV stock",
+                "stock": examples.six_coax_stock(),
+            },
+        )
+        stock = self.freeze("wire_stock.freeze", stock_draft)
+        self.tally("wire stock")
+        interface(
+            "Demo six-coax AV convention",
+            examples.av_coax_convention(signals, stock["revision_id"]),
+        )
+        self.tally("convention")
+        interface("Demo AV colour code", examples.av_colour_code(signals))
+        self.tally("convention")
 
     def library(self) -> dict:
         symbols = self.source(

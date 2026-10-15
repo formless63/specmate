@@ -4,6 +4,7 @@ from ninja import Router
 
 from specmate.access.permissions import Perm
 from specmate.design.operations import draft_state
+from specmate.interfaces.conventions import stock_conventions
 from specmate.interfaces.operations import interface_draft
 from specmate.interfaces.queries import end_expectations, inspect_revision, trace
 from specmate.operations import Context
@@ -37,3 +38,9 @@ def declared_trace(request, revision_id: UUID, contact_id: str):
 def cable_end(request, revision_id: UUID):
     """Per-contact expectations of a device port or a bare pinout variant."""
     return end_expectations(request.user, revision_id)
+
+
+@router.get("/stock-revisions/{revision_id}/conventions")
+def conventions_for_stock(request, revision_id: UUID):
+    """Frozen conductor conventions that apply to one frozen wire stock revision."""
+    return stock_conventions(request.user, revision_id)

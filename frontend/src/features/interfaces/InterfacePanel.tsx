@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { command, read, initialInterface, unknownElectrical, type Body, type Definition, type Draft, type Identity, type Inspection, type Interface, type Mapping, type Orientation, type Pinout, type Trace } from "./api";
 import { SignalSetEditor } from "./SignalSetPanel";
+import { ConventionEditor } from "./ConventionPanel";
 import { PortEditor } from "./PortPanel";
 import { MatingList } from "./Mating";
 import { PinoutSignalsEditor, PinoutVariantFields, PinSignalCell, PinoutVariantList } from "./PinoutSignals";
@@ -81,6 +82,7 @@ function Editor({ value, onChange, definitions }: { value: Interface; onChange: 
   if (value.kind === "pinout") return <PinoutEditor value={value} onChange={onChange} definitions={definitions} />;
   if (value.kind === "signal_set") return <SignalSetEditor value={value} onChange={onChange} />;
   if (value.kind === "port") return <PortEditor value={value} onChange={onChange} definitions={definitions} />;
+  if (value.kind === "conductor_convention") return <ConventionEditor value={value} onChange={onChange} definitions={definitions} />;
   return <MappingEditor value={value} onChange={onChange} definitions={definitions} />;
 }
 function OrientationEditor({ value, onChange }: { value: Orientation; onChange: (v: Orientation) => void }) {

@@ -26,6 +26,7 @@ export const AREAS: AreaDef[] = [
     { id: "wire-stock", label: "Wire stock" },
     { id: "signals", label: "Signals" },
     { id: "ports", label: "Ports" },
+    { id: "conventions", label: "Conventions" },
     { id: "workshop-profiles", label: "Workshop profiles" },
   ] },
   { id: "design", label: "Design", key: "3", tools: [

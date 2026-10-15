@@ -14,6 +14,7 @@ from specmate.design.pins import check_pin
 from specmate.interfaces.contracts import (
     INTERFACE_ADAPTER,
     KINDS,
+    ConductorConvention,
     ConnectorBody,
     InterfaceAssessment,
     InterfaceMap,
@@ -52,6 +53,11 @@ def references(value):
         return [m.body_revision_id for m in value.mates_with]
     if isinstance(value, Port):
         return [value.pinout_revision_id]
+    if isinstance(value, ConductorConvention):
+        return [
+            value.signal_set_revision_id,
+            *([value.stock_revision_id] if value.stock_revision_id else []),
+        ]
     if isinstance(value, InterfaceMap):
         return [
             value.assembly_revision_id,
@@ -160,6 +166,10 @@ class Closure:
             self.validate_mating(value)
         if isinstance(value, Port):
             self.validate_port(value)
+        if isinstance(value, ConductorConvention):
+            from specmate.interfaces.conventions import validate_convention
+
+            validate_convention(self, value)
         if isinstance(value, InterfaceAssessment):
             from specmate.interfaces.assessments import subjects
 
@@ -342,6 +352,10 @@ def inspect_revision(user, revision_id):
         result["mated_by"] = mated_by(user, revision)
     if isinstance(closure.root, Port):
         result["end"] = end_rows(closure.root, revision, closure)
+    if isinstance(closure.root, ConductorConvention):
+        from specmate.interfaces.conventions import convention_view
+
+        result["convention"] = convention_view(closure.root, closure)
     return result
 
 

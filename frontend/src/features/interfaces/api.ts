@@ -34,7 +34,25 @@ export type PortPin = {
   needs_in_cable: CableNeed[]; must_not_connect: boolean; must_not_connect_reason: string | null; basis: string | null;
 };
 export type Port = { kind: "port"; schema_version?: "0.1"; device_label: string; pinout_revision_id: string; role: PinoutRole; selected_conditions: Record<string, string>; pins: PortPin[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
-export type Interface = Body | Pinout | Mapping | SignalSet | Port;
+export type ConventionUseKind = "signal" | "signal_type" | "return_of" | "spare" | "do_not_use";
+export type ConventionUse = { kind: ConventionUseKind; signal_key: string | null; signal_type: SignalType | null };
+export type ConductiveKind = "conductor" | "shield" | "drain";
+export type ConventionRule = { element_path: string | null; colour: string | null; colour_hex: string | null; element_kind: ConductiveKind | null; use: ConventionUse; preference: "preferred" | "allowed" | "avoid"; basis: string | null };
+/** A shop's habit for what each conductor carries: a preference that never makes a check pass. */
+export type Convention = { kind: "conductor_convention"; schema_version?: "0.1"; scope: "stock" | "colour_code"; stock_revision_id: string | null; signal_set_revision_id: string; description: string | null; rules: ConventionRule[]; review: "unreviewed" | "reviewed"; review_basis: string | null };
+export type ConventionRow = { element_path: string | null; element_label: string | null; element_kind: ConductiveKind | null; colour: string | null; colour_hex: string | null; use: ConventionUse & { signal: ResolvedSignal | null }; preference: ConventionRule["preference"]; basis: string | null };
+export type ConventionView = {
+  scope: Convention["scope"]; effect: "preference"; effect_note: string;
+  stock: { revision_id: string; definition_id: string; name: string; number: number } | null;
+  signal_set: { revision_id: string; name: string; number: number };
+  rows: ConventionRow[]; unmapped: { element_path: string; element_label: string; element_kind: ConductiveKind }[];
+};
+export type StockConventionEntry = {
+  definition_id: string; name: string; revision_id: string; number: number; scope: Convention["scope"]; review: Convention["review"]; rule_count: number; exact: boolean;
+  convention?: ConventionView; matches?: { element_path: string; element_label: string; rule: ConventionRow }[];
+};
+export type StockConventions = { stock_revision_id: string; effect: "preference"; effect_note: string; conventions: StockConventionEntry[] };
+export type Interface = Body | Pinout | Mapping | SignalSet | Port | Convention;
 /** One contact of a cable end (a device port or a bare pinout variant). */
 export type EndRow = {
   contact_id: string; number: string | null; label: string; physical_role: string; status: "declared" | "unknown"; reason?: string;
@@ -45,7 +63,7 @@ export type CableEnd = { kind: "port" | "pinout"; revision_id: string; device_la
 export type MatingRow = MatesWith & { name: string; number: number; mating_role: string; status: "reviewed" | "unknown" };
 export type MatedBy = { body_revision_id: string; name: string; number: number; declares_revision_id: string; correspondence: string; review: string; status: "reviewed" | "unknown" };
 export type Draft = { definition_id: string; kind: Interface["kind"]; draft_id: string; state: string; content: { interface?: Interface } };
-export type Inspection = { revision_id: string; interface: Interface; compatibility: "not_evaluated"; contact_view?: ContactView; contact_views?: Record<"mating" | "termination", ContactView>; rating_evidence?: Record<string, Record<string, Evidence>>; contacts?: (Contact & { electrical: Electrical | null })[]; signals?: Record<string, PinSignal>; pinout_variants?: PinoutVariant[]; mates_with?: MatingRow[]; mated_by?: MatedBy[]; end?: CableEnd };
+export type Inspection = { revision_id: string; interface: Interface; compatibility: "not_evaluated"; contact_view?: ContactView; contact_views?: Record<"mating" | "termination", ContactView>; rating_evidence?: Record<string, Record<string, Evidence>>; contacts?: (Contact & { electrical: Electrical | null })[]; signals?: Record<string, PinSignal>; pinout_variants?: PinoutVariant[]; mates_with?: MatingRow[]; mated_by?: MatedBy[]; end?: CableEnd; convention?: ConventionView };
 export type Trace = { external_contact_id: string; status: string; continuity: string; compatibility: string; targets: { passage_id: string; assembly_revision_id: string; snapshot_id: string; path: string[]; revision_id: string; feature_id: string; condition: string | null; basis: string; feature_status: string }[] };
 export const unknownOrientation = (): Orientation => ({ viewing_side: "unknown", rotation_degrees: null, datum: null });
 export const unknownElectrical = (): Electrical => ({ polarity: "unknown", polarity_basis: null, conditional_ratings: [], signal: null, role: "unknown", direction: "unknown", voltage_min_v: null, voltage_max_v: null, current_max_a: null, protocol: null, condition: null, basis: null });
@@ -54,6 +72,7 @@ export function initialInterface(kind: Interface["kind"]): Interface {
   if (kind === "pinout") return { kind, body_revision_id: "", variant_label: null, role: "unknown", standard: null, conditions: [], assignments: [], review: "unreviewed", review_basis: null, orientation: unknownOrientation() };
   if (kind === "signal_set") return { kind, description: null, signals: [] };
   if (kind === "port") return { kind, device_label: "", pinout_revision_id: "", role: "unknown", selected_conditions: {}, pins: [], review: "unreviewed", review_basis: null };
+  if (kind === "conductor_convention") return { kind, scope: "stock", stock_revision_id: null, signal_set_revision_id: "", description: null, rules: [], review: "unreviewed", review_basis: null };
   return { kind, assembly_revision_id: "", external_pinout_revision_id: "", passages: [] };
 }
 export const unknownQuantity = (): DeclaredQuantity => ({ status: "unknown", nominal: null, minimum: null, maximum: null, basis: null });
@@ -67,3 +86,13 @@ export const unknownPortPin = (contactId: string): PortPin => ({
   contact_id: contactId, behaviour: "unknown", level: { ...unknownQuantity(), unit: "unknown" }, impedance: { ...unknownQuantity(), unit: "ohm" },
   coupling: "unknown", termination: "unknown", needs_in_cable: [], must_not_connect: false, must_not_connect_reason: null, basis: null,
 });
+
+export const USE_LABELS: Record<ConventionUseKind, string> = { signal: "Carries signal", signal_type: "Carries a signal type", return_of: "Return of", spare: "Spare", do_not_use: "Do not use" };
+export const CONDUCTIVE_KINDS: ConductiveKind[] = ["conductor", "shield", "drain"];
+/** A convention use in words: signals by name, never by key. */
+export function useText(use: ConventionRow["use"]): string {
+  if (use.kind === "signal") return use.signal?.name ?? "Signal";
+  if (use.kind === "return_of") return `Return of ${use.signal?.name ?? "signal"}`;
+  if (use.kind === "signal_type") return `Any ${SIGNAL_TYPE_LABELS[use.signal_type ?? "unknown"].toLowerCase()} signal`;
+  return USE_LABELS[use.kind];
+}
