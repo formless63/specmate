@@ -96,6 +96,12 @@ def signal_set_revisions(pinout):
 class Lookup:
     """Typed signal lookups over loaded ``values`` and ``revisions`` by revision ID."""
 
+    def body_for(self, pinout):
+        body = self.values.get(pinout.body_revision_id)
+        if not isinstance(body, ConnectorBody):
+            raise ValidationFailed("Pinout requires an exact connector body revision.")
+        return body
+
     def signal(self, ref):
         signals = self.values.get(ref.signal_set_revision_id)
         if not isinstance(signals, SignalSet):
@@ -192,12 +198,6 @@ class Closure(Lookup):
         # All referenced scopes are checked before reference-kind/contact diagnostics.
         for value in [self.root, *self.values.values()]:
             self.validate(value)
-
-    def body_for(self, pinout):
-        body = self.values.get(pinout.body_revision_id)
-        if not isinstance(body, ConnectorBody):
-            raise ValidationFailed("Pinout requires an exact connector body revision.")
-        return body
 
     def validate(self, value):
         if isinstance(value, ConnectorBody):

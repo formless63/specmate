@@ -128,7 +128,8 @@
     "source": {
       "enum": [
         "interface_assessment",
-        "firmware_impact"
+        "firmware_impact",
+        "cable_intent_check"
       ],
       "title": "Source",
       "type": "string"

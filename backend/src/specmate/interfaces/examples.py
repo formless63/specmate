@@ -422,7 +422,15 @@ def six_coax_stock():
                 element("jacket", "Jacket", "jacket", 4.4, 3.6, color="#222222"),
             ],
         },
-        "facts": {},
+        # Every core is the same 75 ohm miniature coax (illustrative declaration).
+        "facts": {
+            "impedance": {
+                "value": 75,
+                "unit": "ohm",
+                "source": "Synthetic example construction",
+                "status": "documented",
+            }
+        },
     }
 
 
@@ -660,6 +668,10 @@ def console_to_monitor_intent(from_revision_id, to_revision_id, proposed_rows):
             row["question"] = None
             row["pairing"] = "answered"
             row["basis"] = "Synthetic reviewer answer written for this example"
+        if row["signal_ref"] and row["signal_ref"]["key"] == "chassis":
+            # The stock has no overall braid: shell-to-shell chassis is not carried.
+            row["requirement"] = "optional"
+            row["basis"] = "Synthetic: this stock carries no overall braid for chassis"
         rows.append(row)
     return {
         "kind": "cable_intent",
@@ -672,3 +684,32 @@ def console_to_monitor_intent(from_revision_id, to_revision_id, proposed_rows):
         "review": "reviewed",
         "review_basis": "Synthetic review written for this example",
     }
+
+
+def _retarget(cable, endpoint_id, element_path, terminal_id, layer_id=None):
+    for assignment in cable["assignments"]:
+        if (assignment["endpoint_id"], assignment["element_path"]) == (endpoint_id, element_path):
+            assignment["terminal_id"] = terminal_id
+            if layer_id:
+                assignment["layer_id"] = layer_id
+            assignment["basis"] = "Synthetic deliberate fault for checking"
+    return cable
+
+
+def av_swapped_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
+    """Red and blue centres swapped on the adapter board's pads at the console end."""
+    cable = av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id)
+    _retarget(cable, "a", "stock.core-1.center", "b")
+    return _retarget(cable, "a", "stock.core-3.center", "r")
+
+
+def av_missing_resistor_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
+    """Sync centre soldered to the board's connector-side pad, bypassing the 470 ohm part."""
+    cable = av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id)
+    return _retarget(cable, "a", "stock.core-4.center", "din-1")
+
+
+def av_power_to_sync_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
+    """Sync centre landed on the +5 V contact pad: supply into the monitor's sync input."""
+    cable = av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id)
+    return _retarget(cable, "a", "stock.core-4.center", "din-8")

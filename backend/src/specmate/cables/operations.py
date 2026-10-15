@@ -1,6 +1,7 @@
 from specmate.access.permissions import Perm
 from specmate.cables.contracts import (
     CaptureCable,
+    CheckIntent,
     CreateCable,
     LengthImpact,
     ReadCable,
@@ -187,3 +188,20 @@ def read(ctx: Context, p: ReadCable):
 )
 def inspect_length_impact(ctx: Context, p: LengthImpact):
     return length_impact(ctx.user, p.before_revision_id, p.after_revision_id)
+
+
+@operation(
+    "cable_intent.check",
+    CheckIntent,
+    summary="Check a cable against a cable intent, row by row and dimension by dimension.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def intent_check(ctx: Context, p: CheckIntent):
+    from specmate.cables.intent_check import check, check_revision
+
+    if p.cable_revision_id is not None:
+        return check_revision(ctx.user, p.cable_revision_id, p.intent_revision_id)[1]
+    draft = cable_draft(ctx, p.draft_id, Perm.WORKSPACE_READ)
+    result = check(ctx.user, draft.content, "cable", p.intent_revision_id)
+    return {"cable_revision_id": None, "draft_id": str(draft.id), **result}

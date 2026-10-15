@@ -273,6 +273,7 @@ class ResolvedStack:
                     else "landing"
                     if join["kind"] == "carried"
                     else join["kind"],
+                    {"kind": "landing" if join["kind"] == "carried" else "join", "join": join},
                 )
             )
         if self.board:
@@ -284,6 +285,12 @@ class ResolvedStack:
                         (layer.layer_id, path.to_terminal),
                         "declared" if path.via in ("copper", "component") else "unknown",
                         path_summary(path, board),
+                        {
+                            "kind": "board_path",
+                            "local_id": path.local_id,
+                            "via": path.via,
+                            "component": path.component,
+                        },
                     )
                 )
         for layer in self.stack.layers:
@@ -295,6 +302,12 @@ class ResolvedStack:
                             (layer.layer_id, f"{part.local_id}.2"),
                             "declared",
                             component_text(part.component),
+                            {
+                                "kind": "inline_part",
+                                "local_id": part.local_id,
+                                "via": "component",
+                                "component": part.component,
+                            },
                         )
                     )
         self.edges = edges
@@ -305,7 +318,7 @@ class ResolvedStack:
             return []
         target = self.connector[0].layer_id
         adjacency = {}
-        for a, b, status, text in self.edges:
+        for a, b, status, text, _ in self.edges:
             adjacency.setdefault(a, []).append((b, status, text))
             adjacency.setdefault(b, []).append((a, status, text))
         start = (layer_id, terminal_id)

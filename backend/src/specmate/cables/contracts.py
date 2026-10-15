@@ -194,3 +194,17 @@ class ReadCable(StrictModel):
 class LengthImpact(StrictModel):
     before_revision_id: UUID
     after_revision_id: UUID
+
+
+class CheckIntent(StrictModel):
+    """Check a cable draft or frozen revision against a cable intent (its pinned one)."""
+
+    cable_revision_id: UUID | None = None
+    draft_id: UUID | None = None
+    intent_revision_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def one(self):
+        if (self.cable_revision_id is None) == (self.draft_id is None):
+            raise ValueError("Check either a cable revision or a cable draft.")
+        return self

@@ -272,7 +272,10 @@ def propose_rows(source_view, target_view):
             to_contact_ids=[target["contact_id"]],
             requirement="optional",
             pairing="unpaired",
-            basis=f"{names[0]} declares no contact carrying {target['signal']['name']}.",
+            basis=f"Destination supply pin; not wired unless you choose ({names[0]} declares "
+            f"no contact carrying {target['signal']['name']})."
+            if target["signal"]["type"] == "power"
+            else f"{names[0]} declares no contact carrying {target['signal']['name']}.",
         )
     # Every proposed row must itself be a valid declaration.
     for row in rows:
