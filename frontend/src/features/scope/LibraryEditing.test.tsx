@@ -38,7 +38,7 @@ const definitions = [
 const library = definitions.map((d) => ({ record_id: d.definition_id, family: "definition", kind: d.kind, label: d.name, detail: null, created_at: "2026-01-01T00:00:00Z",
   latest_revision: null, latest_revision_id: null, changed_at: null, referenceable: true, referenced: null, used_in_total: 0, used_in: [] }));
 
-function serve(calls: { operation: string; payload: Record<string, unknown> }[] = []) {
+function serve(calls: { operation: string; payload: Record<string, unknown> }[] = [], revisions: { revision_id: string; number: number }[] = []) {
   const fetchMock = vi.fn(async (url: string, options?: RequestInit) => {
     if (options?.method === "POST") {
       const command = JSON.parse(String(options.body)); calls.push(command);
@@ -49,7 +49,8 @@ function serve(calls: { operation: string; payload: Record<string, unknown> }[] 
     if (url.includes("workspace/definitions")) return reply(definitions);
     if (url.includes("access/projects/")) return reply({ project_id: "p1", state: "p-v1" });
     const identity = url.match(/catalog\/definitions\/([^?]+)/);
-    if (identity) return reply({ definition_id: identity[1], name: identity[1], kind: "connector_body", drafts: [{ draft_id: `${identity[1]}-draft`, state: "v1" }], revisions: [] });
+    if (identity) return reply({ definition_id: identity[1], name: identity[1], kind: "connector_body", drafts: [{ draft_id: `${identity[1]}-draft`, state: "v1" }], revisions });
+    if (url.includes("interfaces/revisions/")) return reply({ error: { message: "not served in this test" } }, 404);
     const draft = url.match(/interfaces\/drafts\/([^?]+)/);
     if (draft) return reply({ definition_id: "body-1", draft_id: draft[1], state: "v1", content: { interface: { kind: "connector_body", family: null, mating_role: "unknown", drawing_orientation: { viewing_side: "unknown", rotation_degrees: null, datum: null }, contacts: [] } } });
     return reply({});
@@ -67,6 +68,18 @@ test("a probed library item (a row click or deep link) opens in the editor with 
   await waitFor(() => expect(selected("Existing interface definition")).toBe("Second body (connector_body)"));
   await waitFor(() => expect(selected("Edit interface draft")).toBe("body-2-draft · v1"));
   expect(await screen.findByRole("heading", { name: "Edit draft" })).toBeTruthy();
+});
+
+test("Open on a frozen item shows its latest frozen revision first; Continue draft is the explicit way into the editor", async () => {
+  serve([], [{ revision_id: "rev-1", number: 1 }, { revision_id: "rev-2", number: 2 }]);
+  render(<Shell initial={{ object: "body-2", rev: null, path: [] }}><InterfacePanel /></Shell>);
+  await waitFor(() => expect(selected("Inspect frozen interface")).toMatch(/2/));
+  expect(selected("Edit interface draft")).toBe("");
+  expect(screen.queryByRole("heading", { name: "Edit draft" })).toBeNull();
+  fireEvent.click(await screen.findByRole("button", { name: "Continue draft (edit)" }));
+  await waitFor(() => expect(selected("Edit interface draft")).toBe("body-2-draft · v1"));
+  expect(await screen.findByRole("heading", { name: "Edit draft" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Continue draft (edit)" })).toBeNull();
 });
 
 test("at Library scope the list sits above the editor: New focuses creation, Open opens a row's item", async () => {

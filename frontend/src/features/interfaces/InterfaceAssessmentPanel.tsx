@@ -11,6 +11,7 @@ import { useCan } from "../../lib/permissions";
 import { recordInterfaceAssessment } from "../evidence/api";
 import { RecordResult } from "../evidence/RecordResult";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
 const dimensions: { id: Dimension; label: string }[] = [
   { id: "mating", label: "Mating" }, { id: "pin_correspondence", label: "Pin correspondence" },
@@ -94,6 +95,7 @@ function Workspace({ projectId, isActive }: { projectId: string | null; isActive
     {(definition || creating) && <Button variant="subtle" onClick={() => { setDefinition(null); setDraftId(null); setRevisionId(null); setCreating(false); setOffset(0); }}>Close assessment and discard prepared edits</Button>}
     {ready && identity.data && <Group>
       {canEdit && <Select label="Assessment draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: d.state }))} onChange={setDraftId} />}
+      {canEdit && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
       <Select label="Frozen assessment revision" value={revisionId} data={identity.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number}` }))} onChange={setRevisionId} />
       <Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous assessment history</Button>
       <Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next assessment history</Button>

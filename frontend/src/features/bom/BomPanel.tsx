@@ -9,6 +9,7 @@ import { revisionOptionLabel } from "../../lib/revision-labels";
 import { SbQuantity } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
 const purposes = [{ value: "assembly_contents", label: "Assembly contents" }, { value: "procurement", label: "Procurement" }, { value: "pcb_fabrication", label: "PCB fabrication" }, { value: "pcb_population", label: "PCB population" }, { value: "consumables", label: "Consumables" }];
 const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembly";
@@ -48,6 +49,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
       <Select label="BOM draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} />
+      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
       <Select label="Frozen BOM revision" value={revisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevisionId} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous BOM revisions</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next BOM revisions</Button></Group>
     </>}

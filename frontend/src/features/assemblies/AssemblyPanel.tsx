@@ -10,6 +10,7 @@ import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
 /** Library assemblies. `projectId` is optional context: new assemblies are then also referenced by that project. */
 export function AssemblyPanel({ projectId = null, onAccessLost }: { projectId?: string | null; onAccessLost?: () => void }) {
@@ -143,6 +144,7 @@ function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string | nu
     {!accessError && <Select label="Assembly definition" searchable value={definitionId} data={(definitions.data ?? []).filter((d) => d.kind === "assembly").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={pick} />}
     {!accessError && identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {!accessError && identity.data && <Select label="Assembly draft" value={draftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={(id) => { generation.current++; clearDraftSession(); setDraftId(id); setSnapshotId(null); }} />}
+    {!accessError && identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={frozenRevision} draftId={draftId} onOpen={(id) => { generation.current++; clearDraftSession(); setDraftId(id); setSnapshotId(null); }} />}
     {!accessError && identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(id) => { generation.current++; setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}
     {!accessError && revision.isError && <Alert color="red">{revision.error.message}</Alert>}
     {!accessError && draft.isError && <Alert color="red">{draft.error.message}</Alert>}

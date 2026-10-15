@@ -6,6 +6,7 @@ import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissi
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import { CONDITIONING, command, initialInterface, read, unknownPortPin, type CableEnd, type DeclaredQuantity, type Definition, type Draft, type EndRow, type Identity, type Inspection, type Pinout, type PinoutRole, type Port, type PortPin } from "./api";
 import { DeclaredValue, SignalTypeChip } from "./SignalSetPanel";
 import "./signals.css";
@@ -55,6 +56,7 @@ function Ports({ projectId }: { projectId: string | null }) {
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     <Group align="end">
       <Select label="Port" searchable placeholder={ports.length ? "Choose a port" : "No ports yet"} data={ports.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
+      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
       {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
     </Group>

@@ -40,9 +40,11 @@ export async function referenceFromProject(projectId: string | null | undefined,
 }
 
 /**
- * Once an opened definition's identity loads, opens its newest draft for editing, or its latest
- * frozen revision when it has no draft. Returns the function that arms this for one definition.
- * Picking a draft or revision in the editor afterwards is never undone.
+ * Once an opened definition's identity loads, shows its latest frozen revision first, because a
+ * frozen item's draft only mirrors it. Items that have never been frozen open their newest draft
+ * for editing. `ContinueDraftButton` is the explicit way from the frozen view into the draft.
+ * Returns the function that arms this for one definition. Picking a draft or revision in the
+ * editor afterwards is never undone.
  */
 export function useOpenNewest(
   identity: { definition_id: string; drafts: { draft_id: string }[]; revisions: { revision_id: string }[] } | undefined,
@@ -55,11 +57,11 @@ export function useOpenNewest(
   useEffect(() => {
     if (!identity || pending.current !== identity.definition_id) return;
     pending.current = null;
-    const draft = identity.drafts.at(-1);
-    if (draft) { handlers.current.openDraft(draft.draft_id); return; }
     // A full page may have later revisions on the next one; leave that choice to the member.
     const revision = identity.revisions.length < 50 ? identity.revisions.at(-1) : undefined;
-    if (revision) handlers.current.openRevision?.(revision.revision_id);
+    if (revision && handlers.current.openRevision) { handlers.current.openRevision(revision.revision_id); return; }
+    const draft = identity.drafts.at(-1);
+    if (draft) handlers.current.openDraft(draft.draft_id);
   }, [identity]);
   return useCallback((definitionId: string) => { pending.current = definitionId; }, []);
 }
