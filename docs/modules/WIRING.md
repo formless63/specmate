@@ -299,10 +299,19 @@ actual units and stock issuance are recorded separately. Planned stock cuts requ
 missing cuts or an unknown requested quantity propagate unknown totals. Route,
 finished and conductor-cut lengths are not inferred, including from a longest leg.
 
-Stable endpoint IDs pin exact body/pinout pairs. A joint declares a termination,
-splice or shield bond with exact segment-end/element-path or endpoint-contact
-members and a basis. A terminal belongs to at most one joint or breakout fate.
-Shield bonds accept shield, drain and shell features only; keying contacts cannot
+Each harness endpoint (content schema 0.2) is an end stack exactly like a cable end:
+an exact `end_assembly` revision or an ad-hoc stack of board, inline parts, connector
+and shell, with no stock end (physical ends say which section end is where). An
+endpoint terminal names a layer and one of its terminals (a contact, pad, inline lead
+or shell body). A joint declares a termination, splice or shield bond with exact
+segment-end/element-path or endpoint-terminal members and a basis. The copper graph
+projects each endpoint's stack as it does a cable end's (joins, board copper, reviewed
+landings; parts and unreviewed landings stay boundaries). Schema 0.1 harnesses (one
+body/pinout per endpoint, endpoint members by contact) remain readable as one-layer
+`connector` stacks; frozen 0.1 bytes are never rewritten and the `harnesses` migration
+upgrades editable drafts only. Harness reads report `stored_schema_version` and each
+endpoint's resolved stack. A terminal belongs to at most one joint or breakout fate.
+Shield bonds accept shield, drain and shell features (including a shell layer's body) only; keying contacts cannot
 carry connections. Group placement, matching labels, shared sections, pigtails and
 screen appearance create no electrical relationships.
 

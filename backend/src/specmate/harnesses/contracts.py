@@ -1,13 +1,21 @@
-"""Explicit material ownership and terminal relationships for branched harnesses."""
+"""Explicit material ownership and terminal relationships for branched harnesses.
+
+Content schema 0.2: each harness endpoint is an end stack (board, inline parts, connector,
+shell), pinned from an end assembly revision or declared ad hoc, exactly like a cable end
+(without a stock end: physical ends say which section end is where). An endpoint terminal
+names a layer and one of its terminals. Schema 0.1 (one connector per endpoint, endpoint
+terminals by contact) stays readable and is upgraded in memory by ``upgrade_content``.
+"""
 
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from specmate.assemblies.contracts import LocalId, StrictModel
-from specmate.cables.contracts import ElementPath, Endpoint
+from specmate.cables.contracts import CONNECTOR_LAYER, ElementPath, Endpoint
 from specmate.interfaces.contracts import ContactId, Text, unique
+from specmate.interfaces.end_assembly_contracts import EndStack, StackTerminalId
 from specmate.inventory.contracts import Amount
 
 
@@ -66,10 +74,21 @@ class SegmentTerminal(SegmentEnd):
     element_path: ElementPath
 
 
-class EndpointTerminal(StrictModel):
+class EndpointTerminalV01(StrictModel):
+    """A schema 0.1 endpoint terminal: one contact of the endpoint's connector."""
+
     kind: Literal["endpoint"] = "endpoint"
     endpoint_id: LocalId
     contact_id: ContactId
+
+
+class EndpointTerminal(StrictModel):
+    """One terminal of one layer of an endpoint's stack (contact, pad, lead or shell)."""
+
+    kind: Literal["endpoint"] = "endpoint"
+    endpoint_id: LocalId
+    layer_id: LocalId
+    terminal_id: StackTerminalId
 
 
 Terminal = Annotated[SegmentTerminal | EndpointTerminal, Field(discriminator="kind")]
@@ -78,7 +97,22 @@ Terminal = Annotated[SegmentTerminal | EndpointTerminal, Field(discriminator="ki
 def terminal_key(terminal):
     if isinstance(terminal, SegmentTerminal):
         return ("segment", terminal.segment_id, terminal.end, terminal.element_path)
-    return ("endpoint", terminal.endpoint_id, terminal.contact_id)
+    return ("endpoint", terminal.endpoint_id, terminal.layer_id, terminal.terminal_id)
+
+
+class HarnessEnd(StrictModel):
+    """One harness endpoint: a pinned end assembly or an ad-hoc end stack."""
+
+    local_id: LocalId
+    label: Text | None = None
+    end_assembly_revision_id: UUID | None = None
+    stack: EndStack | None = None
+
+    @model_validator(mode="after")
+    def one_source(self):
+        if (self.end_assembly_revision_id is None) == (self.stack is None):
+            raise ValueError("An endpoint pins an end assembly or declares a stack, not both.")
+        return self
 
 
 class Joint(StrictModel):
@@ -132,14 +166,25 @@ class Breakout(StrictModel):
 
 
 class Harness(StrictModel):
-    schema_version: Literal["0.1"] = "0.1"
+    schema_version: Literal["0.2"] = "0.2"
     sections: list[Section] = Field(default_factory=list, max_length=256)
     segments: list[Segment] = Field(default_factory=list, max_length=256)
-    endpoints: list[Endpoint] = Field(default_factory=list, max_length=256)
+    endpoints: list[HarnessEnd] = Field(default_factory=list, max_length=256)
     joints: list[Joint] = Field(default_factory=list, max_length=2000)
     breakouts: list[Breakout] = Field(default_factory=list, max_length=256)
     review: Literal["unreviewed", "reviewed"] = "unreviewed"
     review_basis: Text | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade(cls, value):
+        # Pre-1.0: schema 0.1 input (stored or submitted) is read through the 0.2 shape.
+        if isinstance(value, dict) and value.get("schema_version", "0.1") == "0.1":
+            try:
+                return upgrade_content(value)
+            except (ValidationError, KeyError, TypeError):
+                raise ValueError("Invalid schema 0.1 harness content.") from None
+        return value
 
     @model_validator(mode="after")
     def distinct(self):
@@ -148,6 +193,61 @@ class Harness(StrictModel):
         if self.review == "reviewed" and not self.review_basis:
             raise ValueError("Review requires a declaration basis.")
         return self
+
+
+def upgrade_content(value: dict) -> dict:
+    """Map schema 0.1 harness content to 0.2; 0.2 content is returned unchanged.
+
+    Each 0.1 endpoint becomes a one-layer connector stack named ``connector`` and each
+    endpoint terminal names that layer's contact. Sections, segments, breakouts and joint
+    kinds are unchanged.
+    """
+    if value.get("schema_version", "0.1") != "0.1":
+        return value
+    endpoints = [
+        Endpoint.model_validate(e).model_dump(mode="json") for e in value.get("endpoints", [])
+    ]
+
+    def member(m):
+        if isinstance(m, dict) and m.get("kind") == "endpoint":
+            old = EndpointTerminalV01.model_validate(m)
+            return {
+                "kind": "endpoint",
+                "endpoint_id": old.endpoint_id,
+                "layer_id": CONNECTOR_LAYER,
+                "terminal_id": old.contact_id,
+            }
+        return m
+
+    return {
+        **value,
+        "schema_version": "0.2",
+        "endpoints": [
+            {
+                "local_id": e["local_id"],
+                "label": e["label"],
+                "end_assembly_revision_id": None,
+                "stack": {
+                    "layers": [
+                        {
+                            "kind": "connector",
+                            "layer_id": CONNECTOR_LAYER,
+                            "body_revision_id": e["body_revision_id"],
+                            "pinout_revision_id": e["pinout_revision_id"],
+                        }
+                    ],
+                    "joins": [],
+                },
+            }
+            for e in endpoints
+        ],
+        "joints": [
+            {**j, "members": [member(m) for m in j.get("members", [])]}
+            if isinstance(j, dict)
+            else j
+            for j in value.get("joints", [])
+        ],
+    }
 
 
 class CreateHarness(StrictModel):

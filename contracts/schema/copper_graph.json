@@ -250,6 +250,7 @@
     },
     "EndpointTerminal": {
       "additionalProperties": false,
+      "description": "A connector contact of one cable or harness endpoint's stack.",
       "properties": {
         "contact_id": {
           "maxLength": 100,
@@ -433,7 +434,7 @@
     },
     "StackTerminal": {
       "additionalProperties": false,
-      "description": "A board pad, inline part lead or shell body in one cable end's stack.",
+      "description": "A board pad, inline part lead or shell body in one cable or harness end's stack.",
       "properties": {
         "endpoint_id": {
           "title": "Endpoint Id",

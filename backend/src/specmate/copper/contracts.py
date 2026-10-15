@@ -5,8 +5,17 @@ from uuid import UUID
 
 from pydantic import Field
 
-from specmate.assemblies.contracts import Path, StrictModel
-from specmate.harnesses.contracts import EndpointTerminal, SegmentTerminal
+from specmate.assemblies.contracts import LocalId, Path, StrictModel
+from specmate.harnesses.contracts import SegmentTerminal
+from specmate.interfaces.contracts import ContactId
+
+
+class EndpointTerminal(StrictModel):
+    """A connector contact of one cable or harness endpoint's stack."""
+
+    kind: Literal["endpoint"] = "endpoint"
+    endpoint_id: LocalId
+    contact_id: ContactId
 
 
 class CableTerminal(StrictModel):
@@ -40,7 +49,7 @@ class CarriedContactTerminal(StrictModel):
 
 
 class StackTerminal(StrictModel):
-    """A board pad, inline part lead or shell body in one cable end's stack."""
+    """A board pad, inline part lead or shell body in one cable or harness end's stack."""
 
     kind: Literal["stack_terminal"] = "stack_terminal"
     endpoint_id: str

@@ -213,11 +213,15 @@ def apply_harness_profile(user, request):
         physical = physical_ends[physical_id]
         endpoint = None
         if physical.endpoint_id is not None:
-            pin, body, pinout = harness.endpoints[physical.endpoint_id]
+            pin, resolved = harness.endpoints[physical.endpoint_id]
+            connector = resolved.connector
+            # The connector layer, read as a 0.1 endpoint; a stack without one has no body.
             endpoint = {
                 **pin.model_dump(mode="json"),
-                "body": body.model_dump(mode="json"),
-                "pinout": pinout.model_dump(mode="json"),
+                "body_revision_id": str(connector[0].body_revision_id) if connector else None,
+                "pinout_revision_id": str(connector[0].pinout_revision_id) if connector else None,
+                "body": connector[1].model_dump(mode="json") if connector else None,
+                "pinout": connector[2].model_dump(mode="json") if connector else None,
             }
         end = getattr(profile, end_id)
         review = (
