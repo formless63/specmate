@@ -13,7 +13,7 @@ import { CableViews } from '../cable-views/CableViews';
 import { StockSectionView } from '../cable-views/StockSectionView';
 import { rowLook, Swatch } from '../cable-views/Swatch';
 import { SbIdentityBadge, SbQuantity, SbUnknown } from "../../components/sb";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useOpenProbed } from '../scope/openProbed';
 import { StockConventions } from "../interfaces/StockConventions";
@@ -90,7 +90,7 @@ export function FrozenWirePreview({ projectId }: { projectId?: string | null }) 
     {error && <Alert color="red" role="alert">{error}</Alert>}
     <Group>
       <Select label="Frozen stock definition" data={definitions.filter(d => d.kind === 'wire_stock').map(d => ({ value: d.definition_id, label: d.name }))} value={definitionId} disabled={loading} onChange={id => { setDefinitionId(id); setRevisionId(null); setProfileId(null); }} />
-      <Select label="Exact stock revision" data={revisions.map(r => ({ value: r.revision_id, label: revisionOptionLabel(definitions.find(d => d.definition_id === definitionId)?.name, r.number) }))} value={revisionId} disabled={loading || !definitionId} onChange={setRevisionId} />
+      <Select label="Exact stock revision" data={newestFirst(revisions).map(r => ({ value: r.revision_id, label: revisionOptionLabel(definitions.find(d => d.definition_id === definitionId)?.name, r.number) }))} value={revisionId} disabled={loading || !definitionId} onChange={setRevisionId} />
       <Button variant="subtle" disabled={loading} onClick={() => setRefresh(n => n + 1)}>Refresh frozen choices</Button>
     </Group>
     {loading && <Text role="status">Loading exact revision…</Text>}

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SbUnknown } from "../../components/sb";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { SIGNAL_TYPE_LABELS, SIGNAL_TYPES, command, initialInterface, newSignal, read, type DeclaredQuantity, type Definition, type Draft, type Identity, type Inspection, type Signal, type SignalSet, type SignalType } from "./api";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
@@ -74,7 +74,7 @@ function SignalSets({ projectId }: { projectId: string | null }) {
     <Group align="end">
       <Select label="Signal set" searchable placeholder={sets.length ? "Choose a set" : "No signal sets yet"} data={sets.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
     </Group>
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}

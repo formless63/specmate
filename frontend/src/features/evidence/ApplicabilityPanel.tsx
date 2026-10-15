@@ -5,6 +5,7 @@ import { useProbe } from "../probe";
 import { SbStatus, type SbLed } from "../../components/sb";
 import { applicabilityPath, read, type Applicability, type ApplicabilityList, type ApplicabilityStatus } from "./api";
 
+import { newestFirst } from '../../lib/revision-labels';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LABEL: Record<ApplicabilityStatus, { led: SbLed; value: string }> = {
   exact_revision: { led: "info", value: "recorded against this revision" },
@@ -31,7 +32,7 @@ export function ApplicabilityPanel({ workspaceId }: { workspaceId: string }) {
   const [offset, setOffset] = useState(0);
   // The shared selection names a definition (and maybe a revision); its revisions fill the picker.
   const definition = useQuery({ queryKey: ["evidence-applicability-revisions", probe?.object], queryFn: () => read<{ revisions: { revision_id: string; number: number }[] }>(`catalog/definitions/${probe?.object}?limit=100`), enabled: !!probe, retry: false });
-  const options = (definition.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `Revision ${r.number}` }));
+  const options = newestFirst(definition.data?.revisions).map((r) => ({ value: r.revision_id, label: `Revision ${r.number}` }));
   const fromProbe = definition.data?.revisions.find((r) => r.number === probe?.rev) ?? definition.data?.revisions.at(-1);
   const selected = picked && options.some((o) => o.value === picked) ? picked : fromProbe?.revision_id ?? null;
   const usePicker = !!probe && options.length > 0;

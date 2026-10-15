@@ -6,6 +6,7 @@ import { SbIdentityBadge, SbStatus, SbUnknown } from "../../components/sb";
 import { request, type RevisionDetail, type SourcePage } from "../sources/api";
 import type { Catalog, Representation, RightsStatus, SourceIdentifier } from "./api";
 
+import { newestFirst } from '../../lib/revision-labels';
 const KINDS = ["datasheet", "symbol", "footprint", "model", "drawing"];
 
 /** Cleared is a recorded status, not an approval; restricted and unknown are never shown as OK. */
@@ -65,7 +66,7 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register }:
       <TextInput label="Representation label" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
       <Select label="Representation kind" value={kind} onChange={setKind} data={KINDS} allowDeselect={false} />
       <Select label="Source bundle revision" placeholder="Choose a registered source" searchable value={bundleId} onChange={(v) => { setBundleId(v); setPath(null); }}
-        data={(bundles.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} (${r.role})` }))} />
+        data={newestFirst(bundles.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} (${r.role})` }))} />
       <Select label="Source file" placeholder="Choose an exact file" searchable value={path} onChange={setPath} disabled={!detail.data}
         data={(detail.data?.manifest.files ?? []).map((f) => ({ value: f.path, label: f.path }))} />
       {file && <Group gap="xs"><Text size="xs" className="sb-mono">SHA-256: {file.sha256}</Text><Text size="xs">File rights note: {file.rights}</Text></Group>}

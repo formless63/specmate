@@ -2,7 +2,7 @@ import { Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextI
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { read } from './api';
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export type Declaration = { amount_mm: string | null; basis: 'unknown' | 'human_declaration'; explanation: string | null };
@@ -92,7 +92,7 @@ export function LengthInspection({ projection }: { projection: Projection }) {
 export function LengthImpactView({ afterRevision, name, revisions }: { afterRevision: string; name?: string; revisions: { revision_id: string; number: number }[] }) {
   const [before, setBefore] = useState<string | null>(null);
   const result = useQuery({ queryKey: ['cable-length-impact', before, afterRevision], queryFn: () => read<Impact>(`cables/length-impact?before_revision_id=${encodeURIComponent(before ?? '')}&after_revision_id=${encodeURIComponent(afterRevision)}`), enabled: !!before, retry: false });
-  return <Card withBorder><Stack><Title order={4}>Preparation and document impacts</Title><Select label="Compare lengths from frozen revision" data={revisions.filter(r => r.revision_id !== afterRevision).map(r => ({ value: r.revision_id, label: revisionOptionLabel(name, r.number) }))} value={before} onChange={setBefore} />
+  return <Card withBorder><Stack><Title order={4}>Preparation and document impacts</Title><Select label="Compare lengths from frozen revision" data={newestFirst(revisions).filter(r => r.revision_id !== afterRevision).map(r => ({ value: r.revision_id, label: revisionOptionLabel(name, r.number) }))} value={before} onChange={setBefore} />
     <Button disabled={!before} loading={result.isFetching} onClick={() => result.refetch()}>Refresh length impact access</Button>
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {result.data && !result.isError && !result.isFetching && <><Text>Route changed: {String(result.data.route_changed)}. Preparation review required: {String(result.data.preparation_review_required)}. Document review required: {String(result.data.document_review_required)}.</Text><Text>Stock revision changed: {String(result.data.stock_revision_changed)}. No stock facts or cut declarations were written by this comparison.</Text><Text size="xs"><RevisionLabel id={result.data.before_revision_id} role="Before" sha256={result.data.before_sha256} />; <RevisionLabel id={result.data.after_revision_id} role="after" sha256={result.data.after_sha256} /></Text>

@@ -14,6 +14,7 @@ import { HarnessViews } from '../harness-views/HarnessViews';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
 import { CableViews, type CableEnd } from './CableViews';
 
+import { newestFirst } from '../../lib/revision-labels';
 const PAGE = 50;
 /** Revisions are listed oldest first, 50 to a page; this is the offset of the page that holds `number`. */
 export const revisionPageOffset = (number: number) => Math.floor((number - 1) / PAGE) * PAGE;
@@ -45,7 +46,7 @@ export function SelectedDefinitionViews({ record }: { record: LibraryRecord }) {
   useEffect(() => { setMode(hasFrozen ? 'frozen' : 'draft'); setDraftId(null); }, [record.record_id, hasFrozen]);
   const draft = drafts.find(d => d.draft_id === draftId) ?? drafts[0] ?? null;
   const options = [
-    ...revisions.map(revision => ({ value: String(revision.number), label: `r${revision.number}` })),
+    ...newestFirst(revisions).map(revision => ({ value: String(revision.number), label: `r${revision.number}` })),
     ...(drafts.length ? [{ value: 'draft', label: 'Draft (current state)' }] : []),
   ];
   const value = mode === 'draft' ? 'draft' : frozenNumber === null ? null : String(frozenNumber);

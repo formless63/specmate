@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SbStatus, SbUnknown } from "../../components/sb";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import { CONDITIONING, command, initialInterface, read, unknownPortPin, type CableEnd, type DeclaredQuantity, type Definition, type Draft, type EndRow, type Identity, type Inspection, type Pinout, type PinoutRole, type Port, type PortPin } from "./api";
@@ -12,6 +12,7 @@ import { DeclaredValue, SignalTypeChip } from "./SignalSetPanel";
 import "./signals.css";
 import { BEHAVIOR, COUPLING, NEED_LABELS, PortWorkbench, TERMINATION } from "../pinout-editor/PortWorkbench";
 import type { WorkbenchMode } from "../pinout-editor/PinoutWorkbench";
+import { useLatestRevisionDefault } from '../../lib/useLatestRevisionDefault';
 
 const ROLES: { value: PinoutRole; label: string }[] = [
   { value: "unknown", label: "Role unknown" }, { value: "source", label: "Source" }, { value: "sink", label: "Sink" }, { value: "bidirectional", label: "Bidirectional" },
@@ -54,7 +55,7 @@ function Ports({ projectId }: { projectId: string | null }) {
     <Group align="end">
       <Select label="Port" searchable placeholder={ports.length ? "Choose a port" : "No ports yet"} data={ports.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
     </Group>
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
@@ -90,6 +91,7 @@ function PortDraft({ draft, definitions, onSaved }: { draft: Draft; definitions:
 export function PortEditor({ value, onChange, definitions, mode = "draft" }: { value: Port; onChange: (v: Port) => void; definitions: Definition[]; mode?: WorkbenchMode }) {
   const [variantDefinition, setVariantDefinition] = useState<string | null>(null);
   const identity = useQuery({ queryKey: ["port-variant-identity", variantDefinition], queryFn: () => read<Identity>(`catalog/definitions/${variantDefinition}`), enabled: !!variantDefinition });
+  useLatestRevisionDefault(variantDefinition, identity.isError ? undefined : identity.data, (identity.data?.revisions.length ?? 50) < 50, value.pinout_revision_id, (id) => onChange({ ...value, pinout_revision_id: id, selected_conditions: {} }));
   const variant = useQuery({ queryKey: ["interface-inspect", value.pinout_revision_id], queryFn: () => read<Inspection>(`interfaces/revisions/${value.pinout_revision_id}`), enabled: !!value.pinout_revision_id });
   const end = useQuery({ queryKey: ["interface-end", value.pinout_revision_id], queryFn: () => read<CableEnd>(`interfaces/revisions/${value.pinout_revision_id}/end`), enabled: !!value.pinout_revision_id });
   const pinout = variant.data?.interface.kind === "pinout" ? variant.data.interface as Pinout : null;
@@ -107,7 +109,7 @@ export function PortEditor({ value, onChange, definitions, mode = "draft" }: { v
     </Group>
     <Group align="end">
       <Select label="Pinout variant" searchable placeholder="Choose a pinout variant" value={variantDefinition} data={definitions.filter((d) => d.kind === "pinout").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={setVariantDefinition} />
-      {identity.data && <Select label="Pinout variant revision" value={value.pinout_revision_id || null} onChange={(v) => onChange({ ...value, pinout_revision_id: v ?? "", selected_conditions: {} })} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Pinout variant revision" value={value.pinout_revision_id || null} onChange={(v) => onChange({ ...value, pinout_revision_id: v ?? "", selected_conditions: {} })} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {value.pinout_revision_id && <Text size="xs"><RevisionLabel id={value.pinout_revision_id} role="Variant" /></Text>}
     </Group>
     {variant.isError && <Alert color="red">{variant.error.message}</Alert>}

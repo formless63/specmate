@@ -6,7 +6,7 @@ import { SourceError } from '../sources/api';
 import { PlacementEditor } from './PlacementEditor';
 import { MountingDetails, MountingEditor } from './MountingEditor';
 import { addressKey, command, read, relationship, type Assembly, type Definition, type Draft, type Identity, type Occurrence, type Projection, type RelationshipKind } from "./api";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
@@ -145,7 +145,7 @@ function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string | nu
     {!accessError && identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {!accessError && identity.data && <Select label="Assembly draft" value={draftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={(id) => { generation.current++; clearDraftSession(); setDraftId(id); setSnapshotId(null); }} />}
     {!accessError && identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={frozenRevision} draftId={draftId} onOpen={(id) => { generation.current++; clearDraftSession(); setDraftId(id); setSnapshotId(null); }} />}
-    {!accessError && identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(id) => { generation.current++; setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}
+    {!accessError && identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(id) => { generation.current++; setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}
     {!accessError && revision.isError && <Alert color="red">{revision.error.message}</Alert>}
     {!accessError && draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     {draft.data && loadedDraftId === draftId && <>
@@ -215,7 +215,7 @@ function AssemblyEditor({ draft: currentDraft, definitions, onSaved, canEdit, on
       <TextInput label="Display reference" value={displayRef} onChange={(e) => setDisplayRef(e.currentTarget.value)} />
       <Select label="Child definition" searchable value={childDefinition} data={definitions.map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={(id) => { setChildDefinition(id); setRevisionId(null); setChildOffset(0); }} />
       {child.isError && <Alert color="red">{child.error.message}</Alert>}
-      <Select label="Pinned child revision" value={revisionId} data={(visibleChild?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(visibleChild?.name, r.number) }))} onChange={setRevisionId} />
+      <Select label="Pinned child revision" value={revisionId} data={newestFirst(visibleChild?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(visibleChild?.name, r.number) }))} onChange={setRevisionId} />
       {visibleChild && <Group><Button disabled={childOffset === 0} onClick={() => { setChildOffset(Math.max(0, childOffset - 50)); setRevisionId(null); }}>Previous child revisions</Button><Button disabled={visibleChild.revisions.length < 50} onClick={() => { setChildOffset(childOffset + 50); setRevisionId(null); }}>Next child revisions</Button></Group>}
       <Button disabled={!localId || !revisionId} loading={save.isPending} onClick={() => save.mutate({ ...assembly, occurrences: [...assembly.occurrences, { local_id: localId, revision_id: revisionId!, display_ref: displayRef, placement: { status: "unknown" } }] })}>Add occurrence</Button>
       </>}

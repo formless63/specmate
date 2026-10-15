@@ -4,7 +4,7 @@ import { allLibraryDefinitions, read, type Definition, type Identity } from "../
 import { MatchingRequestError, candidateDetail, candidates, evidenceFiles, proposeMatch, reviewMatch, type Candidate, type CandidatePage, type Evidence, type EvidenceFile } from "./api";
 import { InspectionScope, ReadOnlyNote, useCan } from "../../lib/permissions";
 import { SupplierSuggestions } from "./SupplierSuggestions";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 type Pin = { revision_id: string; definition_id: string };
@@ -186,7 +186,7 @@ function RevisionPicker({ projectId, disabled, label, onChange }: { projectId: s
   return <Stack gap="xs">
     {error && <Alert color="red">{error}</Alert>}
     <NativeSelect label={`${label} definition`} value={definitionId} onChange={(event) => void chooseDefinition(event.currentTarget.value)} data={[{ value: "", label: "Select a definition" }, ...definitions.map((d) => ({ value: d.definition_id, label: `${d.name} · ${d.kind}${d.in_project ? " · in this project" : ""}` }))]} />
-    <NativeSelect label={`${label} exact revision`} value={revisionId} onChange={(event) => { const value = event.currentTarget.value; setRevisionId(value); onChange(value ? { revision_id: value, definition_id: definitionId } : null); }} data={[{ value: "", label: "Select a frozen revision" }, ...(identity?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity?.name, r.number) }))]} />
+    <NativeSelect label={`${label} exact revision`} value={revisionId} onChange={(event) => { const value = event.currentTarget.value; setRevisionId(value); onChange(value ? { revision_id: value, definition_id: definitionId } : null); }} data={[{ value: "", label: "Select a frozen revision" }, ...newestFirst(identity?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity?.name, r.number) }))]} />
     {identity?.revisions.length === 0 && <Text>No frozen revisions. Create and freeze a revision in the identity workspace.</Text>}
     {more && <Button variant="light" onClick={() => void moreRevisions()}>More {label.toLowerCase()} revisions</Button>}
   </Stack>;

@@ -1,4 +1,4 @@
-import { useRevisionLabel } from "../../lib/revision-labels";
+import { useRevisionLabel, newestFirst } from "../../lib/revision-labels";
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { LengthsEditor, LengthInspection, LengthImpactView } from "./Lengths";
 import { Alert, Anchor, Button, Card, Group, SegmentedControl, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
@@ -116,7 +116,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
       <Select label="Existing cable definition" searchable data={currentDefinitions.filter((d) => d.kind === "cable").map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitions.isError ? null : definitionId} disabled={definitions.isError} onChange={(id) => pickDefinition(id)} style={{ flex: '1 1 16rem' }} />
       {identity.data && !workspaceDenied && <>
         <Select label="Edit cable draft" value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); } }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} style={{ flex: '1 1 12rem' }} />
-        <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} style={{ flex: '1 1 12rem' }} />
+        <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} style={{ flex: '1 1 12rem' }} />
         <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={openDraft} />
         {(offset > 0 || Math.max(identity.data.revisions.length, identity.data.drafts.length) >= 50) && <Group gap="xs"><Button size="xs" variant="subtle" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button size="xs" variant="subtle" disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>}
       </>}

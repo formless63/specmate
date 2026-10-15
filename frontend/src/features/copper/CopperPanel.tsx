@@ -3,7 +3,7 @@ import { CopperProvenance } from './CopperProvenance';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { evidenceLabel, read, scopeLabel, type Definition, type Graph, type Identity } from './api';
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function CopperPanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? 'library'} projectId={projectId} />; }
@@ -22,7 +22,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     <Select label="Copper graph definition" searchable value={denied ? null : definition} data={rows.map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} disabled={definitions.isError} onChange={v => { setDefinition(v); setRevision(null); setOffset(0); }} />
-    {current && <><Select label="Frozen graph revision" searchable value={revision} data={current.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(current.name, r.number) }))} onChange={setRevision} /><Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier graph revisions</Button><Button disabled={current.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later graph revisions</Button></Group></>}
+    {current && <><Select label="Frozen graph revision" searchable value={revision} data={newestFirst(current.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(current.name, r.number) }))} onChange={setRevision} /><Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier graph revisions</Button><Button disabled={current.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later graph revisions</Button></Group></>}
     <Group align="end"><TextInput label="Exact graph revision ID" value={exact} onChange={e => setExact(e.currentTarget.value)} /><Button disabled={!exact.trim() || denied} onClick={() => { setRevision(exact.trim()); }}>Inspect exact graph</Button></Group>
     {revision && !denied && <CopperInspector key={revision} revisionId={revision} />}
   </Stack>;

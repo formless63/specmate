@@ -6,7 +6,7 @@ import type { Definition, Identity } from '../identity/api';
 import type { Projection } from '../assemblies/api';
 import { download, requestJson, review, saveArchive, type Review, type RightsReview, type Selection } from './api';
 import { ApiError } from '../workspace/api';
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 export function SelectedPackagesPanel({ projectId = null }: { projectId?: string | null }) {
@@ -72,7 +72,7 @@ function PackageWorkspace({ projectId }: { projectId: string | null }) {
     {[definitions, identity, root, projection].filter(q => q.isError).map((q, i) => <Alert key={i} color="red">{q.error?.message}</Alert>)}
     {!hidden && <>
       <Select label="Package root definition" searchable disabled={busy} data={(definitions.data ?? []).map(row => ({ value: row.definition_id, label: `${row.name} (${row.kind})` }))} value={definitionId} onChange={value => { reset(); setDefinitionId(value); setOffset(0); setRootId(null); setPath([]); }} />
-      <Select label="Exact package root revision" disabled={busy} data={(identity.data?.revisions ?? []).map((row) => ({ value: row.revision_id, label: revisionOptionLabel(identity.data?.name, row.number) }))} value={rootId} onChange={value => { reset(); setRootId(value); setPath([]); }} />
+      <Select label="Exact package root revision" disabled={busy} data={newestFirst(identity.data?.revisions ?? []).map((row) => ({ value: row.revision_id, label: revisionOptionLabel(identity.data?.name, row.number) }))} value={rootId} onChange={value => { reset(); setRootId(value); setPath([]); }} />
       <Group><Button disabled={busy || offset === 0} onClick={() => { reset(); setRootId(null); setPath([]); setOffset(n => Math.max(0, n - 50)); }}>Earlier frozen revisions</Button><Button disabled={busy || (identity.data?.revisions.length ?? 0) < 50} onClick={() => { reset(); setRootId(null); setPath([]); setOffset(n => n + 50); }}>Later frozen revisions</Button></Group>
       {rootId && <Card withBorder><Stack><Title order={3}>Select the export boundary</Title>
         <Button variant={path.length ? 'outline' : 'filled'} disabled={busy} onClick={() => { reset(); setPath([]); }}>Whole exact revision</Button>

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Definition, Identity } from "../identity/api";
 import { read, type Detail, type Submit, type WorkBatch, type WorkDetail } from "./api";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { SbQuantity, SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
@@ -35,7 +35,7 @@ export function WorkPanel({ workspaceId, projectId, batches, pending, submit }: 
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     <InspectionScope permission="inventory.manage">
     <NativeSelect label="Work target definition" value={definition} onChange={(e) => { setDefinition(e.currentTarget.value); setRevision(""); setRevisionOffset(0); }} data={[{ value: "", label: "Choose definition" }, ...(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: d.name }))]} />
-    <NativeSelect label="Work target exact revision" value={revision} onChange={(e) => setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))]} />
+    <NativeSelect label="Work target exact revision" value={revision} onChange={(e) => setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...newestFirst(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))]} />
     {definition && <Group><Button disabled={revisionOffset === 0} onClick={() => { setRevision(""); setRevisionOffset(Math.max(0, revisionOffset - 50)); }}>Previous work revisions</Button><Button disabled={(identity.data?.revisions.length ?? 0) < 50} onClick={() => { setRevision(""); setRevisionOffset(revisionOffset + 50); }}>Next work revisions</Button></Group>}
     <NativeSelect label="Work kind" value={kind} onChange={(e) => setKind(e.currentTarget.value)} data={["job", "batch"]} />
     <TextInput label="Work label" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />

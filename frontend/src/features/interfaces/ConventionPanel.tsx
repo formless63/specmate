@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SbUnknown } from "../../components/sb";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import { loadFrozenStock } from "../wire-stock/viewer-api";
@@ -73,7 +73,7 @@ function Conventions({ projectId }: { projectId: string | null }) {
     <Group align="end">
       <Select label="Convention" searchable placeholder={conventions.length ? "Choose a convention" : "No conventions yet"} data={conventions.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
     </Group>
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
@@ -111,7 +111,7 @@ function RevisionPicker({ label, kind, definitions, value, onChange }: { label: 
   const identity = useQuery({ queryKey: ["convention-pick", definitionId], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}`), enabled: !!definitionId });
   return <Group align="end">
     <Select label={label} searchable placeholder={`Choose ${label.toLowerCase()}`} value={definitionId} data={definitions.filter((d) => d.kind === kind).map((d) => ({ value: d.definition_id, label: d.name }))} onChange={setDefinitionId} />
-    {identity.data && <Select label={`${label} revision`} value={value} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(v) => v && onChange(v)} />}
+    {identity.data && <Select label={`${label} revision`} value={value} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(v) => v && onChange(v)} />}
     {value && <Text size="xs"><RevisionLabel id={value} role={label} /></Text>}
   </Group>;
 }

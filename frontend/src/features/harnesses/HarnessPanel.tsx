@@ -9,7 +9,7 @@ import { StackView } from '../end-assemblies/StackEditor';
 import { useProbedSelection } from '../cable-views/useProbedSelection';
 import { useProbe } from '../probe';
 import { command, read, initialHarness, terminalKey, terminalLabel, type Harness, type Definition, type Draft, type Identity, type Inspection } from './api';
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { referenceFromProject } from "../scope/openProbed";
 
@@ -103,7 +103,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && !workspaceDenied && <>
       <Select label="Edit harness draft" value={draftId} onChange={id => { if (id !== draftId) replaceEditor(); setDraftId(id); }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
-      <Select label="Inspect frozen harness" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />
+      <Select label="Inspect frozen harness" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}
     {inspectorDenied && <Alert color="red">Frozen Harness access must be rechecked before retained draft declarations or inspection are shown.</Alert>}

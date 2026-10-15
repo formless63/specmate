@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SbStatus, SbUnknown } from "../../components/sb";
 import { InspectionScope, ReadOnlyNote, useCan, usePermission, type PermissionName } from "../../lib/permissions";
-import { revisionOptionLabel, useRevisionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, useRevisionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionPicker } from "../cables/RevisionPicker";
 import type { CableEnd } from "../interfaces/api";
 import { SignalTypeChip } from "../interfaces/SignalSetPanel";
@@ -326,7 +326,7 @@ function Intents({ projectId }: { projectId: string | null }) {
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     <Group align="end">
       <Select label="Cable intent" searchable placeholder={intents.length ? "Choose an intent" : "No intents yet"} data={intents.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
     </Group>

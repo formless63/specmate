@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { SbStatus, SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { InspectionScope, ReadOnlyNote, usePermission, type PermissionName } from "../../lib/permissions";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { newestFirst, revisionOptionLabel } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import {
@@ -62,7 +62,7 @@ function Boards({ projectId }: { projectId: string | null }) {
     <Group align="end">
       <Select label="Board" searchable placeholder={boards.length ? "Choose a board" : "No boards yet"} data={boards.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
     </Group>
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
@@ -204,7 +204,7 @@ function ConnectorEditor({ value, onChange, definitions, terminalOptions }: { va
     <Title order={4}>Connector it carries</Title>
     <Group align="end">
       <Select size="xs" label="Connector body" searchable clearable placeholder={connector ? "Change body" : "None carried"} value={bodyDefinition} data={definitions.filter((d) => d.kind === "connector_body").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={setBodyDefinition} />
-      {identity.data && <Select size="xs" label="Body revision" value={connector?.body_revision_id ?? null} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))}
+      {identity.data && <Select size="xs" label="Body revision" value={connector?.body_revision_id ?? null} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))}
         onChange={(v) => put(v ? { local_id: connector?.local_id ?? "connector", body_revision_id: v, correspondence: [], review: "unreviewed", basis: null } : null)} />}
       {connector && <Text size="xs"><RevisionLabel id={connector.body_revision_id} role="Body" /></Text>}
       {connector && <Button size="xs" variant="subtle" onClick={() => put(null)}>Remove connector</Button>}
@@ -263,7 +263,7 @@ export function KicadProposal({ definitions, onUse }: { definitions: Definition[
     <Text size="xs" c="dimmed">Choose which components' pads are the board's pads. Nets and resistor passages become proposed paths; nothing is accepted until you create and review the board.</Text>
     <Group align="end">
       <Select size="xs" label="PCB population" searchable placeholder={populations.length ? "Choose a population" : "No PCB populations"} data={populations.map((d) => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={(v) => { setDefinition(v); setRevision(null); setChosen(null); }} />
-      {identity.data && <Select size="xs" label="Population revision" value={revision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(v) => { setRevision(v); setChosen(null); }} />}
+      {identity.data && <Select size="xs" label="Population revision" value={revision} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(v) => { setRevision(v); setChosen(null); }} />}
     </Group>
     {proposal.isError && <Alert color="red">{proposal.error.message}</Alert>}
     {data && <>

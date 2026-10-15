@@ -109,3 +109,8 @@ export function revisionOptionLabel(name: string | null | undefined, number: num
   const base = name?.trim() ? `${name} · r${number}` : `Revision ${number}`;
   return suffix ? `${base} · ${suffix}` : base;
 }
+
+/** Revisions for a picker: newest first. Reads return them oldest first; never reorder the source array. */
+export function newestFirst<T extends { number: number }>(revisions: readonly T[] | undefined | null): T[] {
+  return [...(revisions ?? [])].sort((a, b) => b.number - a.number);
+}

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { SbStatus, SbUnknown, type SbLed } from "../../components/sb";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import type { Definition, Identity } from "../identity/api";
 import { command, request } from "./api";
 import { ExternalObservations } from "../integrations/ExternalObservations";
@@ -63,7 +63,7 @@ export function useRevisionChoice(workspaceId: string, kinds: string[] | null) {
 export function Chooser({ label, choice }: { label: string; choice: ReturnType<typeof useRevisionChoice> }) {
   return <>
     <NativeSelect label={`${label} definition`} value={choice.definition} onChange={(e) => { choice.setDefinition(e.currentTarget.value); choice.setRevision(""); }} data={[{ value: "", label: "Choose definition" }, ...choice.options.map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))]} />
-    <NativeSelect label={`${label} exact revision`} value={choice.revision} onChange={(e) => choice.setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...(choice.identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(choice.identity.data?.name, r.number) }))]} />
+    <NativeSelect label={`${label} exact revision`} value={choice.revision} onChange={(e) => choice.setRevision(e.currentTarget.value)} data={[{ value: "", label: "Choose frozen revision" }, ...newestFirst(choice.identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(choice.identity.data?.name, r.number) }))]} />
   </>;
 }
 

@@ -12,6 +12,7 @@ import {
 import { ModelUpload } from './ModelUpload';
 import { ParameterTable } from './ParameterTable';
 
+import { newestFirst } from '../../lib/revision-labels';
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
 function blank(technology: Technology): PrintPreparation {
@@ -164,7 +165,7 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
           <Button variant="light" onClick={() => { setCurrent(null); setRead(null); setRevisions([]); setPart(null); setFrozen(null); setSlicing(null); setDraft(blank('resin')); setDirty(true); }} {...create.props}>Start new resin preparation</Button>
         </Group>
       </InspectionScope>
-      {revisions.length > 0 && <Select label="Frozen revision" placeholder="View or slice a revision" clearable data={revisions.map(r => ({ value: r.revision_id, label: `r${r.number}` }))}
+      {revisions.length > 0 && <Select label="Frozen revision" placeholder="View or slice a revision" clearable data={newestFirst(revisions).map(r => ({ value: r.revision_id, label: `r${r.number}` }))}
         value={frozen} onChange={value => void openRevision(value)} />}
     </Group>
     {draft && !frozen && <InspectionScope permission="item.create">
@@ -174,7 +175,7 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
           <TextInput label="Variant label" value={draft.variant_label} onChange={e => { const value = e.target.value; edit(next => { next.variant_label = value; }); }} />
           <Text size="sm">Technology: {draft.technology.toUpperCase()}</Text>
           <Select label="Part (frozen mechanical source)" placeholder="Select a revision" value={draft.part.mechanical_revision_id || null}
-            data={mechanical.flatMap(m => m.revisions.map(r => ({ value: r.revision_id, label: `${m.name} r${r.number}` })))} onChange={value => value && void choosePart(value)} />
+            data={mechanical.flatMap(m => newestFirst(m.revisions).map(r => ({ value: r.revision_id, label: `${m.name} r${r.number}` })))} onChange={value => value && void choosePart(value)} />
           <Select label="Model file" placeholder={part ? 'Select a pinned model' : 'Select a part first'} data={models}
             value={draft.part.path ? `${draft.part.source_local_id}\u0000${draft.part.path}` : null}
             onChange={value => { if (!value) return; const [local, path] = value.split('\u0000'); edit(next => { next.part.source_local_id = local ?? ''; next.part.path = path ?? ''; }); }} />

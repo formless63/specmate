@@ -9,6 +9,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 import { observationRange, recordFirmwareImpact } from "../evidence/api";
 import { RecordResult } from "../evidence/RecordResult";
 
+import { newestFirst } from '../../lib/revision-labels';
 /** Impact reviews are workspace-scoped; the project is navigation context only. */
 export function FirmwareImpactPanel({ workspaceId }: { workspaceId: string }) {
   return <Workspace key={workspaceId} workspaceId={workspaceId} />;
@@ -60,7 +61,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
     window.addEventListener('focus', focus);
     return () => { generation.current++; window.removeEventListener('focus', focus); };
   }, [opened]);
-  const options = [{ value: '', label: 'Select a frozen firmware revision' }, ...firmware.flatMap(item => item.revisions.map(revision => ({ value: revision.revision_id, label: `${item.name} · revision ${revision.number}` })))];
+  const options = [{ value: '', label: 'Select a frozen firmware revision' }, ...firmware.flatMap(item => newestFirst(item.revisions).map(revision => ({ value: revision.revision_id, label: `${item.name} · revision ${revision.number}` })))];
   async function inspect(observationOffset = 0) {
     const token = ++generation.current;
     setResult(null); setError(''); setBusy(true);

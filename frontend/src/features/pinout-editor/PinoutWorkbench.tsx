@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { SbUnknown } from "../../components/sb";
 import { useCan } from "../../lib/permissions";
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { faceForBody } from "../interfaces/BodyFace";
 import { ConditionsEditor, PinoutSignalsEditor, firstSetRevision } from "../interfaces/PinoutSignals";
 import { SignalTypeChip } from "../interfaces/SignalSetPanel";
@@ -216,7 +216,7 @@ function SetPicker({ definitions, onPick, label = "Signal set" }: { definitions:
   const identity = useQuery({ queryKey: ["signal-set-identity", definition], queryFn: () => read<Identity>(`catalog/definitions/${definition}`), enabled: !!definition });
   return <Group align="end" gap="xs">
     <Select size="xs" label={label} searchable placeholder="Choose a signal set" value={definition} data={definitions.filter((d) => d.kind === "signal_set").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={setDefinition} />
-    {identity.data && <Select size="xs" label="Signal set revision" value={null} onChange={onPick} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+    {identity.data && <Select size="xs" label="Signal set revision" value={null} onChange={onPick} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
   </Group>;
 }
 
