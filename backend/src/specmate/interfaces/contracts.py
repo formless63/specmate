@@ -9,7 +9,7 @@ from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.contracts import FiniteNumber
 from specmate.interfaces.assessment_contracts import InterfaceAssessment
 from specmate.interfaces.condition_contracts import ConditionalRating, Polarity
-from specmate.interfaces.signal_contracts import SignalRef, SignalSet
+from specmate.interfaces.signal_contracts import SignalImpedance, SignalLevel, SignalRef, SignalSet
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
 Text = Annotated[str, Field(min_length=1, max_length=200)]
@@ -37,6 +37,35 @@ class Contact(StrictModel):
     position_mm: tuple[FiniteNumber, FiniteNumber] | None = None
 
 
+class ContactPair(StrictModel):
+    this: ContactId
+    other: ContactId
+
+
+class MatesWith(StrictModel):
+    """A declared mating partner. Mating is never inferred from family names or labels."""
+
+    body_revision_id: UUID
+    # same_contact_id: every contact of this body meets the partner contact with the same ID.
+    correspondence: Literal["same_contact_id", "explicit"] = "same_contact_id"
+    pairs: list[ContactPair] = Field(default_factory=list, max_length=1000)
+    review: Literal["unreviewed", "reviewed"] = "unreviewed"
+    basis: Text | None = None
+
+    @model_validator(mode="after")
+    def consistent(self):
+        if self.review == "reviewed" and not self.basis:
+            raise ValueError("A reviewed mating declaration requires its basis.")
+        if self.correspondence == "explicit":
+            if not self.pairs:
+                raise ValueError("Explicit correspondence requires contact pairs.")
+            unique([p.this for p in self.pairs])
+            unique([p.other for p in self.pairs])
+        elif self.pairs:
+            raise ValueError("Same-ID correspondence lists no pairs.")
+        return self
+
+
 class ConnectorBody(StrictModel):
     kind: Literal["connector_body"] = "connector_body"
     schema_version: Literal["0.1"] = "0.1"
@@ -44,10 +73,12 @@ class ConnectorBody(StrictModel):
     mating_role: Literal["plug", "receptacle", "hermaphroditic", "unknown"] = "unknown"
     contacts: list[Contact] = Field(default_factory=list, max_length=1000)
     drawing_orientation: Orientation = Field(default_factory=Orientation)
+    mates_with: list[MatesWith] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def unique(self):
         unique([c.contact_id for c in self.contacts])
+        unique([str(m.body_revision_id) for m in self.mates_with])
         if any(c.position_mm is not None for c in self.contacts):
             if self.drawing_orientation.viewing_side == "unknown":
                 raise ValueError("Contact coordinates require a known drawing side.")
@@ -168,6 +199,62 @@ class Pinout(StrictModel):
         return self
 
 
+class CableNeed(StrictModel):
+    """A part the cable must add for this pin, such as a series resistor."""
+
+    conditioning: Literal[
+        "series_resistor", "series_capacitor", "shunt_resistor", "attenuator", "other"
+    ]
+    value: Text | None = None
+    basis: Text
+
+
+class PortPin(StrictModel):
+    """What the device does at one contact. Absent facts stay unknown."""
+
+    contact_id: ContactId
+    behaviour: Literal["drives", "accepts", "passes", "none", "unknown"] = "unknown"
+    level: SignalLevel = Field(default_factory=SignalLevel)
+    impedance: SignalImpedance = Field(default_factory=SignalImpedance)
+    coupling: Literal["ac", "dc", "unknown"] = "unknown"
+    termination: Literal["source_terminated", "load_terminated", "none", "unknown"] = "unknown"
+    needs_in_cable: list[CableNeed] = Field(default_factory=list, max_length=10)
+    must_not_connect: bool = False
+    must_not_connect_reason: Text | None = None
+    basis: Text | None = None
+
+    @model_validator(mode="after")
+    def reasoned(self):
+        if self.must_not_connect and not self.must_not_connect_reason:
+            raise ValueError("A must-not-connect pin requires its reason.")
+        if not self.must_not_connect and self.must_not_connect_reason:
+            raise ValueError("Only a must-not-connect pin carries that reason.")
+        return self
+
+
+class Port(StrictModel):
+    """A device socket or plug as the outside world sees it: one port per pinout variant."""
+
+    kind: Literal["port"] = "port"
+    schema_version: Literal["0.1"] = "0.1"
+    device_label: Text
+    pinout_revision_id: UUID
+    role: Literal["source", "sink", "bidirectional", "unknown"] = "unknown"
+    selected_conditions: dict[ConditionKey, ConditionKey] = Field(default_factory=dict)
+    pins: list[PortPin] = Field(default_factory=list, max_length=1000)
+    review: Literal["unreviewed", "reviewed"] = "unreviewed"
+    review_basis: Text | None = None
+
+    @model_validator(mode="after")
+    def consistent(self):
+        unique([p.contact_id for p in self.pins])
+        if len(self.selected_conditions) > 20:
+            raise ValueError("Too many selected conditions.")
+        if self.review == "reviewed" and not self.review_basis:
+            raise ValueError("Reviewed ports require a review basis.")
+        return self
+
+
 class Terminal(StrictModel):
     path: Path = Field(min_length=1)
     revision_id: UUID
@@ -202,11 +289,18 @@ def unique(values):
 
 
 Interface = Annotated[
-    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment | SignalSet,
+    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment | SignalSet | Port,
     Field(discriminator="kind"),
 ]
 INTERFACE_ADAPTER = TypeAdapter(Interface)
-KINDS = {"connector_body", "pinout", "interface_map", "interface_assessment", "signal_set"}
+KINDS = {
+    "connector_body",
+    "pinout",
+    "interface_map",
+    "interface_assessment",
+    "signal_set",
+    "port",
+}
 
 
 class CreateInterface(StrictModel):

@@ -5,7 +5,7 @@ from ninja import Router
 from specmate.access.permissions import Perm
 from specmate.design.operations import draft_state
 from specmate.interfaces.operations import interface_draft
-from specmate.interfaces.queries import inspect_revision, trace
+from specmate.interfaces.queries import end_expectations, inspect_revision, trace
 from specmate.operations import Context
 
 router = Router(tags=["interfaces"])
@@ -31,3 +31,9 @@ def revision(request, revision_id: UUID):
 @router.get("/revisions/{revision_id}/trace")
 def declared_trace(request, revision_id: UUID, contact_id: str):
     return trace(request.user, revision_id, contact_id)
+
+
+@router.get("/revisions/{revision_id}/end")
+def cable_end(request, revision_id: UUID):
+    """Per-contact expectations of a device port or a bare pinout variant."""
+    return end_expectations(request.user, revision_id)

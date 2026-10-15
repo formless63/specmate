@@ -229,18 +229,29 @@ class Seeder:
         self.tally("signal set")
         din = interface("Demo 10-pin round DIN socket", examples.round_din_10_socket())
         rgb = interface("Demo 21-pin RGB socket", examples.rgb_21_socket())
+        variants = {}
         for variant in ("Console A AV", "Console B AV"):
-            interface(
+            variants[variant] = interface(
                 f"Demo 10-pin socket {variant}",
                 examples.console_pinout(signals, din["revision_id"], variant),
-            )
+            )["revision_id"]
             self.tally("pinout variant")
+        roles = {}
         for role in ("sink", "source"):
-            interface(
+            roles[role] = interface(
                 f"Demo 21-pin RGB {role}",
                 examples.rgb_pinout(signals, rgb["revision_id"], role),
-            )
+            )["revision_id"]
             self.tally("pinout variant")
+        # Cable-side plugs declare reviewed mating with the device sockets (INT-002).
+        interface("Demo 10-pin round DIN plug", examples.round_din_10_plug(din["revision_id"]))
+        interface("Demo 21-pin RGB plug", examples.rgb_21_plug(rgb["revision_id"]))
+        for variant in ("Console A AV", "Console B AV"):
+            device = f"{variant} out"
+            interface(f"Demo {device}", examples.console_port(variants[variant], device))
+            self.tally("port")
+        interface("Demo RGB monitor 21-pin input", examples.rgb_monitor_port(roles["sink"]))
+        self.tally("port")
 
     def library(self) -> dict:
         symbols = self.source(

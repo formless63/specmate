@@ -233,7 +233,8 @@
       "when": "Separate connector body, named pinout variants, typed pin signals, electrical contract, orientation and placement.",
       "expect": [
         "One connector body supports two reviewed pinouts without claiming the two cables are electrically interchangeable.",
-        "Two named pinout variants of one body that differ on one contact are listed together by name; a return signal on a power pin role is rejected; a signal set in another workspace reads as not found; equal signal names in two signal sets remain different signals."
+        "Two named pinout variants of one body that differ on one contact are listed together by name; a return signal on a power pin role is rejected; a signal set in another workspace reads as not found; equal signal names in two signal sets remain different signals.",
+        "A device port on a pinout variant reports a contact whose variant condition is unselected as unknown and possibly power; a reviewed plug-to-socket mating declaration is listed on both bodies, an unreviewed one stays unknown, and no mating is inferred from family names."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

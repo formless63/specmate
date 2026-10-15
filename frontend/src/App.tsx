@@ -28,6 +28,7 @@ const IdentityPanel = lazy(() => import("./features/identity/IdentityPanel").the
 const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module) => ({ default: module.FactsPanel })));
 const EvidencePanel = lazy(() => import("./features/evidence/EvidencePanel").then((module) => ({ default: module.EvidencePanel })));
 const InterfacePanel = lazy(() => import("./features/interfaces/InterfacePanel").then((module) => ({ default: module.InterfacePanel })));
+const PortPanel = lazy(() => import("./features/interfaces/PortPanel").then((module) => ({ default: module.PortPanel })));
 const SignalSetPanel = lazy(() => import("./features/interfaces/SignalSetPanel").then((module) => ({ default: module.SignalSetPanel })));
 const InterfaceAssessmentPanel = lazy(() => import("./features/interfaces/InterfaceAssessmentPanel").then((module) => ({ default: module.InterfaceAssessmentPanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
@@ -240,6 +241,7 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   switch (toolId) {
     case "identity": return <IdentityPanel projectId={projectId} />;
     case "signals": return <SignalSetPanel projectId={projectId} />;
+    case "ports": return <PortPanel projectId={projectId} />;
     case "wire-stock": return <WireStockPanel projectId={projectId} workspaceId={workspaceId} />;
     case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
     case "assemblies": return <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />;
@@ -301,6 +303,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="matching" library={library("matching")}>{visited.has("matching") && <WorkspaceLens {...lens} toolId="matching" />}</ToolPanel>
     <ToolPanel value="catalog-packs" library={library("catalog-packs")}>{visited.has("catalog-packs") && <WorkspaceLens {...lens} toolId="catalog-packs" />}</ToolPanel>
     {editing("signals")}
+    {editing("ports")}
     {editing("wire-stock")}
     {editing("workshop-profiles")}
     {editing("material-accounting")}

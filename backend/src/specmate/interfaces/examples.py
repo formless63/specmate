@@ -162,3 +162,122 @@ def rgb_pinout(set_revision_id, body_revision_id, role):
             _pin(set_revision_id, contact, key, direction) for contact, key in RGB_PINS.items()
         ],
     }
+
+
+def round_din_10_plug(socket_revision_id):
+    """The cable-side plug; a reviewed same-ID mating declaration with the socket."""
+    return {
+        "kind": "connector_body",
+        "family": "10-pin round DIN",
+        "mating_role": "plug",
+        "contacts": _contacts(10),
+        "mates_with": [
+            {
+                "body_revision_id": socket_revision_id,
+                "correspondence": "same_contact_id",
+                "review": "reviewed",
+                "basis": "Synthetic mating drawing written for this example",
+            }
+        ],
+    }
+
+
+def rgb_21_plug(socket_revision_id, review="reviewed"):
+    value = {
+        "kind": "connector_body",
+        "family": "21-pin RGB",
+        "mating_role": "plug",
+        "contacts": _contacts(21),
+        "mates_with": [
+            {
+                "body_revision_id": socket_revision_id,
+                "correspondence": "same_contact_id",
+                "review": review,
+            }
+        ],
+    }
+    if review == "reviewed":
+        value["mates_with"][0]["basis"] = "Synthetic mating drawing written for this example"
+    return value
+
+
+def regional_console_pinout(set_revision_id, body_revision_id):
+    """One 10-pin variant whose contact 1 depends on a named device region."""
+    value = console_pinout(set_revision_id, body_revision_id, "Console A AV")
+    value["variant_label"] = "Console AV (regional)"
+    value["conditions"] = [
+        {
+            "key": "region",
+            "name": "Device region",
+            "choices": [{"key": "a", "name": "Region A"}, {"key": "b", "name": "Region B"}],
+        }
+    ]
+    first = value["assignments"][0]
+    first["electrical"] = {}
+    first["alternatives"] = [
+        {
+            "condition_key": "region",
+            "choice": choice,
+            "signal_ref": {"signal_set_revision_id": set_revision_id, "key": key},
+            "role": role,
+            "basis": "Synthetic pin table written for this example",
+        }
+        for choice, key, role in (("a", "composite_sync", "signal"), ("b", "power_9v", "power"))
+    ]
+    return value
+
+
+def _video_pin(contact, behaviour, impedance):
+    return {
+        "contact_id": contact,
+        "behaviour": behaviour,
+        "level": _level(0.7, "Vpp"),
+        "impedance": _ohm(impedance),
+        "coupling": "dc" if behaviour == "drives" else "ac",
+        "termination": "source_terminated" if behaviour == "drives" else "load_terminated",
+        "basis": BASIS,
+    }
+
+
+def console_port(pinout_revision_id, device, sync_needs_resistor=True):
+    """A synthetic console AV output; contact 1 differs by variant (see DIN_PIN_1)."""
+    pins = [_video_pin(c, "drives", 75) for c in ("2", "4", "6")]
+    pins.append({"contact_id": "8", "behaviour": "drives", "level": _level(5, "V")})
+    if device == "Console B AV out":
+        pins.append(
+            {
+                "contact_id": "1",
+                "behaviour": "drives",
+                "level": _level(9, "V"),
+                "must_not_connect": True,
+                "must_not_connect_reason": "Supply output; never wire to a signal input",
+            }
+        )
+    else:
+        pin = {"contact_id": "1", "behaviour": "drives", "basis": BASIS}
+        if sync_needs_resistor:
+            pin["needs_in_cable"] = [
+                {"conditioning": "series_resistor", "value": "470 ohm", "basis": BASIS}
+            ]
+        pins.append(pin)
+    return {
+        "kind": "port",
+        "device_label": device,
+        "pinout_revision_id": pinout_revision_id,
+        "role": "source",
+        "pins": pins,
+        "review": "reviewed",
+        "review_basis": "Synthetic device facts written for this example",
+    }
+
+
+def rgb_monitor_port(pinout_revision_id):
+    """A synthetic RGB monitor input; audio levels stay unknown."""
+    return {
+        "kind": "port",
+        "device_label": "RGB monitor 21-pin input",
+        "pinout_revision_id": pinout_revision_id,
+        "role": "sink",
+        "pins": [_video_pin(c, "accepts", 75) for c in ("7", "11", "15")]
+        + [{"contact_id": "20", "behaviour": "accepts", "coupling": "ac"}],
+    }

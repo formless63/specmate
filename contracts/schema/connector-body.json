@@ -69,6 +69,87 @@
       "title": "Contact",
       "type": "object"
     },
+    "ContactPair": {
+      "additionalProperties": false,
+      "properties": {
+        "other": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Other",
+          "type": "string"
+        },
+        "this": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "This",
+          "type": "string"
+        }
+      },
+      "required": [
+        "this",
+        "other"
+      ],
+      "title": "ContactPair",
+      "type": "object"
+    },
+    "MatesWith": {
+      "additionalProperties": false,
+      "description": "A declared mating partner. Mating is never inferred from family names or labels.",
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "body_revision_id": {
+          "format": "uuid",
+          "title": "Body Revision Id",
+          "type": "string"
+        },
+        "correspondence": {
+          "default": "same_contact_id",
+          "enum": [
+            "same_contact_id",
+            "explicit"
+          ],
+          "title": "Correspondence",
+          "type": "string"
+        },
+        "pairs": {
+          "items": {
+            "$ref": "#/$defs/ContactPair"
+          },
+          "maxItems": 1000,
+          "title": "Pairs",
+          "type": "array"
+        },
+        "review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Review",
+          "type": "string"
+        }
+      },
+      "required": [
+        "body_revision_id"
+      ],
+      "title": "MatesWith",
+      "type": "object"
+    },
     "Orientation": {
       "additionalProperties": false,
       "properties": {
@@ -147,6 +228,14 @@
       "default": "connector_body",
       "title": "Kind",
       "type": "string"
+    },
+    "mates_with": {
+      "items": {
+        "$ref": "#/$defs/MatesWith"
+      },
+      "maxItems": 50,
+      "title": "Mates With",
+      "type": "array"
     },
     "mating_role": {
       "default": "unknown",

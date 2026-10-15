@@ -18,6 +18,7 @@ from specmate.interfaces.contracts import (
     InterfaceAssessment,
     InterfaceMap,
     Pinout,
+    Port,
 )
 from specmate.interfaces.signal_contracts import SignalSet, role_accepts
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
@@ -47,6 +48,10 @@ def references(value):
         return [value.left_pinout_revision_id, value.right_pinout_revision_id]
     if isinstance(value, Pinout):
         return [value.body_revision_id, *signal_set_revisions(value)]
+    if isinstance(value, ConnectorBody):
+        return [m.body_revision_id for m in value.mates_with]
+    if isinstance(value, Port):
+        return [value.pinout_revision_id]
     if isinstance(value, InterfaceMap):
         return [
             value.assembly_revision_id,
@@ -151,6 +156,10 @@ class Closure:
         return body
 
     def validate(self, value):
+        if isinstance(value, ConnectorBody):
+            self.validate_mating(value)
+        if isinstance(value, Port):
+            self.validate_port(value)
         if isinstance(value, InterfaceAssessment):
             from specmate.interfaces.assessments import subjects
 
@@ -180,6 +189,45 @@ class Closure:
                 if node is None or node.revision.id != passage.internal.revision_id:
                     raise ValidationFailed("Internal occurrence does not match the exact revision.")
                 self.feature_status(passage.internal.revision_id, passage.internal.feature_id)
+
+    def validate_mating(self, body):
+        mine = {c.contact_id for c in body.contacts if c.physical_role != "key"}
+        for mate in body.mates_with:
+            other = self.values.get(mate.body_revision_id)
+            if not isinstance(other, ConnectorBody):
+                raise ValidationFailed("A mating partner must be an exact connector body revision.")
+            roles = {body.mating_role, other.mating_role}
+            if (
+                body.mating_role == other.mating_role and body.mating_role in ("plug", "receptacle")
+            ) or ("hermaphroditic" in roles and len(roles - {"unknown"}) > 1):
+                raise ValidationFailed("Declared mating roles cannot mate with each other.")
+            theirs = {c.contact_id for c in other.contacts if c.physical_role != "key"}
+            if mate.correspondence == "same_contact_id":
+                if not mine or not mine <= theirs:
+                    raise ValidationFailed(
+                        "Same-ID correspondence needs every contact on the partner body."
+                    )
+            else:
+                for pair in mate.pairs:
+                    if pair.this not in mine or pair.other not in theirs:
+                        raise ValidationFailed("A mating pair must name contacts on both bodies.")
+
+    def validate_port(self, port):
+        pinout = self.values.get(port.pinout_revision_id)
+        if not isinstance(pinout, Pinout):
+            raise ValidationFailed("A port requires an exact pinout variant revision.")
+        if "unknown" not in (port.role, pinout.role) and port.role != pinout.role:
+            raise ValidationFailed("The port role contradicts its pinout variant role.")
+        conditions = {c.key: {choice.key for choice in c.choices} for c in pinout.conditions}
+        for key, choice in port.selected_conditions.items():
+            if choice not in conditions.get(key, ()):
+                raise ValidationFailed("A selected condition must be declared by the variant.")
+        contacts = {
+            c.contact_id for c in self.body_for(pinout).contacts if c.physical_role != "key"
+        }
+        for pin in port.pins:
+            if pin.contact_id not in contacts:
+                raise ValidationFailed("A port pin must identify a contact of the pinned body.")
 
     def signal(self, ref):
         signals = self.values.get(ref.signal_set_revision_id)
@@ -287,7 +335,175 @@ def inspect_revision(user, revision_id):
         result["signals"] = pin_signals(closure.root, closure)
     if isinstance(closure.root, ConnectorBody):
         result["pinout_variants"] = pinout_variants(user, revision)
+        result["mates_with"] = [
+            mating_row(m, closure.revisions[m.body_revision_id], closure)
+            for m in closure.root.mates_with
+        ]
+        result["mated_by"] = mated_by(user, revision)
+    if isinstance(closure.root, Port):
+        result["end"] = end_rows(closure.root, revision, closure)
     return result
+
+
+def mating_row(mate, partner, closure):
+    other = closure.values[mate.body_revision_id]
+    if mate.correspondence == "same_contact_id":
+        theirs = {c.contact_id for c in other.contacts if c.physical_role != "key"}
+        mine = [c.contact_id for c in closure.root.contacts if c.physical_role != "key"]
+        pairs = [{"this": c, "other": c} for c in mine if c in theirs]
+    else:
+        pairs = [p.model_dump(mode="json") for p in mate.pairs]
+    return {
+        **mate.model_dump(mode="json", exclude={"pairs"}),
+        "name": partner.definition.name,
+        "number": partner.number,
+        "mating_role": other.mating_role,
+        # Unreviewed correspondence is a declaration, never established mating.
+        "status": "reviewed" if mate.review == "reviewed" else "unknown",
+        "pairs": pairs,
+    }
+
+
+def mated_by(user, body_revision):
+    """Other bodies whose newest frozen revision declares mating with any revision of this one."""
+    latest = {}
+    for revision in (
+        Revision.objects.select_related("definition", "snapshot")
+        .filter(
+            definition__kind="connector_body",
+            definition__workspace_id=body_revision.definition.workspace_id,
+            snapshot__dependencies__revision__definition_id=body_revision.definition_id,
+        )
+        .exclude(definition_id=body_revision.definition_id)
+        .order_by("definition_id", "-number")
+        .distinct()
+    ):
+        latest.setdefault(revision.definition_id, revision)
+    ours = set(
+        Revision.objects.filter(definition_id=body_revision.definition_id).values_list(
+            "id", flat=True
+        )
+    )
+    rows = []
+    for revision in latest.values():
+        try:
+            authorize_origin(user, revision.definition)
+        except (NotFound, PermissionDenied):
+            continue
+        body = parse_content(json.loads(bytes(revision.snapshot.canonical))["content"])
+        for mate in body.mates_with:
+            if mate.body_revision_id in ours:
+                rows.append(
+                    {
+                        "body_revision_id": str(revision.id),
+                        "name": revision.definition.name,
+                        "number": revision.number,
+                        "declares_revision_id": str(mate.body_revision_id),
+                        "correspondence": mate.correspondence,
+                        "review": mate.review,
+                        "status": "reviewed" if mate.review == "reviewed" else "unknown",
+                    }
+                )
+    rows.sort(key=lambda r: (r["name"].casefold(), r["body_revision_id"]))
+    return rows
+
+
+def resolve_pin(pinout, assignment, selections, closure):
+    """A contact's signal under the selected conditions; unselected conditions stay unknown."""
+    if assignment is None:
+        return {"status": "unknown", "reason": "No pin assignment in the variant."}
+    if assignment.alternatives:
+        key = assignment.alternatives[0].condition_key
+        names = {c.key: c.name for c in pinout.conditions}
+        choice = selections.get(key)
+        chosen = next((a for a in assignment.alternatives if a.choice == choice), None)
+        if chosen is None:
+            possible = [
+                {
+                    "choice": a.choice,
+                    "role": a.role,
+                    "signal": a.signal,
+                    "signal_ref": closure.describe(a.signal_ref),
+                }
+                for a in assignment.alternatives
+            ]
+            hazards = []
+            if any(
+                a["role"] == "power" or (a["signal_ref"] or {}).get("type") == "power"
+                for a in possible
+            ):
+                hazards.append("may_be_power")
+            return {
+                "status": "unknown",
+                "reason": f"Condition {names.get(key, key)} is not selected.",
+                "condition_key": key,
+                "alternatives": possible,
+                "hazards": hazards,
+            }
+        return {
+            "status": "declared",
+            "role": chosen.role,
+            "signal": closure.describe(chosen.signal_ref),
+            "note": chosen.signal,
+            "condition": {"key": key, "choice": choice},
+        }
+    typed = closure.describe(assignment.electrical.signal_ref)
+    return {
+        "status": "declared" if typed else "unknown",
+        "role": assignment.electrical.role,
+        "signal": typed,
+        "note": assignment.electrical.signal,
+        **({} if typed else {"reason": "No typed signal declared."}),
+    }
+
+
+def end_rows(value, revision, closure):
+    """One cable end's per-contact expectations from a device port or a bare pinout variant.
+
+    A destination may be given either way. A pinout variant has no device facts, so every
+    device expectation reads unknown; a port adds its declared facts and condition choices.
+    """
+    port = value if isinstance(value, Port) else None
+    pinout = closure.values[port.pinout_revision_id] if port else value
+    selections = port.selected_conditions if port else {}
+    body = closure.body_for(pinout)
+    assignments = {a.contact_id: a for a in pinout.assignments}
+    pins = {p.contact_id: p for p in port.pins} if port else {}
+    rows = []
+    for contact in body.contacts:
+        if contact.physical_role == "key":
+            continue
+        pin = pins.get(contact.contact_id)
+        rows.append(
+            {
+                "contact_id": contact.contact_id,
+                "number": contact.number,
+                "label": contact.label,
+                "physical_role": contact.physical_role,
+                **resolve_pin(pinout, assignments.get(contact.contact_id), selections, closure),
+                "device": pin.model_dump(mode="json") if pin else None,
+            }
+        )
+    return {
+        "kind": value.kind,
+        "revision_id": str(revision.id),
+        "device_label": port.device_label if port else None,
+        "role": port.role if port and port.role != "unknown" else pinout.role,
+        "variant_label": pinout.variant_label,
+        "standard": pinout.standard,
+        "pinout_revision_id": str(port.pinout_revision_id) if port else str(revision.id),
+        "body_revision_id": str(pinout.body_revision_id),
+        "selected_conditions": selections,
+        "compatibility": "not_evaluated",
+        "rows": rows,
+    }
+
+
+def end_expectations(user, revision_id):
+    revision, closure = read_revision(user, revision_id)
+    if not isinstance(closure.root, (Port, Pinout)):
+        raise ValidationFailed("A cable end is a device port or a pinout variant.")
+    return end_rows(closure.root, revision, closure)
 
 
 def pin_signals(pinout, closure):
@@ -336,6 +552,11 @@ def pinout_variants(user, body_revision):
         .distinct()
     ):
         latest.setdefault(revision.definition_id, revision)
+    ours = set(
+        Revision.objects.filter(definition_id=body_revision.definition_id).values_list(
+            "id", flat=True
+        )
+    )
     variants = []
     for revision in latest.values():
         try:
@@ -344,6 +565,9 @@ def pinout_variants(user, body_revision):
             continue
         content = json.loads(bytes(revision.snapshot.canonical))["content"]
         value = parse_content(content, "pinout")
+        if value.body_revision_id not in ours:
+            # Pinned only through a mating partner of its own body.
+            continue
         variants.append(
             {
                 "definition_id": str(revision.definition_id),

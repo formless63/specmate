@@ -1,0 +1,380 @@
+{
+  "$defs": {
+    "CableNeed": {
+      "additionalProperties": false,
+      "description": "A part the cable must add for this pin, such as a series resistor.",
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "conditioning": {
+          "enum": [
+            "series_resistor",
+            "series_capacitor",
+            "shunt_resistor",
+            "attenuator",
+            "other"
+          ],
+          "title": "Conditioning",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "conditioning",
+        "basis"
+      ],
+      "title": "CableNeed",
+      "type": "object"
+    },
+    "PortPin": {
+      "additionalProperties": false,
+      "description": "What the device does at one contact. Absent facts stay unknown.",
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "behaviour": {
+          "default": "unknown",
+          "enum": [
+            "drives",
+            "accepts",
+            "passes",
+            "none",
+            "unknown"
+          ],
+          "title": "Behaviour",
+          "type": "string"
+        },
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "coupling": {
+          "default": "unknown",
+          "enum": [
+            "ac",
+            "dc",
+            "unknown"
+          ],
+          "title": "Coupling",
+          "type": "string"
+        },
+        "impedance": {
+          "$ref": "#/$defs/SignalImpedance"
+        },
+        "level": {
+          "$ref": "#/$defs/SignalLevel"
+        },
+        "must_not_connect": {
+          "default": false,
+          "title": "Must Not Connect",
+          "type": "boolean"
+        },
+        "must_not_connect_reason": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Must Not Connect Reason"
+        },
+        "needs_in_cable": {
+          "items": {
+            "$ref": "#/$defs/CableNeed"
+          },
+          "maxItems": 10,
+          "title": "Needs In Cable",
+          "type": "array"
+        },
+        "termination": {
+          "default": "unknown",
+          "enum": [
+            "source_terminated",
+            "load_terminated",
+            "none",
+            "unknown"
+          ],
+          "title": "Termination",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id"
+      ],
+      "title": "PortPin",
+      "type": "object"
+    },
+    "SignalImpedance": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "nominal": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nominal"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "const": "ohm",
+          "default": "ohm",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "SignalImpedance",
+      "type": "object"
+    },
+    "SignalLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "nominal": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nominal"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "known",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "default": "unknown",
+          "enum": [
+            "V",
+            "Vpp",
+            "dBu",
+            "dBV",
+            "unknown"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "title": "SignalLevel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A device socket or plug as the outside world sees it: one port per pinout variant.",
+  "properties": {
+    "device_label": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Device Label",
+      "type": "string"
+    },
+    "kind": {
+      "const": "port",
+      "default": "port",
+      "title": "Kind",
+      "type": "string"
+    },
+    "pinout_revision_id": {
+      "format": "uuid",
+      "title": "Pinout Revision Id",
+      "type": "string"
+    },
+    "pins": {
+      "items": {
+        "$ref": "#/$defs/PortPin"
+      },
+      "maxItems": 1000,
+      "title": "Pins",
+      "type": "array"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "role": {
+      "default": "unknown",
+      "enum": [
+        "source",
+        "sink",
+        "bidirectional",
+        "unknown"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "selected_conditions": {
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9_.-]{0,79}$": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "type": "string"
+        }
+      },
+      "title": "Selected Conditions",
+      "type": "object"
+    }
+  },
+  "required": [
+    "device_label",
+    "pinout_revision_id"
+  ],
+  "title": "Port",
+  "type": "object"
+}

@@ -415,6 +415,7 @@ def build_package(user, p):
                 "pinout",
                 "interface_map",
                 "signal_set",
+                "port",
                 "wire_stock",
                 "workshop_profile",
                 "end_preparation_profile",

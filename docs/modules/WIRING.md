@@ -678,3 +678,27 @@ inspection lists every frozen pinout variant of any revision of that body by nam
 and standard, marking which pin the current body revision; frozen pinout inspection
 resolves each typed signal's name, type and exact set. Listing variants together never
 claims they are electrically interchangeable; compatibility stays `not_evaluated`.
+
+## Device ports and declared mating
+
+A `port` is a device socket or plug as the outside world sees it, one record per pinout
+variant (no inheritance between device variants). It pins the exact variant, states the
+device label and role (which must not contradict the variant's role), selects choices for
+the variant's named conditions, and adds per-contact device facts: drives/accepts/passes,
+level and impedance declarations with a basis, AC/DC coupling, termination, parts the
+cable must add (series resistor, series capacitor, shunt resistor, attenuator, other) and
+must-not-connect with its reason. Facts a port does not state stay unknown.
+
+A cable end can be given either as a device port or directly as a pinout variant. The
+read-only end query (`GET interfaces/revisions/{id}/end`) returns one row per physical
+contact for either: the variant's typed signal resolved under the selected conditions and
+the device facts, or no device facts for a bare variant. A contact whose condition is not
+selected is `unknown` with the reason and every alternative, and is flagged
+`may_be_power` when any alternative is power. Compatibility stays `not_evaluated`.
+
+A connector body may declare `mates_with` partners: an exact partner body revision, a
+same-ID or explicit contact correspondence, and a review state with its basis. Declared
+plug/receptacle roles must be able to mate, and the correspondence must name contacts on
+both bodies. Mating is never inferred from family names or labels. Body inspection lists
+the declared partners with their contact pairs and, in reverse, the bodies that declare
+mating with it; an unreviewed declaration reads `unknown`, never established.

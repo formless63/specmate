@@ -173,3 +173,27 @@ test.each([
   expect(freeze.title).toBe(freezeOff ? "Read-only access: requires Freeze" : "");
   expect(screen.getByRole("button", { name: "Create interface draft" }).hasAttribute("data-readonly-reason")).toBe(saveOff);
 });
+
+test("a body declares a reviewed mating partner by exact revision; nothing is inferred from its family", async () => {
+  const calls: { operation: string; payload: { interface?: Interface } }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, options?: RequestInit) => {
+    if (options?.method === "POST") { calls.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: { definition_id: "plug", draft_id: "d", state: "s" } })); }
+    if (_url.includes("catalog/definitions/")) return new Response(JSON.stringify({ definition_id: "plug", name: "Synthetic plug", kind: "connector_body", drafts: [{ draft_id: "d", state: "s" }], revisions: [] }));
+    if (_url.includes("interfaces/drafts/")) return new Response(JSON.stringify({ definition_id: "plug", kind: "connector_body", draft_id: "d", state: "s", content: { interface: calls[0]?.payload.interface } }));
+    return new Response(JSON.stringify([]));
+  }));
+  render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create", "design.edit"]}><InterfacePanel projectId="project" /></PermissionsProvider>));
+  fireEvent.change(screen.getByLabelText("Definition name"), { target: { value: "Synthetic plug" } });
+  fireEvent.change(screen.getByLabelText("Body family (blank = unknown)"), { target: { value: "Same family" } });
+  fireEvent.change(screen.getByLabelText("Mating partner body exact revision ID"), { target: { value: "socket-r1" } });
+  const add = screen.getByText("Add mating partner").closest("button") as HTMLButtonElement;
+  Element.prototype.scrollIntoView = () => {};
+  fireEvent.click(screen.getByRole("combobox", { name: "Mating review" }));
+  fireEvent.click(await within(screen.getByRole("listbox", { name: "Mating review", hidden: true })).findByText("reviewed"));
+  expect(add.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Mating basis"), { target: { value: "Synthetic drawing" } });
+  fireEvent.click(add);
+  fireEvent.click(screen.getByText("Create interface draft"));
+  await waitFor(() => expect(calls).toHaveLength(1));
+  expect(calls[0]?.payload.interface).toMatchObject({ kind: "connector_body", family: "Same family", mates_with: [{ body_revision_id: "socket-r1", correspondence: "same_contact_id", pairs: [], review: "reviewed", basis: "Synthetic drawing" }] });
+});

@@ -28,6 +28,7 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   identity: definitions([], "Definitions", "definition"),
   "wire-stock": definitions(["wire_stock"], "Wire stock", "stock record"),
   signals: definitions(["signal_set"], "Signals", "signal set"),
+  ports: definitions(["port"], "Ports", "port"),
   "workshop-profiles": definitions(["workshop_profile"], "Workshop profiles", "workshop profile"),
   assemblies: definitions(["assembly"], "Assemblies", "assembly"),
   interfaces: definitions(["connector_body", "pinout", "interface_map", "interface_assessment"], "Interfaces", "interface record"),

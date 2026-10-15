@@ -12,6 +12,7 @@ class InterfacesConfig(AppConfig):
             ConnectorBody,
             InterfaceMap,
             Pinout,
+            Port,
             TraceInterface,
         )
         from specmate.interfaces.signal_contracts import SignalSet
@@ -25,5 +26,6 @@ class InterfacesConfig(AppConfig):
                 "interface-assessment": InterfaceAssessment,
                 "interface-assessment-result": AssessmentResult,
                 "signal-set": SignalSet,
+                "port": Port,
             }
         )
