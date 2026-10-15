@@ -27,8 +27,11 @@ async function paste(label: string, value: string) {
 }
 async function select(label: string, option: string) {
   const field = await screen.findByRole('combobox', { name: label });
+  await waitFor(() => expect((field as HTMLInputElement).disabled).toBe(false));
   fireEvent.focus(field); fireEvent.keyDown(field, { key: 'ArrowDown' });
-  fireEvent.click(await within(screen.getByRole('listbox', { name: label, hidden: true })).findByText(option));
+  // The listbox is the one labelled by this field's label element.
+  const listbox = () => document.querySelector<HTMLElement>(`[role="listbox"][aria-labelledby="${document.querySelector(`label[for="${field.id}"]`)?.id}"]`);
+  fireEvent.click(await within(await waitFor(() => { const box = listbox(); expect(box).toBeTruthy(); return box!; })).findByText(option));
 }
 
 // Complete authoring with searchable selectors and three commands needs a bounded CI allowance.
@@ -58,9 +61,8 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   for (const index of [1, 2]) {
     await paste(`Endpoint ${index} body`, 'body-rev');
     await paste(`Endpoint ${index} pinout`, 'pinout-rev');
+    fireEvent.change(await screen.findByLabelText(`Endpoint ${index} stock.core termination basis`), { target: { value: 'Synthetic table' } });
     await select(`Endpoint ${index} stock.core contact`, `${index === 1 ? 'one' : 'two'} (contact)`);
-    fireEvent.change(screen.getByLabelText(`Endpoint ${index} stock.core termination basis`), { target: { value: 'Synthetic table' } });
-    fireEvent.click(screen.getByRole('button', { name: `Assign endpoint ${index} stock.core` }));
   }
   fireEvent.click(screen.getByLabelText('Record independent cable lengths'));
   fireEvent.change(screen.getByLabelText('Route declared mm'), { target: { value: '1000.000001' } });
@@ -68,7 +70,7 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   fireEvent.click(screen.getByText('Create cable draft'));
   const heading = await screen.findByText('Edit draft');
   const editor = within(heading.closest('.mantine-Card-root')! as HTMLElement);
-  fireEvent.change(editor.getByLabelText('Cable review basis'), { target: { value: 'Independent review' } });
+  fireEvent.change(editor.getByLabelText('Review basis'), { target: { value: 'Independent review' } });
   expect((editor.getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('1000.000001');
   fireEvent.change(editor.getByLabelText('Route declared mm'), { target: { value: '1100.000001' } });
   fireEvent.click(editor.getByText('Save cable draft'));
@@ -98,9 +100,8 @@ test('mismatched exact body pin blocks adding a terminal and keys are excluded',
   await paste('Endpoint 1 pinout', 'pinout-rev');
   expect(await screen.findByText('The pinout must reference this exact body revision.')).toBeTruthy();
   const contact = await screen.findByRole('combobox', { name: 'Endpoint 1 stock.core contact' });
-  fireEvent.focus(contact); fireEvent.keyDown(contact, { key: 'ArrowDown' });
-  expect(screen.queryByRole('option', { name: 'key (key)' })).toBeNull();
-  expect((screen.getByRole('button', { name: 'Assign endpoint 1 stock.core' }) as HTMLButtonElement).disabled).toBe(true);
+  // A pinout for a different body blocks choosing any contact.
+  expect((contact as HTMLInputElement).disabled).toBe(true);
 });
 
 async function openRetainedDraft(permissions?: string[]) {
@@ -124,7 +125,7 @@ async function openRetainedDraft(permissions?: string[]) {
   render(wrap(<PermissionsProvider permissions={permissions}><CablePanel projectId="project" /></PermissionsProvider>, cache));
   await select('Existing cable definition', 'Private cable (cable)');
   await select('Edit cable draft', 'draft · draft-v1');
-  await screen.findByText('Private assignment basis');
+  await screen.findByDisplayValue('Private assignment basis');
   const heading = screen.getByText('Edit draft');
   const editor = within(heading.closest('.mantine-Card-root')! as HTMLElement);
   await waitFor(() => expect(cache.getQueryData(['cable-pinout', 'pinout-rev'])).toBeTruthy());
@@ -141,7 +142,7 @@ test.each([
   deny(path as string);
   await act(async () => { await cache.refetchQueries({ queryKey: key as (string | number)[] }); });
   expect(await screen.findByText('Current access denied.')).toBeTruthy();
-  expect(screen.queryByText('Private assignment basis')).toBeNull();
+  expect(screen.queryByDisplayValue('Private assignment basis')).toBeNull();
   expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Save cable draft' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Freeze cable revision' })).toBeNull();
@@ -160,21 +161,23 @@ test.each([
   ['pinout', 'interfaces/revisions/pinout-rev', ['cable-pinout', 'pinout-rev']],
 ])('%s denial after successful read removes assignments and cached source choices', async (_name, path, key) => {
   const { cache, editor, deny } = await openRetainedDraft();
+  fireEvent.change(editor.getByLabelText('Endpoint 1 stock.screen termination basis'), { target: { value: 'New declaration' } });
   const contact = editor.getByRole('combobox', { name: 'Endpoint 1 stock.screen contact' });
   fireEvent.focus(contact); fireEvent.keyDown(contact, { key: 'ArrowDown' });
+  expect(screen.queryByRole('option', { name: 'key (key)' })).toBeNull();
   fireEvent.click(await within(screen.getAllByRole('listbox', { name: 'Endpoint 1 stock.screen contact', hidden: true }).at(-1)!).findByText('two (contact)'));
-  fireEvent.change(editor.getByLabelText('Endpoint 1 stock.screen termination basis'), { target: { value: 'New declaration' } });
-  expect((editor.getByRole('button', { name: 'Assign endpoint 1 stock.screen' }) as HTMLButtonElement).disabled).toBe(false);
+  expect((contact as HTMLInputElement).value).toBe('two (contact)');
+  expect(editor.getByDisplayValue('New declaration')).toBeTruthy();
   deny(path);
   await act(async () => { await cache.refetchQueries({ queryKey: key }); });
   expect((await screen.findAllByText('Current access denied.')).length).toBeGreaterThan(0);
-  expect(screen.queryByText('Private assignment basis')).toBeNull();
+  expect(screen.queryByDisplayValue('Private assignment basis')).toBeNull();
   expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
   // The termination rows and their retained choices are withdrawn with the denied source.
   expect(screen.queryByRole('combobox', { name: 'Endpoint 1 stock.screen contact' })).toBeNull();
   expect(screen.queryByDisplayValue('New declaration')).toBeNull();
   for (const name of ['Save cable draft', 'Freeze cable revision']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.queryByRole('button', { name: 'Assign endpoint 1 stock.screen' })).toBeNull();
+  expect(screen.queryByRole('combobox', { name: 'Endpoint 1 stock.screen contact' })).toBeNull();
 });
 
 test('a denied reference identity refresh clears its retained revision choices', async () => {

@@ -10,9 +10,11 @@ import { useProbedSelection } from '../cable-views/useProbedSelection';
 import { useProbe } from '../probe';
 import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
-import { CableOperationError, authorityDenied, command, read, initialCable, type Cable, type Definition, type Draft, type Identity, type Inspection } from './api';
+import { CableOperationError, authorityDenied, command, read, initialCable, type Cable, type Endpoint, type Definition, type Draft, type Identity, type Inspection } from './api';
 import { revisionOptionLabel, useRevisionLabel as useLabel } from "../../lib/revision-labels";
 import { CableSummary, StockLink, endName } from './CableSummary';
+import { Swatch } from '../cable-views/Swatch';
+import { appearanceOf } from '../../../../packages/section-layout/src';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
 
@@ -133,7 +135,7 @@ function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, 
  * defaults to the latest frozen revision (older ones stay selectable). Pasting an exact revision
  * ID, including one from another project, is kept behind an Advanced disclosure.
  */
-function RevisionPicker({ label, kind, value, onChange, definitions, nameFilter, error }: { error?: string; label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[]; nameFilter?: string | null }) {
+function RevisionPicker({ label, title, kind, value, onChange, definitions, nameFilter, error }: { error?: string; label: string; title?: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[]; nameFilter?: string | null }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [advanced, setAdvanced] = useState(false);
@@ -154,10 +156,10 @@ function RevisionPicker({ label, kind, value, onChange, definitions, nameFilter,
   const latestId = single ? revisions[revisions.length - 1]?.revision_id : undefined;
   return <Stack gap="xs">
     <Group align="flex-start" gap="xs" grow wrap="wrap">
-      <Select label={`${label} definition`} searchable placeholder="Search by name" nothingFoundMessage="No match" value={definitions.some(d => d.definition_id === definition) ? definition : null}
+      <Select label={title ?? `${label} definition`} aria-label={`${label} definition`} searchable placeholder="Search by name" nothingFoundMessage="No match" value={definitions.some(d => d.definition_id === definition) ? definition : null}
         data={definitions.filter((d) => d.kind === kind && (!nameFilter || d.name.toLowerCase().includes(nameFilter.toLowerCase()))).map((d) => ({ value: d.definition_id, label: d.name }))}
         onChange={(v) => { setChosen(v); setOffset(0); autoPick.current = v; if (v !== definition) onChange(""); }} />
-      <Select label={`${label} revision`} value={identity.isError ? null : revisions.some(r => r.revision_id === value) ? value : null} disabled={identity.isError || !definition} error={error} onChange={(v) => onChange(v ?? "")}
+      <Select label={title ? 'Revision' : `${label} revision`} aria-label={`${label} revision`} value={identity.isError ? null : revisions.some(r => r.revision_id === value) ? value : null} disabled={identity.isError || !definition} error={error} onChange={(v) => onChange(v ?? "")}
         data={revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number, r.revision_id === latestId ? 'latest' : undefined) }))} />
     </Group>
     {identity.data && !identity.isError && (offset > 0 || revisions.length >= 50) && <Group><Button size="xs" variant="subtle" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button size="xs" variant="subtle" disabled={revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}
@@ -167,10 +169,15 @@ function RevisionPicker({ label, kind, value, onChange, definitions, nameFilter,
   </Stack>;
 }
 
-function elements(node: StockElement, prefix = ''): { value: string; label: string }[] {
+type Choice = { value: string; label: string; display: string; look: ReturnType<typeof appearanceOf> };
+/** Conductive elements of a stock: the stock's own label and recorded colour for display, the path kept for identity. */
+function elements(node: StockElement, prefix = ''): Choice[] {
   const path = prefix ? `${prefix}.${node.id}` : node.id;
   if (node.kind === 'group') return node.children.flatMap(child => elements(child, path));
-  return ['conductor', 'shield', 'drain'].includes(node.kind) ? [{ value: path, label: `${path} · ${node.label} (${node.kind})` }] : [];
+  if (!['conductor', 'shield', 'drain'].includes(node.kind)) return [];
+  const look = appearanceOf({ kind: node.kind, color: node.color, material: node.material, construction: 'construction' in node ? node.construction : null });
+  const name = node.label?.trim() || path;
+  return [{ value: path, label: `${path} · ${node.label} (${node.kind})`, display: node.color ? `${name} (${node.color})` : name, look }];
 }
 export function CableEditor({ value, onChange, definitions, onAuthorityChange, workspaceId, errors = {} }: { errors?: Record<string, string>; workspaceId?: string | null; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
   const stock = useQuery({ queryKey: ['cable-stock', value.stock_revision_id], queryFn: () => loadFrozenStock(value.stock_revision_id), enabled: !!value.stock_revision_id });
@@ -200,60 +207,70 @@ export function CableEditor({ value, onChange, definitions, onAuthorityChange, w
     <Stack gap="xs" aria-label="Stock">
       <Title order={4}>Stock</Title>
       <Text size="sm" c="dimmed">The wire material this cable is cut from.</Text>
-      <RevisionPicker error={errors["cable.stock_revision_id"]} label="Stock" kind="wire_stock" value={value.stock_revision_id} onChange={setStock} definitions={definitions} />
+      <RevisionPicker error={errors["cable.stock_revision_id"]} label="Stock" title="Stock" kind="wire_stock" value={value.stock_revision_id} onChange={setStock} definitions={definitions} />
       {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
     </Stack>
     {families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={v => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(v); }} />
       {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(null); }} />}</Group>}
-    {value.endpoints.map((endpoint, index) => <Card key={index} withBorder><Stack>
-      <Title order={4}>{endName(endpoint)}</Title>
-      <Group align="flex-start" grow wrap="wrap">
-        <TextInput label={`Endpoint ${index + 1} stable ID`} description="Renaming an ID retains its current assignments." value={endpoint.local_id} onChange={event => { const local_id = event.currentTarget.value; onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, local_id } : e), assignments: value.assignments.map(a => a.endpoint_id === endpoint.local_id ? { ...a, endpoint_id: local_id } : a) }); }} />
-        <TextInput label={`Endpoint ${index + 1} label`} value={endpoint.label ?? ''} onChange={event => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, label: event.currentTarget.value || null } : e) })} />
-      </Group>
-      <RevisionPicker error={errors[`cable.endpoints.${index}.body_revision_id`]} label={`Endpoint ${index + 1} body`} kind="connector_body" nameFilter={family} value={endpoint.body_revision_id} onChange={body_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, body_revision_id } : e) })} definitions={definitions} />
-      <RevisionPicker error={errors[`cable.endpoints.${index}.pinout_revision_id`]} label={`Endpoint ${index + 1} pinout`} kind="pinout" value={endpoint.pinout_revision_id} onChange={pinout_revision_id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, pinout_revision_id } : e) })} definitions={definitions} />
-      <TerminationEditor value={value} index={index} choices={choices} onChange={onChange} denied={denied} hasStock={!!value.stock_revision_id} body={sourceFor('cable-body', endpoint.body_revision_id)} pinout={sourceFor('cable-pinout', endpoint.pinout_revision_id)} />
-    </Stack></Card>)}
+    {value.endpoints.map((endpoint, index) => <EndCard key={index} index={index} value={value} onChange={onChange} errors={errors} family={family} definitions={definitions} choices={choices} denied={denied} body={sourceFor('cable-body', endpoint.body_revision_id)} pinout={sourceFor('cable-pinout', endpoint.pinout_revision_id)} />)}
     {!denied && <LengthsEditor value={value.lengths} onChange={lengths => onChange({ ...value, lengths })} choices={choices} endpoints={value.endpoints.map(e => e.local_id)} />}
-    <Select label="Cable review" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Cable['review'] })} />
-    <TextInput label="Cable review basis" value={value.review_basis ?? ''} onChange={event => onChange({ ...value, review_basis: event.currentTarget.value || null })} />
+    <Stack gap="xs" aria-label="Review">
+      <Title order={4}>Review</Title>
+      <Select label="Review status" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Cable['review'] })} />
+      <TextInput label="Review basis" description="Required once reviewed." value={value.review_basis ?? ''} onChange={event => onChange({ ...value, review_basis: event.currentTarget.value || null })} />
+    </Stack>
   </Stack>;
 }
-type Pending = { contact: string | null; basis: string };
-/** One end's terminations: a row per conductor, shield and drain of the stock, mapped to a contact of this end's connector. */
-function TerminationEditor({ value, index, choices, onChange, denied, hasStock, body, pinout }: { value: Cable; index: number; choices: { value: string; label: string }[]; onChange: (value: Cable) => void; denied: boolean; hasStock: boolean; body: UseQueryResult<InterfaceInspection>; pinout: UseQueryResult<InterfaceInspection> }) {
+const HIDDEN_LABEL = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const;
+const DEFAULT_NOTE = 'Declared in the cable editor';
+const letter = (index: number) => String.fromCharCode(65 + index);
+function EndCard({ index, value, onChange, errors, family, definitions, choices, denied, body, pinout }: { index: number; value: Cable; onChange: (value: Cable) => void; errors: Record<string, string>; family: string | null; definitions: Definition[]; choices: Choice[]; denied: boolean; body: UseQueryResult<InterfaceInspection>; pinout: UseQueryResult<InterfaceInspection> }) {
   const endpoint = value.endpoints[index]!;
-  const [pending, setPending] = useState<Record<string, Pending>>({});
+  const [showId, setShowId] = useState(false);
+  const patch = (change: Partial<Endpoint>) => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, ...change } : e) });
+  return <Card withBorder><Stack>
+    <Title order={4}>{endName(endpoint)}</Title>
+    <TextInput label={`End ${letter(index)} name (optional)`} aria-label={`Endpoint ${index + 1} label`} placeholder={`End ${letter(index)}`} value={endpoint.label ?? ''} onChange={event => patch({ label: event.currentTarget.value || null })} />
+    <Anchor component="button" type="button" size="xs" w="fit-content" aria-expanded={showId} onClick={() => setShowId(open => !open)}>{showId ? '\u25BE' : '\u25B8'} Advanced: stable ID</Anchor>
+    {showId && <TextInput label={`Endpoint ${index + 1} stable ID`} description="Renaming an ID retains its current assignments." value={endpoint.local_id} onChange={event => { const local_id = event.currentTarget.value; onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, local_id } : e), assignments: value.assignments.map(a => a.endpoint_id === endpoint.local_id ? { ...a, endpoint_id: local_id } : a) }); }} />}
+    <RevisionPicker error={errors[`cable.endpoints.${index}.body_revision_id`]} label={`Endpoint ${index + 1} body`} title="Connector" kind="connector_body" nameFilter={family} value={endpoint.body_revision_id} onChange={body_revision_id => patch({ body_revision_id })} definitions={definitions} />
+    <RevisionPicker error={errors[`cable.endpoints.${index}.pinout_revision_id`]} label={`Endpoint ${index + 1} pinout`} title="Pinout" kind="pinout" value={endpoint.pinout_revision_id} onChange={pinout_revision_id => patch({ pinout_revision_id })} definitions={definitions} />
+    <TerminationEditor value={value} index={index} choices={choices} onChange={onChange} denied={denied} hasStock={!!value.stock_revision_id} body={body} pinout={pinout} />
+  </Stack></Card>;
+}
+/** One end's terminations: a row per conductor, shield and drain of the stock. Choosing a contact assigns it; clearing removes it. */
+function TerminationEditor({ value, index, choices, onChange, denied, hasStock, body, pinout }: { value: Cable; index: number; choices: Choice[]; onChange: (value: Cable) => void; denied: boolean; hasStock: boolean; body: UseQueryResult<InterfaceInspection>; pinout: UseQueryResult<InterfaceInspection> }) {
+  const endpoint = value.endpoints[index]!;
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const contacts = !denied && body.data?.interface.kind === 'connector_body' ? body.data.interface.contacts.filter(c => c.physical_role !== 'key') : [];
   const sameBody = !denied && pinout.data?.interface.kind === 'pinout' && pinout.data.interface.body_revision_id === endpoint.body_revision_id;
+  const signals = new Map((pinout.data?.interface.kind === 'pinout' ? pinout.data.interface.assignments : []).map(a => [a.contact_id, a.electrical.signal] as const));
+  const contactLabel = (c: (typeof contacts)[number]) => `${c.number ?? c.contact_id}${c.label ? ` ${c.label}` : ''}${signals.get(c.contact_id) ? ` · ${signals.get(c.contact_id)}` : ''} (${c.physical_role})`;
   const own = denied ? [] : value.assignments.filter(a => a.endpoint_id === endpoint.local_id);
-  const availableContacts = contacts.filter(c => !own.some(a => a.contact_id === c.contact_id));
-  const rows = [...choices, ...own.filter(a => !choices.some(c => c.value === a.element_path)).map(a => ({ value: a.element_path, label: `${a.element_path} (not in this stock)` }))];
-  const draftFor = (path: string): Pending => pending[path] ?? { contact: null, basis: '' };
-  const patch = (path: string, change: Partial<Pending>) => setPending(current => ({ ...current, [path]: { ...draftFor(path), ...change } }));
+  const rows: Choice[] = [...choices, ...own.filter(a => !choices.some(c => c.value === a.element_path)).map(a => ({ value: a.element_path, label: a.element_path, display: `${a.element_path} (not in this stock)`, look: appearanceOf({ kind: 'conductor', color: null, material: null, construction: null }) }))];
   const name = `Endpoint ${index + 1}`;
+  const assign = (path: string, contact: string | null) => {
+    const others = value.assignments.filter(a => !(a.endpoint_id === endpoint.local_id && a.element_path === path));
+    const previous = own.find(a => a.element_path === path);
+    onChange({ ...value, assignments: contact ? [...others, { endpoint_id: endpoint.local_id, element_path: path, contact_id: contact, basis: previous?.basis ?? (notes[path]?.trim() || DEFAULT_NOTE) }] : others });
+  };
+  const note = (path: string, text: string) => {
+    if (own.some(a => a.element_path === path)) onChange({ ...value, assignments: value.assignments.map(a => a.endpoint_id === endpoint.local_id && a.element_path === path ? { ...a, basis: text } : a) });
+    else setNotes(current => ({ ...current, [path]: text }));
+  };
   return <Stack gap="xs">
     <Group justify="space-between"><Text fw={600} size="sm">Terminations at {endName(endpoint)}</Text><Text size="xs">{choices.length ? `${own.length} of ${choices.length} terminated` : `${own.length} terminated`}</Text></Group>
     {body.isError && <Alert color="red">{body.error.message}</Alert>}{pinout.isError && <Alert color="red">{pinout.error.message}</Alert>}
     {pinout.data && !denied && !sameBody && <Alert color="orange">The pinout must reference this exact body revision.</Alert>}
     {!denied && !hasStock && <Text size="sm" role="status">Choose a stock to list its conductors, shields and drains.</Text>}
-    {rows.length > 0 && <Table.ScrollContainer minWidth={520}><Table aria-label={`${name} terminations`} verticalSpacing={4}>
-      <Table.Thead><Table.Tr><Table.Th>Conductor / shield / drain</Table.Th><Table.Th>Contact</Table.Th><Table.Th>Basis</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+    {rows.length > 0 && <Table.ScrollContainer minWidth={420}><Table aria-label={`${name} terminations`} verticalSpacing={4}>
+      <Table.Thead><Table.Tr><Table.Th>Conductor / shield / drain</Table.Th><Table.Th>Contact</Table.Th><Table.Th>Note / source</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>{rows.map(row => {
         const assignment = own.find(a => a.element_path === row.value);
-        if (assignment) return <Table.Tr key={row.value}><Table.Td>{row.label}</Table.Td><Table.Td>{assignment.contact_id}</Table.Td><Table.Td>{assignment.basis}</Table.Td>
-          <Table.Td><Button size="compact-xs" variant="subtle" onClick={() => onChange({ ...value, assignments: value.assignments.filter(other => other !== assignment) })}>Remove {endpoint.local_id} {assignment.element_path}</Button></Table.Td></Table.Tr>;
-        const draft = draftFor(row.value);
-        const ready = sameBody && availableContacts.some(c => c.contact_id === draft.contact) && draft.basis.trim();
-        return <Table.Tr key={row.value}><Table.Td>{row.label}</Table.Td>
-          <Table.Td><Select size="xs" aria-label={`${name} ${row.value} contact`} placeholder="unassigned" data={availableContacts.map(c => ({ value: c.contact_id, label: `${c.contact_id} (${c.physical_role})` }))} disabled={denied} value={denied ? null : draft.contact} onChange={contact => patch(row.value, { contact })} /></Table.Td>
-          <Table.Td><TextInput size="xs" aria-label={`${name} ${row.value} termination basis`} value={draft.basis} onChange={event => patch(row.value, { basis: event.currentTarget.value })} /></Table.Td>
-          <Table.Td><Button size="compact-xs" disabled={!ready} aria-label={`Assign ${name.toLowerCase()} ${row.value}`} onClick={() => {
-            if (!draft.contact) return;
-            onChange({ ...value, assignments: [...value.assignments, { endpoint_id: endpoint.local_id, element_path: row.value, contact_id: draft.contact, basis: draft.basis }] });
-            setPending(current => { const { [row.value]: _gone, ...rest } = current; return rest; });
-          }}>Assign</Button></Table.Td></Table.Tr>;
+        const free = contacts.filter(c => c.contact_id === assignment?.contact_id || !own.some(a => a.contact_id === c.contact_id));
+        return <Table.Tr key={row.value}><Table.Td title={row.value}><Swatch look={row.look} />{row.display}</Table.Td>
+          <Table.Td><Select size="xs" clearable label={`${name} ${row.value} contact`} styles={{ label: HIDDEN_LABEL }} placeholder="unassigned" disabled={denied || !sameBody} data={free.map(c => ({ value: c.contact_id, label: contactLabel(c) }))} value={denied ? null : assignment?.contact_id ?? null} onChange={contact => assign(row.value, contact)} /></Table.Td>
+          <Table.Td><TextInput size="xs" aria-label={`${name} ${row.value} termination basis`} placeholder={DEFAULT_NOTE} value={assignment ? assignment.basis : notes[row.value] ?? ''} onChange={event => note(row.value, event.currentTarget.value)} /></Table.Td></Table.Tr>;
       })}</Table.Tbody></Table></Table.ScrollContainer>}
   </Stack>;
 }

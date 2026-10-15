@@ -102,7 +102,7 @@ test("cables: connector family filter narrows body choices by name, is marked an
   const cable = { ...initialCable(), endpoints: [{ local_id: "a", label: null, body_revision_id: "", pinout_revision_id: "" }] };
   render(wrap(<CableEditor workspaceId="ws" value={cable} onChange={() => {}} definitions={definitions} />));
   expect(await screen.findByLabelText("Clear connector family filter preference")).toBeTruthy();
-  const open = () => { const input = screen.getByRole("combobox", { name: "Endpoint 1 body definition" }); fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" }); return screen.getByRole("listbox", { name: "Endpoint 1 body definition", hidden: true }); };
+  const open = () => { const input = screen.getByRole("combobox", { name: "Endpoint 1 body definition" }); fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" }); return document.querySelector<HTMLElement>(`[role="listbox"][aria-labelledby="${document.querySelector(`label[for="${input.id}"]`)?.id}"]`)!; };
   const list = open();
   expect(within(list).queryByText("Alpha-6 body")).toBeTruthy();
   expect(within(list).queryByText("Beta body")).toBeNull();
