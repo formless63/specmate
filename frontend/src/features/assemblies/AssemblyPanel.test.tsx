@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { MantineProvider } from "@mantine/core";
+import { createMemoryHistory } from "@tanstack/react-router";
+import { NavigationProvider, useNavigation } from "../navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -117,4 +119,41 @@ test("an exact design link opens its pinned assembly revision and follows revisi
   fireEvent.click(screen.getByText("Open exact second revision"));
   await waitFor(() => expect((screen.getByRole("combobox", { name: "Frozen assembly revision" }) as HTMLInputElement).value).toBe("Synthetic device · r2"));
   expect(fetchMock.mock.calls.some(([url]) => url.includes("revisions/rev-two"))).toBe(true);
+});
+
+
+test("same-id exact assembly inspection survives retained navigation Back and Forward", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    let body: unknown;
+    if (url.includes("workspace/definitions")) body = [{ definition_id: "a1", name: "Synthetic device", kind: "assembly" }];
+    else if (url.includes("catalog/definitions/a1")) body = { definition_id: "a1", name: "Synthetic device", kind: "assembly", drafts: [], revisions: [{ revision_id: "rev-one", number: 1 }, { revision_id: "rev-two", number: 2 }] };
+    else if (url.includes("revisions/rev-one")) body = { snapshot_id: "snapshot-one" };
+    else if (url.includes("revisions/rev-two")) body = { snapshot_id: "snapshot-two" };
+    else if (url.includes("assemblies/snapshots/")) body = { snapshot_id: url.split("/").at(-1), definition_id: "a1", sha256: "synthetic", occurrences: [], relationships: [] };
+    else return new Response(JSON.stringify({ error: { message: "Unexpected read" } }), { status: 404 });
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  const history = createMemoryHistory({ initialEntries: ["/designs/a1@1"] });
+  function RetainedEditor() {
+    const navigation = useNavigation()!;
+    return <ProbeProvider probe={navigation.location.probe} onProbe={() => {}}>
+      <button onClick={() => navigation.navigate({ area: "history", lens: "history", probe: null })}>Open History</button>
+      <div hidden={navigation.location.lens === "history"}><AssemblyPanel /></div>
+    </ProbeProvider>;
+  }
+  render(wrap(<NavigationProvider history={history}><RetainedEditor /></NavigationProvider>));
+  const exact = () => screen.getByRole("combobox", { name: "Frozen assembly revision" }) as HTMLInputElement;
+  await waitFor(() => expect(exact().value).toBe("Synthetic device · r1"));
+  await waitFor(() => expect((screen.getByLabelText("Inspect assembly snapshot ID") as HTMLInputElement).value).toBe("snapshot-one"));
+  fireEvent.click(screen.getByText("Open History"));
+  await waitFor(() => expect(history.location.pathname).toBe("/history"));
+  history.back();
+  await waitFor(() => expect(history.location.pathname).toBe("/designs/a1@1"));
+  await waitFor(() => expect(exact().value).toBe("Synthetic device · r1"));
+  expect((screen.getByLabelText("Inspect assembly snapshot ID") as HTMLInputElement).value).toBe("snapshot-one");
+  history.forward();
+  await waitFor(() => expect(history.location.pathname).toBe("/history"));
+  history.back();
+  await waitFor(() => expect(exact().value).toBe("Synthetic device · r1"));
+  expect((screen.getByLabelText("Inspect assembly snapshot ID") as HTMLInputElement).value).toBe("snapshot-one");
 });

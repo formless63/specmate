@@ -123,7 +123,12 @@ function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string | nu
   const probe = useProbe()?.probe;
   useEffect(() => {
     if (probe?.object === definitionId && probe.rev !== null) {
-      setDraftId(null); setSnapshotId(null); setFrozenRevision(null);
+      // The editor stays mounted while rail navigation clears the shared probe. Returning
+      // to the same exact address must restore it even when the shared selector already
+      // applied that revision before the rail switch.
+      const exact = identity.data?.definition_id === definitionId
+        ? identity.data.revisions.find(revision => revision.number === probe.rev) : undefined;
+      setDraftId(null); setSnapshotId(null); setFrozenRevision(exact?.revision_id ?? null);
       setIdentityOffset(Math.floor((probe.rev - 1) / 50) * 50);
     }
   }, [probe?.object, probe?.rev, definitionId]);
