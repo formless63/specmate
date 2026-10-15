@@ -9,8 +9,15 @@ from specmate.interfaces.board_contracts import ProposeBoard, TraceBoard
 from specmate.interfaces.boards import propose_board, trace_board
 from specmate.interfaces.conventions import stock_conventions
 from specmate.interfaces.end_assembly_contracts import ResolveEnd
+from specmate.interfaces.intent_contracts import ProposeIntent
 from specmate.interfaces.operations import interface_draft
-from specmate.interfaces.queries import end_expectations, inspect_revision, resolve_end, trace
+from specmate.interfaces.queries import (
+    end_expectations,
+    inspect_revision,
+    propose_intent,
+    resolve_end,
+    trace,
+)
 from specmate.operations import Context, ValidationFailed
 
 router = Router(tags=["interfaces"])
@@ -106,3 +113,10 @@ def conventions_for_stock(request, revision_id: UUID):
 def end_stack(request, payload: ResolveEnd):
     """One end stack's layers, labelled terminals and joins (read-only)."""
     return resolve_end(request.user, payload)
+
+
+@router.get("/intents/propose")
+def intent_proposal(request, from_revision_id: UUID, to_revision_id: UUID):
+    """Proposed cable intent rows between two exact ends (read-only)."""
+    payload = {"from_revision_id": from_revision_id, "to_revision_id": to_revision_id}
+    return propose_intent(request.user, parse(ProposeIntent, payload))

@@ -14,6 +14,7 @@ from specmate.design.operations import authorize_snapshots
 from specmate.design.pins import check_pin
 from specmate.interfaces.end_assembly_contracts import EndAssembly
 from specmate.interfaces.end_stacks import ResolvedStack, stack_references
+from specmate.interfaces.intent_contracts import CableIntent
 from specmate.interfaces.queries import Lookup
 from specmate.interfaces.queries import parse_content as parse_interface
 from specmate.operations import NotFound, ValidationFailed
@@ -91,6 +92,7 @@ class Closure(Lookup):
         pending = [
             self.cable.stock_revision_id,
             *(rid for e in self.cable.endpoints for rid in end_references(e)),
+            *([self.cable.intent_revision_id] if self.cable.intent_revision_id else []),
             *dependencies,
         ]
         pin_scope = None
@@ -147,6 +149,10 @@ class Closure(Lookup):
             body = json.loads(bytes(revision.snapshot.canonical))["content"]
             if "interface" in body:
                 self.values[rid] = parse_interface(body, revision.definition.kind)
+        if self.cable.intent_revision_id is not None and not isinstance(
+            self.values.get(self.cable.intent_revision_id), CableIntent
+        ):
+            raise ValidationFailed("A cable's intent must be an exact cable intent revision.")
         self.endpoints = {}
         for endpoint in self.cable.endpoints:
             stack = endpoint.stack
@@ -244,6 +250,15 @@ def inspect_revision(user, revision_id):
         ),
         "cable": closure.cable.model_dump(mode="json"),
         "terminations": terminations,
+        "intent": None
+        if closure.cable.intent_revision_id is None
+        else {
+            "revision_id": str(closure.cable.intent_revision_id),
+            "name": closure.revisions[closure.cable.intent_revision_id].definition.name,
+            "number": closure.revisions[closure.cable.intent_revision_id].number,
+            # Checking this cable against its intent is a later step; never a pass.
+            "check": "not_evaluated",
+        },
         "conductors": [
             {
                 "element_path": path,
@@ -390,6 +405,14 @@ def _section_changes(before, after):
     if labels:
         add("labels", {_DOCUMENTS}, "Endpoint labels changed.", labels)
 
+    if old.get("intent_revision_id") != new.get("intent_revision_id"):
+        add(
+            "intent",
+            {_DOCUMENTS},
+            "The pinned cable intent changed; checks against the intent must be rerun.",
+            [{"before": old.get("intent_revision_id"), "after": new.get("intent_revision_id")}],
+        )
+
     if (old.get("review"), old.get("review_basis")) != (new.get("review"), new.get("review_basis")):
         add(
             "review",
@@ -406,6 +429,7 @@ def _section_changes(before, after):
     covered = {
         "schema_version",
         "stock_revision_id",
+        "intent_revision_id",
         "lengths",
         "endpoints",
         "assignments",

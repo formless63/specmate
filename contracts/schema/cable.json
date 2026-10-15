@@ -754,6 +754,19 @@
       "title": "Endpoints",
       "type": "array"
     },
+    "intent_revision_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intent Revision Id"
+    },
     "lengths": {
       "anyOf": [
         {

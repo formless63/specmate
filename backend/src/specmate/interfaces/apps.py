@@ -18,6 +18,7 @@ class InterfacesConfig(AppConfig):
         )
         from specmate.interfaces.convention_contracts import ConductorConvention
         from specmate.interfaces.end_assembly_contracts import EndAssembly
+        from specmate.interfaces.intent_contracts import CableIntent
         from specmate.interfaces.signal_contracts import SignalSet
 
         SCHEMAS.update(
@@ -33,5 +34,6 @@ class InterfacesConfig(AppConfig):
                 "board": Board,
                 "conductor-convention": ConductorConvention,
                 "end-assembly": EndAssembly,
+                "cable-intent": CableIntent,
             }
         )

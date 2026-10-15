@@ -1,0 +1,428 @@
+{
+  "$defs": {
+    "ConductorRequirement": {
+      "additionalProperties": false,
+      "description": "The conductor a row needs; unknown unless a port or pin fact states it.",
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "impedance_ohm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Impedance Ohm"
+        },
+        "kind": {
+          "default": "unknown",
+          "enum": [
+            "coax",
+            "pair",
+            "single",
+            "any",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "title": "ConductorRequirement",
+      "type": "object"
+    },
+    "IntentRow": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "conductor": {
+          "$ref": "#/$defs/ConductorRequirement"
+        },
+        "from_contact_id": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^\\S+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Contact Id"
+        },
+        "pairing": {
+          "default": "declared",
+          "enum": [
+            "same_signal",
+            "answered",
+            "declared",
+            "unpaired"
+          ],
+          "title": "Pairing",
+          "type": "string"
+        },
+        "question": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Question"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required_parts": {
+          "items": {
+            "$ref": "#/$defs/RequiredPart"
+          },
+          "maxItems": 10,
+          "title": "Required Parts",
+          "type": "array"
+        },
+        "requirement": {
+          "default": "required",
+          "enum": [
+            "required",
+            "optional",
+            "must_not_connect"
+          ],
+          "title": "Requirement",
+          "type": "string"
+        },
+        "return_policy": {
+          "default": "unknown",
+          "enum": [
+            "dedicated_screen",
+            "shared_ground",
+            "any",
+            "not_applicable",
+            "unknown"
+          ],
+          "title": "Return Policy",
+          "type": "string"
+        },
+        "row_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Row Id",
+          "type": "string"
+        },
+        "signal_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignalRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "to_contact_ids": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^\\S+$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "To Contact Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id"
+      ],
+      "title": "IntentRow",
+      "type": "object"
+    },
+    "Question": {
+      "additionalProperties": false,
+      "description": "Why a row is undecided and which destination contacts could answer it.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "several_destinations",
+            "name_and_type_only",
+            "conditional_pin"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/QuestionOption"
+          },
+          "maxItems": 200,
+          "title": "Options",
+          "type": "array"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "Question",
+      "type": "object"
+    },
+    "QuestionOption": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contact_id",
+        "label"
+      ],
+      "title": "QuestionOption",
+      "type": "object"
+    },
+    "RequiredPart": {
+      "additionalProperties": false,
+      "description": "A part the cable must add on this row, carried from a port fact.",
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "conditioning": {
+          "enum": [
+            "series_resistor",
+            "series_capacitor",
+            "shunt_resistor",
+            "attenuator",
+            "other"
+          ],
+          "title": "Conditioning",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "where": {
+          "default": "anywhere",
+          "enum": [
+            "anywhere",
+            "from_end",
+            "to_end"
+          ],
+          "title": "Where",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conditioning",
+        "basis"
+      ],
+      "title": "RequiredPart",
+      "type": "object"
+    },
+    "ShieldPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "policy": {
+          "default": "unknown",
+          "enum": [
+            "bond_from",
+            "bond_to",
+            "bond_both",
+            "isolated",
+            "unknown"
+          ],
+          "title": "Policy",
+          "type": "string"
+        }
+      },
+      "title": "ShieldPolicy",
+      "type": "object"
+    },
+    "SignalRef": {
+      "additionalProperties": false,
+      "description": "Exact signal identity: one frozen signal set revision and a key inside it.",
+      "properties": {
+        "key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "signal_set_revision_id": {
+          "format": "uuid",
+          "title": "Signal Set Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "signal_set_revision_id",
+        "key"
+      ],
+      "title": "SignalRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "from_revision_id": {
+      "format": "uuid",
+      "title": "From Revision Id",
+      "type": "string"
+    },
+    "isolation": {
+      "default": "unknown",
+      "enum": [
+        "no_unlisted_connections",
+        "unlisted_allowed",
+        "unknown"
+      ],
+      "title": "Isolation",
+      "type": "string"
+    },
+    "kind": {
+      "const": "cable_intent",
+      "default": "cable_intent",
+      "title": "Kind",
+      "type": "string"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "rows": {
+      "items": {
+        "$ref": "#/$defs/IntentRow"
+      },
+      "maxItems": 500,
+      "title": "Rows",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "shield": {
+      "$ref": "#/$defs/ShieldPolicy"
+    },
+    "to_revision_id": {
+      "format": "uuid",
+      "title": "To Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "from_revision_id",
+    "to_revision_id"
+  ],
+  "title": "CableIntent",
+  "type": "object"
+}

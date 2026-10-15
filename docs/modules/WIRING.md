@@ -762,3 +762,32 @@ unmapped stock elements as unknown. `GET interfaces/stock-revisions/{id}/convent
 lists the frozen conventions that apply to one frozen stock revision: exact-pin
 conventions with their rows first, conventions pinned to another revision of the same
 stock without rows, and colour codes with their matching elements.
+
+## Cable intent
+
+A `cable_intent` (an interface kind, Library lens "Intents") states what a cable must
+connect between two ends. Each end is an exact device `port` revision or a bare `pinout`
+variant revision. Rows name a from-contact, the to-contacts it must reach, the signal
+carried, a requirement (`required`, `optional`, `must_not_connect`), a return policy, a
+conductor requirement, parts the cable must add, and the intent records an isolation and
+a shield policy. Rows are requirements, never evidence.
+
+`cable_intent.propose` (and `GET /api/v0/interfaces/intents/propose`) proposes rows
+deterministically and stores nothing:
+
+- pins are paired only by exact signal identity (signal set revision and key);
+- a signal declared on several destination contacts, a look-alike that matches only by
+  name and type from another signal set, and a pin whose meaning depends on an
+  unselected condition each become an explicit **question** with the candidate
+  contacts; a possible supply is called out in the question;
+- a port pin marked must-not-connect, and a supply the destination declares no contact
+  for, become `must_not_connect` rows; a signal with no counterpart is `optional` and
+  `unpaired`, with its reason;
+- a conductor kind and impedance are carried only from declared port pin impedances
+  (coax for video and sync, pair for data); differing or absent facts stay unknown;
+  coax rows return on their own screen; required parts come from `needs_in_cable`.
+
+An intent with open questions can be saved as a draft but cannot be reviewed or frozen.
+Inspection labels every row by contact number and signal name. A `cable` may pin one
+exact intent revision (`intent_revision_id`); checking the cable against it and wiring
+a cable from it are later steps and read `not_evaluated`.

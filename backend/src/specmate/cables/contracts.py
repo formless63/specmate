@@ -90,6 +90,8 @@ class StackTermination(StrictModel):
 class Cable(StrictModel):
     schema_version: Literal["0.2"] = "0.2"
     stock_revision_id: UUID
+    # The cable intent this cable is meant to satisfy; pinned, never a pass by itself.
+    intent_revision_id: UUID | None = None
     lengths: LengthPlan | None = None
     endpoints: list[CableEnd] = Field(min_length=2, max_length=2)
     assignments: list[StackTermination] = Field(default_factory=list, max_length=2048)

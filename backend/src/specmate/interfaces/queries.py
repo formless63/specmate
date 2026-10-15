@@ -25,6 +25,8 @@ from specmate.interfaces.contracts import (
 )
 from specmate.interfaces.end_assembly_contracts import EndAssembly
 from specmate.interfaces.end_stacks import ResolvedStack, stack_references
+from specmate.interfaces.intent_contracts import CableIntent
+from specmate.interfaces.intents import intent_references, intent_view, propose, validate_intent
 from specmate.interfaces.signal_contracts import SignalSet, role_accepts
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 
@@ -61,6 +63,8 @@ def references(value):
         return board_references(value)
     if isinstance(value, EndAssembly):
         return stack_references(value.stack)
+    if isinstance(value, CableIntent):
+        return intent_references(value)
     if isinstance(value, ConductorConvention):
         return [
             value.signal_set_revision_id,
@@ -202,6 +206,8 @@ class Closure(Lookup):
             self.validate_port(value)
         if isinstance(value, Board):
             validate_board(self, value)
+        if isinstance(value, CableIntent):
+            validate_intent(self, value)
         if isinstance(value, EndAssembly):
             resolved = ResolvedStack(value.stack, self)
             if value is self.root:
@@ -374,6 +380,8 @@ def inspect_revision(user, revision_id):
         result["board"] = board_view(closure.root, closure)
     if isinstance(closure.root, EndAssembly):
         result["end_stack"] = ResolvedStack(closure.root.stack, closure).view()
+    if isinstance(closure.root, CableIntent):
+        result["intent"] = intent_view(closure, closure.root)
     if isinstance(closure.root, ConductorConvention):
         from specmate.interfaces.conventions import convention_view
 
@@ -671,3 +679,10 @@ def resolve_end(user, query):
     root = EndAssembly(stack=query.stack)
     closure = Closure(user, {"interface": root.model_dump(mode="json")})
     return {"end_assembly_revision_id": None, "name": None, **closure.resolved.view()}
+
+
+def propose_intent(user, query):
+    """Proposed intent rows between two exact ends, for review; nothing is stored."""
+    root = CableIntent(from_revision_id=query.from_revision_id, to_revision_id=query.to_revision_id)
+    closure = Closure(user, {"interface": root.model_dump(mode="json")})
+    return propose(closure, query.from_revision_id, query.to_revision_id)
