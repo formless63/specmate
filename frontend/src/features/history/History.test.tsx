@@ -57,7 +57,7 @@ test('shared frame and versions disclosure read record history only when explici
   const fetcher = vi.fn(async (_path: string) => response(page())); vi.stubGlobal('fetch', fetcher);
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const tree = (active = true) => <MantineProvider env="test"><QueryClientProvider client={cache}><HistoryScopeProvider value={{ workspaceId: 'w1', principalKey: 'viewer' }}><RecordPage active={active} identity={{ id: 'stock', name: 'Stock', kind: 'wire_stock' }} state={{ kind: 'revision', id: 'r3', number: 3 }} views={[{ id: 'model', label: 'Model', content: <p>Drawing</p> }]} view="model" onView={vi.fn()} inspector={[{ id: 'part', label: 'Part', content: () => <p>Properties</p> }]} /><RecordHistoryDisclosure definitionId="stock" active={active} /></HistoryScopeProvider></QueryClientProvider></MantineProvider>;
-  const view = render(tree()); expect(fetcher).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('tab', { name: 'History' })); await screen.findByRole('table', { name: 'Record history' }); expect(String(fetcher.mock.calls[0]![0])).toContain('definition_id=stock'); view.rerender(tree(false)); expect(screen.queryByRole('table')).toBeNull();
+  const view = render(tree()); expect(fetcher).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('tab', { name: 'History' })); await screen.findByRole('list', { name: 'Record history' }); expect(String(fetcher.mock.calls[0]![0])).toContain('definition_id=stock'); view.rerender(tree(false)); expect(screen.queryByRole('list', { name: 'Record history' })).toBeNull();
 });
 
 test('source and kind choices persist in the URL and current drafts are labeled separately', async () => {
@@ -65,4 +65,18 @@ test('source and kind choices persist in the URL and current drafts are labeled 
   const { history } = mount(); await screen.findByRole('table', { name: 'Workspace history' }); fireEvent.click(screen.getByRole('combobox', { name: 'Evidence source' })); fireEvent.click(screen.getByRole('option', { name: 'Current drafts' })); await screen.findByRole('button', { name: 'Current stock · current item' }); expect(history.location.search).toContain('history_source=current_drafts'); expect(screen.getByText(/Current drafts can change or disappear/)).toBeTruthy();
   fireEvent.click(screen.getByRole('combobox', { name: 'Kind' })); fireEvent.click(screen.getByRole('option', { name: 'pinout' })); await waitFor(() => expect(history.location.search).toContain('kind=pinout')); expect(screen.queryByRole('option', { name: 'pinout variant' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Clear history filters' })); await waitFor(() => expect(history.location.href).toBe('/history')); await screen.findByRole('button', { name: 'Current stock · r3' });
+});
+
+
+test('phone history puts the touched record first with metadata below and a full-width source choice', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  vi.stubGlobal('fetch', vi.fn(async () => response(page()))); mount();
+  const list = await screen.findByRole('list', { name: 'Workspace history' });
+  const link = screen.getByRole('button', { name: 'Readable stock · r3' });
+  expect(list.contains(link)).toBe(true); const time = list.querySelector('time')!;
+  expect(link.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(list.textContent).toContain('Readable person'); expect(list.textContent).toContain('Frozen revision');
+  expect(screen.queryByRole('table', { name: 'Workspace history' })).toBeNull();
+  expect(screen.getByRole('combobox', { name: 'Evidence source' }).closest('.history-source')).not.toBeNull();
+  expect(document.querySelector('.history-filters-compact')).not.toBeNull();
 });

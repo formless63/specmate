@@ -1,0 +1,6 @@
+.history-filters.history-filters-compact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+.history-filters-compact>*{min-width:0}
+.history-filters-compact>.history-source,.history-filters-compact>.history-clear{grid-column:1/-1}
+.history-entry{min-width:0}
+.history-entry .history-record-link{height:auto;min-height:30px;white-space:normal;text-align:left;justify-content:flex-start}
+.history-entry .history-record-link .mantine-Button-label{white-space:normal;overflow-wrap:anywhere;text-align:left}
