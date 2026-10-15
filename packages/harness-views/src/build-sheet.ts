@@ -9,19 +9,22 @@
 import { appearanceOf } from '../../section-layout/src';
 import type { Appearance } from '../../section-layout/src';
 import { sumDecimals } from './model';
-import type { End, HarnessTerminal, HarnessView, StockMap } from './model';
+import { endpointPins } from './model';
+import type { End, EndInfoMap, HarnessTerminal, HarnessView, StockMap } from './model';
 
 /** `labels` maps exact revision IDs to display names such as `Power harness r4`; unlabelled IDs print as given. */
-export interface BuildSheetInput { title: string; revisionId: string; harness: HarnessView; stocks: StockMap; quantity: number; labels?: Record<string, string> }
+/** `ends` carries each endpoint's resolved stack (terminal labels, typed signals, parts); without it, terminals print by ID and signals as unknown. */
+export interface BuildSheetInput { title: string; revisionId: string; harness: HarnessView; stocks: StockMap; quantity: number; labels?: Record<string, string>; ends?: EndInfoMap }
 export interface CutRow {
   sectionId: string; stockRevisionId: string; stockName: string; lengthMm: string | null; basis: string | null;
   segments: string[]; look: Appearance; totalMm: string | null;
 }
 export interface Landing {
-  number: number; contactId: string; elementPath: string; elementLabel: string; elementLook: Appearance | null;
+  number: number; layerId: string; terminalId: string; target: string; signal: string; parts: string;
+  elementPath: string; elementLabel: string; elementLook: Appearance | null;
   segment: string; segmentEnd: End; jointId: string; basis: string;
 }
-export interface EndPage { endpointId: string; label: string; bodyRevisionId: string; pinoutRevisionId: string; landings: Landing[]; physicalEnds: string[] }
+export interface EndPage { endpointId: string; label: string; stackName: string | null; pins: string[]; landings: Landing[]; physicalEnds: string[] }
 export interface JointRow { jointId: string; kind: string; members: string; basis: string }
 export interface BreakoutRow { breakoutId: string; trunk: string; legs: string; fates: number }
 export interface BuildSheetModel {
@@ -33,7 +36,8 @@ export interface BuildSheetModel {
 }
 
 const natural = (a: string, b: string): number => a.localeCompare(b, 'en', { numeric: true });
-const terminalText = (t: HarnessTerminal): string => t.kind === 'segment' ? `${t.segment_id} / ${t.end.toUpperCase()} / ${t.element_path}` : `${t.endpoint_id} / ${t.contact_id}`;
+const terminalText = (t: HarnessTerminal): string => t.kind === 'segment' ? `${t.segment_id} / ${t.end.toUpperCase()} / ${t.element_path}` : `${t.endpoint_id} / ${t.layer_id} / ${t.terminal_id}`;
+const LAYER_ORDER = ['board', 'inline', 'connector', 'shell'];
 
 export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
   const { harness, stocks } = input;
@@ -63,6 +67,7 @@ export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
     return { label: row?.label ?? 'Not found in the exact stock', look: feature ? appearanceOf(feature) : row ? appearanceOf({ kind: row.kind, color: row.color, material: row.material, construction: row.construction ?? null }) : null };
   };
   const ends: EndPage[] = harness.endpoints.map(ep => {
+    const info = input.ends?.[ep.local_id];
     const landings: Omit<Landing, 'number'>[] = [];
     for (const joint of harness.joints) {
       if (joint.kind !== 'termination') continue;
@@ -70,13 +75,18 @@ export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
       const wires = joint.members.filter((m): m is Extract<HarnessTerminal, { kind: 'segment' }> => m.kind === 'segment');
       for (const m of mine) for (const w of wires) {
         const found = lookFor(w.segment_id, w.element_path);
-        landings.push({ contactId: m.contact_id, elementPath: w.element_path, elementLabel: found.label, elementLook: found.look, segment: w.segment_id, segmentEnd: w.end, jointId: joint.local_id, basis: joint.basis });
+        const t = info?.terminals[`${m.layer_id}/${m.terminal_id}`];
+        const signal = !t ? 'Signal unknown (end stack not resolved)'
+          : t.signals.length === 0 ? 'Signal unknown (reaches no connector contact)'
+          : t.signals.map(x => `${x.label}: ${x.name ? `${x.name} (${(x.type ?? 'unknown').replace(/_/g, ' ')})` : 'signal unknown'}${x.status === 'unknown' ? ', path unknown' : ''}`).join('; ');
+        landings.push({ layerId: m.layer_id, terminalId: m.terminal_id, target: t ? `${t.layerKind} ${t.label}` : `${m.layer_id} ${m.terminal_id}`, signal, parts: t ? t.parts.join('; ') || 'None declared' : 'Unknown', elementPath: w.element_path, elementLabel: found.label, elementLook: found.look, segment: w.segment_id, segmentEnd: w.end, jointId: joint.local_id, basis: joint.basis });
       }
     }
-    landings.sort((a, b) => natural(a.contactId, b.contactId) || natural(a.elementPath, b.elementPath));
+    const layerRank = (id: string): number => { const kind = ep.stack?.layers.find(l => l.layer_id === id)?.kind; return kind ? LAYER_ORDER.indexOf(kind) : -1; };
+    landings.sort((a, b) => layerRank(a.layerId) - layerRank(b.layerId) || natural(a.layerId, b.layerId) || natural(a.terminalId, b.terminalId) || natural(a.elementPath, b.elementPath));
     const physicalEnds = harness.sections.flatMap(s => (s.physical_ends ?? []).filter(p => p.endpoint_id === ep.local_id)
       .map(p => `${p.label ?? p.local_id} (section ${s.local_id}${p.review === 'reviewed' ? ', reviewed' : ', unreviewed'})`));
-    return { endpointId: ep.local_id, label: ep.label ?? ep.local_id, bodyRevisionId: ep.body_revision_id, pinoutRevisionId: ep.pinout_revision_id,
+    return { endpointId: ep.local_id, label: ep.label ?? ep.local_id, stackName: info?.name ?? null, pins: endpointPins(ep),
       landings: landings.map((l, i) => ({ ...l, number: i + 1 })), physicalEnds };
   });
   const otherJoints: JointRow[] = harness.joints.filter(j => j.kind !== 'termination').map(j => ({ jointId: j.local_id, kind: j.kind, members: j.members.map(terminalText).join(' ↔ '), basis: j.basis }));
@@ -111,18 +121,18 @@ export function renderBuildSheetHtml(model: BuildSheetModel, options: { formboar
     + model.notes.map(n => `<p class="cs-warn">${esc(n)}</p>`).join('') + '</section>');
   for (const [i, end] of model.ends.entries()) {
     pages.push(`<section class="cs-page" data-stage="end" data-endpoint="${esc(end.endpointId)}">${header(`${i + 2}. End: ${end.label}`)}`
-      + `<p class="cs-note">Body ${esc(lab(end.bodyRevisionId))} · pinout ${esc(lab(end.pinoutRevisionId))}${end.physicalEnds.length ? ` · ${esc(end.physicalEnds.join('; '))}` : ' · no physical end declared'}</p>`
+      + `<p class="cs-note">${end.stackName ? `${esc(end.stackName)} · ` : ''}${end.pins.map(id => esc(lab(id))).join(' · ') || 'No pinned parts'}${end.physicalEnds.length ? ` · ${esc(end.physicalEnds.join('; '))}` : ' · no physical end declared'}</p>`
       + (end.landings.length === 0 ? '<p>No terminations are declared for this endpoint.</p>'
-        : `<table>${head('#', 'Contact', 'Conductor', 'Span / end', 'Joint', 'Basis')}<tbody>${end.landings.map(l =>
-          `<tr>${cell(String(l.number))}${cell(l.contactId)}<td>${swatch(l.elementLook)}${esc(l.elementPath)} <span class="cs-note">${esc(l.elementLabel)}</span></td>${cell(`${l.segment} / ${l.segmentEnd.toUpperCase()}`)}${cell(l.jointId)}${cell(l.basis)}</tr>`).join('')}</tbody></table>`)
-      + '<p class="cs-note">Row order is by contact identifier. It is not a recorded soldering or crimping order.</p></section>');
+        : `<table>${head('#', 'Lands on', 'Pin and signal', 'Parts', 'Conductor', 'Span / end', 'Joint', 'Basis')}<tbody>${end.landings.map(l =>
+          `<tr>${cell(String(l.number))}${cell(l.target)}${cell(l.signal)}${cell(l.parts)}<td>${swatch(l.elementLook)}${esc(l.elementPath)} <span class="cs-note">${esc(l.elementLabel)}</span></td>${cell(`${l.segment} / ${l.segmentEnd.toUpperCase()}`)}${cell(l.jointId)}${cell(l.basis)}</tr>`).join('')}</tbody></table>`)
+      + '<p class="cs-note">Rows are ordered from the wire outward, then by terminal. It is not a recorded soldering or crimping order. Signals are declared pin meanings, not measured continuity.</p></section>');
   }
   const base = model.ends.length + 2;
   pages.push(`<section class="cs-page" data-stage="assembly">${header(`${base}. Assembly`)}<p>${esc(model.assembly.note)}</p>`
     + (model.otherJoints.length ? `<table>${head('Joint', 'Kind', 'Members', 'Basis')}<tbody>${model.otherJoints.map(j => `<tr>${cell(j.jointId)}${cell(j.kind)}${cell(j.members)}${cell(j.basis)}</tr>`).join('')}</tbody></table>` : '')
     + (model.breakouts.length ? `<table>${head('Breakout', 'Trunk', 'Legs', 'Fates recorded')}<tbody>${model.breakouts.map(b => `<tr>${cell(b.breakoutId)}${cell(b.trunk)}${cell(b.legs)}${cell(String(b.fates))}</tr>`).join('')}</tbody></table>` : '') + '</section>');
   pages.push(`<section class="cs-page" data-stage="test">${header(`${base + 1}. Test`)}<p>${esc(model.test.note)}</p><p class="cs-note">A sheet printed from this view is not a qualification record.</p></section>`);
-  const pinned = [...new Set([model.revisionId, ...model.ends.flatMap(e => [e.bodyRevisionId, e.pinoutRevisionId]), ...model.cuts.map(c => c.stockRevisionId)])].filter(id => model.labels[id]);
+  const pinned = [...new Set([model.revisionId, ...model.ends.flatMap(e => e.pins), ...model.cuts.map(c => c.stockRevisionId)])].filter(id => model.labels[id]);
   if (pinned.length) pages.push(`<section class="cs-page" data-stage="pins">${header(`${base + 2}. Exact pins`)}<p class="cs-note">Names above identify these exact frozen revisions.</p><table>${head('Name', 'Exact revision ID')}<tbody>${pinned.map(id => `<tr>${cell(model.labels[id]!)}${cell(id)}</tr>`).join('')}</tbody></table></section>`);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(model.title)} build sheet</title><style>${CSS}</style></head><body><div class="cs-root">${pages.join('')}</div></body></html>`;
 }

@@ -20,7 +20,9 @@ from specmate.harnesses.contracts import (
     Through,
     terminal_key,
 )
-from specmate.interfaces.contracts import ConnectorBody, Pinout
+from specmate.interfaces.end_assembly_contracts import EndAssembly
+from specmate.interfaces.end_stacks import ResolvedStack, stack_references
+from specmate.interfaces.queries import Lookup
 from specmate.interfaces.queries import parse_content as parse_interface
 from specmate.inventory.contracts import QUANTITY_CONTEXT, Quantity
 from specmate.operations import ValidationFailed
@@ -64,7 +66,18 @@ def validate_content(kind, content):
     return {**content, "harness": value.model_dump(mode="json")} if value else content
 
 
-class Closure:
+def stored_schema_version(content):
+    raw = content.get("harness")
+    return raw.get("schema_version", "0.1") if isinstance(raw, dict) else None
+
+
+def end_references(endpoint):
+    if endpoint.end_assembly_revision_id is not None:
+        return [endpoint.end_assembly_revision_id]
+    return stack_references(endpoint.stack)
+
+
+class Closure(Lookup):
     def __init__(self, user, content, kind=None, dependencies=(), authority_only=False):
         # One membership read per workspace for the whole read-only closure walk.
         with closure_reads():
@@ -77,8 +90,7 @@ class Closure:
             return
         pending = [
             *(s.stock_revision_id for s in self.harness.sections),
-            *(e.body_revision_id for e in self.harness.endpoints),
-            *(e.pinout_revision_id for e in self.harness.endpoints),
+            *(rid for e in self.harness.endpoints for rid in end_references(e)),
             *dependencies,
         ]
         pin_scope = None
@@ -155,37 +167,43 @@ class Closure:
                         ),
                         "section_id": segment.section_id,
                     }
+        self.values = {}
+        for rid, revision in self.revisions.items():
+            body = json.loads(bytes(revision.snapshot.canonical))["content"]
+            if "interface" in body:
+                self.values[rid] = parse_interface(body, revision.definition.kind)
         self.endpoints = {}
         for endpoint in self.harness.endpoints:
-            body_revision = self.revisions[endpoint.body_revision_id]
-            pins_revision = self.revisions[endpoint.pinout_revision_id]
-            body = parse_interface(
-                json.loads(bytes(body_revision.snapshot.canonical))["content"],
-                body_revision.definition.kind,
-            )
-            pinout = parse_interface(
-                json.loads(bytes(pins_revision.snapshot.canonical))["content"],
-                pins_revision.definition.kind,
-            )
-            if (
-                not isinstance(body, ConnectorBody)
-                or not isinstance(pinout, Pinout)
-                or pinout.body_revision_id != endpoint.body_revision_id
-            ):
-                raise ValidationFailed("Endpoint requires a pinout of its exact body revision.")
-            self.endpoints[endpoint.local_id] = (endpoint, body, pinout)
-            for contact in body.contacts:
-                if contact.physical_role == "key":
-                    continue
+            stack = endpoint.stack
+            if endpoint.end_assembly_revision_id is not None:
+                assembly = self.values.get(endpoint.end_assembly_revision_id)
+                if not isinstance(assembly, EndAssembly):
+                    raise ValidationFailed("An endpoint pins an exact end assembly revision.")
+                stack = assembly.stack
+            resolved = ResolvedStack(stack, self)
+            self.endpoints[endpoint.local_id] = (endpoint, resolved)
+            connector = resolved.connector
+            for (layer_id, terminal_id), row in resolved.terminals.items():
+                layer = resolved.layer(layer_id)
                 terminal = EndpointTerminal(
-                    endpoint_id=endpoint.local_id, contact_id=contact.contact_id
+                    endpoint_id=endpoint.local_id, layer_id=layer_id, terminal_id=terminal_id
                 )
-                self.terminals[terminal_key(terminal)] = {
+                record = {
                     "terminal": terminal.model_dump(mode="json"),
-                    "feature_kind": contact.physical_role,
-                    "body_revision_id": str(endpoint.body_revision_id),
-                    "pinout_revision_id": str(endpoint.pinout_revision_id),
+                    "feature_kind": row["kind"],
+                    "layer_kind": layer.kind,
+                    "label": row["label"],
                 }
+                if layer.kind == "connector":
+                    record.update(
+                        {
+                            "contact_id": terminal_id,
+                            "body_revision_id": str(connector[0].body_revision_id),
+                            "pinout_revision_id": str(connector[0].pinout_revision_id),
+                            "signal": row.get("signal"),
+                        }
+                    )
+                self.terminals[terminal_key(terminal)] = record
         if len(self.terminals) > 20000:
             raise ValidationFailed("Harness terminal limit exceeded.")
         for section in self.harness.sections:
@@ -216,7 +234,7 @@ class Closure:
             segments = sum(isinstance(m, SegmentTerminal) for m in joint.members)
             if joint.kind == "termination" and (len(records) != 2 or segments != 1):
                 raise ValidationFailed(
-                    "A termination joins one segment end to one endpoint contact."
+                    "A termination joins one segment end to one endpoint terminal."
                 )
             if joint.kind == "splice" and segments != len(records):
                 raise ValidationFailed("A splice joins segment ends.")
@@ -314,10 +332,16 @@ class Closure:
                     }
                 )
 
+    def connector(self, endpoint_id):
+        """The endpoint's connector layer (layer, body, pinout), or None without one."""
+        return self.endpoints[endpoint_id][1].connector
+
     def resolve(self, terminal):
         record = self.terminals.get(terminal_key(terminal))
         if record is None:
-            raise ValidationFailed("Terminal must identify an exact conductive feature or contact.")
+            raise ValidationFailed(
+                "Terminal must identify an exact conductive feature or endpoint terminal."
+            )
         return record
 
     def claim(self, terminal, owner):
@@ -408,6 +432,25 @@ def inspect_revision(user, revision_id, quantity=1):
         "snapshot_id": str(revision.snapshot_id),
         "sha256": revision.snapshot.sha256,
         "harness": closure.harness.model_dump(mode="json"),
+        "stored_schema_version": stored_schema_version(
+            json.loads(bytes(revision.snapshot.canonical))["content"]
+        ),
+        "endpoints": [
+            {
+                "local_id": endpoint.local_id,
+                "label": endpoint.label,
+                "end_assembly_revision_id": str(endpoint.end_assembly_revision_id)
+                if endpoint.end_assembly_revision_id
+                else None,
+                "end_assembly_name": closure.revisions[
+                    endpoint.end_assembly_revision_id
+                ].definition.name
+                if endpoint.end_assembly_revision_id
+                else None,
+                "resolved_stack": resolved.view(),
+            }
+            for endpoint, resolved in closure.endpoints.values()
+        ],
         "quantities": quantities(closure, quantity),
         "terminals": list(closure.terminals.values()),
         "declared_relationships": closure.relationships,

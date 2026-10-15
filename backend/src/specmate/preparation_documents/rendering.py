@@ -18,6 +18,120 @@ def pretty(value):
     return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
 
 
+def _cell(value):
+    return f"<td>{html.escape(value)}</td>"
+
+
+def _signals(contacts):
+    if not contacts:
+        return "unknown (reaches no connector contact)"
+    parts = []
+    for c in contacts:
+        signal = c["signal"]
+        text = (
+            f"{signal['name']} ({signal['type'].replace('_', ' ')})" if signal else "signal unknown"
+        )
+        if c["status"] != "declared":
+            text += " · path unknown"
+        parts.append(f"{c['label']}: {text}")
+    return "; ".join(parts)
+
+
+def termination_tables(terminations):
+    """Readable per-end tables: conductor, landing target, pin signal, parts."""
+    blocks = []
+    for context in terminations:
+        rows = context.get("rows")
+        if rows is None:
+            continue
+        where = "/".join(context["address"]["path"]) or "standalone cable"
+        ends = {}
+        for row in rows:
+            ends.setdefault(
+                (row["endpoint_id"], row["endpoint_label"], row["stock_end"]), []
+            ).append(row)
+        for (endpoint_id, label, stock_end), end_rows in sorted(ends.items()):
+            body = "".join(
+                "<tr>"
+                + _cell(r["element_label"] or r["element_path"])
+                + _cell(f"{r['layer_kind']} {r['target_label']}")
+                + _cell(_signals(r["contacts"]))
+                + _cell("; ".join(r["part_notes"]) or "none declared")
+                + "</tr>"
+                for r in end_rows
+            )
+            blocks.append(
+                f"<h3>{html.escape(where)} · end {html.escape(endpoint_id)} "
+                f"({html.escape(label)}) · stock end {html.escape(stock_end)}</h3>"
+                "<table><thead><tr><th>Conductor</th><th>Lands on</th><th>Pin and signal</th>"
+                f"<th>Parts</th></tr></thead><tbody>{body}</tbody></table>"
+            )
+    if not blocks:
+        return ""
+    return (
+        "<section><h2>Terminations by end</h2><p>Declared landings and the typed signals of "
+        "the contacts they reach. Not measured continuity.</p>" + "".join(blocks) + "</section>"
+    )
+
+
+def test_tables(tests):
+    blocks = []
+    for context in tests:
+        plan = (context.get("declarations") or {}).get("test_plan")
+        if not plan:
+            continue
+
+        def term(t):
+            return f"{t['endpoint_id']} · {t.get('contact_id') or t.get('element_path')}"
+
+        body = "".join(
+            "<tr>"
+            + _cell(p["local_id"])
+            + _cell(term(p["first"]))
+            + _cell(term(p["second"]))
+            + _cell(p["intent"])
+            + _cell(p.get("signal") or "")
+            + _cell(
+                "unknown"
+                if p.get("expected_resistance_ohm") is None
+                else f"{p['expected_resistance_ohm']:g} ohm"
+            )
+            + "</tr>"
+            for p in plan["pairs"]
+        )
+        labels = "".join(
+            "<tr>"
+            + _cell(
+                term(lbl["terminal"])
+                if lbl.get("terminal")
+                else f"end {lbl['endpoint_id']}"
+                if lbl.get("endpoint_id")
+                else "whole cable"
+            )
+            + _cell(lbl["text"])
+            + "</tr>"
+            for lbl in plan["labels"]
+        )
+        where = "/".join(context["address"]["path"]) or "standalone cable"
+        blocks.append(
+            f"<h3>{html.escape(where)}</h3><table><thead><tr><th>Pair</th><th>First</th>"
+            "<th>Second</th><th>Expect</th><th>Signal</th><th>Series resistance</th></tr>"
+            f"</thead><tbody>{body}</tbody></table>"
+            + (
+                "<table><thead><tr><th>Label at</th><th>Text</th></tr></thead>"
+                f"<tbody>{labels}</tbody></table>"
+                if labels
+                else ""
+            )
+        )
+    if not blocks:
+        return ""
+    return (
+        "<section><h2>Test expectations and labels</h2><p>Authored expectations; no "
+        "physical test performed.</p>" + "".join(blocks) + "</section>"
+    )
+
+
 def render(projection):
     inputs = projection["inputs"]
     sha = projection["inputs_sha256"]
@@ -216,9 +330,14 @@ def render(projection):
         "content=\"default-src 'none'; style-src 'unsafe-inline'\">"
         "<title>Coordinated build sheet</title><style>body{font:14px sans-serif;margin:2em}"
         "pre{white-space:pre-wrap;overflow-wrap:anywhere}section{break-inside:avoid}"
-        "h2{font-size:1.2em}</style></head><body>"
+        "h2{font-size:1.2em}h3{font-size:1em}table{border-collapse:collapse;margin:.5em 0}"
+        "td,th{border:1px solid #888;padding:2px 6px;text-align:left}</style></head><body>"
         "<h1>Coordinated declared build sheet</h1><p>Not a release or physical qualification. "
-        "Missing inputs stay unknown.</p>" + "".join(blocks) + "</body></html>"
+        "Missing inputs stay unknown.</p>"
+        + termination_tables(sections["terminations"])
+        + test_tables(sections["test_intent"])
+        + "".join(blocks)
+        + "</body></html>"
     )
     add("build-sheet.html", "text/html", document.encode())
     if set(files) != set(DOCUMENTS) or sum(len(data) for _, data in files.values()) > MAX_SET_BYTES:

@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { Alert, Button, Group, Stack, Table, Tabs, Text } from '@mantine/core';
 import { useQueries } from '@tanstack/react-query';
 import { buildSheetModel, formboardLayout, renderBuildSheetHtml, renderFormboardSvg } from '../../../../packages/harness-views/src';
-import type { HarnessView, StockMap } from '../../../../packages/harness-views/src';
+import { endpointPins } from '../../../../packages/harness-views/src';
+import type { EndInfoMap, EndTerminalInfo, HarnessView, StockMap } from '../../../../packages/harness-views/src';
+import type { ResolvedStack } from '../end-assemblies/api';
 import { sectionLayout } from '../../../../packages/section-layout/src';
 import { PrintOutput } from './PrintOutput';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
@@ -14,13 +16,32 @@ function download(name: string, body: string, type: string): void {
   URL.revokeObjectURL(url);
 }
 
+type ResolvedEnd = { local_id: string; end_assembly_name?: string | null; resolved_stack: ResolvedStack };
+/** Terminal labels, typed signals and declared parts per endpoint, from the server's stack resolution. */
+export function endInfo(ends: ResolvedEnd[] | undefined): EndInfoMap {
+  return Object.fromEntries((ends ?? []).map(end => {
+    const terminals: Record<string, EndTerminalInfo> = {};
+    for (const layer of end.resolved_stack.layers) for (const t of layer.terminals) {
+      const signals = layer.kind === 'connector'
+        ? [{ label: t.label, name: t.signal?.name ?? null, type: t.signal?.type ?? null, status: 'declared' }]
+        : t.reaches.map(r => ({ label: r.label, name: r.signal?.name ?? null, type: r.signal?.type ?? null, status: r.status }));
+      const parts = layer.kind === 'board' ? (layer.paths ?? []).filter(p => p.via !== 'copper' && (p.from_terminal === t.terminal_id || p.to_terminal === t.terminal_id)).map(p => p.summary)
+        : layer.kind === 'inline' ? (layer.parts ?? []).filter(p => p.local_id === t.part).map(p => p.summary) : [];
+      terminals[`${layer.layer_id}/${t.terminal_id}`] = { label: t.label, layerKind: layer.kind, signals, parts };
+    }
+    const name = end.end_assembly_name ?? end.resolved_stack.layers.map(l => l.name).filter(Boolean).join(' + ') ?? null;
+    return [end.local_id, { name: name || null, terminals }];
+  }));
+}
+
 /** Formboard drawing and bench build sheet of one frozen harness revision. Read only. */
-export function HarnessViews({ revisionId, harness, quantity = 1, title }: { revisionId: string | null; harness: HarnessView; quantity?: number; title?: string }) {
+export function HarnessViews({ revisionId, harness, quantity = 1, title, resolvedEnds }: { revisionId: string | null; harness: HarnessView; quantity?: number; title?: string; resolvedEnds?: ResolvedEnd[] }) {
   const stockIds = useMemo(() => [...new Set(harness.sections.map(s => s.stock_revision_id))].sort(), [harness]);
   const reads = useQueries({ queries: stockIds.map(id => ({ queryKey: ['cable-stock', id], queryFn: () => loadFrozenStock(id) })) });
   const failed = reads.find(r => r.isError);
   const loading = reads.some(r => r.isPending);
-  const pinIds = useMemo(() => [...(revisionId ? [revisionId] : []), ...stockIds, ...harness.endpoints.flatMap(e => [e.body_revision_id, e.pinout_revision_id])], [revisionId, stockIds, harness]);
+  const pinIds = useMemo(() => [...(revisionId ? [revisionId] : []), ...stockIds, ...harness.endpoints.flatMap(endpointPins)], [revisionId, stockIds, harness]);
+  const ends = useMemo(() => endInfo(resolvedEnds), [resolvedEnds]);
   const labels = useRevisionTexts(pinIds);
   const stocks: StockMap = useMemo(() => Object.fromEntries(stockIds.flatMap((id, i) => {
     const spec = reads[i]?.data;
@@ -31,7 +52,7 @@ export function HarnessViews({ revisionId, harness, quantity = 1, title }: { rev
   const board = useMemo(() => formboardLayout(harness, stocks), [harness, stocks]);
   const svg = useMemo(() => renderFormboardSvg(board, `${name} formboard`, { selected }), [board, name, selected]);
   // A draft has no revision identity, so it has no build sheet or print output: the formboard only.
-  const model = useMemo(() => revisionId ? buildSheetModel({ title: name, revisionId, harness, stocks, quantity, labels }) : null, [name, revisionId, harness, stocks, quantity, labels]);
+  const model = useMemo(() => revisionId ? buildSheetModel({ title: name, revisionId, harness, stocks, quantity, labels, ends }) : null, [name, revisionId, harness, stocks, quantity, labels, ends]);
   const html = useMemo(() => model ? renderBuildSheetHtml(model, { formboardSvg: renderFormboardSvg(board, `${name} formboard`, { idPrefix: 'sheet' }) }) : '', [model, board, name]);
   const bar = board.bars.find(b => b.sectionId === selected);
   if (harness.sections.length === 0) return <Text>No physical sections are declared, so there is nothing to draw.</Text>;

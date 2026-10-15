@@ -299,8 +299,17 @@ class Builder:
     def harness(self, revision, path, content):
         closure = HarnessClosure(self.user, content, revision.definition.kind)
         terminals = {}
+        stack_terminals = {}
+        for endpoint, resolved in closure.endpoints.values():
+            # Harness endpoints are end stacks, projected exactly like a cable end's.
+            self.end_stack(revision, path, endpoint, resolved, stack_terminals)
         for row in closure.terminals.values():
             terminal = row["terminal"]
+            if terminal["kind"] == "endpoint":
+                terminals[json.dumps(terminal, sort_keys=True)] = stack_terminals[
+                    terminal["endpoint_id"], terminal["layer_id"], terminal["terminal_id"]
+                ]
+                continue
             key = self.node(
                 revision,
                 path,

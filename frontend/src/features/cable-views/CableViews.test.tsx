@@ -34,6 +34,25 @@ test('end faces mirror between ends and report how the ring reads', () => {
   expect(screen.getByLabelText('End B face drawing').querySelector('[data-view="end-face"]')!.getAttribute('transform')).toContain('scale(-1 1)');
 });
 
+test('each cable end is drawn on the stock end it records; an unknown stock end is listed, not placed', () => {
+  const cableEnds = [
+    { endpointId: 'b', label: 'Monitor end', stockEnd: 'b' as const, terminations: { 'stock.drain': 'contact 5' } },
+    { endpointId: 'a', label: 'Console end', stockEnd: 'unknown' as const, terminations: { 'stock.drain': 'board GND' } },
+  ];
+  show(shieldedPair(), { cableEnds, terminationLabels: { 'stock.drain': 'Monitor end: contact 5; Console end: board GND' } });
+  fireEvent.click(screen.getByRole('tab', { name: 'End B face · Monitor end' }));
+  expect(screen.getByText('Cable end Monitor end (b) uses stock end B.')).toBeTruthy();
+  const terminals = screen.getByRole('table', { name: 'End B terminals' });
+  expect(terminals.textContent).toContain('contact 5');
+  expect(terminals.textContent).not.toContain('board GND');
+  // The console end's stock end is unknown: it is labeled and its landing listed, never drawn.
+  expect(screen.getByText(/Stock end unknown/)).toBeTruthy();
+  expect(screen.getByRole('table', { name: 'Console end landings' }).textContent).toContain('board GND');
+  fireEvent.click(screen.getByRole('tab', { name: 'End A face' }));
+  expect(screen.getByText("No cable end records stock end A; every end's landing is listed.")).toBeTruthy();
+  expect(screen.getByRole('table', { name: 'End A terminals' }).textContent).toContain('Console end: board GND');
+});
+
 test('an unknown viewed-from end gives no face', () => {
   const stock = shieldedPair(); stock.viewed_from = 'unknown';
   show(stock);

@@ -1,5 +1,33 @@
 {
   "$defs": {
+    "DerivedFrom": {
+      "additionalProperties": false,
+      "description": "The cable intent row an expectation was proposed from; a record, never evidence.",
+      "properties": {
+        "intent_revision_id": {
+          "format": "uuid",
+          "title": "Intent Revision Id",
+          "type": "string"
+        },
+        "row_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Row Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "intent_revision_id",
+        "row_ids"
+      ],
+      "title": "DerivedFrom",
+      "type": "object"
+    },
     "EvidenceInput": {
       "additionalProperties": false,
       "properties": {
@@ -123,8 +151,32 @@
           "title": "Basis",
           "type": "string"
         },
+        "derived_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DerivedFrom"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "evidence": {
           "$ref": "#/$defs/EvidenceInput"
+        },
+        "expected_resistance_ohm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Resistance Ohm"
         },
         "first": {
           "$ref": "#/$defs/Terminal"
@@ -146,6 +198,20 @@
         },
         "second": {
           "$ref": "#/$defs/Terminal"
+        },
+        "signal": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signal"
         }
       },
       "required": [

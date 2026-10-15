@@ -119,8 +119,11 @@ listed as unknown; nothing is guessed. Selection on an engineering view is a ret
 recorded `viewed_from` end; the other end is that drawing mirrored about the vertical axis,
 so each ring reads the opposite way round. Rotation is a viewing input. Every conducting
 element has a terminal marker. A stock whose viewed-from end is unknown has no end face.
-Each cable end records which stock end it uses (`a`, `b` or `unknown`); an unknown stock
-end is never guessed, so the inspector lists every end's termination for each element.
+Each cable end records which stock end it uses (`a`, `b` or `unknown`). In the cable
+inspection and the cable draft views, each stock end face names the cable end recorded on it
+and is labeled with that end's landings only. A cable end whose stock end is unknown is never
+placed on either face: it is shown as stock end unknown with its landings listed beside the
+faces, and a stock end no cable end records lists every end's landing.
 
 The wire viewer builds physically based materials from the same model with generated
 (code-only) surface textures, uses an image-based light when WebGL allows it, writes a
@@ -137,7 +140,9 @@ placeholder length and labelled unknown; legs that share their trunk's section a
 dashed stubs with no length. Placement implies no routing, bonding or fit. The build
 sheet derives a deterministic, self-contained, escaped HTML document with a page per
 stage (kit and cut with exact decimal totals, one page per endpoint listing declared
-terminations in contact order, assembly, test). Stages with no recorded data say so;
+terminations from the wire outward with each target's layer and label, the typed signal of
+the contacts it reaches and declared parts at that terminal, assembly, test). Without the
+server's resolved end stack a signal prints as unknown. Stages with no recorded data say so;
 no workshop procedure or soldering order is assumed.
 
 The same inspector offers full-scale and scaled print output of the formboard and fixed-size
@@ -299,10 +304,19 @@ actual units and stock issuance are recorded separately. Planned stock cuts requ
 missing cuts or an unknown requested quantity propagate unknown totals. Route,
 finished and conductor-cut lengths are not inferred, including from a longest leg.
 
-Stable endpoint IDs pin exact body/pinout pairs. A joint declares a termination,
-splice or shield bond with exact segment-end/element-path or endpoint-contact
-members and a basis. A terminal belongs to at most one joint or breakout fate.
-Shield bonds accept shield, drain and shell features only; keying contacts cannot
+Each harness endpoint (content schema 0.2) is an end stack exactly like a cable end:
+an exact `end_assembly` revision or an ad-hoc stack of board, inline parts, connector
+and shell, with no stock end (physical ends say which section end is where). An
+endpoint terminal names a layer and one of its terminals (a contact, pad, inline lead
+or shell body). A joint declares a termination, splice or shield bond with exact
+segment-end/element-path or endpoint-terminal members and a basis. The copper graph
+projects each endpoint's stack as it does a cable end's (joins, board copper, reviewed
+landings; parts and unreviewed landings stay boundaries). Schema 0.1 harnesses (one
+body/pinout per endpoint, endpoint members by contact) remain readable as one-layer
+`connector` stacks; frozen 0.1 bytes are never rewritten and the `harnesses` migration
+upgrades editable drafts only. Harness reads report `stored_schema_version` and each
+endpoint's resolved stack. A terminal belongs to at most one joint or breakout fate.
+Shield bonds accept shield, drain and shell features (including a shell layer's body) only; keying contacts cannot
 carry connections. Group placement, matching labels, shared sections, pigtails and
 screen appearance create no electrical relationships.
 
@@ -331,8 +345,10 @@ overflow or precision loss raises a validation error instead of rounding. The
 original declared decimal amount and cut basis remain in the frozen harness.
 
 `HarnessPanel(projectId)` edits exact sections, spans, endpoints, joints and breakout
-fates through structured controls. Decimal cut text reaches the operation unchanged.
-Frozen inspection separates material counts from spans and displays explicit terminal
+fates through structured controls. Each endpoint picks an end assembly or builds its
+stack with the same stack editor as a cable end; joint members are chosen from the
+resolved stack's labeled terminals (layer, label and reached signal). Decimal cut text
+reaches the operation unchanged. Frozen inspection shows each endpoint's resolved stack and separates material counts from spans and displays explicit terminal
 relationships and unknown fates. Denied refreshes hide cached identity, draft and
 source-derived records and disable dependent mutations. HTTP reads are under
 `/api/v0/harnesses`; the shared operation API handles mutations.

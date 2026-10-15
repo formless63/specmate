@@ -5,14 +5,21 @@ import type { Section, StockEnd } from '../../../../packages/section-layout/src'
 
 const reading = (r: 'cw' | 'ccw') => r === 'cw' ? 'clockwise' : 'counter-clockwise';
 
-/** One end of the stock, looking into the cut. `labels` may name what each element terminates on. */
-export function EndFaceView({ section, end, labels = {}, selected }: { section: Section; end: StockEnd; labels?: Record<string, string>; selected?: string | null }) {
+/** Which cable end sits on this stock end, from the cable's recorded stock end. */
+export type PlacedEnd = { endpointId: string; label: string };
+
+/**
+ * One end of the stock, looking into the cut. `labels` may name what each element terminates on.
+ * `placed` is the cable end that records this stock end; its landings are the labels shown.
+ */
+export function EndFaceView({ section, end, labels = {}, selected, placed }: { section: Section; end: StockEnd; labels?: Record<string, string>; selected?: string | null; placed?: PlacedEnd | null }) {
   const [rotation, setRotation] = useState(0);
   const result = useMemo(() => endFaceLayout(section, end, { rotationDeg: rotation }), [section, end, rotation]);
   if (result.status === 'unavailable') return <Alert color="yellow" title={`End ${end.toUpperCase()} face unavailable`}>{result.reason}</Alert>;
   const { face } = result;
   const svg = renderEndFaceSvg(face, `End ${end.toUpperCase()} face`, { selected });
   return <Stack gap="xs">
+    {placed !== undefined && <Text size="sm" fw={600}>{placed ? `Cable end ${placed.label} (${placed.endpointId}) uses stock end ${end.toUpperCase()}.` : `No cable end records stock end ${end.toUpperCase()}; every end's landing is listed.`}</Text>}
     <div aria-label={`End ${end.toUpperCase()} face drawing`} className="sb-viewer" style={{ maxWidth: 360, color: 'var(--sb-text-primary)' }} dangerouslySetInnerHTML={{ __html: svg }} />
     <Group align="flex-end">
       <NumberInput label={`End ${end.toUpperCase()} rotation, degrees counter-clockwise`} value={rotation} min={-360} max={360} step={15} w={260}

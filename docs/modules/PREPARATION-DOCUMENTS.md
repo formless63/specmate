@@ -20,6 +20,14 @@ native parser or solver is invoked. Each of the six files has an assessment that
 retains missing bindings and qualification limits. Incomplete inputs are allowed
 for review and generation; they never become an empty complete manufacturing plan.
 
+Cable terminations also carry readable rows (generator `/2`): for each declared
+termination, the end and its recorded stock end, the conductor, the layer target label
+(a board pad, inline lead or contact), the connector contacts it reaches with their typed
+signal name and type (a missing signal stays unknown), and the declared parts at that
+terminal (component board paths or the inline part). The build sheet shows them as one
+table per end, and a bound test plan as a table of pairs (signal, expected series
+resistance) and its labels. These are declarations, not measured continuity.
+
 Physical Harness sections count once, independently of their logical segment count.
 Repeated occurrences count independently. Technical design counts remain present
 inside bought boundaries; workshop counts are zero there and null at unassessed

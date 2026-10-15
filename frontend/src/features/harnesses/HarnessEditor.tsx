@@ -1,22 +1,30 @@
-import { Alert, Button, Card, Group, MultiSelect, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Card, Group, MultiSelect, SegmentedControl, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useQueries } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { StockElement, StockSpecification } from '../../../../packages/section-layout/src';
-import type { Interface } from '../interfaces/api';
+import { RevisionPicker as CatalogRevisionPicker } from '../cables/RevisionPicker';
+import { connectorStack, resolveDenied, type ResolvedStack } from '../end-assemblies/api';
+import { StackDiagram, StackEditor, resolvedChips, useResolvedStacks } from '../end-assemblies/StackEditor';
 import { PhysicalEndsEditor } from './PhysicalEndsEditor';
 import { RevisionPicker } from './RevisionPicker';
-import { read, terminalKey, terminalLabel, type Breakout, type Definition, type Fate, type Harness, type Joint, type SegmentEnd, type SegmentTerminal, type Terminal } from './api';
+import { read, terminalKey, terminalLabel, type Breakout, type Definition, type Endpoint, type Fate, type Harness, type Joint, type SegmentEnd, type SegmentTerminal, type Terminal } from './api';
 
 type Choice = { value: string; label: string; terminal: Terminal };
-type Source = { content?: { stock?: StockSpecification }; interface?: Interface };
+type Source = { content?: { stock?: StockSpecification } };
 function conductive(node: StockElement, prefix = ''): string[] {
   const path = prefix ? `${prefix}.${node.id}` : node.id;
   return node.kind === 'group' ? node.children.flatMap(c => conductive(c, path)) : ['conductor', 'shield', 'drain'].includes(node.kind) ? [path] : [];
 }
 export function HarnessEditor({ value, onChange, definitions, onAuthorityChange, onReferenceDenied }: { value: Harness; onChange: (v: Harness) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void; onReferenceDenied?: (path: string, reason: unknown) => void }) {
-  const refs = [...new Set([...value.sections.map(s => s.stock_revision_id ? `revisions/${s.stock_revision_id}/snapshot` : ''), ...value.endpoints.flatMap(e => [e.body_revision_id, e.pinout_revision_id].map(id => id ? `interfaces/revisions/${id}` : ''))].filter(Boolean))];
+  const refs = [...new Set(value.sections.map(s => s.stock_revision_id ? `revisions/${s.stock_revision_id}/snapshot` : '').filter(Boolean))];
   const sources = useQueries({ queries: refs.map(path => ({ queryKey: ['harness-source', path], queryFn: async () => { try { return await read<Source>(path); } catch (reason) { onReferenceDenied?.(path, reason); throw reason; } } })) });
-  const denied = sources.some(source => source.isError);
+  // Each endpoint's stack is resolved by the server: labeled terminals and typed signals.
+  const stacks = useResolvedStacks(value.endpoints);
+  const deniedEnds = value.endpoints.filter((_, i) => resolveDenied(stacks[i]?.error)).map(e => e.local_id);
+  const stackDenied = deniedEnds.length > 0;
+  const deniedKey = deniedEnds.join('|');
+  useEffect(() => { for (const id of deniedKey ? deniedKey.split('|') : []) onReferenceDenied?.(`end-stack:${id}`, new Error('End stack unavailable')); }, [deniedKey, onReferenceDenied]);
+  const denied = sources.some(source => source.isError) || stackDenied;
   useEffect(() => onAuthorityChange?.(denied), [denied, onAuthorityChange]);
   const source = (path: string) => { const result = sources[refs.indexOf(path)]; return !denied && !result?.isError ? result?.data : undefined; };
   const choices: Choice[] = [];
@@ -29,15 +37,14 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange,
       choices.push({ value: terminalKey(terminal), label: terminalLabel(terminal), terminal });
     }
   }
-  for (const endpoint of value.endpoints) {
-    const body = source(`interfaces/revisions/${endpoint.body_revision_id}`)?.interface;
-    const pins = source(`interfaces/revisions/${endpoint.pinout_revision_id}`)?.interface;
-    if (body?.kind !== 'connector_body' || pins?.kind !== 'pinout' || pins.body_revision_id !== endpoint.body_revision_id) continue;
-    for (const contact of body.contacts.filter(c => c.physical_role !== 'key')) {
-      const terminal: Terminal = { kind: 'endpoint', endpoint_id: endpoint.local_id, contact_id: contact.contact_id };
-      choices.push({ value: terminalKey(terminal), label: terminalLabel(terminal), terminal });
+  value.endpoints.forEach((endpoint, index) => {
+    const resolved = denied ? undefined : stacks[index]?.data;
+    for (const layer of resolved?.layers ?? []) for (const t of layer.terminals) {
+      const terminal: Terminal = { kind: 'endpoint', endpoint_id: endpoint.local_id, layer_id: layer.layer_id, terminal_id: t.terminal_id };
+      const signal = t.signal?.name ?? t.reaches.map(r => r.signal?.name).filter(Boolean).join(', ');
+      choices.push({ value: terminalKey(terminal), label: `${endpoint.label ?? endpoint.local_id} / ${layer.kind} ${t.label}${signal ? ` · ${signal}` : ''}`, terminal });
     }
-  }
+  });
   const [sectionId, setSectionId] = useState('');
   const [segmentId, setSegmentId] = useState('');
   const [segmentSection, setSegmentSection] = useState<string | null>(null);
@@ -65,14 +72,30 @@ export function HarnessEditor({ value, onChange, definitions, onAuthorityChange,
       </Stack></Card>;
     })}
     <Group><TextInput label="New segment ID" value={segmentId} onChange={e => setSegmentId(e.currentTarget.value)} /><Select label="New segment physical section" data={value.sections.map(s => s.local_id)} value={segmentSection} onChange={setSegmentSection} /><Button disabled={!segmentId || !segmentSection || value.segments.some(s => s.local_id === segmentId)} onClick={() => { if (segmentSection) onChange({ ...value, segments: [...value.segments, { local_id: segmentId, section_id: segmentSection, label: null, element_paths: null }] }); setSegmentId(''); }}>Add segment span</Button></Group>
-    <Title order={4}>Connector endpoints</Title>
-    {value.endpoints.map((endpoint, index) => <Card key={endpoint.local_id} withBorder><Stack><Text>Endpoint {endpoint.local_id}</Text><RevisionPicker label={`Endpoint ${endpoint.local_id} body`} kind="connector_body" value={endpoint.body_revision_id} definitions={definitions} onChange={id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, body_revision_id: id } : e) })} /><RevisionPicker label={`Endpoint ${endpoint.local_id} pinout`} kind="pinout" value={endpoint.pinout_revision_id} definitions={definitions} onChange={id => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, pinout_revision_id: id } : e) })} /><Button variant="subtle" onClick={() => onChange({ ...value, endpoints: value.endpoints.filter((_, i) => i !== index) })}>Remove endpoint {endpoint.local_id}</Button></Stack></Card>)}
-    <Group><TextInput label="New connector endpoint ID" value={endpointId} onChange={e => setEndpointId(e.currentTarget.value)} /><Button disabled={!endpointId || value.endpoints.some(e => e.local_id === endpointId)} onClick={() => { onChange({ ...value, endpoints: [...value.endpoints, { local_id: endpointId, label: null, body_revision_id: '', pinout_revision_id: '' }] }); setEndpointId(''); }}>Add connector endpoint</Button></Group>
+    <Title order={4}>Endpoints</Title><Text size="sm">Each endpoint is an end stack, from the wire outward: an end assembly from the Library, or board, inline parts, connector and shell declared here.</Text>
+    {value.endpoints.map((endpoint, index) => <EndpointCard key={endpoint.local_id} endpoint={endpoint} definitions={definitions} resolved={denied ? undefined : stacks[index]?.data} error={stacks[index]?.error ?? null} onChange={next => onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? next : e) })} onRemove={() => onChange({ ...value, endpoints: value.endpoints.filter((_, i) => i !== index) })} />)}
+    <Group><TextInput label="New endpoint ID" value={endpointId} onChange={e => setEndpointId(e.currentTarget.value)} /><Button disabled={!endpointId || value.endpoints.some(e => e.local_id === endpointId)} onClick={() => { onChange({ ...value, endpoints: [...value.endpoints, { local_id: endpointId, label: null, end_assembly_revision_id: null, stack: connectorStack() }] }); setEndpointId(''); }}>Add endpoint</Button></Group>
     <JointEditor value={value} choices={choices} denied={denied} onChange={onChange} />
     <BreakoutEditor value={value} choices={choices} denied={denied} onChange={onChange} />
     <Select label="Harness review" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Harness['review'] })} /><TextInput label="Harness review basis" value={value.review_basis ?? ''} onChange={e => onChange({ ...value, review_basis: e.currentTarget.value || null })} />
   </Stack>;
 }
+/** One endpoint: label, then an end assembly or an ad-hoc stack (the cable end editor's stack builder). */
+function EndpointCard({ endpoint, definitions, resolved, error, onChange, onRemove }: { endpoint: Endpoint; definitions: Definition[]; resolved: ResolvedStack | undefined; error: Error | null; onChange: (e: Endpoint) => void; onRemove: () => void }) {
+  const fromAssembly = endpoint.end_assembly_revision_id !== null;
+  const name = endpoint.label ?? `Endpoint ${endpoint.local_id}`;
+  return <Card withBorder padding="sm"><Stack gap="xs">
+    <Group justify="space-between"><Text fw={600}>Endpoint {endpoint.local_id}</Text><Button size="compact-xs" variant="subtle" onClick={onRemove}>Remove endpoint {endpoint.local_id}</Button></Group>
+    <TextInput label={`Endpoint ${endpoint.local_id} label`} value={endpoint.label ?? ''} onChange={e => onChange({ ...endpoint, label: e.currentTarget.value || null })} />
+    <SegmentedControl size="xs" w="fit-content" aria-label={`Endpoint ${endpoint.local_id} source`} value={fromAssembly ? 'assembly' : 'stack'} onChange={mode => onChange({ ...endpoint, ...(mode === 'assembly' ? { end_assembly_revision_id: '', stack: null } : { end_assembly_revision_id: null, stack: connectorStack() }) })}
+      data={[{ value: 'assembly', label: 'End assembly' }, { value: 'stack', label: 'Build the stack here' }]} />
+    {fromAssembly && <CatalogRevisionPicker label={`Endpoint ${endpoint.local_id} end assembly`} title="End assembly" kind="end_assembly" value={endpoint.end_assembly_revision_id ?? ''} onChange={id => onChange({ ...endpoint, end_assembly_revision_id: id })} definitions={definitions} />}
+    {resolved && <StackDiagram layers={resolvedChips(resolved)} label={`${name} stack`} />}
+    {!fromAssembly && endpoint.stack && <StackEditor label={name} value={endpoint.stack} onChange={stack => onChange({ ...endpoint, stack })} definitions={definitions} resolved={resolved} />}
+    {error && <Alert color="red">{error.message}</Alert>}
+  </Stack></Card>;
+}
+
 function JointEditor({ value, choices, denied, onChange }: { value: Harness; choices: Choice[]; denied: boolean; onChange: (v: Harness) => void }) {
   const [id, setId] = useState(''); const [kind, setKind] = useState<Joint['kind']>('splice'); const [members, setMembers] = useState<string[]>([]); const [basis, setBasis] = useState('');
   const available = choices.filter(c => !value.joints.some(j => j.members.some(t => terminalKey(t) === c.value)));
