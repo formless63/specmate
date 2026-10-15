@@ -7,8 +7,14 @@ class PreparationDocumentsConfig(AppConfig):
     def ready(self):
         from specmate.contracts import SCHEMAS
         from specmate.preparation_documents import operations  # noqa: F401
-        from specmate.preparation_documents.contracts import Configuration, Defaults, InputAuthority
+        from specmate.preparation_documents.contracts import (
+            Configuration,
+            Defaults,
+            InputAuthority,
+            ListSets,
+        )
 
         SCHEMAS["preparation-document-configuration"] = Configuration
         SCHEMAS["preparation-document-authority"] = InputAuthority
         SCHEMAS["preparation-document-defaults"] = Defaults
+        SCHEMAS["preparation-document-list"] = ListSets

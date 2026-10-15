@@ -126,3 +126,10 @@ class Defaults(StrictModel):
     """Explicit initial document configuration for one currently authorized frozen root."""
 
     root_revision_id: UUID
+
+
+class ListSets(Defaults):
+    """One exact root's currently readable immutable receipts, without hidden totals."""
+
+    after: str | None = Field(default=None, max_length=1024)
+    limit: int = Field(default=10, ge=1, le=50)

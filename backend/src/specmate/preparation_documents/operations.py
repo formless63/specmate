@@ -1,23 +1,37 @@
 """Fresh shared authority and atomic immutable output registration, without native tools."""
 
 import base64
+import binascii
 import io
+import json
+from uuid import UUID
+
+from django.db.models import Q
 
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog_matching.queries import current_actor
 from specmate.design.models import Revision
-from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
+from specmate.operations import (
+    Conflict,
+    Context,
+    NotFound,
+    OperationError,
+    ValidationFailed,
+    operation,
+)
 from specmate.operations.models import IdempotencyRecord
 from specmate.preparation_documents.contracts import (
     Configuration,
     Defaults,
     Download,
     InputAuthority,
+    ListSets,
     SetRef,
 )
 from specmate.preparation_documents.models import DocumentOutput, DocumentSet
 from specmate.preparation_documents.projection import authorize_inputs, project
 from specmate.preparation_documents.rendering import MAX_FILE_BYTES, render
+from specmate.queries import get_revision
 from specmate.sources import blobstore
 
 
@@ -139,6 +153,63 @@ def preview(ctx: Context, p: Configuration):
         "manifest": manifest,
         "state": "document-inputs-" + projection["inputs_sha256"],
         "sections": projection["sections"],
+    }
+
+
+def set_cursor(root_id, row):
+    data = ["documents/1", str(root_id), row.created_at.isoformat(), str(row.id)]
+    return base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip("=")
+
+
+@operation(
+    "preparation_documents.list",
+    ListSets,
+    supports_idempotency=False,
+    summary="List a bounded page of readable immutable receipts for one exact authorized root.",
+    access=Perm.WORKSPACE_READ,
+)
+def list_sets(ctx: Context, p: ListSets):
+    root = get_revision(ctx.user, p.root_revision_id)
+    rows = DocumentSet.objects.filter(root_revision_id=root.id).order_by("-created_at", "id")
+    if p.after:
+        try:
+            cursor = json.loads(base64.urlsafe_b64decode(p.after + "=" * (-len(p.after) % 4)))
+            if not isinstance(cursor, list) or len(cursor) != 4:
+                raise ValueError
+            version, cursor_root, stamp, identifier = cursor
+            if version != "documents/1" or cursor_root != str(root.id):
+                raise ValueError
+            anchor = rows.filter(id=UUID(identifier)).first()
+            if anchor is None or stamp != anchor.created_at.isoformat():
+                raise ValueError
+        except (ValueError, TypeError, AttributeError, binascii.Error):
+            raise ValidationFailed("Document cursor unavailable for this root.") from None
+        rows = rows.filter(
+            Q(created_at__lt=anchor.created_at) | Q(created_at=anchor.created_at, id__gt=anchor.id)
+        )
+    candidates = list(rows[: p.limit + 1])
+    page = candidates[: p.limit]
+    visible = []
+    for candidate in page:
+        try:
+            retained = authorized_set(ctx.user, candidate.id)
+        except OperationError:
+            continue
+        visible.append(
+            {
+                "document_set_id": str(retained.id),
+                "root_revision_id": str(root.id),
+                "created_at": retained.created_at.isoformat(),
+                "generator": retained.generator,
+                "quantity": retained.configuration.get("quantity"),
+                "inputs_sha256": retained.sha256,
+            }
+        )
+    return {
+        "root_revision_id": str(root.id),
+        "results": visible,
+        "next_after": set_cursor(root.id, page[-1]) if len(candidates) > p.limit else None,
+        "listing": "current_readable_page_no_hidden_total",
     }
 
 

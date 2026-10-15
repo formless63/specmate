@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "description": "One exact root's currently readable immutable receipts, without hidden totals.",
+  "properties": {
+    "after": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After"
+    },
+    "limit": {
+      "default": 10,
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_revision_id"
+  ],
+  "title": "ListSets",
+  "type": "object"
+}
