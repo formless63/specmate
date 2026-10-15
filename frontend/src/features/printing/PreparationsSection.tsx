@@ -9,6 +9,7 @@ import {
   type Estimate, type MechanicalRecords, type MechanicalRevision, type Pin, type PreparationRead, type PreparationRecord,
   type PrintPreparation, type ProfileRecord, type RevisionRow, type Role, type SliceOptions, type SliceRead, type Technology,
 } from './api';
+import { ModelUpload } from './ModelUpload';
 import { ParameterTable } from './ParameterTable';
 
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -23,6 +24,10 @@ function blank(technology: Technology): PrintPreparation {
     copies: 1, output_format: 'gcode', slicer_tool: 'orcaslicer-2.4.2', limitations: [],
   };
 }
+
+/** Slice builds that can still change; the card polls until none of these remain. */
+const NONTERMINAL_SLICE = new Set(['waiting_dispatch', 'queued', 'leased', 'running', 'cancellation_requested']);
+const SLICE_POLL_MS = 3000;
 
 function EstimateCell({ label, estimate, unit }: { label: string; estimate: Estimate; unit: string }) {
   return estimate.status === 'unknown' || estimate.value === null
@@ -60,9 +65,19 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
     return () => { alive = false; };
   }, [projectId, workspaceId, refreshKey]);
 
+  const pending = !!frozen && !!slicing?.builds.some(build => NONTERMINAL_SLICE.has(build.state));
+  useEffect(() => {
+    if (!pending || !frozen) return;
+    let alive = true;
+    const timer = setInterval(() => {
+      sliceOptions(frozen).then(next => { if (alive) setSlicing(next); }).catch(() => { /* keep the last known state; the next tick retries */ });
+    }, SLICE_POLL_MS);
+    return () => { alive = false; clearInterval(timer); };
+  }, [pending, frozen]);
+
   const edit = (change: (next: PrintPreparation) => void) => {
-    if (!draft) return;
-    const next = structuredClone(draft); change(next); setDraft(next); setDirty(true); setNotice('');
+    setDraft(prior => { if (!prior) return prior; const next = structuredClone(prior); change(next); return next; });
+    setDirty(true); setNotice('');
   };
   const open = async (record: PreparationRecord) => {
     setBusy(true); setError(''); setNotice(''); setFrozen(null); setSlicing(null); setReview(null);
@@ -154,6 +169,7 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
     </Group>
     {draft && !frozen && <InspectionScope permission="item.create">
       <Stack gap="xs">
+        <ModelUpload workspaceId={workspaceId} onCreated={(revisionId) => { void listMechanical(workspaceId).then(found => { setMechanical(found.records); return choosePart(revisionId); }).catch(e => setError(message(e))); }} />
         <Group align="end">
           <TextInput label="Variant label" value={draft.variant_label} onChange={e => { const value = e.target.value; edit(next => { next.variant_label = value; }); }} />
           <Text size="sm">Technology: {draft.technology.toUpperCase()}</Text>
@@ -214,7 +230,10 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
     {frozen && slicing && <Stack gap={4} aria-label="Slicing">
       <Title order={4}>Optional slicing</Title>
       <Text size="sm">Tool: {slicing.tool.name} {slicing.tool.package_version}. Requires an operator-approved recipe for this exact revision.</Text>
-      {slicing.unavailable_reason && <Text size="sm">{slicing.unavailable_reason}</Text>}
+      {!slicing.available_recipe_id && <Alert color="yellow" title="Slicing is not available" role="status">
+        <Text size="sm">{slicing.unavailable_reason ?? 'No approved recipe exists for this exact revision.'}</Text>
+        {slicing.proposed_recipe && <Text size="xs">Slicing runs only after an operator approves the recipe, enables the tool and starts the runner; those steps are outside this workspace.</Text>}
+      </Alert>}
       {slicing.recipe_id && <Text size="xs" className="sb-mono">Exact recipe: {slicing.recipe_id}</Text>}
       <Group><Button onClick={() => void slice()} disabled={!canExecute || busy || !slicing.available_recipe_id}>Request slice</Button></Group>
       <ReadOnlyNote permission="build.execute">Requesting a slice is unavailable.</ReadOnlyNote>
