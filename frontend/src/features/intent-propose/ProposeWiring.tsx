@@ -22,7 +22,7 @@ export type Proposal = {
   status: "proposed"; review: "required";
 };
 
-async function requestProposal(body: object): Promise<Proposal> {
+export async function requestProposal(body: object): Promise<Proposal> {
   const csrf = document.cookie.split("; ").find((cookie) => cookie.startsWith("csrftoken="))?.split("=")[1];
   const response = await fetch("/api/v0/cables/propose", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(csrf ?? "") }, body: JSON.stringify(body) });
   const result = await response.json();

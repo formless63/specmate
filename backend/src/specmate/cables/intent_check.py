@@ -91,6 +91,13 @@ def mating_map(end_layer, end_body, intent_pinout, closure):
 # ---------------------------------------------------------------- graph
 
 
+def node_ref(node):
+    """What a path node is in the cable (a terminal or a conductor end), for drawings."""
+    if node[0] == "t":
+        return {"endpoint_id": node[1], "layer_id": node[2], "terminal_id": node[3]}
+    return {"endpoint_id": node[1], "element_path": node[2]}
+
+
 class Graph:
     """Declared steps over every cable end stack plus terminations and conductors."""
 
@@ -289,10 +296,21 @@ class Check:
         chips.append(
             {"kind": "mated", "label": "mated", "status": self.ends[side]["mating"]["status"]}
         )
-        chips.append({"kind": "contact", "label": self.graph.labels[start][1]})
+        chips.append(
+            {"kind": "contact", "label": self.graph.labels[start][1], "ref": node_ref(start)}
+        )
         for _, to, status, text, detail in steps:
-            chips.append({"kind": detail["kind"], "label": text, "status": status})
-            chips.append({"kind": self.graph.labels[to][0], "label": self.graph.labels[to][1]})
+            step = {"kind": detail["kind"], "label": text, "status": status}
+            if detail.get("element_path"):
+                step["ref"] = {"element_path": detail["element_path"]}
+            chips.append(step)
+            chips.append(
+                {
+                    "kind": self.graph.labels[to][0],
+                    "label": self.graph.labels[to][1],
+                    "ref": node_ref(to),
+                }
+            )
         if far_side:
             chips.append(
                 {

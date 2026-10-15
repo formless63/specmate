@@ -3,19 +3,16 @@ import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissi
 import { LengthsEditor, LengthInspection, LengthImpactView } from "./Lengths";
 import { Alert, Anchor, Button, Card, Group, SegmentedControl, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQueries, useQuery, useQueryClient, type Query, type UseQueryResult } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
-import { colorName } from '../wire-stock/builder';
 import { CableViews, type CableEnd } from '../cable-views/CableViews';
 import { useProbedSelection } from '../cable-views/useProbedSelection';
 import { useProbe } from '../probe';
-import type { StockElement } from '../../../../packages/section-layout/src';
-import type { Inspection as InterfaceInspection } from '../interfaces/api';
+import type { Body, Inspection as InterfaceInspection } from '../interfaces/api';
 import { CableOperationError, authorityDenied, cableProblems, command, read, initialCable, type Cable, type Endpoint, type Definition, type Draft, type Identity, type Inspection, type ResolvedTermination } from './api';
 import { ContinueDraftButton } from '../scope/ContinueDraftButton';
 import { RevisionPicker } from './RevisionPicker';
 import { NewIntent } from '../intents/IntentPanel';
-import { IntentCheckPanel } from '../intent-check/IntentCheckPanel';
 import { ProposeWiring } from '../intent-propose/ProposeWiring';
 import { SbUnknown } from '../../components/sb';
 import { connectorStack, resolveDenied, splitKey, terminalKey, type ResolvedStack } from '../end-assemblies/api';
@@ -26,6 +23,9 @@ import { Swatch } from '../cable-views/Swatch';
 import { appearanceOf } from '../../../../packages/section-layout/src';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
+import { CableWorkbench } from '../cable-workbench/CableWorkbench';
+import { conductiveElements } from '../cable-workbench/model';
+import { IntentCheckPanel } from '../intent-check/IntentCheckPanel';
 
 export function CablePanel({ projectId = null, workspaceId }: { projectId?: string | null; workspaceId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} workspaceId={workspaceId} />; }
 function Workspace({ projectId, workspaceId }: { projectId: string | null; workspaceId?: string | null }) {
@@ -87,7 +87,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     await cache.invalidateQueries({ queryKey: ["cable-identity", definitionId] });
   }, onError: mutationError });
   const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
-  const pickDefinition = useCallback((id: string) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setDraftToken(undefined); setCommittedDraft(null); setOffset(0); }, []);
+  const pickDefinition = useCallback((id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setDraftToken(undefined); setCommittedDraft(null); setOffset(0); }, []);
   const openDraft = useCallback((id: string) => { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); }, []);
   useProbedSelection({ kind: 'cable', definitions: definitions.isError ? undefined : definitions.data, definitionId,
     revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined,
@@ -97,33 +97,44 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   const shownAbove = !!definitionId && probedObject === definitionId;
   const createErrors = create.error instanceof CableOperationError ? create.error.fieldErrors : undefined;
   const workspaceDenied = authorityBlocked || definitions.isError || identity.isError;
+  const creating = !definitionId;
+  const cableName = currentDefinitions.find(d => d.definition_id === definitionId)?.name ?? identity.data?.name ?? 'Cable';
+  // A draft and a frozen revision open together share one place: a toggle shows one at a time, both stay mounted.
+  const [shown, setShown] = useState<'draft' | 'frozen'>('draft');
+  const bothOpen = !!draft.data && !!draftId && !!revisionId && !shownAbove && !workspaceDenied && !draft.isError;
+  const frozenNumber = identity.data?.revisions.find(r => r.revision_id === revisionId)?.number;
+  const freezeButton = draft.data && !draft.isError && !workspaceDenied
+    ? <Button size="xs" disabled={draftSourceDenied || !draftToken} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate()}>Freeze cable revision</Button> : null;
   return <Stack>
-    <Title order={2}>Cables</Title>
-    <Text>A cable is a finished assembly: a wire stock cut to length with a connector and pinout at each end, and each conductor, shield and drain terminated to a contact. Review records declared terminations; continuity and physical qualification remain unevaluated.</Text>
+    <Group justify="space-between" align="flex-end" gap="xs" wrap="wrap">
+      <Title order={2}>Cables</Title>
+      {!creating && !authorityBlocked && <Button size="xs" variant="default" onClick={() => pickDefinition(null)}>New cable</Button>}
+    </Group>
+    <Text size="sm" c="dimmed">A cable is drawn as it is built: End A's stack, the stock cut to length with every conductor, shield and drain, and End B's stack. Click any part of the drawing to probe it; landings are declarations, and continuity and physical qualification remain unevaluated.</Text>
     {authorityBlocked && <Alert color="red"><Stack><Text>Cable access must be rechecked before retained content can be shown.</Text><Button loading={checkingAuthority} onClick={() => void refreshAuthority()}>Refresh cable access</Button></Stack></Alert>}
-    {!authorityBlocked && <NewCableFromIntent projectId={projectId} definitions={currentDefinitions} onUse={intent_revision_id => setValue(current => ({ ...current, intent_revision_id }))} onPropose={cable => setValue(current => ({ ...cable, lengths: current.lengths, review: current.review, review_basis: current.review_basis }))} />}
-    {!authorityBlocked && <Card withBorder><Stack>
-      <Title order={3}>New cable</Title>
-      <InspectionScope permission="item.create"><TextInput label="Cable name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-      <CableEditor errors={createErrors} value={value} onChange={setValue} definitions={currentDefinitions} workspaceId={workspaceId} onAuthorityChange={setCreateSourceDenied} /></InspectionScope>
-      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => { setTried(true); if (cableProblems(value).length === 0) create.mutate(); }}>Create cable draft</Button>{tried && <Missing problems={cableProblems(value)} />}<ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
-    </Stack></Card>}
-    {create.isError && <Alert color="red">{create.error.message}</Alert>}
+    {!authorityBlocked && <Group align="flex-end" gap="xs" wrap="wrap" aria-label="Open a cable">
+      <Select label="Existing cable definition" searchable data={currentDefinitions.filter((d) => d.kind === "cable").map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitions.isError ? null : definitionId} disabled={definitions.isError} onChange={(id) => pickDefinition(id)} style={{ flex: '1 1 16rem' }} />
+      {identity.data && !workspaceDenied && <>
+        <Select label="Edit cable draft" value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); } }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} style={{ flex: '1 1 12rem' }} />
+        <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} style={{ flex: '1 1 12rem' }} />
+        <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={openDraft} />
+        {(offset > 0 || Math.max(identity.data.revisions.length, identity.data.drafts.length) >= 50) && <Group gap="xs"><Button size="xs" variant="subtle" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button size="xs" variant="subtle" disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>}
+      </>}
+    </Group>}
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    {!authorityBlocked && <Select label="Existing cable definition" searchable data={currentDefinitions.filter((d) => d.kind === "cable").map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitions.isError ? null : definitionId} disabled={definitions.isError} onChange={(id) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setDraftToken(undefined); setCommittedDraft(null); setOffset(0); }} />}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {identity.data && !workspaceDenied && <>
-      <Select label="Edit cable draft" value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); } }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
-      <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={openDraft} />
-      <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />
-      <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
-    </>}
+    {creating && !authorityBlocked && <NewCableFromIntent projectId={projectId} definitions={currentDefinitions} onUse={intent_revision_id => setValue(current => ({ ...current, intent_revision_id }))} onPropose={cable => setValue(current => ({ ...cable, lengths: current.lengths, review: current.review, review_basis: current.review_basis }))} />}
+    {creating && !authorityBlocked && <NewCableBench name={name} onName={setName} value={value} onChange={setValue} definitions={currentDefinitions} workspaceId={workspaceId} errors={createErrors}
+      onAuthorityChange={setCreateSourceDenied} actions={<>
+        <Button size="xs" disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => { setTried(true); if (cableProblems(value).length === 0) create.mutate(); }}>Create cable draft</Button>
+      </>} notices={<>{tried && <Missing problems={cableProblems(value)} />}<ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>{create.isError && <Alert color="red">{create.error.message}</Alert>}</>} />}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && draftId && <DraftEditor key={draft.data.draft_id} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} workspaceId={workspaceId} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} />}
-    {draft.data && !draft.isError && !workspaceDenied && <Button disabled={draftSourceDenied || !draftToken} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate()}>Freeze cable revision</Button>}
-    {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
+    {bothOpen && <SegmentedControl size="xs" w="fit-content" aria-label="Show the draft or the frozen revision" value={shown} onChange={v => setShown(v as 'draft' | 'frozen')}
+      data={[{ value: 'draft', label: 'Draft (editing)' }, { value: 'frozen', label: `Frozen ${frozenNumber ? `r${frozenNumber}` : 'revision'}` }]} />}
+    {draft.data && draftId && <div hidden={bothOpen && shown !== 'draft'}><DraftBench key={draft.data.draft_id} name={cableName} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} workspaceId={workspaceId} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied}
+      onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} freezeAction={freezeButton} freezeError={freeze.isError ? freeze.error.message : null} /></div>}
     {revisionId && shownAbove && !workspaceDenied && <Text role="status" data-testid="views-shown-above">Frozen cable views are shown above, in the selected library row.</Text>}
-    {revisionId && !shownAbove && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
+    {revisionId && !shownAbove && !workspaceDenied && !draft.isError && <div hidden={bothOpen && shown !== 'frozen'}><CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} /></div>}
   </Stack>;
 }
 
@@ -135,7 +146,7 @@ function NewCableFromIntent({ projectId, definitions, onUse, onPropose }: { proj
   const [fromEnd, setFromEnd] = useState("");
   const [toEnd, setToEnd] = useState("");
   const useIntent = (id: string) => { setIntent(id); if (id) onUse(id); };
-  if (!open) return <Group><Button variant="default" onClick={() => setOpen(true)}>New cable from intent</Button><Text size="xs" c="dimmed">Start from the two ends and the signals the cable must carry.</Text></Group>;
+  if (!open) return <Group><Button variant="default" size="xs" onClick={() => setOpen(true)}>New cable from intent</Button><Text size="xs" c="dimmed">Start from the two ends and the signals the cable must carry.</Text></Group>;
   return <Stack gap="xs">
     <NewIntent title="New cable from intent" projectId={projectId} definitions={definitions} onFrozen={useIntent} />
     <Card withBorder><Stack gap="xs">
@@ -151,7 +162,29 @@ function NewCableFromIntent({ projectId, definitions, onUse, onPropose }: { proj
     <Anchor component="button" type="button" size="xs" w="fit-content" onClick={() => setOpen(false)}>Close</Anchor></Stack>;
 }
 
-function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, onSaved, onAuthorityChange, onStateChange, onMutationError }: { workspaceId?: string | null; draft: Draft; committedDraft: Draft | null; hidden: boolean; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void; onStateChange: (state: string) => void; onMutationError: (error: Error) => void }) {
+/** Connector bodies of each end's resolved stack, for drawing their faces. */
+function useBodies(stacks: (ResolvedStack | undefined)[]): (Body | null | undefined)[] {
+  const ids = stacks.map(s => s?.body_revision_id ?? null);
+  const bodies = useQueries({ queries: ids.map(id => ({
+    queryKey: ['cable-body', id], queryFn: () => read<InterfaceInspection>(`interfaces/revisions/${id}`), enabled: !!id, retry: false,
+  })) });
+  return bodies.map(b => (b.data?.interface && (b.data.interface as { kind?: string }).kind === 'connector_body' ? b.data.interface as Body : null));
+}
+
+/** A new cable on the workbench: the drawing fills in as the stock and ends are chosen in the inspector. */
+function NewCableBench({ name, onName, value, onChange, definitions, workspaceId, errors, onAuthorityChange, actions, notices }: { name: string; onName: (name: string) => void; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; workspaceId?: string | null; errors?: Record<string, string>; onAuthorityChange: (denied: boolean) => void; actions: ReactNode; notices: ReactNode }) {
+  const sources = useCableSources(value, workspaceId, onAuthorityChange);
+  const stacks = sources.denied ? [] : sources.resolved.map(r => r.data);
+  const bodies = useBodies(stacks);
+  const shown = sources.denied ? { ...value, assignments: [] } : value;
+  return <CableWorkbench mode="new" name={name.trim() || 'New cable'} cable={shown} onChange={onChange} stacks={stacks} bodies={bodies} stock={sources.denied ? undefined : sources.stock.data}
+    revision={{ value: 'New', sub: 'not saved yet' }} actions={actions} notices={notices} onAccept={onChange}
+    cableForm={<InspectionScope permission="item.create"><Stack gap="sm"><TextInput label="Cable name" value={name} onChange={(e) => onName(e.currentTarget.value)} />
+      <CableFields value={value} onChange={onChange} definitions={definitions} errors={errors} sources={sources} /></Stack></InspectionScope>}
+    endForms={value.endpoints.map((_e, index) => <InspectionScope key={index} permission="item.create"><EndCard index={index} value={value} onChange={onChange} errors={errors ?? {}} family={sources.family} definitions={definitions} choices={sources.choices} denied={sources.denied} resolved={sources.resolved[index]!} /></InspectionScope>)} />;
+}
+
+function DraftBench({ name, workspaceId, draft, committedDraft, hidden, definitions, onSaved, onAuthorityChange, onStateChange, onMutationError, freezeAction, freezeError }: { name: string; workspaceId?: string | null; draft: Draft; committedDraft: Draft | null; hidden: boolean; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void; onStateChange: (state: string) => void; onMutationError: (error: Error) => void; freezeAction: ReactNode; freezeError: string | null }) {
   const [sourceDenied, setSourceDenied] = useState(false);
   const [tried, setTried] = useState(false);
   const editGate = usePermission('design.edit');
@@ -164,13 +197,25 @@ function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, 
   useEffect(() => {
     if (committedDraft?.draft_id === base.draft_id) setBase(current => ({ ...current, state: committedDraft.state }));
   }, [committedDraft, base.draft_id]);
+  const sources = useCableSources(value, workspaceId, setSourceDenied);
+  const stacks = sources.denied ? [] : sources.resolved.map(r => r.data);
+  const bodies = useBodies(stacks);
   const save = useMutation({ mutationFn: () => command<Draft>("cable.update", { draft_id: base.draft_id, cable: value }, base.state), onSuccess: async data => { setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }, onError: onMutationError });
   const saveErrors = save.error instanceof CableOperationError ? save.error.fieldErrors : undefined;
+  const accept = async (cable: Cable) => { const data = await command<Draft>("cable.update", { draft_id: base.draft_id, cable }, base.state); setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); };
   if (hidden) return null;
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor errors={saveErrors} value={value} onChange={setValue} definitions={definitions} workspaceId={workspaceId} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => { setTried(true); if (cableProblems(value).length === 0) save.mutate(); }}>Save cable draft</Button>{tried && <Missing problems={cableProblems(value)} />}<ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}
-    {!sourceDenied && base.content.cable?.intent_revision_id && <ProposeWiring key={`propose:${base.state}`} intentRevisionId={base.content.cable.intent_revision_id} draftId={base.draft_id} current={value} acceptLabel="Accept into draft"
-      onAccept={async cable => { const data = await command<Draft>("cable.update", { draft_id: base.draft_id, cable }, base.state); setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }} />}
-    {!sourceDenied && <IntentCheckPanel key={base.state} draftId={base.draft_id} intentRevisionId={base.content.cable?.intent_revision_id ?? null} />}</Stack></Card>;
+  const shown = sources.denied ? { ...value, assignments: [] } : value;
+  return <CableWorkbench mode="draft" name={name} cable={shown} onChange={editGate.allowed ? setValue : undefined} stacks={stacks} bodies={bodies} stock={sources.denied ? undefined : sources.stock.data}
+    draftId={sourceDenied ? null : base.draft_id} checkVersion={base.state} revision={{ value: 'Draft', sub: base.state }} onAccept={sourceDenied ? undefined : accept}
+    actions={<>
+      <Button size="xs" variant="default" disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => { setTried(true); if (cableProblems(value).length === 0) save.mutate(); }}>Save cable draft</Button>
+      {freezeAction}
+    </>}
+    notices={<>{tried && <Missing problems={cableProblems(value)} />}<ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>
+      {save.isError && <Alert color="red">{save.error.message}</Alert>}{freezeError && <Alert color="red">{freezeError}</Alert>}
+      {value !== base.content.cable && !save.isPending && base.content.cable?.intent_revision_id && <Text size="xs" c="dimmed">Check and Propose read the saved draft.</Text>}</>}
+    cableForm={<InspectionScope permission="design.edit"><CableFields errors={saveErrors} value={value} onChange={setValue} definitions={definitions} sources={sources} /></InspectionScope>}
+    endForms={value.endpoints.map((_e, index) => <InspectionScope key={index} permission="design.edit"><EndCard index={index} value={value} onChange={setValue} errors={saveErrors ?? {}} family={sources.family} definitions={definitions} choices={sources.choices} denied={sources.denied} resolved={sources.resolved[index]!} /></InspectionScope>)} />;
 }
 /** What a cable still needs before it can be saved, listed after a save was attempted. */
 function Missing({ problems }: { problems: string[] }) {
@@ -178,22 +223,18 @@ function Missing({ problems }: { problems: string[] }) {
   return <Alert color="orange" role="alert" title="Not saved yet"><Stack gap={2}>{problems.map(problem => <Text key={problem} size="sm">{problem}</Text>)}</Stack></Alert>;
 }
 type Choice = { value: string; label: string; display: string; look: ReturnType<typeof appearanceOf> };
-/** Conductive elements of a stock: the stock's own label and recorded color for display, the path kept for identity. */
-function elements(node: StockElement, prefix = '', coreColor: string | null = null): Choice[] {
-  const path = prefix ? `${prefix}.${node.id}` : node.id;
-  if (node.kind === 'group') {
-    // A core's identifying color is its insulation color; its conductor is bare metal.
-    const ins = node.children.find(c => c.kind === 'insulation')?.color ?? null;
-    return node.children.flatMap(child => elements(child, path, ins));
-  }
-  if (!['conductor', 'shield', 'drain'].includes(node.kind)) return [];
-  const look = appearanceOf({ kind: node.kind, color: node.color, material: node.material, construction: 'construction' in node ? node.construction : null });
-  const name = node.label?.trim() || path;
-  return [{ value: path, label: `${path} · ${node.label} (${node.kind})`, display: node.kind === 'conductor' && coreColor ? `${name} (${colorName(coreColor)})` : node.color ? `${name} (${colorName(node.color)})` : name, look }];
+/** Conductive elements of a stock as termination rows: the stock's label and color for display, the path kept for identity. */
+function elements(structure: Parameters<typeof conductiveElements>[0]): Choice[] {
+  return conductiveElements(structure).map(e => ({ value: e.path, label: `${e.path} · ${e.label} (${e.kind})`, display: e.display, look: e.look }));
 }
-export function CableEditor({ value, onChange, definitions, onAuthorityChange, workspaceId, errors = {} }: { errors?: Record<string, string>; workspaceId?: string | null; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
+
+type Sources = ReturnType<typeof useCableSources>;
+/**
+ * Everything a cable's pinned references resolve to, read under the cable's authority: the stock,
+ * every connector/board layer revision and each end's resolved stack. A denial withdraws retained choices.
+ */
+function useCableSources(value: Cable, workspaceId: string | null | undefined, onAuthorityChange?: (denied: boolean) => void) {
   const stock = useQuery({ queryKey: ['cable-stock', value.stock_revision_id], queryFn: () => loadFrozenStock(value.stock_revision_id), enabled: !!value.stock_revision_id });
-  // Every pinned layer revision is read under the cable's authority; a denial withdraws retained choices.
   const references = [...new Map(value.endpoints.flatMap(endpoint => (endpoint.stack?.layers ?? []).flatMap(layer =>
     layer.kind === 'connector' ? [{ key: 'cable-body', id: layer.body_revision_id }] : layer.kind === 'board' ? [{ key: 'cable-board', id: layer.board_revision_id }] : [],
   )).filter(reference => reference.id).map(reference => [`${reference.key}:${reference.id}`, reference])).values()];
@@ -212,9 +253,15 @@ export function CableEditor({ value, onChange, definitions, onAuthorityChange, w
   const [familyFromPreference, setFamilyFromPreference] = useState(false);
   const [familyTouched, setFamilyTouched] = useState(false);
   useEffect(() => { if (familyKey && !familyTouched) { setFamily(familyKey.split('\u0000')[0] ?? null); setFamilyFromPreference(true); } }, [familyKey, familyTouched]);
+  const chooseFamily = (next: string | null) => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(next); };
+  return { stock, resolved, denied, choices, families, family, familyFromPreference, chooseFamily };
+}
+
+/** The whole-cable fields: stock, intent, connector family filter, lengths and review. */
+function CableFields({ value, onChange, definitions, sources, errors = {} }: { value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; sources: Sources; errors?: Record<string, string> }) {
   const setStock = useCallback((stock_revision_id: string) => onChange({ ...value, stock_revision_id }), [onChange, value]);
-  return <Stack>
-    <CableSummary cable={denied ? { ...value, assignments: [] } : value} elementCount={stock.data && !denied ? choices.length : null} stacks={denied ? [] : resolved.map(r => r.data)} />
+  const { stock, denied, choices, families, family, familyFromPreference, chooseFamily } = sources;
+  return <Stack gap="sm">
     <Stack gap="xs" aria-label="Stock">
       <Title order={4}>Stock</Title>
       <Text size="sm" c="dimmed">The wire material this cable is cut from.</Text>
@@ -226,15 +273,25 @@ export function CableEditor({ value, onChange, definitions, onAuthorityChange, w
       <Text size="sm" c="dimmed">What this cable must connect, if stated. Checking the cable against it comes later; it never passes by itself.</Text>
       <RevisionPicker label="Intent" title="Cable intent (optional)" kind="cable_intent" value={value.intent_revision_id ?? ''} onChange={intent => onChange({ ...value, intent_revision_id: intent || null })} definitions={definitions} />
     </Stack>
-    {families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={v => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(v); }} />
-      {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(null); }} />}</Group>}
-    {value.endpoints.map((_endpoint, index) => <EndCard key={index} index={index} value={value} onChange={onChange} errors={errors} family={family} definitions={definitions} choices={choices} denied={denied} resolved={resolved[index]!} />)}
+    {families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={chooseFamily} />
+      {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => chooseFamily(null)} />}</Group>}
     {!denied && <LengthsEditor value={value.lengths} onChange={lengths => onChange({ ...value, lengths })} choices={choices} endpoints={value.endpoints.map(e => e.local_id)} />}
     <Stack gap="xs" aria-label="Review">
       <Title order={4}>Review</Title>
       <Select label="Review status" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Cable['review'] })} />
       <TextInput label="Review basis" description="Required once reviewed." value={value.review_basis ?? ''} onChange={event => onChange({ ...value, review_basis: event.currentTarget.value || null })} />
     </Stack>
+  </Stack>;
+}
+
+/** The whole cable as stacked forms (summary, cable fields, each end): the inspector's forms in one column. */
+export function CableEditor({ value, onChange, definitions, onAuthorityChange, workspaceId, errors = {} }: { errors?: Record<string, string>; workspaceId?: string | null; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; onAuthorityChange?: (denied: boolean) => void }) {
+  const sources = useCableSources(value, workspaceId, onAuthorityChange);
+  const { stock, resolved, denied, choices, family } = sources;
+  return <Stack>
+    <CableSummary cable={denied ? { ...value, assignments: [] } : value} elementCount={stock.data && !denied ? choices.length : null} stacks={denied ? [] : resolved.map(r => r.data)} />
+    <CableFields value={value} onChange={onChange} definitions={definitions} sources={sources} errors={errors} />
+    {value.endpoints.map((_endpoint, index) => <EndCard key={index} index={index} value={value} onChange={onChange} errors={errors} family={family} definitions={definitions} choices={choices} denied={denied} resolved={resolved[index]!} />)}
   </Stack>;
 }
 const HIDDEN_LABEL = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const;
@@ -249,7 +306,7 @@ function EndCard({ index, value, onChange, errors, family, definitions, choices,
   const name = `Endpoint ${index + 1}`;
   const fromAssembly = endpoint.end_assembly_revision_id !== null;
   const data = denied ? undefined : resolved.data;
-  return <Card withBorder><Stack>
+  return <Stack>
     <Title order={4}>{endName(endpoint)}</Title>
     <Group align="flex-end" gap="xs" wrap="wrap">
       <TextInput label={`End ${letter(index)} name (optional)`} aria-label={`Endpoint ${index + 1} label`} placeholder={`End ${letter(index)}`} value={endpoint.label ?? ''} onChange={event => patch({ label: event.currentTarget.value || null })} />
@@ -269,9 +326,9 @@ function EndCard({ index, value, onChange, errors, family, definitions, choices,
     {!fromAssembly && endpoint.stack && <StackEditor label={name} value={endpoint.stack} onChange={stack => patch({ stack })} definitions={definitions} resolved={data} nameFilter={family} />}
     {resolved.isError && <Alert color={resolveDenied(resolved.error) ? 'red' : 'orange'}>{resolved.error.message}</Alert>}
     <TerminationEditor value={value} index={index} choices={choices} onChange={onChange} denied={denied} hasStock={!!value.stock_revision_id} resolved={data} />
-  </Stack></Card>;
+  </Stack>;
 }
-/** One end's terminations: a row per conductor, shield and drain of the stock. Choosing a layer terminal lands it; clearing removes it. */
+/** One end's terminations as a table: the accessible fallback to landing wires in the drawing. */
 function TerminationEditor({ value, index, choices, onChange, denied, hasStock, resolved }: { value: Cable; index: number; choices: Choice[]; onChange: (value: Cable) => void; denied: boolean; hasStock: boolean; resolved: ResolvedStack | undefined }) {
   const endpoint = value.endpoints[index]!;
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -307,6 +364,11 @@ function TerminationEditor({ value, index, choices, onChange, denied, hasStock, 
       })}</Table.Tbody></Table></Table.ScrollContainer>}
   </Stack>;
 }
+
+/**
+ * A frozen cable on the workbench (read-only drawing, probe and check), with the recorded
+ * inspection tables and stock views kept below as details.
+ */
 export function CableInspector({ revisionId, revisions = [] }: { revisionId: string; revisions?: { revision_id: string; number: number }[] }) {
   const cableLabel = useRevisionLabel(revisionId).data; const cableName = cableLabel?.readable ? cableLabel.name : undefined;
   const result = useQuery({ queryKey: ['cable-inspection', revisionId], queryFn: () => read<Inspection>(`cables/revisions/${revisionId}`) });
@@ -321,38 +383,50 @@ export function CableInspector({ revisionId, revisions = [] }: { revisionId: str
   // Each cable end is drawn on the stock end face it records; its own landings label that face.
   const cableEnds: CableEnd[] = (data?.endpoints ?? []).map(e => ({ endpointId: e.local_id, label: endName(e), stockEnd: e.stock_end ?? 'unknown',
     terminations: Object.fromEntries((data?.conductors ?? []).flatMap(row => { const end = row.ends.find(x => x.endpoint_id === e.local_id); return end?.assignment ? [[row.element_path, targetText(end.assignment)]] : []; })) }));
-  return <Card withBorder><Stack><Title order={3}>Frozen cable inspection</Title><Text><RevisionLabel id={revisionId} /></Text>
-    {result.isError && <Alert color="red">{result.error.message}</Alert>}
-    {data && !result.isError && <>
-      <CableSummary cable={data.cable} elementCount={data.conductors.length} stacks={data.endpoints.map(e => e.resolved_stack)} />
-      <Text>Review: {data.cable.review}; basis: {data.cable.review_basis ?? 'unknown'}</Text>
-      {data.intent && <Text size="sm">Intent: <RevisionLabel id={data.intent.revision_id} /></Text>}
-      <IntentCheckPanel revisionId={revisionId} intentRevisionId={data.cable.intent_revision_id ?? null} />
-      <Text>Continuity: {data.continuity}. Compatibility: {data.compatibility}. Physical qualification: {data.physical_qualification}.</Text>
-      {data.stored_schema_version === '0.1' && <Text size="xs" c="dimmed">Recorded before end stacks: each end reads as one connector layer, stock end unknown.</Text>}
-      {data.lengths && <LengthInspection projection={data.lengths} />}
-      <Title order={4}>Terminations</Title>
-      <Table.ScrollContainer minWidth={420}><Table aria-label="Cable terminations"><Table.Thead><Table.Tr><Table.Th>Stable stock feature</Table.Th>{data.endpoints.map(e => <Table.Th key={e.local_id}>{endName(e)} ({e.local_id})</Table.Th>)}</Table.Tr></Table.Thead><Table.Tbody>
-        {data.conductors.map(row => <Table.Tr key={row.element_path}><Table.Td>{row.element_path} · {row.kind}</Table.Td>{row.ends.map(end => <Table.Td key={end.endpoint_id}>{end.assignment ? <>{end.assignment.layer_kind && end.assignment.layer_kind !== 'connector' ? `${end.assignment.layer_kind} ` : ''}{targetText(end.assignment)}{end.assignment.signal ? ` · ${end.assignment.signal.name}` : end.assignment.reaches?.[0]?.signal ? ` · ${end.assignment.reaches[0].signal.name}` : ''} · {end.assignment.basis}</> : 'unknown / unassigned'}</Table.Td>)}</Table.Tr>)}
-      </Table.Tbody></Table></Table.ScrollContainer>
-      {data.endpoints.map(endpoint => <Card key={endpoint.local_id} withBorder><Stack gap="xs"><Text fw={600}>{endName(endpoint)} ({endpoint.local_id})</Text>
-        <Text size="sm">{endpoint.stock_end && endpoint.stock_end !== 'unknown' ? `Uses stock end ${endpoint.stock_end.toUpperCase()}` : <SbUnknown what="Stock end" />}</Text>
-        {endpoint.end_assembly_revision_id && <Text size="sm"><RevisionLabel id={endpoint.end_assembly_revision_id} role="End assembly" /></Text>}
-        {endpoint.resolved_stack && <StackView resolved={endpoint.resolved_stack} label={endName(endpoint)} />}
-        {endpoint.body && endpoint.pinout && <>
-          <Text size="sm"><RevisionLabel id={endpoint.body_revision_id!} role="Body" />; <RevisionLabel id={endpoint.pinout_revision_id!} role="pinout" /></Text><Text size="sm">Body drawing side: {endpoint.body.drawing_orientation.viewing_side}; pinout viewing side: {endpoint.pinout.orientation.viewing_side}</Text>
-          <Table.ScrollContainer minWidth={420}><Table><Table.Thead><Table.Tr><Table.Th>Contact</Table.Th><Table.Th>Signal / role</Table.Th><Table.Th>Voltage range (V)</Table.Th><Table.Th>Current limit (A)</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{endpoint.body.contacts.map(contact => { const electrical = endpoint.pinout!.assignments.find(a => a.contact_id === contact.contact_id)?.electrical; return <Table.Tr key={contact.contact_id}><Table.Td>{contact.contact_id} ({contact.physical_role})</Table.Td><Table.Td>{electrical?.signal ?? 'unknown'} / {electrical?.role ?? 'unknown'}</Table.Td><Table.Td>{electrical?.voltage_min_v ?? 'unknown'} to {electrical?.voltage_max_v ?? 'unknown'}</Table.Td><Table.Td>{electrical?.current_max_a ?? 'unknown'}</Table.Td></Table.Tr>; })}</Table.Tbody></Table></Table.ScrollContainer>
-        </>}
-        {!endpoint.body && <Text size="xs" c="dimmed">No connector layer: contact ratings are not evaluated for this end.</Text>}
-      </Stack></Card>)}
-      <LengthImpactView key={`impact:${revisionId}`} afterRevision={revisionId} name={cableName} revisions={revisions} />
-      <Card withBorder aria-label="Stock used"><Stack gap="xs">
-        <Title order={4}>Stock used: <RevisionLabel id={data.cable.stock_revision_id} /></Title>
-        <Text size="sm" c="dimmed">The wire material this cable is cut from. Its cross-section and end faces are the stock's, not the finished cable's.</Text>
-        <StockLink revisionId={data.cable.stock_revision_id} />
-        {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
-        {stock.data && !stock.isError && <CableViews stock={stock.data} name={`Stock ${stockId}`} revisionId={stockId} terminationLabels={terminationLabels} cableEnds={cableEnds} choosePreparation />}
-      </Stack></Card>
+  const number = revisions.find(r => r.revision_id === revisionId)?.number ?? (cableLabel?.readable ? cableLabel.number : undefined);
+  const endDetails = (data?.endpoints ?? []).map(endpoint => <Stack key={endpoint.local_id} gap="xs"><Text fw={600}>{endName(endpoint)} ({endpoint.local_id})</Text>
+    <Text size="sm">{endpoint.stock_end && endpoint.stock_end !== 'unknown' ? `Uses stock end ${endpoint.stock_end.toUpperCase()}` : <SbUnknown what="Stock end" />}</Text>
+    {endpoint.end_assembly_revision_id && <Text size="sm"><RevisionLabel id={endpoint.end_assembly_revision_id} role="End assembly" /></Text>}
+    {endpoint.resolved_stack && <StackView resolved={endpoint.resolved_stack} label={endName(endpoint)} />}
+    {endpoint.body && endpoint.pinout && <>
+      <Text size="sm"><RevisionLabel id={endpoint.body_revision_id!} role="Body" />; <RevisionLabel id={endpoint.pinout_revision_id!} role="pinout" /></Text><Text size="sm">Body drawing side: {endpoint.body.drawing_orientation.viewing_side}; pinout viewing side: {endpoint.pinout.orientation.viewing_side}</Text>
+      <Table.ScrollContainer minWidth={420}><Table><Table.Thead><Table.Tr><Table.Th>Contact</Table.Th><Table.Th>Signal / role</Table.Th><Table.Th>Voltage range (V)</Table.Th><Table.Th>Current limit (A)</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{endpoint.body.contacts.map(contact => { const electrical = endpoint.pinout!.assignments.find(a => a.contact_id === contact.contact_id)?.electrical; return <Table.Tr key={contact.contact_id}><Table.Td>{contact.contact_id} ({contact.physical_role})</Table.Td><Table.Td>{electrical?.signal ?? 'unknown'} / {electrical?.role ?? 'unknown'}</Table.Td><Table.Td>{electrical?.voltage_min_v ?? 'unknown'} to {electrical?.voltage_max_v ?? 'unknown'}</Table.Td><Table.Td>{electrical?.current_max_a ?? 'unknown'}</Table.Td></Table.Tr>; })}</Table.Tbody></Table></Table.ScrollContainer>
     </>}
-  </Stack></Card>;
+    {!endpoint.body && <Text size="xs" c="dimmed">No connector layer: contact ratings are not evaluated for this end.</Text>}
+  </Stack>);
+  return <Stack gap="xs" aria-label="Frozen cable inspection">
+    {result.isError && <Alert color="red">{result.error.message}</Alert>}
+    {data && !result.isError && <CableWorkbench mode="frozen" name={cableName ?? 'Frozen cable'} cable={data.cable} stacks={data.endpoints.map(e => e.resolved_stack)} bodies={data.endpoints.map(e => e.body)}
+      stock={stock.isError ? undefined : stock.data} conductors={data.conductors} revisionId={revisionId}
+      revision={{ value: number ? `r${number}` : 'Frozen', sub: 'frozen · immutable' }}
+      notices={data.stored_schema_version === '0.1' ? <Text size="xs" c="dimmed">Recorded before end stacks: each end reads as one connector layer, stock end unknown.</Text> : null}
+      cableForm={<Stack gap="xs">
+        <Text size="sm"><RevisionLabel id={revisionId} /></Text>
+        <Text size="sm">Review: {data.cable.review}; basis: {data.cable.review_basis ?? 'unknown'}</Text>
+        {data.intent && <Text size="sm">Intent: <RevisionLabel id={data.intent.revision_id} /></Text>}
+        <Text size="sm">Continuity: {data.continuity}. Compatibility: {data.compatibility}. Physical qualification: {data.physical_qualification}.</Text>
+        <StockLink revisionId={data.cable.stock_revision_id} />
+        {data.lengths && <LengthInspection projection={data.lengths} />}
+      </Stack>}
+      endForms={endDetails}
+      details={<details className="cwb-details">
+        <summary>Recorded tables, check evidence and stock views</summary>
+        <Stack gap="sm" mt="xs">
+          <CableSummary cable={data.cable} elementCount={data.conductors.length} stacks={data.endpoints.map(e => e.resolved_stack)} />
+          <IntentCheckPanel revisionId={revisionId} intentRevisionId={data.cable.intent_revision_id ?? null} />
+          <Title order={4}>Terminations</Title>
+          <Table.ScrollContainer minWidth={420}><Table aria-label="Cable terminations"><Table.Thead><Table.Tr><Table.Th>Stable stock feature</Table.Th>{data.endpoints.map(e => <Table.Th key={e.local_id}>{endName(e)} ({e.local_id})</Table.Th>)}</Table.Tr></Table.Thead><Table.Tbody>
+            {data.conductors.map(row => <Table.Tr key={row.element_path}><Table.Td>{row.element_path} · {row.kind}</Table.Td>{row.ends.map(end => <Table.Td key={end.endpoint_id}>{end.assignment ? <>{end.assignment.layer_kind && end.assignment.layer_kind !== 'connector' ? `${end.assignment.layer_kind} ` : ''}{targetText(end.assignment)}{end.assignment.signal ? ` · ${end.assignment.signal.name}` : end.assignment.reaches?.[0]?.signal ? ` · ${end.assignment.reaches[0].signal.name}` : ''} · {end.assignment.basis}</> : 'unknown / unassigned'}</Table.Td>)}</Table.Tr>)}
+          </Table.Tbody></Table></Table.ScrollContainer>
+          <LengthImpactView key={`impact:${revisionId}`} afterRevision={revisionId} name={cableName} revisions={revisions} />
+          <Card withBorder aria-label="Stock used"><Stack gap="xs">
+            <Title order={4}>Stock used: <RevisionLabel id={data.cable.stock_revision_id} /></Title>
+            <Text size="sm" c="dimmed">The wire material this cable is cut from. Its cross-section and end faces are the stock's, not the finished cable's.</Text>
+            <StockLink revisionId={data.cable.stock_revision_id} />
+            {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
+            {stock.data && !stock.isError && <CableViews stock={stock.data} name={`Stock ${stockId}`} revisionId={stockId} terminationLabels={terminationLabels} cableEnds={cableEnds} choosePreparation />}
+          </Stack></Card>
+        </Stack>
+      </details>} />}
+  </Stack>;
 }
