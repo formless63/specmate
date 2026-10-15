@@ -11,7 +11,7 @@ import "./intent-check.css";
 
 /** One LED per outcome: unknown and not evaluated stay distinct, and neither looks like pass. */
 export function statusLed(status: Status): SbLed {
-  return status === "pass" ? "active" : status === "fail" ? "failed" : status === "unknown" ? "review" : status === "flagged" ? "info" : "not-evaluated";
+  return status === "pass" ? "pass" : status === "fail" ? "failed" : status === "unknown" ? "unknown" : status === "flagged" ? "info" : "not-evaluated";
 }
 const WORDS: Record<Status, string> = { pass: "pass", fail: "fail", unknown: "unknown", not_evaluated: "not evaluated", flagged: "flagged" };
 

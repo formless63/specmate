@@ -105,7 +105,8 @@
         "execution_failed": "#FF4D6D",
         "unknown": "ink-400 + hatch",
         "not_evaluated": "ink-500 ring",
-        "change": "#EDEDED"
+        "change": "#EDEDED",
+        "pass": "#4ADE80"
       }
     },
     "light": {
@@ -139,7 +140,8 @@
         "execution_failed": "#C2183A",
         "unknown": "paper-700 + hatch",
         "not_evaluated": "paper-600 ring",
-        "change": "#0C0C0D"
+        "change": "#0C0C0D",
+        "pass": "#1E7A3C"
       }
     },
     "usage": {
@@ -164,7 +166,8 @@
       "status.execution_failed": "Failed job (square LED + label)",
       "status.unknown": "Unknown: hatched cell and dashes, never blank or 0",
       "status.not_evaluated": "Not evaluated: hollow ring + words",
-      "status.change": "Revision cloud and delta marks: monochrome"
+      "status.change": "Revision cloud and delta marks: monochrome",
+      "status.pass": "A declared check passed (never used for unknown or not evaluated)"
     }
   },
   "typography": {

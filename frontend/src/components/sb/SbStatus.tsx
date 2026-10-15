@@ -1,6 +1,6 @@
 import "./sb-components.css";
 
-export type SbLed = "active" | "review" | "failed" | "idle" | "not-evaluated" | "info" | "stale" | "off";
+export type SbLed = "active" | "review" | "failed" | "idle" | "not-evaluated" | "info" | "stale" | "off" | "pass" | "unknown";
 
 /**
  * LED plus a named dimension and its value, such as "compile · compiled, 5 outputs".

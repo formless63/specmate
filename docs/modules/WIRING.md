@@ -825,7 +825,11 @@ reports ten separate dimensions, each `pass`, `fail`, `unknown`, `not_evaluated`
 - **mating**: reviewed mating passes; unreviewed is `unknown`; none fails.
 
 A row's outcome is `fail` if any dimension fails, else `unknown` if any is unknown, else
-`pass`; optional rows that are not wired read `not_evaluated`. Unknown is never pass.
+`flagged` if any is flagged, else `pass`; optional rows that are not wired read
+`not_evaluated`. Unknown is never pass. The path search is bounded (24 steps, 64 paths);
+a row whose search reaches the bound reads connection `unknown` ("search limit reached").
+A destination contact wired without an intent source reads connection `flagged`
+("wired outside the intent"); if it joins another row's net, isolation fails.
 `evidence.record_cable_intent_check` stores the check of exact frozen cable and intent
 revisions as a recorded design result (`cable_intent_check` source) pinned to both and to
 the cable's dependencies; newer revisions make it stale on read. It is not physical

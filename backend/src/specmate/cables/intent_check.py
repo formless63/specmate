@@ -21,6 +21,7 @@ from specmate.pcb.component_values import parse_capacitance, parse_resistance
 ALGORITHM = "cable_intent_check/0.1"
 MAX_DEPTH = 24
 MAX_PATHS = 64
+LIMIT_REASON = f"search limit reached ({MAX_DEPTH} steps / {MAX_PATHS} paths)"
 DIMENSIONS = (
     "connection",
     "signal_match",
@@ -47,6 +48,8 @@ def outcome(dimensions, *, wired=True):
         return "fail"
     if "unknown" in statuses:
         return "unknown"
+    if "flagged" in statuses:
+        return "flagged"
     if not wired or "pass" not in statuses:
         return "not_evaluated"
     return "pass"
@@ -139,6 +142,7 @@ class Graph:
         """Simple paths from ``start`` to every other connector contact, bounded."""
         found, touched = [], set()
         stack = [(start, [], {start})]
+        self.limited = False
         while stack and len(found) < MAX_PATHS:
             node, steps, seen = stack.pop()
             if node[0] == "c":
@@ -147,6 +151,7 @@ class Graph:
                 found.append((node, steps))
                 continue
             if len(steps) >= MAX_DEPTH:
+                self.limited = True
                 continue
             for neighbour, status, text, detail in self.adjacent.get(node, ()):
                 if neighbour not in seen:
@@ -157,6 +162,8 @@ class Graph:
                             seen | {neighbour},
                         )
                     )
+        if stack:
+            self.limited = True
         found.sort(key=lambda f: (any(s[2] == "unknown" for s in f[1]), len(f[1])))
         return found, touched
 
@@ -524,6 +531,7 @@ class Check:
             dims["connection"] = dim("unknown", f"The {side} pin does not map to a cable contact.")
             return {**base, "outcome": outcome(dims), "dimensions": dims, "path": [], "reached": []}
         found, touched = self.graph.paths(start)
+        limited = self.graph.limited
         far_id = self.ends[far_side]["endpoint_id"]
         far = {}
         near_others = []
@@ -565,12 +573,17 @@ class Check:
             dims["connection"] = dim("fail", "The pin reaches no conductor.", "declared topology")
             return {**base, "outcome": "fail", "dimensions": dims, "path": [], "reached": []}
         if side == "to":
-            dims["connection"] = dim(
-                "unknown", "An optional destination contact is wired; its source is not stated."
+            dims["connection"] = dim("flagged", "wired outside the intent", "declared topology")
+            sources = {r.from_contact_id: r.row_id for r in self.intent.rows if r.from_contact_id}
+            shorted = [sources[c] for c in far if c in sources]
+            dims["isolation"] = (
+                dim("fail", "Shorts to the net of " + ", ".join(sorted(shorted)) + ".")
+                if shorted
+                else dim("pass", "Joins no row's net.", "declared path")
             )
             return {
                 **base,
-                "outcome": "unknown",
+                "outcome": outcome(dims),
                 "dimensions": dims,
                 "path": [],
                 "reached": [self.pin_label(far_side, c) for c in far],
@@ -629,6 +642,8 @@ class Check:
             dims["isolation"] = dim("unknown", "A path passes an unknown step.")
         else:
             dims["isolation"] = dim("pass", "Reaches no other pin.", "declared path")
+        if limited:
+            dims["connection"] = dim("unknown", LIMIT_REASON, "declared path")
         chosen = next((c for c in row.to_contact_ids if c in far), next(iter(far), None))
         steps = far.get(chosen, [])
         centres = [
@@ -674,6 +689,24 @@ class Check:
                 )
                 if offenders
                 else dim("pass", "No pin outside the intent rows is wired.", "declared topology")
+            )
+        listed_to = {c for r in self.intent.rows for c in r.to_contact_ids}
+        listed_to |= {
+            o.contact_id for r in self.intent.rows if r.question for o in r.question.options
+        }
+        listed_to |= {r.to_contact_ids[0] for r in self.intent.rows if r.to_contact_ids}
+        outside = []
+        for contact in self.pins["to"]:
+            if contact in listed_to:
+                continue
+            start = self.near("to", contact)
+            if start and self.graph.paths(start)[1]:
+                outside.append(self.pin_label("to", contact))
+        if outside and isolation["status"] in ("pass", "not_evaluated"):
+            isolation = dim(
+                "flagged",
+                "wired outside the intent: " + ", ".join(outside) + ".",
+                "declared topology",
             )
         policy = self.intent.shield.policy
         overall = [

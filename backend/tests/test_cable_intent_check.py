@@ -183,3 +183,40 @@ def test_draft_check_and_recording_as_evidence(users, project, demo):
     assert outcomes(record["result"]) == CORRECT
     read = op(users["viewer"], "evidence.read_recorded", {"record_id": record["record_id"]})
     assert read["stale"] is False
+
+
+def test_search_limit_reads_unknown(users, project, demo, monkeypatch):
+    from specmate.cables import intent_check
+
+    monkeypatch.setattr(intent_check, "MAX_PATHS", 1)
+    result = check_of(users, project, demo, examples.av_demo_cable)
+    ground = {r["row_id"]: r for r in result["rows"]}["from-3"]["dimensions"]["connection"]
+    # Video ground fans out over four screens; one path is not the whole answer.
+    assert ground["status"] == "unknown"
+    assert ground["reason"].startswith("search limit reached")
+
+
+def test_wired_destination_without_a_source_is_flagged_and_its_short_fails(users, project, demo):
+    def blanking_on_audio_screen(stock, end_a, end_b):
+        cable = examples.av_demo_cable(stock, end_a, end_b)
+        # The grey screen also feeds the blanking resistor: blanking joins audio ground.
+        for assignment in cable["assignments"]:
+            if (assignment["endpoint_id"], assignment["element_path"]) == (
+                "b",
+                "stock.core-6.screen",
+            ):
+                assignment.update(layer_id="inline", terminal_id="r1.1")
+        return cable
+
+    result = check_of(users, project, demo, blanking_on_audio_screen)
+    rows = {r["row_id"]: r for r in result["rows"]}
+    blanking = rows["to-16"]["dimensions"]
+    assert blanking["connection"] == {
+        "status": "flagged",
+        "reason": "wired outside the intent",
+        "evidence": ["declared topology"],
+    }
+    assert blanking["isolation"]["status"] == "fail" and "from-7" in blanking["isolation"]["reason"]
+    assert rows["to-16"]["outcome"] == "fail"
+    ground = rows["from-7"]["dimensions"]["isolation"]
+    assert ground["status"] == "fail" and "16 · RGB blanking" in ground["reason"]
