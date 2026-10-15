@@ -117,6 +117,11 @@ export function LibraryHome({ principalKey }: { principalKey: string }) {
       <div className="lg-section-head"><h3>Needs attention</h3><span className="lg-section-note">failing recorded checks, open intent questions and stale evidence</span></div>
       {home.isPending && <Text role="status" className="sb-dash-note">Reading the library…</Text>}
       {data && data.attention.length === 0 && <div className="lg-empty" role="status">Nothing recorded needs attention. Items without recorded checks are not counted as passing.</div>}
+      {data && data.attention.length > 0 && <div className="lg-row" role="list" aria-label="Items needing attention">
+        {data.attention.map((item) => <div role="listitem" key={item.record_id} style={{ display: "contents" }}>
+          <ItemCard item={item} principalKey={principalKey} attention={item} onOpen={() => open(item)} />
+        </div>)}
+      </div>}
       {data && data.unknowns.length > 0 && <details className="lg-unknowns" onToggle={(event) => setUnknownOpen(event.currentTarget.open)}>
         <summary>Unknown values <span className="lg-filter-n">{data.unknowns_total} item{data.unknowns_total === 1 ? "" : "s"} · {unknownTotal} unknown</span></summary>
         {unknownOpen && <div className="lg-row" role="list" aria-label="Items with unknown values">
@@ -125,11 +130,6 @@ export function LibraryHome({ principalKey }: { principalKey: string }) {
           </div>)}
         </div>}
       </details>}
-      {data && data.attention.length > 0 && <div className="lg-row" role="list" aria-label="Items needing attention">
-        {data.attention.map((item) => <div role="listitem" key={item.record_id} style={{ display: "contents" }}>
-          <ItemCard item={item} principalKey={principalKey} attention={item} onOpen={() => open(item)} />
-        </div>)}
-      </div>}
     </section>
 
     <section className="lg-section" aria-label="Recent">
