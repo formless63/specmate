@@ -5,6 +5,7 @@ from specmate.evidence.contracts import (
     ReadApplicability,
     ReadRecordedResult,
     ReadTaxonomy,
+    RecordCableIntentCheck,
     RecordFirmwareImpact,
     RecordInterfaceAssessment,
 )
@@ -12,6 +13,7 @@ from specmate.evidence.queries import list_evidence
 from specmate.evidence.recorded import (
     authorize_inputs,
     read_recorded,
+    record_cable_intent_check,
     record_firmware_impact,
     record_interface_assessment,
 )
@@ -76,6 +78,18 @@ def replay_recorded(ctx, p, stored):
 )
 def record_assessment(ctx: Context, p: RecordInterfaceAssessment):
     return record_interface_assessment(ctx, p)
+
+
+@operation(
+    "evidence.record_cable_intent_check",
+    RecordCableIntentCheck,
+    summary="Record an immutable snapshot of one cable checked against one cable intent.",
+    authorize_replay=replay_recorded,
+    access=Perm.ITEM_CREATE,
+    idempotency_scope=lambda ctx, p: revision_scope(ctx, p.cable_revision_id, Perm.ITEM_CREATE),
+)
+def record_intent_check(ctx: Context, p: RecordCableIntentCheck):
+    return record_cable_intent_check(ctx, p)
 
 
 @operation(

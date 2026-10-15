@@ -1,0 +1,8 @@
+/* Intent check: theme tokens only. Unknown steps are hatched, never styled as pass. */
+.sb-check-table td, .sb-check-table th { font-size: 12px; }
+.sb-check-table tr[data-outcome="fail"] td:first-child { box-shadow: inset 3px 0 0 var(--sb-invalid); }
+.sb-path-chain { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.sb-chain-chip { font-family: var(--sb-font-data); font-size: 11px; line-height: 1.6; padding: 0 6px; border: 1px solid var(--sb-border-control); background: var(--sb-surface-raised); color: var(--sb-text-primary); }
+.sb-chain-chip[data-kind="termination"], .sb-chain-chip[data-kind="mated"], .sb-chain-chip[data-kind="landing"], .sb-chain-chip[data-kind="join"], .sb-chain-chip[data-kind="conductor"], .sb-chain-chip[data-kind="board_path"], .sb-chain-chip[data-kind="inline_part"] { border-style: dashed; color: var(--sb-text-secondary); }
+.sb-chain-chip[data-kind="port_pin"] { border-color: var(--sb-accent); }
+.sb-chain-chip[data-unknown] { background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 6px); color: var(--sb-text-tertiary); }

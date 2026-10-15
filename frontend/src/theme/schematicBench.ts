@@ -168,6 +168,7 @@ function roleVariables(role: typeof tokens.semantic.dark, scheme: "dark" | "ligh
     "--sb-info": status.informational,
     "--sb-review": status.review_required,
     "--sb-invalid": status.invalid,
+    "--sb-pass": status.pass,
     "--sb-ok": role.text.primary,
     "--sb-hatch": scheme === "dark" ? "rgba(237,237,237,.10)" : "rgba(12,12,13,.10)",
     "--sb-overlay": overlay,

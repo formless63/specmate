@@ -791,3 +791,71 @@ An intent with open questions can be saved as a draft but cannot be reviewed or 
 Inspection labels every row by contact number and signal name. A `cable` may pin one
 exact intent revision (`intent_revision_id`); checking the cable against it and wiring
 a cable from it are later steps and read `not_evaluated`.
+
+## Checking a cable against its intent
+
+`cable_intent.check` checks a cable draft or frozen revision against an exact
+`cable_intent` revision (by default the one the cable pins). Each intent end is matched
+to the cable end whose connector mates with it (declared `mates_with`, either body; an
+intent end that is a pinout of the cable's own connector body needs no mating step).
+
+Every row gets the declared path chain: port pin, mated cable contact, stack terminals
+(board landing, pads, board paths, inline parts, joins), termination, conductor, and on
+to the far contact and far port pin. Paths are the declared topology only. Each row
+reports ten separate dimensions, each `pass`, `fail`, `unknown`, `not_evaluated` or
+`flagged` with a reason and the evidence used:
+
+- **connection**: every intended destination has a declared path; a path through an
+  unreviewed landing or an unknown/switch board path is `unknown`. A must-not-connect
+  row fails when its pin reaches any conductor.
+- **signal match**: every reached far pin carries the row's signal identity.
+- **conductor**: kind from the stock structure (coax/pair group), impedance from the
+  stock's declared `impedance` fact; no fact is `unknown`.
+- **level**: the driven level against the accepted level from port facts; unknown
+  facts, differing units, or parts on the path are `unknown`; returns are not evaluated.
+- **required parts**: passes only when a declared part of the right kind and value
+  (board path component or inline part) is on the path.
+- **return**: for a dedicated screen, the conductor's own screen lands at both ends on a
+  pin whose signal is a return for this signal.
+- **isolation**: the pin reaches no other far pin and no other pin at its own end.
+- **shield**: evaluated for the whole cable against the intent's shield policy and the
+  stock's overall shield or drain.
+- **convention**: compares the conductor with exact stock conventions; it only flags and
+  never changes an outcome.
+- **mating**: reviewed mating passes; unreviewed is `unknown`; none fails.
+
+A row's outcome is `fail` if any dimension fails, else `unknown` if any is unknown, else
+`flagged` if any is flagged, else `pass`; optional rows that are not wired read
+`not_evaluated`. Unknown is never pass. The path search is bounded (24 steps, 64 paths);
+a row whose search reaches the bound reads connection `unknown` ("search limit reached").
+A destination contact wired without an intent source reads connection `flagged`
+("wired outside the intent"); if it joins another row's net, isolation fails.
+`evidence.record_cable_intent_check` stores the check of exact frozen cable and intent
+revisions as a recorded design result (`cable_intent_check` source) pinned to both and to
+the cable's dependencies; newer revisions make it stale on read. It is not physical
+qualification.
+
+## Proposing wiring from an intent
+
+`cable_intent.propose_cable` (and `POST /api/v0/cables/propose`) proposes a whole cable
+from an exact intent, a stock and two ends (end assembly revisions or ad-hoc stacks), or
+for an existing draft from its stock and ends. Nothing is stored: rows are accepted into a
+draft through `cable.create`/`cable.update`. The rules are deterministic:
+
+- **Conductors** for signal rows meet the row's conductor requirement (coax, pair,
+  single) and are unused, ranked by the stock's exact conventions, then colour codes:
+  preferred, allowed, spare, unranked. A conductor kept for another signal, `avoid` and
+  `do not use` are never chosen. Several best candidates are a `tie` question; none is a
+  `no_conductor` question.
+- **Returns**: a chosen coax's own screen goes to the row that returns its signal when a
+  convention names it that signal's return or the row asks for a dedicated screen;
+  several screens over several destination contacts are split in contiguous blocks in
+  stock order.
+- **Landings**: at each end, the stack terminal that reaches the row's contact through
+  the most declared steps (the cable-side pad rather than the connector-side pad),
+  preferring a path that carries a required part. Equal choices are a question.
+- **Parts**: a required part on neither end's path is a `missing_part` question with a
+  suggested `development_need` (adapter board) and the workspace's existing needs.
+
+No joint, bond, board path or part is ever added. Every proposal is returned with the
+same check as `cable_intent.check` and, for a draft, a per-conductor difference.

@@ -335,6 +335,22 @@ class Seeder:
         )
         self.freeze("cable.freeze", cable)
         self.tally("cable")
+        # A deliberately faulty variant: red and blue swapped on the board (checks fail).
+        swapped = self.call(
+            "cable.create",
+            {
+                "workspace_id": self.ws,
+                "name": "Demo console cable with red and blue swapped",
+                "cable": {
+                    **examples.av_swapped_cable(
+                        stock["revision_id"], end_a["revision_id"], end_b["revision_id"]
+                    ),
+                    "intent_revision_id": intent["revision_id"],
+                },
+            },
+        )
+        self.freeze("cable.freeze", swapped)
+        self.tally("cable")
 
     def library(self) -> dict:
         symbols = self.source(

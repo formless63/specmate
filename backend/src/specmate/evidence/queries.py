@@ -367,6 +367,22 @@ def recorded_item(record, pins, fresh=None):
             "label": f"Interface assessment revision {pin['number']}",
         }
         status, method, warnings = "recorded", "interface_assessment", []
+    elif record.source == RecordedResult.Source.CABLE_INTENT_CHECK:
+        counts = Counter(r["outcome"] for r in result["rows"])
+        statement = (
+            f"Cable checked against intent {result['intent_name']} r{result['intent_number']}: "
+            f"{counts['pass']} pass, {counts['fail']} fail, {counts['unknown']} unknown, "
+            f"{counts['not_evaluated']} not evaluated rows; declared topology only"
+        )
+        pin = by_role["cable"]
+        subject = {
+            "scope": "design",
+            "kind": "revision",
+            "id": pin["revision_id"],
+            "label": f"Cable revision {pin['number']}",
+        }
+        status, method = "recorded", "cable_intent_check"
+        warnings = ["Continuity and physical qualification are not evaluated."]
     else:
         counts = Counter(f["status"] for f in result["findings"])
         statement = (

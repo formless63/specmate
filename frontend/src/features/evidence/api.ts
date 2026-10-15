@@ -28,7 +28,7 @@ export function evidenceQuery(workspaceId: string, kinds: EvidenceKind[], offset
 
 export type RecordedPin = { role: string; revision_id: string; definition_id: string; number: number; latest_number: number; newer_revision_exists: boolean };
 export type RecordedResult = {
-  record_id: string; workspace_id: string; source: "interface_assessment" | "firmware_impact"; kind: EvidenceKind; algorithm_version: string;
+  record_id: string; workspace_id: string; source: "interface_assessment" | "firmware_impact" | "cable_intent_check"; kind: EvidenceKind; algorithm_version: string;
   request: Record<string, unknown>; result: Record<string, unknown>; result_sha256: string; note: string; recorded_at: string; recorded_by_id: number;
   pins: RecordedPin[]; stale: boolean; newer_assertions?: boolean | null; rewritten: false; physical_qualification: false;
 };
@@ -38,6 +38,11 @@ export const recordedPath = (recordId: string) => `evidence/recorded/${recordId}
 /** Explicitly record one exact frozen interface assessment result. Reading never records. */
 export function recordInterfaceAssessment(revisionId: string, idempotencyKey: string): Promise<RecordedResult> {
   return command<RecordedResult>("evidence.record_interface_assessment", { revision_id: revisionId }, { idempotencyKey });
+}
+
+/** Record one exact frozen cable checked against one exact frozen cable intent. */
+export function recordCableIntentCheck(cableRevisionId: string, intentRevisionId: string, idempotencyKey: string): Promise<RecordedResult> {
+  return command<RecordedResult>("evidence.record_cable_intent_check", { cable_revision_id: cableRevisionId, intent_revision_id: intentRevisionId }, { idempotencyKey });
 }
 
 /** Record the firmware impact comparison that was shown; a changed comparison is a conflict. */

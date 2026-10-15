@@ -15,6 +15,7 @@ class RecordedResult(models.Model):
     class Source(models.TextChoices):
         INTERFACE_ASSESSMENT = "interface_assessment"
         FIRMWARE_IMPACT = "firmware_impact"
+        CABLE_INTENT_CHECK = "cable_intent_check"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey("access.Workspace", on_delete=models.PROTECT, related_name="+")

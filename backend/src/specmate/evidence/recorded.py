@@ -146,11 +146,44 @@ def record_firmware_impact(ctx: Context, p: RecordFirmwareImpact):
     )
 
 
+def record_cable_intent_check(ctx: Context, p):
+    """Store a cable-against-intent check of exact frozen revisions as design evidence."""
+    from specmate.cables.intent_check import ALGORITHM, check_revision
+
+    revision, result = check_revision(ctx.user, p.cable_revision_id, p.intent_revision_id)
+    workspace = authorize(ctx.user, revision.definition.workspace_id, Perm.ITEM_CREATE)
+    intent_id = result["intent_revision_id"]
+    pins = [("cable", revision.id), ("intent", UUID(intent_id))]
+    pins += [
+        ("dependency", rid)
+        for rid in sorted(
+            revision.snapshot.dependencies.values_list("revision_id", flat=True), key=str
+        )
+    ]
+    return store(
+        ctx,
+        workspace.id,
+        RecordedResult.Source.CABLE_INTENT_CHECK,
+        {"cable_revision_id": str(revision.id), "intent_revision_id": intent_id},
+        result,
+        digest(result),
+        ALGORITHM,
+        p.note,
+        pins,
+    )
+
+
 def authorize_inputs(user, record):
     """Full current authority over every exact input; used where a replay depends on it."""
     authorize(user, record.workspace_id, Perm.WORKSPACE_READ)
     if record.source == RecordedResult.Source.INTERFACE_ASSESSMENT:
         assessment_inputs(user, record.request["revision_id"])
+    elif record.source == RecordedResult.Source.CABLE_INTENT_CHECK:
+        from specmate.cables.intent_check import check_revision
+
+        check_revision(
+            user, record.request["cable_revision_id"], record.request["intent_revision_id"]
+        )
     else:
         from specmate.firmware_impact.operations import authorized_inputs
 

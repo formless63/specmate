@@ -15,7 +15,7 @@ Source = Literal[
     "firmware_impact",
     "subject_tests",
 ]
-RecordedSource = Literal["interface_assessment", "firmware_impact"]
+RecordedSource = Literal["interface_assessment", "firmware_impact", "cable_intent_check"]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 Note = Annotated[str, Field(max_length=2000)]
 
@@ -131,6 +131,15 @@ class RecordInterfaceAssessment(StrictModel):
     """Record the current separated result of one exact frozen interface assessment."""
 
     revision_id: UUID
+    note: Note = ""
+
+
+class RecordCableIntentCheck(StrictModel):
+    """Record the current check of one frozen cable against one frozen cable intent."""
+
+    cable_revision_id: UUID
+    # Defaults to the intent the cable pins.
+    intent_revision_id: UUID | None = None
     note: Note = ""
 
 
