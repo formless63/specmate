@@ -10,8 +10,10 @@ vi.mock('./api', async original => {
   const actual = await original<typeof import('./api')>();
   return { ...actual, listParameters: vi.fn(), listProfiles: vi.fn(), listPreparations: vi.fn(), listMechanical: vi.fn(),
     listProfileRevisions: vi.fn(), listPreparationRevisions: vi.fn(), readProfile: vi.fn(), readPreparation: vi.fn(),
-    readMechanicalRevision: vi.fn(), sliceOptions: vi.fn(), sliceRead: vi.fn(), requestSlice: vi.fn(), saveProfile: vi.fn(), listOrcaPresets: vi.fn() };
+    readMechanicalRevision: vi.fn(), sliceOptions: vi.fn(), sliceRead: vi.fn(), requestSlice: vi.fn(), saveProfile: vi.fn(), listOrcaPresets: vi.fn(), freezeRecord: vi.fn() };
 });
+vi.mock('../sources/api', async original => ({ ...await original<typeof import('../sources/api')>(), registerBlob: vi.fn(), command: vi.fn() }));
+import * as sources from '../sources/api';
 
 const base = { workspace_id: 'ws', state: 'draft-v1', base_revision_id: 'rev-prep', revision_id: null, revision_number: null, snapshot_sha256: null };
 const status = { printable: 'not_evaluated', printer_submission: 'not_available', physical_qualification: false } as const;
@@ -143,4 +145,48 @@ test('a nonterminal slice build is polled until it succeeds, then Inspect enable
     await vi.advanceTimersByTimeAsync(10000);
     expect(vi.mocked(api.sliceOptions).mock.calls.length).toBe(calls);
   } finally { vi.useRealTimers(); }
+});
+
+test('unavailable slicing explains why and who must act', async () => {
+  vi.mocked(api.sliceOptions).mockResolvedValue({ ...status, preparation_revision_id: 'rev-prep', recipe_id: 'r', available_recipe_id: null,
+    unavailable_reason: 'No approved recipe matches.', tool: slice.inputs.tool, proposed_recipe: {}, builds: [] });
+  render(panel(grants({ execute: true })));
+  await openPreparation();
+  fireEvent.click(screen.getByRole('combobox', { name: 'Frozen revision' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'r1' }));
+  await screen.findByText('Slicing is not available');
+  expect(screen.getByText('No approved recipe matches.')).toBeTruthy();
+  expect(screen.getByText(/operator approves the recipe/)).toBeTruthy();
+});
+
+test('one action creates and freezes the printer, process and material profiles for a preset set', async () => {
+  const preset = (name: string) => ({ tool: 'orcaslicer-2.4.2' as const, vendor: 'Qidi', bundle_version: '1', name });
+  vi.mocked(api.listOrcaPresets).mockResolvedValue([{ key: 'q1', label: 'Qidi Q1 Pro', printer: preset('P'), process: preset('Q'), material: preset('M') }]);
+  vi.mocked(api.saveProfile).mockImplementation(async name => ({ ...base, definition_id: name, draft_id: `d-${name}`, name, state: 'draft-v1', content: {} }));
+  vi.mocked(api.freezeRecord).mockResolvedValue({ revision_id: 'r', number: 1, draft: { state: 'x' } });
+  render(panel(grants({ edit: true, freeze: true, register: true })));
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Printer preset set' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Qidi Q1 Pro' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create and freeze the three profiles' }));
+  await waitFor(() => expect(api.freezeRecord).toHaveBeenCalledTimes(3));
+  expect(vi.mocked(api.saveProfile).mock.calls.map(c => [c[0], c[1].role, c[1].vendor_preset?.name])).toEqual([
+    ['Qidi Q1 Pro printer', 'printer', 'P'], ['Qidi Q1 Pro process', 'process', 'Q'], ['Qidi Q1 Pro material', 'material', 'M']]);
+});
+
+test('a model file becomes a frozen mechanical part selected for the new preparation', async () => {
+  vi.mocked(sources.registerBlob).mockResolvedValue('a'.repeat(64));
+  vi.mocked(sources.command).mockImplementation((async (op: string) => op === 'source.create_original_bundle' ? { revision_id: 'src', manifest_sha256: 'm' }
+    : op === 'mechanical_source.create' ? { draft_id: 'md', state: 's1' } : { revision_id: 'mech-1', number: 1 }) as never);
+  vi.mocked(api.listMechanical).mockResolvedValue({ records: [{ definition_id: 'p', name: 'cube', revisions: [{ revision_id: 'mech-1', number: 1 }] }] });
+  vi.mocked(api.readMechanicalRevision).mockResolvedValue({ definition_id: 'p', name: 'cube', revision_id: 'mech-1', snapshot_sha256: 'snap',
+    content: { mechanical_source: { sources: [{ local_id: 'original', files: [{ path: 'cube.stl', role: 'model', format: 'mesh' }] }] } } });
+  render(panel(grants({ edit: true, freeze: true, register: true })));
+  fireEvent.click(await screen.findByRole('button', { name: 'Start new FDM preparation' }));
+  const file = new File(['solid'], 'cube.stl');
+  fireEvent.change(await screen.findByLabelText('Model file to upload'), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText('Declared rights'), { target: { value: 'CC0' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Preserve model and freeze part' }));
+  await screen.findByText(/froze mechanical part cube r1/);
+  expect(vi.mocked(sources.command).mock.calls.map(c => c[0])).toEqual(['source.create_original_bundle', 'mechanical_source.create', 'mechanical_source.freeze']);
+  await waitFor(() => expect(api.readMechanicalRevision).toHaveBeenCalledWith('mech-1'));
 });

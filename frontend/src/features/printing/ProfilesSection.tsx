@@ -56,6 +56,22 @@ export function ProfilesSection({ projectId, specs, onChanged }: { projectId: st
       setRevisions(history); setName(read.name); setDirty(false);
     } catch (e) { setError(message(e)); } finally { setBusy(false); }
   };
+  const [quickKey, setQuickKey] = useState<string | null>(null);
+  const [quickBusy, setQuickBusy] = useState(false);
+  /** Printer, process and material profiles for one vendor preset set, each frozen so a preparation can pin it. */
+  const quickSetup = async () => {
+    const set = presetSets.find(item => item.key === quickKey);
+    if (!set) return;
+    setQuickBusy(true); setError(''); setNotice('');
+    try {
+      for (const r of ['printer', 'process', 'material'] as Role[]) {
+        const saved = await saveProfile(`${set.label} ${r}`, { schema_version: '1', role: r, technology: 'fdm', parameters: {}, vendor_preset: set[r], limitations: [] }, null);
+        await freezeRecord('print_profile.freeze', { draft_id: saved.draft_id!, state: saved.state! });
+      }
+      setRecords(await listProfiles(projectId));
+      setNotice(`Created and froze printer, process and material profiles for ${set.label}. Declare further parameters by editing a profile.`); onChanged();
+    } catch (e) { setError(message(e)); setRecords(await listProfiles(projectId).catch(() => records)); onChanged(); } finally { setQuickBusy(false); }
+  };
   const start = () => {
     setCurrent(null); setRows([]); setRevisions([]); setDirty(true); setNotice('');
     setProfile({ schema_version: '1', role, technology, parameters: {}, limitations: [] });
@@ -101,6 +117,13 @@ export function ProfilesSection({ projectId, specs, onChanged }: { projectId: st
         </Group>
       </InspectionScope>
     </Group>
+    {presetSets.length > 0 && <InspectionScope permission="item.create">
+      <Group align="end">
+        <Select label="Printer preset set" description="Names the pinned OrcaSlicer machine, process and filament presets; nothing is copied."
+          placeholder="Select a printer" data={presetSets.map(set => ({ value: set.key, label: set.label }))} value={quickKey} onChange={setQuickKey} />
+        <Button variant="light" onClick={() => void quickSetup()} loading={quickBusy} disabled={!quickKey || !freezeGate.allowed} {...create.props}>Create and freeze the three profiles</Button>
+      </Group>
+    </InspectionScope>}
     {revisions.length > 0 && <Text size="sm">Frozen revisions: {revisions.map(r => `r${r.number}`).join(', ')}</Text>}
     {shown && <>
       <SbStatus led={dirty ? 'review' : 'idle'} dimension={`${shown.technology} ${shown.role} profile`} value={dirty ? 'unsaved changes' : current?.base_revision_id ? 'saved draft, frozen before' : 'saved draft'} />
