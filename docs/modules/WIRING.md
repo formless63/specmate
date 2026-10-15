@@ -882,3 +882,22 @@ draft through `cable.create`/`cable.update`. The rules are deterministic:
 
 No joint, bond, board path or part is ever added. Every proposal is returned with the
 same check as `cable_intent.check` and, for a draft, a per-conductor difference.
+
+
+### Stock record surface
+
+Wire stock collection rows open a dedicated drawing-first record page. Its one
+selected state is an exact frozen snapshot (including historical `@revision` links)
+or an explicitly opened editable draft. The controller retains unsaved per-record
+buffers during ordinary navigation and preserves their original concurrency token
+when server state advances. Failed authority reads withdraw drawings, inspector
+contents and exports; a successful recheck restores authorized local work.
+
+The shared `components/record/RecordPage` provides the view workspace, bounded
+inspector and compact-screen inspector sheet. Construction, declared fact status
+and sources, exact convention preferences, versioned cut/end preparation and
+secondary catalog/evidence information reuse the existing domain APIs. Display
+cuts, preview length, camera, explode and x-ray remain illustration choices. The
+numbered section legend uses existing material tags; unknown conductor use is
+never inferred from color. HTML stock sheets and SVG exports identify the selected
+saved or unsaved state and do not establish physical qualification.

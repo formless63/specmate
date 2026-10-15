@@ -69,7 +69,7 @@ function IdentityWorkspace({ projectId, initialKind }: { projectId: string | nul
   </Stack>;
 }
 
-function RevisionCatalog({ revisionId, workspaceId }: { revisionId: string; workspaceId: string | null }) {
+export function RevisionCatalog({ revisionId, workspaceId }: { revisionId: string; workspaceId: string | null }) {
   // Catalog associations are additive registrations: contributors may record them.
   const editGate = usePermission('item.create');
   const cache = useQueryClient();
@@ -89,7 +89,7 @@ function RevisionCatalog({ revisionId, workspaceId }: { revisionId: string; work
     {registration.isSuccess && <Alert color="green">Identity registered.</Alert>}
     <Card withBorder><Stack>
       <Title order={3}>Manufacturer variants</Title>
-      <Table><Table.Thead><Table.Tr><Table.Th>Manufacturer / part</Table.Th><Table.Th>Association basis</Table.Th><Table.Th>Variant ID</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{catalog.data?.variants.map((v) => <Table.Tr key={v.variant_id}><Table.Td>{v.manufacturer} / {v.part_number}</Table.Td><Table.Td>{v.association_basis}</Table.Td><Table.Td>{v.variant_id}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+      <Table><Table.Thead><Table.Tr><Table.Th>Manufacturer / part</Table.Th><Table.Th>Association basis</Table.Th><Table.Th>Variant ID</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{(!catalog.isError ? catalog.data?.variants : undefined)?.map((v) => <Table.Tr key={v.variant_id}><Table.Td>{v.manufacturer} / {v.part_number}</Table.Td><Table.Td>{v.association_basis}</Table.Td><Table.Td>{v.variant_id}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
       <InspectionScope permission="item.create">
       <TextInput label="Manufacturer" value={manufacturer} onChange={(e) => setManufacturer(e.currentTarget.value)} />
       <TextInput label="Manufacturer part number" value={partNumber} onChange={(e) => setPartNumber(e.currentTarget.value)} />
@@ -100,14 +100,14 @@ function RevisionCatalog({ revisionId, workspaceId }: { revisionId: string; work
     <Card withBorder><Stack>
       <Title order={3}>Physical lots</Title>
       <Text size="sm">A lot identifies a physical batch. Registration does not receive, reserve or consume stock.</Text>
-      {catalog.data?.lots.map((lot) => <Text key={lot.lot_id}>{lot.label} · Lot {lot.lot_id} · {lot.variant_id ? `Variant ${lot.variant_id}` : "Manufacturer variant unknown"}</Text>)}
+      {(!catalog.isError ? catalog.data?.lots : undefined)?.map((lot) => <Text key={lot.lot_id}>{lot.label} · Lot {lot.lot_id} · {lot.variant_id ? `Variant ${lot.variant_id}` : "Manufacturer variant unknown"}</Text>)}
       <InspectionScope permission="item.create">
       <TextInput label="Lot label" value={lotLabel} onChange={(e) => setLotLabel(e.currentTarget.value)} />
-      <Select label="Lot manufacturer variant" placeholder="Unknown / unassigned" clearable value={variantId} onChange={setVariantId} data={(catalog.data?.variants ?? []).map((v) => ({ value: v.variant_id, label: `${v.manufacturer} / ${v.part_number}` }))} />
+      <Select label="Lot manufacturer variant" placeholder="Unknown / unassigned" clearable value={variantId} onChange={setVariantId} data={(catalog.isError ? [] : catalog.data?.variants ?? []).map((v) => ({ value: v.variant_id, label: `${v.manufacturer} / ${v.part_number}` }))} />
       </InspectionScope>
       <Button disabled={!lotLabel.trim()} loading={registration.isPending} onClick={() => register("lot", { label: lotLabel, variant_id: variantId })} {...editGate.props}>Register lot identity</Button>
     </Stack></Card>
-    <RepresentationsCard catalog={catalog.data} workspaceId={workspaceId} pending={registration.isPending} register={register} />
+    <RepresentationsCard catalog={catalog.isError ? undefined : catalog.data} workspaceId={workspaceId} pending={registration.isPending} register={register} />
     <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous records</Button><Text>Page {offset / 50 + 1}</Text><Button disabled={!catalog.data || Math.max(catalog.data.variants.length, catalog.data.lots.length, catalog.data.representations.length) < 50} onClick={() => setOffset(offset + 50)}>Next records</Button></Group>
   </Stack>;
 }

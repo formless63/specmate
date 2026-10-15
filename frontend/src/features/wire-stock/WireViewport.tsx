@@ -46,9 +46,9 @@ export function motionMs(element: Element): number {
 /** Reduced motion falls back to stepped positions: five, with no in-between travel. */
 export const EXPLODE_STEP = 0.25;
 const SMOOTH_STEP = 0.01;
-interface Live { scene: THREE.Scene; object?: ReturnType<typeof buildWireObject>; frame: (view?: CameraView, keep?: boolean) => void; environment: boolean; redraw: () => void }
+interface Live { scene: THREE.Scene; object?: ReturnType<typeof buildWireObject>; frame: (view?: CameraView, keep?: boolean) => void; rotate: (horizontal: number, vertical: number) => void; zoom: (factor: number) => void; environment: boolean; redraw: () => void }
 
-export default function WireViewport({ model }: { model: WireModel }) {
+export default function WireViewport({ model, active = true, shownEnd = "both" }: { model: WireModel; active?: boolean; shownEnd?: "a" | "b" | "both" }) {
   const host = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
   const live = useRef<Live | null>(null);
@@ -59,8 +59,8 @@ export default function WireViewport({ model }: { model: WireModel }) {
   const [xray, setXray] = useState(false);
   const reduced = reducedMotion();
   const shown = useRef({ amount: 0, mode: 'axial' as ExplodeMode, raf: 0 });
-  const latest = useRef({ model, explode, mode, xray });
-  latest.current = { model, explode, mode, xray };
+  const latest = useRef({ model, explode, mode, xray, active });
+  latest.current = { model, explode, mode, xray, active };
   useEffect(() => {
     const container = host.current;
     if (!container) return;
@@ -92,7 +92,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
     const controls = new OrbitControls(camera, element);
     controls.enableDamping = false;
     const render = () => {
-      if (container.clientWidth > 0 && document.visibilityState !== 'hidden') renderer.render(scene, camera);
+      if (latest.current.active && container.clientWidth > 0 && document.visibilityState !== 'hidden') renderer.render(scene, camera);
     };
     const frame = (view?: CameraView, keep = false) => {
       const bounds = live.current?.object ? new THREE.Box3().setFromObject(live.current.object.group) : new THREE.Box3();
@@ -102,7 +102,10 @@ export default function WireViewport({ model }: { model: WireModel }) {
       camera.position.copy(f.position); camera.up.copy(f.up); camera.near = f.near; camera.far = f.far;
       camera.updateProjectionMatrix(); controls.target.copy(f.target); controls.update(); render();
     };
-    live.current = { scene, frame, environment, redraw: render };
+    live.current = { scene, frame, environment, redraw: render,
+      rotate: (horizontal, vertical) => { const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target)); spherical.theta += horizontal; spherical.phi = Math.max(0.05, Math.min(Math.PI - 0.05, spherical.phi + vertical)); camera.position.copy(new THREE.Vector3().setFromSpherical(spherical).add(controls.target)); controls.update(); render(); },
+      zoom: factor => { camera.position.sub(controls.target).multiplyScalar(factor).add(controls.target); controls.update(); render(); },
+    };
     reset.current = frame;
     const resize = () => {
       // Size from the container, never from the canvas or the page's text, so a wide sibling cannot widen the model.
@@ -166,9 +169,12 @@ export default function WireViewport({ model }: { model: WireModel }) {
     return () => { cancelAnimationFrame(current.raf); current.raf = 0; };
   }, [explode, mode, reduced]);
   const description = useMemo(() => modelSummary(model), [model]);
+  useEffect(() => { if (active) live.current?.redraw(); }, [active]);
+  useEffect(() => { reset.current(shownEnd === "both" ? undefined : shownEnd); }, [shownEnd]);
   return <Stack style={{ minWidth: 0, maxWidth: '100%' }}>
     {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
-    <Group><Button variant="light" onClick={() => reset.current()}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button><Button variant="light" onClick={() => reset.current('top')}>Top view</Button><Button variant="light" onClick={() => reset.current('front')}>Front view</Button></Group>
+    <Group gap="xs"><Button size="xs" variant="quiet" onClick={() => { setExplode(0); setXray(false); reset.current(); }}>Reset view</Button><Button size="xs" variant="quiet" onClick={() => reset.current(undefined, true)}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button><Button variant="light" onClick={() => reset.current('top')}>Top view</Button><Button variant="light" onClick={() => reset.current('front')}>Front view</Button><Button size="xs" variant="quiet" onClick={() => reset.current('side')}>Side view</Button>
+      <Button size="xs" variant="quiet" aria-label="Rotate camera left" onClick={() => live.current?.rotate(-0.2, 0)}>←</Button><Button size="xs" variant="quiet" aria-label="Rotate camera right" onClick={() => live.current?.rotate(0.2, 0)}>→</Button><Button size="xs" variant="quiet" aria-label="Rotate camera up" onClick={() => live.current?.rotate(0, -0.2)}>↑</Button><Button size="xs" variant="quiet" aria-label="Rotate camera down" onClick={() => live.current?.rotate(0, 0.2)}>↓</Button><Button size="xs" variant="quiet" aria-label="Zoom camera in" onClick={() => live.current?.zoom(0.8)}>+</Button><Button size="xs" variant="quiet" aria-label="Zoom camera out" onClick={() => live.current?.zoom(1.25)}>−</Button></Group>
     <Group align="flex-end" gap="md" wrap="wrap" data-testid="explode-controls">
       <Stack gap={2} style={{ flex: '1 1 220px' }}>
         <Text size="xs" className="sb-silk" id={`${descriptionId}-explode`}>Explode: {Math.round(explode * 100)}%{reduced ? ' (stepped)' : ''}</Text>
@@ -178,7 +184,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
       <Switch label="X-ray" checked={xray} onChange={e => setXray(e.currentTarget.checked)} disabled={model.pieces.length === 0} />
     </Group>
     <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block', minWidth: 0, maxWidth: '100%', width: '100%' }} />
-    <Text size="xs" id={descriptionId} data-testid={descriptionId} style={{ whiteSpace: 'normal', overflowWrap: 'anywhere', minWidth: 0 }}>{description}</Text>
-    <Text size="sm" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Explode and x-ray are display-only: they move or fade the drawn layers and establish no dimension, gap or construction. Radial explode moves only elements recorded off the cable axis. Leads are illustrative; geometry establishes no fit or qualification.</Text>
+    <Text className="sb-visually-hidden" size="xs" id={descriptionId} data-testid={descriptionId} style={{ whiteSpace: 'normal', overflowWrap: 'anywhere', minWidth: 0 }}>{description}</Text>
+    <details><summary>Camera and display notes</summary><Text size="sm" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Explode and x-ray are display-only: they move or fade the drawn layers and establish no dimension, gap or construction. Radial explode moves only elements recorded off the cable axis. Leads are illustrative; geometry establishes no fit or qualification. Camera buttons also work with the keyboard.</Text></details>
   </Stack>;
 }

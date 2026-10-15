@@ -5,9 +5,9 @@
 import * as THREE from 'three';
 
 /** Camera presets: end-on at A or B, looking down (top) or at the cable's length (front). */
-export type CameraView = 'a' | 'b' | 'top' | 'front';
+export type CameraView = 'a' | 'b' | 'top' | 'front' | 'side';
 export const VIEW_DIRECTIONS: Record<CameraView, readonly [number, number, number]> = {
-  a: [-1, 0.03, 0.02], b: [1, 0.03, 0.02], top: [0, 1, 0.02], front: [0, 0.03, 1],
+  a: [-1, 0.03, 0.02], b: [1, 0.03, 0.02], top: [0, 1, 0.02], front: [0, 0.03, 1], side: [1, 0, 0],
 };
 /**
  * Default view: in front of the cable and a little above it, turned slightly toward end A (x = 0)

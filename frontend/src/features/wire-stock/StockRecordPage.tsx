@@ -1,0 +1,108 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { evaluateFit, renderSectionSvg, sectionLayout, type Fact, type StockSpecification } from '../../../../packages/section-layout/src';
+import { RecordPage, RecordSections, type RecordState } from '../../components/record';
+import { InspectionScope, usePermission } from '../../lib/permissions';
+import { ApiError, requestJson, type LibraryRecord, type Project } from '../workspace/api';
+import type { Catalog } from '../identity/api';
+import { useNavigation } from '../navigation';
+import { loadFrozenStock } from './viewer-api';
+import { freezeStock, saveStock, type StockRecord } from './api';
+import { blankSpec, generate, hasJacket, illustrate, readBuilder, TEMPLATES, type BuilderSpec, type TemplateKind } from './builder';
+import { ConstructionBuilder } from './ConstructionBuilder';
+import { SectionCanvas } from './SectionCanvas';
+import { contentDiameter, fitOverlay, jacketPath, OD_STEP_MM } from './builder-visual';
+import { FitFindings } from './FitFindings';
+import { StockDisplay } from './StockDisplay';
+import { StockRecordDetails, StockLegend, StockPractices } from './StockRecordSections';
+import { stockSpecSheet } from './spec-sheet';
+import { ElementEditor, editStockNode } from './ElementEditor';
+import { readProfileRevision, type ProfileRevision } from '../workshop-profiles/api';
+import { adaptFrozenProfile } from './profile-adapter';
+import './wire-stock.css';
+
+type Revision = { revision_id: string; number: number };
+const clone = <T,>(value: T): T => structuredClone(value);
+export function downloadStock(name: string, body: string, type: string) {
+  const url = URL.createObjectURL(new Blob([body], { type })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click(); URL.revokeObjectURL(url);
+}
+/** One authority-checked selected state drives every drawing, inspector and export. */
+export function StockRecordPage({ active, principalKey, workspaceId, definitionId, revisionNumber, draftRequested, onBack, onSelect, onCreated, onOpenInProject, projects, initial, onDuplicate }: {
+  initial?: { name: string; stock: StockSpecification }; onDuplicate?: (name: string, stock: StockSpecification) => void; projects: Project[]; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
+  onBack: () => void; onSelect: (number: number | null, draft?: boolean) => void; onCreated: (id: string, open: boolean) => void; onOpenInProject: (project: string, record: LibraryRecord) => void;
+}) {
+  const cache = useQueryClient(); const nav = useNavigation();
+  const [buffer, setBuffer] = useState<StockSpecification>(() => initial ? clone(initial.stock) : generate(blankSpec('coax')));
+  const [current, setCurrent] = useState<StockRecord | null>(null);
+  const [name, setName] = useState(initial?.name ?? ''); const [dirty, setDirty] = useState(!definitionId);
+  const [blocked, setBlocked] = useState(false);
+  const selection = `${active}:${definitionId}:${revisionNumber}:${draftRequested}`; const latestSelection = useRef(selection); latestSelection.current = selection;
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
+  const [selected, setSelected] = useState<string | null>(null); const [ack, setAck] = useState(false);
+  const [history, setHistory] = useState(false); const [offset, setOffset] = useState(0);
+  const [ownView, setOwnView] = useState(definitionId ? 'model' : 'section');
+  const [preset, setPreset] = useState<{ revision: string; profile: ProfileRevision } | null>(null);
+  const edits = useRef(0);
+  const [marks, setMarks] = useState<Record<string, string>>({});
+  const create = usePermission('item.create');
+  const edit = usePermission(definitionId ? 'design.edit' : 'item.create'); const freeze = usePermission('design.freeze');
+  const metadata = useQuery({ queryKey: ['stock-record', principalKey, definitionId], enabled: active && !!definitionId, retry: false,
+    queryFn: ({ signal }) => requestJson<LibraryRecord>(`/api/v0/workspace/library/${definitionId}`, { signal }) });
+  const record = metadata.data;
+  const exact = useQuery({ queryKey: ['stock-pin', principalKey, definitionId, revisionNumber], enabled: active && !!definitionId && revisionNumber !== null, retry: false,
+    queryFn: async ({ signal }) => { const page = await requestJson<{ definition_id: string; revisions: Revision[] }>(`/api/v0/catalog/definitions/${definitionId}?offset=${Math.floor((revisionNumber! - 1) / 50) * 50}&limit=50`, { signal }); const found = page.definition_id === definitionId ? page.revisions.find(item => item.number === revisionNumber) : undefined; if (!found) throw new Error(`Exact revision r${revisionNumber} is unavailable; no newer revision was substituted.`); return found; } });
+  const revision: Revision | null = revisionNumber !== null ? exact.data ?? null : record?.latest_revision_id && record.latest_revision !== null ? { revision_id: record.latest_revision_id, number: record.latest_revision } : null;
+  const editing = !definitionId || (revisionNumber === null && (draftRequested || (metadata.isSuccess && !record?.latest_revision_id)));
+  const draft = useQuery({ queryKey: ['stock-draft', principalKey, definitionId], enabled: active && !!definitionId && editing && metadata.isSuccess && !metadata.isError, retry: false,
+    queryFn: async ({ signal }) => { const rows = await requestJson<StockRecord[]>(`/api/v0/stocks?definition_id=${definitionId}&latest_only=true`, { signal }); const found = rows[0]; if (!found?.content.stock || found.definition_id !== definitionId) throw new Error('No editable stock draft is available.'); return found; } });
+  const frozen = useQuery({ queryKey: ['stock-snapshot', principalKey, revision?.revision_id], enabled: active && !editing && !!revision && !metadata.isError && !exact.isError, retry: false,
+    queryFn: () => loadFrozenStock(revision!.revision_id) });
+  const catalog = useQuery({ queryKey: ['catalog', revision?.revision_id, 0], enabled: active && !editing && !!revision && !metadata.isError && !exact.isError, retry: false,
+    queryFn: ({ signal }) => requestJson<Catalog>(`/api/v0/catalog/revisions/${revision!.revision_id}?offset=0&limit=50`, { signal }) });
+  const revisions = useQuery({ queryKey: ['stock-history', principalKey, definitionId, offset], enabled: active && history && !!definitionId, retry: false,
+    queryFn: ({ signal }) => requestJson<{ revisions: Revision[] }>(`/api/v0/catalog/definitions/${definitionId}?offset=${offset}&limit=50`, { signal }) });
+  useEffect(() => { if (draft.isSuccess && draft.data.content.stock && (!current || !dirty)) { setCurrent(draft.data); setName(draft.data.name); setBuffer(clone(draft.data.content.stock)); setDirty(false); } }, [draft.data, draft.isSuccess]);
+  const practice = useQuery({ queryKey: ['stock-practice', principalKey, preset?.profile.revision_id], enabled: active && !!preset && !editing && preset.revision === revision?.revision_id, retry: false, queryFn: () => readProfileRevision(preset!.profile.revision_id) });
+  const denied = blocked || !!definitionId && (metadata.isError || record?.kind !== undefined && record.kind !== 'wire_stock' || revisionNumber !== null && exact.isError || editing && draft.isError || !editing && frozen.isError || history && revisions.isError);
+  const checking = !!definitionId && (metadata.isPending || metadata.isFetching || revisionNumber !== null && (exact.isPending || exact.isFetching) || editing && (draft.isPending || draft.isFetching) || !editing && (frozen.isPending || frozen.isFetching));
+  const stock = editing ? buffer : frozen.data;
+  const displayName = name || record?.label || 'New wire stock';
+  const state: RecordState = !definitionId ? { kind: 'new' } : editing ? { kind: 'draft', id: current?.draft_id ?? '', version: Number(current?.state.replace('draft-v', '')) || 1, dirty } : { kind: 'revision', id: revision?.revision_id ?? '', number: revision?.number ?? revisionNumber ?? 0 };
+  const stateLabel = state.kind === 'revision' ? `Frozen r${state.number} · ${state.id}` : state.kind === 'new' ? 'New · unsaved' : `${current?.state ?? 'Draft'}${dirty ? ' · unsaved local edits' : ' · saved draft'}`;
+  const section = useMemo(() => stock ? sectionLayout(stock) : null, [stock]);
+  const fit = useMemo(() => stock ? evaluateFit(stock) : null, [stock]);
+  const builder = useMemo(() => editing ? readBuilder(buffer) : null, [editing, buffer]);
+  const illustration = useMemo(() => { if (!builder || !section?.unknown.length || !stock) return null; const result = illustrate(builder); return { section: sectionLayout(generate(result.spec, stock)), substituted: result.substituted }; }, [builder, section, stock]);
+  const setStock = (value: StockSpecification) => { if (!editing || !edit.allowed) return; edits.current += 1; setBuffer(value); setDirty(true); setAck(false); };
+  const setBuilder = (value: BuilderSpec) => setStock(generate(value, buffer));
+  const refresh = () => { setBlocked(false); if (definitionId) void metadata.refetch(); if (revisionNumber !== null) void exact.refetch(); if (editing && definitionId) void draft.refetch(); if (!editing && revision) void frozen.refetch(); if (history) void revisions.refetch(); };
+  const save = async () => { if (!edit.allowed || !editing || !name.trim() || definitionId && !current) return; const submittedEdits = edits.current; setBusy(true); setError(''); try { const saved = await saveStock(name.trim(), buffer, current); setCurrent(saved); setName(saved.name); if (submittedEdits === edits.current) { setDirty(false); setBuffer(clone(saved.content.stock!)); } cache.setQueryData(['stock-draft', principalKey, saved.definition_id], saved); void cache.invalidateQueries({ queryKey: ['workspace', 'library'] }); setMessage('Saved draft.'); if (!definitionId) onCreated(saved.definition_id, latestSelection.current === selection); } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); if (failure instanceof ApiError && [401, 403, 404].includes(failure.status)) setBlocked(true); } finally { setBusy(false); } };
+  const freezeSaved = async () => { if (!current || dirty || !freeze.allowed) return; const submittedEdits = edits.current; setBusy(true); setError(''); try { const result = await freezeStock(current, !!fit?.failed && ack); setCurrent({ ...current, state: result.draft.state }); await cache.invalidateQueries({ queryKey: ['stock-record', principalKey, definitionId] }); void cache.invalidateQueries({ queryKey: ['stock-history', principalKey, definitionId] }); void cache.invalidateQueries({ queryKey: ['workspace', 'library'] }); if (latestSelection.current === selection && submittedEdits === edits.current) onSelect(result.number); setMessage(`Frozen r${result.number}.`); } catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); if (failure instanceof ApiError && [401, 403, 404].includes(failure.status)) setBlocked(true); } finally { setBusy(false); } };
+  if (denied) return <Stack><Group><Button variant="quiet" onClick={onBack}>Back to Wire stocks</Button><Button variant="quiet" onClick={refresh}>Refresh record</Button></Group><Alert color="red" title="Stock unavailable">The selected stock state cannot be read. Retained drawings, facts and source details are hidden. Local edits remain in this session for authorized recovery.</Alert></Stack>;
+  if (checking || !stock || !section || !fit) return <Stack><Button variant="quiet" onClick={onBack}>Back to Wire stocks</Button><Text role="status">Reading selected stock state…</Text></Stack>;
+  const urlView = nav?.location.filters?.view;
+  const view = active && urlView && ['model', 'section', 'spec'].includes(urlView) ? urlView : ownView;
+  const sheet = stockSpecSheet(displayName, stock, stateLabel);
+  const pinnedPreset = state.kind === 'revision' && preset?.revision === state.id && !practice.isError && !practice.isFetching && practice.data?.content.profile.stock_revision_id === state.id ? adaptFrozenProfile(practice.data, state.id, stock).display : undefined;
+  const editable = editing && edit.allowed;
+  const drawn = illustration?.section ?? section;
+  const jacket = drawn.features.find(feature => feature.path === jacketPath(stock));
+  const content = contentDiameter(stock, drawn);
+  const handle = builder && hasJacket(builder.template) && jacket?.shape.type === 'ring' && content !== null
+    ? { od: Number((jacket.shape.rOuter * 2).toFixed(4)), minOd: Math.max(0.1, Number((content + OD_STEP_MM).toFixed(4))) } : null;
+
+  return <RecordPage active={active} identity={{ id: definitionId ?? undefined, name: displayName, kind: 'wire_stock', pn: editing ? undefined : catalog.isError || catalog.isPending || catalog.isFetching ? 'Unknown' : catalog.data?.variants?.length ? catalog.data.variants.slice(0, 3).map(item => `${item.manufacturer} ${item.part_number}`).join(' · ') + (catalog.data.variants.length > 3 ? ' · more in Sources' : '') : 'Not declared' }} state={state}
+    actions={<>{onDuplicate && create.allowed && <Button size="xs" variant="quiet" onClick={() => onDuplicate(displayName, stock)}>Duplicate</Button>}<Button size="xs" variant="quiet" onClick={onBack}>Back to Wire stocks</Button><Button size="xs" variant="quiet" onClick={refresh}>Refresh record</Button>{editing && current && <Button size="xs" variant="quiet" onClick={async () => { setError(''); const result = await draft.refetch(); if (result.isSuccess && result.data.content.stock) { setBuffer(clone(result.data.content.stock)); setCurrent(result.data); setDirty(false); setAck(false); setMessage('Reloaded saved draft; local edits discarded.'); } }}>Reload saved draft (discard local edits)</Button>}{!editing && edit.allowed && <Button size="xs" onClick={() => onSelect(null, true)}>Continue draft</Button>}{editing && <><Button size="xs" loading={busy} disabled={!name.trim()} {...edit.props} onClick={save}>Save stock</Button><Button size="xs" variant="quiet" loading={busy} disabled={!current || dirty || !!fit.failed && !ack} {...freeze.props} onClick={freezeSaved}>Freeze saved stock</Button></>}</>}
+    notice={<>{error && <Alert color="red">{error}</Alert>}{message && <Text size="xs" role="status">{message}</Text>}{practice.isError && preset && <Alert color="yellow">Selected practice is unavailable. Its retained display suggestions are hidden.</Alert>}{editing && current && draft.data?.state !== current.state && dirty && <Alert color="yellow">A newer draft exists. Your unsaved buffer and original state are retained; saving will require conflict recovery.</Alert>}</>}
+    revisions={<Group gap="xs"><Button size="xs" variant="quiet" onClick={() => setHistory(value => !value)}>Revisions</Button>{revision && <Button size="xs" variant="quiet" onClick={() => onSelect(revision.number)}>r{revision.number}</Button>}{definitionId && <Button size="xs" variant="quiet" onClick={() => onSelect(null, true)}>Draft</Button>}{history && <><Button size="xs" variant="quiet" disabled={!offset} onClick={() => setOffset(value => Math.max(0, value - 50))}>Earlier page</Button>{!revisions.isError && revisions.data?.revisions.map(item => <Button size="xs" variant="quiet" key={item.revision_id} onClick={() => onSelect(item.number)}>r{item.number}</Button>)}<Button size="xs" variant="quiet" disabled={(revisions.data?.revisions.length ?? 0) < 50} onClick={() => setOffset(value => value + 50)}>Later page</Button>{revisions.isError && <Text size="xs">Revision history unavailable.</Text>}</>}</Group>}
+    view={view} onView={value => { setOwnView(value); if (active) nav?.navigate({ filters: { ...nav.location.filters, view: value } }, { replace: true }); }}
+    views={[{ id: 'model', label: '3D', content: <StockDisplay key={`${state.kind}:${state.kind === 'new' ? 'new' : state.id}:${pinnedPreset?.id ?? 'local'}`} section={section} active={active && view === 'model'} preset={pinnedPreset} /> },
+      { id: 'section', label: 'Section', content: <Stack gap="xs">{illustration && <Alert color="yellow">Illustrative proportions only: {illustration.substituted.join('; ')}. These values are not saved.</Alert>}<SectionCanvas section={illustration?.section ?? section} title={displayName} selected={selected} onSelect={setSelected} overlay={fitOverlay(section, fit)} handle={handle} editable={editable} onOd={od => builder && setBuilder({ ...builder, jacket: { ...builder.jacket, od_mm: od } })} /><StockLegend section={section} revisionId={state.kind === 'revision' ? state.id : null} active={active && view === 'section'} principalKey={principalKey} /></Stack> },
+      { id: 'spec', label: 'Spec sheet', content: <Stack gap="xs"><Group><Button size="xs" variant="quiet" onClick={() => downloadStock('stock-specification.html', sheet, 'text/html')}>Download spec sheet</Button><Button size="xs" variant="quiet" onClick={() => downloadStock('stock-section.svg', renderSectionSvg(section, displayName), 'image/svg+xml')}>Download section SVG</Button></Group><iframe title="Selected stock specification" srcDoc={sheet} sandbox="" style={{ width: '100%', minHeight: 540, border: '1px solid var(--sb-border-subtle)', background: '#fff' }} /></Stack> }]}
+    inspector={[{ id: 'construction', label: 'Construction', content: () => <Stack gap="sm">{editing ? <><TextInput label="Stock name" value={name} disabled={!!definitionId || busy} onChange={event => { if (!busy) setName(event.currentTarget.value); }} {...(!edit.allowed ? { readOnly: true } : {})} />{!definitionId && <Select label="Construction template" value={builder?.template ?? null} data={TEMPLATES.map(item => ({ value: item.value, label: item.label }))} onChange={value => value && setStock(generate(blankSpec(value as TemplateKind)))} disabled={!editable} />}{builder ? <ConstructionBuilder inspectorOnly permission={definitionId ? 'design.edit' : 'item.create'} spec={builder} onChange={setBuilder} view={{ stock, section, fit, name: displayName, illustration, selected, onSelect: setSelected, onSelectFinding: setSelected, acknowledged: ack, onAcknowledge: setAck, canFreeze: freeze.allowed }} /> : <Text size="sm">This exact construction uses the element editor under Advanced.</Text>}</> : <><Text size="sm">{stock.construction} · viewed from {stock.viewed_from}</Text><StockLegend section={section} revisionId={state.kind === 'revision' ? state.id : null} active={active} principalKey={principalKey} /></>}<FitFindings report={fit} onSelect={setSelected} acknowledged={ack} onAcknowledge={setAck} canFreeze={editing && freeze.allowed} /></Stack> },
+      { id: 'facts', label: 'Facts', content: () => <Stack gap="xs">{Object.entries(stock.facts).length === 0 && <Text>No stock facts declared.</Text>}{Object.entries(stock.facts).map(([key, fact]) => <Stack key={key} gap={3}><Text size="sm" fw={600}>{key.replaceAll('_', ' ')}{fact.unit ? ` (${fact.unit})` : ''}</Text>{editable ? <InspectionScope permission={definitionId ? 'design.edit' : 'item.create'}><Select label={`${key} status`} data={['unknown', 'documented', 'measured', 'inferred']} value={fact.status} onChange={value => value && setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, status: value as Fact['status'], value: value === 'unknown' ? null : fact.value } } })} /><TextInput label={`${key} value`} value={fact.value ?? ''} disabled={fact.status === 'unknown'} onChange={event => setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, value: event.currentTarget.value || null } } })} /><TextInput label={`${key} source`} value={fact.source ?? ''} onChange={event => setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, source: event.currentTarget.value || null } } })} /></InspectionScope> : <Text size="sm">{fact.value ?? 'Unknown'} · {fact.status}<br />Source: {fact.source ?? 'Unknown'}</Text>}</Stack>)}</Stack> },
+      { id: 'practices', label: 'Practices', content: () => state.kind === 'revision' ? <StockPractices active={active} principalKey={principalKey} revisionId={state.id} stock={stock} onApply={profile => setPreset({ revision: state.id, profile })} /> : <Text size="sm">Save and freeze this construction to select practices pinned to its exact revision. Local display cuts are available in 3D.</Text> },
+      { id: 'more', label: 'More', content: () => <Stack gap="xs">{definitionId ? <StockRecordDetails active={active} principalKey={principalKey} workspaceId={workspaceId} record={record!} projects={projects} revisionNumber={state.kind === 'revision' ? state.number : null} revisionId={state.kind === 'revision' ? state.id : null} onOpenInProject={onOpenInProject} /> : <Text>Save the stock before attaching references or sources.</Text>}<RecordSections sections={[{ id: 'advanced', label: 'Advanced · exact specification tree', content: () => editable ? <ElementEditor permission={definitionId ? 'design.edit' : 'item.create'} node={stock.structure} path={stock.structure.id} color={null} marks={marks} setMarks={setMarks} onChange={(path, patch) => setStock({ ...stock, structure: editStockNode(stock.structure, path, patch) })} /> : <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(stock, null, 2)}</pre> }]} /></Stack> }]}
+  />;
+}

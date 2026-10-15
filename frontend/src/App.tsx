@@ -46,6 +46,7 @@ const PcbPanel = lazy(() => import("./features/pcb/PcbPanel").then((module) => (
 const IntentPanel = lazy(() => import("./features/intents/IntentPanel").then((module) => ({ default: module.IntentPanel })));
 const EndAssemblyPanel = lazy(() => import("./features/end-assemblies/EndAssemblyPanel").then((module) => ({ default: module.EndAssemblyPanel })));
 const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
+const StockLibrary = lazy(() => import("./features/wire-stock/StockLibrary").then(module => ({ default: module.StockLibrary })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
 const SettingsPanel = lazy(() => import("./features/settings/SettingsPanel").then(module => ({ default: module.SettingsPanel })));
@@ -161,8 +162,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
     navigation?.navigate({ area: "designs", lens: tool, project: null, probe: null });
   };
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
-  // Cable record frames already name their exact state; keep the global summary for other tools.
-  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables");
+  // Record frames name their exact state; keep the global summary for other tools.
+  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock");
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -214,7 +215,7 @@ function FocusNote({ focus, onDismiss }: { focus: RecordFocus; onDismiss: () => 
 function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }: { record?: LibraryRecord; toolId: string; toolLabel: string; scope: WorkspaceScope; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void; lens: LensContext }) {
   const navigation = useNavigation();
   if (toolId.startsWith("new-")) return <ProbeProvider probe={null} onProbe={() => {}}><LensEditor toolId={{ "new-cable": "cables", "new-harness": "harnesses", "new-assembly": "assemblies" }[toolId] ?? "cables"} scope={scope} projectId={null} active={lens.active} /></ProbeProvider>;
-  if (toolId === "overview" && scope.project && scope.projectId) return <ProjectOverview key={scope.projectId} projectId={scope.projectId} projectName={scope.project.name} workspaceId={scope.workspaceId} permissions={scope.permissions} role={scope.role} active={lens.active === "overview"} onOpenTool={lens.setActive} onOpenReference={ref => {
+  if (toolId === "overview" && scope.project && scope.projectId) return <ProjectOverview key={scope.projectId} projectId={scope.projectId} projectName={scope.project.name} workspaceId={scope.workspaceId} permissions={scope.permissions} role={scope.role} active={lens.active === "overview"} onOpenTool={tool => { if (tool === "wire-stock") navigation?.navigate({ area: "library", lens: tool, project: null, probe: null, filters: { status: "new" } }); else lens.setActive(tool); }} onOpenReference={ref => {
     const tool = toolForReference(ref.kind, ref.item_kind);
     if (ref.kind === "release" || ref.kind === "work_batch") {
       navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, project: null, probe: null, filters: { [ref.kind]: ref.target_id } });
@@ -231,6 +232,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
+  if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
   if (["harnesses", "assemblies"].includes(toolId)) return <Stack>
     {record && ["cable", "harness"].includes(record.kind ?? "") && toolForKind(record.kind) === toolId && <SelectedDefinitionViews key={record.record_id} record={record} />}

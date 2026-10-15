@@ -1,7 +1,7 @@
 import { Autocomplete, Button, Checkbox, ColorInput, Group, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
 import { useMemo, useState } from 'react';
 import { SbQuantity } from '../../components/sb';
-import { InspectionScope, usePermission } from '../../lib/permissions';
+import { InspectionScope, usePermission, type PermissionName } from '../../lib/permissions';
 import { rowLook, Swatch } from '../cable-views/Swatch';
 import type { FitReport, Section, StockSpecification } from '../../../../packages/section-layout/src';
 import { coaxLooks, coaxName, areaDiameterMm, awgAreaMm2, awgDiameterMm, awgForArea, coreLooks, hasDrain, hasJacket, hasWeb, TEMPLATES } from './builder';
@@ -43,10 +43,10 @@ export interface BuilderContext {
  * section. Labels, materials and colors live in the inspector disclosure. A value derived from an
  * unknown input stays unknown; unknown inputs are drawn illustratively and labeled.
  */
-export function ConstructionBuilder({ spec, onChange, view }: { spec: BuilderSpec; onChange: (next: BuilderSpec) => void; view: BuilderContext }) {
+export function ConstructionBuilder({ spec, onChange, view, inspectorOnly = false, permission = "item.create" }: { spec: BuilderSpec; onChange: (next: BuilderSpec) => void; view: BuilderContext; inspectorOnly?: boolean; permission?: PermissionName }) {
   const [sizeBy, setSizeBy] = useState<'diameter' | 'awg' | 'area'>(() => awgForArea(spec.conductor.area_mm2) !== null ? 'awg' : spec.conductor.area_mm2 !== null && spec.conductor.diameter_mm === null ? 'area' : 'diameter');
   const [awg, setAwg] = useState<number | string>(() => awgForArea(spec.conductor.area_mm2) ?? '');
-  const edit = usePermission('item.create');
+  const edit = usePermission(permission);
   const { stock, section, fit, illustration } = view;
   const t = spec.template;
   const set = (patch: Partial<BuilderSpec>) => onChange({ ...spec, ...patch });
@@ -84,9 +84,9 @@ export function ConstructionBuilder({ spec, onChange, view }: { spec: BuilderSpe
   const controls = <Stack gap="sm" className="sb-stock-controls" aria-label="Construction controls">
     <Group gap="sm" align="flex-end" wrap="wrap">
       <Text size="sm" fw={600}>{TEMPLATES.find(x => x.value === t)?.label}</Text>
-      {countLimits && <Stepper label={pairs ? 'Pairs' : 'Cores'} value={count} min={countLimits[0]!} max={countLimits[1]!} onChange={setCount} />}
-      {mc && <Stepper label="Coax units" value={spec.multi.looks.length} min={1} max={24} onChange={setCoaxCount} />}
-      {mc && <Stepper label="Plain cores" value={spec.cores.length} min={0} max={24} onChange={setPlainCount} />}
+      {countLimits && <Stepper permission={permission} label={pairs ? 'Pairs' : 'Cores'} value={count} min={countLimits[0]!} max={countLimits[1]!} onChange={setCount} />}
+      {mc && <Stepper permission={permission} label="Coax units" value={spec.multi.looks.length} min={1} max={24} onChange={setCoaxCount} />}
+      {mc && <Stepper permission={permission} label="Plain cores" value={spec.cores.length} min={0} max={24} onChange={setPlainCount} />}
     </Group>
     <section className="sb-stock-group" aria-label="Conductor"><h3 className="sb-silk">Conductor</h3>
       <Group gap="xs" align="flex-end" wrap="wrap">
@@ -98,35 +98,35 @@ export function ConstructionBuilder({ spec, onChange, view }: { spec: BuilderSpe
           onChange={e => { const v = Number(e.target.value); const a = e.target.value !== '' && v > 0 ? v : null; conductor({ area_mm2: a, ...(stranded || a === null ? {} : { diameter_mm: Number(areaDiameterMm(a).toFixed(4)) }) }); }} />}
       </Group>
       {sizeBy !== 'diameter' && stranded && <Text size="xs" c="dimmed">Stranded: the size sets the nominal area only. Enter the overall conductor diameter from the datasheet.</Text>}
-      <DimRow label="Conductor diameter" value={shown(cd)} max={6} onChange={v => conductor({ diameter_mm: v })} />
+      <DimRow permission={permission} label="Conductor diameter" value={shown(cd)} max={6} onChange={v => conductor({ diameter_mm: v })} />
     </section>
     <section className="sb-stock-group" aria-label={t === 'coax' ? 'Dielectric' : 'Insulation'}><h3 className="sb-silk">{t === 'coax' ? 'Dielectric' : mc ? 'Plain core insulation' : 'Core insulation'}</h3>
-      <DimRow label={t === 'coax' ? 'Dielectric outer diameter' : 'Insulation outer diameter'} value={shown(ins)} max={12} onChange={v => set({ insulation: { ...spec.insulation, od_mm: v } })} />
+      <DimRow permission={permission} label={t === 'coax' ? 'Dielectric outer diameter' : 'Insulation outer diameter'} value={shown(ins)} max={12} onChange={v => set({ insulation: { ...spec.insulation, od_mm: v } })} />
       {hasWeb(t) && <>
-        <DimRow label={t === 'ribbon' ? 'Pitch (blank: touching)' : 'Center spacing (blank: touching)'} value={shown(spec.spacing_mm)} max={10} onChange={v => set({ spacing_mm: v })} />
-        <DimRow label="Web thickness" value={shown(spec.web_thickness_mm)} max={3} onChange={v => set({ web_thickness_mm: v })} />
+        <DimRow permission={permission} label={t === 'ribbon' ? 'Pitch (blank: touching)' : 'Center spacing (blank: touching)'} value={shown(spec.spacing_mm)} max={10} onChange={v => set({ spacing_mm: v })} />
+        <DimRow permission={permission} label="Web thickness" value={shown(spec.web_thickness_mm)} max={3} onChange={v => set({ web_thickness_mm: v })} />
       </>}
     </section>
     {mc && <section className="sb-stock-group" aria-label="Coax unit"><h3 className="sb-silk">Each coax unit</h3>
-      <DimRow label="Coax center diameter" value={shown(spec.multi.center_mm)} max={3} onChange={v => multi({ center_mm: v })} />
-      <DimRow label="Coax dielectric diameter" value={shown(spec.multi.dielectric_od_mm)} max={8} onChange={v => multi({ dielectric_od_mm: v })} />
+      <DimRow permission={permission} label="Coax center diameter" value={shown(spec.multi.center_mm)} max={3} onChange={v => multi({ center_mm: v })} />
+      <DimRow permission={permission} label="Coax dielectric diameter" value={shown(spec.multi.dielectric_od_mm)} max={8} onChange={v => multi({ dielectric_od_mm: v })} />
       <SegmentedControl size="xs" aria-label="Coax screen" value={spec.multi.screen} disabled={!edit.allowed} onChange={v => multi({ screen: v as BuilderSpec['multi']['screen'] })}
         data={[{ value: 'none', label: 'No screen' }, { value: 'foil', label: 'Foil' }, { value: 'braid', label: 'Braid' }]} />
-      {spec.multi.screen !== 'none' && <DimRow label="Coax screen thickness" value={shown(spec.multi.screen_thickness_mm)} max={0.6} onChange={v => multi({ screen_thickness_mm: v })} />}
+      {spec.multi.screen !== 'none' && <DimRow permission={permission} label="Coax screen thickness" value={shown(spec.multi.screen_thickness_mm)} max={0.6} onChange={v => multi({ screen_thickness_mm: v })} />}
       <Checkbox size="xs" label="Own jacket on each coax" checked={spec.multi.jacket} onChange={e => multi({ jacket: e.currentTarget.checked })} />
-      {spec.multi.jacket && <DimRow label="Coax jacket outer diameter" value={shown(spec.multi.jacket_od_mm)} max={10} onChange={v => multi({ jacket_od_mm: v })} />}
+      {spec.multi.jacket && <DimRow permission={permission} label="Coax jacket outer diameter" value={shown(spec.multi.jacket_od_mm)} max={10} onChange={v => multi({ jacket_od_mm: v })} />}
     </section>}
     {hasJacket(t) && <section className="sb-stock-group" aria-label="Screen"><h3 className="sb-silk">Screen</h3>
       <SegmentedControl size="xs" aria-label="Screen" value={spec.shield} disabled={!edit.allowed} onChange={v => set({ shield: v as ShieldKind })}
         data={[{ value: 'none', label: 'None' }, { value: 'foil', label: 'Foil' }, { value: 'braid', label: 'Braid' }, { value: 'foil+braid', label: 'Foil + braid' }]} />
-      {(spec.shield === 'foil' || spec.shield === 'foil+braid') && <DimRow label="Foil thickness" value={shown(spec.foil_thickness_mm)} max={0.3} onChange={v => set({ foil_thickness_mm: v })} />}
-      {(spec.shield === 'braid' || spec.shield === 'foil+braid') && <DimRow label="Braid thickness" value={shown(spec.braid_thickness_mm)} max={0.6} onChange={v => set({ braid_thickness_mm: v })} />}
+      {(spec.shield === 'foil' || spec.shield === 'foil+braid') && <DimRow permission={permission} label="Foil thickness" value={shown(spec.foil_thickness_mm)} max={0.3} onChange={v => set({ foil_thickness_mm: v })} />}
+      {(spec.shield === 'braid' || spec.shield === 'foil+braid') && <DimRow permission={permission} label="Braid thickness" value={shown(spec.braid_thickness_mm)} max={0.6} onChange={v => set({ braid_thickness_mm: v })} />}
       {hasDrain(t) && <Checkbox size="xs" label="Drain wire" checked={spec.drain} onChange={e => set({ drain: e.currentTarget.checked })} />}
-      {hasDrain(t) && spec.drain && <DimRow label="Drain diameter" value={shown(spec.drain_diameter_mm)} max={2} onChange={v => set({ drain_diameter_mm: v })} />}
+      {hasDrain(t) && spec.drain && <DimRow permission={permission} label="Drain diameter" value={shown(spec.drain_diameter_mm)} max={2} onChange={v => set({ drain_diameter_mm: v })} />}
     </section>}
     {hasJacket(t) && <section className="sb-stock-group" aria-label="Jacket"><h3 className="sb-silk">Jacket</h3>
-      <DimRow label="Jacket outer diameter" value={shown(spec.jacket.od_mm)} max={30} step={OD_STEP_MM / 5} onChange={v => set({ jacket: { ...spec.jacket, od_mm: v } })} />
-      <DimRow label="Jacket wall" value={shown(spec.jacket.wall_mm)} max={4} onChange={v => set({ jacket: { ...spec.jacket, wall_mm: v } })} />
+      <DimRow permission={permission} label="Jacket outer diameter" value={shown(spec.jacket.od_mm)} max={30} step={OD_STEP_MM / 5} onChange={v => set({ jacket: { ...spec.jacket, od_mm: v } })} />
+      <DimRow permission={permission} label="Jacket wall" value={shown(spec.jacket.wall_mm)} max={4} onChange={v => set({ jacket: { ...spec.jacket, wall_mm: v } })} />
       <Text size="xs" c="dimmed">Drag the handle on the jacket edge to set the outer diameter. Outer diameter and wall together set the bore; either alone fits the jacket to the screen or cores.</Text>
     </section>}
     {problems.map(p => <Text key={p} size="sm" c="red" role="status">{p}</Text>)}
@@ -188,7 +188,8 @@ export function ConstructionBuilder({ spec, onChange, view }: { spec: BuilderSpe
     </Stack>
   </details>;
 
-  return <InspectionScope permission="item.create"><Stack gap="xs" aria-label="Construction builder">
+  if (inspectorOnly) return <InspectionScope permission={permission}><Stack gap="sm" aria-label="Construction builder">{controls}{fixes.length > 0 && <Group gap="xs">{fixes.map(fix => <Button key={fix.id} size="xs" variant="quiet" onClick={() => onChange(fix.apply(spec))} {...edit.props}>{fix.label}</Button>)}</Group>}{inspector}</Stack></InspectionScope>;
+  return <InspectionScope permission={permission}><Stack gap="xs" aria-label="Construction builder">
     <dl className="sb-context sb-stock-meters" aria-label="Computed lay-up">
       {lay && cell(lay.arrangement === 'ring' ? 'Ring diameter (centers)' : lay.arrangement === 'linear' ? 'Core spacing' : 'Lay-up', lay.arrangement === 'concentric' ? 0 : lay.pitch, lay.arrangement === 'concentric' ? 'single unit, centered' : undefined)}
       {lay && cell('Lay-up diameter', meters.layupDiameter)}

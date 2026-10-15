@@ -38,6 +38,13 @@ reachable at both scopes. Scope changes navigation and filtering only, never acc
   never as a default. The revision tag is solid when frozen and dashed for a draft, and the
   status LED carries words. Thumbnails load lazily in shared batches; cards hold no 3D.
   Lists are served by bounded single queries; the browser never fans out per project.
+- Wire stocks use the shared record page: collection and selected record are
+  separate surfaces. New opens a dedicated unsaved record, while a row opens its
+  latest frozen construction; an exact `@revision` link retains that historical
+  state. The 3D/section/specification workspace sits beside a bounded inspector
+  (a bottom sheet on phones). Construction edits live in the draft state, with
+  cut and end-preparation profiles inside Practices. Navigation retains unsaved
+  buffers; authority failures hide retained record content until rechecked.
 - The Library is where items are created and edited. Below its list every collection lens
   mounts the same editor it has in a project, with no project: **New** starts an item in the
   editor and **Open** (or selecting the card or row, or a deep link to it) opens that item there, with

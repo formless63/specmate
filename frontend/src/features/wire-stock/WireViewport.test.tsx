@@ -161,3 +161,13 @@ test('the canvas is sized from its container and never exceeds it, however long 
   expect(description.style.whiteSpace).toBe('normal');
   expect(description.style.overflowWrap).toBe('anywhere');
 });
+
+test('camera controls work without pointer input and inactive record suppresses draws', async () => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  const { screen, fireEvent } = await import('@testing-library/react'); const model = wireModel(sectionLayout(stockPresets.coax!), 50, unpreparedProfile());
+  const tree = (active: boolean) => <MantineProvider><WireViewport model={model} active={active} /></MantineProvider>;
+  const view = render(tree(true));
+  for (const name of ['Reset view', 'Fit 3D view', 'Side view', 'Rotate camera left', 'Rotate camera right', 'Rotate camera up', 'Rotate camera down', 'Zoom camera in', 'Zoom camera out']) { const before = lifecycle.render.mock.calls.length; fireEvent.click(screen.getByRole('button', { name })); expect(lifecycle.render.mock.calls.length).toBeGreaterThan(before); }
+  view.rerender(tree(false)); const hidden = lifecycle.render.mock.calls.length; fireEvent.click(screen.getByRole('button', { name: 'Rotate camera left' })); expect(lifecycle.render.mock.calls.length).toBe(hidden);
+  view.rerender(tree(true)); expect(lifecycle.render.mock.calls.length).toBeGreaterThan(hidden);
+});

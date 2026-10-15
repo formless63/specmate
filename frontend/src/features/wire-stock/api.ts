@@ -1,3 +1,4 @@
+import { ApiError } from "../workspace/api";
 import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
 import type { FitReport, StockSpecification } from '../../../../packages/section-layout/src';
@@ -17,7 +18,7 @@ const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find(c
 async function read<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', ...options });
   const body = await response.json();
-  if (!response.ok) throw new Error(apiErrorMessage(body, `Request failed (${response.status}).`));
+  if (!response.ok) throw new ApiError(response.status, apiErrorMessage(body, `Request failed (${response.status}).`));
   return body as T;
 }
 /** Library stock; a project id only lists the stock that project references first. */

@@ -2,6 +2,7 @@ import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { generate, exampleCoax } from "./features/wire-stock/builder";
 import { lazy } from "react";
 import { TYPED_LIBRARY_VIEWS } from "./components/library/LibraryList";
 import { App, ToolLoadingBoundary } from "./App";
@@ -92,6 +93,9 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
     if (path.startsWith("/api/v0/diagnostics/workspaces/")) return reply({ workspace_id: "p", evaluated_at: "2026-01-01T00:00:00Z", work: { mode: "running", accepting_new_work: true, reason: "", state_token: "work-v0" }, queue: { states: {}, pending: 0, active: 0, oldest_pending_seconds: null }, dispatch: { undelivered: 0, oldest_undelivered_seconds: null }, runner: { state: "not_enrolled", credentials_usable: 0, stages_holding_lease: 0, stages_lease_expired: 0 }, tools: [], storage: { state: "not_initialized", code: null, sampled: 0 }, workflow_engine: { state: "not_evaluated" }, builds: [], can_execute: false, findings: [] });
     if (path.startsWith("/api/v0/collaboration/inbox?") || path.startsWith("/api/v0/collaboration/reviews?")) return reply({ results: [], next_after: null });
     if (path.startsWith("/api/v0/catalog/definitions?")) return reply({ workspace_id: "workspace", project_id: null, results: [], next_after: null });
+    if (path.startsWith("/api/v0/stocks?definition_id=s1")) return reply([{ definition_id: "s1", draft_id: "ds1", name: "Bench stock", state: "draft-v1", content: { stock: generate(exampleCoax()) } }]);
+    if (path === "/api/v0/revisions/r1/snapshot") return reply({ content: { stock: generate(exampleCoax()) } });
+    if (path.endsWith("/conventions")) return reply({ conventions: [] });
     if (path.startsWith("/api/v0/stocks")) return reply([]);
     if (path.endsWith("/definitions") || path.endsWith("/stocks") || path.endsWith("/intakes")) return reply([]);
     if (path.startsWith("/api/v0/preparation-documents/projects/") || path === "/api/v0/preparation-documents/workspace") return reply({ document_sets: [] });
@@ -163,8 +167,9 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(fetchMock).toHaveBeenCalledWith("/api/v0/catalog/definitions?limit=100", expect.anything());
   expect(fetchMock.mock.calls.some(([path]) => path.includes("/stocks") || path.includes("/intakes") || path.includes("/inventory/"))).toBe(false);
   await openTool("Wire stocks");
-  await screen.findByRole("heading", { name: "Wire stock" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/stocks", expect.anything()));
+  await screen.findByRole("heading", { name: "Wire stocks" });
+  expect(screen.getByRole("button", { name: "New wire stock" })).toBeTruthy();
+  expect(fetchMock.mock.calls.some(([path]) => path.startsWith("/api/v0/stocks"))).toBe(false);
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
   await openTool("Boards");
   await screen.findByRole("heading", { name: "PCB intake" });
@@ -276,7 +281,8 @@ test("overview start points and open-work links open the owning tool through the
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   await openProject("Project A");
   fireEvent.click(screen.getByRole("button", { name: "Start: Stock record" }));
-  await screen.findByRole("heading", { name: "Wire stock" });
+  await screen.findByRole("heading", { name: "New wire stock" });
+  expect(screen.getByLabelText("Stock name")).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Wire stocks" }).getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("tablist", { name: "Library sections" })).toBeTruthy();
   // The Overview keeps its place in the Project area and returns without losing the project.
@@ -292,10 +298,19 @@ test.each([
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   await openProject("Project A");
   await openTool("Wire stocks");
-  await screen.findByRole("heading", { name: "Wire stock" });
+  await screen.findByRole("heading", { name: "Wire stocks" });
+  if (role === "viewer") {
+    expect(screen.queryByRole("button", { name: "New wire stock" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Bench stock" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Draft" }));
+    await screen.findByLabelText("Stock name");
+  } else {
+    fireEvent.click(screen.getByRole("button", { name: "New wire stock" }));
+    fireEvent.change(await screen.findByLabelText("Stock name"), { target: { value: "New bench stock" } });
+  }
   const save = screen.getByRole("button", { name: "Save stock" }) as HTMLButtonElement;
   expect(save.disabled).toBe(off);
-  expect(save.title).toBe(off ? "Read-only access: requires Contributor access" : "");
+  expect(save.title).toBe(off ? "Read-only access: requires Edit" : "");
   expect((screen.getByRole("button", { name: "Freeze saved stock" }) as HTMLButtonElement).disabled).toBe(true);
   await openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });
@@ -332,6 +347,14 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       continue;
     }
     const typed = TYPED_LIBRARY_VIEWS[toolId];
+    if (toolId === "wire-stock") {
+      const back = screen.queryByRole("button", { name: "Back to Wire stocks" });
+      if (back) fireEvent.click(back);
+      const list = await screen.findByRole("region", { name: "Wire stocks" });
+      fireEvent.click(within(list).getByRole("button", { name: "New wire stock" }));
+      expect(await screen.findByLabelText("Stock name")).toBeTruthy();
+      continue;
+    }
     expect(await screen.findByRole("region", { name: `${typed?.title ?? view.title} editor` })).toBeTruthy();
     const title = toolId === "interfaces" ? "Connector bodies" : typed?.title ?? `${view.title} in the library`;
     const list = await screen.findByRole("region", { name: title });
@@ -357,8 +380,11 @@ test("Library scope lists the lens's collection with Used in, and opening a use 
   expect(await screen.findByText("Bench stock")).toBeTruthy();
   expect(fetchMock.mock.calls.some(([path]) => String(path).includes("/projects/project-"))).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "Bench stock" }));
-  fireEvent.click(screen.getByRole("button", { name: "Open Wire stocks in Project B" }));
-  expect(await screen.findByRole("heading", { name: "Wire stocks" })).toBeTruthy();
+  await screen.findByRole("heading", { name: "Bench stock" });
+  fireEvent.click(screen.getByRole("tab", { name: "More" }));
+  fireEvent.click(await screen.findByText("Where used"));
+  fireEvent.click(await screen.findByRole("button", { name: "Open Wire stock in Project B" }));
+  expect(await screen.findByRole("heading", { name: "Bench stock" })).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Wire stocks" }).getAttribute("aria-selected")).toBe("true");
   expect(window.location.search).toContain("project=project-b");
   expect(screen.queryByRole("button", { name: /^Scope .*: switch$/ })).toBeNull();
