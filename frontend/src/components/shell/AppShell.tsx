@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ItemSpotlight } from "../../features/item-search";
 import { breakpoints, rail, topBarHeight } from "../../theme/schematicBench";
 import "./shell.css";
+import { Brand } from "../brand/Brand";
 import type { ShellChrome } from "../../features/workspace";
 import { AREAS, areaOfTool, describeAccess, primaryTools, toolLabel, type AreaDef } from "../../features/shell/areas";
 
@@ -82,7 +83,7 @@ export function AppShell({ projectName, recordName, permissions, role = null, li
     <MantineAppShell.Header className="sb-header" data-testid="sb-top-bar">
       <div className="sb-topbar">
         {narrow && <AreaMenu activeArea={area} onSelect={openArea} />}
-        {!narrow && <span className="sb-wordmark">SPECMATE</span>}
+        {!narrow && <Brand />}
         <nav aria-label="Breadcrumb" className="sb-shell-breadcrumb"><span>{area.label}</span>{(recordName || activeTool !== area.tools[0]?.id) && <><span aria-hidden="true">/</span><span>{recordName ?? toolLabel(activeTool)}</span></>}</nav>
         {!narrow && chrome.projectMenu}
         <button type="button" className="sb-search" data-compact={compact} onClick={() => spotlight.open()} aria-label={itemSearchKey ? "Find an item or jump to a tool" : "Jump to a tool or area"} aria-keyshortcuts="Control+K">

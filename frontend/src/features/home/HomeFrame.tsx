@@ -2,6 +2,7 @@ import { AppShell, Group, VisuallyHidden } from "@mantine/core";
 import { Spotlight, spotlight, type SpotlightActionData } from "@mantine/spotlight";
 import type { ReactNode } from "react";
 import { topBarHeight } from "../../theme/schematicBench";
+import { Brand } from "../../components/brand/Brand";
 
 type HomeFrameProps = {
   /** Signed-in username; omitted before sign-in. */
@@ -18,7 +19,7 @@ export function HomeFrame({ username, signOutControl, actions = [], statusLabel,
   return <AppShell header={{ height: topBarHeight }} footer={{ height: 24 }} padding={0}>
     <AppShell.Header className="sb-header" data-testid="sb-top-bar">
       <div className="sb-topbar">
-        <span className="sb-wordmark">SPECMATE</span>
+        <Brand />
         {actions.length > 0 && <button type="button" className="sb-search" onClick={() => spotlight.open()} aria-label="Jump to a project" aria-keyshortcuts="Control+K">
           <span className="sb-mono" aria-hidden="true" style={{ color: "var(--sb-accent)" }}>›</span>
           <span className="sb-search-hint">jump to a project</span>
