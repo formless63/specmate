@@ -89,6 +89,7 @@ export type PopulationReview = {
   name: string;
   population: Population;
   interpretation: {
+    intake_id: string;
     interpretation_id: string; sha256: string; attempt_id: string; output_id: string;
     source_revision_id: string; source_manifest_sha256: string; board_path: string;
   };
@@ -143,10 +144,10 @@ export function getPopulationDraftReview(draftId: string, signal?: AbortSignal) 
 export function getPopulationRevisionReview(revisionId: string, signal?: AbortSignal) {
   return request<FrozenPopulationReview>(`/api/v0/pcb/population-revisions/${encodeURIComponent(revisionId)}/review`, {}, signal);
 }
-export async function command<T>(operation: string, payload: object, signal?: AbortSignal, expectedState?: string) {
+export async function command<T>(operation: string, payload: object, signal?: AbortSignal, expectedState?: string, idempotencyKey?: string) {
   const result = await request<{ result: T }>("/api/v0/operations", {
     method: "POST", headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
-    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: idempotencyKey ?? randomUUID(), expected_state: expectedState }),
   }, signal);
   return result.result;
 }

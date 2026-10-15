@@ -26,7 +26,7 @@ const frozen: FrozenPopulationReview = {
       evidence: { kind: "source_file", source_revision_id: "source-old", path: "evidence.txt", sha256: "e".repeat(64), rights: "synthetic-rights" },
     }],
   },
-  interpretation: { interpretation_id: "interpretation-old", sha256: "b".repeat(64),
+  interpretation: { intake_id: "intake", interpretation_id: "interpretation-old", sha256: "b".repeat(64),
     attempt_id: "attempt-old", output_id: "output-old", source_revision_id: "source-old",
     source_manifest_sha256: "a".repeat(64), board_path: "board.kicad_pcb" },
   report: {

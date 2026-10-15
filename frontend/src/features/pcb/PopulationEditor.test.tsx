@@ -46,7 +46,7 @@ beforeEach(() => {
   vi.mocked(getPopulationDraftReview).mockResolvedValue({
     draft_id: "draft", definition_id: "definition", name: "Bench options", state: "draft-v1",
     population: draft.content.pcb_population,
-    interpretation: { interpretation_id: interpretationId, sha256: "b".repeat(64), attempt_id: "attempt", output_id: "output", source_revision_id: sourceId, source_manifest_sha256: "a".repeat(64), board_path: "board.kicad_pcb" },
+    interpretation: { intake_id: "intake", interpretation_id: interpretationId, sha256: "b".repeat(64), attempt_id: "attempt", output_id: "output", source_revision_id: sourceId, source_manifest_sha256: "a".repeat(64), board_path: "board.kicad_pcb" },
     report: intake.interpretations[0]!.report, associations: [],
   });
   vi.mocked(command).mockResolvedValue({});
