@@ -1,3 +1,4 @@
+import { HistoryScopeProvider } from './features/history/HistoryScope';
 import { PermissionsProvider } from "./lib/permissions";
 import { Alert, Button, Group, Modal, Stack, Tabs, Text } from "@mantine/core";
 import type { SpotlightActionGroupData } from "@mantine/spotlight";
@@ -56,6 +57,7 @@ const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPa
 const DiscoveryPanel = lazy(() => import("./features/discovery/DiscoveryPanel").then((module) => ({ default: module.DiscoveryPanel })));
 const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/PhysicalUnitsPanel").then((module) => ({ default: module.PhysicalUnitsPanel })));
 const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
+const HistoryPage = lazy(() => import("./features/history/History").then(module => ({ default: module.HistoryPage })));
 const CableRecordHost = lazy(() => import("./features/cables/CableRecordEditor").then(module => ({ default: module.CableRecordHost })));
 const CablePanel = lazy(() => import("./features/cables/CablePanel").then((module) => ({ default: module.CablePanel })));
 const MatchingWorkspace = lazy(() => import("./features/catalog-matching/MatchingWorkspace").then((module) => ({ default: module.MatchingWorkspace })));
@@ -180,14 +182,14 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   </> };
 
   return <PermissionsProvider permissions={scope.permissions}><ProbeProvider probe={url.probe} onProbe={url.setProbe}>
-    <SbShell recordName={!selected.isError && active === recordTool ? selected.data?.label : undefined} projectName={scope.project?.name ?? "Library"} permissions={scope.permissions} role={scope.role} libraryScope={!scope.project}
+    <HistoryScopeProvider value={{ workspaceId: scope.workspaceId, principalKey: scope.principalKey }}><SbShell recordName={!selected.isError && active === recordTool ? selected.data?.label : undefined} projectName={scope.project?.name ?? "Library"} permissions={scope.permissions} role={scope.role} libraryScope={!scope.project}
       activeTool={active} onToolChange={setActive} onAreaChange={tool => navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, project: null, probe: null })} chrome={chrome} extraActions={scopeActions} itemSearchKey={scope.principalKey}
       statusIndicator={scope.projectId ? <StatusIndicator workspaceId={scope.workspaceId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} /> : undefined}>
       <Fragment key={scopeKey}><RecordFocusContext.Provider value={activeFocus}>
         <ToolPanel value="designs">{tools.has("designs") && (url.probe ? <Text role="status">{selected.isError ? "This design is not available." : "Opening design…"}</Text> : <DesignList onAccessLost={scope.refresh} active={active === "designs"} principalKey={scope.principalKey} projectFilterId={navigation?.location.project ?? null} projects={scope.projects}
           onOpen={record => navigation?.navigate({ area: "designs", lens: toolForKind(record.kind), project: null, probe: { object: record.record_id, rev: null, path: [] } })}
           onCreate={openCreate} />)}</ToolPanel>
-        <ToolPanel value="history">{tools.has("history") && <Stack><Text component="h1" fw={600}>History</Text><Text>Workspace change history is not available yet. Open a record to inspect its retained revisions.</Text></Stack>}</ToolPanel>
+        <ToolPanel value="history">{tools.has("history") && <HistoryPage active={active === "history"} workspaceId={scope.workspaceId} principalKey={scope.principalKey} />}</ToolPanel>
         {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
         {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
           {tools.has(tool.id) && (["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(tool.id) && (!url.probe || url.lens !== tool.id || documentRoute || selected.isPending || selected.isError) ? url.lens !== tool.id || !url.probe ? null : selected.isError ? <Stack gap="xs">
@@ -202,7 +204,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
     <Modal opened={replaceCreate !== null} onClose={() => setReplaceCreate(null)} title="Start another design?" centered>
       <Stack><Text>The existing creation form will be replaced. Keep it to preserve any unsaved changes.</Text><Group justify="flex-end"><Button variant="quiet" onClick={() => { if (replaceCreate) navigation?.navigate({ area: "designs", lens: replaceCreate, project: null, probe: null }); setReplaceCreate(null); }}>Keep existing form</Button><Button onClick={() => { if (replaceCreate) { setCreateKeys(current => ({ ...current, [replaceCreate]: (current[replaceCreate] ?? 0) + 1 })); navigation?.navigate({ area: "designs", lens: replaceCreate, project: null, probe: null }); } setReplaceCreate(null); }}>Start new</Button></Group></Stack>
     </Modal>
-  </ProbeProvider></PermissionsProvider>;
+  </HistoryScopeProvider></ProbeProvider></PermissionsProvider>;
 }
 
 function ProjectLostNote({ onDismiss }: { onDismiss: () => void }) {

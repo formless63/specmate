@@ -82,6 +82,7 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
         .filter((row) => url.searchParams.get("referenced_only") !== "true" || row.referenced);
       return reply({ workspace_id: "w1", family: url.searchParams.get("family"), project_id: projectId, results: rows.filter(row => url.searchParams.getAll("kinds").includes(row.kind)).map(row => ({ ...row, summary: { basis: "latest_frozen", revision_id: row.latest_revision_id, draft_id: null, draft_version: null, numbers: [], fields: [], flags: [] } })), next_after: null });
     }
+    if (path.startsWith("/api/v0/workspace/history?")) return reply({ workspace_id: "w1", source: "retained", complete_audit: false, hint: "Retained changes only.", results: [], next_after: null, scan_limit_reached: false });
     if (path === "/api/v0/access/workspace") return reply({ workspace_id: "w1", name: "Workspace", role, permissions: ROLES[role] });
     if (path === "/api/v0/access/account-policy") return reply({ can_create_local_accounts: false });
     if (path === "/api/v0/operations") {
@@ -465,4 +466,17 @@ test('Settings tabs open explicit workspace pages without requiring a project', 
     expect(screen.queryByRole('heading', { name: 'Choose a project' })).toBeNull();
   }
   expect(fetchMock.mock.calls.some(([path, options]) => path === '/api/v0/operations' && JSON.parse(String(options?.body)).operation === 'workspace.settings.get')).toBe(true);
+});
+
+
+test('History is a lazy workspace read for viewers with explicit evidence limits', async () => {
+  const fetchMock = server({ authenticated: true, role: 'viewer' }); renderApp();
+  await screen.findByRole('button', { name: 'Account menu, signed in as local-user' });
+  expect(fetchMock.mock.calls.some(([path]) => path.startsWith('/api/v0/workspace/history?'))).toBe(false);
+  await openTool('History');
+  expect(await screen.findByRole('table', { name: 'Workspace history' })).toBeTruthy();
+  expect(screen.getByText(/This is not a complete edit log/)).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'Choose a project' })).toBeNull();
+  const reads = fetchMock.mock.calls.filter(([path]) => path.startsWith('/api/v0/workspace/history?'));
+  expect(reads.length).toBeGreaterThan(0); expect(reads.every(([path, options]) => path.includes('workspace_id=w1') && !options?.method)).toBe(true);
 });

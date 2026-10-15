@@ -22,6 +22,7 @@ const population = record("pop1", "Main board population", { kind: "pcb_populati
 function serve() {
   return workspaceServer({ projects: [project("p1", "Bench")], library: [board, population, cableRecord] }, path => {
     const url = new URL(path, "http://test"); const match = /^\/api\/v0\/workspace\/library\/([^/]+)$/.exec(url.pathname);
+    if (url.pathname === "/api/v0/workspace/history") return reply({ workspace_id: "w1", source: "retained", hint: "Retained changes only.", results: [], next_after: null, scan_limit_reached: false });
     if (!match) return undefined;
     const found = [board, population, cableRecord].find(row => row.record_id === decodeURIComponent(match[1]!));
     return found ? reply(found) : reply({ error: { message: "Item not found." } }, 404);
@@ -54,7 +55,7 @@ test("selection and rail changes remain browser history entries", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Main board" })); await at("/library/boards/b1");
   expect(await within(await selection()).findByText("Main board")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "History" })); await at("/history");
-  expect(await screen.findByText(/Workspace change history is not available yet/)).toBeTruthy();
+  expect(await screen.findByRole("table", { name: "Workspace history" })).toBeTruthy();
   expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
   window.history.back(); await at("/library/boards/b1"); expect(await within(await selection()).findByText("Main board")).toBeTruthy();
   window.history.back(); await at("/library/boards");

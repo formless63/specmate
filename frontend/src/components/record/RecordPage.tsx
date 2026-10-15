@@ -1,8 +1,11 @@
+import { useHistoryIdentity } from '../../features/history/HistoryScope';
 import { Button, Drawer, Group, ScrollArea, Tabs, Text, Title } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { SbIdentityBadge } from "../sb";
 import "./record.css";
+
+const RecordHistory = lazy(() => import("../../features/history/History").then(module => ({ default: module.RecordHistory })));
 
 export type RecordState = { kind: "new" } | { kind: "draft"; id: string; version: number; dirty: boolean } | { kind: "revision"; id: string; number: number };
 export type RecordSection = { id: string; label: string; content: () => ReactNode };
@@ -23,7 +26,9 @@ export type RecordPageProps = {
 };
 
 /** Shared drawing-first record frame. Domain state, authority and writes stay in its controller. */
-export function RecordPage({ active, identity, state, actions, revisions, facts, notice, views, view, onView, inspector, inspectorTab, onInspectorTab }: RecordPageProps) {
+export function RecordPage({ active, identity, state, actions, revisions, facts, notice, views, view, onView, inspector: givenInspector, inspectorTab, onInspectorTab }: RecordPageProps) {
+  const historyIdentity = useHistoryIdentity();
+  const inspector = historyIdentity && identity.id && !givenInspector.some(section => section.id === "history") ? [...givenInspector, { id: "history", label: "History", content: () => <Suspense fallback={<Text>Reading history…</Text>}><RecordHistory definitionId={identity.id!} active={active && tab === "history" && (!compact || sheet)} /></Suspense> }] : givenInspector;
   const compact = useMediaQuery("(max-width: 48em)");
   const [sheet, setSheet] = useState(false);
   const [ownTab, setOwnTab] = useState(inspector[0]?.id ?? "");

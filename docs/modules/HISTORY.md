@@ -34,3 +34,14 @@ checked again on every page, including cursors issued before revocation.
 Reads never modify drafts, snapshots or receipts. Future compare, restore into a new
 current state, and fork actions must use exact retained identities and preserve frozen
 history; none of those mutations is introduced by this read surface.
+
+The workspace History rail and lazy record History inspector share this read. Cable
+versions exposes the same lazy disclosure beside exact revision choices. Filters live
+in the workspace URL; record-local filters remain local. Back/Forward filter changes,
+refresh and rejected cursor recovery always restart at the first page. Opening a record
+never fetches history before the user opens its History section.
+
+Client caches include principal, workspace, target and filters. Focus and reactivation
+recheck current authority before displaying retained rows or actor names. Hidden views
+unmount their dropdowns; held responses cannot cross an identity boundary. Actor
+choices come only from the current readable page, with no account directory query.

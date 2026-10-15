@@ -103,3 +103,11 @@ test.each(["preparation-documents", "cable-test-intent", "selected-packages", "e
   expect(formatLocation(parseLocation("/make", `?lens=${tool}`))).toBe("/designs");
   expect(parseLocation("/make/record@2/~/opaque/end%20A", `?lens=${tool}&project=p1`)).toMatchObject({ lens: tool, project: "p1", probe: { object: "record", rev: 2, path: ["opaque", "end A"] } });
 });
+
+
+test("History source, actor, dates and kind survive a canonical URL reload", () => {
+  const url = "/history?kind=pinout&actor=7&from=2026-01-01&to=2026-01-31&history_source=current_drafts";
+  const parsed = parseLocation("/history", url.slice(url.indexOf("?")));
+  expect(parsed.filters).toEqual({ kind: "pinout", actor: "7", from: "2026-01-01", to: "2026-01-31", history_source: "current_drafts" });
+  const canonical = formatLocation(parsed); expect(parseLocation("/history", canonical.slice(canonical.indexOf("?")))).toEqual(parsed);
+});

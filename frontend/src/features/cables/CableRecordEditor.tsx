@@ -23,6 +23,8 @@ export type CableEditorSnapshot = {
 };
 export type CableEditorViewSlots = Partial<Record<"schematic" | "documents", (snapshot: CableEditorSnapshot) => ReactNode>>;
 
+const RecordHistoryDisclosure = lazy(() => import('../history/History').then(module => ({ default: module.RecordHistoryDisclosure })));
+
 /** Retains the last routed cable while its rail panel is hidden; project filters are not editor identity. */
 export function CableRecordHost({ record, workspaceId, principalKey, active = true, viewSlots }: { principalKey: string; record?: LibraryRecord; workspaceId: string; active?: boolean; viewSlots?: CableEditorViewSlots }) {
   const probe = useProbe()?.probe;
@@ -224,6 +226,7 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
       {comparison.isError && <Alert color="red">{comparison.error.message}</Alert>}
       {comparison.data && !comparison.isError && frozen.data && <Stack gap={4}><Text fw={600} size="sm">Read-only revision comparison</Text>{(["stock_revision_id", "intent_revision_id", "lengths", "endpoints", "assignments", "review", "review_basis"] as const).map(field => <Text key={field} size="xs">{({ stock_revision_id: "Stock", intent_revision_id: "Intent", lengths: "Lengths", endpoints: "Ends", assignments: "Landings", review: "Review", review_basis: "Review basis" })[field]}: {canonicalJson(comparison.data.cable[field]) === canonicalJson(frozen.data!.cable[field]) ? "unchanged" : "differs"}</Text>)}</Stack>}
       {!editing && revisionId && <RevisionLabel id={revisionId} />}
+      <Suspense fallback={<Text>Reading history…</Text>}><RecordHistoryDisclosure definitionId={record.record_id} active={active && versions && !blocked} /></Suspense>
     </Stack>}</Drawer>
     <Drawer closeButtonProps={{ "aria-label": "Close unsaved changes review" }} opened={confirm !== null && active && !blocked} onClose={() => setConfirm(null)} position="right" title="Review unsaved changes"><Stack><Text>{confirm === "revert" ? "Reload the saved draft and discard local working changes?" : "Open this frozen revision? Your working draft buffer stays retained."}</Text><Button onClick={() => { if (confirm === "revert") void revert(); else if (pendingRevision !== null) { setConfirm(null); setEditing(false); probe?.setProbe({ object: record.record_id, rev: pendingRevision, path: [] }); setPage(revisionPageOffset(pendingRevision)); } }}>Continue</Button><Button variant="quiet" onClick={() => setConfirm(null)}>Keep editing</Button></Stack></Drawer>
     <Drawer closeButtonProps={{ "aria-label": "Close duplicate cable" }} opened={duplicateName !== null && active && !blocked} onClose={() => setDuplicateName(null)} position="right" title="Duplicate cable"><Stack><TextInput label="New cable name" value={duplicateName ?? ""} onChange={event => setDuplicateName(event.currentTarget.value)} /><Text size="xs">Copies the viewed design into a new draft with its exact pins. The original is retained.</Text><Button {...createGate.props} disabled={!duplicateName?.trim() || busy || blocked || !createGate.allowed} loading={busy} onClick={() => void duplicate()}>Create duplicate</Button></Stack></Drawer>

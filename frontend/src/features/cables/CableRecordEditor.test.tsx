@@ -1,3 +1,4 @@
+import { HistoryScopeProvider } from '../history/HistoryScope';
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory } from "@tanstack/react-router";
@@ -41,6 +42,7 @@ function server() {
   const revisions = [{ revision_id: "r1", number: 1 }, { revision_id: "r2", number: 2 }];
   const draft = (): Draft => ({ definition_id: "c1", draft_id: "draft", state, content: { cable: saved } });
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.startsWith("/api/v0/workspace/history?")) return reply({ workspace_id: "w1", source: "retained", hint: "Retained changes only.", results: [], next_after: null, scan_limit_reached: false });
     if (url.includes("catalog/definitions/")) {
       const id = /definitions\/([^?]+)/.exec(url)![1]!;
       return deny || deniedRecords.has(id) ? reply({ error: { message: "Access withdrawn" } }, 403) : reply({ drafts: [{ draft_id: id === "c2" ? "draft-c2" : "draft" }], revisions });
@@ -73,7 +75,7 @@ function mount(path = "/designs/c1", permissions = ["workspace.read", "design.ed
       <CableRecordHost record={nav.location.probe ? libraryRecord(nav.location.probe.object, "Synthetic cable", { latest_revision: 2 }) : undefined} workspaceId="w1" principalKey="user:w1" active={!!nav.location.probe} />
     </ProbeProvider>;
   }
-  render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={permissions}><NavigationProvider history={history}><Routed /></NavigationProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
+  render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={permissions}><NavigationProvider history={history}><HistoryScopeProvider value={{ workspaceId: "w1", principalKey: "user:w1" }}><Routed /></HistoryScopeProvider></NavigationProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
   return { history, cache };
 }
 const tab = (name: string) => fireEvent.click(screen.getByRole("tab", { name }));
@@ -254,4 +256,15 @@ test("restored B access recovers its retained buffer while a hidden A remains de
   expect(cache.getQueryState(["cable-identity", "c1", 0])?.status).toBe("error");
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true));
+});
+
+
+test('Cable versions discloses authorized record history lazily without adding an inspector tab', async () => {
+  server(); mount('/designs/c1@1'); await screen.findByRole('button', { name: 'Cable versions' });
+  const calls = () => vi.mocked(fetch).mock.calls.filter(([path]) => String(path).startsWith('/api/v0/workspace/history?'));
+  expect(calls()).toHaveLength(0); fireEvent.click(screen.getByRole('button', { name: 'Cable versions' }));
+  const summary = await screen.findByText('History', { selector: 'summary' }); expect(calls()).toHaveLength(0);
+  fireEvent.click(summary); expect(await screen.findByRole('table', { name: 'Record history' })).toBeTruthy();
+  expect(String(calls()[0]![0])).toContain('definition_id=c1'); expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Close cable versions' })); await waitFor(() => expect(screen.queryByRole('table', { name: 'Record history' })).toBeNull());
 });
