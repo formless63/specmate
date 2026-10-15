@@ -1,3 +1,4 @@
+import { useNewFormRequest } from "../make/useNewFormRequest";
 import { RecordNavigation } from "../make/RecordNavigation";
 import { ReadOnlyNote, usePermission, InspectionScope } from '../../lib/permissions';
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
@@ -12,8 +13,8 @@ import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from
 import { ContinueDraftButton } from '../scope/ContinueDraftButton';
 
 /** Library material plans. `projectId` is optional context: new plans are then also referenced by that project. */
-export function MaterialAccountingPanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string | null }) {
+export function MaterialAccountingPanel({ projectId = null, active = true }: { projectId?: string | null; active?: boolean }) { return <Workspace key={projectId ?? "library"} projectId={projectId} active={active} />; }
+function Workspace({ projectId, active }: { projectId: string | null; active: boolean }) {
   const editGate = usePermission('design.edit');
   // Saving a new profile or plan creates a workspace item (item.create); revising one needs design.edit.
   const createGate = usePermission('item.create');
@@ -87,13 +88,14 @@ function Workspace({ projectId }: { projectId: string | null }) {
     load.reset(); save.reset(); freeze.reset(); refresh.reset();
     cache.removeQueries({ queryKey: ['material-sheet'] }); cache.removeQueries({ queryKey: ['material-identity'] });
   };
+  const newForm = useNewFormRequest("material-accounting", active && createGate.allowed, discard);
   return <Stack><Title order={2}>Preparation material accounting</Title><Text>Keep installed cable material, selected cuts, extra waste, process consumables and procurement separate. Freeze a plan for an exact cable or harness; record actual observations against existing Inventory events.</Text>
     <Group><Button variant="subtle" onClick={discard}>Discard unsaved material values and start new</Button><Text size="sm">This clears the current editor and retained selections.</Text></Group>
     {blocked ? <Alert color="red"><Stack><Text>Material access must be refreshed before retained evidence is shown. Unsaved values and their original editing token are retained.</Text><Button loading={refresh.isPending} onClick={() => refresh.mutate({ version: generation.current, epoch: authorityEpoch.current })}>Refresh material accounting access</Button>{refresh.isError && <Text>{refresh.error.message}</Text>}</Stack></Alert> : <>
-      <Card withBorder><Stack><Title order={3}>{current ? 'Edit material plan' : 'New material plan'}</Title>{current ? <Text>{current.draft_id} · {current.state}</Text> : <InspectionScope permission="item.create"><TextInput label="Material plan name" value={name} onChange={e => setName(e.currentTarget.value)} /></InspectionScope>}
+      <div ref={newForm}><Card withBorder><Stack><Title order={3}>{current ? 'Edit material plan' : 'New material plan'}</Title>{current ? <Text>{current.draft_id} · {current.state}</Text> : <InspectionScope permission="item.create"><TextInput label="Material plan name" value={name} onChange={e => setName(e.currentTarget.value)} /></InspectionScope>}
         <InspectionScope permission={current ? 'design.edit' : 'item.create'}><PlanEditor references={references} onReference={(label, reference) => setReferences(previous => ({ ...previous, [label]: reference }))} generation={sheetGeneration} onDenied={() => denied(sheetGeneration)} value={plan} definitions={definitions.isError ? [] : definitions.data ?? []} onChange={next => { edits.current += 1; setPlan(next); }} /></InspectionScope>
         <Group><Button disabled={pending || !plan.subject_revision_id || (!current && !name.trim())} {...(current ? editGate : createGate).props} onClick={() => save.mutate({ version: generation.current, payload: plan, draft: current })}>Save material plan</Button><Button disabled={pending || !current} {...freezeGate.props} onClick={() => freeze.mutate({ draft: current!, version: generation.current })}>Freeze saved material plan</Button></Group><ReadOnlyNote permission={current ? "design.edit" : "item.create"}>Saving and freezing material plans are unavailable.</ReadOnlyNote><Text size="sm">Freeze captures the saved draft. Unsaved edits stay separate.</Text>
-      </Stack></Card>
+      </Stack></Card></div>
       <RecordNavigation name={(definitions.isError ? [] : definitions.data ?? []).find(item => item.definition_id === definition)?.name ?? "material plan"} selected={definition}>
       <Select label="Existing material plan" value={definition} data={(definitions.isError ? [] : definitions.data ?? []).filter(d => d.kind === 'material_plan').map(d => ({ value: d.definition_id, label: d.name }))} onChange={pick} />
       {identity.data && !identity.isError && <><Select label="Material draft to load" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} /><Button disabled={pending || !draftId} onClick={() => load.mutate({ id: draftId!, version: generation.current, edit: edits.current })}>Load material draft</Button><ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={current?.draft_id ?? null} onOpen={id => { setDraftId(id); load.mutate({ id, version: generation.current, edit: edits.current }); }} /><Select label="Frozen material revision" value={revisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevisionId} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier material history</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Later material history</Button></Group></>}

@@ -276,3 +276,28 @@ test("cached frozen rows withdraw on failed identity or frozen refetch and reapp
   denied = null; await act(() => cache.refetchQueries({ queryKey: ["bom-inspect", "frozen", "procurement"], exact: true }));
   await screen.findByRole("cell", { name: /Retained private item/ });
 });
+
+test.each(['allowed', 'readonly', 'inactive'])('Library New BOM request resets a selected record only for an active permitted creator: %s', async mode => {
+  const { requestNew } = await import('../library-gallery/newRequest');
+  const { LIBRARY_VIEWS } = await import('../shell/scope');
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('catalog/definitions/')
+    ? { definition_id: 'plan', name: 'Existing plan', revisions: [], drafts: [] }
+    : [{ definition_id: 'plan', kind: 'bom_plan', name: 'Existing plan' }]), { status: 200 })));
+  const permissions = mode === 'readonly' ? ['workspace.read'] : ['workspace.read', 'item.create'];
+  const view = render(wrap(<PermissionsProvider permissions={permissions}><BomPanel active={mode !== 'inactive'} /></PermissionsProvider>));
+  await choose('Existing BOM plan', 'Existing plan');
+  await waitFor(() => expect((screen.getByLabelText('BOM plan name').closest('details') as HTMLDetailsElement).open).toBe(false));
+  act(() => requestNew(LIBRARY_VIEWS.bom!));
+  if (mode === 'allowed') {
+    await waitFor(() => expect((screen.getByLabelText('BOM plan name').closest('details') as HTMLDetailsElement).open).toBe(true));
+    expect((screen.getByLabelText('BOM plan name') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Existing BOM plan', { selector: 'input' }) as HTMLInputElement).value).toBe('');
+    expect(document.activeElement).toBe(screen.getByLabelText('BOM plan name'));
+  } else {
+    await new Promise(resolve => setTimeout(resolve, 90));
+    expect((screen.getByLabelText('BOM plan name').closest('details') as HTMLDetailsElement).open).toBe(false);
+    // Consume the deliberately pending request only after the matching form is permitted and active.
+    view.rerender(wrap(<PermissionsProvider permissions={['workspace.read', 'item.create']}><BomPanel active /></PermissionsProvider>));
+    await waitFor(() => expect((screen.getByLabelText('BOM plan name').closest('details') as HTMLDetailsElement).open).toBe(true));
+  }
+});

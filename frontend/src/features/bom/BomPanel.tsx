@@ -1,3 +1,4 @@
+import { useNewFormRequest } from "../make/useNewFormRequest";
 import { RecordNavigation } from "../make/RecordNavigation";
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
@@ -15,8 +16,8 @@ import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 const purposes = [{ value: "assembly_contents", label: "Assembly contents" }, { value: "procurement", label: "Procurement" }, { value: "pcb_fabrication", label: "PCB fabrication" }, { value: "pcb_population", label: "PCB population" }, { value: "consumables", label: "Consumables" }];
 const label = (path: string[]) => path.length ? path.join(" / ") : "Root assembly";
 /** Library BOM plans. `projectId` is optional context: new plans are then also referenced by that project. */
-export function BomPanel({ projectId = null, workspaceId }: { projectId?: string | null; workspaceId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} workspaceId={workspaceId} />; }
-function Workspace({ projectId, workspaceId }: { projectId: string | null; workspaceId?: string | null }) {
+export function BomPanel({ projectId = null, workspaceId, active = true }: { projectId?: string | null; workspaceId?: string | null; active?: boolean }) { return <Workspace key={projectId ?? "library"} projectId={projectId} workspaceId={workspaceId} active={active} />; }
+function Workspace({ projectId, workspaceId, active }: { projectId: string | null; workspaceId?: string | null; active: boolean }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const [name, setName] = useState("");
@@ -35,6 +36,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     await referenceFromProject(projectId, data.definition_id, "BOM plan");
   } });
   const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); };
+  const newForm = useNewFormRequest("bom", active && createGate.allowed, () => { pick(null); setName(""); setPlan(blankPlan()); setNewSourceDenied(false); });
   const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
   useOpenProbed(definitionIn(definitions.data, ["bom_plan"]), (id) => { pick(id); openNewest(id); });
   const recordBlocked = definitions.isError || identity.isError;
@@ -43,12 +45,12 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     <Title order={2}>Purpose-specific BOM planning</Title>
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
     <details open={!definitionId}><summary style={{ cursor: "pointer" }}>New BOM plan</summary>
-    <Card withBorder mt="xs"><Stack><Title order={3}>New BOM plan</Title>
+    <div ref={newForm}><Card withBorder mt="xs"><Stack><Title order={3}>New BOM plan</Title>
       <InspectionScope permission="item.create"><TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <PlanEditor value={plan} onChange={setPlan} onAuthorityChange={setNewSourceDenied} definitions={definitions.data ?? []} workspaceId={workspaceId} /></InspectionScope>
       <Button loading={create.isPending} disabled={newSourceDenied || !name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...createGate.props}>Create BOM draft</Button><ReadOnlyNote permission="item.create">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
-    </Stack></Card>
+    </Stack></Card></div>
     </details>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}

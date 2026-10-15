@@ -326,15 +326,15 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;
     case "configurations": return <ConfigurationsPanel projectId={projectId} />;
     case "mechanical-sources": return <MechanicalSourcesPanel workspaceId={workspaceId} />;
-    case "bom": return <BomPanel projectId={projectId} workspaceId={workspaceId} />;
-    case "material-accounting": return <MaterialAccountingPanel projectId={projectId} />;
+    case "bom": return <BomPanel active={active === toolId} projectId={projectId} workspaceId={workspaceId} />;
+    case "material-accounting": return <MaterialAccountingPanel active={active === toolId} projectId={projectId} />;
     case "preparation": return <PreparationPanel projectId={projectId} />;
     case "end-preparation": return <EndPreparationPanel projectId={projectId} />;
     case "cable-test-intent": return <CableTestIntentPanel projectId={projectId} />;
     case "sources": return <SourcesPanel workspaceId={workspaceId} projectId={projectId} />;
     // Inventory includes workspace-scoped Sourcing (plans, stock and offers all live in the workspace).
-    case "inventory": return <InventoryPanel workspaceId={workspaceId} projectId={projectId ?? undefined} initialWorkId={navigation?.location.filters?.work_batch ?? null} />;
-    case "physical-units": return <PhysicalUnitsPanel workspaceId={workspaceId} projectId={projectId ?? undefined} />;
+    case "inventory": return <InventoryPanel active={active === toolId} workspaceId={workspaceId} projectId={projectId ?? undefined} initialWorkId={navigation?.location.filters?.work_batch ?? null} />;
+    case "physical-units": return <PhysicalUnitsPanel active={active === toolId} workspaceId={workspaceId} projectId={projectId ?? undefined} />;
     case "facts": return <FactsPanel workspaceId={workspaceId} projectId={projectId ?? undefined} />;
     default: return null;
   }
