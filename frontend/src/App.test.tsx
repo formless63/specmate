@@ -346,6 +346,13 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       expect(screen.queryByRole("region", { name: `${view.title} in the library` })).toBeNull();
       continue;
     }
+    if (["copper", "passive-passages", "pcb-disagreement"].includes(toolId)) {
+      const list = await screen.findByRole("region", { name: "Boards" });
+      expect(within(list).getByRole("button", { name: `New ${TYPED_LIBRARY_VIEWS.pcb!.noun}` })).toBeTruthy();
+      expect(window.location.pathname).toBe("/library/boards");
+      expect(new URLSearchParams(window.location.search).has("tool")).toBe(false);
+      continue;
+    }
     const typed = TYPED_LIBRARY_VIEWS[toolId];
     if (toolId === "wire-stock") {
       const back = screen.queryByRole("button", { name: "Back to Wire stocks" });
