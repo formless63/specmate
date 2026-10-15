@@ -315,6 +315,7 @@ def history(ctx, p: HistoryRead) -> dict:
         "requested_at": build.created_at.isoformat(),
         "retry_of": str(build.retry_of_id) if build.retry_of_id else None,
         "retried_by": str(retried.id) if retried else None,
+        "requested_by": build.requested_by.get_username(),
         "requested_by_viewer": ctx.user.pk == build.requested_by_id,
         "lineage": _lineage(build),
         "events": [
@@ -362,7 +363,7 @@ def list_builds(ctx, p: ListBuilds) -> dict:
         builds = builds.filter(project_id=p.project_id)
     rows = list(
         builds.exclude(recipe_id__startswith=ADAPTER + "-")
-        .select_related("stage")
+        .select_related("stage", "requested_by")
         .order_by("-created_at", "-id")[: LIST_LIMIT + 1]
     )
     levels = levels_for(rows[:LIST_LIMIT])
@@ -376,6 +377,7 @@ def list_builds(ctx, p: ListBuilds) -> dict:
                 "retry_of": str(b.retry_of_id) if b.retry_of_id else None,
                 "reproduction_of": str(b.reproduction_of_id) if b.reproduction_of_id else None,
                 "reproducibility": levels.get(b.id),
+                "requested_by": b.requested_by.get_username(),
                 "requested_by_viewer": ctx.user.pk == b.requested_by_id,
                 "project_id": str(b.project_id) if b.project_id else None,
             }

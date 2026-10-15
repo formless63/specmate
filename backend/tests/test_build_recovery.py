@@ -9,7 +9,8 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from django.db import DatabaseError, IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, connection, transaction
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from specmate.access.models import WorkspaceMember
@@ -509,6 +510,10 @@ def test_history_and_list_are_project_scoped(users, build, workspace):
     listing = op(users["viewer"], "build.list", {"workspace_id": workspace})
     assert [b["build_id"] for b in listing["builds"]] == [build["build_id"]]
     assert listing["builds"][0]["retry_of"] is None and listing["truncated"] is False
+    assert listing["builds"][0]["requested_by"] == users["owner"].get_username()
+    history = op(users["viewer"], "build.history", {"build_id": build["build_id"]})
+    assert history["requested_by"] == users["owner"].get_username()
+    assert history["requested_by_viewer"] is False
     with pytest.raises(NotFound):
         op(users["viewer"], "build.history", {"build_id": str(uuid.uuid4())})
 
@@ -518,7 +523,11 @@ def test_list_orders_newest_first_and_excludes_compiler_recipes(
 ):
     failed_build(users, build, credential, lease)
     second = retry(users["owner"], build)
-    listing = op(users["viewer"], "build.list", {"workspace_id": workspace})["builds"]
+    with CaptureQueriesContext(connection) as queries:
+        listing = op(users["viewer"], "build.list", {"workspace_id": workspace})["builds"]
+    # The trusted adapter and operation layer each recheck the actor; no requester read per row.
+    assert sum('FROM "auth_user"' in query["sql"] for query in queries) == 2
+    assert all(row["requested_by"] == users["owner"].get_username() for row in listing)
     assert [b["build_id"] for b in listing] == [second["build_id"], build["build_id"]]
     assert listing[0]["retry_of"] == build["build_id"]
 
