@@ -102,8 +102,8 @@ const MINI_DIN: Record<number, Base> = {
     top: 'none',
     pinD: 0.9,
     extraKeyways: [
-      { kind: 'notch', shape: { kind: 'rect', center: [-3.15, 2.85], w: 1.7, h: 2.4 }, note: 'lower left shoulder beside the bottom tab' },
-      { kind: 'notch', shape: { kind: 'rect', center: [3.15, 2.85], w: 1.7, h: 2.4 }, note: 'lower right shoulder beside the bottom tab' },
+      { kind: 'notch', shape: { kind: 'rect', center: [-3.3, 3.0], w: 1.9, h: 2.8 }, note: 'lower left shoulder beside the bottom tab' },
+      { kind: 'notch', shape: { kind: 'rect', center: [3.3, 3.0], w: 1.9, h: 2.8 }, note: 'lower right shoulder beside the bottom tab' },
     ],
     numbering: 'Socket view, bottom tab down: bottom row 3-2-1, middle row 7-6-5-4, top row 10-9-8, each left to right (a plug is mirrored).',
     verification: { numbering: 'verified', positions: 'scaled', note: 'Three-row 3/4/3 layout and numbering agree across independent references; nonstandard pattern, outline simplified. Ground is the shell.' },

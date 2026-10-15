@@ -54,18 +54,19 @@ const STATE_WORDS: Record<PinState, string> = {
   dim: 'not in focus',
 };
 
-/** The radius a round marker is drawn at: its real size, enlarged toward its neighbors for legibility. */
+/**
+ * The radius round and square markers are drawn at: their real size, enlarged uniformly
+ * toward the face's closest contact spacing so numbers stay legible.
+ */
 function displayRadii(pins: readonly PinGeometry[]): Map<string, number> {
   const out = new Map<string, number>();
+  const markers = pins.filter((p) => p.role !== 'shell' && (p.shape === 'round' || p.shape === 'square'));
+  let nearest = Infinity;
+  markers.forEach((a, i) => markers.slice(i + 1).forEach((b) => (nearest = Math.min(nearest, Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1])))));
   for (const pin of pins) {
     if (pin.shape !== 'round' && pin.shape !== 'square') continue;
     const real = (typeof pin.size === 'number' ? pin.size : pin.size[1]) / 2;
-    let nearest = Infinity;
-    for (const other of pins) {
-      if (other === pin || other.role === 'shell' || (other.shape !== 'round' && other.shape !== 'square')) continue;
-      nearest = Math.min(nearest, Math.hypot(other.at[0] - pin.at[0], other.at[1] - pin.at[1]));
-    }
-    out.set(pin.id, Number.isFinite(nearest) ? Math.max(real, Math.min(nearest * 0.4, real * 1.7)) : real);
+    out.set(pin.id, pin.role !== 'shell' && Number.isFinite(nearest) ? Math.max(real, Math.min(nearest * 0.4, real * 1.7)) : real);
   }
   return out;
 }
@@ -115,6 +116,7 @@ export function ConnectorFace(props: ConnectorFaceProps): JSX.Element {
   };
   const hatch = `sb-cf-hatch-${uid}`;
   const glow = `sb-cf-glow-${uid}`;
+  const clip = `sb-cf-clip-${uid}`;
   const stroke = span / 260;
 
   return (
@@ -135,6 +137,9 @@ export function ConnectorFace(props: ConnectorFaceProps): JSX.Element {
           <rect width={span / 40} height={span / 40} fill={ON_METAL} />
           <line x1={0} y1={0} x2={0} y2={span / 40} stroke="var(--sb-hatch, #7a7f87)" strokeWidth={span / 110} />
         </pattern>
+        <clipPath id={clip}>
+          <path d={shapePath(g.outline)} />
+        </clipPath>
         <filter id={glow} x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation={span / 140} />
         </filter>
@@ -144,11 +149,11 @@ export function ConnectorFace(props: ConnectorFaceProps): JSX.Element {
         {g.layers.map((layer, i) => (
           <path key={`l${i}`} d={shapePath(layer.shape)} fill={TONE_FILL[layer.tone]} stroke={layer.tone === 'insert' ? SUBTLE : STROKE} />
         ))}
-        {g.keyways.map((keyway, i) => (
+        <g clipPath={`url(#${clip})`}>{g.keyways.map((keyway, i) => (
           <path key={`k${i}`} d={shapePath(keyway.shape)} fill={keyway.kind === 'key' || keyway.kind === 'latch' ? TONE_FILL.key : keyway.kind === 'chamfer' ? 'none' : TONE_FILL.cavity} stroke={keyway.kind === 'chamfer' ? 'none' : STROKE} data-keyway={keyway.kind}>
             <title>{keyway.note}</title>
           </path>
-        ))}
+        ))}</g>
       </g>
       {g.pins.map((pin) => {
         const state = stateOf(pin);
