@@ -6,6 +6,7 @@ import { FrozenWirePreview } from './FrozenWirePreview';
 import { WireStockPanel } from './WireStockPanel';
 import { stockPresets } from './presets';
 import { profileRevision } from './profile-test-fixtures';
+import { ProbeProvider } from '../probe';
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -124,4 +125,13 @@ test('renders recorded frozen suggestion basis and registered source details dir
   expect(recorded.textContent).toContain('CC0-1.0');
   expect(recorded.textContent).toContain('Unknown');
   expect(document.querySelector('pre')).toBeNull();
+});
+
+test('opening a stock from the Library selects its definition and latest frozen revision', async () => {
+  installApi();
+  render(<MantineProvider><ProbeProvider probe={{ object: 'stock-definition', rev: 1, path: [] }} onProbe={() => {}}><FrozenWirePreview projectId="project1" /></ProbeProvider></MantineProvider>);
+  await screen.findAllByText('stock-r2', { selector: 'code' });
+  expect((screen.getByRole('combobox', { name: 'Frozen stock definition' }) as HTMLInputElement).value).toBe('Synthetic stock');
+  expect((screen.getByRole('combobox', { name: 'Exact stock revision' }) as HTMLInputElement).value).toMatch(/r2/);
+  expect(await screen.findByRole('table', { name: 'Frozen construction materials' })).toBeTruthy();
 });

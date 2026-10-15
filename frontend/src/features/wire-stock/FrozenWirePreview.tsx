@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Group, NumberInput, Select, Stack, Table, Text, Title } from '@mantine/core';
 import { sectionLayout } from '../../../../packages/section-layout/src';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
@@ -15,6 +15,7 @@ import { rowLook, Swatch } from '../cable-views/Swatch';
 import { SbIdentityBadge, SbQuantity, SbUnknown } from "../../components/sb";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { useOpenProbed } from '../scope/openProbed';
 import { StockConventions } from "../interfaces/StockConventions";
 
 /** Own state, exact snapshots, no setters or command adapters for the current stock draft. */
@@ -44,6 +45,15 @@ export function FrozenWirePreview({ projectId }: { projectId?: string | null }) 
       .catch(e => { if (live) setError(String(e.message)); }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [projectId, refresh]);
+  // A Library row or deep link for a stock selects it here and its latest frozen revision once the
+  // revisions load; choosing another definition or revision afterwards is never undone.
+  const latestFor = useRef<string | null>(null);
+  useOpenProbed(definitions.length ? id => definitions.some(d => d.definition_id === id && d.kind === 'wire_stock') : null, id => { latestFor.current = id; setDefinitionId(id); setRevisionId(null); setProfileId(null); });
+  useEffect(() => {
+    if (!definitionId || latestFor.current !== definitionId || !revisions.length) return;
+    latestFor.current = null;
+    setRevisionId(revisions.reduce((a, b) => b.number > a.number ? b : a).revision_id);
+  }, [definitionId, revisions]);
   useEffect(() => {
     let live = true;
     setRevisions([]); setRevisionId(null); setStock(null); setProfiles([]); setProfileId(null); setProfile(null);
