@@ -10,8 +10,11 @@ from specmate.design.operations import (
     update_draft,
 )
 from specmate.design.pins import item_workspace, pin_workspace
+from specmate.interfaces.board_contracts import ProposeBoard, TraceBoard
+from specmate.interfaces.boards import propose_board, trace_board
 from specmate.interfaces.contracts import (
     KINDS,
+    OPTIONAL_KINDS,
     CaptureInterface,
     CreateInterface,
     ReadInterface,
@@ -32,7 +35,7 @@ from specmate.operations.scope import workspace_scope
 
 def interface_draft(ctx, draft_id, permission, lock=False):
     draft = scoped_draft(ctx, draft_id, permission, lock=lock)
-    if draft.definition.kind not in KINDS:
+    if draft.definition.kind not in KINDS | OPTIONAL_KINDS:
         raise NotFound("Interface draft unavailable.")
     # Incomplete generic drafts may omit the typed payload until their first edit.
     # Present content always retains full closure validation and authorization.
@@ -90,7 +93,7 @@ def authorize_stored(ctx, stored):
 @operation(
     "interface.create",
     CreateInterface,
-    summary="Create a body, pinout, boundary mapping or separated assessment.",
+    summary="Create a body, pinout, boundary mapping, port, board or separated assessment.",
     authorize_replay=replay,
     idempotency_scope=scope,
     access=Perm.ITEM_CREATE,
@@ -128,7 +131,8 @@ def update(ctx: Context, p: UpdateInterface):
 
 def capture_payload(ctx, p, permission):
     draft = interface_draft(ctx, p.draft_id, permission, lock=True)
-    parse_content(draft.content, draft.definition.kind)
+    if parse_content(draft.content, draft.definition.kind) is None:
+        raise ValidationFailed("Typed interface content is required.")
     return CaptureDraft(
         draft_id=p.draft_id,
         dependencies=dependency_revisions(ctx.user, draft.definition, draft.content),
@@ -181,3 +185,25 @@ def read(ctx: Context, p: ReadInterface):
 )
 def trace_interface(ctx: Context, p: TraceInterface):
     return trace(ctx.user, p.revision_id, p.external_contact_id)
+
+
+@operation(
+    "interface.board_trace",
+    TraceBoard,
+    summary="Interpret declared board paths between two terminals of a frozen board.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def board_trace(ctx: Context, p: TraceBoard):
+    return trace_board(ctx.user, p)
+
+
+@operation(
+    "interface.board_propose",
+    ProposeBoard,
+    summary="Propose board terminals and paths from a frozen PCB population for review.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def board_propose(ctx: Context, p: ProposeBoard):
+    return propose_board(ctx.user, p)

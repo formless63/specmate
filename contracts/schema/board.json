@@ -1,0 +1,525 @@
+{
+  "$defs": {
+    "BoardChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name"
+      ],
+      "title": "BoardChoice",
+      "type": "object"
+    },
+    "BoardCondition": {
+      "additionalProperties": false,
+      "description": "A switch or jumper with mutually exclusive named states.",
+      "properties": {
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/BoardChoice"
+          },
+          "maxItems": 20,
+          "minItems": 2,
+          "title": "Choices",
+          "type": "array"
+        },
+        "key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "choices"
+      ],
+      "title": "BoardCondition",
+      "type": "object"
+    },
+    "BoardPath": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "component": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InlineComponent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "from_terminal": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+          "title": "From Terminal",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "provenance": {
+          "default": "declared",
+          "enum": [
+            "declared",
+            "reported_net_membership",
+            "native_component_passage"
+          ],
+          "title": "Provenance",
+          "type": "string"
+        },
+        "switch": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SwitchState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "to_terminal": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+          "title": "To Terminal",
+          "type": "string"
+        },
+        "via": {
+          "enum": [
+            "copper",
+            "component",
+            "switch",
+            "unknown"
+          ],
+          "title": "Via",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "from_terminal",
+        "to_terminal",
+        "via",
+        "basis"
+      ],
+      "title": "BoardPath",
+      "type": "object"
+    },
+    "BoardTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "kind": {
+          "default": "unknown",
+          "enum": [
+            "solder_pad",
+            "through_hole",
+            "connector_contact",
+            "test_point",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "native_pad_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Native Pad Ids",
+          "type": "array"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "side": {
+          "default": "unknown",
+          "enum": [
+            "top",
+            "bottom",
+            "both",
+            "unknown"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "terminal_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "terminal_id",
+        "label"
+      ],
+      "title": "BoardTerminal",
+      "type": "object"
+    },
+    "CarriedConnector": {
+      "additionalProperties": false,
+      "description": "A connector body this board carries, with which terminal lands on which contact.",
+      "properties": {
+        "basis": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "body_revision_id": {
+          "format": "uuid",
+          "title": "Body Revision Id",
+          "type": "string"
+        },
+        "correspondence": {
+          "items": {
+            "$ref": "#/$defs/TerminalContact"
+          },
+          "maxItems": 1000,
+          "title": "Correspondence",
+          "type": "array"
+        },
+        "local_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "review": {
+          "default": "unreviewed",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "title": "Review",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "body_revision_id"
+      ],
+      "title": "CarriedConnector",
+      "type": "object"
+    },
+    "InlineComponent": {
+      "additionalProperties": false,
+      "description": "A part on a signal path: its kind, the value as written and exact parameters.\n\nThe written value (\"470 R\", \"220u\") is kept as typed text. Exact parameters are\nstated separately; when both are present they must agree, nothing is guessed.",
+      "properties": {
+        "capacitance_f": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacitance F"
+        },
+        "kind": {
+          "default": "unknown",
+          "enum": [
+            "resistor",
+            "capacitor",
+            "diode",
+            "inductor",
+            "transformer",
+            "active",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "resistance_ohm": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "ge": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resistance Ohm"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "InlineComponent",
+      "type": "object"
+    },
+    "KicadOrigin": {
+      "additionalProperties": false,
+      "description": "The exact population revision (and its accepted interpretation) a board came from.",
+      "properties": {
+        "interpretation_id": {
+          "format": "uuid",
+          "title": "Interpretation Id",
+          "type": "string"
+        },
+        "interpretation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Interpretation Sha256",
+          "type": "string"
+        },
+        "population_revision_id": {
+          "format": "uuid",
+          "title": "Population Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "population_revision_id",
+        "interpretation_id",
+        "interpretation_sha256"
+      ],
+      "title": "KicadOrigin",
+      "type": "object"
+    },
+    "SwitchState": {
+      "additionalProperties": false,
+      "properties": {
+        "closed_when": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Closed When",
+          "type": "string"
+        },
+        "condition_key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Condition Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "condition_key",
+        "closed_when"
+      ],
+      "title": "SwitchState",
+      "type": "object"
+    },
+    "TerminalContact": {
+      "additionalProperties": false,
+      "properties": {
+        "contact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "terminal_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "terminal_id",
+        "contact_id"
+      ],
+      "title": "TerminalContact",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "carried_connectors": {
+      "items": {
+        "$ref": "#/$defs/CarriedConnector"
+      },
+      "maxItems": 20,
+      "title": "Carried Connectors",
+      "type": "array"
+    },
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/BoardCondition"
+      },
+      "maxItems": 20,
+      "title": "Conditions",
+      "type": "array"
+    },
+    "derived_from": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/KicadOrigin"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "kind": {
+      "const": "board",
+      "default": "board",
+      "title": "Kind",
+      "type": "string"
+    },
+    "origin": {
+      "default": "black_box",
+      "enum": [
+        "black_box",
+        "kicad_derived"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "paths": {
+      "items": {
+        "$ref": "#/$defs/BoardPath"
+      },
+      "maxItems": 5000,
+      "title": "Paths",
+      "type": "array"
+    },
+    "review": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ],
+      "title": "Review",
+      "type": "string"
+    },
+    "review_basis": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Basis"
+    },
+    "schema_version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "terminals": {
+      "items": {
+        "$ref": "#/$defs/BoardTerminal"
+      },
+      "maxItems": 2000,
+      "title": "Terminals",
+      "type": "array"
+    }
+  },
+  "title": "Board",
+  "type": "object"
+}

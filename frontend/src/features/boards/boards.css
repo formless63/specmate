@@ -1,0 +1,10 @@
+/* Boards lens: theme tokens only; unknown is hatched, natively proposed paths are dashed. */
+.sb-board-table td, .sb-board-table th { font-size: 12px; }
+.sb-board-label { font-family: var(--sb-font-data); font-weight: 600; }
+.sb-board-paths { display: flex; flex-wrap: wrap; gap: 6px; }
+.sb-path-chip { display: inline-flex; align-items: stretch; border: 1px solid var(--sb-border-control); background: var(--sb-surface-raised); font-family: var(--sb-font-data); font-size: 11px; line-height: 1.6; }
+.sb-path-pad { padding: 0 6px; color: var(--sb-text-primary); font-weight: 600; }
+.sb-path-via { padding: 0 6px; color: var(--sb-text-secondary); border-left: 1px solid var(--sb-border-subtle); border-right: 1px solid var(--sb-border-subtle); }
+.sb-path-chip[data-native] { border-style: dashed; }
+.sb-path-chip[data-unknown] .sb-path-via { background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 6px); color: var(--sb-text-tertiary); }
+.sb-board-components { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 12px; }

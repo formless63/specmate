@@ -281,3 +281,85 @@ def rgb_monitor_port(pinout_revision_id):
         "pins": [_video_pin(c, "accepts", 75) for c in ("7", "11", "15")]
         + [{"contact_id": "20", "behaviour": "accepts", "coupling": "ac"}],
     }
+
+
+# Synthetic adapter board: cable-side solder pads joined to the 10-pin side contacts.
+# (pad label, DIN contact, how the pad reaches it); see DIN_SHARED and DIN_PIN_1.
+ADAPTER_PADS = [
+    ("R", "4", "copper"),
+    ("G", "6", "copper"),
+    ("B", "2", "copper"),
+    ("CS", "1", "resistor"),
+    ("AL", "9", "copper"),
+    ("AR", "5", "copper"),
+    ("GND", "3", "copper"),
+    ("AGND", "7", "copper"),
+    # Deliberately without a declared path: its connection stays unknown.
+    ("5V", None, None),
+]
+
+
+def av_adapter_board(plug_revision_id):
+    """A bought black-box "AV adapter board" carrying the 10-pin plug.
+
+    Cable-side pads R/G/B/CS/AL/AR/GND/AGND/5V; a series 470 ohm resistor on sync and
+    straight copper for video, audio and grounds. Values are illustrative declarations.
+    """
+    din = [
+        {
+            "terminal_id": f"din-{n}",
+            "label": str(n),
+            "group": "Connector side",
+            "kind": "connector_contact",
+            "side": "both",
+        }
+        for n in range(1, 10)
+    ]
+    pads = [
+        {
+            "terminal_id": label.lower().replace("5v", "v5"),
+            "label": label,
+            "group": "Cable side",
+            "kind": "solder_pad",
+            "side": "top",
+        }
+        for label, _, _ in ADAPTER_PADS
+    ]
+    paths = []
+    for label, contact, via in ADAPTER_PADS:
+        if via is None:
+            continue
+        path = {
+            "local_id": f"path-{label.lower()}",
+            "from_terminal": label.lower(),
+            "to_terminal": f"din-{contact}",
+            "via": "copper" if via == "copper" else "component",
+            "basis": "Synthetic board drawing written for this example",
+        }
+        if via == "resistor":
+            path["component"] = {
+                "kind": "resistor",
+                "value": "470R",
+                "reference": "R1",
+                "resistance_ohm": "470",
+            }
+        paths.append(path)
+    return {
+        "kind": "board",
+        "origin": "black_box",
+        "terminals": din + pads,
+        "carried_connectors": [
+            {
+                "local_id": "plug",
+                "body_revision_id": plug_revision_id,
+                "correspondence": [
+                    {"terminal_id": f"din-{n}", "contact_id": str(n)} for n in range(1, 10)
+                ],
+                "review": "reviewed",
+                "basis": "Synthetic board drawing written for this example",
+            }
+        ],
+        "paths": paths,
+        "review": "reviewed",
+        "review_basis": "Synthetic board drawing written for this example",
+    }

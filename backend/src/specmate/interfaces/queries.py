@@ -11,6 +11,8 @@ from specmate.catalog_packs.authoring import authorize_origin
 from specmate.design.closure_reads import closure_reads, prefetch_origins
 from specmate.design.models import Revision, SnapshotDependency
 from specmate.design.pins import check_pin
+from specmate.interfaces.board_contracts import Board
+from specmate.interfaces.boards import board_references, board_view, validate_board
 from specmate.interfaces.contracts import (
     INTERFACE_ADAPTER,
     KINDS,
@@ -52,6 +54,8 @@ def references(value):
         return [m.body_revision_id for m in value.mates_with]
     if isinstance(value, Port):
         return [value.pinout_revision_id]
+    if isinstance(value, Board):
+        return board_references(value)
     if isinstance(value, InterfaceMap):
         return [
             value.assembly_revision_id,
@@ -160,6 +164,8 @@ class Closure:
             self.validate_mating(value)
         if isinstance(value, Port):
             self.validate_port(value)
+        if isinstance(value, Board):
+            validate_board(self, value)
         if isinstance(value, InterfaceAssessment):
             from specmate.interfaces.assessments import subjects
 
@@ -342,6 +348,8 @@ def inspect_revision(user, revision_id):
         result["mated_by"] = mated_by(user, revision)
     if isinstance(closure.root, Port):
         result["end"] = end_rows(closure.root, revision, closure)
+    if isinstance(closure.root, Board):
+        result["board"] = board_view(closure.root, closure)
     return result
 
 
