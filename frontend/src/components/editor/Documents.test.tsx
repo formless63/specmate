@@ -31,6 +31,7 @@ function server() {
       const config = { ...emptyConfiguration(), ...body.payload };
       const projected = projection(config);
       if (body.operation === "preparation_documents.defaults") return json({ result: { configuration: config, root: projected.manifest.inputs.root, context_pins: projected.manifest.context_pins, rights_subjects: ["design:exact-r1"] } });
+      if (body.operation === "preparation_documents.list") return json({ result: { root_revision_id: body.payload.root_revision_id, results: [], next_after: null } });
       if (body.operation === "preparation_documents.preview") { if (previewWait) await previewWait; return json({ result: projected }); }
       if (body.operation === "preparation_documents.generate") {
         if (generateWait) await generateWait;

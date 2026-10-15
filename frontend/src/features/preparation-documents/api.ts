@@ -15,6 +15,8 @@ export type Manifest = { inputs_sha256: string; readiness: string; inputs: { roo
 export type Review = { manifest: Manifest; state: string };
 export type Defaults = { configuration: Configuration; root: Manifest['inputs']['root']; context_pins: ContextPin[]; rights_subjects: string[] };
 export type Preview = Review & { sections: DocumentSections };
+export type RetainedSetPage = { root_revision_id: string; results: { document_set_id: string; root_revision_id: string; created_at: string; generator: string; quantity: number | null; inputs_sha256: string }[]; next_after: string | null; listing: string };
+export async function listSets(rootRevisionId: string, after: string | null = null) { return (await runOperation<RetainedSetPage>('preparation_documents.list', { root_revision_id: rootRevisionId, after, limit: 10 })).result; }
 export async function defaults(rootRevisionId: string) { return (await runOperation<Defaults>('preparation_documents.defaults', { root_revision_id: rootRevisionId })).result; }
 export async function preview(config: Configuration) { return (await runOperation<Preview>('preparation_documents.preview', config)).result; }
 export type RootCurrency = { root_revision_number: number; status: 'latest' | 'superseded'; newer_revision: { revision_id: string; number: number; definition_id: string; kind: string; name: string; frozen_at: string } | null };
