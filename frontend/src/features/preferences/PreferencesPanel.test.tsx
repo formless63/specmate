@@ -56,7 +56,7 @@ test("workspace defaults are read-only without design.edit, with a visible reaso
   await screen.findByRole("form", { name: "Workspace defaults" });
   expect((screen.getByRole("button", { name: "Save workspace defaults" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole("note").textContent).toMatch(/editors and administrators/);
-  expect((screen.getByLabelText("Wire colours (Workspace defaults)") as HTMLInputElement).readOnly).toBe(true);
+  expect((screen.getByLabelText("Wire colors (Workspace defaults)") as HTMLInputElement).readOnly).toBe(true);
   expect((screen.getByRole("button", { name: "Save my override" }) as HTMLButtonElement).disabled).toBe(false);
 });
 

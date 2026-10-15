@@ -12,7 +12,7 @@ const directions = { default: DEFAULT_DIRECTION, ...VIEW_DIRECTIONS };
 
 describe('3D camera framing', () => {
   for (const [boxName, box] of Object.entries(boxes)) for (const [view, dir] of Object.entries(directions)) for (const aspect of [1050 / 360, 1, 390 / 360]) {
-    it(`${boxName}, ${view} view, aspect ${aspect.toFixed(2)}: whole model in view, centred and filling the canvas`, () => {
+    it(`${boxName}, ${view} view, aspect ${aspect.toFixed(2)}: whole model in view, centerd and filling the canvas`, () => {
       const fov = 30;
       const framing = frameBox(box, new THREE.Vector3(...dir), fov, aspect);
       const ndc = projectedCorners(box, framing, fov, aspect);
@@ -20,7 +20,7 @@ describe('3D camera framing', () => {
       const minY = Math.min(...ndc.map(p => p.y)), maxY = Math.max(...ndc.map(p => p.y));
       // Every corner inside the canvas, with the breathing room the fill leaves.
       for (const p of ndc) { expect(Math.abs(p.x)).toBeLessThanOrEqual(FRAME_FILL + 1e-6); expect(Math.abs(p.y)).toBeLessThanOrEqual(FRAME_FILL + 1e-6); }
-      // Centred: the picture's extents are balanced about the middle of the canvas.
+      // Centerd: the picture's extents are balanced about the middle of the canvas.
       expect(Math.abs(minX + maxX) / 2).toBeLessThan(0.01);
       expect(Math.abs(minY + maxY) / 2).toBeLessThan(0.01);
       // Filling: the limiting axis reaches the fill share, so the model never sits small in the middle.

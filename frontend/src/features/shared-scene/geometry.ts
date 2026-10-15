@@ -23,7 +23,7 @@ export function tokenColor(name: string, fallback: string): string {
   return value || fallback;
 }
 
-/** Tag a material with its theme token so applySceneTheme can recolour it in place. */
+/** Tag a material with its theme token so applySceneTheme can recolor it in place. */
 export function themedMaterial<T extends THREE.Material & { color: THREE.Color }>(material: T, token: string, fallback: string): T {
   material.userData.sbToken = [token, fallback]; return material;
 }

@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * Colour and material appearance of stock elements.
+ * Color and material appearance of stock elements.
  *
  * The shield-construction vocabulary (braid, spiral, tape, foil drawn as distinct
  * textures) follows cab-stu packages/render-svg/src/cross-section.ts at commit
  * 6bbf79655deb572df9f11490ca38e4f739ce71fb (MIT, formless63); see NOTICE.
  *
- * Appearance is display only. A recorded colour is drawn as recorded. A metal's
- * typical colour may stand in for an unrecorded colour of that metal, and is
- * labelled as such. An unrecorded polymer colour or unrecorded material is never
+ * Appearance is display only. A recorded color is drawn as recorded. A metal's
+ * typical color may stand in for an unrecorded color of that metal, and is
+ * labeled as such. An unrecorded polymer color or unrecorded material is never
  * guessed: it is drawn as an explicit "unknown" hatch.
  */
 import type { SectionFeature } from './model';
 
 export type MaterialFamily =
-  | 'copper' | 'tinned-copper' | 'silver-plated-copper' | 'nickel-plated-copper' | 'copper-clad-aluminium'
-  | 'aluminium' | 'steel' | 'aluminium-foil'
+  | 'copper' | 'tinned-copper' | 'silver-plated-copper' | 'nickel-plated-copper' | 'copper-clad-aluminum'
+  | 'aluminum' | 'steel' | 'aluminum-foil'
   | 'pvc' | 'polyethylene' | 'foam-polyethylene' | 'fluoropolymer' | 'silicone' | 'polyurethane'
   | 'elastomer' | 'polypropylene' | 'nylon' | 'polyester-film' | 'polyimide' | 'paper' | 'textile'
   | 'unrecognized' | 'unrecorded';
-export type Finish = 'metal' | 'foil' | 'gloss' | 'satin' | 'matt' | 'foam' | 'fibre' | 'unknown';
-export type Texture = 'strands' | 'solid-metal' | 'braid' | 'spiral' | 'tape' | 'foil' | 'foam' | 'fibre' | 'none' | 'unknown';
+export type Finish = 'metal' | 'foil' | 'gloss' | 'satin' | 'matt' | 'foam' | 'fiber' | 'unknown';
+export type Texture = 'strands' | 'solid-metal' | 'braid' | 'spiral' | 'tape' | 'foil' | 'foam' | 'fiber' | 'none' | 'unknown';
 export type FillSource = 'recorded' | 'conventional-name' | 'material-typical' | 'kind-neutral' | 'unknown';
 
 export interface Appearance {
   /** Always a safe #rrggbb value. */
   base: string;
   fillSource: FillSource;
-  /** Tracer stripe from a "base/stripe" colour; always a safe #rrggbb value. */
+  /** Tracer stripe from a "base/stripe" color; always a safe #rrggbb value. */
   stripe?: string;
   family: MaterialFamily;
   finish: Finish;
@@ -42,10 +42,10 @@ export interface Appearance {
   notes: string[];
 }
 
-/** Conventional insulation colours; a recorded name is drawn as this conventional hue. */
+/** Conventional insulation colors; a recorded name is drawn as this conventional hue. */
 export const NAMED_COLORS: Readonly<Record<string, string>> = {
   black: '#1b1b1d', brown: '#6b4423', red: '#c62828', orange: '#e8741c', yellow: '#f2c20f',
-  green: '#1f8a3d', blue: '#1f5fbf', violet: '#7a3fa0', purple: '#7a3fa0', grey: '#8a9096', gray: '#8a9096',
+  green: '#1f8a3d', blue: '#1f5fbf', violet: '#7a3fa0', purple: '#7a3fa0', gray: '#8a9096', grey: '#8a9096',
   white: '#f4f4f0', pink: '#e58ab0', turquoise: '#2bb5b0', tan: '#c8a97a', natural: '#e9e4d0', clear: '#dfe7ea',
   gold: '#c9a227', silver: '#c0c4c8', copper: '#b87333',
 };
@@ -82,10 +82,10 @@ const SPEC: Record<MaterialFamily, FamilySpec> = {
   'tinned-copper': { label: 'Tinned copper', metal: true, typical: '#c3c8cb', finish: 'metal', metalness: 1, roughness: 0.38, clearcoat: 0 },
   'silver-plated-copper': { label: 'Silver-plated copper', metal: true, typical: '#d5d8db', finish: 'metal', metalness: 1, roughness: 0.28, clearcoat: 0 },
   'nickel-plated-copper': { label: 'Nickel-plated copper', metal: true, typical: '#aeb2b4', finish: 'metal', metalness: 1, roughness: 0.34, clearcoat: 0 },
-  'copper-clad-aluminium': { label: 'Copper-clad aluminium', metal: true, typical: '#b87333', finish: 'metal', metalness: 1, roughness: 0.36, clearcoat: 0 },
-  'aluminium': { label: 'Aluminium', metal: true, typical: '#c9ced3', finish: 'metal', metalness: 1, roughness: 0.4, clearcoat: 0 },
+  'copper-clad-aluminum': { label: 'Copper-clad aluminum', metal: true, typical: '#b87333', finish: 'metal', metalness: 1, roughness: 0.36, clearcoat: 0 },
+  'aluminum': { label: 'Aluminum', metal: true, typical: '#c9ced3', finish: 'metal', metalness: 1, roughness: 0.4, clearcoat: 0 },
   'steel': { label: 'Steel', metal: true, typical: '#9aa0a6', finish: 'metal', metalness: 1, roughness: 0.36, clearcoat: 0 },
-  'aluminium-foil': { label: 'Aluminium foil', metal: true, typical: '#d2d7dc', finish: 'foil', metalness: 1, roughness: 0.25, clearcoat: 0 },
+  'aluminum-foil': { label: 'Aluminum foil', metal: true, typical: '#d2d7dc', finish: 'foil', metalness: 1, roughness: 0.25, clearcoat: 0 },
   'pvc': { label: 'PVC', metal: false, finish: 'satin', metalness: 0, roughness: 0.45, clearcoat: 0.15 },
   'polyethylene': { label: 'Polyethylene', metal: false, finish: 'satin', metalness: 0, roughness: 0.5, clearcoat: 0.05 },
   'foam-polyethylene': { label: 'Foam polyethylene', metal: false, finish: 'foam', metalness: 0, roughness: 0.92, clearcoat: 0 },
@@ -97,8 +97,8 @@ const SPEC: Record<MaterialFamily, FamilySpec> = {
   'nylon': { label: 'Nylon', metal: false, finish: 'satin', metalness: 0, roughness: 0.45, clearcoat: 0.05 },
   'polyester-film': { label: 'Polyester film', metal: false, finish: 'gloss', metalness: 0, roughness: 0.25, clearcoat: 0.3 },
   'polyimide': { label: 'Polyimide', metal: false, finish: 'gloss', metalness: 0, roughness: 0.3, clearcoat: 0.2 },
-  'paper': { label: 'Paper', metal: false, finish: 'fibre', metalness: 0, roughness: 0.95, clearcoat: 0 },
-  'textile': { label: 'Textile / fibre', metal: false, finish: 'fibre', metalness: 0, roughness: 0.95, clearcoat: 0 },
+  'paper': { label: 'Paper', metal: false, finish: 'fiber', metalness: 0, roughness: 0.95, clearcoat: 0 },
+  'textile': { label: 'Textile / fiber', metal: false, finish: 'fiber', metalness: 0, roughness: 0.95, clearcoat: 0 },
   'unrecognized': { label: 'Unrecognized', metal: false, finish: 'unknown', metalness: 0, roughness: 0.6, clearcoat: 0 },
   'unrecorded': { label: 'Unknown', metal: false, finish: 'unknown', metalness: 0, roughness: 0.6, clearcoat: 0 },
 };
@@ -106,13 +106,13 @@ const SPEC: Record<MaterialFamily, FamilySpec> = {
 /** Ordered: specific before general. Words are matched on lower-cased free text. */
 const RULES: [RegExp, MaterialFamily][] = [
   [/copper[- ]?clad[- ]?steel|\bccs\b/, 'steel'],
-  [/copper[- ]?clad[- ]?alumin|\bcca\b/, 'copper-clad-aluminium'],
+  [/copper[- ]?clad[- ]?alumin|\bcca\b/, 'copper-clad-aluminum'],
   [/tinned|tin[- ]?plated|\bsn[- ]?cu\b/, 'tinned-copper'],
   [/silver|\bag[- ]?cu\b/, 'silver-plated-copper'],
   [/nickel|\bni[- ]?cu\b/, 'nickel-plated-copper'],
-  [/(alumin(i)?um|\bal\b).*(foil|mylar|laminate|tape)|(foil|mylar|laminate).*(alumin(i)?um|\bal\b)/, 'aluminium-foil'],
+  [/(alumin(i)?um|\bal\b).*(foil|mylar|laminate|tape)|(foil|mylar|laminate).*(alumin(i)?um|\bal\b)/, 'aluminum-foil'],
   [/\bcopper\b|\bcu\b|\bofc\b|\betp\b/, 'copper'],
-  [/alumin(i)?um|\bal\b/, 'aluminium'],
+  [/alumin(i)?um|\bal\b/, 'aluminum'],
   [/steel|stainless/, 'steel'],
   [/foam|cellular|gas[- ]?injected/, 'foam-polyethylene'],
   [/ptfe|teflon|\bfep\b|\bpfa\b|\betfe\b|fluoro/, 'fluoropolymer'],
@@ -126,7 +126,7 @@ const RULES: [RegExp, MaterialFamily][] = [
   [/polypropylene|\bpp\b/, 'polypropylene'],
   [/nylon|polyamide/, 'nylon'],
   [/paper/, 'paper'],
-  [/cotton|textile|fibre|fiber|yarn|aramid|kevlar|glass|cord|braid(ed)? (yarn|thread)/, 'textile'],
+  [/cotton|textile|fiber|fiber|yarn|aramid|kevlar|glass|cord|braid(ed)? (yarn|thread)/, 'textile'],
 ];
 export function classifyMaterial(material: string | null | undefined): MaterialFamily {
   if (material == null || material.trim() === '') return 'unrecorded';
@@ -145,11 +145,11 @@ function textureFor(feature: { kind: SectionFeature['kind']; construction?: Sect
     return feature.construction === "stranded" ? 'strands' : 'solid-metal';
   }
   if (spec.finish === 'foam') return 'foam';
-  if (spec.finish === 'fibre') return 'fibre';
+  if (spec.finish === 'fiber') return 'fiber';
   return spec.finish === 'unknown' ? 'unknown' : 'none';
 }
 
-/** Neutral matte mid-grey for an unrecorded colour: readable on dark and light surfaces, never a guessed hue. */
+/** Neutral matte mid-gray for an unrecorded color: readable on dark and light surfaces, never a guessed hue. */
 export const UNKNOWN_FILL = '#7d838b';
 
 /** The resolved display appearance of one stock element. */
@@ -168,10 +168,10 @@ export function appearanceOf(feature: { kind: SectionFeature['kind']; color?: st
   let base: string; let fillSource: FillSource; let stripe: string | undefined;
   if (color.status === 'known') {
     base = color.hex; fillSource = color.named ? 'conventional-name' : 'recorded'; stripe = color.stripe;
-    if (color.named) notes.push('named colour drawn in its conventional hue');
+    if (color.named) notes.push('named color drawn in its conventional hue');
   } else {
-    if (color.reason === 'unparseable') notes.push(`colour "${feature.color}" not understood`); else notes.push('colour not recorded');
-    if (spec.metal && spec.typical) { base = spec.typical; fillSource = 'material-typical'; notes.push(`drawn in the typical colour of ${spec.label.toLowerCase()}`); }
+    if (color.reason === 'unparseable') notes.push(`color "${feature.color}" not understood`); else notes.push('color not recorded');
+    if (spec.metal && spec.typical) { base = spec.typical; fillSource = 'material-typical'; notes.push(`drawn in the typical color of ${spec.label.toLowerCase()}`); }
     else if (metalLike) { base = '#a9afb6'; fillSource = 'kind-neutral'; notes.push('metal hue unknown; neutral metallic shown'); }
     else { base = UNKNOWN_FILL; fillSource = 'unknown'; }
   }
@@ -185,7 +185,7 @@ export function appearanceOf(feature: { kind: SectionFeature['kind']; color?: st
 /** True when nothing but the structural kind determined the drawn fill. */
 export const isUnknownFill = (a: Appearance): boolean => a.fillSource === 'unknown';
 
-/* ---- colour arithmetic (display only) ---- */
+/* ---- color arithmetic (display only) ---- */
 function channels(hex: string): [number, number, number] {
   return [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 }

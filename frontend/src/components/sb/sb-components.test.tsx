@@ -15,7 +15,7 @@ test("quantity states are distinct and unknown never renders as zero", () => {
   const { container } = render(<>
     <SbQuantityField label="Installed" value={1200} unit="mm" basis="manual declaration" />
     <SbQuantityField label="Shield" value={null} unit="mm" />
-    <SbQuantityField label="Overmould" value={null} state="na" note="no overmould on this end" />
+    <SbQuantityField label="Overmold" value={null} state="na" note="no overmold on this end" />
     <SbQuantityField label="Strip" value="-4" unit="mm" state="invalid" note="Must be 0 or more." />
   </>);
   const states = [...container.querySelectorAll(".sb-q")].map((el) => el.getAttribute("data-state"));
@@ -23,7 +23,7 @@ test("quantity states are distinct and unknown never renders as zero", () => {
   expect((screen.getByLabelText("Installed") as HTMLInputElement).value).toBe("1200");
   expect((screen.getByLabelText("Shield") as HTMLInputElement).value).toBe("");
   expect(screen.getByLabelText("Shield").getAttribute("placeholder")).toBe("– – –");
-  expect((screen.getByLabelText("Overmould") as HTMLInputElement).value).toBe("n/a");
+  expect((screen.getByLabelText("Overmold") as HTMLInputElement).value).toBe("n/a");
   expect(screen.getByLabelText("Strip").getAttribute("aria-invalid")).toBe("true");
   expect(screen.getByText("Must be 0 or more.")).toBeTruthy();
   expect(screen.getAllByText("mm")).toHaveLength(3);
@@ -39,8 +39,8 @@ test("a known zero stays zero and an editable field reports the raw entry", () =
 });
 
 test("a not-applicable field is never editable", () => {
-  render(<SbQuantityField label="Overmould" value={null} state="na" onChange={() => { throw new Error("edited"); }} />);
-  expect((screen.getByLabelText("Overmould") as HTMLInputElement).readOnly).toBe(true);
+  render(<SbQuantityField label="Overmold" value={null} state="na" onChange={() => { throw new Error("edited"); }} />);
+  expect((screen.getByLabelText("Overmold") as HTMLInputElement).readOnly).toBe(true);
 });
 
 test("inline quantity shows value with separate unit, unknown and n/a", () => {

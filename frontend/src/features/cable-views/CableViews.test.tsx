@@ -8,7 +8,7 @@ beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve(
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const show = (stock = shieldedPair(), props = {}) => render(<MantineProvider><CableViews stock={stock} name="Synthetic pair" {...props} /></MantineProvider>);
 
-test('section tab draws recorded colours and selecting a key entry adds a reticle without recolouring', () => {
+test('section tab draws recorded colors and selecting a key entry adds a reticle without recoloring', () => {
   show();
   const drawing = screen.getByLabelText('Cable section drawing');
   const before = drawing.querySelector('[data-element="stock.jacket"] path')!.getAttribute('fill');
@@ -18,10 +18,10 @@ test('section tab draws recorded colours and selecting a key entry adds a reticl
   expect(screen.getByLabelText('Cable section drawing').querySelector('[data-element="stock.jacket"] path')!.getAttribute('fill')).toBe(before);
 });
 
-test('unrecorded colour is stated, not guessed', () => {
+test('unrecorded color is stated, not guessed', () => {
   show(unrecordedCoax());
-  expect(screen.getAllByRole('button', { name: /colour unknown/ }).length).toBe(2);
-  expect(screen.getByText(/Hatched elements have no recorded colour or material/)).toBeTruthy();
+  expect(screen.getAllByRole('button', { name: /color unknown/ }).length).toBe(2);
+  expect(screen.getByText(/Hatched elements have no recorded color or material/)).toBeTruthy();
 });
 
 test('end faces mirror between ends and report how the ring reads', () => {
@@ -60,7 +60,7 @@ test('an unknown viewed-from end gives no face', () => {
   expect(screen.getByText(/End A face unavailable/)).toBeTruthy();
 });
 
-test('information tab lists materials and colours with unknowns spelled out', () => {
+test('information tab lists materials and colors with unknowns spelled out', () => {
   show(unrecordedCoax());
   fireEvent.click(screen.getByRole('tab', { name: 'Information' }));
   expect(screen.getByRole('table', { name: 'Layer information' }).textContent).toContain('Unknown');

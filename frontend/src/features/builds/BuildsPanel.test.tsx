@@ -236,7 +236,7 @@ test('an interrupted build is described as not final, since its runner can still
   await open();
   expect(screen.getByText(/This is not final/)).toBeTruthy();
   expect(screen.getByText(/report its real outcome, including success/)).toBeTruthy();
-  expect(screen.queryByText(/never relabelled/)).toBeNull();
+  expect(screen.queryByText(/never relabeled/)).toBeNull();
 });
 
 test('a runner-reported resolved image ID is shown with the pin, even without a receipt', async () => {

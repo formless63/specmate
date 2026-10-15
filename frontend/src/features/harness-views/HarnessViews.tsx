@@ -57,7 +57,7 @@ export function HarnessViews({ revisionId, harness, quantity = 1, title, resolve
   const bar = board.bars.find(b => b.sectionId === selected);
   if (harness.sections.length === 0) return <Text>No physical sections are declared, so there is nothing to draw.</Text>;
   return <Stack gap="xs" aria-label="Harness views">
-    {failed && <Alert color="red">{failed.error instanceof Error ? failed.error.message : 'A stock could not be read.'} Colours and names for that stock are unknown.</Alert>}
+    {failed && <Alert color="red">{failed.error instanceof Error ? failed.error.message : 'A stock could not be read.'} Colors and names for that stock are unknown.</Alert>}
     {loading && <Text role="status" size="sm">Reading exact stock revisions…</Text>}
     <Tabs defaultValue="formboard" keepMounted={false}>
       <Tabs.List><Tabs.Tab value="formboard">Formboard</Tabs.Tab>{revisionId && <Tabs.Tab value="sheet">Build sheet</Tabs.Tab>}{revisionId && <Tabs.Tab value="print">Full-scale print and labels</Tabs.Tab>}</Tabs.List>

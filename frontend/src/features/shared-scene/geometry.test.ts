@@ -42,7 +42,7 @@ test('stock uses independent 6 mm diameter and 12.5 mm declared length; unknown 
 });
 
 test('inert mechanical models and missing geometry remain reported without unit or position guesses', () => {
-  const scene = syntheticScene(); scene.geometry = [{ ...scene.geometry[0]!, type: 'unavailable_model', units: null, frame: null, millimetre_factor: null, quality: 'declared_unextracted', role: 'clearance' }];
+  const scene = syntheticScene(); scene.geometry = [{ ...scene.geometry[0]!, type: 'unavailable_model', units: null, frame: null, millimeter_factor: null, quality: 'declared_unextracted', role: 'clearance' }];
   const before = structuredClone(scene), object = buildSceneObject(scene, 'inspection');
   expect(object.group.children).toHaveLength(0);
   expect(object.unknown).toContain('right/board: Native model remains inert; geometry unavailable.');
@@ -89,7 +89,7 @@ test('bridged outline gaps get one marker point each at the chord midpoint', () 
   object.dispose();
 });
 
-test('applySceneTheme recolours tagged materials in place without rebuilding geometry', () => {
+test('applySceneTheme recolors tagged materials in place without rebuilding geometry', () => {
   document.documentElement.style.setProperty('--sb-review', '#112233');
   const fixture = syntheticScene(); const board = fixture.geometry.find(g => g.type === 'pcb_planar')!;
   if (board.type === 'pcb_planar') board.outline_bridged_gaps = [{ at: [40, -10, 0], to: [40, -12, 0], size_mm: 2 }];

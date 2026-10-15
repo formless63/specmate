@@ -27,7 +27,7 @@ function mount() {
   render(<MantineProvider><QueryClientProvider client={client}><EvidencePanel workspaceId="ws-1" /></QueryClientProvider></MantineProvider>);
 }
 
-test("a manual rating and a physical measurement are labelled as different kinds", async () => {
+test("a manual rating and a physical measurement are labeled as different kinds", async () => {
   const urls: string[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     urls.push(url);

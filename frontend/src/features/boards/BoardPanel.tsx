@@ -21,7 +21,7 @@ const TRACE_WORDS: Record<string, string> = {
   modeled_no_ideal_short: "no ideal short", modeled_blocked: "blocked", modeled_signal_candidate: "declared signal path", unknown: "unknown",
 };
 
-/** Boards lens: labelled pads, the connector a board carries and declared pad-to-pad paths. */
+/** Boards lens: labeled pads, the connector a board carries and declared pad-to-pad paths. */
 export function BoardPanel({ projectId }: { projectId: string | null }) {
   return <Boards key={projectId ?? "library"} projectId={projectId} />;
 }
@@ -55,7 +55,7 @@ function Boards({ projectId }: { projectId: string | null }) {
   const boards = (definitions.data ?? []).filter((d) => d.kind === "board");
   return <Stack>
     <Title order={2}>Boards</Title>
-    <Text size="sm">A board's labelled pads, the connector it carries and how pads are joined on the board: straight copper, through a part such as a series resistor, or through a switch or jumper state. Bought boards are typed by hand; KiCad boards can be proposed from an accepted import for review. Anything not declared stays unknown.</Text>
+    <Text size="sm">A board's labeled pads, the connector it carries and how pads are joined on the board: straight copper, through a part such as a series resistor, or through a switch or jumper state. Bought boards are typed by hand; KiCad boards can be proposed from an accepted import for review. Anything not declared stays unknown.</Text>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     <Group align="end">
       <Select label="Board" searchable placeholder={boards.length ? "Choose a board" : "No boards yet"} data={boards.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />

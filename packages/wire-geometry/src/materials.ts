@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Physically based materials and procedural surface textures for the wire viewer.
- * Colours come only from the shared appearance model: a recorded colour is used as
+ * Colors come only from the shared appearance model: a recorded color is used as
  * recorded, an unrecorded one is neutral and its surface carries a visible hatch.
  * Textures are generated in code (no image assets, fonts or licensed models).
  */
@@ -20,7 +20,7 @@ const fract = (v: number): number => v - Math.floor(v);
 const crown = (f: number): number => { const c = 2 * f - 1; return Math.sqrt(Math.max(0, 1 - c * c)); };
 
 /**
- * Greyscale RGBA tile multiplied with the base colour (and used as a bump map for metals). Returns null
+ * Grayscale RGBA tile multiplied with the base color (and used as a bump map for metals). Returns null
  * for smooth surfaces. `u` runs along the cable, `v` once around it. A braid is two carrier families
  * crossing over and under, each carrier a few round ends wide; strands and a served (spiral) screen are
  * round wires laid side by side as a helix.
@@ -30,7 +30,7 @@ export function patternPixels(texture: Texture, size = TILE): Uint8Array | null 
   const data = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
     const u = x / size, v = y / size;
-    const wave = (t: number): number => Math.abs(fract(t) - 0.5) * 2; // 0 at line centre, 1 between
+    const wave = (t: number): number => Math.abs(fract(t) - 0.5) * 2; // 0 at line center, 1 between
     let shade = 1;
     switch (texture) {
       case 'strands': shade = 0.35 + 0.65 * crown(fract(7 * (u - v))); break;
@@ -39,13 +39,13 @@ export function patternPixels(texture: Texture, size = TILE): Uint8Array | null 
         const a = 4 * (u + v), b = 4 * (u - v);
         const over = (Math.floor(a) + Math.floor(b)) & 1;
         const along = over === 0 ? fract(b) : fract(a), across = over === 0 ? fract(a) : fract(b);
-        // Each carrier dips under its neighbour at both ends of its float.
+        // Each carrier dips under its neighbor at both ends of its float.
         shade = 0.2 + 0.8 * (0.55 + 0.45 * Math.sin(Math.PI * along)) * (0.35 + 0.65 * crown(fract(across * 4)));
         break;
       }
       case 'tape': shade = 0.72 + 0.28 * Math.min(1, wave(3 * v) * 1.5); break;
       case 'foam': shade = 0.8 + 0.2 * (0.5 + 0.5 * Math.sin(61 * u + 3 * Math.cos(47 * v)) * Math.cos(53 * v)); break;
-      case 'fibre': shade = 0.72 + 0.28 * Math.min(1, Math.min(wave(8 * u), wave(8 * v)) * 2); break;
+      case 'fiber': shade = 0.72 + 0.28 * Math.min(1, Math.min(wave(8 * u), wave(8 * v)) * 2); break;
       case 'unknown': shade = 0.55 + 0.45 * Math.min(1, wave(3 * (u + v)) * 1.4); break;
     }
     const value = Math.round(255 * Math.max(0, Math.min(1, shade)));
@@ -55,7 +55,7 @@ export function patternPixels(texture: Texture, size = TILE): Uint8Array | null 
   return data;
 }
 
-/** Textures whose relief is lit as well as coloured: a bump map raises the strand crowns. */
+/** Textures whose relief is lit as well as colored: a bump map raises the strand crowns. */
 const RELIEF = new Set<Texture>(['strands', 'spiral', 'braid']);
 
 export interface MaterialSet { materialFor(piece: WirePiece): THREE.Material; dispose(): void }
@@ -85,9 +85,9 @@ export function createMaterials(options: { environment: boolean }): MaterialSet 
       const map = textureFor(look.texture);
       const metal = look.metalness > 0.5;
       const relief = map && RELIEF.has(look.texture);
-      // A relief map is greyscale, so the colour map doubles as the bump map (one upload).
+      // A relief map is grayscale, so the color map doubles as the bump map (one upload).
       const surface = { ...(map ? { map } : {}), ...(relief ? { bumpMap: map, bumpScale: metal ? 1.2 : 0.8 } : {}) };
-      const plastic = !metal && look.fillSource !== 'unknown' && look.finish !== 'foam' && look.finish !== 'fibre';
+      const plastic = !metal && look.fillSource !== 'unknown' && look.finish !== 'foam' && look.finish !== 'fiber';
       // Plastics get a soft sheen, strongest on the overall jacket, so a dark jacket keeps its form.
       const sheen = plastic ? (piece.kind === 'jacket' ? 0.4 : 0.25) : 0;
       const material = new THREE.MeshPhysicalMaterial({

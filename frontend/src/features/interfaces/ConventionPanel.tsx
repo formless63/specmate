@@ -21,7 +21,7 @@ const KIND_LABELS: Record<ConductiveKind, string> = { conductor: "Conductor", sh
 export type StockElementChoice = { path: string; label: string; kind: ConductiveKind };
 type Node = { id: string; label: string; kind: string; children?: Node[] };
 
-/** Conductors, screens and drains of a stock construction, in tree order, labelled for people. */
+/** Conductors, screens and drains of a stock construction, in tree order, labeled for people. */
 export function conductiveElements(root: Node): StockElementChoice[] {
   const found: StockElementChoice[] = [];
   const visit = (node: Node, path: string, labels: string[]) => {
@@ -138,9 +138,9 @@ function UseCells({ who, use, signals, onUse, preference, onPreference, basis, o
 export function ConventionEditor({ value, onChange, definitions }: { value: Convention; onChange: (v: Convention) => void; definitions: Definition[] }) {
   const signalSet = useQuery({ queryKey: ["interface-inspect", value.signal_set_revision_id], queryFn: () => read<Inspection>(`interfaces/revisions/${value.signal_set_revision_id}`), enabled: !!value.signal_set_revision_id });
   const stock = useQuery({ queryKey: ["convention-stock", value.stock_revision_id], queryFn: () => loadFrozenStock(value.stock_revision_id!), enabled: !!value.stock_revision_id });
-  const [colour, setColour] = useState("");
+  const [color, setColor] = useState("");
   const [hex, setHex] = useState("");
-  const [colourKind, setColourKind] = useState<ConductiveKind | null>(null);
+  const [colorKind, setColorKind] = useState<ConductiveKind | null>(null);
   const signals = signalSet.data?.interface.kind === "signal_set" ? signalSet.data.interface.signals : [];
   const elements = stock.data ? conductiveElements(stock.data.structure as unknown as Node) : [];
   const ruleAt = (index: number, patch: Partial<ConventionRule>) => onChange({ ...value, rules: value.rules.map((r, i) => i === index ? { ...r, ...patch } : r) });
@@ -155,7 +155,7 @@ export function ConventionEditor({ value, onChange, definitions }: { value: Conv
   const heads = <><Table.Th>Use</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Preference</Table.Th><Table.Th>Basis</Table.Th></>;
   return <Stack gap="xs">
     <Group align="end">
-      <Select label="Convention scope" value={value.scope} data={[{ value: "stock", label: "One exact wire stock" }, { value: "colour_code", label: "General colour code" }]} onChange={(scope) => onChange({ ...value, scope: (scope ?? "stock") as Convention["scope"], stock_revision_id: null, rules: [] })} />
+      <Select label="Convention scope" value={value.scope} data={[{ value: "stock", label: "One exact wire stock" }, { value: "colour_code", label: "General color code" }]} onChange={(scope) => onChange({ ...value, scope: (scope ?? "stock") as Convention["scope"], stock_revision_id: null, rules: [] })} />
       <TextInput label="Description" value={value.description ?? ""} onChange={(e) => onChange({ ...value, description: e.currentTarget.value || null })} />
     </Group>
     <RevisionPicker label="Signal set" kind="signal_set" definitions={definitions} value={value.signal_set_revision_id || null} onChange={(id) => onChange({ ...value, signal_set_revision_id: id, rules: value.rules.map((r) => ({ ...r, use: { ...r.use, signal_key: null } })) })} />
@@ -175,11 +175,11 @@ export function ConventionEditor({ value, onChange, definitions }: { value: Conv
     </Table></Table.ScrollContainer>}
     {value.scope === "colour_code" && <>
       <Table.ScrollContainer minWidth={900}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
-        <Table.Thead><Table.Tr><Table.Th>Colour</Table.Th><Table.Th>Kind</Table.Th>{heads}<Table.Th /></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>Color</Table.Th><Table.Th>Kind</Table.Th>{heads}<Table.Th /></Table.Tr></Table.Thead>
         <Table.Tbody>{value.rules.map((rule, i) => {
-          const who = `${rule.colour ?? "colour"}${rule.element_kind ? ` ${KIND_LABELS[rule.element_kind].toLowerCase()}` : ""}`;
+          const who = `${rule.colour ?? "color"}${rule.element_kind ? ` ${KIND_LABELS[rule.element_kind].toLowerCase()}` : ""}`;
           return <Table.Tr key={`${rule.colour}:${rule.element_kind}:${i}`}>
-            <Table.Td><Text size="sm">{rule.colour}</Text>{rule.colour_hex ? <Text className="sb-mono" size="xs" c="dimmed">{rule.colour_hex}</Text> : <Text size="xs" c="dimmed">No exact display colour</Text>}</Table.Td>
+            <Table.Td><Text size="sm">{rule.colour}</Text>{rule.colour_hex ? <Text className="sb-mono" size="xs" c="dimmed">{rule.colour_hex}</Text> : <Text size="xs" c="dimmed">No exact display color</Text>}</Table.Td>
             <Table.Td>{rule.element_kind ? KIND_LABELS[rule.element_kind] : "Any"}</Table.Td>
             <UseCells who={who} clearable={false} use={rule.use} signals={signals} onUse={(use) => use && ruleAt(i, { use })} preference={rule.preference} onPreference={(preference) => ruleAt(i, { preference })} basis={rule.basis} onBasis={(basis) => ruleAt(i, { basis })} />
             <Table.Td><Button size="xs" variant="subtle" aria-label={`Remove ${who}`} onClick={() => onChange({ ...value, rules: value.rules.filter((_, j) => j !== i) })}>Remove</Button></Table.Td>
@@ -187,20 +187,20 @@ export function ConventionEditor({ value, onChange, definitions }: { value: Conv
         })}</Table.Tbody>
       </Table></Table.ScrollContainer>
       <Group align="end">
-        <TextInput label="Colour name" value={colour} onChange={(e) => setColour(e.currentTarget.value)} />
-        <TextInput label="Exact display colour" description="#RRGGBB; a stock matches only this exact colour" error={hexValid ? undefined : "Use #RRGGBB"} value={hex} onChange={(e) => setHex(e.currentTarget.value)} />
-        <Select label="Applies to" clearable placeholder="Any" value={colourKind} data={CONDUCTIVE_KINDS.map((k) => ({ value: k, label: KIND_LABELS[k] }))} onChange={(k) => setColourKind(k as ConductiveKind | null)} />
-        <Button disabled={!colour.trim() || !hexValid || value.rules.some((r) => r.colour?.trim().toLowerCase() === colour.trim().toLowerCase() && r.element_kind === colourKind)} onClick={() => { onChange({ ...value, rules: [...value.rules, { element_path: null, colour: colour.trim(), colour_hex: hex || null, element_kind: colourKind, use: blankUse("spare"), preference: "preferred", basis: null }] }); setColour(""); setHex(""); }}>Add colour rule</Button>
+        <TextInput label="Color name" value={color} onChange={(e) => setColor(e.currentTarget.value)} />
+        <TextInput label="Exact display color" description="#RRGGBB; a stock matches only this exact color" error={hexValid ? undefined : "Use #RRGGBB"} value={hex} onChange={(e) => setHex(e.currentTarget.value)} />
+        <Select label="Applies to" clearable placeholder="Any" value={colorKind} data={CONDUCTIVE_KINDS.map((k) => ({ value: k, label: KIND_LABELS[k] }))} onChange={(k) => setColorKind(k as ConductiveKind | null)} />
+        <Button disabled={!color.trim() || !hexValid || value.rules.some((r) => r.colour?.trim().toLowerCase() === color.trim().toLowerCase() && r.element_kind === colorKind)} onClick={() => { onChange({ ...value, rules: [...value.rules, { element_path: null, colour: color.trim(), colour_hex: hex || null, element_kind: colorKind, use: blankUse("spare"), preference: "preferred", basis: null }] }); setColor(""); setHex(""); }}>Add color rule</Button>
       </Group>
     </>}
     <Group><Select label="Convention review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: (v ?? "unreviewed") as Convention["review"] })} /><TextInput label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></Group>
   </Stack>;
 }
 
-/** Rows of a resolved convention: the element or colour, what it carries and how strongly. */
+/** Rows of a resolved convention: the element or color, what it carries and how strongly. */
 export function ConventionRows({ view }: { view: ConventionView }) {
   return <Table.ScrollContainer minWidth={640}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
-    <Table.Thead><Table.Tr><Table.Th>{view.scope === "stock" ? "Conductor" : "Colour"}</Table.Th><Table.Th>Kind</Table.Th><Table.Th>Usually used for</Table.Th><Table.Th>Preference</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
+    <Table.Thead><Table.Tr><Table.Th>{view.scope === "stock" ? "Conductor" : "Color"}</Table.Th><Table.Th>Kind</Table.Th><Table.Th>Usually used for</Table.Th><Table.Th>Preference</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
     <Table.Tbody>{view.rows.map((row) => <Table.Tr key={row.element_path ?? `${row.colour}:${row.element_kind}`}>
       <Table.Td className="sb-signal-name">{row.element_label ?? row.colour}{row.colour_hex && <Text className="sb-mono" size="xs" c="dimmed">{row.colour_hex}</Text>}{row.element_path && <Text className="sb-mono" size="xs" c="dimmed">{row.element_path}</Text>}</Table.Td>
       <Table.Td>{row.element_kind ? KIND_LABELS[row.element_kind] : "Any"}</Table.Td>
@@ -225,8 +225,8 @@ export function ConventionInspector({ revisionId }: { revisionId: string }) {
     {inspected.isError && <Alert color="red">{inspected.error.message}</Alert>}
     {view && <>
       <Group gap="lg">
-        <Stack gap={0}><Text className="sb-silk">Scope</Text><Text size="sm">{view.scope === "stock" ? "One exact wire stock" : "General colour code"}</Text></Stack>
-        <Stack gap={0}><Text className="sb-silk">Wire stock</Text><Text size="sm">{view.stock ? `${view.stock.name} · revision ${view.stock.number}` : "Any (matched by exact colour)"}</Text></Stack>
+        <Stack gap={0}><Text className="sb-silk">Scope</Text><Text size="sm">{view.scope === "stock" ? "One exact wire stock" : "General color code"}</Text></Stack>
+        <Stack gap={0}><Text className="sb-silk">Wire stock</Text><Text size="sm">{view.stock ? `${view.stock.name} · revision ${view.stock.number}` : "Any (matched by exact color)"}</Text></Stack>
         <Stack gap={0}><Text className="sb-silk">Signals</Text><Text size="sm">{view.signal_set.name} · revision {view.signal_set.number}</Text></Stack>
         <Stack gap={0}><Text className="sb-silk">Review</Text><Text size="sm">{value?.review ?? "unreviewed"}</Text></Stack>
         <Stack gap={0}><Text className="sb-silk">Effect</Text><Text size="sm">Preference only</Text></Stack>

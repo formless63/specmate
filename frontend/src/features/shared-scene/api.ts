@@ -19,7 +19,7 @@ type GeometryBase = {
 export type Geometry = GeometryBase & (
   { type: 'pcb_planar'; outline: Vec3[][]; cutouts: Vec3[][]; coverage: Record<string, string>; outline_bridged_gaps?: { at: Vec3; to: Vec3; size_mm: number }[] } |
   { type: 'wire_construction'; stock: StockSpecification; length_mm: string | null } |
-  { type: 'unavailable_model'; millimetre_factor: number | null }
+  { type: 'unavailable_model'; millimeter_factor: number | null }
 );
 export type SceneNode = ProjectionNode & {
   node_id: string; parent_path: string[]; local_transform: Matrix | null; world_transform: Matrix | null;

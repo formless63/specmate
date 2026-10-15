@@ -173,7 +173,7 @@ export function wireModel(section: Section, lengthMm: number, profile: DisplayPr
   return model;
 }
 
-/** Plain-text alternative to the 3D view: what is drawn, in which recorded colour and material. */
+/** Plain-text alternative to the 3D view: what is drawn, in which recorded color and material. */
 export function modelSummary(model: WireModel): string {
   const byPath = new Map<string, WirePiece[]>();
   for (const piece of model.pieces) byPath.set(piece.elementPath, [...(byPath.get(piece.elementPath) ?? []), piece]);
@@ -181,7 +181,7 @@ export function modelSummary(model: WireModel): string {
     const first = pieces[0]!;
     const look = appearanceOf({ kind: first.kind === 'pigtail' ? 'drain' : first.kind, color: first.color, material: first.material, construction: first.construction ?? null });
     const leads = pieces.filter(p => p.kind === 'pigtail').length;
-    return `${path}: ${look.materialLabel === 'Unknown' ? 'material unknown' : look.materialLabel}, colour ${look.colorLabel === 'Unknown' ? 'unknown' : look.colorLabel}${look.fillSource === 'unknown' ? ' (drawn neutral)' : ''}${leads > 0 ? `, ${leads} illustrative lead${leads === 1 ? '' : 's'}` : ''}`;
+    return `${path}: ${look.materialLabel === 'Unknown' ? 'material unknown' : look.materialLabel}, color ${look.colorLabel === 'Unknown' ? 'unknown' : look.colorLabel}${look.fillSource === 'unknown' ? ' (drawn neutral)' : ''}${leads > 0 ? `, ${leads} illustrative lead${leads === 1 ? '' : 's'}` : ''}`;
   });
   const size = model.bounds ? `, about ${(model.bounds.max[0] - model.bounds.min[0]).toFixed(1)} mm long` : '';
   const omitted = model.omitted.length > 0 ? ` ${model.omitted.length} element${model.omitted.length === 1 ? '' : 's'} not drawn: ${model.omitted.map(o => `${o.path} (${o.reason})`).join('; ')}.` : '';

@@ -4,7 +4,7 @@
  * The outline of a figure-8 (siamese / zip) cable end-on: two equal circles
  * — the legs' jackets — joined by a web of half-thickness `webHalf`, as one
  * closed SVG path. Works at any orientation (the
- * lobes' centres set it), so a rotated or mirrored end face draws with the
+ * lobes' centers set it), so a rotated or mirrored end face draws with the
  * same helper. Pure geometry: numbers in, a path string out, 3 dp.
  */
 

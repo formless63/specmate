@@ -1,5 +1,5 @@
 /*
- * Schematic Bench component styling. Colours and durations come from the CSS
+ * Schematic Bench component styling. Colors and durations come from the CSS
  * variables generated from schematic-bench.tokens.json (see schematicBench.ts).
  * Import after the Mantine stylesheets so these rules take precedence.
  */
@@ -27,14 +27,14 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
 .sb-led[data-state="active"] { background: var(--sb-accent); }
 .sb-led[data-state="review"] { background: var(--sb-review); }
 .sb-led[data-state="failed"] { background: var(--sb-invalid); border-radius: 0; }
-/* A passed check has its own colour; unknown is a hatched ring, so neither relies on hue alone. */
+/* A passed check has its own color; unknown is a hatched ring, so neither relies on hue alone. */
 .sb-led[data-state="pass"] { background: var(--sb-pass); }
 .sb-led[data-state="unknown"] { border: 1px solid var(--sb-review); background-image: repeating-linear-gradient(135deg, var(--sb-review) 0 1px, transparent 1px 3px); }
 .sb-led[data-state="idle"] { border: 1px solid var(--sb-accent); }
 .sb-led[data-state="not-evaluated"] { border: 1px solid var(--sb-text-tertiary); }
 
 /* ---- Buttons ----
- * Resting colours come from the theme variant resolver (schematicBench.ts), because Mantine
+ * Resting colors come from the theme variant resolver (schematicBench.ts), because Mantine
  * sets --button-* inline. Hover inversion for the outline family is stated here as real properties. */
 .mantine-Button-root, .mantine-ActionIcon-root { font-family: var(--sb-font-ui); font-weight: 600; letter-spacing: 0; text-transform: none; transition: background-color var(--sb-motion-snap) linear, color var(--sb-motion-snap) linear, border-color var(--sb-motion-snap) linear; }
 .mantine-Button-root:is([data-variant="quiet"], [data-variant="default"], [data-variant="light"], [data-variant="outline"], [data-variant="filled"]):hover:not([data-disabled], :disabled) { border-color: var(--sb-text-primary); }
@@ -196,7 +196,7 @@ body { background: var(--sb-surface-canvas); color: var(--sb-text-primary); font
  * outrank Mantine's own scheme-scoped selectors without !important.
  * ====================================================================== */
 
-/* ---- Surfaces: hairline panes, no grey fill blocks, no nested shading ---- */
+/* ---- Surfaces: hairline panes, no gray fill blocks, no nested shading ---- */
 html[data-mantine-color-scheme] :is(.mantine-Paper-root, .mantine-Card-root) { background: var(--sb-surface-panel); border: 1px solid var(--sb-border-subtle); box-shadow: none; color: var(--sb-text-primary); }
 html[data-mantine-color-scheme] :is(.mantine-Paper-root, .mantine-Card-root) :is(.mantine-Paper-root, .mantine-Card-root) { background: transparent; }
 html[data-mantine-color-scheme] .mantine-Card-section { border-color: var(--sb-border-subtle); }
@@ -230,7 +230,7 @@ html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-inp
 html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input, .mantine-PillsInput-input):is(:focus, :focus-within) { border-bottom-color: var(--sb-accent); box-shadow: 0 1px 0 var(--sb-accent); outline: none; }
 html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):is([data-error], [aria-invalid="true"]) { border-bottom: 1px dashed var(--sb-invalid); color: var(--sb-text-primary); }
 html[data-mantine-color-scheme] :is(.mantine-Input-input, .mantine-InputBase-input):is(:disabled, [data-disabled]) { background: transparent; color: var(--sb-text-disabled); border-bottom-style: dotted; opacity: 1; cursor: not-allowed; }
-/* Inspection: a form without its permission keeps its values as text; dotted rule, no grey wall */
+/* Inspection: a form without its permission keeps its values as text; dotted rule, no gray wall */
 html[data-mantine-color-scheme] [data-inspect] :is(input, textarea)[data-inspect-locked] { background: transparent; border-bottom-style: dotted; cursor: default; }
 html[data-mantine-color-scheme] [data-inspect] :is(select, input[type="checkbox"], input[type="radio"])[data-inspect-locked], html[data-mantine-color-scheme] [data-inspect] [aria-haspopup][data-inspect-locked] { pointer-events: none; }
 html[data-mantine-color-scheme] :is(.mantine-NumberInput-input, input[type="number"]) { font-family: var(--sb-font-data); font-variant-numeric: tabular-nums; }

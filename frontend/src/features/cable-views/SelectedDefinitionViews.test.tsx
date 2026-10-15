@@ -91,11 +91,11 @@ test('a draft with no stock chosen draws nothing and says unknown', async () => 
   expect(document.querySelector('[data-unknown="true"]')).not.toBeNull();
 });
 
-test('unrecorded dimensions and colours render as unknown in the cable views', async () => {
+test('unrecorded dimensions and colors render as unknown in the cable views', async () => {
   serve({ revisions: REVISIONS, stocks: { 'stock-1': unrecordedCoax() } });
   show(record('d1', 'Lead', { latest_revision: 2, latest_revision_id: 'cable-r2' }));
   await screen.findByLabelText('Cable section drawing');
-  expect(screen.getAllByRole('button', { name: /colour unknown/ }).length).toBeGreaterThan(0);
+  expect(screen.getAllByRole('button', { name: /color unknown/ }).length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole('tab', { name: 'Information' }));
   const layers = screen.getByRole('table', { name: 'Layer information' });
   expect(layers.textContent).toContain('Unknown');

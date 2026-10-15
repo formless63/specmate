@@ -58,7 +58,7 @@ test("an admin saves the declared ownership with the current state token", async
 
 const observation = { observation_id: "o1", kind: "supplier_offer", observed_on: "2026-10-01", valid_until: null, supplier: "Synthetic Supply", external_ref: "", price: null, availability: "unknown", lead_time_days: null, promoted_offer_id: null, attribution: { integration: "Synthetic ERP", file_sha256: "x", imported_by: { username: "owner" }, row_number: 3 } };
 
-test("observations are labelled unreviewed, unknown price stays unknown, and promotion needs a basis", async () => {
+test("observations are labeled unreviewed, unknown price stays unknown, and promotion needs a basis", async () => {
   const posts = fake([observation]);
   mount(["workspace.read", "item.create"], <ExternalObservations workspaceId="w" revisionId="r" name="Board" />);
   expect(await screen.findByText(/External observations \(not reviewed\): Board/)).toBeTruthy();

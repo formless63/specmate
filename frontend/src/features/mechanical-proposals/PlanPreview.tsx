@@ -17,7 +17,7 @@ export function PlanPreview({ proposal }: { proposal: Proposal }) {
   const x = frame.x0 - pad, y = frame.y0 - pad, w = frame.x1 - frame.x0 + 2 * pad, h = frame.y1 - frame.y0 + 2 * pad;
   const stroke = 'var(--sb-text-secondary)';
   return (
-    <svg role="img" aria-label="Plan view of the declared proposal geometry in millimetres" viewBox={`${x} ${y} ${w} ${h}`} style={{ width: '100%', maxHeight: 420, background: 'var(--sb-surface-sunken)' }}>
+    <svg role="img" aria-label="Plan view of the declared proposal geometry in millimeters" viewBox={`${x} ${y} ${w} ${h}`} style={{ width: '100%', maxHeight: 420, background: 'var(--sb-surface-sunken)' }}>
       {outer && <rect x={outer.x0} y={outer.y0} width={outer.x1 - outer.x0} height={outer.y1 - outer.y0} fill="none" stroke={stroke} strokeWidth={0.3} />}
       {cavity && <rect x={cavity.x0} y={cavity.y0} width={cavity.x1 - cavity.x0} height={cavity.y1 - cavity.y0} fill="none" stroke={stroke} strokeWidth={0.3} strokeDasharray="1.5 1" />}
       {envelope && <rect x={envelope.x0} y={envelope.y0} width={envelope.x1 - envelope.x0} height={envelope.y1 - envelope.y0} fill="none" stroke="var(--sb-text-primary)" strokeWidth={0.4} />}

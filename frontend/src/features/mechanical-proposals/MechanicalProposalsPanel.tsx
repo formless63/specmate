@@ -176,7 +176,7 @@ function Workspace({ workspaceId }: { workspaceId: string }) {
             <Select label="Wall" data={sideData} allowDeselect={false} value={c.side} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, side: (value ?? 'east') as Side } : x) }))} />
             <Button variant="risk" disabled={readOnly} onClick={() => change(f => ({ ...f, connectors: f.connectors.filter((_, i) => i !== index) }))}>Remove opening</Button>
           </Group>
-          <Group grow align="start">{([['lateral_offset_mm', 'Centreline offset from origin along wall'], ['width_mm', 'Envelope width'], ['height_mm', 'Envelope height'], ['center_above_board_mm', 'Centre above board surface'], ['clearance_mm', 'Opening clearance per side']] as const).map(([key, label]) =>
+          <Group grow align="start">{([['lateral_offset_mm', 'Centerline offset from origin along wall'], ['width_mm', 'Envelope width'], ['height_mm', 'Envelope height'], ['center_above_board_mm', 'Center above board surface'], ['clearance_mm', 'Opening clearance per side']] as const).map(([key, label]) =>
             <Field key={key} label={label} value={c[key]} onChange={value => change(f => ({ ...f, connectors: f.connectors.map((x, i) => i === index ? { ...x, [key]: value } : x) }))} />)}</Group>
         </Stack></Card>)}
       </Section>

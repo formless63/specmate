@@ -105,7 +105,7 @@ export function planLabelSheet(labels: LabelSpec[], title: string, input: Partia
     if (pageCount > MAX_PAGES) err('too-many-pages', `This sheet needs ${pageCount} pages (limit ${MAX_PAGES}).`);
     if (slot === 0) warnings.push({ code: 'no-labels', severity: 'warn', text: 'There are no labels to print.' });
   }
-  if (cal.error === null && s.measuredRulerMm === null) warnings.push({ code: 'uncalibrated', severity: 'warn', text: 'Not calibrated: label sizes hold only if the printer honours the page size. Measure the 100 mm ruler on a first print and enter it.' });
+  if (cal.error === null && s.measuredRulerMm === null) warnings.push({ code: 'uncalibrated', severity: 'warn', text: 'Not calibrated: label sizes hold only if the printer honors the page size. Measure the 100 mm ruler on a first print and enter it.' });
   const ok = warnings.every(w => w.severity !== 'error');
   return { ok, settings: s, pageWidthMm: pageW, pageHeightMm: pageH, cols: ok ? cols : 0, rows: ok ? rows : 0, perPage: ok ? cols * rows : 0, pageCount: ok ? pageCount : 0, labels: ok ? placed : [], unfit, warnings, calibration: { measuredMm: s.measuredRulerMm, factor: c }, title };
 }

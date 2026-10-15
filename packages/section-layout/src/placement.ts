@@ -6,7 +6,7 @@
  * A node sits at its parent's position plus its own `x_mm`/`y_mm` offset. Members
  * (conductors and nested groups) of a ring, linear or figure-eight group also take
  * the arrangement displacement from the group's pitch: rings start at 12 o'clock and
- * step in the stated screen direction (y grows downward); linear rows are centred.
+ * step in the stated screen direction (y grows downward); linear rows are centerd.
  * A member of an arranged group with an unknown pitch, or any node with a null
  * (unknown) offset, has an unknown position.
  */

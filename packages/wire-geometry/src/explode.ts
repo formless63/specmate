@@ -15,7 +15,7 @@ const EPS = 1e-9;
 
 const clamp01 = (v: number): number => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
 const radiusOf = (p: WirePiece): number => (p.shape === 'tube' ? p.rOuter : Math.hypot(p.size[1], p.size[2]) / 2);
-const centreOf = (p: WirePiece): [number, number] => (p.shape === 'tube' ? [p.points[0]![1], p.points[0]![2]] : [p.center[1], p.center[2]]);
+const centerOf = (p: WirePiece): [number, number] => (p.shape === 'tube' ? [p.points[0]![1], p.points[0]![2]] : [p.center[1], p.center[2]]);
 
 /**
  * Explode offsets by piece id. Layers are ordered by the largest recorded outer radius of their element
@@ -38,7 +38,7 @@ export function explodeOffsets(model: WireModel, amount: number, mode: ExplodeMo
   } else {
     const reach = Math.max(...radius.values()) * MAX_RADIAL_RADII;
     for (const piece of model.pieces) {
-      const [y, z] = centreOf(piece);
+      const [y, z] = centerOf(piece);
       const d = Math.hypot(y, z);
       if (d <= EPS) continue;
       out.set(piece.id, [0, (y / d) * reach * t, (z / d) * reach * t]);

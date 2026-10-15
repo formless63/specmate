@@ -58,21 +58,21 @@ export function placeOnFace(x: number, y: number, mirrored: boolean, rotationDeg
 /** Steps of the shield pick-up search along its wall, and the clearance it seeks, as a share of the wall radius. */
 const PICKUP_STEP = Math.PI / 12;
 export const PICKUP_CLEARANCE = 0.45;
-/** Least angle, seen from the ring centre, between the pick-up and any off-centre terminal: their leaders leave apart. */
+/** Least angle, seen from the ring center, between the pick-up and any off-center terminal: their leaders leave apart. */
 export const PICKUP_SEPARATION = (25 * Math.PI) / 180;
 
 /**
  * The point on a shield wall nearest its preferred angle that stands clear of the other terminals: far
- * enough from each, and at a different bearing from the ring centre, so no two leaders run together.
+ * enough from each, and at a different bearing from the ring center, so no two leaders run together.
  * Falls back to the clearest point within a quarter turn.
  */
-export function shieldPickup(centre: { x: number; y: number }, mid: number, preferred: number, others: readonly { x: number; y: number }[]): { x: number; y: number } {
+export function shieldPickup(center: { x: number; y: number }, mid: number, preferred: number, others: readonly { x: number; y: number }[]): { x: number; y: number } {
   const clean = (v: number): number => Math.abs(v) < 1e-12 ? 0 : v;
-  const point = (a: number) => ({ x: clean(centre.x + mid * Math.cos(a)), y: clean(centre.y + mid * Math.sin(a)) });
+  const point = (a: number) => ({ x: clean(center.x + mid * Math.cos(a)), y: clean(center.y + mid * Math.sin(a)) });
   const clearance = (p: { x: number; y: number }): number => Math.min(Infinity, ...others.map(o => Math.hypot(o.x - p.x, o.y - p.y)));
   const apart = (a: number): boolean => others.every(o => {
-    if (Math.hypot(o.x - centre.x, o.y - centre.y) <= mid * 0.2) return true;
-    const d = Math.abs(Math.atan2(Math.sin(Math.atan2(o.y - centre.y, o.x - centre.x) - a), Math.cos(Math.atan2(o.y - centre.y, o.x - centre.x) - a)));
+    if (Math.hypot(o.x - center.x, o.y - center.y) <= mid * 0.2) return true;
+    const d = Math.abs(Math.atan2(Math.sin(Math.atan2(o.y - center.y, o.x - center.x) - a), Math.cos(Math.atan2(o.y - center.y, o.x - center.x) - a)));
     return d >= PICKUP_SEPARATION - 1e-9;
   });
   let best = point(preferred), bestClear = -1;
@@ -117,8 +117,8 @@ export function endFaceLayout(section: Section, end: StockEnd, options: EndFaceO
   // A shield ring is picked up at its wall on the outward side, measured on the screen after turning,
   // turned along the wall (upward first) just far enough to stand clear of every other terminal.
   for (const { row, feature, mid } of shields) {
-    const centre = placeOnFace(feature.x, feature.y, mirrored, rotation);
-    const at = shieldPickup(centre, mid, outward === -1 ? Math.PI : 0, terminals);
+    const center = placeOnFace(feature.x, feature.y, mirrored, rotation);
+    const at = shieldPickup(center, mid, outward === -1 ? Math.PI : 0, terminals);
     terminals.push({ path: row.path, role: 'shield', tag: row.tag, label: `${row.tag} ${row.label}`, ...at });
   }
   terminals.sort((p, q) => section.rows.findIndex(r => r.path === p.path) - section.rows.findIndex(r => r.path === q.path));

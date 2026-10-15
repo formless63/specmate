@@ -12,7 +12,7 @@ import { sumDecimals } from './model';
 import { endpointPins } from './model';
 import type { End, EndInfoMap, HarnessTerminal, HarnessView, StockMap } from './model';
 
-/** `labels` maps exact revision IDs to display names such as `Power harness r4`; unlabelled IDs print as given. */
+/** `labels` maps exact revision IDs to display names such as `Power harness r4`; unlabeled IDs print as given. */
 /** `ends` carries each endpoint's resolved stack (terminal labels, typed signals, parts); without it, terminals print by ID and signals as unknown. */
 export interface BuildSheetInput { title: string; revisionId: string; harness: HarnessView; stocks: StockMap; quantity: number; labels?: Record<string, string>; ends?: EndInfoMap }
 export interface CutRow {
@@ -57,7 +57,7 @@ export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
   const lengths = harness.sections.map(s => s.planned_cut_length_mm);
   const notes: string[] = [];
   if (cuts.some(c => c.lengthMm === null)) notes.push('At least one section has no planned cut length, so totals are unknown.');
-  for (const s of harness.sections) if (!stocks[s.stock_revision_id]) notes.push(`Stock ${s.stock_revision_id} could not be read; its element names and colours are unknown.`);
+  for (const s of harness.sections) if (!stocks[s.stock_revision_id]) notes.push(`Stock ${s.stock_revision_id} could not be read; its element names and colors are unknown.`);
 
   const lookFor = (segmentId: string, path: string): { label: string; look: Appearance | null } => {
     const seg = segments.get(segmentId);
@@ -104,7 +104,7 @@ export function buildSheetModel(input: BuildSheetInput): BuildSheetModel {
 /* ------------------------------------------------------------------ standalone HTML */
 const esc = (t: string): string => t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const swatch = (look: Appearance | null): string => look === null ? '' : look.fillSource === 'unknown'
-  ? `<span class="cs-sw cs-sw-unknown" title="colour unknown"></span>` : `<span class="cs-sw" style="background:${look.base}" title="${esc(look.colorLabel)}"></span>`;
+  ? `<span class="cs-sw cs-sw-unknown" title="color unknown"></span>` : `<span class="cs-sw" style="background:${look.base}" title="${esc(look.colorLabel)}"></span>`;
 const CSS = `@layer cs{.cs-root{font:13px/1.4 system-ui,sans-serif;color:#14181d;background:#fff}.cs-root h1{font-size:20px;margin:0 0 4px}.cs-root h2{font-size:16px;margin:0 0 8px;border-bottom:1px solid #98a2ac}.cs-page{padding:16px;page-break-after:always;break-after:page}.cs-page:last-child{page-break-after:auto;break-after:auto}.cs-root table{border-collapse:collapse;width:100%;margin:8px 0}.cs-root th,.cs-root td{border:1px solid #98a2ac;padding:3px 6px;text-align:left;vertical-align:top}.cs-root th{background:#f3f5f7}.cs-sw{display:inline-block;width:12px;height:12px;border:1px solid #14181d;border-radius:50%;vertical-align:middle;margin-right:5px}.cs-sw-unknown{background:repeating-linear-gradient(45deg,#d9dde2 0 3px,#5f6870 3px 4px)}.cs-note{color:#5b6570}.cs-warn{color:#a8410f}.cs-fig svg{max-width:100%;height:auto}@page{size:A4 landscape;margin:12mm}}`;
 
 export function renderBuildSheetHtml(model: BuildSheetModel, options: { formboardSvg?: string } = {}): string {

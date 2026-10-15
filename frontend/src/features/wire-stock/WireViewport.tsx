@@ -75,7 +75,7 @@ export default function WireViewport({ model }: { model: WireModel }) {
     container.appendChild(element);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     // Transparent canvas: the host's themed surface (and dot grid) shows through. Neutral tone mapping
-    // keeps recorded colours' hues while taming metal highlights.
+    // keeps recorded colors' hues while taming metal highlights.
     renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1;
     const scene = new THREE.Scene();
     // Image-based light gives metals and glossy jackets something to reflect. Optional: absent in minimal contexts.

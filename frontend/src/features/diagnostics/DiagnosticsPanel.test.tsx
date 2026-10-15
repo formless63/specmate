@@ -53,7 +53,7 @@ test("a read-only member cannot cancel and is told why", async () => {
   expect(screen.getByText(/Read-only access: requires Native execution/)).toBeTruthy();
 });
 
-test("cancelling sends the stage state token and reports a requested, unconfirmed stop honestly", async () => {
+test("canceling sends the stage state token and reports a requested, unconfirmed stop honestly", async () => {
   const fetchMock = vi.fn(async (path: string, options?: RequestInit) => {
     if (path === "/api/v0/operations") return reply({ result: { state: "cancellation_requested" } });
     void options;
