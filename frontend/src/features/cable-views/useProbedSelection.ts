@@ -25,7 +25,14 @@ export function useProbedSelection({ kind, definitions, definitionId, revisions,
   const definitionApplied = useRef<string | null>(null);
   const revisionApplied = useRef<string | null>(null);
   useEffect(() => {
-    if (!object || definitionApplied.current === object) return;
+    if (!object) {
+      // Clearing navigation ends the applied-selection epoch, without touching the
+      // retained editor. Reopening the same address must select it again.
+      definitionApplied.current = null;
+      revisionApplied.current = null;
+      return;
+    }
+    if (definitionApplied.current === object) return;
     if (!definitions?.some(d => d.definition_id === object && d.kind === kind)) return;
     definitionApplied.current = object; revisionApplied.current = null;
     if (object !== definitionId) pickDefinition(object);

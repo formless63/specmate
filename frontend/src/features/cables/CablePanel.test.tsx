@@ -6,6 +6,8 @@ import { CableEditor, CableInspector, CablePanel } from './CablePanel';
 import { initialCable, type Cable } from './api';
 import { PermissionsProvider } from '../../lib/permissions';
 import { unknownElectrical, unknownOrientation } from '../interfaces/api';
+import { createMemoryHistory } from "@tanstack/react-router";
+import { NavigationProvider, useNavigation } from "../navigation";
 import { ProbeProvider } from '../probe';
 
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
@@ -419,4 +421,45 @@ test('a new cable starts with both ends unchosen and names the missing piece ins
   fireEvent.click(screen.getByRole('button', { name: 'Create cable draft' }));
   expect(await screen.findByText('End B: choose a connector body.')).toBeTruthy();
   expect(screen.getByText('End B: choose a connector pinout variant.')).toBeTruthy();
+});
+
+
+test('reopening exact cable A after a manual B selection restores A without clearing B on a rail switch', async () => {
+  Element.prototype.scrollIntoView = vi.fn();
+  const definitions = ['a', 'b'].map(id => ({ definition_id: id, name: `Synthetic cable ${id.toUpperCase()}`, kind: 'cable' }));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    let data: unknown;
+    if (url.includes('catalog/definitions/')) {
+      const id = /definitions\/([^?]+)/.exec(url)![1]!;
+      data = { ...definitions.find(row => row.definition_id === id), drafts: [{ draft_id: `draft-${id}`, state: `state-${id}` }], revisions: [{ revision_id: `${id}-r1`, number: 1 }, { revision_id: `${id}-r2`, number: 2 }] };
+    } else if (url.includes('cables/drafts/')) data = { definition_id: 'b', draft_id: 'draft-b', state: 'state-b', content: { cable: initialCable() } };
+    else if (url.includes('cables/revisions/')) data = inspected({ ...initialCable(), stock_revision_id: '' });
+    else if (url.includes('revision-labels')) data = { labels: [], source_labels: [] };
+    else data = definitions;
+    return new Response(JSON.stringify(data), { status: 200 });
+  }));
+  const history = createMemoryHistory({ initialEntries: ['/designs/a@1'] });
+  function RetainedCable() {
+    const navigation = useNavigation()!;
+    return <ProbeProvider probe={navigation.location.probe} onProbe={() => {}}>
+      <button onClick={() => navigation.navigate({ area: 'history', lens: 'history', probe: null })}>Open History rail</button>
+      <button onClick={() => navigation.navigate({ area: 'designs', lens: 'cables', probe: { object: 'a', rev: 1, path: [] } })}>Reopen exact cable A</button>
+      <div hidden={navigation.location.lens === 'history'}><CablePanel /></div>
+    </ProbeProvider>;
+  }
+  render(wrap(<NavigationProvider history={history}><RetainedCable /></NavigationProvider>));
+  const definition = () => screen.getByRole('combobox', { name: 'Existing cable definition' }) as HTMLInputElement;
+  await waitFor(() => expect(definition().value).toBe('Synthetic cable A (cable)'));
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Inspect frozen cable' }) as HTMLInputElement).value).toBe('Synthetic cable A · r1'));
+  await select('Existing cable definition', 'Synthetic cable B (cable)');
+  await select('Edit cable draft', 'draft-b · state-b');
+  await screen.findByText('Edit draft'); openTab('Cable', 'draft');
+  fireEvent.change(screen.getByLabelText('Review basis'), { target: { value: 'Retained unsaved B basis' } });
+  fireEvent.click(screen.getByText('Open History rail'));
+  await waitFor(() => expect(history.location.pathname).toBe('/history'));
+  expect((screen.getByDisplayValue('Retained unsaved B basis') as HTMLInputElement).value).toBe('Retained unsaved B basis');
+  fireEvent.click(screen.getByText('Reopen exact cable A'));
+  await waitFor(() => expect(definition().value).toBe('Synthetic cable A (cable)'));
+  await waitFor(() => expect((screen.getByRole('combobox', { name: 'Inspect frozen cable' }) as HTMLInputElement).value).toBe('Synthetic cable A · r1'));
+  expect((screen.getByRole('combobox', { name: 'Edit cable draft' }) as HTMLInputElement).value).toBe('');
 });
