@@ -138,3 +138,20 @@ Update current schemas and examples together; coordinate consumers and reset dis
 state when justified. Do not maintain a compatibility layer for every experimental API.
 Retained predecessor import formats and deliberately exported data have separate product
 obligations. At v1.0.0 define the supported schema/API and workflow upgrade baseline.
+
+## Workspace presentation defaults
+
+`workspace.settings.get` is a fresh workspace read; `workspace.settings.update` requires
+`workspace.admin` and its workspace settings state token. The typed payload contains
+document presentation defaults and an optional numbering scheme. Numbering is off
+when no scheme is configured. A scheme describes checks and proposals; saving it
+never assigns or rewrites identifiers. Maker preferences remain separate defaults,
+never facts or compatibility evidence (FND-006, FND-007, AGT-003).
+
+New coordinated document inputs may include `document_settings`: copied title-block
+fields and a declared `source_settings_version` (not verified settings history). The reviewer may edit the copied designer or
+other fields before review. These exact values participate in the reviewed input hash
+and the retained generator /3 output. A printed rights line grants no distribution
+rights; `rights_reviews` and `output_rights` retain their separate meaning. Existing
+configurations without this field keep their /2 serialization and bytes. Reading or
+printing a retained set never looks up current workspace settings (PRE-004).

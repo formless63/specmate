@@ -1,0 +1,787 @@
+{
+  "$defs": {
+    "ChoiceSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "type": {
+          "const": "choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/ChoiceValue"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "values"
+      ],
+      "title": "ChoiceSegment",
+      "type": "object"
+    },
+    "ChoiceValue": {
+      "additionalProperties": false,
+      "properties": {
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_]{0,79}$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "value": {
+          "pattern": "^[A-Za-z0-9]{1,8}$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ChoiceValue",
+      "type": "object"
+    },
+    "CounterRange": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "maximum": 999999999999,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "$ref": "#/$defs/Span"
+                  }
+                ]
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclude"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "maximum": 999999999999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "match": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "items": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match"
+        },
+        "spans": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Span"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spans"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "maximum": 999999999999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To"
+        }
+      },
+      "title": "CounterRange",
+      "type": "object"
+    },
+    "CounterSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "maximum": 999999999999,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "$ref": "#/$defs/Span"
+                  }
+                ]
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclude"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "per": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 12,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Per"
+        },
+        "ranges": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/CounterRange"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ranges"
+        },
+        "type": {
+          "const": "counter",
+          "title": "Type",
+          "type": "string"
+        },
+        "width": {
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "width"
+      ],
+      "title": "CounterSegment",
+      "type": "object"
+    },
+    "DeclarativeScheme": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "immutable": {
+          "default": true,
+          "title": "Immutable",
+          "type": "boolean"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "segments": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "choice": "#/$defs/ChoiceSegment",
+                "counter": "#/$defs/CounterSegment",
+                "variant": "#/$defs/VariantSegment"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ChoiceSegment"
+              },
+              {
+                "$ref": "#/$defs/CounterSegment"
+              },
+              {
+                "$ref": "#/$defs/VariantSegment"
+              }
+            ]
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "title": "Segments",
+          "type": "array"
+        },
+        "src": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Src"
+        },
+        "template": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Template",
+          "type": "string"
+        },
+        "type": {
+          "const": "declarative",
+          "title": "Type",
+          "type": "string"
+        },
+        "validation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SchemeValidation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "template",
+        "segments"
+      ],
+      "title": "DeclarativeScheme",
+      "type": "object"
+    },
+    "DocumentTitleBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "designer": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Designer"
+        },
+        "label_qr_url": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label Qr Url"
+        },
+        "organization": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Organization"
+        },
+        "paper": {
+          "anyOf": [
+            {
+              "enum": [
+                "A4",
+                "A3",
+                "letter",
+                "legal"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paper"
+        },
+        "rights_line": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights Line"
+        },
+        "title_block": {
+          "anyOf": [
+            {
+              "enum": [
+                "iso7200",
+                "ansi"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title Block"
+        }
+      },
+      "title": "DocumentTitleBlock",
+      "type": "object"
+    },
+    "PrefixScheme": {
+      "additionalProperties": false,
+      "properties": {
+        "allowRevisionSuffix": {
+          "default": false,
+          "title": "Allowrevisionsuffix",
+          "type": "boolean"
+        },
+        "digits": {
+          "default": 5,
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Digits",
+          "type": "integer"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "prefixes": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,79}$": {
+              "pattern": "^[A-Z0-9]{1,8}$",
+              "type": "string"
+            }
+          },
+          "title": "Prefixes",
+          "type": "object"
+        },
+        "separator": {
+          "default": "-",
+          "maxLength": 2,
+          "title": "Separator",
+          "type": "string"
+        },
+        "src": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Src"
+        }
+      },
+      "required": [
+        "prefixes"
+      ],
+      "title": "PrefixScheme",
+      "type": "object"
+    },
+    "SchemeValidation": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "regex": {
+          "default": null,
+          "title": "Regex",
+          "type": "null"
+        }
+      },
+      "title": "SchemeValidation",
+      "type": "object"
+    },
+    "Span": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "From",
+          "type": "integer"
+        },
+        "to": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "To",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "Span",
+      "type": "object"
+    },
+    "VariantSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "first": {
+          "anyOf": [
+            {
+              "maxLength": 12,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kinds": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_]{0,79}$",
+                "type": "string"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kinds"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "maxLength": 12,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "optional": {
+          "default": false,
+          "title": "Optional",
+          "type": "boolean"
+        },
+        "style": {
+          "enum": [
+            "numeric",
+            "alpha"
+          ],
+          "title": "Style",
+          "type": "string"
+        },
+        "type": {
+          "const": "variant",
+          "title": "Type",
+          "type": "string"
+        },
+        "width": {
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "style",
+        "width"
+      ],
+      "title": "VariantSegment",
+      "type": "object"
+    },
+    "WorkspaceSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "documents": {
+          "$ref": "#/$defs/DocumentTitleBlock"
+        },
+        "numbering": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrefixScheme"
+            },
+            {
+              "$ref": "#/$defs/DeclarativeScheme"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Numbering"
+        }
+      },
+      "title": "WorkspaceSettings",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "values": {
+      "$ref": "#/$defs/WorkspaceSettings"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "values"
+  ],
+  "title": "UpdateSettings",
+  "type": "object"
+}

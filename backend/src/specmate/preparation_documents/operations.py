@@ -9,7 +9,6 @@ from specmate.design.models import Revision
 from specmate.operations import Conflict, Context, NotFound, ValidationFailed, operation
 from specmate.operations.models import IdempotencyRecord
 from specmate.preparation_documents.contracts import (
-    GENERATOR,
     Configuration,
     Download,
     InputAuthority,
@@ -145,7 +144,7 @@ def generate(ctx: Context, p: Configuration):
             configuration=p.model_dump(mode="json"),
             manifest=manifest,
             sha256=projection["inputs_sha256"],
-            generator=GENERATOR,
+            generator=projection["inputs"]["generator"],
             created_by=ctx.user,
             request_id=ctx.request_id,
         )

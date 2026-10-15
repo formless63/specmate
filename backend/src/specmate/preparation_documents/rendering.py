@@ -132,10 +132,43 @@ def test_tables(tests):
     )
 
 
+def title_block(inputs):
+    """Only explicit copied fields print. Old retained configurations use no live defaults."""
+    snapshot = inputs["configuration"].get("document_settings")
+    if snapshot is None:
+        return "", ""
+    rows = [
+        ("Organization", snapshot.get("organization")),
+        ("Designer", snapshot.get("designer")),
+        ("Printed rights / confidentiality line", snapshot.get("rights_line")),
+        ("Label QR address", snapshot.get("label_qr_url")),
+    ]
+    cells = "".join(
+        f"<tr><th>{html.escape(label)}</th><td>{html.escape(value or 'Not declared')}</td></tr>"
+        for label, value in rows
+    )
+    version = snapshot["source_settings_version"]
+    layout = snapshot.get("title_block") or "generic"
+    block = (
+        f'<section class="document-title-block {layout}"><h2>Document title block</h2>'
+        f"<p>Copied defaults, reviewed values. Declared settings version {version}. "
+        "Printed text does not grant distribution rights.</p>"
+        f"<table>{cells}</table></section>"
+    )
+    paper = snapshot.get("paper")
+    style = f"@page{{size:{paper};}}" if paper else ""
+    if layout == "iso7200":
+        style += ".document-title-block{margin-left:auto;max-width:32em}"
+    elif layout == "ansi":
+        style += ".document-title-block,.document-title-block table{width:100%}"
+    return block, style
+
+
 def render(projection):
     inputs = projection["inputs"]
     sha = projection["inputs_sha256"]
     sections = projection["sections"]
+    title, title_style = title_block(inputs)
     envelope = {
         "inputs": inputs,
         "inputs_sha256": sha,
@@ -328,12 +361,15 @@ def render(projection):
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta http-equiv="Content-Security-Policy" '
         "content=\"default-src 'none'; style-src 'unsafe-inline'\">"
-        "<title>Coordinated build sheet</title><style>body{font:14px sans-serif;margin:2em}"
+        "<title>Coordinated build sheet</title><style>"
+        + title_style
+        + "body{font:14px sans-serif;margin:2em}"
         "pre{white-space:pre-wrap;overflow-wrap:anywhere}section{break-inside:avoid}"
         "h2{font-size:1.2em}h3{font-size:1em}table{border-collapse:collapse;margin:.5em 0}"
         "td,th{border:1px solid #888;padding:2px 6px;text-align:left}</style></head><body>"
         "<h1>Coordinated declared build sheet</h1><p>Not a release or physical qualification. "
         "Missing inputs stay unknown.</p>"
+        + title
         + termination_tables(sections["terminations"])
         + test_tables(sections["test_intent"])
         + "".join(blocks)

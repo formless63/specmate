@@ -3,11 +3,12 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_serializer, model_validator
 
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.preparation.contracts import Application
 from specmate.selected_packages.contracts import RightsReview
+from specmate.workspace_settings.contracts import DocumentSettingsSnapshot
 
 GENERATOR = "specmate.preparation-documents/2"
 FORMAT = "specmate.coordinated-document-set/0.1"
@@ -52,6 +53,15 @@ class Binding(StrictModel):
 
 
 class Configuration(StrictModel):
+    document_settings: DocumentSettingsSnapshot | None = None
+
+    @model_serializer(mode="wrap")
+    def legacy_serialization(self, handler):
+        values = handler(self)
+        if self.document_settings is None:
+            values.pop("document_settings", None)
+        return values
+
     root_revision_id: UUID
     quantity: int | None = Field(default=1, ge=1, le=1_000_000, strict=True)
     bom_plan_revision_id: UUID | None = None

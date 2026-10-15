@@ -248,7 +248,9 @@ def project(user, configuration):
             )
     common = {
         "format": FORMAT,
-        "generator": GENERATOR,
+        "generator": "specmate.preparation-documents/3"
+        if configuration.document_settings
+        else GENERATOR,
         "root": root_pin,
         "configuration": configuration.model_dump(mode="json"),
         "revision_pins": revisions,

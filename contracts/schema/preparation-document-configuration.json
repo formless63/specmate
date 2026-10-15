@@ -73,6 +73,107 @@
       "title": "Binding",
       "type": "object"
     },
+    "DocumentSettingsSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "designer": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Designer"
+        },
+        "label_qr_url": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label Qr Url"
+        },
+        "organization": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Organization"
+        },
+        "paper": {
+          "anyOf": [
+            {
+              "enum": [
+                "A4",
+                "A3",
+                "letter",
+                "legal"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paper"
+        },
+        "rights_line": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights Line"
+        },
+        "source_settings_version": {
+          "minimum": 0,
+          "title": "Source Settings Version",
+          "type": "integer"
+        },
+        "title_block": {
+          "anyOf": [
+            {
+              "enum": [
+                "iso7200",
+                "ansi"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title Block"
+        }
+      },
+      "required": [
+        "source_settings_version"
+      ],
+      "title": "DocumentSettingsSnapshot",
+      "type": "object"
+    },
     "EndBinding": {
       "additionalProperties": false,
       "properties": {
@@ -198,6 +299,17 @@
       ],
       "default": null,
       "title": "Bom Plan Revision Id"
+    },
+    "document_settings": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DocumentSettingsSnapshot"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "output_rights": {
       "default": "unknown",
