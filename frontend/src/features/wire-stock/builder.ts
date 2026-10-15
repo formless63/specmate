@@ -223,7 +223,9 @@ function screens(spec: BuilderSpec, bore: Known): { layers: RoundElement[]; oute
 function jacket(spec: BuilderSpec, content: Known): RoundElement {
   const { od_mm: od, wall_mm: wall, material, color } = spec.jacket;
   // Entered outer diameter and wall define the bore; otherwise the jacket fits the content.
-  const inner = od !== null && wall !== null ? od - 2 * wall : content;
+  // A bore at or beyond the entered outer diameter cannot be real: it stays unknown.
+  const fitted = od === null || (content !== null && content < od) ? content : null;
+  const inner = od !== null && wall !== null ? od - 2 * wall : fitted;
   const outer = od !== null ? od : add(content, mul(wall, 2));
   return round(spec, 'jacket', 'Jacket', 'jacket', outer, inner, { material, color });
 }

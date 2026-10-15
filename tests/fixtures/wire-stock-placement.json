@@ -1742,6 +1742,165 @@
         "checks": 9,
         "findings": []
       }
+    },
+    {
+      "name": "jacket outer diameter below its contents with unknown wall",
+      "why": "A jacket narrower than the screen it covers fails even though its bore is unknown; the checks that depend on the unknown bore stay not evaluated.",
+      "stock": {
+        "schema_version": "1",
+        "construction": "coax",
+        "viewed_from": "a",
+        "structure": {
+          "id": "stock",
+          "label": "Stock",
+          "kind": "group",
+          "role": "stock",
+          "arrangement": "concentric",
+          "pitch_mm": null,
+          "direction": "ccw",
+          "children": [
+            {
+              "id": "center",
+              "label": "Center",
+              "kind": "conductor",
+              "outer_diameter_mm": 1,
+              "inner_diameter_mm": 0,
+              "material": null,
+              "color": null,
+              "source": "Original synthetic arithmetic fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "dielectric",
+              "label": "Dielectric",
+              "kind": "dielectric",
+              "outer_diameter_mm": 2,
+              "inner_diameter_mm": 1,
+              "material": null,
+              "color": null,
+              "source": "Original synthetic arithmetic fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "screen",
+              "label": "Screen",
+              "kind": "shield",
+              "outer_diameter_mm": 2.4,
+              "inner_diameter_mm": 2,
+              "material": null,
+              "color": null,
+              "source": "Original synthetic arithmetic fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            },
+            {
+              "id": "jacket",
+              "label": "Jacket",
+              "kind": "jacket",
+              "outer_diameter_mm": 2.0,
+              "inner_diameter_mm": null,
+              "material": null,
+              "color": "#222222",
+              "source": "Original synthetic arithmetic fixture",
+              "x_mm": 0,
+              "y_mm": 0,
+              "construction": null,
+              "area_mm2": null
+            }
+          ],
+          "material": null,
+          "color": null,
+          "source": "Original synthetic arithmetic fixture",
+          "x_mm": 0,
+          "y_mm": 0
+        },
+        "facts": {
+          "voltage_rating": {
+            "value": null,
+            "unit": "V",
+            "source": null,
+            "status": "unknown"
+          },
+          "impedance": {
+            "value": null,
+            "unit": "ohm",
+            "source": null,
+            "status": "unknown"
+          }
+        }
+      },
+      "expected": {
+        "positions": {
+          "stock.center": [
+            0.0,
+            0.0
+          ],
+          "stock.dielectric": [
+            0.0,
+            0.0
+          ],
+          "stock.screen": [
+            0.0,
+            0.0
+          ],
+          "stock.jacket": [
+            0.0,
+            0.0
+          ]
+        },
+        "status": "problems",
+        "checks": 9,
+        "findings": [
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.jacket",
+              "stock.dielectric"
+            ],
+            "excess_mm": null,
+            "message": "stock.jacket within stock.dielectric: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.center",
+              "stock.jacket"
+            ],
+            "excess_mm": null,
+            "message": "stock.center within stock.jacket: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "containment",
+            "status": "not_evaluated",
+            "paths": [
+              "stock.dielectric",
+              "stock.jacket"
+            ],
+            "excess_mm": null,
+            "message": "stock.dielectric within stock.jacket: not evaluated; a dimension or position is unknown."
+          },
+          {
+            "code": "outside",
+            "status": "fail",
+            "paths": [
+              "stock.screen",
+              "stock.jacket"
+            ],
+            "excess_mm": 0.2,
+            "message": "stock.screen lies outside stock.jacket, the outer layer of stock."
+          }
+        ]
+      }
     }
   ]
 }

@@ -157,3 +157,14 @@ def test_unknown_geometry_does_not_need_acknowledgement(users, project):
         expected_state=record["state"],
     )
     assert frozen["geometry"]["not_evaluated"] > 0
+
+
+def test_jacket_narrower_than_contents_fails_even_with_unknown_wall():
+    report = evaluate(case("jacket outer diameter below its contents with unknown wall")["stock"])
+    assert report["status"] == "problems"
+    fails = [f for f in report["findings"] if f["status"] == "fail"]
+    assert [f["paths"] for f in fails] == [["stock.screen", "stock.jacket"]]
+    # Screen radius 1.2 against the jacket's outer radius 1.0.
+    assert fails[0]["excess_mm"] == pytest.approx(0.2)
+    # Checks that depend on the unknown bore never pass.
+    assert any(f["status"] == "not_evaluated" for f in report["findings"])
