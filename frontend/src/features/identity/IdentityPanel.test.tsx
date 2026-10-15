@@ -157,3 +157,27 @@ test("shows the exact model revision, flags unknown rights and registers a linke
   await waitFor(() => expect(calls).toHaveLength(2));
   expect(calls[1]).toMatchObject({ operation: "catalog.register_source_identifier", payload: { scheme: "url", identifier: "https://example.invalid/p", label: "Page", rights_status: "restricted", rights: "n/a" } });
 });
+
+test("hardware adapter starts with the existing hardware kind", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(library))));
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={cache}><IdentityPanel initialKind="hardware" /></QueryClientProvider></MantineProvider>);
+  expect((screen.getByLabelText("Definition kind") as HTMLInputElement).value).toBe("hardware");
+});
+
+test("an exact item outside the first definition and revision pages still opens its pinned catalog", async () => {
+  const { ProbeProvider } = await import("../probe");
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    calls.push(url);
+    if (url.includes("catalog/revisions/r75")) return new Response(JSON.stringify({ revision_id: "r75", variants: [{ variant_id: "v", manufacturer: "Synthetic", part_number: "HISTORIC-75", association_basis: "Synthetic" }], lots: [], representations: [], source_identifiers: [] }));
+    if (url.includes("catalog/definitions/off-page")) return new Response(JSON.stringify({ definition_id: "off-page", name: "Synthetic historic part", kind: "part", drafts: [], revisions: url.includes("offset=50") ? [{ revision_id: "r75", number: 75 }] : [{ revision_id: "r100", number: 100 }] }));
+    return new Response(JSON.stringify({ workspace_id: "w", project_id: null, results: [], next_after: null }));
+  }));
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider env="test"><QueryClientProvider client={cache}><ProbeProvider probe={{ object: "off-page", rev: 75, path: [] }} onProbe={vi.fn()}><IdentityPanel /></ProbeProvider></QueryClientProvider></MantineProvider>);
+  await waitFor(() => expect(calls.some(url => url.includes("catalog/revisions/r75"))).toBe(true));
+  expect(await screen.findByRole("cell", { name: "Synthetic / HISTORIC-75" })).toBeTruthy();
+  expect(calls.some(url => url.includes("offset=50&limit=50"))).toBe(true);
+  expect(calls.some(url => url.includes("catalog/revisions/r100"))).toBe(false);
+});

@@ -197,3 +197,11 @@ test("a body declares a reviewed mating partner by exact revision; nothing is in
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]?.payload.interface).toMatchObject({ kind: "connector_body", family: "Same family", mates_with: [{ body_revision_id: "socket-r1", correspondence: "same_contact_id", pairs: [], review: "reviewed", basis: "Synthetic drawing" }] });
 });
+
+test("New pinout adapter starts with logical pinout content", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]))));
+  render(wrap(<InterfacePanel initialKind="pinout" />));
+  expect((screen.getByRole("combobox", { name: "Interface definition kind" }) as HTMLInputElement).value).toBe("Logical pinout");
+  expect(screen.getByLabelText("Physical body exact revision ID")).toBeTruthy();
+  expect(screen.queryByLabelText("New physical contact ID")).toBeNull();
+});

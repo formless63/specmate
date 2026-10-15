@@ -1,0 +1,8 @@
+.typed-library { display: grid; gap: var(--sb-space-3, 12px); min-width: 0; }
+.typed-library-toolbar { min-width: 0; }
+.typed-library-search { flex: 1 1 220px; min-width: 0; }
+.typed-library-card { display: grid; min-width: 0; gap: 6px; align-content: start; }
+.typed-library-card > .lg-card { width: 100%; }
+.typed-library-card > .mantine-Checkbox-root { padding-inline: 6px; }
+.typed-library [aria-pressed="true"] { border-color: var(--sb-accent); color: var(--sb-accent); }
+@media (max-width: 600px) { .typed-library-toolbar > .mantine-Select-root { flex: 1 1 160px; min-width: 0; } }

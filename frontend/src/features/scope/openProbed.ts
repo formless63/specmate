@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useExactRevision } from "./exactRevision";
 import { useProbe } from "../probe";
 import { addProjectReference } from "../identity/api";
 
@@ -47,21 +48,46 @@ export async function referenceFromProject(projectId: string | null | undefined,
  * editor afterwards is never undone.
  */
 export function useOpenNewest(
-  identity: { definition_id: string; drafts: { draft_id: string }[]; revisions: { revision_id: string }[] } | undefined,
-  openDraft: (draftId: string) => void,
-  openRevision?: (revisionId: string) => void,
+  identity: { definition_id: string; drafts: { draft_id: string }[]; revisions: { revision_id: string; number?: number }[] } | undefined,
+  openDraft: (draftId: string | null) => void,
+  openRevision?: (revisionId: string | null) => void,
 ): (definitionId: string) => void {
+  const probe = useProbe()?.probe;
+  const exactNumber = probe?.rev;
+  const exactRequested = exactNumber !== null && exactNumber !== undefined;
+  const exact = useExactRevision(!!openRevision && exactRequested && identity?.definition_id === probe?.object);
   const pending = useRef<string | null>(null);
+  const [request, setRequest] = useState(0);
+  const applied = useRef<string | null>(null);
   const handlers = useRef({ openDraft, openRevision });
   handlers.current = { openDraft, openRevision };
   useEffect(() => {
-    if (!identity || pending.current !== identity.definition_id) return;
+    if (!identity) return;
+    const matchingProbe = !!probe && probe.object === identity.definition_id;
+    const key = matchingProbe ? `${probe.object}@${exactNumber ?? "latest"}` : null;
+    if (matchingProbe && exactRequested && handlers.current.openRevision) {
+      if (exact.isError) {
+        handlers.current.openDraft(null); handlers.current.openRevision(null);
+        pending.current = null; applied.current = null; return;
+      }
+      if (applied.current === key) return;
+      // Changing only @revision must also withdraw the previously opened state.
+      handlers.current.openDraft(null);
+      handlers.current.openRevision(null);
+      if (!exact.data || exact.isFetching) return;
+      pending.current = null;
+      applied.current = key;
+      handlers.current.openRevision(exact.data.revision_id);
+      return;
+    }
+    const returningToLatest = matchingProbe && applied.current?.startsWith(`${probe.object}@`) && applied.current !== key;
+    if (pending.current !== identity.definition_id && !returningToLatest) return;
     pending.current = null;
-    // A full page may have later revisions on the next one; leave that choice to the member.
+    applied.current = key;
     const revision = identity.revisions.length < 50 ? identity.revisions.at(-1) : undefined;
     if (revision && handlers.current.openRevision) { handlers.current.openRevision(revision.revision_id); return; }
     const draft = identity.drafts.at(-1);
     if (draft) handlers.current.openDraft(draft.draft_id);
-  }, [identity]);
-  return useCallback((definitionId: string) => { pending.current = definitionId; }, []);
+  }, [identity, probe?.object, exactNumber, exactRequested, exact.data, exact.isError, exact.isFetching, request]);
+  return useCallback((definitionId: string) => { pending.current = definitionId; setRequest(value => value + 1); }, []);
 }

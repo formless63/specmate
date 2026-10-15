@@ -56,12 +56,12 @@ export function workspaceServer(initial: Partial<WorkspaceState> = {}, extra?: (
       return reply({ workspace_id: "w1", role: state.role, permissions: ROLE_PERMISSIONS[state.role], results: state.projects, total: state.projects.length, next_after: null });
     }
     if (url.pathname.startsWith("/api/v0/workspace/projects/")) return reply(detailFor(state, decodeURIComponent(url.pathname.split("/").pop() ?? "")));
-    if (url.pathname === "/api/v0/workspace/library") {
+    if (["/api/v0/workspace/library", "/api/v0/workspace/library-table"].includes(url.pathname)) {
       const projectId = url.searchParams.get("project_id");
       const referencedOnly = url.searchParams.get("referenced_only") === "true";
       const rows = state.library.map((row) => ({ ...row, referenced: projectId ? row.used_in.some((use) => use.project_id === projectId) : null }))
         .filter((row) => !referencedOnly || row.referenced);
-      return reply({ workspace_id: "w1", family: url.searchParams.get("family"), project_id: projectId, results: rows, next_after: null });
+      return reply({ workspace_id: "w1", family: url.searchParams.get("family"), project_id: projectId, results: url.pathname.endsWith("library-table") ? rows.filter(row => url.searchParams.getAll("kinds").includes(row.kind ?? "")).map(row => ({ ...row, summary: { basis: row.latest_revision === null ? "newest_draft" : "latest_frozen", revision_id: row.latest_revision_id ?? null, draft_id: row.latest_revision === null ? `draft-${row.record_id}` : null, draft_version: row.latest_revision === null ? 1 : null, numbers: [], fields: [], flags: [] } })) : rows, next_after: null });
     }
     if (path === "/api/v0/operations") {
       const body = state.operations[state.operations.length - 1]!;

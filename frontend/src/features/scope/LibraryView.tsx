@@ -259,7 +259,7 @@ export function FilterInput({ onQuery, delay = 250 }: { onQuery: (query: string)
 const archivedGate = { allowed: false, reason: "Archived projects are read-only", props: { disabled: true as const, title: "Archived projects are read-only" } };
 type GateLike = { allowed: boolean; reason: string | undefined; props: { disabled?: true; title?: string } };
 
-function UsedInList({ record, currentProjectId, toolLabel, onOpen }: { record: LibraryRecord; currentProjectId: string | null; toolLabel: string; onOpen: (projectId: string, record: LibraryRecord) => void }) {
+export function UsedInList({ record, currentProjectId, toolLabel, onOpen }: { record: LibraryRecord; currentProjectId: string | null; toolLabel: string; onOpen: (projectId: string, record: LibraryRecord) => void }) {
   if (!record.referenceable) return <Text className="sb-dash-note">Projects do not reference {record.family.replaceAll("_", " ")} records directly.</Text>;
   if (record.used_in.length === 0) return <Text className="sb-dash-note">No project references {record.label}. It stays available in the library.</Text>;
   return <div className="sb-usedin" role="list" aria-label={`Projects using ${record.label}`}>
@@ -275,7 +275,7 @@ function UsedInList({ record, currentProjectId, toolLabel, onOpen }: { record: L
   </div>;
 }
 
-function AddButton({ record, projects, fixedProjectId, busy, gate, onAdd, label }: {
+export function AddButton({ record, projects, fixedProjectId, busy, gate, onAdd, label }: {
   record: LibraryRecord; projects: Project[]; fixedProjectId?: string; busy: boolean; gate: GateLike; label: string;
   onAdd: (choice: ReferenceChoice) => Promise<boolean>;
 }) {

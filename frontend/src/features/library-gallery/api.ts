@@ -35,6 +35,7 @@ export type LibraryPreview = {
   kind: string;
   source: "revision" | "draft" | "none";
   revision: number | null;
+  draft_version?: number | null;
   content: Record<string, unknown> | null;
   truncated: boolean;
   stock: Record<string, unknown> | null;

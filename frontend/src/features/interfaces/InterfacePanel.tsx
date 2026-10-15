@@ -22,13 +22,13 @@ import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
 const kinds = [{ value: "connector_body", label: "Connector body" }, { value: "pinout", label: "Logical pinout" }, { value: "interface_map", label: "External / internal mapping" }];
 /** Library interface definitions. `projectId` is optional context: new items are then also referenced by that project. */
-export function InterfacePanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string | null }) {
+export function InterfacePanel({ projectId = null, initialKind = "connector_body" }: { projectId?: string | null; initialKind?: "connector_body" | "pinout" }) { return <Workspace key={projectId ?? "library"} projectId={projectId} initialKind={initialKind} />; }
+function Workspace({ projectId, initialKind }: { projectId: string | null; initialKind: "connector_body" | "pinout" }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
   const [name, setName] = useState("");
-  const [value, setValue] = useState<Interface>(initialInterface("connector_body"));
+  const [value, setValue] = useState<Interface>(initialInterface(initialKind));
   const [definitionId, setDefinitionId] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);

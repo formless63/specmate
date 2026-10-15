@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { lazy } from "react";
+import { TYPED_LIBRARY_VIEWS } from "./components/library/LibraryList";
 import { App, ToolLoadingBoundary } from "./App";
 import { AREAS } from "./features/shell";
 import { primaryTools } from "./features/shell/areas";
@@ -71,13 +72,13 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
       const id = new URL(path, "http://test").pathname.split("/").pop();
       return reply(id === "s1" ? { ...library[0]!, record_id: "s1", kind: "wire_stock", label: "Bench stock" } : library[0]);
     }
-    if (path.startsWith("/api/v0/workspace/library?")) {
+    if (path.startsWith("/api/v0/workspace/library?") || path.startsWith("/api/v0/workspace/library-table?")) {
       const url = new URL(path, "http://test");
       const projectId = url.searchParams.get("project_id");
       const collection = [...library, { ...library[0]!, record_id: "s1", kind: "wire_stock", label: "Bench stock" }];
       const rows = collection.map((row) => ({ ...row, referenced: projectId ? row.used_in.some((use) => use.project_id === projectId) : null }))
         .filter((row) => url.searchParams.get("referenced_only") !== "true" || row.referenced);
-      return reply({ workspace_id: "w1", family: url.searchParams.get("family"), project_id: projectId, results: rows.filter(row => url.searchParams.getAll("kinds").includes(row.kind)), next_after: null });
+      return reply({ workspace_id: "w1", family: url.searchParams.get("family"), project_id: projectId, results: rows.filter(row => url.searchParams.getAll("kinds").includes(row.kind)).map(row => ({ ...row, summary: { basis: "latest_frozen", revision_id: row.latest_revision_id, draft_id: null, draft_version: null, numbers: [], fields: [], flags: [] } })), next_after: null });
     }
     if (path === "/api/v0/access/workspace") return reply({ workspace_id: "w1", name: "Workspace", role, permissions: ROLES[role] });
     if (path === "/api/v0/access/account-policy") return reply({ can_create_local_accounts: false });
@@ -310,9 +311,12 @@ test("Library is the editing home: every collection lens mounts its editor witho
       expect(await screen.findByRole("button", { name: create[toolId]! })).toBeTruthy();
       continue;
     }
-    expect(await screen.findByRole("region", { name: `${view.title} editor` })).toBeTruthy();
-    const list = await screen.findByRole("region", { name: `${view.title} in the library` });
-    expect(within(list).getByRole("button", { name: `New ${view.noun}` })).toBeTruthy();
+    const typed = TYPED_LIBRARY_VIEWS[toolId];
+    expect(await screen.findByRole("region", { name: `${typed?.title ?? view.title} editor` })).toBeTruthy();
+    const title = toolId === "interfaces" ? "Connector bodies" : typed?.title ?? `${view.title} in the library`;
+    const list = await screen.findByRole("region", { name: title });
+    const noun = toolId === "interfaces" ? "connector body" : typed?.noun ?? view.noun;
+    expect(within(list).getByRole("button", { name: `New ${noun}` })).toBeTruthy();
   }
   expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
   expect(screen.queryByText(/This tool could not be opened/)).toBeNull();
@@ -327,12 +331,12 @@ test("Library scope lists the lens's collection with Used in, and opening a use 
   const fetchMock = server({ authenticated: true }); renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   await openTool("Wire stocks");
-  expect(await screen.findByRole("heading", { name: "Wire stock in the library" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Wire stocks" })).toBeTruthy();
   expect(await screen.findByText("Bench stock")).toBeTruthy();
   expect(fetchMock.mock.calls.some(([path]) => String(path).includes("/projects/project-"))).toBe(false);
-  fireEvent.click(screen.getByRole("button", { name: "Show uses of Bench stock" }));
+  fireEvent.click(screen.getByRole("button", { name: "Bench stock" }));
   fireEvent.click(screen.getByRole("button", { name: "Open Wire stocks in Project B" }));
-  expect(await screen.findByRole("heading", { name: "Wire stock in this project" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Wire stocks" })).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Wire stocks" }).getAttribute("aria-selected")).toBe("true");
   expect(window.location.search).toContain("project=project-b");
   expect(screen.queryByRole("button", { name: /^Scope .*: switch$/ })).toBeNull();

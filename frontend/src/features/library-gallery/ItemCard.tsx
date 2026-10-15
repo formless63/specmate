@@ -67,8 +67,10 @@ export function revisionTag(item: CardItem): string {
  * dashed while only a draft exists), the name and a status LED with words. Selecting the card
  * opens the item. Thumbnails load lazily and in shared batches.
  */
-export function ItemCard({ item, principalKey, attention, usedIn, selected, related, onOpen, note, drawn = true, status: given }: {
+export function ItemCard({ item, principalKey, attention, usedIn, selected, related, onOpen, note, drawn = true, status: given, expectedState }: {
   item: CardItem;
+  /** A typed list pins the thumbnail to its selected saved state. */
+  expectedState?: { revision: number | null; draftVersion: number | null };
   /** Definitions are drawn from their content; other records show their kind glyph only. */
   drawn?: boolean;
   /** A fixed status for records without content to read (source bundles, stock accounts, …). */
@@ -90,14 +92,17 @@ export function ItemCard({ item, principalKey, attention, usedIn, selected, rela
     enabled: near && drawn, staleTime: 60_000, retry: false,
   });
   const loaded = preview.isError ? null : preview.data;
-  const status = given ?? cardStatus(loaded, attention);
+  const mismatch = !!expectedState && !!loaded && (expectedState.revision !== loaded.revision
+    || expectedState.revision === null && (loaded.source !== "draft" || expectedState.draftVersion !== loaded.draft_version));
+  const shown = mismatch ? null : loaded;
+  const status = preview.isError ? { led: "unknown" as const, words: "Not readable" } : mismatch ? { led: "unknown" as const, words: "Saved state changed; refresh the list" } : given ?? cardStatus(loaded, attention);
   const kind = item.kind ?? "item";
   const frozen = item.latest_revision !== null;
   return <button ref={ref} type="button" className="lg-card" data-status={attention?.status} data-selected={selected || undefined}
     data-related={related || undefined} aria-pressed={selected ?? false} onClick={onOpen}
     aria-label={`Open ${item.label}, ${kind.replaceAll("_", " ")} ${revisionTag(item)}, ${status.words}`}>
     <span className="lg-thumb">{!drawn ? <ItemThumb kind={kind} label={item.label} preview={GLYPH_ONLY} recordId={item.record_id} />
-      : near ? <ItemThumb kind={kind} label={item.label} preview={loaded} recordId={item.record_id} /> : <span className="lg-thumb-loading" aria-hidden="true" />}</span>
+      : near ? <ItemThumb kind={kind} label={item.label} preview={shown} recordId={item.record_id} /> : <span className="lg-thumb-loading" aria-hidden="true" />}</span>
     <span className="lg-card-body">
       <span className="lg-card-meta">
         <span className="lg-kind">{kind.replaceAll("_", " ")}</span>

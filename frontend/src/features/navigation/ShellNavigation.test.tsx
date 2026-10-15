@@ -32,16 +32,16 @@ test("an old exact board link moves to Boards with the revision and path intact"
   expect(within(inspector).getByText("r2 exact")).toBeTruthy(); expect(within(inspector).getByText("J1 / 3")).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Boards" }).getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("button", { name: "Library" }).getAttribute("aria-current")).toBe("page");
-  expect(await screen.findByRole("heading", { name: "Boards in the library" })).toBeTruthy();
-  const row = screen.getByRole("button", { name: "Hide uses of Main board" }).closest("tr")!; expect(row.getAttribute("data-probe")).toBe("selected");
-  const listed = fetchMock.mock.calls.map(([path]) => String(path)).find(path => path.startsWith("/api/v0/workspace/library?"))!;
+  expect(await screen.findByRole("heading", { name: "Boards" })).toBeTruthy();
+  const row = screen.getByRole("button", { name: "Main board" }).closest("tr")!; expect(row.getAttribute("data-selected")).toBe("true");
+  const listed = fetchMock.mock.calls.map(([path]) => String(path)).find(path => path.startsWith("/api/v0/workspace/library-table?"))!;
   expect(new URL(listed, "http://test").searchParams.getAll("kinds")).toEqual(["board", "pcb_population"]);
   await at("/library/boards/b1@2/~/J1/3");
 });
 
 test("selection and rail changes remain browser history entries", async () => {
   serve(); start("/design?lens=pcb");
-  fireEvent.click(await screen.findByRole("button", { name: "Show uses of Main board" })); await at("/library/boards/b1");
+  fireEvent.click(await screen.findByRole("button", { name: "Main board" })); await at("/library/boards/b1");
   expect(await within(await selection()).findByText("Main board")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "History" })); await at("/history");
   expect(await screen.findByText(/Workspace change history is not available yet/)).toBeTruthy();

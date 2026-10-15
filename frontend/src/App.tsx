@@ -13,7 +13,9 @@ import { WorkspaceHome } from "./features/home/WorkspaceHome";
 import { ProjectOverview } from "./features/overview/ProjectOverview";
 import { ChooseProject } from "./features/scope/ChooseProject";
 import { RecordFocusContext, type RecordFocus } from "./features/scope/focus";
+import { ExactRevisionNotice } from "./features/scope/exactRevision";
 import { EditingLens } from "./features/scope/EditingLens";
+import { LibraryList, LibrarySections, TYPED_LIBRARY_VIEWS } from "./components/library/LibraryList";
 import { LibraryView } from "./features/scope/LibraryView";
 import { NavigationProvider, useWorkspaceUrl } from "./features/navigation";
 import { ProbeInspector, ProbeProvider } from "./features/probe";
@@ -222,7 +224,6 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
     return <WorkspaceHome username={scope.username} role={scope.role} permissions={scope.permissions} projects={scope.projects} lastProjectId={scope.lastProjectId}
       busy={scope.busy} onOpen={(projectId) => onOpenInProject(projectId, toolId)} onCreate={scope.createProject} onChanged={scope.refresh} />;
   }
-  if (toolId === "hardware" || toolId === "kits") return <Stack><Text component="h1" fw={600}>{toolId === "hardware" ? "Shells & hardware" : "Kits"}</Text><Text>{toolId === "hardware" ? "Dedicated hardware records are being prepared. Existing hardware definitions are available in Parts." : "Kit editing is not available yet. Existing definitions remain available in Parts."}</Text><Button variant="quiet" onClick={() => lens.setActive("identity")}>Open Parts</Button></Stack>;
   if (toolId === "runner") return <DiagnosticsPanel workspaceId={scope.workspaceId} active={lens.active === "runner"} onChanged={lens.onStatusChanged} />;
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
@@ -232,13 +233,15 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
     {record && ["cable", "harness"].includes(record.kind ?? "") && toolForKind(record.kind) === toolId && <SelectedDefinitionViews key={record.record_id} record={record} />}
     <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />
   </Stack>;
-  const view = libraryView(toolId);
+  const view = TYPED_LIBRARY_VIEWS[toolId] ?? libraryView(toolId);
   // Workspace-level lenses work without a project: the workspace comes from the shell scope.
-  if (!view && WORKSPACE_LENSES.has(toolId)) return <WorkspaceLens {...lens} toolId={toolId} />;
+  if (!view && WORKSPACE_LENSES.has(toolId)) return <Stack><LibrarySections toolId={toolId} /><WorkspaceLens {...lens} toolId={toolId} /></Stack>;
   // The Library is where items are created and edited: each collection lens mounts its editor without a project.
   if (view) {
-    return <Stack gap="lg"><EditingLens title={view.title} editor={<LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />}
-      list={(editor) => <LibraryView view={view} toolLabel={toolLabel} projectId={navigation?.location.project ?? null} project={scope.projects.find(project => project.project_id === navigation?.location.project) ?? null} projects={scope.projects} principalKey={scope.principalKey}
+    if (toolId === "kits") return <LibraryList toolId={toolId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} principalKey={scope.principalKey} onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} />;
+    return <Stack gap="lg">{view.family === "definition" && <ExactRevisionNotice />}<EditingLens title={view.title} editor={<LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />}
+      list={(editor) => TYPED_LIBRARY_VIEWS[toolId] ? <LibraryList toolId={toolId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} principalKey={scope.principalKey}
+        onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} editor={editor} /> : <LibraryView view={view} toolLabel={toolLabel} projectId={navigation?.location.project ?? null} project={scope.projects.find(project => project.project_id === navigation?.location.project) ?? null} projects={scope.projects} principalKey={scope.principalKey}
         onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} editor={editor} />} /></Stack>;
   }
   return <Text role="status">This tool is not available.</Text>;
@@ -294,8 +297,11 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
 function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scope: WorkspaceScope; projectId: string | null; active: string }) {
   const navigation = useNavigation();
   const { principalKey, workspaceId } = scope;
+  const editorFilters = useNavigation()?.location.filters;
+  const initialInterfaceKind = editorFilters?.kind === "pinout" ? "pinout" : "connector_body";
   const onAccessChanged = scope.refresh;
   switch (toolId) {
+    case "hardware": return <IdentityPanel projectId={projectId} initialKind="hardware" />;
     case "identity": return <IdentityPanel projectId={projectId} />;
     case "signals": return <SignalSetPanel projectId={projectId} />;
     case "ports": return <PortPanel projectId={projectId} />;
@@ -305,12 +311,12 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "wire-stock": return <WireStockPanel projectId={projectId} workspaceId={workspaceId} />;
     case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
     case "assemblies": return <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />;
-    case "interfaces": return <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>;
+    case "interfaces": return <Stack><InterfacePanel projectId={projectId} initialKind={initialInterfaceKind} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>;
     case "cables": return <CablePanel projectId={null} workspaceId={workspaceId} />;
     case "harnesses": return <HarnessPanel projectId={projectId} />;
     case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
     // Board pads and paths edit "board" rows; intake and populations follow.
-    case "pcb": return <Stack><BoardPanel projectId={projectId} /><PcbPanel workspaceId={workspaceId} projectId={projectId} /></Stack>;
+    case "pcb": return <Stack>{editorFilters?.view === "intake" ? [<PcbPanel key="intake" workspaceId={workspaceId} projectId={projectId} />, <BoardPanel key="board" projectId={projectId} />] : [<BoardPanel key="board" projectId={projectId} />, <PcbPanel key="intake" workspaceId={workspaceId} projectId={projectId} />]}</Stack>;
     case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
     // Firmware definitions are declared here; per-occurrence firmware choices follow.
     case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;
