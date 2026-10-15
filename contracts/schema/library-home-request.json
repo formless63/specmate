@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "description": "The Library home of one workspace: attention, the actor's recent work and kinds.",
+  "properties": {
+    "limit": {
+      "default": 12,
+      "description": "Items per row.",
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
+    }
+  },
+  "title": "ReadLibraryHome",
+  "type": "object"
+}

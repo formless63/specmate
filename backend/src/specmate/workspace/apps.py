@@ -7,12 +7,19 @@ class WorkspaceConfig(AppConfig):
 
     def ready(self):
         from specmate.contracts import SCHEMAS
+        from specmate.workspace import gallery  # noqa: F401
         from specmate.workspace.contracts import (
             LibraryPage,
             ListLibrary,
             ListWorkspaceProjects,
             ProjectDetail,
             WorkspaceProjectPage,
+        )
+        from specmate.workspace.gallery_contracts import (
+            LibraryHome,
+            LibraryPreviews,
+            ReadLibraryHome,
+            ReadLibraryPreviews,
         )
 
         SCHEMAS.update(
@@ -22,5 +29,9 @@ class WorkspaceConfig(AppConfig):
                 "workspace-projects": ListWorkspaceProjects,
                 "workspace-project-page": WorkspaceProjectPage,
                 "workspace-project-detail": ProjectDetail,
+                "library-home-request": ReadLibraryHome,
+                "library-home": LibraryHome,
+                "library-previews-request": ReadLibraryPreviews,
+                "library-previews": LibraryPreviews,
             }
         )

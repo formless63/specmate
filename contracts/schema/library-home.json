@@ -1,0 +1,334 @@
+{
+  "$defs": {
+    "AttentionItem": {
+      "properties": {
+        "changed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest draft change.",
+          "title": "Changed At"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "latest_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Highest frozen revision; null if none.",
+          "title": "Latest Revision"
+        },
+        "latest_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Latest Revision Id"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/AttentionReason"
+          },
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        },
+        "status": {
+          "description": "The most severe reason: a failing recorded check, an unknown, or review.",
+          "enum": [
+            "fail",
+            "unknown",
+            "review"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "kind",
+        "label",
+        "created_at",
+        "latest_revision",
+        "latest_revision_id",
+        "changed_at",
+        "status",
+        "reasons"
+      ],
+      "title": "AttentionItem",
+      "type": "object"
+    },
+    "AttentionReason": {
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "detail": {
+          "description": "Plain words, for example '2 rows fail'.",
+          "title": "Detail",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "failing_check",
+            "unknown_check",
+            "open_questions",
+            "stale_evidence",
+            "unknown_values"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "count",
+        "detail"
+      ],
+      "title": "AttentionReason",
+      "type": "object"
+    },
+    "AttentionTotals": {
+      "properties": {
+        "failing_checks": {
+          "description": "Failing rows or findings in latest records.",
+          "minimum": 0,
+          "title": "Failing Checks",
+          "type": "integer"
+        },
+        "open_questions": {
+          "description": "Open questions in intent drafts.",
+          "minimum": 0,
+          "title": "Open Questions",
+          "type": "integer"
+        },
+        "stale_evidence": {
+          "description": "Latest records with a newer pinned input.",
+          "minimum": 0,
+          "title": "Stale Evidence",
+          "type": "integer"
+        },
+        "unknown_checks": {
+          "description": "Unknown rows or findings in latest records.",
+          "minimum": 0,
+          "title": "Unknown Checks",
+          "type": "integer"
+        },
+        "unknown_values": {
+          "description": "Declared values recorded as unknown.",
+          "minimum": 0,
+          "title": "Unknown Values",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "failing_checks",
+        "unknown_checks",
+        "open_questions",
+        "stale_evidence",
+        "unknown_values"
+      ],
+      "title": "AttentionTotals",
+      "type": "object"
+    },
+    "KindCount": {
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "count"
+      ],
+      "title": "KindCount",
+      "type": "object"
+    },
+    "RecentItem": {
+      "properties": {
+        "activity": {
+          "enum": [
+            "edited",
+            "frozen"
+          ],
+          "title": "Activity",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "changed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest draft change.",
+          "title": "Changed At"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "latest_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Highest frozen revision; null if none.",
+          "title": "Latest Revision"
+        },
+        "latest_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Latest Revision Id"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "kind",
+        "label",
+        "created_at",
+        "latest_revision",
+        "latest_revision_id",
+        "changed_at",
+        "activity",
+        "at"
+      ],
+      "title": "RecentItem",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "attention": {
+      "items": {
+        "$ref": "#/$defs/AttentionItem"
+      },
+      "title": "Attention",
+      "type": "array"
+    },
+    "attention_total": {
+      "description": "Items needing attention, before the limit.",
+      "minimum": 0,
+      "title": "Attention Total",
+      "type": "integer"
+    },
+    "definitions_total": {
+      "minimum": 0,
+      "title": "Definitions Total",
+      "type": "integer"
+    },
+    "kinds": {
+      "description": "Definitions in the workspace by kind.",
+      "items": {
+        "$ref": "#/$defs/KindCount"
+      },
+      "title": "Kinds",
+      "type": "array"
+    },
+    "recent": {
+      "description": "The actor's own latest edits and freezes.",
+      "items": {
+        "$ref": "#/$defs/RecentItem"
+      },
+      "title": "Recent",
+      "type": "array"
+    },
+    "scan_limit_reached": {
+      "description": "More records exist than were scanned; totals are then lower bounds.",
+      "title": "Scan Limit Reached",
+      "type": "boolean"
+    },
+    "totals": {
+      "$ref": "#/$defs/AttentionTotals"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "attention",
+    "attention_total",
+    "recent",
+    "totals",
+    "kinds",
+    "definitions_total",
+    "scan_limit_reached"
+  ],
+  "title": "LibraryHome",
+  "type": "object"
+}
