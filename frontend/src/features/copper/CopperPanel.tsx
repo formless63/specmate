@@ -27,13 +27,13 @@ function Workspace({ projectId }: { projectId: string | null }) {
     {revision && !denied && <CopperInspector key={revision} revisionId={revision} />}
   </Stack>;
 }
-export function CopperInspector({ revisionId }: { revisionId: string }) {
+export function CopperInspector({ revisionId, active = true, graph, onRefresh }: { revisionId: string; active?: boolean; graph?: Graph; onRefresh?: () => void }) {
   const [terminal, setTerminal] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [boundaryPage, setBoundaryPage] = useState(0);
   const [edgePage, setEdgePage] = useState(0);
-  const query = useQuery({ queryKey: ['copper-graph', revisionId], queryFn: () => read<Graph>(`copper/revisions/${revisionId}`) });
-  const value = query.isError || query.isFetching ? undefined : query.data;
+  const query = useQuery({ queryKey: ['copper-graph', revisionId], queryFn: () => read<Graph>(`copper/revisions/${revisionId}`), enabled: active && !graph });
+  const value = !active ? undefined : graph ?? (query.isError || query.isFetching ? undefined : query.data);
   const component = value?.components.find(c => c.members.includes(terminal ?? ''));
   const members = new Set(component?.members ?? []);
   const edgeIds = new Set(component?.edge_ids ?? []);
@@ -41,7 +41,7 @@ export function CopperInspector({ revisionId }: { revisionId: string }) {
   const edges = component ? value!.edges.filter(e => edgeIds.has(e.id)) : [];
   const boundaries = value?.boundaries.filter(b => !component || !b.members.length || b.members.some(id => members.has(id))) ?? [];
   return <Card withBorder><Stack><Title order={3}>Frozen copper inspection</Title><Text><RevisionLabel id={revisionId} /></Text>
-    <Button variant="light" loading={query.isFetching} onClick={() => void query.refetch()}>Refresh graph access</Button>
+    <Button variant="light" loading={query.isFetching} onClick={() => onRefresh ? onRefresh() : void query.refetch()}>Refresh graph access</Button>
     {query.isError && <Alert color="red">{query.error.message}</Alert>}
     {query.isFetching && <Text>Loading currently authorized graph…</Text>}
     {value && <><Text>{value.nodes.length} terminals · {value.components.length} declared components · {value.boundaries.length} boundaries</Text>

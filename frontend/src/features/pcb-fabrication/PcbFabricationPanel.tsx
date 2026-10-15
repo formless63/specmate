@@ -11,8 +11,8 @@ const TERMINAL = ['succeeded', 'failed', 'cancelled'];
 const POLL_MS = 3000, MAX_POLLS = 200;
 
 /** `blocked` withdraws execution while the caller's access to the intake is lost. */
-export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: string; blocked?: boolean }) {
-  const canExecute = useCan('build.execute') && !blocked;
+export function PcbFabricationPanel({ intakeId, blocked = false, enabled = true }: { intakeId: string; blocked?: boolean; enabled?: boolean }) {
+  const canExecute = useCan('build.execute') && !blocked && enabled;
   const [state, setState] = useState<{ intakeId: string; options?: Options; review?: Review; error?: string }>({ intakeId });
   const [busy, setBusy] = useState(false);
   const active = useRef<AbortController | null>(null);
@@ -22,6 +22,7 @@ export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: s
   const selected = useRef<string | null>(null);
 
   const refresh = useCallback(async (buildId: string | null = selected.current) => {
+    if (!enabled) return;
     active.current?.abort();
     const controller = new AbortController(); active.current = controller;
     setBusy(true); setState({ intakeId });
@@ -40,9 +41,10 @@ export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: s
     } finally {
       if (!controller.signal.aborted && scope.current === intakeId) setBusy(false);
     }
-  }, [intakeId]);
+  }, [intakeId, enabled]);
 
   useEffect(() => {
+    if (!enabled) return;
     selected.current = null;
     void refresh(null);
     const focus = () => void refresh();
@@ -55,7 +57,7 @@ export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: s
   const states = visible?.options?.builds.map(build => build.state).join(',') ?? '';
   const pending = states.split(',').some(value => value && !TERMINAL.includes(value));
   useEffect(() => {
-    if (!pending || blocked) return;
+    if (!pending || blocked || !enabled) return;
     let ticks = 0, inflight: AbortController | null = null;
     const timer = window.setInterval(() => {
       if (++ticks > MAX_POLLS) { window.clearInterval(timer); return; }
@@ -66,9 +68,10 @@ export function PcbFabricationPanel({ intakeId, blocked = false }: { intakeId: s
       }).catch(() => { if (!controller.signal.aborted) window.clearInterval(timer); });
     }, POLL_MS);
     return () => { window.clearInterval(timer); inflight?.abort(); };
-  }, [pending, intakeId, blocked]);
+  }, [pending, intakeId, blocked, enabled]);
 
   async function request(recipeId: string) {
+    if (!canExecute) return;
     active.current?.abort();
     const controller = new AbortController(); active.current = controller;
     setBusy(true); setState({ intakeId }); selected.current = null;

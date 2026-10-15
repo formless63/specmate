@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SbStatus, SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { InspectionScope, ReadOnlyNote, usePermission, type PermissionName } from "../../lib/permissions";
@@ -225,7 +225,7 @@ function ConnectorEditor({ value, onChange, definitions, terminalOptions }: { va
 }
 
 /** Switch and jumper states that switch paths refer to. */
-function ConditionEditor({ value, onChange }: { value: Board; onChange: (v: Board) => void }) {
+export function ConditionEditor({ value, onChange }: { value: Board; onChange: (v: Board) => void }) {
   const [name, setName] = useState("");
   const [states, setStates] = useState("");
   const choices = states.split(",").map((s) => s.trim()).filter(Boolean);
@@ -248,23 +248,25 @@ function ConditionEditor({ value, onChange }: { value: Board; onChange: (v: Boar
 }
 
 /** Proposes pads and paths from a frozen KiCad population; the result only fills the new-board editor. */
-export function KicadProposal({ definitions, onUse }: { definitions: Definition[]; onUse: (board: Board, name: string) => void }) {
+export function KicadProposal({ definitions, onUse, active = true, principalKey = "", pinned }: { definitions: Definition[]; onUse: (board: Board, name: string) => void; active?: boolean; principalKey?: string; pinned?: { definitionId: string; revisionId: string } | null }) {
   const [definition, setDefinition] = useState<string | null>(null);
-  const [revision, setRevision] = useState<string | null>(null);
+  const [ownRevision, setRevision] = useState<string | null>(null);
+  const revision = pinned?.revisionId ?? ownRevision;
   const [chosen, setChosen] = useState<string[] | null>(null);
-  const identity = useQuery({ queryKey: ["board-population-identity", definition], queryFn: () => read<Identity>(`catalog/definitions/${definition}`), enabled: !!definition });
-  const proposal = useQuery({ queryKey: ["board-proposal", revision, chosen], queryFn: () => read<BoardProposal>(proposalPath(revision!, chosen)), enabled: !!revision });
-  const data = proposal.data;
+  const identity = useQuery({ queryKey: ["board-population-identity", principalKey, definition], queryFn: () => read<Identity>(`catalog/definitions/${definition}`), enabled: active && !pinned && !!definition });
+  useEffect(() => { setChosen(null); }, [pinned?.revisionId]);
+  const proposal = useQuery({ queryKey: ["board-proposal", principalKey, revision, chosen], queryFn: () => read<BoardProposal>(proposalPath(revision!, chosen)), enabled: active && !!revision });
+  const data = proposal.isError || proposal.isFetching ? null : proposal.data;
   const selected = chosen ?? data?.components.filter((c) => c.selected).map((c) => c.component_id) ?? [];
   const toggle = (id: string, on: boolean) => setChosen(on ? [...selected, id] : selected.filter((x) => x !== id));
   const populations = definitions.filter((d) => d.kind === "pcb_population");
   return <Card withBorder className="sb-board-proposal"><Stack gap="xs">
     <Title order={4}>Propose from a KiCad import</Title>
     <Text size="xs" c="dimmed">Choose which components' pads are the board's pads. Nets and resistor passages become proposed paths; nothing is accepted until you create and review the board.</Text>
-    <Group align="end">
+    {!pinned && <Group align="end">
       <Select size="xs" label="PCB population" searchable placeholder={populations.length ? "Choose a population" : "No PCB populations"} data={populations.map((d) => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={(v) => { setDefinition(v); setRevision(null); setChosen(null); }} />
       {identity.data && <Select size="xs" label="Population revision" value={revision} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(v) => { setRevision(v); setChosen(null); }} />}
-    </Group>
+    </Group>}
     {proposal.isError && <Alert color="red">{proposal.error.message}</Alert>}
     {data && <>
       <div className="sb-board-components">{data.components.map((c) => <Checkbox key={c.component_id} size="xs" checked={selected.includes(c.component_id)} onChange={(e) => toggle(c.component_id, e.currentTarget.checked)}
@@ -360,7 +362,7 @@ export function BoardEditor({ value, onChange, definitions, permission = "design
 }
 
 /** Nothing selected: add a pad, declare switch states, set the review. */
-function BoardDefaults({ value, onChange }: { value: Board; onChange: (v: Board) => void }) {
+export function BoardDefaults({ value, onChange, onlyPads = false }: { value: Board; onChange: (v: Board) => void; onlyPads?: boolean }) {
   const [label, setLabel] = useState("");
   const [group, setGroup] = useState(value.terminals[value.terminals.length - 1]?.group ?? "");
   const groups = [...new Set(value.terminals.map((t) => t.group).filter((g): g is string => !!g))];
@@ -376,13 +378,13 @@ function BoardDefaults({ value, onChange }: { value: Board; onChange: (v: Board)
     </Group>
     <datalist id="bv-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist>
     <Button size="compact-xs" variant="default" w="fit-content" disabled={!label.trim()} onClick={add}>Add pad to board</Button>
-    <ConditionEditor value={value} onChange={onChange} />
+    {!onlyPads && <><ConditionEditor value={value} onChange={onChange} />
     <Select size="xs" label="Board review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: (v ?? "unreviewed") as Board["review"] })} />
-    <TextInput size="xs" label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} />
+    <TextInput size="xs" label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></>}
   </Stack>;
 }
 
-function PadInspector({ pad, board, onChange, onDone }: { pad: Board["terminals"][number]; board: Board; onChange: (v: Board) => void; onDone: () => void }) {
+export function PadInspector({ pad, board, onChange, onDone }: { pad: Board["terminals"][number]; board: Board; onChange: (v: Board) => void; onDone: () => void }) {
   const set = (patch: Partial<Board["terminals"][number]>) => onChange({ ...board, terminals: board.terminals.map((t) => (t.terminal_id === pad.terminal_id ? { ...t, ...patch } : t)) });
   const remove = () => {
     onChange({ ...board, terminals: board.terminals.filter((t) => t.terminal_id !== pad.terminal_id), paths: board.paths.filter((p) => p.from_terminal !== pad.terminal_id && p.to_terminal !== pad.terminal_id),
@@ -401,7 +403,7 @@ function PadInspector({ pad, board, onChange, onDone }: { pad: Board["terminals"
   </Stack>;
 }
 
-function PathInspector({ path, board, onChange, onDone }: { path: BoardPath; board: Board; onChange: (v: Board) => void; onDone: () => void }) {
+export function PathInspector({ path, board, onChange, onDone }: { path: BoardPath; board: Board; onChange: (v: Board) => void; onDone: () => void }) {
   const label = (id: string) => board.terminals.find((t) => t.terminal_id === id)?.label ?? id;
   const set = (patch: Partial<BoardPath>) => onChange({ ...board, paths: board.paths.map((p) => (p.local_id === path.local_id ? { ...p, ...patch } : p)) });
   const c = path.component;
@@ -489,20 +491,25 @@ export function BoardInspector({ revisionId }: { revisionId: string }) {
   </Stack></Card>;
 }
 
-function TraceForm({ revisionId, board, from, to, setFrom, setTo, states, setStates, result, onResult }: {
+export function TraceForm({ revisionId, board, from, to, setFrom, setTo, states, setStates, result, onResult, active = true }: {
+  active?: boolean;
   revisionId: string; board: Board; from: string | null; to: string | null; setFrom: (v: string | null) => void; setTo: (v: string | null) => void;
   states: Record<string, string>; setStates: (s: Record<string, string>) => void; result: BoardTrace | null; onResult: (r: BoardTrace | null) => void;
 }) {
   const [query, setQuery] = useState("dc_continuity");
   const [ideal, setIdeal] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const epoch = useRef(0); const enabled = useRef(active); enabled.current = active;
+  const intent = JSON.stringify([revisionId, from, to, states, query, ideal]);
+  useEffect(() => { epoch.current += 1; return () => { epoch.current += 1; }; }, [intent, active]);
   const options = board.terminals.map((t) => ({ value: t.terminal_id, label: t.group ? `${t.label} · ${t.group}` : t.label }));
   const run = async () => {
+    if (!enabled.current || !from || !to || from === to) return; const token = epoch.current;
     const params = new URLSearchParams({ from_terminal_id: from!, to_terminal_id: to!, query, copper_assumption: ideal ? "ideal_zero_resistance" : "unspecified" });
     for (const [key, state] of Object.entries(states)) params.append("condition", `${key}=${state}`);
     setError(null);
-    try { onResult(await read<BoardTrace>(`interfaces/revisions/${revisionId}/board-trace?${params.toString()}`)); }
-    catch (reason) { onResult(null); setError(reason instanceof Error ? reason.message : String(reason)); }
+    try { const next = await read<BoardTrace>(`interfaces/revisions/${revisionId}/board-trace?${params.toString()}`); if (enabled.current && token === epoch.current) onResult(next); }
+    catch (reason) { if (enabled.current && token === epoch.current) { onResult(null); setError(reason instanceof Error ? reason.message : String(reason)); } }
   };
   return <Stack gap={6}>
     <Title order={4}>Follow a path</Title>

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { AssertionTable, SourcePicker } from './Editors';
 import { blankSource, command, isUuid, label, read, type Frozen, type NativeAccepted, type NativeAttempts } from './api';
 
-export function NativeExtraction({ workspaceId }: { workspaceId: string }) {
+export function NativeExtraction({ workspaceId, active = true }: { workspaceId: string; active?: boolean }) {
   const cache = useQueryClient();
   const executeGate = usePermission('build.execute');
   const acceptGate = usePermission('source.register');
@@ -16,8 +16,8 @@ export function NativeExtraction({ workspaceId }: { workspaceId: string }) {
   const [blocked, setBlocked] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState('');
-  const available = useQuery({ queryKey: ['pcb-native-options', source.source_revision_id, source.path, role], queryFn: () => read<{ available_recipe_id: string | null }>(`pcb-disagreement/native-options?${new URLSearchParams({ source_revision_id: source.source_revision_id, path: source.path, role })}`), enabled: isUuid(source.source_revision_id) && !!source.path && !denied });
-  const attempts = useQuery({ queryKey: ['pcb-native-attempts', workspaceId], queryFn: () => read<NativeAttempts>(`pcb-disagreement/native?workspace_id=${workspaceId}`) });
+  const available = useQuery({ queryKey: ['pcb-native-options', source.source_revision_id, source.path, role], queryFn: () => read<{ available_recipe_id: string | null }>(`pcb-disagreement/native-options?${new URLSearchParams({ source_revision_id: source.source_revision_id, path: source.path, role })}`), enabled: active && isUuid(source.source_revision_id) && !!source.path && !denied });
+  const attempts = useQuery({ queryKey: ['pcb-native-attempts', workspaceId], enabled: active, queryFn: () => read<NativeAttempts>(`pcb-disagreement/native?workspace_id=${workspaceId}`) });
   async function clearEvidence(failedSourceId = source.source_revision_id) {
     const keys = [
       ['pcb-native-attempts', workspaceId],
@@ -45,6 +45,7 @@ export function NativeExtraction({ workspaceId }: { workspaceId: string }) {
     await Promise.all(authorityKeys.map(queryKey => cache.invalidateQueries({ queryKey, exact: true, refetchType: 'all' })));
   }
   async function refreshStatus() {
+    if (!active) return;
     setRefreshing(true); setRefreshError('');
     try {
       await Promise.all([
@@ -60,6 +61,7 @@ export function NativeExtraction({ workspaceId }: { workspaceId: string }) {
   }
   const request = useMutation({ mutationFn: () => command('pcb_disagreement.request_native', { workspace_id: workspaceId, source, source_role: role, recipe_id: available.data?.available_recipe_id }), onMutate: () => source.source_revision_id, onError: (_error, _variables, failedSourceId) => clearEvidence(failedSourceId), onSuccess: () => cache.invalidateQueries({ queryKey: ['pcb-native-attempts', workspaceId] }) });
   const accept = useMutation({ mutationFn: (attempt_id: string) => command<NativeAccepted>('pcb_disagreement.accept_native', { attempt_id }), onMutate: attemptId => attempts.data?.attempts.find(a => a.attempt_id === attemptId)?.source.source_revision_id, onError: (_error, _attemptId, failedSourceId) => clearEvidence(failedSourceId), onSuccess: result => { setSelected(result.interpretation_id); void cache.invalidateQueries({ queryKey: ['pcb-native-attempts', workspaceId] }); } });
+  if (!active) return null;
   return <Card withBorder><Stack><Title order={3}>Independent native source extraction</Title><Text>Extract reported schematic nets or parse preserved KiCad XML using an installed approved extractor. Acceptance retains evidence; it does not choose a correct source or establish schematic parity.</Text>
     <SourcePicker value={source} onChange={setSource} onDenied={setDenied} />
     <Select label="Native source role" value={role} data={[{ value: 'schematic', label: 'Standalone KiCad schematic' }, { value: 'netlist', label: 'Preserved KiCad XML netlist' }]} onChange={v => setRole(v as typeof role)} />
@@ -68,8 +70,8 @@ export function NativeExtraction({ workspaceId }: { workspaceId: string }) {
     {request.isError && <Alert color="red">{request.error.message}</Alert>}{accept.isError && <Alert color="red">{accept.error.message}</Alert>}{attempts.isError && <Alert color="red">{attempts.error.message}</Alert>}
     {blocked && <Text>Cached native evidence was cleared. Refresh extraction status to recheck access before continuing.</Text>}{refreshError && <Alert color="red">{refreshError}</Alert>}
     <Button variant="subtle" loading={refreshing} disabled={request.isPending || accept.isPending} onClick={() => void refreshStatus()}>Refresh extraction status</Button>
-    {!blocked && !refreshing && !attempts.isError && !denied && !available.isError && (attempts.data?.attempts ?? []).map(attempt => <Card key={attempt.attempt_id} withBorder><Stack gap="xs"><Text>{attempt.source.path} · {attempt.source_role} · {label(attempt.state)}</Text>{attempt.diagnostic && <Text size="sm" c="red">{attempt.diagnostic}</Text>}<Text size="sm">Exact source SHA-256: {attempt.source.sha256}</Text><Group>{attempt.interpretation ? <Button onClick={() => setSelected(attempt.interpretation!.interpretation_id)}>Inspect accepted extraction {attempt.interpretation.interpretation_id}</Button> : <Button disabled={attempt.state !== 'succeeded' || request.isPending} loading={accept.isPending} {...acceptGate.props} onClick={() => accept.mutate(attempt.attempt_id)}>Accept extraction {attempt.attempt_id}</Button>}</Group></Stack></Card>)}
-    {selected && !blocked && !refreshing && !attempts.isError && !denied && !available.isError && <NativeInspector interpretationId={selected} />}
+    {!blocked && !refreshing && !attempts.isError && !attempts.isFetching && !denied && !available.isError && (attempts.data?.attempts ?? []).map(attempt => <Card key={attempt.attempt_id} withBorder><Stack gap="xs"><Text>{attempt.source.path} · {attempt.source_role} · {label(attempt.state)}</Text>{attempt.diagnostic && <Text size="sm" c="red">{attempt.diagnostic}</Text>}<Text size="sm">Exact source SHA-256: {attempt.source.sha256}</Text><Group>{attempt.interpretation ? <Button onClick={() => setSelected(attempt.interpretation!.interpretation_id)}>Inspect accepted extraction {attempt.interpretation.interpretation_id}</Button> : <Button disabled={attempt.state !== 'succeeded' || request.isPending} loading={accept.isPending} {...acceptGate.props} onClick={() => accept.mutate(attempt.attempt_id)}>Accept extraction {attempt.attempt_id}</Button>}</Group></Stack></Card>)}
+    {selected && !blocked && !refreshing && !attempts.isError && !attempts.isFetching && !denied && !available.isError && <NativeInspector interpretationId={selected} />}
   </Stack></Card>;
 }
 

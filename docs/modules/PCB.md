@@ -536,3 +536,23 @@ The authorized draft/frozen population review includes
 and source pins. Record pages use this existing intake identity to open Sources
 directly; they need not scan other intakes. It is returned only after the same
 current population/source/association closure checks as the rest of the review.
+
+### Drawing-first board records
+
+The Boards collection opens one selected declared `board` or `pcb_population` state
+in the shared record frame. Declared topology reuses the board drawing and layout;
+its dashed outline is a schematic placeholder. Native placements reuse the accepted
+report renderer. An exact historical URL selects that revision even beyond the first
+history page; unavailable historical state never falls forward to newest.
+
+Pads, paths, carried connector bodies, population decisions, associations and source
+review occupy contextual inspectors. Clicking pads inspects them. Only explicit
+Draw path creates a declaration, initially unknown with no basis. Native DNP flags,
+option decisions, human associations and physical qualification remain distinct.
+
+Source inspection reads the authorized exact intake from the selected review payload,
+then checks the selected interpretation and source hashes. New native attempts do not
+repin the record. Independent human assertions, source comparisons and ideal passive
+models retain separate draft tokens, source pins and freeze/review operations. Working
+references are freshly checked on activation and focus. Authority failures withdraw
+retained content while preserving local buffers and their original editing tokens.

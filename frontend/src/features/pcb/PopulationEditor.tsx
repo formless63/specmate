@@ -196,7 +196,7 @@ function DecisionRow({ reference, nativeDnp, decision, disabled, onSave }: {
     </Group></Table.Td></Table.Tr>;
 }
 
-function AssociationForm({ report, intake, population, targets, disabled, onSave }: {
+export function AssociationForm({ report, intake, population, targets, disabled, onSave, actionLabel }: { actionLabel?: string;
   report: Intake["interpretations"][number]["report"]; intake: Intake; population: Population;
   targets: AssociationTargets | null; disabled: boolean; onSave: (association: Association) => Promise<boolean>;
 }) {
@@ -265,7 +265,7 @@ function AssociationForm({ report, intake, population, targets, disabled, onSave
         <Select label="Evidence type" value={evidenceKind} data={[{ value: "citation", label: "Citation" }, { value: "source_file", label: "Preserved source file" }]} onChange={(value) => setEvidenceKind(value as "citation" | "source_file" ?? "citation")} />
         {evidenceKind === "citation" ? <TextInput label="Evidence citation" value={citation} onChange={(event) => setCitation(event.currentTarget.value)} />
           : <Select label="Preserved evidence file" searchable data={intake.files.map((item) => ({ value: item.path, label: `${item.path} · ${item.rights}` }))} value={sourcePath} onChange={setSourcePath} />}</>}
-      <Button disabled={disabled || !canSave} onClick={() => void submit()}>{editingId ? "Save review" : "Add candidate"}</Button>
+      <Button disabled={disabled || !canSave} onClick={() => void submit()}>{actionLabel ?? (editingId ? "Save review" : "Add candidate")}</Button>
       {editingId && <Button variant="subtle" onClick={reset}>Cancel</Button>}
     </Group>
     <Text size="xs">A reviewed association does not assert electrical fit, model accuracy, stock identity, or manufacturing approval.</Text>

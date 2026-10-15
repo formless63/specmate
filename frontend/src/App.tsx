@@ -47,6 +47,7 @@ const IntentPanel = lazy(() => import("./features/intents/IntentPanel").then((mo
 const EndAssemblyPanel = lazy(() => import("./features/end-assemblies/EndAssemblyPanel").then((module) => ({ default: module.EndAssemblyPanel })));
 const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
 const ConnectorLibrary = lazy(() => import("./features/interfaces/ConnectorLibrary").then(module => ({ default: module.ConnectorLibrary })));
+const BoardLibrary = lazy(() => import("./features/boards/BoardLibrary").then(module => ({ default: module.BoardLibrary })));
 const StockLibrary = lazy(() => import("./features/wire-stock/StockLibrary").then(module => ({ default: module.StockLibrary })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
@@ -244,6 +245,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
+  if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
   if (["harnesses", "assemblies"].includes(toolId)) return <FrozenRootDocuments kind={toolId === "harnesses" ? "harness" : "assembly"} record={record} workspaceId={scope.workspaceId} principalKey={scope.principalKey} active={lens.active === toolId}><Stack>

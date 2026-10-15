@@ -173,6 +173,10 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(fetchMock.mock.calls.some(([path]) => path.startsWith("/api/v0/stocks"))).toBe(false);
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
   await openTool("Boards");
+  await screen.findByRole("heading", { name: "Boards" });
+  expect(fetchMock.mock.calls.some(([path]) => path === "/api/v0/pcb/workspaces/w1/intakes")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: /^Import$/ }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "KiCad board intake…" }));
   await screen.findByRole("heading", { name: "PCB intake" });
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/w1/intakes", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
@@ -260,7 +264,9 @@ test("PCB controls require explicit grants, and a denied read is visible", async
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   await openProject("Project A");
   await openTool("Boards");
-  await screen.findByRole("heading", { name: "PCB intake" });
+  await screen.findByRole("heading", { name: "Boards" });
+  expect(screen.queryByRole("button", { name: /^New board/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Import$/ })).toBeNull();
   expect(screen.queryByRole("button", { name: "Preserve sources" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Request native extraction" })).toBeNull();
   await openTool("Inventory");

@@ -8,10 +8,10 @@ import { FirmwarePanel } from "../firmware/FirmwarePanel";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
-export type PcbPanelProps = { workspaceId: string; projectId?: string | null };
+export type PcbPanelProps = { workspaceId: string; projectId?: string | null; initialIntakeId?: string; standalone?: boolean; active?: boolean };
 
 export function PcbPanel(props: PcbPanelProps) {
-  return <ProjectPanel key={`${props.workspaceId}:${props.projectId ?? ""}`} {...props} />;
+  return <ProjectPanel key={`${props.workspaceId}:${props.projectId ?? ""}:${props.initialIntakeId ?? ""}`} {...props} />;
 }
 
 /** Project-referenced intakes first, superseded originals last; nothing is hidden. Stable within each tier. */
@@ -20,9 +20,9 @@ export function orderIntakes(items: IntakeSummary[]): IntakeSummary[] {
   return items.map((item, index) => ({ item, index })).sort((a, b) => tier(a.item) - tier(b.item) || a.index - b.index).map(({ item }) => item);
 }
 
-function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
+function ProjectPanel({ workspaceId, projectId, initialIntakeId, standalone = false, active = true }: PcbPanelProps) {
   const [items, setItems] = useState<IntakeSummary[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialIntakeId ?? null);
   const [intake, setIntake] = useState<Intake | null>(null);
   const [populations, setPopulations] = useState<PopulationDraft[]>([]);
   const [files, setFiles] = useState<File[]>([]);
@@ -36,6 +36,8 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
   const readSequence = useRef(0);
   const denied = useRef(false);
   const [accessLost, setAccessLost] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const currentActive = useRef(active); currentActive.current = active;
   const canImport = useCan("source.register");
   const canExecute = useCan("build.execute");
 
@@ -48,26 +50,29 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
     setError(reason instanceof Error ? reason.message : "PCB request failed.");
   }
   async function refreshList() {
+    if (!currentActive.current) return;
+    setChecking(true);
     try {
       const result = await (projectId ? listIntakes(workspaceId, lifetime.current.signal, projectId) : listIntakes(workspaceId, lifetime.current.signal));
-      if (!denied.current) setItems(result);
+      if (!denied.current) { setItems(result); setChecking(false); }
     }
     catch (reason) { failure(reason); }
   }
   async function load(id: string) {
+    if (!currentActive.current) return;
+    setChecking(true);
     const sequence = ++readSequence.current;
     try {
       const [result, drafts] = await Promise.all([
         getIntake(id, lifetime.current.signal), listPopulations(id, lifetime.current.signal),
       ]);
-      if (sequence === readSequence.current && !denied.current) { setIntake(result); setPopulations(drafts); setError(""); }
+      if (sequence === readSequence.current && !denied.current) { setIntake(result); setPopulations(drafts); setError(""); setChecking(false); }
     } catch (reason) {
       if (sequence === readSequence.current) { setIntake(null); setPopulations([]); failure(reason); }
     }
   }
   useEffect(() => {
     lifetime.current = new AbortController();
-    void refreshList();
     return () => lifetime.current.abort();
     // Scope changes remount ProjectPanel, discarding all captured data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,11 +80,11 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
   useEffect(() => {
     ++readSequence.current;
     setIntake(null); setPopulations([]);
-    if (selected) void load(selected);
+    if (active) { if (selected) void load(selected); else void refreshList(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+  }, [selected, active]);
   useEffect(() => {
-    if (!selected) return;
+    if (!active || !selected) return;
     const refresh = () => { void load(selected); };
     window.addEventListener("focus", refresh);
     const states = [...(intake?.attempts ?? []), ...(intake?.upgrade?.attempts ?? [])].map((a) => a.state);
@@ -87,9 +92,10 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
     const timer = pending ? window.setInterval(refresh, 3000) : undefined;
     return () => { window.removeEventListener("focus", refresh); if (timer) window.clearInterval(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, [...(intake?.attempts ?? []), ...(intake?.upgrade?.attempts ?? [])].map((a) => a.state).join(",")]);
+  }, [active, selected, [...(intake?.attempts ?? []), ...(intake?.upgrade?.attempts ?? [])].map((a) => a.state).join(",")]);
 
   async function work(action: () => Promise<void>) {
+    if (!currentActive.current || busy || checking || denied.current) return;
     setBusy(true); setError("");
     try { await action(); } catch (reason) { failure(reason); }
     finally { if (!lifetime.current.signal.aborted) setBusy(false); }
@@ -134,11 +140,12 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
   }
   const boardOptions = files.filter((f) => f.name.toLowerCase().endsWith(".kicad_pcb")).map((f) => f.webkitRelativePath || f.name);
   const report = intake?.interpretations.at(-1)?.report;
-  return <Stack>
+  return <Stack hidden={!active} inert={!active}>
     <Title order={2}>PCB intake</Title>
     <Text>Preserve source files, then explicitly request a supported native interpretation. Originals remain authoritative.</Text>
     {error && <Alert color="red" role="alert">{error}</Alert>}
-    {canImport && !accessLost && <Stack gap="xs">
+    {checking && <Text role="status">Rechecking intake access…</Text>}
+    {canImport && !accessLost && <Stack gap="xs" hidden={checking} inert={checking}>
       <FileInput label="Original source files" multiple value={files} onChange={(value) => { setFiles(value); setBoardPath(null); }} />
       <TextInput label="Source package name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <TextInput label="Source rights declaration" description="Declare the rights that apply to these files and derived outputs." value={rights} onChange={(e) => setRights(e.currentTarget.value)} />
@@ -146,9 +153,9 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
       {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(e) => setUseHere(e.currentTarget.checked)} />}
       <Button onClick={() => void importSources()} loading={busy} disabled={!files.length || !name.trim() || !rights.trim()}>Preserve sources</Button>
     </Stack>}
-    <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={orderIntakes(items).map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}${i.upgraded_from_kicad ? ` · upgraded from KiCad ${i.upgraded_from_kicad}` : ""}${i.referenced_by_project ? " · used by this project" : ""}${i.superseded_by_intake_id ? " · superseded by upgraded derivative" : ""}` }))} />
+    {!checking && !initialIntakeId && <Select label="Preserved PCB intake" value={selected} onChange={setSelected} data={orderIntakes(items).map((i) => ({ value: i.intake_id, label: `${i.board_path || "Unparsed package"} · ${i.source_revision_id.slice(0, 8)}${i.upgraded_from_kicad ? ` · upgraded from KiCad ${i.upgraded_from_kicad}` : ""}${i.referenced_by_project ? " · used by this project" : ""}${i.superseded_by_intake_id ? " · superseded by upgraded derivative" : ""}` }))} />}
     <Button variant="subtle" onClick={() => { void refreshList(); if (selected) void load(selected); }}>Refresh intake</Button>
-    {intake && <Stack>
+    {!checking && intake && <Stack>
       <Text size="sm"><RevisionLabel kind="source" id={intake.source_revision_id} role="source" /></Text>
       {intake.format_upgrade && <UpgradeProvenance upgrade={intake.format_upgrade} />}
       <Table><Table.Thead><Table.Tr><Table.Th>Original file</Table.Th><Table.Th>Coverage</Table.Th><Table.Th>Rights</Table.Th></Table.Tr></Table.Thead>
@@ -168,13 +175,13 @@ function ProjectPanel({ workspaceId, projectId }: PcbPanelProps) {
       </Group>)}
       {intake.upgrade && <UpgradeOffer upgrade={intake.upgrade} busy={busy} onRequest={() => void requestUpgrade()} onAccept={(id) => void acceptUpgrade(id)} onOpen={(id) => { void refreshList(); setSelected(id); }} />}
       {report && <ReportView report={report} />}
-      {report && <PcbFabricationPanel key={intake.intake_id} intakeId={intake.intake_id} blocked={accessLost} />}
+      {report && <PcbFabricationPanel key={intake.intake_id} intakeId={intake.intake_id} blocked={accessLost} enabled={active} />}
       {!!intake.interpretations.length && <PopulationEditor
         workspaceId={workspaceId} intake={intake} drafts={populations}
         onChanged={() => selected && load(selected)} onAccessLost={failure}
       />}
     </Stack>}
-    {!accessLost && <FirmwarePanel workspaceId={workspaceId} />}
+    {!standalone && !accessLost && <FirmwarePanel workspaceId={workspaceId} />}
   </Stack>;
 }
 
@@ -200,7 +207,7 @@ export function ReportView({ report }: { report: NativeReport }) {
   </Stack>;
 }
 
-function BoardPreview({ report }: { report: NativeReport }) {
+export function BoardPreview({ report, selectedPad, onPad, viewportHeight }: { report: NativeReport; selectedPad?: string | null; onPad?: (id: string) => void; viewportHeight?: number }) {
   const vertices = report.outline.flat();
   if (!vertices.length) return null;
   const bounds = vertices.reduce<[number, number, number, number]>(([minX, minY, maxX, maxY], [x, y]) => [Math.min(minX, x), Math.min(minY, y), Math.max(maxX, x), Math.max(maxY, y)], [Infinity, Infinity, -Infinity, -Infinity]);
@@ -208,11 +215,12 @@ function BoardPreview({ report }: { report: NativeReport }) {
   const width = bounds[2] - minX;
   const height = bounds[3] - minY;
   if (width <= 0 || height <= 0) return null;
-  return <svg aria-label="Extracted board outline and native placements" role="img" viewBox={`${minX - 2} ${minY - 2} ${width + 4} ${height + 4}`} style={{ width: "100%", maxHeight: 320, background: "var(--sb-surface-sunken)" }}>
+  return <svg aria-label="Extracted board outline and native placements" role={onPad ? "group" : "img"} viewBox={`${minX - 2} ${minY - 2} ${width + 4} ${height + 4}`} style={{ width: "100%", maxHeight: viewportHeight ?? 320, height: viewportHeight, background: "var(--sb-surface-sunken)" }}>
     {report.outline.map((polygon, i) => <polygon key={i} points={polygon.map((p) => p.join(",")).join(" ")} fill="var(--sb-surface-raised)" stroke="var(--sb-text-secondary)" strokeWidth={0.15} />)}
     {report.cutouts?.map((polygon, i) => <polygon key={`cutout-${i}`} points={polygon.map((p) => p.join(",")).join(" ")} fill="var(--sb-surface-sunken)" stroke="var(--sb-text-secondary)" strokeWidth={0.15} />)}
     {report.mounting_holes.map((hole) => <ellipse key={hole.pad_id} cx={hole.position[0]} cy={hole.position[1]} rx={hole.drill[0] / 2} ry={hole.drill[1] / 2} fill="var(--sb-surface-sunken)" stroke="var(--sb-text-tertiary)" strokeWidth={0.1} />)}
-    {report.pads.filter((pad) => pad.type !== "npth").map((pad) => <circle key={pad.id} cx={pad.position[0]} cy={pad.position[1]} r={0.35} fill="var(--sb-review)" />)}
+    {report.pads.filter((pad) => pad.type !== "npth").map((pad) => <circle key={pad.id} cx={pad.position[0]} cy={pad.position[1]} r={selectedPad === pad.id ? 0.55 : 0.35} fill={selectedPad === pad.id ? "var(--sb-accent)" : "var(--sb-review)"}
+      {...(onPad ? { role: 'button', tabIndex: 0, 'aria-label': `Native pad ${pad.terminal} · ${report.components.find(item => item.id === pad.component_id)?.reference ?? 'Unknown component'}`, 'aria-pressed': selectedPad === pad.id, onClick: () => onPad(pad.id), onKeyDown: (event: React.KeyboardEvent) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onPad(pad.id); } } } : {})} />)}
     {report.components.map((component) => <text key={component.id} x={component.position[0] + 0.7} y={component.position[1] - 0.7} fontSize={1.2} fill="var(--sb-text-primary)">{component.reference}</text>)}
     {report.outline_bridged_gaps?.map((gap, i) => <circle key={`gap-${i}`} data-testid="bridged-gap-marker" cx={(gap.at[0] + gap.to[0]) / 2} cy={(gap.at[1] + gap.to[1]) / 2} r={0.6} fill="none" stroke="var(--sb-review)" strokeWidth={0.2}><title>{`Bridged outline gap ${gap.size_mm} mm`}</title></circle>)}
   </svg>;

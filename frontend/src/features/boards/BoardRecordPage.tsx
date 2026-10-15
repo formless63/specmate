@@ -1,0 +1,98 @@
+import { Alert, Button, Group, MantineThemeProvider, Select, Stack, Text, TextInput } from '@mantine/core';
+import { useQuery } from '@tanstack/react-query';
+import { lazy, Suspense, useRef, useState } from 'react';
+import { RecordPage, RecordSections, type RecordState } from '../../components/record';
+import { RevisionLabel } from '../../lib/IdentityLabel';
+import { InspectionScope, usePermission } from '../../lib/permissions';
+import { requestJson, type LibraryRecord, type Project } from '../workspace/api';
+import { useNavigation } from '../navigation';
+import type { Catalog } from '../identity/api';
+import { type PopulationReview } from '../pcb/api';
+import { BoardPreview } from '../pcb/PcbPanel';
+import { Readout } from '../pcb/PopulationReview';
+import { StockRecordDetails } from '../wire-stock/StockRecordSections';
+import { BoardDefaults, ConditionEditor, PadInspector, PathInspector, TraceForm } from './BoardPanel';
+import { BoardSketch, type BoardSelection } from './BoardSketch';
+import { BoardCarries } from './BoardCarries';
+import { NativePadDetails, PopulationAssociations, PopulationChoices } from './PopulationRecordControls';
+import { useBoardRecord, type BoardContent } from './useBoardRecord';
+import type { Board, BoardTrace } from './api';
+import './boards.css';
+import './board-record.css';
+const BoardOrigins = lazy(() => import('./BoardOrigins').then(module => ({ default: module.BoardOrigins })));
+const BoardSources = lazy(() => import('./BoardSources').then(module => ({ default: module.BoardSources })));
+const BoardSourceReview = lazy(() => import('./BoardSourceReview').then(module => ({ default: module.BoardSourceReview })));
+const BoardAdvanced = lazy(() => import('./BoardAdvanced').then(module => ({ default: module.BoardAdvanced })));
+
+type Props = { kind: 'board' | 'pcb_population'; active: boolean; principalKey: string; workspaceId: string; definitionId: string | null; revisionNumber: number | null; draftRequested: boolean;
+  projects: Project[]; initial?: { name: string; board: Board }; onBack: () => void; onSelect: (number: number | null, draft?: boolean) => void; onCreated: (id: string, open: boolean) => void;
+  onDuplicate: (name: string, board: Board) => void; onOpenInProject: (id: string, record: LibraryRecord) => void };
+/** A declared board and a native population use distinct content and operations in the same frame. */
+export function BoardRecordPage(props: Props) {
+  const { kind, active, principalKey, workspaceId, definitionId, onBack, onSelect, projects, onOpenInProject } = props;
+  const record = useBoardRecord(props); const nav = useNavigation();
+  const edit = usePermission(definitionId ? 'design.edit' : 'item.create'); const freeze = usePermission('design.freeze'); const create = usePermission('item.create');
+  const [inspectorTab, setInspectorTab] = useState(kind === 'board' ? 'pads' : 'components'); const [ownView, setOwnView] = useState(kind === 'board' ? 'diagram' : 'native');
+  const [selected, setSelected] = useState<BoardSelection>(null); const [nativePad, setNativePad] = useState<string | null>(null);
+  const selectedBoard = record.content?.interface;
+  const derived = selectedBoard?.derived_from?.population_revision_id;
+  const native = useQuery({ queryKey: ['board-record-native-basis', principalKey, derived], enabled: active && !!derived && !record.checking && !record.unavailable, retry: false,
+    queryFn: ({ signal }) => requestJson<PopulationReview>(`/api/v0/pcb/population-revisions/${derived}/review`, { signal }) });
+  const nativeRequired = kind === 'board' && !!derived;
+  const checking = record.checking || nativeRequired && (native.isPending || native.isFetching);
+  const unavailable = record.unavailable || nativeRequired && native.isError;
+  const readable = !checking && !unavailable && !!record.content && !record.needsDraftChoice;
+  const retained = useRef<{ content: BoardContent; review?: PopulationReview; name: string } | null>(null);
+  if (readable) retained.current = { content: record.content!, review: kind === 'pcb_population' ? record.review : native.data, name: record.name };
+  const content = readable ? record.content : retained.current?.content;
+  const board = content?.interface; const population = content?.pcb_population;
+  const review = readable ? kind === 'pcb_population' ? record.review : native.data : retained.current?.review;
+  const frameActive = active && readable;
+  const editable = frameActive && record.editing && edit.allowed && !record.busy;
+  const name = retained.current?.name ?? record.name;
+  const state: RecordState = !definitionId ? { kind: 'new' } : record.editing ? { kind: 'draft', id: record.current?.draft_id ?? record.draftId ?? '', version: Number(record.current?.state.replace('draft-v', '')) || 1, dirty: record.dirty } : { kind: 'revision', id: record.revision?.revision_id ?? '', number: record.revision?.number ?? 0 };
+  const urlView = active ? nav?.location.filters?.view : undefined;
+  const wantedView = urlView && ['diagram', 'native'].includes(urlView) ? urlView : ownView;
+  const view = wantedView === 'native' && review ? 'native' : board ? 'diagram' : 'native';
+  const changeBoard = (value: Board) => { if (editable) record.change({ interface: value }); };
+  const changePopulation = (value: NonNullable<BoardContent['pcb_population']>) => { if (editable) record.change({ pcb_population: value }); };
+  const refresh = () => { record.refresh(); if (nativeRequired) void native.refetch(); };
+  const pick = (value: BoardSelection) => { setSelected(value); if (value) setInspectorTab('path' in value ? 'paths' : 'pads'); };
+  const frozenId = state.kind === 'revision' ? state.id : null;
+  const catalog = useQuery({ queryKey: ['catalog', `${principalKey}:${workspaceId}`, frozenId, 0], enabled: frameActive && !!frozenId, retry: false, queryFn: ({ signal }) => requestJson<Catalog>(`/api/v0/catalog/revisions/${frozenId}?offset=0&limit=50`, { signal }) });
+  const pn = state.kind !== 'revision' ? undefined : catalog.isError || catalog.isPending || catalog.isFetching ? 'Unknown' : catalog.data?.variants.length ? catalog.data.variants.slice(0, 3).map(row => `${row.manufacturer} ${row.part_number}`).join(' · ') + (catalog.data.variants.length > 3 ? ' · more in Sources' : '') : 'Not declared';
+  const openIntake = (id: string) => nav?.navigate({ area: 'library', lens: 'pcb', probe: null, filters: { view: 'intake', intake: id } });
+  const draftRows = [...new Map([...(record.identity.data?.drafts ?? []), ...(record.revisions.data?.drafts ?? [])].map(row => [row.draft_id, row])).values()];
+  const chooseDraft = <Select size="xs" label="Editable board draft" value={record.draftId} disabled={record.busy || record.dirty && !!record.current} data={draftRows.map(row => ({ value: row.draft_id, label: `${row.state} · ${row.draft_id.slice(0, 8)}` }))} onChange={record.chooseDraft} />;
+  return <MantineThemeProvider theme={{ components: { Select: Select.extend({ defaultProps: { comboboxProps: { withinPortal: false } } }) } }}><div className="board-record-page" hidden={!active} inert={!active}>
+    {!readable && <Stack gap="xs"><Group gap="xs"><Button size="xs" variant="quiet" onClick={onBack}>Back to Boards</Button><Button size="xs" variant="quiet" onClick={refresh}>Refresh board</Button></Group>
+      {unavailable ? <Alert color="red" title="Board state unavailable">Selected drawings, facts and source details are hidden. Local buffers and original editing tokens remain in this session for authorized recovery.</Alert>
+        : record.needsDraftChoice ? <><Text>Choose an editable draft explicitly. Catalog order does not identify the newest draft.</Text>{chooseDraft}</> : <Text role="status">Reading current selected board state…</Text>}
+    </Stack>}
+    {/* Controllers stay mounted behind the authority fence; no hidden inspector portal stays active. */}
+    <div hidden={!readable} inert={!readable}>
+      <RecordPage active={frameActive} identity={{ id: definitionId ?? undefined, name, kind, pn }} state={state}
+        actions={<><Button size="xs" variant="quiet" onClick={onBack}>Back to Boards</Button><Button size="xs" variant="quiet" onClick={refresh}>Refresh board</Button>{board && create.allowed && <Button size="xs" variant="quiet" onClick={() => props.onDuplicate(name, board)}>Duplicate</Button>}{!record.editing && edit.allowed && <Button size="xs" onClick={() => onSelect(null, true)}>Continue draft</Button>}{record.editing && <><Button size="xs" loading={record.busy} disabled={!record.enteredName.trim() && !definitionId || !!definitionId && !record.current} {...edit.props} onClick={() => void record.save()}>Save {kind === 'board' ? 'board' : 'population'}</Button><Button size="xs" variant="quiet" loading={record.busy} disabled={!record.current || record.dirty} {...freeze.props} onClick={() => void record.freeze()}>Freeze saved {kind === 'board' ? 'board' : 'population'}</Button>{record.current && <Button size="xs" variant="quiet" disabled={record.busy} onClick={() => void record.reload()}>Reload saved draft (discard local edits)</Button>}</>}</>}
+        notice={<>{record.error && <Alert color="red">{record.error}</Alert>}{record.message && <Text size="xs" role="status">{record.message}</Text>}{record.dirty && record.current && record.draft.data?.state !== record.current.state && <Alert color="yellow">The saved draft changed. Your working buffer and original editing token are retained; saving may require conflict recovery.</Alert>}</>}
+        revisions={<Group gap="xs"><Button size="xs" variant="quiet" onClick={() => record.setHistory(value => !value)}>Revisions</Button>{record.revision && <Button size="xs" variant="quiet" onClick={() => onSelect(record.revision!.number)}>r{record.revision.number}</Button>}{definitionId && <Button size="xs" variant="quiet" onClick={() => onSelect(null, true)}>Draft</Button>}{record.history && <><Button size="xs" variant="quiet" disabled={!record.offset} onClick={() => record.setOffset(value => Math.max(0, value - 50))}>Earlier page</Button>{record.revisions.data?.revisions.map(row => <Button size="xs" variant="quiet" key={row.revision_id} onClick={() => onSelect(row.number)}>r{row.number}</Button>)}<Button size="xs" variant="quiet" disabled={Math.max(record.revisions.data?.revisions.length ?? 0, record.revisions.data?.drafts.length ?? 0) < 50} onClick={() => record.setOffset(value => value + 50)}>Later page</Button>{record.editing && chooseDraft}</>}</Group>}
+        view={view} onView={value => { if (!frameActive) return; setOwnView(value); nav?.navigate({ filters: { ...nav.location.filters, view: value } }, { replace: true }); }}
+        views={[...(board ? [{ id: 'diagram', label: 'Diagram', content: <BoardSketch board={board} title={name} editable={editable} selected={selected} onSelect={pick} onChange={changeBoard} /> }] : []), ...(review ? [{ id: 'native', label: 'Native board', content: <Stack gap="xs">{review.report.outline.length ? <BoardPreview report={review.report} viewportHeight={480} selectedPad={nativePad} onPad={id => { setNativePad(id); setInspectorTab('native-pads'); }} /> : <Alert color="yellow">Native outline unresolved. Pad positions and coverage remain inspectable; no outline was invented.</Alert>}<Text size="xs">Exact accepted native report · {review.report.coordinate_frame} · {review.report.units}. Population, schematic parity, connectivity and physical qualification remain separate.</Text></Stack> }] : [])]}
+        inspectorTab={inspectorTab} onInspectorTab={setInspectorTab} inspector={[
+          ...(board ? [
+            { id: 'pads', label: 'Pads', content: () => <Stack gap="xs">{!definitionId && <TextInput size="xs" label="Board name" value={record.enteredName} disabled={!editable} onChange={event => record.setName(event.currentTarget.value)} />}<Select size="xs" label="Selected pad" clearable value={selected && 'pad' in selected ? selected.pad : null} data={board.terminals.map(pad => ({ value: pad.terminal_id, label: pad.label }))} onChange={id => setSelected(id ? { pad: id } : null)} /><InspectionScope permission={definitionId ? 'design.edit' : 'item.create'}><fieldset className="board-record-fields" disabled={!editable}>{selected && 'pad' in selected && board.terminals.some(pad => pad.terminal_id === selected.pad) ? <PadInspector pad={board.terminals.find(pad => pad.terminal_id === selected.pad)!} board={board} onChange={changeBoard} onDone={() => setSelected(null)} /> : <BoardDefaults value={board} onChange={changeBoard} onlyPads />}</fieldset></InspectionScope></Stack> },
+            { id: 'paths', label: 'Paths', content: () => <Stack gap="xs"><Select size="xs" label="Selected declared path" clearable value={selected && 'path' in selected ? selected.path : null} data={board.paths.map(path => ({ value: path.local_id, label: `${board.terminals.find(pad => pad.terminal_id === path.from_terminal)?.label ?? 'Unknown'} → ${board.terminals.find(pad => pad.terminal_id === path.to_terminal)?.label ?? 'Unknown'}` }))} onChange={id => setSelected(id ? { path: id } : null)} />{selected && 'path' in selected && board.paths.some(path => path.local_id === selected.path) ? <InspectionScope permission={definitionId ? 'design.edit' : 'item.create'}><fieldset className="board-record-fields" disabled={!editable}><PathInspector path={board.paths.find(path => path.local_id === selected.path)!} board={board} onChange={changeBoard} onDone={() => setSelected(null)} /></fieldset></InspectionScope> : <Text size="sm">{board.paths.length ? 'Select a declared path in the diagram or this list.' : 'No paths declared. Connections are unknown.'} {editable ? 'Use Draw path to choose two pads deliberately.' : ''}</Text>}{frozenId && <RecordSections sections={[{ id: 'follow-declared', label: 'Follow exact declared paths', content: () => <DeclaredPathQuery key={frozenId} revisionId={frozenId} board={board} active={frameActive && inspectorTab === 'paths'} /> }]} />}</Stack> },
+            { id: 'carries', label: 'Carries', content: () => <BoardCarries board={board} editable={editable} active={frameActive && inspectorTab === 'carries'} principalKey={principalKey} onChange={changeBoard} onAccessLost={record.failAuthority} /> },
+            { id: 'review', label: 'Review', content: () => <Stack gap="xs"><Text size="sm">{board.origin === 'black_box' ? 'Black-box declarations from a drawing or datasheet.' : 'Derived declarations from one exact accepted native population.'} Review is not physical qualification.</Text>{board.derived_from && <RevisionLabel id={board.derived_from.population_revision_id} role="Exact population basis" />}<fieldset className="board-record-fields" disabled={!editable}><ConditionEditor value={board} onChange={changeBoard} /><Select size="xs" label="Board review" value={board.review} data={['unreviewed', 'reviewed']} onChange={value => changeBoard({ ...board, review: value as Board['review'] })} /><TextInput size="xs" label="Review basis" value={board.review_basis ?? ''} onChange={event => changeBoard({ ...board, review_basis: event.currentTarget.value || null })} /></fieldset>{!definitionId && editable && <RecordSections sections={[{ id: 'origin', label: 'Propose from an accepted native population', content: () => <Suspense fallback={<Text>Loading proposal controls…</Text>}><BoardOrigins active={frameActive && inspectorTab === 'review'} principalKey={principalKey} onUse={(value, label) => { changeBoard(value); if (!record.enteredName.trim()) record.setName(label); }} /></Suspense> }]} />}</Stack> },
+          ] : []),
+          ...(population && review ? [{ id: 'components', label: 'Components', content: () => <PopulationChoices value={population} report={review.report} editable={editable} onChange={changePopulation} /> }, { id: 'associations', label: 'Associations', content: () => <PopulationAssociations value={population} review={review} editable={editable} active={frameActive && inspectorTab === 'associations'} principalKey={principalKey} workspaceId={workspaceId} onChange={changePopulation} onAccessLost={record.failAuthority} /> }] : []),
+          ...(review ? [{ id: 'native-pads', label: 'Native pads', content: () => <NativePadDetails report={review.report} selected={nativePad} onSelect={setNativePad} /> }, { id: 'sources', label: 'Sources', content: () => <Suspense fallback={<Text>Loading exact sources…</Text>}><BoardSources review={review} active={frameActive && inspectorTab === 'sources'} principalKey={principalKey} onAccessLost={record.failAuthority} onOpenIntake={openIntake} /></Suspense> }, { id: 'source-review', label: 'Source review', content: () => <Suspense fallback={<Text>Loading source review…</Text>}><BoardSourceReview review={review} active={frameActive && inspectorTab === 'source-review'} principalKey={principalKey} workspaceId={workspaceId} onAccessLost={record.failAuthority} /></Suspense> }] : [{ id: 'sources', label: 'Sources', content: () => <Text size="sm">No accepted native interpretation is pinned. Registered drawings, manufacturer associations and exact sources are available under More after freezing; no native geometry is inferred.</Text> }]),
+          { id: 'more', label: 'More', content: () => <Stack gap="xs">{record.record && <StockRecordDetails toolLabel="Board" active={frameActive && inspectorTab === 'more'} principalKey={principalKey} workspaceId={workspaceId} record={record.record} revisionId={frozenId} revisionNumber={state.kind === 'revision' ? state.number : null} projects={projects} onOpenInProject={onOpenInProject} />}<RecordSections sections={[...(frozenId ? [{ id: 'advanced-copper', label: 'Advanced copper and passive passages', content: () => <Suspense fallback={<Text>Loading exact copper controls…</Text>}><BoardAdvanced revisionId={frozenId} active={frameActive && inspectorTab === 'more'} principalKey={principalKey} workspaceId={workspaceId} onAccessLost={record.failAuthority} /></Suspense> }] : []), ...(review ? [{ id: 'native-review', label: 'Exact population provenance and coverage', content: () => <Readout review={review} kind={'revision_id' in review ? 'revision' : 'draft'} /> }] : []), { id: 'content', label: 'Advanced · exact selected content', content: () => <pre>{JSON.stringify(content, null, 2)}</pre> }]} /></Stack> },
+        ]} />
+    </div>
+  </div></MantineThemeProvider>;
+}
+
+function DeclaredPathQuery({ revisionId, board, active }: { revisionId: string; board: Board; active: boolean }) {
+  const [from, setFrom] = useState<string | null>(null); const [to, setTo] = useState<string | null>(null); const [states, setStates] = useState<Record<string, string>>({}); const [result, setResult] = useState<BoardTrace | null>(null);
+  return <TraceForm revisionId={revisionId} board={board} active={active} from={from} to={to} setFrom={value => { setFrom(value); setResult(null); }} setTo={value => { setTo(value); setResult(null); }} states={states} setStates={value => { setStates(value); setResult(null); }} result={active ? result : null} onResult={setResult} />;
+}

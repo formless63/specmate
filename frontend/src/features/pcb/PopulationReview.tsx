@@ -49,7 +49,7 @@ export function PopulationReviewPanel({ kind, id, onAccessLost }: Props) {
   return <Readout key={`${kind}:${id}`} review={review} kind={kind} />;
 }
 
-function Readout({ review, kind }: { review: PopulationReview; kind: Props["kind"] }) {
+export function Readout({ review, kind }: { review: PopulationReview; kind: Props["kind"] }) {
   const [optionId, setOptionId] = useState<string | null>(null);
   const [componentPage, setComponentPage] = useState(0);
   const [associationPage, setAssociationPage] = useState(0);

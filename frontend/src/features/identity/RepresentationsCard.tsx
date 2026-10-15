@@ -26,8 +26,8 @@ function RevisionPin({ revisionNumber, name }: { revisionNumber: number; name: s
  * Datasheets, symbols, footprints, models and external source identifiers linked to one exact
  * revision. A representation documents the design; it is not an orderable part or a lot.
  */
-export function RepresentationsCard({ catalog, workspaceId, pending, register }: {
-  catalog: Catalog | undefined; workspaceId: string | null; pending: boolean; register: (operation: string, payload: object) => void;
+export function RepresentationsCard({ catalog, workspaceId, pending, register, active = true, scopeKey = "" }: {
+  scopeKey?: string; active?: boolean; catalog: Catalog | undefined; workspaceId: string | null; pending: boolean; register: (operation: string, payload: object) => void;
 }) {
   const gate = usePermission("item.create");
   const [label, setLabel] = useState("");
@@ -40,9 +40,11 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register }:
   const [rights, setRights] = useState("");
   const [repStatus, setRepStatus] = useState<string | null>(null);
   const [idStatus, setIdStatus] = useState<string | null>(null);
-  const bundles = useQuery({ queryKey: ["source-revisions", workspaceId], enabled: !!workspaceId, queryFn: () => request<SourcePage>(`sources/workspaces/${workspaceId}/revisions`) });
-  const detail = useQuery({ queryKey: ["source-revision", bundleId], enabled: !!bundleId, queryFn: () => request<RevisionDetail>(`sources/revisions/${bundleId}`) });
-  const file = detail.data?.manifest.files.find((f) => f.path === path);
+  const bundles = useQuery({ queryKey: ["source-revisions", scopeKey, workspaceId], enabled: active && !!workspaceId, queryFn: () => request<SourcePage>(`sources/workspaces/${workspaceId}/revisions`) });
+  const detail = useQuery({ queryKey: ["source-revision", scopeKey, bundleId], enabled: active && !!bundleId, queryFn: () => request<RevisionDetail>(`sources/revisions/${bundleId}`) });
+  const sourceRevisions = active && !bundles.isError && !bundles.isFetching ? bundles.data?.revisions ?? [] : [];
+  const sourceFiles = active && !detail.isError && !detail.isFetching ? detail.data?.manifest.files ?? [] : [];
+  const file = sourceFiles.find((f) => f.path === path);
   return <Card withBorder><Stack gap="xs">
     <Title order={3}>Representations and source references</Title>
     <Text size="sm">These document this exact revision. A datasheet, symbol, footprint or model is not an orderable part or a physical lot, and linking one does not qualify the part.</Text>
@@ -66,14 +68,14 @@ export function RepresentationsCard({ catalog, workspaceId, pending, register }:
       <TextInput label="Representation label" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
       <Select label="Representation kind" value={kind} onChange={setKind} data={KINDS} allowDeselect={false} />
       <Select label="Source bundle revision" placeholder="Choose a registered source" searchable value={bundleId} onChange={(v) => { setBundleId(v); setPath(null); }}
-        data={newestFirst(bundles.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} (${r.role})` }))} />
-      <Select label="Source file" placeholder="Choose an exact file" searchable value={path} onChange={setPath} disabled={!detail.data}
-        data={(detail.data?.manifest.files ?? []).map((f) => ({ value: f.path, label: f.path }))} />
+        data={newestFirst(sourceRevisions).map((r) => ({ value: r.revision_id, label: `${r.name} · revision ${r.number} (${r.role})` }))} />
+      <Select label="Source file" placeholder="Choose an exact file" searchable value={path} onChange={setPath} disabled={!sourceFiles.length}
+        data={sourceFiles.map((f) => ({ value: f.path, label: f.path }))} />
       {file && <Group gap="xs"><Text size="xs" className="sb-mono">SHA-256: {file.sha256}</Text><Text size="xs">File rights note: {file.rights}</Text></Group>}
       <Select label="Rights status" description="Required; choose Unknown explicitly if not established." placeholder="Choose a status" value={repStatus} onChange={setRepStatus} data={RIGHTS_OPTIONS} allowDeselect={false} />
       {(bundles.isError || detail.isError) && <Alert color="red">{((bundles.error ?? detail.error) as Error).message}</Alert>}
     </InspectionScope>
-    <Button disabled={!label.trim() || !bundleId || !path || !repStatus} loading={pending} {...gate.props}
+    <Button disabled={!active || !label.trim() || !bundleId || !file || !repStatus} loading={pending} {...gate.props}
       onClick={() => register("representation", { label, kind, source_bundle_revision_id: bundleId, source_path: path, rights_status: repStatus })}>Register representation</Button>
     <InspectionScope permission="item.create">
       <Title order={4}>Add an external source identifier</Title>

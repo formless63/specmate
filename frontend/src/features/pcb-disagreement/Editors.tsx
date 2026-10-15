@@ -1,13 +1,13 @@
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { RevisionPicker } from '../harnesses/RevisionPicker';
 import { getIntake, listIntakes } from '../pcb/api';
 import { blankInput, blankSource, isUuid, label, read, terminalLabel, type Assertion, type Comparison, type Definition, type FilePin, type Frozen, type Input, type NativeAccepted, type NativeAttempts, type Projection, type SourceFiles, type Terminal } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-export function SourcePicker({ value, onChange, onDenied }: { value: FilePin; onChange: (v: FilePin) => void; onDenied: (v: boolean) => void }) {
-  const files = useQuery({ queryKey: ['pcb-review-source', value.source_revision_id], queryFn: () => read<SourceFiles>(`pcb-disagreement/sources/${value.source_revision_id}`), enabled: isUuid(value.source_revision_id) });
+export function SourcePicker({ value, onChange, onDenied, active = true }: { value: FilePin; onChange: (v: FilePin) => void; onDenied: (v: boolean) => void; active?: boolean }) {
+  const files = useQuery({ queryKey: ['pcb-review-source', value.source_revision_id], queryFn: () => read<SourceFiles>(`pcb-disagreement/sources/${value.source_revision_id}`), enabled: active && isUuid(value.source_revision_id) });
   useEffect(() => onDenied(files.isError), [files.isError, onDenied]);
   return <Stack><TextInput label="Preserved source revision ID" value={value.source_revision_id} onChange={e => onChange({ ...blankSource(), source_revision_id: e.currentTarget.value })} description="Preserve originals in PCB intake first, then select the exact file." />
     {files.isError && <Alert color="red">{files.error.message}</Alert>}
@@ -15,14 +15,14 @@ export function SourcePicker({ value, onChange, onDenied }: { value: FilePin; on
     {!files.isError && value.path && <Text size="sm">SHA-256: {value.sha256} · Rights: {value.rights}</Text>}
   </Stack>;
 }
-export function AssertionEditor({ value, onChange, onDenied }: { value: Assertion; onChange: (v: Assertion) => void; onDenied: (v: boolean) => void }) {
+export function AssertionEditor({ value, onChange, onDenied, sourceControls }: { value: Assertion; onChange: (v: Assertion) => void; onDenied: (v: boolean) => void; sourceControls?: ReactNode }) {
   const [denied, setDenied] = useState(false);
   const [id, setId] = useState(''); const [reference, setReference] = useState(''); const [pin, setPin] = useState('');
   const [state, setState] = useState<Terminal['net_state']>('unknown'); const [net, setNet] = useState(''); const [basis, setBasis] = useState('');
   const [nativeComponent, setNativeComponent] = useState(''); const [nativeTerminal, setNativeTerminal] = useState('');
   useEffect(() => onDenied(denied), [denied, onDenied]);
   return <Stack><Text>Human assertions are independently recorded statements about preserved bytes. They are not native extraction or automatic schematic parity. Entered native IDs remain human assertions.</Text>
-    <SourcePicker value={value.source} onChange={source => onChange({ ...value, source })} onDenied={setDenied} />
+    {sourceControls ?? <SourcePicker value={value.source} onChange={source => onChange({ ...value, source })} onDenied={setDenied} />}
     {!denied && <><Select label="Asserted source role" data={['pcb', 'schematic', 'netlist']} value={value.source_role} onChange={v => onChange({ ...value, source_role: v as Assertion['source_role'] })} />
     <Select label="Asserted coverage" value={value.coverage} data={[{ value: 'partial', label: 'Partial / unknown completeness' }, { value: 'declared_complete', label: 'Human declares complete terminal inventory' }]} onChange={v => onChange({ ...value, coverage: v as Assertion['coverage'] })} />
     <TextInput label="Coverage declaration basis" value={value.coverage_basis} onChange={e => onChange({ ...value, coverage_basis: e.currentTarget.value })} />
@@ -60,7 +60,7 @@ function InputPicker({ side, workspaceId, value, onChange, definitions, onDenied
     </>}
   </Stack></Card>;
 }
-export function ComparisonEditor({ workspaceId, value, onChange, definitions, projection, sourcePinsCurrent, onDenied }: { workspaceId: string; value: Comparison; onChange: (v: Comparison) => void; definitions: Definition[]; projection?: Projection; sourcePinsCurrent: boolean; onDenied: (v: boolean) => void }) {
+export function ComparisonEditor({ workspaceId, value, onChange, definitions, projection, sourcePinsCurrent, onDenied, inputControls }: { workspaceId: string; value: Comparison; onChange: (v: Comparison) => void; definitions: Definition[]; projection?: Projection; sourcePinsCurrent: boolean; onDenied: (v: boolean) => void; inputControls?: ReactNode }) {
   const [leftDenied, setLeftDenied] = useState(false), [rightDenied, setRightDenied] = useState(false);
   const [id, setId] = useState(''), [basis, setBasis] = useState('');
   const [left, setLeft] = useState<string | null>(null), [right, setRight] = useState<string | null>(null);
@@ -68,8 +68,8 @@ export function ComparisonEditor({ workspaceId, value, onChange, definitions, pr
   useEffect(() => onDenied(denied), [denied, onDenied]);
   const inputs = !denied && sourcePinsCurrent ? projection?.inputs : undefined;
   return <Stack><Text>Save independent input pins first, then record exact terminal correspondence. Reference labels are display aids; duplicate labels do not identify the same terminal.</Text>
-    <InputPicker side="Left" workspaceId={workspaceId} value={value.left} onChange={v => onChange({ ...value, left: v })} definitions={definitions} onDenied={setLeftDenied} />
-    <InputPicker side="Right" workspaceId={workspaceId} value={value.right} onChange={v => onChange({ ...value, right: v })} definitions={definitions} onDenied={setRightDenied} />
+    {inputControls ?? <><InputPicker side="Left" workspaceId={workspaceId} value={value.left} onChange={v => onChange({ ...value, left: v })} definitions={definitions} onDenied={setLeftDenied} />
+    <InputPicker side="Right" workspaceId={workspaceId} value={value.right} onChange={v => onChange({ ...value, right: v })} definitions={definitions} onDenied={setRightDenied} /></>}
     {!denied && <>{value.correspondences.map((c, i) => <Group key={c.local_id}><Text>{c.local_id}: {c.left_terminal_id ?? 'Declared absent'} ↔ {c.right_terminal_id ?? 'Declared absent'} · {c.basis}</Text><Button variant="subtle" onClick={() => onChange({ ...value, correspondences: value.correspondences.filter((_, j) => j !== i) })}>Remove correspondence {c.local_id}</Button></Group>)}
       {inputs && <><TextInput label="Correspondence stable ID" value={id} onChange={e => setId(e.currentTarget.value)} /><Select clearable searchable label="Left exact terminal; blank declares absent" value={left} data={inputs.left.terminals.filter(t => !value.correspondences.some(c => c.left_terminal_id === t.local_id)).map(t => ({ value: t.local_id, label: terminalLabel(t) }))} onChange={setLeft} /><Select clearable searchable label="Right exact terminal; blank declares absent" value={right} data={inputs.right.terminals.filter(t => !value.correspondences.some(c => c.right_terminal_id === t.local_id)).map(t => ({ value: t.local_id, label: terminalLabel(t) }))} onChange={setRight} /><TextInput label="Correspondence basis" value={basis} onChange={e => setBasis(e.currentTarget.value)} /><Button disabled={!id || !basis || !left && !right || value.correspondences.some(c => c.local_id === id)} onClick={() => { onChange({ ...value, correspondences: [...value.correspondences, { local_id: id, left_terminal_id: left, right_terminal_id: right, basis }] }); setId(''); setLeft(null); setRight(null); }}>Add explicit correspondence</Button></>}
       {!!value.reviews.length && <Button variant="subtle" onClick={() => onChange({ ...value, reviews: [] })}>Clear review decisions before changing comparison</Button>}
