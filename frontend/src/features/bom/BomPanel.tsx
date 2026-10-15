@@ -37,7 +37,8 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); };
   const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
   useOpenProbed(definitionIn(definitions.data, ["bom_plan"]), (id) => { pick(id); openNewest(id); });
-  const draftBlocked = definitions.isError || identity.isError || draft.isError;
+  const recordBlocked = definitions.isError || identity.isError;
+  const draftBlocked = recordBlocked || draft.isError;
   return <Stack>
     <Title order={2}>Purpose-specific BOM planning</Title>
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
@@ -63,7 +64,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     {draftBlocked && <Button variant="subtle" onClick={() => { void definitions.refetch(); if (definitionId) void identity.refetch(); if (draftId) void draft.refetch(); }}>Refresh BOM access</Button>}
     {draft.data && <div hidden={draftBlocked} inert={draftBlocked || undefined}><DraftEditor key={draft.data.draft_id} blocked={draftBlocked} draft={draft.data} workspaceId={workspaceId} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); }} onFrozen={async id => { setRevisionId(id); await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); await cache.invalidateQueries({ queryKey: ["bom-identity", definitionId] }); }} /></div>}
-    {revisionId && <BomInspector key={revisionId} revisionId={revisionId} />}
+    {revisionId && <div hidden={recordBlocked} inert={recordBlocked || undefined}><BomInspector key={revisionId} revisionId={revisionId} /></div>}
   </Stack>;
 }
 
@@ -167,7 +168,7 @@ export function BomInspector({ revisionId }: { revisionId: string }) {
   return <Card withBorder><Stack><Title order={3}>Frozen BOM purpose view</Title>
     <Select label="BOM purpose" value={purpose} data={purposes} onChange={p => setPurpose(p as Purpose)} />
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
-    {result.data && <><Text><RevisionLabel id={result.data.revision_id} role="Plan" /></Text><Text><RevisionLabel id={result.data.bom.assembly_revision_id} role="Assembly" /></Text><Text>Status: {result.data.status}. Physical qualification: not evaluated.</Text>
+    {result.data && !result.isError && <><Text><RevisionLabel id={result.data.revision_id} role="Plan" /></Text><Text><RevisionLabel id={result.data.bom.assembly_revision_id} role="Assembly" /></Text><Text>Status: {result.data.status}. Physical qualification: not evaluated.</Text>
       <Table><Table.Thead><Table.Tr><Table.Th>Occurrence / need</Table.Th><Table.Th>Exact item</Table.Th><Table.Th>Net / structural quantity</Table.Th><Table.Th>Additive waste / gross required</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{result.data.rows.map((r, i) => <Table.Tr key={i}><Table.Td>{label(r.address.path)}{r.need_id ? ` · ${r.need_id}` : ""}</Table.Td><Table.Td>{r.name}<Text size="xs"><RevisionLabel id={r.revision_id} /></Text></Table.Td><Table.Td><SbQuantity value={r.quantity.amount} unit={r.quantity.unit} /><Text size="xs">{r.demand_basis}</Text>{r.per_root_quantity && <Text size="xs">Per root: <SbQuantity value={r.per_root_quantity.amount} unit={r.per_root_quantity.unit} /></Text>}{r.structural_quantity && <Text size="xs">Structural: <SbQuantity value={r.structural_quantity.amount} unit="ea" /></Text>}{r.net_quantity && <Text size="xs">Net demand: <SbQuantity value={r.net_quantity.amount} unit={r.net_quantity.unit} /></Text>}</Table.Td><Table.Td>{r.waste_quantity ? <>Waste: <SbQuantity value={r.waste_quantity.amount} unit={r.waste_quantity.unit} /><Text size="xs">{r.waste_status} · {r.waste_basis}</Text>{r.per_root_waste && <Text size="xs">Allowance per root: <SbQuantity value={r.per_root_waste.amount} unit={r.per_root_waste.unit} /></Text>}<Text>Gross: <SbQuantity value={r.required_quantity?.amount} unit={r.required_quantity?.unit ?? r.quantity.unit} /></Text></> : "Waste not evaluated"}</Table.Td><Table.Td>{r.reason}<Text size="xs">{r.basis}</Text></Table.Td></Table.Tr>)}</Table.Tbody></Table>
       {!result.data.rows.length && <Text>No included rows for this purpose and scope. Check boundaries and unresolved decisions below.</Text>}
       {result.data.boundaries.map((b, i) => <Text key={i}>Boundary: {label(b.address.path)} · {b.decision}</Text>)}

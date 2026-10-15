@@ -250,3 +250,29 @@ test("saving after freeze uses the returned draft token and retains the editor",
   expect(commands.map(command => [command.operation, command.expected_state])).toEqual([["bom.update", "v1"], ["bom.freeze", "v2"], ["bom.update", "v3"]]);
   expect((field as HTMLInputElement).value).toBe("After frozen basis");
 });
+
+
+test("cached frozen rows withdraw on failed identity or frozen refetch and reappear only after recovery", async () => {
+  let denied: "identity" | "frozen" | null = null;
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    const identity = url.includes("catalog/definitions/plan"); const frozen = url.includes("bom/revisions/frozen");
+    if ((identity && denied === "identity") || (frozen && denied === "frozen")) return new Response(JSON.stringify({ error: { message: "Frozen authority denied." } }), { status: 404 });
+    const body = identity ? { name: "Existing plan", drafts: [], revisions: [{ revision_id: "frozen", number: 1 }] }
+      : frozen ? { revision_id: "frozen", bom: { assembly_revision_id: "root-rev" }, status: "unknown", rows: [{ address: { path: ["sensitive-branch"] }, revision_id: "item-rev", name: "Retained private item", quantity: { status: "unknown", amount: null, unit: "ea" }, reason: "buy_boundary", basis: "Retained basis" }], boundaries: [], unresolved: [], excluded_needs: [], limitations: [] }
+      : [{ definition_id: "plan", kind: "bom_plan", name: "Existing plan" }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(<MantineProvider><QueryClientProvider client={cache}><BomPanel /></QueryClientProvider></MantineProvider>);
+  await choose("Existing BOM plan", "Existing plan");
+  await choose("Frozen BOM revision", "Existing plan · r1");
+  await screen.findByRole("cell", { name: /Retained private item/ });
+  denied = "identity"; await act(() => cache.refetchQueries({ queryKey: ["bom-identity", "plan", 0], exact: true }));
+  await screen.findByText("Frozen authority denied."); expect(screen.queryByRole("cell", { name: /Retained private item/ })).toBeNull();
+  denied = null; await act(() => cache.refetchQueries({ queryKey: ["bom-identity", "plan", 0], exact: true }));
+  await screen.findByRole("cell", { name: /Retained private item/ });
+  denied = "frozen"; await act(() => cache.refetchQueries({ queryKey: ["bom-inspect", "frozen", "procurement"], exact: true }));
+  await screen.findByText("Frozen authority denied."); expect(screen.queryByText("Retained private item")).toBeNull();
+  denied = null; await act(() => cache.refetchQueries({ queryKey: ["bom-inspect", "frozen", "procurement"], exact: true }));
+  await screen.findByRole("cell", { name: /Retained private item/ });
+});
