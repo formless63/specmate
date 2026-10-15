@@ -124,3 +124,23 @@ test('OrcaSlicer evidence shows vendor presets, layer count and preset-supplied 
   expect(screen.getByText('100 layers (slicer estimate)')).toBeTruthy();
   expect(screen.getByText('Applied presets: Synthetic machine 0.4 · Synthetic process · unknown')).toBeTruthy();
 });
+
+test('a nonterminal slice build is polled until it succeeds, then Inspect enables without reselecting', async () => {
+  const options = (state: string) => ({ ...status, preparation_revision_id: 'rev-prep', recipe_id: 'r', available_recipe_id: 'r', unavailable_reason: null, tool: slice.inputs.tool,
+    proposed_recipe: null, builds: [{ build_id: 'build-a', state, failure: null, exit_code: null }] });
+  vi.mocked(api.sliceOptions).mockResolvedValueOnce(options('waiting_dispatch')).mockResolvedValue(options('succeeded'));
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    render(panel(grants({ execute: true })));
+    await openPreparation();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Frozen revision' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'r1' }));
+    const inspect = await screen.findByRole('button', { name: 'Inspect slice build-a' });
+    expect((inspect as HTMLButtonElement).disabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(3500);
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Inspect slice build-a' }) as HTMLButtonElement).disabled).toBe(false));
+    const calls = vi.mocked(api.sliceOptions).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(vi.mocked(api.sliceOptions).mock.calls.length).toBe(calls);
+  } finally { vi.useRealTimers(); }
+});

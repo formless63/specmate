@@ -24,6 +24,10 @@ function blank(technology: Technology): PrintPreparation {
   };
 }
 
+/** Slice builds that can still change; the card polls until none of these remain. */
+const NONTERMINAL_SLICE = new Set(['waiting_dispatch', 'queued', 'leased', 'running', 'cancellation_requested']);
+const SLICE_POLL_MS = 3000;
+
 function EstimateCell({ label, estimate, unit }: { label: string; estimate: Estimate; unit: string }) {
   return estimate.status === 'unknown' || estimate.value === null
     ? <SbUnknown what={label} />
@@ -59,6 +63,16 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
       .catch(e => { if (alive) setError(message(e)); });
     return () => { alive = false; };
   }, [projectId, workspaceId, refreshKey]);
+
+  const pending = !!frozen && !!slicing?.builds.some(build => NONTERMINAL_SLICE.has(build.state));
+  useEffect(() => {
+    if (!pending || !frozen) return;
+    let alive = true;
+    const timer = setInterval(() => {
+      sliceOptions(frozen).then(next => { if (alive) setSlicing(next); }).catch(() => { /* keep the last known state; the next tick retries */ });
+    }, SLICE_POLL_MS);
+    return () => { alive = false; clearInterval(timer); };
+  }, [pending, frozen]);
 
   const edit = (change: (next: PrintPreparation) => void) => {
     if (!draft) return;
