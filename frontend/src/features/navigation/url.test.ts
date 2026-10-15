@@ -76,3 +76,12 @@ test("targets compare by object, revision and path", () => {
   expect(sameTarget(null, null)).toBe(true);
   expect(targetKey(a)).not.toBe(targetKey({ ...a, path: ["J", "1"] }));
 });
+
+
+test.each([
+  ["settings-documents", "/settings/documents"], ["settings-engineering", "/settings/engineering"],
+  ["part-numbering", "/settings/numbering"], ["validation-rules", "/settings/rules"], ["webhooks", "/settings/webhooks"],
+])("Settings %s has canonical home %s", (lens, home) => {
+  expect(formatLocation({ ...HOME, area: "settings", lens })).toBe(home);
+  expect(parseLocation(home, "").lens).toBe(lens);
+});

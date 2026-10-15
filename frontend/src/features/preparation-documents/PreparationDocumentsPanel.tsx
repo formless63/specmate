@@ -1,3 +1,4 @@
+import { DocumentDefaults } from "../settings/DocumentDefaults";
 import { ReadOnlyNote, useCan } from '../../lib/permissions';
 import { Alert, Button, Card, Fieldset, Group, Select, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { useEffect, useRef, useState } from 'react';
@@ -9,9 +10,9 @@ import { svgSize } from './svg-size';
 import { NewerRevisionNotice } from './NewerRevisionNotice';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
-type Props = { projectId?: string | null; principalKey: string; active?: boolean; onAccessLost?: () => void };
+type Props = { workspaceId?: string; projectId?: string | null; principalKey: string; active?: boolean; onAccessLost?: () => void };
 export function PreparationDocumentsPanel(props: Props) { return <Workspace key={`${props.projectId ?? 'library'}:${props.principalKey}`} {...props} />; }
-function Workspace({ active = true, onAccessLost }: Props) {
+function Workspace({ active = true, onAccessLost, workspaceId }: Props) {
   const canGenerate = useCan('design.edit');
   const [config, setConfig] = useState<Configuration>(emptyConfiguration), [quantity, setQuantity] = useState('1');
   const [definitions, setDefinitions] = useState<Definition[]>([]), [history, setHistory] = useState<Receipt[]>([]);
@@ -122,6 +123,7 @@ function Workspace({ active = true, onAccessLost }: Props) {
     <Group><Button variant="subtle" onClick={discard}>Discard prepared document selection</Button>{selectedId && <Button variant="subtle" onClick={closeReceipt}>Close selected historic document</Button>}</Group>
     <Fieldset legend="Exact document inputs" disabled={!visible} inert={!visible} aria-hidden={!visible} style={{ display: visible ? undefined : 'none' }}><Stack>
         <RevisionChoice label="Document root" kinds={definitions.map(d => d.kind)} definitions={definitions} value={config.root_revision_id || null} onChange={rootChange} onDenied={fail} disabled={!visible} active={active && focused} onActivity={choiceActivity} />
+        {workspaceId && <DocumentDefaults key={config.root_revision_id} active={active && focused && visible} workspaceId={workspaceId} value={config.document_settings} onChange={document_settings => { const next = { ...config }; if (document_settings) next.document_settings = document_settings; else delete next.document_settings; change(next); }} />}
         <TextInput label="Document quantity (blank means unknown)" value={quantity} error={!quantityValid ? 'Enter an integer from 1 to 1000000, or leave unknown.' : undefined} onChange={e => { const value = e.currentTarget.value; setQuantity(value); change({ ...config, quantity: value === '' ? null : Number(value) }); }} />
         <RevisionChoice label="Frozen procurement BOM" kinds={['bom_plan']} definitions={definitions} value={config.bom_plan_revision_id} onChange={id => change({ ...config, bom_plan_revision_id: id })} onDenied={fail} disabled={!visible} active={active && focused} onActivity={choiceActivity} />
         <Select label="Standalone workshop disposition" value={config.standalone_decision} data={['unknown', 'make', 'buy']} onChange={v => change({ ...config, standalone_decision: (v ?? 'unknown') as Configuration['standalone_decision'] })} />

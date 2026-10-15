@@ -38,6 +38,7 @@ export const TOOL_PATHS: Record<string, string> = {
   overview: "/projects", knowledge: "/projects/notes", "catalog-packs": "/extensions/packs", integrations: "/extensions/integrations", "agent-capabilities": "/extensions/agents",
   "occurrence-firmware": "/designs", "firmware-impact": "/designs", configurations: "/designs", "shared-scene": "/designs", "context-selection": "/designs", "scene-drawings": "/designs", "mechanical-proposals": "/designs",
   "preparation-documents": "/designs", "cable-test-intent": "/designs", "selected-packages": "/designs", "export-packages": "/designs",
+  "settings-documents": "/settings/documents", "settings-engineering": "/settings/engineering", "part-numbering": "/settings/numbering", "validation-rules": "/settings/rules", webhooks: "/settings/webhooks",
   access: "/settings/people", preferences: "/settings/preferences", diagnostics: "/settings/system",
 };
 const HOME_TOOLS: Record<string, string> = Object.fromEntries(Object.entries(TOOL_PATHS).reverse().map(([tool, path]) => [path, tool]));

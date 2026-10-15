@@ -47,6 +47,7 @@ const EndAssemblyPanel = lazy(() => import("./features/end-assemblies/EndAssembl
 const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
+const SettingsPanel = lazy(() => import("./features/settings/SettingsPanel").then(module => ({ default: module.SettingsPanel })));
 const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPanel").then((module) => ({ default: module.PreferencesPanel })));
 const DiscoveryPanel = lazy(() => import("./features/discovery/DiscoveryPanel").then((module) => ({ default: module.DiscoveryPanel })));
 const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/PhysicalUnitsPanel").then((module) => ({ default: module.PhysicalUnitsPanel })));
@@ -249,7 +250,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
 }
 
 /** Lenses whose data lives in the workspace; a project is optional context, never a requirement. */
-const WORKSPACE_LENSES = new Set(["knowledge", "agent-capabilities", "agent-runs", "preferences", "diagnostics", "discovery", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
+const WORKSPACE_LENSES = new Set(["settings-documents", "settings-engineering", "part-numbering", "validation-rules", "webhooks", "knowledge", "agent-capabilities", "agent-runs", "preferences", "diagnostics", "discovery", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
   "mechanical-proposals", "builds", "evidence-kinds", "shared-scene", "context-selection", "scene-drawings", "preparation-documents", "selected-packages", "export-packages", "copper", "releases", "printing"]);
 
 type LensContext = {
@@ -264,6 +265,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
   const onAccessChanged = scope.refresh;
   const optional = projectId ?? undefined;
   switch (toolId) {
+    case "settings-documents": case "settings-engineering": case "part-numbering": case "validation-rules": case "webhooks": return <SettingsPanel workspaceId={workspaceId} principalKey={scope.principalKey} active={active === toolId} onAccessLost={onAccessChanged} section={toolId} />;
     case "knowledge": return !projectId ? <ChooseProject toolLabel="Notes & files" projects={scope.projects} lastProjectId={scope.lastProjectId} onChoose={project => navigation?.navigate({ area: "projects", lens: "knowledge", project, probe: null, filters: {} })} /> : <Stack><KnowledgePanel target={{ kind: "project", project_id: projectId }} workspaceId={workspaceId} projectId={optional} principalKey={principalKey} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>;
     case "agent-capabilities": return <AgentCapabilitiesPanel workspaceId={workspaceId} projectId={projectId} />;
     case "agent-runs": return <AgentRunsPanel workspaceId={workspaceId} projectId={projectId} username={scope.username} principalKey={principalKey} />;
@@ -280,7 +282,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "shared-scene": return <SharedScenePanel projectId={projectId} />;
     case "context-selection": return <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />;
     case "scene-drawings": return <SceneDrawingsPanel projectId={projectId} principalKey={principalKey} active={active === "scene-drawings"} />;
-    case "preparation-documents": return <PreparationDocumentsPanel projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} onAccessLost={onAccessChanged} />;
+    case "preparation-documents": return <PreparationDocumentsPanel workspaceId={workspaceId} projectId={projectId} principalKey={principalKey} active={active === "preparation-documents"} onAccessLost={onAccessChanged} />;
     case "selected-packages": return <SelectedPackagesPanel projectId={projectId} />;
     case "export-packages": return <ExportPackagesPanel projectId={projectId} />;
     case "printing": return <PrintingPanel workspaceId={workspaceId} projectId={projectId} />;

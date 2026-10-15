@@ -65,6 +65,7 @@ export function workspaceServer(initial: Partial<WorkspaceState> = {}, extra?: (
     }
     if (path === "/api/v0/operations") {
       const body = state.operations[state.operations.length - 1]!;
+      if (body.operation === "workspace.settings.get") return reply({ result: { workspace_id: "w1", version: 0, state_token: "workspace-settings:w1:v0", values: { documents: {} } } });
       if (body.operation === "library.home") {
         const kinds = [...new Set(state.library.map((row) => row.kind ?? ""))].map((kind) => ({ kind, count: state.library.filter((row) => row.kind === kind).length }));
         return reply({ result: { workspace_id: "w1", attention: [], attention_total: 0, unknowns: [], unknowns_total: 0, recent: [], kinds, definitions_total: state.library.length, scan_limit_reached: false,

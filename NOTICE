@@ -113,3 +113,10 @@ MIT permission notice for those adaptations:
   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
   OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Optional numbering previews adapt the pure PartNumberScheme and declarative parser
+from WireHub by formless63, cbf919edf30a9d906a791971d3a40e22cb78b67e:
+packages/model/src/part-numbers.ts and pn-declarative.ts, under AGPL-3.0-only.
+Specmate accepts its own definition kind names and leaves numbering off by default.
+No predecessor assignments, catalog records or deployment settings are included.
+The Module Exception additional permission is not applied.

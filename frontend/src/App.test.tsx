@@ -84,6 +84,7 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
     if (path === "/api/v0/access/account-policy") return reply({ can_create_local_accounts: false });
     if (path === "/api/v0/operations") {
       const envelope = JSON.parse(String(options?.body));
+      if (envelope.operation === "workspace.settings.get") return reply({ result: { workspace_id: "w1", version: 0, state_token: "workspace-settings:w1:v0", values: { documents: {} } } });
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
     }
     if (path.startsWith("/api/v0/discovery/capabilities?")) return reply({ instance: { version: "0", registry_sha256: "0".repeat(64) }, transports: {}, scope: { project_id: null, role, permissions: ROLES[role] }, capabilities: { native_execution: { status: "unavailable", reasons: [], approved_recipes: 0 } }, notes: [], operations: [] });
@@ -375,4 +376,16 @@ test("workspace-level lenses open at Library scope without choosing a project, a
   await openTool("People");
   expect(await screen.findByRole("heading", { name: "Workspace access" })).toBeTruthy();
   expect(await screen.findByText("Workspace admins manage members, roles and grants.")).toBeTruthy();
+});
+
+test('Settings tabs open explicit workspace pages without requiring a project', async () => {
+  const fetchMock = server({ authenticated: true }); renderApp();
+  await screen.findByRole('button', { name: 'Account menu, signed in as local-user' });
+  for (const [label, path] of [['Documents', '/settings/documents'], ['Engineering', '/settings/engineering'], ['Part numbering', '/settings/numbering'], ['Validation rules', '/settings/rules'], ['Webhooks', '/settings/webhooks']] as const) {
+    await openTool(label);
+    expect(await screen.findByRole('heading', { name: label, level: 2 })).toBeTruthy();
+    expect(window.location.pathname).toBe(path);
+    expect(screen.queryByRole('heading', { name: 'Choose a project' })).toBeNull();
+  }
+  expect(fetchMock.mock.calls.some(([path, options]) => path === '/api/v0/operations' && JSON.parse(String(options?.body)).operation === 'workspace.settings.get')).toBe(true);
 });

@@ -12,7 +12,7 @@ export const AREAS: AreaDef[] = [
   { id: "products", label: "Products & releases", key: "6", tools: [tool("releases", "Releases")] },
   { id: "projects", label: "Projects", key: "7", tools: [tool("overview", "Projects"), tool("knowledge", "Notes & files")] },
   { id: "extensions", label: "Extensions", key: "8", tools: [tool("catalog-packs", "Packs"), tool("integrations", "Integrations"), tool("agent-capabilities", "Agents")] },
-  { id: "settings", label: "Settings", key: "9", tools: [tool("access", "People"), tool("preferences", "Preferences"), tool("diagnostics", "System")] },
+  { id: "settings", label: "Settings", key: "9", tools: [tool("settings-documents", "Documents"), tool("settings-engineering", "Engineering"), tool("part-numbering", "Part numbering"), tool("validation-rules", "Validation rules"), tool("access", "People"), tool("preferences", "Preferences"), tool("diagnostics", "System"), tool("webhooks", "Webhooks")] },
 ];
 export const DEFAULT_TOOL = "designs";
 export function areaOfTool(toolId: string): AreaDef { return AREAS.find(area => area.tools.some(tool => tool.id === toolId)) ?? AREAS[0]!; }
