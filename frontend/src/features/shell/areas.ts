@@ -18,6 +18,7 @@ export const AREAS: AreaDef[] = [
     { id: "diagnostics", label: "Status & recovery" },
   ] },
   { id: "library", label: "Library", key: "2", tools: [
+    { id: "library-home", label: "Library home" },
     { id: "identity", label: "Identities" },
     { id: "discovery", label: "Discovery" },
     { id: "revision-upgrades", label: "Revision upgrades" },

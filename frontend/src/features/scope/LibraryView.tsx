@@ -7,6 +7,8 @@ import { SelectedDefinitionViews } from "../cable-views/SelectedDefinitionViews"
 import { probeMark, readLibraryRecord, useProbe, useProbeOrLocal, useRelated } from "../probe";
 import { floatingKind, KNOWN_KINDS, type LibraryView as View } from "../shell/scope";
 import { addReference, listLibrary, readProjectDetail, removeReference, type LibraryRecord, type Project } from "../workspace/api";
+import { ItemCard } from "../library-gallery/ItemCard";
+import { attentionById, useLibraryHome, usedInWords } from "../library-gallery/hooks";
 import { ReferenceForm, type ReferenceChoice } from "./ReferenceForm";
 import type { EditorActions } from "./EditingLens";
 
@@ -22,6 +24,21 @@ function when(value: string | null): string {
   if (!value) return "–";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "–" : date.toISOString().slice(0, 10);
+}
+
+export type ListLayout = "gallery" | "table";
+const LAYOUT_KEY = "specmate.library.layout";
+
+/** Gallery or table, remembered per browser; the gallery is the default and storage is optional. */
+export function useListLayout(): [ListLayout, (layout: ListLayout) => void] {
+  const [layout, setLayout] = useState<ListLayout>(() => {
+    try { return window.localStorage.getItem(LAYOUT_KEY) === "table" ? "table" : "gallery"; } catch { return "gallery"; }
+  });
+  const choose = (next: ListLayout) => {
+    setLayout(next);
+    try { window.localStorage.setItem(LAYOUT_KEY, next); } catch { /* Private windows keep the choice for this page only. */ }
+  };
+  return [layout, choose];
 }
 
 /** Adds and retires project references under each project's current state token. */
@@ -87,6 +104,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<string | null>(null);
   const [mode, setMode] = useState<"project" | "library">("project");
+  const [layout, setLayout] = useListLayout();
   // The selected row is the shared probe inside the shell, so other views and the URL follow it.
   const [selected, setSelected] = useProbeOrLocal();
   const probe = useProbe()?.probe ?? null;
@@ -118,12 +136,35 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   });
   const offListRecord = offList && probed.data && showsViews(probed.data) && (view.kinds.length === 0 || view.kinds.includes(probed.data.kind ?? "")) ? probed.data : null;
   const title = projectId && mode === "project" ? `${view.title} in this project` : `${view.title} in the library`;
+  const gallery = layout === "gallery";
+  const drawn = view.family === "definition";
+  const home = useLibraryHome(principalKey, gallery && drawn);
+  const attention = useMemo(() => attentionById(home.data), [home.data]);
+  const selectedRow = gallery ? rows.find((row) => row.record_id === selected) ?? null : null;
+  const openCard = (row: LibraryRecord) => {
+    setSelected(row.record_id);
+    editor?.reveal(false);
+  };
+  const actionsFor = (row: LibraryRecord) => {
+    if (!row.referenceable) return null;
+    const here = projectId ? row.used_in.filter((use) => use.project_id === projectId) : [];
+    return projectId
+      ? here.length > 0
+        ? <RemoveButton label={row.label} busy={actions.busy} gate={archived ? archivedGate : edit}
+          onRemove={(reason) => void actions.remove(projectId, here[0]!.reference_id, row.label, reason)} />
+        : <AddButton record={row} projects={projects} fixedProjectId={projectId} busy={actions.busy} gate={archived ? archivedGate : edit}
+          onAdd={(choice) => actions.add(row, choice, project?.name ?? "this project")} label="Use here" />
+      : <AddButton record={row} projects={projects} busy={actions.busy} gate={edit}
+        onAdd={(choice) => actions.add(row, choice, projects.find((p) => p.project_id === choice.projectId)?.name ?? "the project")} label="Use in project…" />;
+  };
 
   return <section className="sb-dash sb-library" aria-label={title}>
     <Group justify="space-between" align="flex-end" wrap="wrap" gap="xs">
       <Title order={2} className="sb-dash-title">{title}</Title>
       <Group gap="xs">
       {editor && <Button variant="commit" size="xs" onClick={() => { setSelected(null); editor.reveal(true, view.noun); }} {...create.props}>New {view.noun}</Button>}
+      <SegmentedControl size="xs" value={layout} onChange={(value) => setLayout(value as ListLayout)} aria-label="List layout"
+        data={[{ value: "gallery", label: "Gallery" }, { value: "table", label: "Table" }]} />
       {projectId && <SegmentedControl size="xs" value={mode} onChange={(value) => setMode(value as "project" | "library")} aria-label="List scope"
         data={[{ value: "project", label: "This project" }, { value: "library", label: "Whole library" }]} />}
       </Group>
@@ -142,7 +183,25 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
       <Text>{filtered ? "No item matches these filters." : referencedOnly ? `This project references no ${view.noun} yet.` : `No ${view.noun} in the library yet.`}</Text>
       {referencedOnly && <Button variant="quiet" size="xs" onClick={() => setMode("library")}>Show the whole library</Button>}
     </div>}
-    {rows.length > 0 && <div className="sb-ws-scroll"><Table className="sb-ws-table" highlightOnHover verticalSpacing={4} horizontalSpacing="sm">
+    {rows.length > 0 && gallery && <div className="lg-grid" role="list" aria-label={`${view.title} gallery`}>
+      {rows.map((row) => <div role="listitem" key={`${row.family}:${row.record_id}`} style={{ display: "contents" }}>
+        <ItemCard item={row} principalKey={principalKey} drawn={drawn} attention={attention.get(row.record_id)} usedIn={usedInWords(row)}
+          status={drawn ? undefined : { led: "off", words: row.detail ?? words(row.family) }}
+          selected={selected === row.record_id} related={probeMark(probe, related, { object: row.record_id, rev: null, path: [] }, "object") === "related"}
+          onOpen={() => openCard(row)} />
+      </div>)}
+    </div>}
+    {selectedRow && <section className="lg-detail" aria-label={`Selected ${selectedRow.label}`}>
+      <Group justify="space-between" gap="xs" wrap="wrap">
+        <Text className="sb-dash-row-title">{selectedRow.label}</Text>
+        <Group gap="xs">{editor && <Button variant="quiet" size="xs" onClick={() => editor.reveal(false)}>Show in the editor</Button>}
+          {actionsFor(selectedRow)}
+          <Button variant="quiet" size="xs" aria-label={`Close ${selectedRow.label}`} onClick={() => setSelected(null)}>Close</Button></Group>
+      </Group>
+      <UsedInList record={selectedRow} currentProjectId={projectId} toolLabel={toolLabel} onOpen={onOpenInProject} />
+      {showsViews(selectedRow) && <SelectedDefinitionViews key={selectedRow.record_id} record={selectedRow} />}
+    </section>}
+    {rows.length > 0 && !gallery && <div className="sb-ws-scroll"><Table className="sb-ws-table" highlightOnHover verticalSpacing={4} horizontalSpacing="sm">
       <Table.Thead><Table.Tr>
         <Table.Th>Name</Table.Th>
         <Table.Th>{KIND_HEADER[view.family]}</Table.Th>
@@ -155,7 +214,6 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
       <Table.Tbody>{rows.map((row) => {
         const open = selected === row.record_id;
         const mark = probeMark(probe, related, { object: row.record_id, rev: null, path: [] }, "object");
-        const here = projectId ? row.used_in.filter((use) => use.project_id === projectId) : [];
         return <Fragment key={`${row.family}:${row.record_id}`}>
           <Table.Tr data-referenced={row.referenced || undefined} data-selected={open || undefined} data-probe={mark ?? undefined}>
             <Table.Td><button type="button" className="sb-ws-open" aria-expanded={open} aria-label={`${open ? "Hide" : "Show"} uses of ${row.label}`} onClick={() => setSelected(open ? null : row.record_id)}>
@@ -168,14 +226,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
             <Table.Td className="sb-dash-note">{row.detail ?? ""}</Table.Td>
             <Table.Td className="sb-mono sb-ws-when">{when(row.changed_at ?? row.created_at)}</Table.Td>
             <Table.Td className="sb-ws-num">{editor && <Button variant="quiet" size="xs" aria-label={`Open ${row.label} in the editor`} onClick={() => { if (!open) setSelected(row.record_id); editor.reveal(false); }}>Open</Button>}
-              {row.referenceable && (projectId
-              ? here.length > 0
-                ? <RemoveButton label={row.label} busy={actions.busy} gate={archived ? archivedGate : edit}
-                  onRemove={(reason) => void actions.remove(projectId, here[0]!.reference_id, row.label, reason)} />
-                : <AddButton record={row} projects={projects} fixedProjectId={projectId} busy={actions.busy} gate={archived ? archivedGate : edit}
-                  onAdd={(choice) => actions.add(row, choice, project?.name ?? "this project")} label="Use here" />
-              : <AddButton record={row} projects={projects} busy={actions.busy} gate={edit}
-                onAdd={(choice) => actions.add(row, choice, projects.find((p) => p.project_id === choice.projectId)?.name ?? "the project")} label="Use in project…" />)}</Table.Td>
+              {actionsFor(row)}</Table.Td>
           </Table.Tr>
           {open && <Table.Tr className="sb-ws-detail"><Table.Td colSpan={7}>
             <UsedInList record={row} currentProjectId={projectId} toolLabel={toolLabel} onOpen={onOpenInProject} />
