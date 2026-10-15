@@ -1,8 +1,9 @@
 """Synthetic audio/video interface examples for tests and the demo seed.
 
-Every name, pin assignment and value here is invented for illustration. The pin layouts
-are deliberately not copied from any real device or connector standard, and the values
-are illustrative declarations, not datasheet facts.
+Every name, pin assignment and value here is invented for illustration. The signal
+assignments are deliberately not copied from any real device, and the values are
+illustrative declarations, not datasheet facts. Bodies name a standard connector face
+drawing (``geometry_key``) for display only.
 """
 
 BASIS = "Synthetic illustrative value"
@@ -62,6 +63,7 @@ def round_din_10_socket():
         "kind": "connector_body",
         "family": "10-pin round DIN",
         "mating_role": "receptacle",
+        "geometry_key": "mini-din-10",
         "contacts": _contacts(10),
     }
 
@@ -71,6 +73,7 @@ def rgb_21_socket():
         "kind": "connector_body",
         "family": "21-pin RGB",
         "mating_role": "receptacle",
+        "geometry_key": "scart",
         "contacts": _contacts(21),
     }
 
@@ -170,6 +173,7 @@ def round_din_10_plug(socket_revision_id):
         "kind": "connector_body",
         "family": "10-pin round DIN",
         "mating_role": "plug",
+        "geometry_key": "mini-din-10",
         "contacts": _contacts(10),
         "mates_with": [
             {
@@ -187,6 +191,7 @@ def rgb_21_plug(socket_revision_id, review="reviewed"):
         "kind": "connector_body",
         "family": "21-pin RGB",
         "mating_role": "plug",
+        "geometry_key": "scart",
         "contacts": _contacts(21),
         "mates_with": [
             {
