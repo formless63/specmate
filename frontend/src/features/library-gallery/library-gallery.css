@@ -1,0 +1,88 @@
+/* Library gallery: cards with drawn thumbnails. Theme tokens only; engineering colors come from content. */
+.lg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 208px), 1fr)); gap: 8px; min-width: 0; }
+.lg-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(208px, 248px); gap: 8px; overflow-x: auto; padding-bottom: 4px; min-width: 0; overscroll-behavior-x: contain; }
+@media (max-width: 560px) { .lg-row { grid-auto-columns: minmax(180px, 72vw); } }
+
+.lg-card { display: flex; flex-direction: column; min-width: 0; padding: 0; text-align: left; font: inherit; color: var(--sb-text-primary);
+  background: var(--sb-surface-panel); border: 1px solid var(--sb-border-subtle); cursor: pointer;
+  transition: border-color var(--sb-motion-quick, 120ms) var(--sb-motion-ease, ease), transform var(--sb-motion-quick, 120ms) var(--sb-motion-ease, ease); }
+.lg-card:hover { border-color: var(--sb-border-strong); }
+.lg-card:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 1px; }
+.lg-card[data-status="fail"] { border-color: var(--sb-invalid); box-shadow: inset 0 2px 0 var(--sb-invalid); }
+.lg-card[data-status="review"] { box-shadow: inset 0 2px 0 var(--sb-review); }
+.lg-card[data-status="unknown"] { border-style: dashed; border-color: var(--sb-text-tertiary); }
+.lg-card[data-selected] { border-color: var(--sb-accent); box-shadow: 0 0 0 1px var(--sb-accent), 0 0 12px var(--sb-accent-glow); }
+.lg-card[data-related] { border-color: var(--sb-accent); border-style: dotted; }
+@media (prefers-reduced-motion: no-preference) { .lg-card:active { transform: translateY(1px); } }
+
+.lg-thumb { display: block; height: 118px; box-sizing: border-box; padding: 6px; border-bottom: 1px solid var(--sb-border-subtle);
+  background-color: var(--sb-surface-canvas); background-image: radial-gradient(var(--sb-border-subtle) 1px, transparent 1.3px); background-size: 12px 12px; overflow: hidden; }
+.lg-thumb-svg { display: block; width: 100%; height: 100%; }
+.lg-thumb-html { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; color: var(--sb-text-primary); }
+.lg-thumb-html > svg { height: 100%; width: auto; max-width: 100%; }
+.lg-thumb-loading { display: block; width: 100%; height: 100%; background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 8px); opacity: .6; }
+
+.lg-card-body { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px 8px; min-width: 0; }
+.lg-card-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lg-kind { font-family: var(--sb-font-data); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--sb-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-rev { margin-left: auto; font-family: var(--sb-font-data); font-size: 10px; padding: 0 5px; border: 1px dashed var(--sb-text-secondary); color: var(--sb-text-secondary); white-space: nowrap; }
+.lg-rev[data-frozen] { border-style: solid; border-color: var(--sb-text-primary); color: var(--sb-text-primary); }
+.lg-name { font-size: 13px; font-weight: 500; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.lg-status { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--sb-text-secondary); min-width: 0; }
+.lg-status > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-card[data-status="fail"] .lg-status { color: var(--sb-invalid); }
+.lg-used { font-family: var(--sb-font-data); font-size: 10.5px; color: var(--sb-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Thumbnail drawing grammar */
+.lg-thumb-note { font-family: var(--sb-font-data); font-size: 10px; fill: var(--sb-text-tertiary); }
+.lg-thumb-caption { font-family: var(--sb-font-data); font-size: 8.5px; fill: var(--sb-text-secondary); }
+.lg-unknown-fill { fill: none; stroke: var(--sb-text-tertiary); stroke-dasharray: 3 3; }
+.lg-end-body { fill: var(--sb-surface-raised); stroke: var(--sb-border-strong); }
+.lg-jacket { opacity: .95; }
+.lg-jacket-unknown { stroke: var(--sb-text-tertiary); opacity: .6; }
+.lg-wire { opacity: .95; }
+.lg-board-outline { fill: var(--sb-surface-raised); stroke: var(--sb-text-tertiary); stroke-dasharray: 4 3; }
+.lg-trace { stroke: var(--sb-accent); stroke-width: 1.4; opacity: .85; }
+.lg-component { fill: var(--sb-surface-panel); stroke: var(--sb-text-primary); stroke-width: .8; }
+.lg-pad { fill: var(--sb-review); stroke: var(--sb-border-strong); stroke-width: .5; }
+.lg-layer { fill: var(--sb-surface-raised); stroke: var(--sb-border-strong); }
+.lg-layer-connector { stroke: var(--sb-accent); }
+.lg-layer-inline { stroke-dasharray: 3 2; }
+.lg-layer-word { font-family: var(--sb-font-data); font-size: 9px; fill: var(--sb-text-primary); }
+.lg-join { stroke: var(--sb-text-secondary); stroke-width: 2; }
+.lg-intent-line { stroke: var(--sb-accent); stroke-width: 1.4; }
+.lg-intent-unknown { stroke: var(--sb-text-tertiary); stroke-width: 1.2; stroke-dasharray: 2 2; }
+.lg-intent-question { stroke: var(--sb-review); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.lg-conn-body { fill: var(--sb-surface-raised); stroke: var(--sb-border-strong); stroke-width: 1.2; }
+.lg-conn-shell { stroke: var(--sb-text-secondary); stroke-width: 2.5; }
+.lg-pin { stroke: var(--sb-border-strong); stroke-width: .8; }
+.lg-pin-plain, .lg-pin-signal { fill: var(--sb-text-secondary); }
+.lg-pin-signal { fill: var(--sb-accent); }
+.lg-pin-return { fill: var(--sb-text-tertiary); }
+.lg-pin-unknown { fill: none; stroke: var(--sb-text-secondary); stroke-dasharray: 1.5 1.5; }
+.lg-pin-must-not-connect { fill: var(--sb-invalid); }
+.lg-pin-label { font-family: var(--sb-font-data); font-size: 6.5px; fill: var(--sb-surface-canvas); }
+.lg-glyph { fill: none; stroke: var(--sb-border-strong); stroke-dasharray: 2 3; }
+.lg-glyph-word { font-family: var(--sb-font-data); font-size: 16px; letter-spacing: .14em; fill: var(--sb-text-tertiary); }
+.lg-chips { display: flex; flex-wrap: wrap; align-content: center; gap: 4px; height: 100%; overflow: hidden; }
+.lg-chip { font-family: var(--sb-font-data); font-size: 10px; padding: 1px 6px; border: 1px solid var(--sb-border-control); background: var(--sb-surface-panel); color: var(--sb-text-primary); white-space: nowrap; }
+.lg-chip[data-unknown] { border-style: dashed; color: var(--sb-text-secondary); background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 5px); }
+.lg-chip-more { color: var(--sb-text-tertiary); }
+
+/* Home and toolbars */
+.lg-home { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.lg-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lg-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lg-section-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.lg-section-note { font-size: 12px; color: var(--sb-text-secondary); }
+.lg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.lg-chip-filter { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.lg-filter { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 8px; font: inherit; font-size: 12px; cursor: pointer;
+  background: transparent; color: var(--sb-text-primary); border: 1px solid var(--sb-border-control); }
+.lg-filter[aria-pressed="true"] { border-color: var(--sb-accent); color: var(--sb-accent); background: var(--sb-accent-glow); }
+.lg-filter-n { font-family: var(--sb-font-data); font-size: 10.5px; color: var(--sb-text-tertiary); }
+.lg-empty { padding: 16px; border: 1px dashed var(--sb-border-control); color: var(--sb-text-secondary); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lg-detail { border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-panel); padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lg-cells { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 899px) { .lg-cells { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 599px) { .lg-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
