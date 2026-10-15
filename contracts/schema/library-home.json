@@ -272,6 +272,7 @@
   },
   "properties": {
     "attention": {
+      "description": "Failing recorded checks, open intent questions and stale records.",
       "items": {
         "$ref": "#/$defs/AttentionItem"
       },
@@ -313,6 +314,20 @@
     "totals": {
       "$ref": "#/$defs/AttentionTotals"
     },
+    "unknowns": {
+      "description": "Items whose only reasons are unknown check rows or unknown declared values.",
+      "items": {
+        "$ref": "#/$defs/AttentionItem"
+      },
+      "title": "Unknowns",
+      "type": "array"
+    },
+    "unknowns_total": {
+      "description": "Items with unknowns only, before the limit.",
+      "minimum": 0,
+      "title": "Unknowns Total",
+      "type": "integer"
+    },
     "workspace_id": {
       "format": "uuid",
       "title": "Workspace Id",
@@ -323,6 +338,8 @@
     "workspace_id",
     "attention",
     "attention_total",
+    "unknowns",
+    "unknowns_total",
     "recent",
     "totals",
     "kinds",

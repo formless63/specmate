@@ -44,16 +44,21 @@ def test_open_questions_and_unknown_values_need_attention(users, project, worksp
     questions = next(r for r in item["reasons"] if r["kind"] == "open_questions")
     assert questions == {"kind": "open_questions", "count": 1, "detail": "1 open question"}
     assert item["status"] == "review" and item["latest_revision"] is None
-    # The monitor port declares the sync pin's level and impedance as unknown.
-    monitor = attention_of(page, "RGB monitor 21-pin input")
+    # Declared unknowns alone are not attention; they are listed separately.
+    assert all(row["label"] != "RGB monitor 21-pin input" for row in page["attention"])
+    monitor = next(row for row in page["unknowns"] if row["label"] == "RGB monitor 21-pin input")
     unknown = next(r for r in monitor["reasons"] if r["kind"] == "unknown_values")
     assert unknown["count"] >= 2 and monitor["status"] == "unknown"
     assert page["totals"]["open_questions"] == 1
     assert page["totals"]["failing_checks"] == 0 and page["totals"]["stale_evidence"] == 0
-    # Review comes before unknown values; the intent is listed ahead of the ports.
-    labels = [row["label"] for row in page["attention"]]
-    assert labels.index("Console A to monitor") < labels.index("RGB monitor 21-pin input")
-    assert page["attention_total"] >= len(page["attention"]) and not page["scan_limit_reached"]
+    assert page["attention_total"] == len(page["attention"]) == 1
+    assert page["unknowns_total"] >= len(page["unknowns"]) >= 1
+    assert not page["scan_limit_reached"]
+    # A port's preview carries its pinout, that pinout's body face and the signal types used.
+    port = previews(users["viewer"], [monitor["record_id"]])["previews"][0]
+    assert port["pinout"]["kind"] == "pinout"
+    assert port["body"]["kind"] == "connector_body" and port["body"]["geometry_key"]
+    assert "analog_video" in port["signal_types"].values()
 
 
 def test_failing_recorded_check_comes_first_and_goes_stale(users, project, demo):  # noqa: F811

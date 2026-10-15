@@ -65,6 +65,7 @@ REASON_STATUS = {
     "unknown_check": "unknown",
     "unknown_values": "unknown",
 }
+ACTIONABLE = {"failing_check", "open_questions", "stale_evidence"}
 
 
 def _plural(count: int, one: str, many: str | None = None) -> str:
@@ -266,25 +267,38 @@ def library_home(user, payload: ReadLibraryHome) -> dict:
     for found in reasons.values():
         for reason in found:
             totals[reason.kind] += reason.count
-    ranked = sorted(
-        reasons,
-        key=lambda d: (
-            min(SEVERITY[REASON_STATUS[r.kind]] for r in reasons[d]),
-            min(list(REASON_STATUS).index(r.kind) for r in reasons[d]),
-            -sum(r.count for r in reasons[d]),
-            str(d),
-        ),
+    order = list(REASON_STATUS)
+
+    def rank(definition):
+        found = reasons[definition]
+        return (
+            min(SEVERITY[REASON_STATUS[r.kind]] for r in found),
+            min(order.index(r.kind) for r in found),
+            -sum(r.count for r in found),
+            str(definition),
+        )
+
+    # Attention is what someone must act on: a failing recorded check, an open intent
+    # question or a stale record. Unknowns alone are listed separately.
+    flagged = sorted(
+        (d for d in reasons if any(r.kind in ACTIONABLE for r in reasons[d])), key=rank
     )
+    unknown = sorted((d for d in reasons if d not in set(flagged)), key=rank)
     recent = _recent(actor, workspace.id, payload.limit)
-    shown = ranked[: payload.limit]
-    items = _items(workspace.id, set(shown) | {definition for definition, _, _ in recent})
-    attention = []
-    for definition in shown:
-        if definition not in items:
-            continue  # A pin to another workspace's revision never names it here.
-        found = sorted(reasons[definition], key=lambda r: list(REASON_STATUS).index(r.kind))
+    shown, shown_unknown = flagged[: payload.limit], unknown[: payload.limit]
+    items = _items(
+        workspace.id,
+        set(shown) | set(shown_unknown) | {definition for definition, _, _ in recent},
+    )
+
+    def card(definition):
+        found = sorted(reasons[definition], key=lambda r: order.index(r.kind))
         status = min((REASON_STATUS[r.kind] for r in found), key=SEVERITY.__getitem__)
-        attention.append(AttentionItem(**items[definition], status=status, reasons=found))
+        return AttentionItem(**items[definition], status=status, reasons=found)
+
+    # A pin to another workspace's revision never names it here.
+    attention = [card(d) for d in shown if d in items]
+    unknowns = [card(d) for d in shown_unknown if d in items]
     kinds = (
         Definition.objects.filter(workspace=workspace)
         .order_by()
@@ -296,7 +310,9 @@ def library_home(user, payload: ReadLibraryHome) -> dict:
     return LibraryHome(
         workspace_id=workspace.id,
         attention=attention,
-        attention_total=len(reasons),
+        attention_total=len(flagged),
+        unknowns=unknowns,
+        unknowns_total=len(unknown),
         recent=[
             RecentItem(**items[definition], activity=activity, at=at)
             for definition, activity, at in recent
@@ -329,6 +345,75 @@ def _stock_ids(content) -> UUID | None:
         return UUID(str(value)) if value else None
     except ValueError:
         return None
+
+
+def _uuid(value) -> UUID | None:
+    try:
+        return UUID(str(value)) if value else None
+    except ValueError:
+        return None
+
+
+def _interfaces(workspace, ids, kind) -> dict:
+    """Interface content of this workspace's revisions of one kind, by revision id."""
+    ids = [value for value in ids if value]
+    if not ids:
+        return {}
+    rows = Revision.objects.filter(
+        id__in=ids, definition__workspace=workspace, definition__kind=kind
+    ).select_related("snapshot")
+    return {row.id: _content(row).get("interface") for row in rows}
+
+
+def _faces(workspace, contents, definitions) -> dict:
+    """For pinouts and ports: the pinned body, the port's pinout and the signal types used."""
+    interface = {
+        d.id: ((contents[d.id][2] or {}).get("interface") or {})
+        for d in definitions
+        if d.kind in ("pinout", "port")
+    }
+    pinout_ids = {
+        d: _uuid(value.get("pinout_revision_id"))
+        for d, value in interface.items()
+        if value.get("kind") == "port"
+    }
+    pinouts = _interfaces(workspace, pinout_ids.values(), "pinout")
+    pinout_of = {
+        d: (value if value.get("kind") == "pinout" else pinouts.get(pinout_ids.get(d)))
+        for d, value in interface.items()
+    }
+    bodies = _interfaces(
+        workspace,
+        [_uuid((p or {}).get("body_revision_id")) for p in pinout_of.values()],
+        "connector_body",
+    )
+    refs = {
+        _uuid((a.get("electrical") or {}).get("signal_ref", {}).get("signal_set_revision_id"))
+        for p in pinout_of.values()
+        for a in (p or {}).get("assignments", [])
+        if isinstance((a.get("electrical") or {}).get("signal_ref"), dict)
+    }
+    sets = _interfaces(workspace, refs, "signal_set")
+    types = {
+        f"{revision}/{signal.get('key')}": signal.get("type", "unknown")
+        for revision, value in sets.items()
+        for signal in (value or {}).get("signals", [])
+    }
+    result = {}
+    for d, pinout in pinout_of.items():
+        if not pinout:
+            result[d] = (None, None, {})
+            continue
+        used = {}
+        for a in pinout.get("assignments", []):
+            ref = (a.get("electrical") or {}).get("signal_ref")
+            if isinstance(ref, dict):
+                key = f"{ref.get('signal_set_revision_id')}/{ref.get('key')}"
+                if key in types:
+                    used[key] = types[key]
+        body = bodies.get(_uuid(pinout.get("body_revision_id")))
+        result[d] = (body, pinout if interface[d].get("kind") == "port" else None, used)
+    return result
 
 
 def library_previews(user, payload: ReadLibraryPreviews) -> dict:
@@ -376,12 +461,14 @@ def library_previews(user, payload: ReadLibraryPreviews) -> dict:
             definition__kind="wire_stock",
         ).select_related("snapshot")
     }
+    faces = _faces(workspace, contents, definitions)
     order = {value: index for index, value in enumerate(payload.definition_ids)}
     previews = []
     for definition in sorted(definitions, key=lambda d: order[d.id]):
         source, number, content = contents[definition.id]
         bounded, truncated = _bounded(content)
         stock, _ = _bounded(stocks.get(stock_ids.get(definition.id)))
+        body, pinout, signal_types = faces.get(definition.id, (None, None, {}))
         previews.append(
             LibraryPreview(
                 record_id=definition.id,
@@ -391,6 +478,9 @@ def library_previews(user, payload: ReadLibraryPreviews) -> dict:
                 content=bounded,
                 truncated=truncated,
                 stock=stock,
+                body=_bounded(body)[0],
+                pinout=_bounded(pinout)[0],
+                signal_types=signal_types,
             )
         )
     return LibraryPreviews(workspace_id=workspace.id, previews=previews).model_dump(mode="json")
@@ -399,9 +489,9 @@ def library_previews(user, payload: ReadLibraryPreviews) -> dict:
 @operation(
     "library.home",
     ReadLibraryHome,
-    summary="Read the Library home: items needing attention (failing or unknown recorded "
-    "checks, stale evidence, open intent questions, unknown declared values), the actor's "
-    "recent work and definition counts by kind. Read-only; nothing is evaluated afresh.",
+    summary="Read the Library home: items needing attention (failing recorded checks, open "
+    "intent questions, stale evidence), items with unknowns only, the actor's recent work "
+    "and definition counts by kind. Read-only; nothing is evaluated afresh.",
     supports_idempotency=False,
     access=Perm.WORKSPACE_READ,
 )

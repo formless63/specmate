@@ -2,6 +2,20 @@
   "$defs": {
     "LibraryPreview": {
       "properties": {
+        "body": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A pinout's or port's pinned connector body interface.",
+          "title": "Body"
+        },
         "content": {
           "anyOf": [
             {
@@ -19,6 +33,20 @@
           "title": "Kind",
           "type": "string"
         },
+        "pinout": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A port's pinned pinout interface.",
+          "title": "Pinout"
+        },
         "record_id": {
           "format": "uuid",
           "title": "Record Id",
@@ -34,6 +62,14 @@
             }
           ],
           "title": "Revision"
+        },
+        "signal_types": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Signal types used by the pinout, keyed '<signal set revision>/<key>'.",
+          "title": "Signal Types",
+          "type": "object"
         },
         "source": {
           "description": "Latest frozen revision first; a never-frozen item shows its newest draft.",

@@ -64,8 +64,14 @@ class AttentionTotals(BaseModel):
 
 class LibraryHome(BaseModel):
     workspace_id: UUID
-    attention: list[AttentionItem]
+    attention: list[AttentionItem] = Field(
+        description="Failing recorded checks, open intent questions and stale records."
+    )
     attention_total: int = Field(ge=0, description="Items needing attention, before the limit.")
+    unknowns: list[AttentionItem] = Field(
+        description="Items whose only reasons are unknown check rows or unknown declared values."
+    )
+    unknowns_total: int = Field(ge=0, description="Items with unknowns only, before the limit.")
     recent: list[RecentItem] = Field(description="The actor's own latest edits and freezes.")
     totals: AttentionTotals
     kinds: list[KindCount] = Field(description="Definitions in the workspace by kind.")
@@ -93,6 +99,16 @@ class LibraryPreview(BaseModel):
     truncated: bool = Field(description="The content exceeded the preview size and is omitted.")
     stock: dict[str, Any] | None = Field(
         default=None, description="A cable's pinned wire stock construction, when readable."
+    )
+    body: dict[str, Any] | None = Field(
+        default=None, description="A pinout's or port's pinned connector body interface."
+    )
+    pinout: dict[str, Any] | None = Field(
+        default=None, description="A port's pinned pinout interface."
+    )
+    signal_types: dict[str, str] = Field(
+        default_factory=dict,
+        description="Signal types used by the pinout, keyed '<signal set revision>/<key>'.",
     )
 
 
