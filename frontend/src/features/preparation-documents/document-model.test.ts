@@ -25,6 +25,9 @@ test("frozen mapper preserves independent declared rows, exact terminal IDs, zer
   input.test_intent = [{ address: at, status: "unknown" }];
   expect(frozenSheet("Synthetic", "r1", input).tables[3]?.rows).toEqual([]);
   expect(sheet.unreleased).toBe(false);
+  const printed = sheetHtml(sheet);
+  expect(printed).toContain("Frozen revision · r1 · exact-r1");
+  expect(printed.match(/exact-r1/g)).toHaveLength(1);
 });
 
 test("print and label outputs escape authored content, preserve Unicode, contain white paper and do not execute scripts", () => {

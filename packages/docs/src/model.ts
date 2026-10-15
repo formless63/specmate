@@ -91,7 +91,7 @@ export function frozenSheet(name: string, revision: string, sections: DocumentSe
     table("Labels", ["Label ID", "Context", "At", "Text"], labelRows.map(row => [row.id, row.context, row.at, row.text])),
   ];
   return {
-    name, state: `Exact frozen ${revision}`, unreleased: false, identity: revision, tables, labels: labelRows,
+    name, state: "Frozen revision", unreleased: false, identity: revision, tables, labels: labelRows,
     notices: ["Declared topology and authored expectations; physical continuity, fit and physical qualification are not evaluated.",
       ...sections.issues.map(row => `${path(row.path)} · ${text(row.message)}`),
       ...(!pairs.length ? ["No authored test pairs are bound. Continuity expectations remain unknown."] : []),
