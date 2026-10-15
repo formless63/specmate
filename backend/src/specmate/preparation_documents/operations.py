@@ -1,12 +1,11 @@
 """Fresh shared authority and atomic immutable output registration, without native tools."""
 
 import base64
-import binascii
 import io
-import json
-from uuid import UUID
 
-from django.db.models import Q
+from django.core import signing
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from specmate.access.permissions import Perm, authorize
 from specmate.catalog_matching.queries import current_actor
@@ -156,9 +155,39 @@ def preview(ctx: Context, p: Configuration):
     }
 
 
-def set_cursor(root_id, row):
-    data = ["documents/1", str(root_id), row.created_at.isoformat(), str(row.id)]
-    return base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip("=")
+SET_CURSOR_SALT = "preparation-document-list-v1"
+SET_SCAN_LIMIT = 50
+
+
+def set_position(after, root_id):
+    if after is None:
+        return timezone.now(), 0
+    try:
+        cursor = signing.loads(after, salt=SET_CURSOR_SALT, max_age=86400)
+        anchor = parse_datetime(cursor["anchor"])
+        offset = cursor["offset"]
+        if (
+            cursor["version"] != 1
+            or cursor["root"] != str(root_id)
+            or anchor is None
+            or timezone.is_naive(anchor)
+            or anchor > timezone.now()
+            or type(offset) is not int
+            or not 0 <= offset <= 1_000_000
+        ):
+            raise ValueError
+        return anchor, offset
+    except (signing.BadSignature, KeyError, TypeError, ValueError):
+        raise ValidationFailed("Document cursor unavailable for this root.") from None
+
+
+def set_cursor(root_id, anchor, offset):
+    # Candidate identities and creation times remain private, including denied rows.
+    return signing.dumps(
+        {"version": 1, "root": str(root_id), "anchor": anchor.isoformat(), "offset": offset},
+        salt=SET_CURSOR_SALT,
+        compress=True,
+    )
 
 
 @operation(
@@ -170,27 +199,16 @@ def set_cursor(root_id, row):
 )
 def list_sets(ctx: Context, p: ListSets):
     root = get_revision(ctx.user, p.root_revision_id)
-    rows = DocumentSet.objects.filter(root_revision_id=root.id).order_by("-created_at", "id")
-    if p.after:
-        try:
-            cursor = json.loads(base64.urlsafe_b64decode(p.after + "=" * (-len(p.after) % 4)))
-            if not isinstance(cursor, list) or len(cursor) != 4:
-                raise ValueError
-            version, cursor_root, stamp, identifier = cursor
-            if version != "documents/1" or cursor_root != str(root.id):
-                raise ValueError
-            anchor = rows.filter(id=UUID(identifier)).first()
-            if anchor is None or stamp != anchor.created_at.isoformat():
-                raise ValueError
-        except (ValueError, TypeError, AttributeError, binascii.Error):
-            raise ValidationFailed("Document cursor unavailable for this root.") from None
-        rows = rows.filter(
-            Q(created_at__lt=anchor.created_at) | Q(created_at=anchor.created_at, id__gt=anchor.id)
-        )
-    candidates = list(rows[: p.limit + 1])
-    page = candidates[: p.limit]
+    anchor, offset = set_position(p.after, root.id)
+    rows = DocumentSet.objects.filter(root_revision_id=root.id, created_at__lte=anchor).order_by(
+        "-created_at", "id"
+    )
+    candidates = list(rows[offset : offset + SET_SCAN_LIMIT + 1])
+    page = candidates[:SET_SCAN_LIMIT]
+    scanned = 0
     visible = []
     for candidate in page:
+        scanned += 1
         try:
             retained = authorized_set(ctx.user, candidate.id)
         except OperationError:
@@ -205,10 +223,14 @@ def list_sets(ctx: Context, p: ListSets):
                 "inputs_sha256": retained.sha256,
             }
         )
+        if len(visible) == p.limit:
+            break
     return {
         "root_revision_id": str(root.id),
         "results": visible,
-        "next_after": set_cursor(root.id, page[-1]) if len(candidates) > p.limit else None,
+        "next_after": set_cursor(root.id, anchor, offset + scanned)
+        if len(candidates) > scanned
+        else None,
         "listing": "current_readable_page_no_hidden_total",
     }
 
