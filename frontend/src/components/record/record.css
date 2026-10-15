@@ -13,5 +13,5 @@
 .record-sections details { border-bottom:1px solid var(--sb-border-subtle); padding:8px 0; }
 .record-sections summary { cursor:pointer; color:var(--sb-text-primary); }
 .record-section-content { padding-top:10px; min-width:0; }
-.record-inspector-trigger { position:fixed; right:16px; bottom:16px; max-width:calc(100% - 32px); justify-self:end; z-index:5; background:var(--sb-surface-panel); }
+.record-inspector-trigger { background:var(--sb-surface-panel); }
 @media (max-width:48em) { .record-workbench { display:block; } .record-head { align-items:flex-start; } .record-inspector-scroll { height:calc(72dvh - 110px); } }

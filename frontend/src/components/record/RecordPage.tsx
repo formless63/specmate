@@ -39,7 +39,7 @@ export function RecordPage({ active, identity, state, actions, revisions, facts,
   </Tabs>;
   return <section className="record-page" aria-label={`${identity.name} record`}>
     <header className="record-head"><div className="record-heading"><Title order={1}>{identity.name}</Title><span className="sb-tag">{identity.kind.replaceAll("_", " ")}</span><SbIdentityBadge kind={state.kind === "revision" ? "frozen" : "draft"}>{label}</SbIdentityBadge>
-      {identity.pn !== undefined && <Text size="xs" className="sb-mono" title="Exact revision manufacturer associations">PN {identity.pn}</Text>}</div><Group gap="xs">{actions}</Group></header>
+      {identity.pn !== undefined && <Text size="xs" className="sb-mono" title="Part number">PN {identity.pn}</Text>}</div><Group gap="xs">{compact && <Button className="record-inspector-trigger" aria-haspopup="dialog" variant="quiet" onClick={() => setSheet(true)}>Inspector · {inspector.find(section => section.id === tab)?.label}</Button>}{actions}</Group></header>
     {notice}
     {revisions && <div className="record-revisions">{revisions}</div>}
     {facts && <div className="record-facts">{facts}</div>}
@@ -50,8 +50,7 @@ export function RecordPage({ active, identity, state, actions, revisions, facts,
       </Tabs></div>
       {!compact && <aside className="record-inspector" aria-label="Record inspector panel">{panel}</aside>}
     </div>
-    {compact && <><Button className="record-inspector-trigger" aria-haspopup="dialog" variant="quiet" onClick={() => setSheet(true)}>Inspector · {inspector.find(section => section.id === tab)?.label}</Button>
-      <Drawer opened={active && sheet} onClose={() => setSheet(false)} position="bottom" size="72dvh" title="Record inspector" keepMounted transitionProps={{ duration: active ? 200 : 0 }} styles={active ? undefined : { inner: { display: "none" }, overlay: { display: "none" } }}>{panel}</Drawer></>}
+    {compact && <><Drawer opened={active && sheet} onClose={() => setSheet(false)} position="bottom" size="72dvh" title="Record inspector" keepMounted transitionProps={{ duration: active ? 200 : 0 }} styles={active ? undefined : { inner: { display: "none" }, overlay: { display: "none" } }}>{panel}</Drawer></>}
   </section>;
 }
 
