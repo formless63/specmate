@@ -1,4 +1,4 @@
-"""Preference reads. Every value is labelled as a preference, never as an engineering fact."""
+"""Preference reads. Every value is labeled as a preference, never as an engineering fact."""
 
 from __future__ import annotations
 

@@ -145,7 +145,7 @@ def verify(marker_path: str | None = None) -> Verified:
 
 
 def assert_quiescent() -> None:
-    """Native execution must be stopped and reconciled, and no runner may be authorised."""
+    """Native execution must be stopped and reconciled, and no runner may be authorized."""
     from django.utils import timezone
 
     from specmate.builds.models import BuildStage, RunnerCredential
@@ -187,7 +187,7 @@ def reset_database(verified: Verified) -> None:
         cursor.execute("CREATE SCHEMA public")
     connection.close()
     call_command("migrate", interactive=False, verbosity=0)
-    # The marker identity survives a reset, so the same disposable install stays recognised.
+    # The marker identity survives a reset, so the same disposable install stays recognized.
     Installation.objects.update_or_create(
         singleton=True, defaults={"installation_id": verified.installation_id}
     )

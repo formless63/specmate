@@ -1,6 +1,6 @@
-"""Boards (PCBAs) as the outside world sees them: labelled terminals and declared paths.
+"""Boards (PCBAs) as the outside world sees them: labeled terminals and declared paths.
 
-A board terminal is a labelled pad, hole or contact; its label is display text and never
+A board terminal is a labeled pad, hole or contact; its label is display text and never
 identity. A path declares how two terminals are joined on the board: straight copper,
 through a component (for example a series resistor), through a switch or jumper state,
 or in an unknown way. Paths are declarations with a basis, never measured continuity.
@@ -23,7 +23,7 @@ Key = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,79}$")]
 Text = Annotated[str, Field(min_length=1, max_length=200)]
 Basis = Annotated[str, Field(min_length=1, max_length=2000)]
 
-# The passive interpreter's behaviour kinds; anything else is "unknown".
+# The passive interpreter's behavior kinds; anything else is "unknown".
 ComponentKind = Literal[
     "resistor", "capacitor", "diode", "inductor", "transformer", "active", "unknown"
 ]

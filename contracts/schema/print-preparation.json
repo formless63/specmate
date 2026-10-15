@@ -75,7 +75,7 @@
           "default": "unknown",
           "enum": [
             "unknown",
-            "as_modelled",
+            "as_modeled",
             "rotated"
           ],
           "title": "Status",
@@ -357,8 +357,8 @@
       "$ref": "#/$defs/ProfilePins"
     },
     "schema_version": {
-      "const": "1",
-      "default": "1",
+      "const": "2",
+      "default": "2",
       "title": "Schema Version",
       "type": "string"
     },

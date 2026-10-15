@@ -495,7 +495,7 @@ def test_native_failure_report_adds_classification_but_keeps_stderr_private(
         (None, "Stage exceeded timeout", (None, "runner", "Stage exceeded timeout")),
     ],
 )
-def test_unknown_exit_codes_and_runner_failures_are_labelled(
+def test_unknown_exit_codes_and_runner_failures_are_labeled(
     users, intake, requested, exit_code, message, expected
 ):
     failed_stage(requested, exit_code, message=message)

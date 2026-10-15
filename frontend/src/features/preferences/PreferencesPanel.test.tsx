@@ -9,10 +9,10 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const prefs = (over: Record<string, unknown> = {}) => ({
   workspace_id: "w1", kind: "preference", engineering_fact: false, note: "n",
-  workspace: { values: { wire_colours: ["red"], default_length_unit: "mm" }, state_token: "preferences-v1" },
+  workspace: { values: { wire_colors: ["red"], default_length_unit: "mm" }, state_token: "preferences-v1" },
   user: { values: {}, state_token: "preferences-v0" },
   effective: {
-    preferred_suppliers: { value: null, source: "none" }, wire_colours: { value: ["red"], source: "workspace" },
+    preferred_suppliers: { value: null, source: "none" }, wire_colors: { value: ["red"], source: "workspace" },
     connector_families: { value: null, source: "none" }, default_length_unit: { value: "mm", source: "workspace" },
     default_wire_gauge_system: { value: null, source: "none" },
   },
@@ -47,7 +47,7 @@ test("saves the member override with the layer's state token and clears empty fi
   await waitFor(() => expect(posts.length).toBe(1));
   expect(posts[0]?.expected_state).toBe("preferences-v0");
   expect(posts[0]?.payload.scope).toBe("user");
-  expect(posts[0]?.payload.values).toMatchObject({ default_length_unit: "in", wire_colours: null, preferred_suppliers: null });
+  expect(posts[0]?.payload.values).toMatchObject({ default_length_unit: "in", wire_colors: null, preferred_suppliers: null });
 });
 
 test("workspace defaults are read-only without design.edit, with a visible reason", async () => {
@@ -56,7 +56,7 @@ test("workspace defaults are read-only without design.edit, with a visible reaso
   await screen.findByRole("form", { name: "Workspace defaults" });
   expect((screen.getByRole("button", { name: "Save workspace defaults" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole("note").textContent).toMatch(/editors and administrators/);
-  expect((screen.getByLabelText("Wire colours (Workspace defaults)") as HTMLInputElement).readOnly).toBe(true);
+  expect((screen.getByLabelText("Wire colors (Workspace defaults)") as HTMLInputElement).readOnly).toBe(true);
   expect((screen.getByRole("button", { name: "Save my override" }) as HTMLButtonElement).disabled).toBe(false);
 });
 

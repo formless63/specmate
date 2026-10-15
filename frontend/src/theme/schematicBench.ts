@@ -1,7 +1,7 @@
 import { Alert, Badge, Button, Group, Select, Stack, Tabs, createTheme, defaultVariantColorsResolver, type CSSVariablesResolver, type MantineColorsTuple, type VariantColorsResolver } from "@mantine/core";
 import tokens from "./schematic-bench.tokens.json";
 
-// Every colour, size and duration below is derived from schematic-bench.tokens.json
+// Every color, size and duration below is derived from schematic-bench.tokens.json
 // (design tokens, version sb-1); nothing is a second source of truth.
 
 type Rgb = [number, number, number];
@@ -52,7 +52,7 @@ export const breakpoints = tokens.layout.breakpoints;
 export const rail = tokens.layout.rail;
 export const topBarHeight = 38;
 
-/** Semantic state colour for a Mantine `color` prop; amber is never a state colour. */
+/** Semantic state color for a Mantine `color` prop; amber is never a state color. */
 export function stateColor(color: string | undefined): string | null {
   switch (color) {
     case "red": return "var(--sb-invalid)";
@@ -127,7 +127,7 @@ export const schematicBench = createTheme({
     Select: Select.extend({ defaultProps: { allowDeselect: false } }),
     Button: Button.extend({ defaultProps: { variant: "primary", size: "compact-sm" } }),
     Badge: Badge.extend({ defaultProps: { variant: "frozen", radius: 0 } }),
-    // Alerts are hairline panes with a state-coloured rule and title; the words carry the state.
+    // Alerts are hairline panes with a state-colored rule and title; the words carry the state.
     Alert: Alert.extend({
       vars: (_theme, props) => ({
         root: {

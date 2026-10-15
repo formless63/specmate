@@ -1,4 +1,4 @@
-/* Signal type chips: colour family from theme tokens only; unknown is hatched. */
+/* Signal type chips: color family from theme tokens only; unknown is hatched. */
 .sb-signal-type { display: inline-flex; align-items: center; gap: 4px; font-family: var(--sb-font-data); font-size: 11px; line-height: 1.4; padding: 0 6px; border: 1px solid var(--sb-border-control); border-left: 3px solid var(--sb-text-tertiary); color: var(--sb-text-secondary); white-space: nowrap; }
 .sb-signal-type[data-family="video"] { border-left-color: var(--sb-accent); }
 .sb-signal-type[data-family="audio"] { border-left-color: var(--sb-state); }

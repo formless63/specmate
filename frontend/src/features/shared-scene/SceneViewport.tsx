@@ -99,18 +99,18 @@ function ScopedViewport({ scene: projection, arrangement, selected, related, onS
       renderer.dispose(); renderer.forceContextLoss(); element.remove();
     };
   }, []);
-  // OS or app theme switch: recolour tagged materials in place (no geometry rebuild) and redraw.
-  // The renderer is alpha with no clear colour, so the background follows the themed container.
+  // OS or app theme switch: recolor tagged materials in place (no geometry rebuild) and redraw.
+  // The renderer is alpha with no clear color, so the background follows the themed container.
   useEffect(() => {
-    const recolour = () => {
+    const recolor = () => {
       const state = live.current; if (!state) return;
       applySceneTheme(state.scene); state.render();
     };
     const query = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-    query?.addEventListener?.('change', recolour);
-    const observer = new MutationObserver(recolour);
+    query?.addEventListener?.('change', recolor);
+    const observer = new MutationObserver(recolor);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mantine-color-scheme', 'data-theme', 'style', 'class'] });
-    return () => { query?.removeEventListener?.('change', recolour); observer.disconnect(); };
+    return () => { query?.removeEventListener?.('change', recolor); observer.disconnect(); };
   }, []);
   useEffect(() => {
     const state = live.current; if (!state) return;

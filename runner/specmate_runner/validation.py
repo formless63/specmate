@@ -1,4 +1,4 @@
-"""Defence-in-depth validation of an application-approved execution manifest."""
+"""Defense-in-depth validation of an application-approved execution manifest."""
 
 import hashlib
 import math

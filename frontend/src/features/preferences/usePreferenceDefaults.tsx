@@ -10,7 +10,7 @@ import { readPreferences, type Effective } from "./api";
  * fields, never an engineering fact or rating (dimensions, quantities, facts, limits).
  */
 export const PREFILL_TARGETS = {
-  wire_colours: "new stock element colour",
+  wire_colors: "new stock element color",
   default_length_unit: "new BOM need quantity unit",
   connector_families: "cable connector body filter",
 } as const;

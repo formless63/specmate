@@ -40,7 +40,7 @@ async function select(label: string, option: string) {
   const field = await screen.findByRole('combobox', { name: label });
   await waitFor(() => expect((field as HTMLInputElement).disabled).toBe(false));
   fireEvent.focus(field); fireEvent.keyDown(field, { key: 'ArrowDown' });
-  // The listbox is the one labelled by this field's label element.
+  // The listbox is the one labeled by this field's label element.
   const listbox = () => document.querySelector<HTMLElement>(`[role="listbox"][aria-labelledby="${document.querySelector(`label[for="${field.id}"]`)?.id}"]`);
   fireEvent.click(await within(await waitFor(() => { const box = listbox(); expect(box).toBeTruthy(); return box!; })).findByText(option));
 }

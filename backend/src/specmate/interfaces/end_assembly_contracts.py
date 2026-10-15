@@ -1,6 +1,6 @@
 """End stacks: what sits at one cable end, ordered from the wire outward.
 
-A stack is a short list of layers: an optional board (PCBA) whose labelled pads the wire
+A stack is a short list of layers: an optional board (PCBA) whose labeled pads the wire
 lands on, optional hand-soldered inline parts (for example a series resistor), the
 connector body with its chosen pinout variant, and an optional shell or hood. Joins say
 how terminals of two layers are connected. Nothing is joined by label equality:

@@ -75,7 +75,7 @@
           "default": null,
           "title": "Preferred Suppliers"
         },
-        "wire_colours": {
+        "wire_colors": {
           "anyOf": [
             {
               "items": {
@@ -91,7 +91,7 @@
             }
           ],
           "default": null,
-          "title": "Wire Colours"
+          "title": "Wire Colors"
         }
       },
       "title": "PreferenceValues",

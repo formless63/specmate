@@ -1,4 +1,4 @@
-"""PCB-006/PCB-003/TOP-001/TOP-002: board labelled terminals and declared paths."""
+"""PCB-006/PCB-003/TOP-001/TOP-002: board labeled terminals and declared paths."""
 
 import copy
 import json
@@ -54,7 +54,7 @@ def by_id(rows, key="terminal_id"):
     return {row[key]: row for row in rows}
 
 
-def test_black_box_board_lists_labelled_pads_landings_and_paths(users, project, adapter, plug):
+def test_black_box_board_lists_labeled_pads_landings_and_paths(users, project, adapter, plug):
     view = inspect_revision(users["viewer"], adapter)["board"]
     terminals = by_id(view["terminals"])
     # Labels are display text; landings come only from the reviewed correspondence.

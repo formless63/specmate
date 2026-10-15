@@ -1,4 +1,4 @@
-"""Cable intent: validation, deterministic row proposal and labelled inspection.
+"""Cable intent: validation, deterministic row proposal and labeled inspection.
 
 The proposal pairs the two ends' pins by exact signal identity only. Anything else is an
 explicit question (several destination pins, a name-and-type look-alike from another

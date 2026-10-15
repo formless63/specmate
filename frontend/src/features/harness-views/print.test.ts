@@ -7,11 +7,11 @@ const plan = (s: Parameters<typeof planFormboardPrint>[2] = {}, b = board()) => 
 const doc = (svg: string) => new DOMParser().parseFromString(svg, 'image/svg+xml');
 const contentScale = (svg: string): number => Number(/data-content="true" transform="translate\([^)]*\) scale\(([\d.e+-]+)\)/.exec(svg)![1]);
 const barWidth = (svg: string, section: string): number => Number(doc(svg).querySelector(`[data-section="${section}"] rect`)!.getAttribute('width'));
-/** Paper millimetres of a recorded span on a page: the bar's content width times the content scale. */
+/** Paper millimeters of a recorded span on a page: the bar's content width times the content scale. */
 const paperMm = (svg: string, section: string): number => barWidth(svg, section) * contentScale(svg);
 
 describe('formboard layout options', () => {
-  it('keeps the screen defaults and honours fixed physical sizes', () => {
+  it('keeps the screen defaults and honors fixed physical sizes', () => {
     const screen = formboardLayout(harness(), stocks());
     expect(screen.rowHeight).toBeCloseTo(45, 10);
     const fixed = board();

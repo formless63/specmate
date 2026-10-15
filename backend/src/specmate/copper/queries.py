@@ -291,7 +291,7 @@ class Builder:
                         terminals[endpoint.local_id, layer.layer_id, f"{part.local_id}.1"],
                         terminals[endpoint.local_id, layer.layer_id, f"{part.local_id}.2"],
                     ],
-                    "An inline part separates copper; its behaviour is not evaluated here.",
+                    "An inline part separates copper; its behavior is not evaluated here.",
                     boundary="not_evaluated",
                     declaration=part.model_dump(mode="json"),
                 )

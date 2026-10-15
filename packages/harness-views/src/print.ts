@@ -6,15 +6,15 @@
  *  - Only the LENGTH axis is to scale, and only for sections with a recorded planned cut length.
  *    Bar thickness, row spacing and text are drawing aids at a fixed physical size and are
  *    never a measurement. Sections without a recorded length are drawn at a placeholder length
- *    that is labelled as not to scale.
+ *    that is labeled as not to scale.
  *  - "1:1" is stated only when the effective scale is exactly 1 and at least one length is recorded.
  *    A fit-to-page or ratio plan states its true reduced ratio and says it is not full size.
  *  - The printed calibration ruler is the check. The user may enter the length measured on a first
  *    print; the plan then pre-compensates the printer's scaling and every page states the factor.
  *    Without a measurement the plan says the scale is uncalibrated.
- *  - Large boards are tiled with a stated overlap; every page names its position and neighbours.
+ *  - Large boards are tiled with a stated overlap; every page names its position and neighbors.
  *
- * Pure and deterministic: no clock, no DOM, no external resources. Output coordinates are millimetres.
+ * Pure and deterministic: no clock, no DOM, no external resources. Output coordinates are millimeters.
  */
 import { renderFormboardBody } from './formboard';
 import type { Formboard } from './formboard';
@@ -132,10 +132,10 @@ export function planFormboardPrint(board: Formboard, title: string, input: Parti
   if (settings.mode === 'ratio' && scale < 1) warnings.push({ code: 'reduced-ratio', severity: 'warn', text: `Reduced scale ${scaleText(scale)}: this is NOT full size. Printed lengths are ${n(scale * 100)}% of the recorded lengths.` });
   if (settings.mode === 'ratio' && settings.ratioDenominator === 1) warnings.push({ code: 'ratio-is-actual', severity: 'info', text: 'A ratio of 1:1 is the same as actual size.' });
   if (settings.mode === 'fit' && scale === 1) warnings.push({ code: 'fit-is-actual', severity: 'info', text: 'The board fits one page at full size.' });
-  if (cols * rows > 1 && warnings.every(w => w.severity !== 'error')) warnings.push({ code: 'tiled', severity: 'warn', text: `Tiled across ${rows} x ${cols} = ${rows * cols} pages with ${n(settings.overlapMm)} mm overlap. Align the overlap marks of neighbouring pages; trimming or taping error accumulates along a long board, so check the finished span against the ruler or a tape measure.` });
-  if (cal.error === null && settings.measuredRulerMm === null) warnings.push({ code: 'uncalibrated', severity: 'warn', text: 'Not calibrated: the scale holds only if the printer honours the page size. Print this once, measure the 100 mm ruler, and enter the measured length to calibrate.' });
+  if (cols * rows > 1 && warnings.every(w => w.severity !== 'error')) warnings.push({ code: 'tiled', severity: 'warn', text: `Tiled across ${rows} x ${cols} = ${rows * cols} pages with ${n(settings.overlapMm)} mm overlap. Align the overlap marks of neighboring pages; trimming or taping error accumulates along a long board, so check the finished span against the ruler or a tape measure.` });
+  if (cal.error === null && settings.measuredRulerMm === null) warnings.push({ code: 'uncalibrated', severity: 'warn', text: 'Not calibrated: the scale holds only if the printer honors the page size. Print this once, measure the 100 mm ruler, and enter the measured length to calibrate.' });
   if (known.length === 0) warnings.push({ code: 'no-known-length', severity: 'warn', text: 'No section has a recorded planned cut length, so nothing on this print is a measurable length; no scale is claimed.' });
-  if (unknown > 0) warnings.push({ code: 'unknown-length', severity: 'warn', text: `${unknown} section${unknown === 1 ? ' is' : 's are'} drawn at a placeholder length, dashed and labelled "length unknown"; that length is not to scale.` });
+  if (unknown > 0) warnings.push({ code: 'unknown-length', severity: 'warn', text: `${unknown} section${unknown === 1 ? ' is' : 's are'} drawn at a placeholder length, dashed and labeled "length unknown"; that length is not to scale.` });
   if (board.stubs.length > 0) warnings.push({ code: 'stub-length-not-recorded', severity: 'info', text: 'Legs that share their trunk section have no recorded length and are drawn as dashed stubs.' });
   warnings.push({ code: 'not-to-scale-across', severity: 'info', text: 'Only the length axis is to scale. Bar thickness, row spacing and text size are drawing aids, not measurements, and placement implies no routing, bonding or fit.' });
   for (const note of board.notes) warnings.push({ code: 'layout-note', severity: 'warn', text: note });
@@ -191,7 +191,7 @@ export function footerSvg(plan: { calibration: { measuredMm: number | null; fact
 
 const cross = (x: number, y: number): string => `<path d="M${n(x - 2)} ${n(y)}h4M${n(x)} ${n(y - 2)}v4" />`;
 
-/** One page of a plan as an svg sized exactly in millimetres. */
+/** One page of a plan as an svg sized exactly in millimeters. */
 export function renderPrintPageSvg(plan: PrintPlan, page: PrintPage): string {
   if (!plan.ok || !plan.body) throw new Error('A plan with errors has no pages.');
   const { settings: s, body } = plan;

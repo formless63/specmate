@@ -13,7 +13,7 @@ import "./signals.css";
 const RETURN_TYPES: SignalType[] = ["ground_return", "shield", "chassis"];
 const LEVEL_UNITS = ["V", "Vpp", "dBu", "dBV"];
 
-/** Colour family of a signal type, drawn from theme tokens in signals.css. */
+/** Color family of a signal type, drawn from theme tokens in signals.css. */
 function family(type: SignalType): string {
   if (type === "analog_video" || type === "sync") return "video";
   if (type === "analog_audio" || type === "digital_audio") return "audio";
@@ -23,7 +23,7 @@ function family(type: SignalType): string {
   return "unknown";
 }
 
-/** The signal type as a small chip with its colour family; unknown is hatched, never blank. */
+/** The signal type as a small chip with its color family; unknown is hatched, never blank. */
 export function SignalTypeChip({ type }: { type: SignalType }) {
   return <span className="sb-signal-type" data-family={family(type)} data-unknown={type === "unknown" || undefined}>{SIGNAL_TYPE_LABELS[type]}</span>;
 }

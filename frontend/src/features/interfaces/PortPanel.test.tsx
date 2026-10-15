@@ -52,7 +52,7 @@ test("a port picks its variant, selects a condition and states per-contact devic
   render(wrap(<Harness />));
   await select("Pinout variant", "Regional console");
   await select("Pinout variant revision", /r1/);
-  const row = (contact: string) => screen.getByRole("combobox", { name: `Device behaviour at contact ${contact}` }).closest("tr") as HTMLElement;
+  const row = (contact: string) => screen.getByRole("combobox", { name: `Device behavior at contact ${contact}` }).closest("tr") as HTMLElement;
   // Unselected condition: unknown, both possibilities named, flagged as possibly power.
   expect(within(await waitRow(row, "1")).getByText("Signal unknown")).toBeTruthy();
   expect(within(row("1")).getByText("Could be Composite sync or +9 V")).toBeTruthy();
@@ -60,7 +60,7 @@ test("a port picks its variant, selects a condition and states per-contact devic
   await select("Device region", "Region A");
   expect(within(row("1")).getByText("Composite sync")).toBeTruthy();
   expect(within(row("4")).getByText("Red video")).toBeTruthy();
-  await select("Device behaviour at contact 4", "Drives");
+  await select("Device behavior at contact 4", "Drives");
   fireEvent.change(screen.getByLabelText("Basis at contact 4"), { target: { value: "Synthetic" } });
   fireEvent.change(screen.getByLabelText("Level at contact 4 (blank = unknown)"), { target: { value: "0.7" } });
   await select("Level unit at contact 4", "Vpp");
@@ -69,17 +69,17 @@ test("a port picks its variant, selects a condition and states per-contact devic
   expect(latest?.selected_conditions).toEqual({ region: "a" });
   expect(latest?.pinout_revision_id).toBe("variant-r1");
   const four = latest?.pins.find((p) => p.contact_id === "4");
-  expect(four).toMatchObject({ behaviour: "drives", basis: "Synthetic", level: { status: "known", nominal: 0.7, unit: "Vpp", basis: "Synthetic" }, impedance: { status: "unknown", nominal: null } });
-  expect(latest?.pins.find((p) => p.contact_id === "1")).toMatchObject({ must_not_connect: true, must_not_connect_reason: "Supply on region B", behaviour: "unknown" });
+  expect(four).toMatchObject({ behavior: "drives", basis: "Synthetic", level: { status: "known", nominal: 0.7, unit: "Vpp", basis: "Synthetic" }, impedance: { status: "unknown", nominal: null } });
+  expect(latest?.pins.find((p) => p.contact_id === "1")).toMatchObject({ must_not_connect: true, must_not_connect_reason: "Supply on region B", behavior: "unknown" });
 });
 
 async function waitRow(row: (c: string) => HTMLElement, contact: string) {
-  await screen.findByRole("combobox", { name: `Device behaviour at contact ${contact}` });
+  await screen.findByRole("combobox", { name: `Device behavior at contact ${contact}` });
   return row(contact);
 }
 
 test("a frozen end hatches every unstated fact and marks must-not-connect pins", async () => {
-  const pin = { ...unknownPortPin("4"), behaviour: "drives" as const, level: { status: "known" as const, nominal: 0.7, minimum: null, maximum: null, basis: "Synthetic", unit: "Vpp" }, needs_in_cable: [{ conditioning: "series_resistor" as const, value: "470 ohm", basis: "Synthetic" }] };
+  const pin = { ...unknownPortPin("4"), behavior: "drives" as const, level: { status: "known" as const, nominal: 0.7, minimum: null, maximum: null, basis: "Synthetic", unit: "Vpp" }, needs_in_cable: [{ conditioning: "series_resistor" as const, value: "470 ohm", basis: "Synthetic" }] };
   const port: CableEnd = { ...VARIANT_END, kind: "port", device_label: "Console AV out", rows: [VARIANT_END.rows[0]!, { ...VARIANT_END.rows[1]!, device: { ...pin, must_not_connect: true, must_not_connect_reason: "Synthetic reason" } }] };
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(port))));
   render(wrap(<CableEndInspector revisionId="port-r1" />));

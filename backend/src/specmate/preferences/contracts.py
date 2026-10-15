@@ -10,7 +10,7 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 
 KEYS = (
     "preferred_suppliers",
-    "wire_colours",
+    "wire_colors",
     "connector_families",
     "default_length_unit",
     "default_wire_gauge_system",
@@ -23,7 +23,7 @@ class PreferenceValues(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     preferred_suppliers: list[Name] | None = Field(default=None, max_length=30)
-    wire_colours: list[Name] | None = Field(default=None, max_length=30)
+    wire_colors: list[Name] | None = Field(default=None, max_length=30)
     connector_families: list[Name] | None = Field(default=None, max_length=30)
     default_length_unit: Literal["mm", "cm", "m", "in", "ft"] | None = None
     default_wire_gauge_system: Literal["awg", "mm2"] | None = None

@@ -54,7 +54,7 @@ to private files under `/tmp`, and runs:
            --load-filaments filament.json --outputdir <tmp> [--export-3mf sliced.3mf]
            [--clone-objects <copies> --arrange 1] --ensure-on-bed <model.stl>
 
-Only STL input and as-modelled orientation are accepted: OrcaSlicer 2.4.2 terminates with
+Only STL input and as-modeled orientation are accepted: OrcaSlicer 2.4.2 terminates with
 SIGSEGV on `--rotate`, `--rotate-x` and `--rotate-y`. Slicing works inside the runner's
 64 MiB `/tmp`; a model whose G-code exceeds it fails explicitly ("Is the disk full?").
 Read-only inputs, network none, nonroot, no capabilities, no new privileges, 2 GiB memory,

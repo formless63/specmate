@@ -15,7 +15,7 @@ from specmate.operations import ValidationFailed
 from specmate.pcb_fabrication.pack import output_media
 
 from .conftest import op
-from .golden_package import sequential_ids, summarise  # noqa: F401 -- fixture
+from .golden_package import sequential_ids, summarize  # noqa: F401 -- fixture
 from .test_assemblies import create, freeze, occ, part
 from .test_export_packages import download, review
 from .test_pcb_fabrication import (  # noqa: F401 -- pytest fixtures
@@ -159,4 +159,4 @@ def test_format_1_package_rebuilds_byte_identically_to_the_pre_reproducibility_g
     files = format_1_package(users, project, intake, requested, population)
     assert "verify/verification.py" not in files
     assert b"reproducibility" not in files["manifest.json"] + files["review.html"]
-    assert summarise(files) == json.loads(GOLDEN_FORMAT_1.read_text())
+    assert summarize(files) == json.loads(GOLDEN_FORMAT_1.read_text())

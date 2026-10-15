@@ -5,16 +5,16 @@
  *
  * - `cutaway`: each enclosed element is stepped out of the one around it so every layer can
  *   be seen and named. The axial steps are a display arrangement, carry no dimension and are
- *   labelled illustrative.
+ *   labeled illustrative.
  * - `prepared`: each end is drawn from end preparation instructions. A strip-back, removal or
  *   trim whose length is measured from the stock cut end sets where the element stops;
  *   retaining keeps it to the cut end. Anything else is unknown and drawn hatched across the
  *   whole end window, never as a guessed length.
  *
- * Re-implemented from the behaviour of cab-stu `packages/docs/src/drawing/cutaway.ts` and
+ * Re-implemented from the behavior of cab-stu `packages/docs/src/drawing/cutaway.ts` and
  * `packages/docs/src/bench/figures.ts` (strip figure), commit
  * 6bbf79655deb572df9f11490ca38e4f739ce71fb (MIT, formless63); no code, art, font, marking or
- * colour table is copied. See NOTICE. Display only: no fit, bond or qualification is implied.
+ * color table is copied. See NOTICE. Display only: no fit, bond or qualification is implied.
  */
 import { appearanceOf, edgeColor, mixHex } from './appearance';
 import type { Appearance } from './appearance';
@@ -45,7 +45,7 @@ export interface SideBand {
   tag: string;
   label: string;
   look: Appearance;
-  /** Section height of the element's centre and its half height, mm. */
+  /** Section height of the element's center and its half height, mm. */
   y: number;
   half: number;
   /** Inner half height (bore) for rings; 0 for solids and webs. */
@@ -179,7 +179,7 @@ export interface SideCallout {
   tag: string;
   /** Leader start on the element, drawing coordinates. */
   anchor: { x: number; y: number };
-  /** Leader end under the label: label centre x on the row above end A, and the leader's top. */
+  /** Leader end under the label: label center x on the row above end A, and the leader's top. */
   label: { x: number; y: number };
   /** True when the element is wholly covered by a nearer one in this view: the leader points at where it lies. */
   occluded: boolean;
@@ -188,7 +188,7 @@ export interface SideCallout {
 /** Baseline of the tag label row above the cable. */
 export const sideLabelBaseline = (view: SideView, fs: number): number => view.minY - fs * 1.4;
 
-/** Spread sorted preferred positions so neighbours are at least `gap` apart, starting no lower than `lo`. */
+/** Spread sorted preferred positions so neighbors are at least `gap` apart, starting no lower than `lo`. */
 function spread(pref: number[], gap: number, lo: number, hi: number): number[] {
   const out = pref.map(v => Math.max(v, lo));
   for (let i = 1; i < out.length; i += 1) out[i] = Math.max(out[i]!, out[i - 1]! + gap);
@@ -226,7 +226,7 @@ export function sideCallouts(view: SideView, fs: number): SideCallout[] {
       const y = r.y0 + (r.y1 - r.y0) * (m + 0.5) / samplesY;
       if (covers(i, x, y) === 0) { seen.push({ x, y }); break; }
     }
-    // A wholly covered element is pointed at where the fewest layers lie over its centre line.
+    // A wholly covered element is pointed at where the fewest layers lie over its center line.
     const occluded = seen.length === 0;
     if (occluded) {
       const depth = xs.map(x => covers(i, x, band.y));
@@ -246,7 +246,7 @@ export function sideCallouts(view: SideView, fs: number): SideCallout[] {
   });
   const chars = Math.max(1, ...runs.map(it => it.band.tag.length));
   const gap = fs * Math.max(1.6, 0.62 * CALLOUT_SCALE * chars + 0.9);
-  // Elements that can be pointed at in about the same place are labelled in tag order.
+  // Elements that can be pointed at in about the same place are labeled in tag order.
   const items = runs.sort((p, q) => Math.round(p.pref / (gap * 2)) - Math.round(q.pref / (gap * 2)) || tagOrder(p.band.tag, q.band.tag) || p.pref - q.pref);
   const slots = spread(items.map(it => it.pref), gap, fs * 0.6, wa - fs * 0.6);
   const anchorAt = (it: typeof items[number], x: number): { anchor: Seen; occluded: boolean } => {
@@ -315,7 +315,7 @@ function sideTexture(id: string, look: Appearance, half: number): string {
       return tile(`<path d="M0 ${n(t * 2)}L${n(t * 1.2)} 0" stroke="${dark}" stroke-width="${n(t * 0.05)}" stroke-opacity="0.55"/><path d="M${n(t * 0.3)} ${n(t * 2)}L${n(t * 1.5)} 0" stroke="${light}" stroke-width="${n(t * 0.3)}" stroke-opacity="0.35"/>`, t * 1.2, t * 2);
     case 'foam':
       return tile(`<circle cx="${n(t * 0.3)}" cy="${n(t * 0.3)}" r="${n(t * 0.14)}" fill="${dark}" fill-opacity="0.25"/><circle cx="${n(t * 0.75)}" cy="${n(t * 0.7)}" r="${n(t * 0.1)}" fill="${light}" fill-opacity="0.45"/>`);
-    case 'fibre':
+    case 'fiber':
       return tile(`<path d="M0 ${n(t * 0.3)}H${n(t)}M0 ${n(t * 0.8)}H${n(t)}" stroke="${dark}" stroke-width="${n(t * 0.05)}" stroke-opacity="0.45"/>`);
     case 'unknown':
       return tile(`<path d="M0 ${n(t)}L${n(t)} 0" style="stroke:${TOKEN.hatch}" stroke-width="${sw}"/>`);
@@ -407,7 +407,7 @@ export function renderSideViewSvg(view: SideView, title: string, options: SideSv
       + `<circle cx="${n(c.anchor.x)}" cy="${n(c.anchor.y)}" r="${n(fs * 0.13)}" ${c.occluded ? `fill="none" stroke="currentColor" stroke-width="${n(fs * 0.05)}"` : 'fill="currentColor"'}/>`
       + `<text x="${n(c.label.x)}" y="${n(labelY)}" font-size="${n(fs * CALLOUT_SCALE)}" font-weight="600" fill="currentColor" text-anchor="middle">${esc(c.tag)}</text></g>`);
   }
-  // Prepared mode: dimension lines from each cut end; unknowns listed in the review colour.
+  // Prepared mode: dimension lines from each cut end; unknowns listed in the review color.
   let rowY = view.maxY + fs * 1.6;
   const notes: string[] = [];
   if (view.mode === 'prepared') for (const end of ['a', 'b'] as const) {

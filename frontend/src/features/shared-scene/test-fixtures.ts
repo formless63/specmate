@@ -38,7 +38,7 @@ export function syntheticScene(): SharedScene {
 
 export const syntheticStock = (): StockSpecification => ({
   schema_version: '1', construction: 'coax', viewed_from: 'a', facts: {},
-  structure: { id: 'stock', label: 'Synthetic six millimetre tube', kind: 'group', role: 'stock', arrangement: 'concentric', pitch_mm: null, direction: 'cw', x_mm: 0, y_mm: 0, material: null, color: null, source: null, children: [
+  structure: { id: 'stock', label: 'Synthetic six millimeter tube', kind: 'group', role: 'stock', arrangement: 'concentric', pitch_mm: null, direction: 'cw', x_mm: 0, y_mm: 0, material: null, color: null, source: null, children: [
     { id: 'shell', label: 'Synthetic shell', kind: 'jacket', x_mm: 0, y_mm: 0, material: null, color: null, source: null, outer_diameter_mm: 6, inner_diameter_mm: 4, construction: 'solid', area_mm2: null },
   ] },
 });

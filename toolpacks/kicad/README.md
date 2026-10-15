@@ -181,7 +181,7 @@ source precedence are not advertised by this pack.
 ## Arc and circle outlines
 
 The intake program extracts `Edge.Cuts` lines, arcs and circles as exact edges
-(`outline_exact`/`cutouts_exact`; arcs keep start, mid, end plus derived centre,
+(`outline_exact`/`cutouts_exact`; arcs keep start, mid, end plus derived center,
 radius and sweep). `outline`/`cutouts` are then display tessellations with chord
 sagitta at most `outline_tolerance_mm` (0.005 mm). Bounds and area come from the exact
 geometry. Cubic Bezier edges keep their control points, are tessellated adaptively (control-polygon flatness bound), take bounds from curve extrema and report area as approximate within tolerance. Zero-length items are ignored and endpoint gaps up to 0.05 mm are bridged with a straight chord and always listed (`outline_bridged_gaps`, coverage `closed-polygons-bridged`); larger gaps are never bridged and the outline stays unsupported. Rectangles and polygons on `Edge.Cuts` remain unsupported. The fabrication program

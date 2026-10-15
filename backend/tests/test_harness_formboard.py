@@ -3,7 +3,7 @@
 `tests/data/formboard/expected.json` is produced by `generate.ts` from the browser
 renderer in `packages/harness-views`; the Python port must reproduce it exactly. The
 independent expectations below are computed by hand from the synthetic harness
-(trunk 500 mm, leg 250.5 mm, unknown leg at the labelled placeholder length).
+(trunk 500 mm, leg 250.5 mm, unknown leg at the labeled placeholder length).
 """
 
 import json
@@ -97,7 +97,7 @@ def test_reduced_plans_never_claim_full_size_and_bad_inputs_are_errors():
         render_print_html(bad)
 
 
-def test_unknown_stock_colour_is_never_guessed_and_helpers_match_js_formatting():
+def test_unknown_stock_color_is_never_guessed_and_helpers_match_js_formatting():
     assert appearance_of("jacket", None, None)["fill_source"] == "unknown"
     assert appearance_of("jacket", "white/blue", "PVC")["stripe"] == "#1f5fbf"
     assert appearance_of("shield", None, "Tinned copper")["fill_source"] == "material-typical"

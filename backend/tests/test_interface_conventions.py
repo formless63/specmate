@@ -74,7 +74,7 @@ def by_path(view):
     return {row["element_path"]: row for row in view["rows"]}
 
 
-def test_stock_convention_maps_centres_and_screens_by_label_and_signal_name(users, project, kit):
+def test_stock_convention_maps_centers_and_screens_by_label_and_signal_name(users, project, kit):
     owner = users["owner"]
     revision = frozen(owner, project, convention(kit), "Six-coax AV convention")
     view = inspect_revision(users["viewer"], revision)["convention"]
@@ -82,7 +82,7 @@ def test_stock_convention_maps_centres_and_screens_by_label_and_signal_name(user
     assert view["scope"] == "stock" and view["effect"] == "preference"
     assert len(rows) == 12 and view["unmapped"] == []
     red = rows["stock.core-1.center"]
-    assert red["element_label"] == "Core 1 (red) / Centre"
+    assert red["element_label"] == "Core 1 (red) / Center"
     assert red["use"]["signal"]["name"] == "Red video"
     screen = rows["stock.core-1.screen"]
     assert (screen["use"]["kind"], screen["use"]["signal"]["name"]) == ("return_of", "Red video")
@@ -154,7 +154,7 @@ def test_spare_and_type_only_rules_and_preference_levels(users, project, kit):
         ),
         (lambda v, k: v.update(stock_revision_id=None), ValidationFailed, None),
         (
-            lambda v, k: v["rules"][0].update(element_path=None, colour="Red"),
+            lambda v, k: v["rules"][0].update(element_path=None, color="Red"),
             ValidationFailed,
             None,
         ),
@@ -163,7 +163,7 @@ def test_spare_and_type_only_rules_and_preference_levels(users, project, kit):
             ValidationFailed,
             None,
         ),
-        (lambda v, k: v["rules"][0].update(colour="Red"), ValidationFailed, None),
+        (lambda v, k: v["rules"][0].update(color="Red"), ValidationFailed, None),
         (lambda v, k: v.update(review="reviewed", review_basis=None), ValidationFailed, None),
     ],
 )
@@ -183,30 +183,30 @@ def test_one_element_maps_once_even_with_a_different_use(users, project, kit):
         create(users["owner"], project, value)
 
 
-def test_colour_code_matches_elements_by_exact_display_colour_only(users, project, kit):
+def test_color_code_matches_elements_by_exact_display_color_only(users, project, kit):
     owner = users["owner"]
-    code = frozen(owner, project, examples.av_colour_code(kit["signals"]), "AV colour code")
+    code = frozen(owner, project, examples.av_color_code(kit["signals"]), "AV color code")
     view = inspect_revision(owner, code)["convention"]
-    assert view["scope"] == "colour_code" and view["stock"] is None
-    assert [r["colour"] for r in view["rows"]] == ["Red", "Grey"]
+    assert view["scope"] == "color_code" and view["stock"] is None
+    assert [r["color"] for r in view["rows"]] == ["Red", "Gray"]
     found = stock_conventions(users["viewer"], kit["stock"])["conventions"]
     [entry] = found
-    assert entry["scope"] == "colour_code" and entry["exact"] is False
+    assert entry["scope"] == "color_code" and entry["exact"] is False
     assert {m["element_path"] for m in entry["matches"]} == {
         "stock.core-1.center",
         "stock.core-6.center",
     }
-    # A stock with unknown colours is matched by nothing: labels never establish meaning.
+    # A stock with unknown colors is matched by nothing: labels never establish meaning.
     plain = examples.six_coax_stock()
     for core in plain["structure"]["children"][:-1]:
         core["children"][0]["color"] = None
         core["label"] = "Core (red)"
-    other = frozen_stock(owner, project, plain, "Uncoloured stock")
+    other = frozen_stock(owner, project, plain, "Uncolored stock")
     assert stock_conventions(owner, other)["conventions"] == []
 
 
-def test_colour_code_cannot_pin_a_stock_nor_a_stock_rule_use_a_colour(users, project, kit):
-    code = examples.av_colour_code(kit["signals"])
+def test_color_code_cannot_pin_a_stock_nor_a_stock_rule_use_a_color(users, project, kit):
+    code = examples.av_color_code(kit["signals"])
     with pytest.raises(ValidationFailed):
         create(users["owner"], project, {**code, "stock_revision_id": kit["stock"]})
     with pytest.raises(ValidationFailed):

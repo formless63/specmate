@@ -12,7 +12,7 @@ import { PREFILL_TARGETS } from "./usePreferenceDefaults";
 
 const effective = {
   preferred_suppliers: { value: ["Acme Supply"], source: "workspace" },
-  wire_colours: { value: ["red", "black"], source: "user" },
+  wire_colors: { value: ["red", "black"], source: "user" },
   connector_families: { value: ["Alpha"], source: "workspace" },
   default_length_unit: { value: "m", source: "workspace" },
   default_wire_gauge_system: { value: "awg", source: "user" },
@@ -38,16 +38,16 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const wrap = (children: React.ReactNode) => <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{children}</QueryClientProvider></MantineProvider>;
 const stockFacts = () => structuredClone(stockPresets.coax!.facts);
 
-test("wire stock: new element colour and size system are pre-filled, marked and clearable", async () => {
+test("wire stock: new element color and size system are pre-filled, marked and clearable", async () => {
   render(wrap(<WireStockPanel workspaceId="ws" />));
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/v0/preferences"), expect.anything()));
   await new Promise(resolve => setTimeout(resolve, 50));
   fireEvent.click(screen.getByRole("button", { name: "Add element to stock" }));
-  const colour = screen.getByLabelText(/^stock\.conductor-[a-f0-9-]+ color$/) as HTMLInputElement;
-  expect(colour.value).toBe("red");
+  const color = screen.getByLabelText(/^stock\.conductor-[a-f0-9-]+ color$/) as HTMLInputElement;
+  expect(color.value).toBe("red");
   expect(screen.getAllByText("from preference").length).toBe(1);
-  fireEvent.click(screen.getByLabelText(/^Clear stock\.conductor-[a-f0-9-]+ colour preference$/));
-  expect(colour.value).toBe("");
+  fireEvent.click(screen.getByLabelText(/^Clear stock\.conductor-[a-f0-9-]+ color preference$/));
+  expect(color.value).toBe("");
   expect(screen.queryByText("from preference")).toBeNull();
 });
 
@@ -56,9 +56,9 @@ test("editing a pre-filled value removes its mark", async () => {
   await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/v0/preferences"), expect.anything()));
   await new Promise(resolve => setTimeout(resolve, 50));
   fireEvent.click(screen.getByRole("button", { name: "Add element to stock" }));
-  const colour = screen.getByLabelText(/^stock\.conductor-[a-f0-9-]+ color$/);
-  fireEvent.change(colour, { target: { value: "blue" } });
-  expect(screen.queryByLabelText(/^Clear stock\.conductor-[a-f0-9-]+ colour preference$/)).toBeNull();
+  const color = screen.getByLabelText(/^stock\.conductor-[a-f0-9-]+ color$/);
+  fireEvent.change(color, { target: { value: "blue" } });
+  expect(screen.queryByLabelText(/^Clear stock\.conductor-[a-f0-9-]+ color preference$/)).toBeNull();
 });
 
 test("a preference never fills an engineering fact, rating or dimension", async () => {
@@ -75,7 +75,7 @@ test("a preference never fills an engineering fact, rating or dimension", async 
   expect(added.color).toBe("red");
   for (const key of ["outer_diameter_mm", "inner_diameter_mm", "area_mm2", "construction", "material", "source"]) expect(added[key]).toBeNull();
   // Only naming/convention targets exist; none is a fact or rating field.
-  expect(Object.keys(PREFILL_TARGETS).sort()).toEqual(["connector_families", "default_length_unit", "wire_colours"]);
+  expect(Object.keys(PREFILL_TARGETS).sort()).toEqual(["connector_families", "default_length_unit", "wire_colors"]);
   for (const target of Object.values(PREFILL_TARGETS)) expect(target).not.toMatch(/fact|rating|limit|voltage|current|impedance|tolerance|dimension|diameter/i);
 });
 

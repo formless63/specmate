@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Box framing re-implemented from the behaviour of cab-stu packages/editor-react/src/model-scene.ts
+// Box framing re-implemented from the behavior of cab-stu packages/editor-react/src/model-scene.ts
 // (frameBox: fit every box corner to both fields of view), commit
 // 6bbf79655deb572df9f11490ca38e4f739ce71fb (MIT); no code is copied (see NOTICE).
 import * as THREE from 'three';
@@ -21,7 +21,7 @@ export interface Framing { position: THREE.Vector3; target: THREE.Vector3; up: T
 
 /**
  * Where a perspective camera looking along `-direction` (with world Y up) must stand so every corner
- * of `box` is inside the view and the picture of the box is centred on the canvas. Each corner is
+ * of `box` is inside the view and the picture of the box is centerd on the canvas. Each corner is
  * solved exactly for perspective (a nearer corner needs more room) and the view is panned until the
  * picture's extents are balanced, filling `FRAME_FILL` of the limiting axis: a long thin cable fills
  * the canvas width instead of its bounding sphere.
@@ -48,7 +48,7 @@ export function frameBox(box: THREE.Box3, direction: THREE.Vector3, fovDeg: numb
     }
     return d;
   };
-  // Perspective makes the nearer end look bigger, so the box centre is not the picture's centre.
+  // Perspective makes the nearer end look bigger, so the box center is not the picture's center.
   // Fit the distance, then pan so the picture's extents are balanced, and repeat until settled.
   let distance = fit();
   for (let round = 0; round < 32 && corners.length > 0; round += 1) {
@@ -71,7 +71,7 @@ export function frameBox(box: THREE.Box3, direction: THREE.Vector3, fovDeg: numb
   };
 }
 
-/** Normalised device coordinates of every box corner seen by a camera at `framing` (for checks). */
+/** Normalized device coordinates of every box corner seen by a camera at `framing` (for checks). */
 export function projectedCorners(box: THREE.Box3, framing: Framing, fovDeg: number, aspect: number): { x: number; y: number }[] {
   const camera = new THREE.PerspectiveCamera(fovDeg, aspect, framing.near, framing.far);
   camera.position.copy(framing.position); camera.up.copy(framing.up); camera.lookAt(framing.target);

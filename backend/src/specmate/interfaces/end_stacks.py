@@ -1,4 +1,4 @@
-"""Resolve an end stack against exact pinned revisions: layers, labelled terminals, joins.
+"""Resolve an end stack against exact pinned revisions: layers, labeled terminals, joins.
 
 Resolution never invents a connection. Explicit joins are declarations with a basis; a
 board's carried-connector correspondence is traversable only when reviewed (otherwise it
@@ -331,15 +331,15 @@ class ResolvedStack:
                 continue
             if len(steps) >= MAX_REACH_STEPS:
                 continue
-            for neighbour, edge_status, text in adjacency.get(node, ()):
-                if neighbour in seen:
+            for neighbor, edge_status, text in adjacency.get(node, ()):
+                if neighbor in seen:
                     continue
                 stack.append(
                     (
-                        neighbour,
+                        neighbor,
                         [*steps, text],
                         "unknown" if "unknown" in (status, edge_status) else "declared",
-                        seen | {neighbour},
+                        seen | {neighbor},
                     )
                 )
         found.sort(key=lambda row: (len(row[1]), row[0][1]))
@@ -363,7 +363,7 @@ class ResolvedStack:
                     {
                         "layer_id": layer.layer_id,
                         "status": "not_evaluated",
-                        "reason": "Board paths are declared topology; component behaviour is "
+                        "reason": "Board paths are declared topology; component behavior is "
                         "interpreted only by the passive path query.",
                     }
                 )
@@ -372,7 +372,7 @@ class ResolvedStack:
                     {
                         "layer_id": layer.layer_id,
                         "status": "not_evaluated",
-                        "reason": "Inline parts separate copper; their behaviour is not "
+                        "reason": "Inline parts separate copper; their behavior is not "
                         "evaluated here.",
                     }
                 )

@@ -75,7 +75,7 @@ test('unknown root quantity is sent as null and shown as unknown, never zero', a
   expect(screen.getByText('Root quantity unknown')).toBeTruthy();
   expect(screen.queryByText(/^0$/)).toBeNull();
   expect(screen.getByText(/No physical test was performed/)).toBeTruthy();
-  // The manifest hash the offline verifier needs is shown, labelled apart from the root snapshot hash.
+  // The manifest hash the offline verifier needs is shown, labeled apart from the root snapshot hash.
   expect(screen.getByText(/Package manifest SHA-256/)).toBeTruthy();
   expect(screen.getByText(/Root snapshot SHA-256/)).toBeTruthy();
   expect(screen.getByTestId('verifier-command').textContent).toBe(`python3 -I -S verify/verification.py package.zip --manifest-sha256 ${REVIEW_HASH}`);

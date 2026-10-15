@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, 
 from specmate.contracts import SHA256, check_package_path
 from specmate.operations import ValidationFailed
 
-Millimetres = Annotated[float, Field(ge=0, strict=True, allow_inf_nan=False)]
+Millimeters = Annotated[float, Field(ge=0, strict=True, allow_inf_nan=False)]
 Degrees = Annotated[float, Field(ge=-360, le=360, strict=True, allow_inf_nan=False)]
 ElementPath = Annotated[
     str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}(\.[a-z][a-z0-9_-]{0,63}){0,12}$")
@@ -68,15 +68,15 @@ class Suggestion[T](StrictModel):
 class LeadDisplay(StrictModel):
     """Illustrative pigtail strand, with no electrical bond assertion."""
 
-    length_mm: Suggestion[Millimetres] = Field(default_factory=Suggestion[Millimetres])
-    diameter_mm: Suggestion[Millimetres] = Field(default_factory=Suggestion[Millimetres])
-    reach_mm: Suggestion[Millimetres] = Field(default_factory=Suggestion[Millimetres])
+    length_mm: Suggestion[Millimeters] = Field(default_factory=Suggestion[Millimeters])
+    diameter_mm: Suggestion[Millimeters] = Field(default_factory=Suggestion[Millimeters])
+    reach_mm: Suggestion[Millimeters] = Field(default_factory=Suggestion[Millimeters])
     angle_deg: Suggestion[Degrees] = Field(default_factory=Suggestion[Degrees])
 
 
 class EndPractice(StrictModel):
-    cutback_mm: Suggestion[Millimetres] = Field(default_factory=Suggestion[Millimetres])
-    prepend_cut_mm: Suggestion[Millimetres] = Field(default_factory=Suggestion[Millimetres])
+    cutback_mm: Suggestion[Millimeters] = Field(default_factory=Suggestion[Millimeters])
+    prepend_cut_mm: Suggestion[Millimeters] = Field(default_factory=Suggestion[Millimeters])
     lead: LeadDisplay | None = None
 
 
@@ -91,8 +91,8 @@ class WorkshopProfile(StrictModel):
     foil_visibility: Suggestion[Literal["show", "hide"]] = Field(
         default_factory=Suggestion[Literal["show", "hide"]]
     )
-    illustration_lay_length_mm: Suggestion[Millimetres] = Field(
-        default_factory=Suggestion[Millimetres]
+    illustration_lay_length_mm: Suggestion[Millimeters] = Field(
+        default_factory=Suggestion[Millimeters]
     )
     # Depiction rotation about +x as x increases; phase zero at end A.
     # Independent of stock ring placement and any measured engineering lay.

@@ -1,6 +1,6 @@
 import { requestJson, runOperation } from "../workspace/api";
 
-export const LIST_KEYS = ["preferred_suppliers", "wire_colours", "connector_families"] as const;
+export const LIST_KEYS = ["preferred_suppliers", "wire_colors", "connector_families"] as const;
 export type ListKey = (typeof LIST_KEYS)[number];
 export type PreferenceValues = Partial<Record<ListKey, string[]>> & { default_length_unit?: string; default_wire_gauge_system?: string };
 export type Layer = { values: PreferenceValues; state_token: string };

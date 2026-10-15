@@ -306,7 +306,7 @@
     },
     "Placement": {
       "additionalProperties": false,
-      "description": "A transform in the containing assembly's right-handed, z-up millimetre frame.",
+      "description": "A transform in the containing assembly's right-handed, z-up millimeter frame.",
       "properties": {
         "frame": {
           "const": "right_handed_z_up",

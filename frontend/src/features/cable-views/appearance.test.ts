@@ -4,8 +4,8 @@ import { braidedCoax, shieldedPair, unrecordedCoax } from './fixtures';
 
 const parse = (svg: string) => new DOMParser().parseFromString(svg, 'image/svg+xml');
 
-describe('colour resolution', () => {
-  it('draws a recorded hex colour exactly as recorded', () => {
+describe('color resolution', () => {
+  it('draws a recorded hex color exactly as recorded', () => {
     expect(resolveColor('#1B1b1D')).toEqual({ status: 'known', hex: '#1b1b1d', named: false, label: '#1b1b1d' });
     expect(resolveColor('#abc')).toMatchObject({ status: 'known', hex: '#aabbcc' });
   });
@@ -22,8 +22,8 @@ describe('colour resolution', () => {
 describe('material classification', () => {
   it.each([
     ['Tinned copper', 'tinned-copper'], ['OFC', 'copper'], ['Silver plated copper', 'silver-plated-copper'],
-    ['copper-clad aluminium', 'copper-clad-aluminium'], ['Aluminium foil on polyester', 'aluminium-foil'],
-    ['Mylar / aluminium laminate', 'aluminium-foil'], ['aluminum', 'aluminium'], ['Foam PE', 'foam-polyethylene'],
+    ['copper-clad aluminum', 'copper-clad-aluminum'], ['Aluminum foil on polyester', 'aluminum-foil'],
+    ['Mylar / aluminum laminate', 'aluminum-foil'], ['aluminum', 'aluminum'], ['aluminium', 'aluminum'], ['Aluminium foil', 'aluminum-foil'], ['Foam PE', 'foam-polyethylene'],
     ['FEP', 'fluoropolymer'], ['PTFE', 'fluoropolymer'], ['PVC', 'pvc'], ['XLPE', 'polyethylene'], ['Silicone rubber', 'silicone'],
     ['TPE', 'elastomer'], ['PUR', 'polyurethane'], ['Kapton', 'polyimide'], ['cotton yarn', 'textile'], ['Unobtainium', 'unrecognized'],
   ])('%s -> %s', (text, family) => expect(classifyMaterial(text)).toBe(family));
@@ -31,12 +31,12 @@ describe('material classification', () => {
 });
 
 describe('element appearance', () => {
-  it('uses the material-typical hue for a bare metal with no colour, and says so', () => {
+  it('uses the material-typical hue for a bare metal with no color, and says so', () => {
     const a = appearanceOf({ kind: 'conductor', color: null, material: 'Copper', construction: 'stranded' });
     expect(a).toMatchObject({ base: '#b87333', fillSource: 'material-typical', texture: 'strands', finish: 'metal', metalness: 1 });
-    expect(a.notes.join(' ')).toContain('typical colour');
+    expect(a.notes.join(' ')).toContain('typical color');
   });
-  it('keeps an unrecorded polymer colour unknown rather than guessing', () => {
+  it('keeps an unrecorded polymer color unknown rather than guessing', () => {
     const a = appearanceOf({ kind: 'insulation', color: null, material: 'PVC' });
     expect(a.fillSource).toBe('unknown');
     expect(a.texture).toBe('none');
@@ -59,7 +59,7 @@ describe('element appearance', () => {
 });
 
 describe('realistic section drawing', () => {
-  it('draws each element in its recorded colour with material texture and finish attributes', () => {
+  it('draws each element in its recorded color with material texture and finish attributes', () => {
     const svg = parse(renderSectionSvg(sectionLayout(shieldedPair()), 'Pair'));
     const el = (path: string) => svg.querySelector(`[data-element="${path}"]`)!;
     expect(el('stock.pair.core-a.insulation').getAttribute('data-fill-source')).toBe('conventional-name');
@@ -67,7 +67,7 @@ describe('realistic section drawing', () => {
     expect(el('stock.jacket').querySelector('path')!.getAttribute('fill')).toBe('#1b1b1d');
     expect(el('stock.jacket').getAttribute('data-fill-source')).toBe('recorded');
     expect(el('stock.pair.core-a.wire').getAttribute('data-texture')).toBe('strands');
-    expect(el('stock.screen').getAttribute('data-material-family')).toBe('aluminium-foil');
+    expect(el('stock.screen').getAttribute('data-material-family')).toBe('aluminum-foil');
     expect(el('stock.pair.core-b.insulation').querySelector('[data-stripe]')!.getAttribute('stroke')).toBe('#1f5fbf');
   });
   it('hatches unrecorded elements and says so in the description', () => {
@@ -102,7 +102,7 @@ describe('realistic section drawing', () => {
     const fill = (d: Document) => d.querySelector('[data-element="stock.braid"] path')!.getAttribute('fill');
     expect(fill(picked)).toBe(fill(plain));
   });
-  it('does not inject unsafe colour text', () => {
+  it('does not inject unsafe color text', () => {
     const section = sectionLayout(braidedCoax());
     section.features[0]!.color = 'red" onload="alert(1)';
     expect(renderSectionSvg(section, 'x')).not.toContain('onload');

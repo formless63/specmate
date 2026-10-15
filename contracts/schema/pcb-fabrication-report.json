@@ -54,7 +54,7 @@
     },
     "Drills": {
       "additionalProperties": false,
-      "description": "[x, y, size_x, size_y, slot rotation degrees] in native board millimetres.",
+      "description": "[x, y, size_x, size_y, slot rotation degrees] in native board millimeters.",
       "properties": {
         "npth": {
           "items": {

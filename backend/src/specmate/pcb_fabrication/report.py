@@ -27,7 +27,7 @@ Hole = tuple[float, float, float, float, float]
 
 
 class Drills(StrictModel):
-    """[x, y, size_x, size_y, slot rotation degrees] in native board millimetres."""
+    """[x, y, size_x, size_y, slot rotation degrees] in native board millimeters."""
 
     pth: list[Hole] = Field(max_length=200000)
     npth: list[Hole] = Field(max_length=200000)

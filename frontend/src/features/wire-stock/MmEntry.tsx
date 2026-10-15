@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SbQuantityField } from '../../components/sb';
 
-/** Editable millimetre entry. Keeps the raw text so a trailing decimal point survives; only valid numbers or a cleared field reach the draft. */
+/** Editable millimeter entry. Keeps the raw text so a trailing decimal point survives; only valid numbers or a cleared field reach the draft. */
 export function MmEntry({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number | null) => void }) {
   const [raw, setRaw] = useState(value === null ? '' : String(value));
   const parsed = raw.trim() === '' ? null : Number(raw);

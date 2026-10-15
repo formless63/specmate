@@ -298,13 +298,13 @@ def test_invalid_selections_and_content_are_rejected(users, project, parts, opti
         option_set["revision_id"],
         [
             {"option_key": "finish", "choice_key": "chrome"},
-            {"option_key": "colour", "choice_key": "x"},
+            {"option_key": "color", "choice_key": "x"},
         ],
     )
     preview = op(users["editor"], "configuration.resolve", {"draft_id": draft["draft_id"]})
     assert preview["resolution"]["status"] == "invalid"
     assert [i["option_key"] for i in preview["resolution"]["invalid_selections"]] == [
-        "colour",
+        "color",
         "finish",
     ]
     with pytest.raises(ValidationFailed):

@@ -2,9 +2,9 @@
 
 Pure standard-library code with no application imports, so the same source runs in
 the app (validation, metrics) and, embedded verbatim, in the trusted native program.
-Coordinates are millimetres in the KiCad frame (x right, y down). Angles are measured
+Coordinates are millimeters in the KiCad frame (x right, y down). Angles are measured
 with atan2 over the coordinates as given; a positive sweep is increasing atan2 angle.
-Stroke width of Edge.Cuts items is ignored (the centreline is the outline).
+Stroke width of Edge.Cuts items is ignored (the centerline is the outline).
 """
 
 import math
@@ -22,7 +22,7 @@ def _dist(a, b):
 
 
 def circle_through(start, mid, end):
-    """Centre, radius and signed sweep (radians) of the arc start->mid->end."""
+    """Center, radius and signed sweep (radians) of the arc start->mid->end."""
     (ax, ay), (bx, by), (cx, cy) = start, mid, end
     d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
     if abs(d) < 1e-12:
@@ -43,14 +43,14 @@ def line(start, end):
 
 
 def arc(start, mid, end):
-    """Exact arc edge: the given points plus the derived centre, radius and sweep."""
-    centre, radius, sweep = circle_through(start, mid, end)
+    """Exact arc edge: the given points plus the derived center, radius and sweep."""
+    center, radius, sweep = circle_through(start, mid, end)
     return {
         "kind": "arc",
         "start": list(start),
         "mid": list(mid),
         "end": list(end),
-        "center": [centre[0], centre[1]],
+        "center": [center[0], center[1]],
         "radius": radius,
         "sweep_deg": math.degrees(sweep),
     }

@@ -117,7 +117,7 @@ def _check_loop(loop) -> None:
                 or abs(again["radius"] - edge["radius"]) > 1e-4
                 or abs(again["sweep_deg"] - edge["sweep_deg"]) > 1e-4
             ):
-                raise ValueError("arc centre, radius or sweep disagree with start, mid and end")
+                raise ValueError("arc center, radius or sweep disagree with start, mid and end")
     for a, b in zip(raw, [*raw[1:], raw[0]], strict=True):
         if geometry._dist(a["end"], b["start"]) > geometry.BRIDGE_MM:
             raise ValueError("exact outline loop is not closed and continuous")

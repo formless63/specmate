@@ -33,7 +33,7 @@ pad-drill candidates. Hole roles require review. Arcs and other non-line outline
 remain explicitly unsupported. The board outline can be designated as owned by its
 native file and reconciled from accepted reports; see [explicit property
 authority](SOURCES-AND-JOBS.md#explicit-property-authority). Copper membership never follows the separately
-labelled, unreviewed resistor reference/value candidate passages.
+labeled, unreviewed resistor reference/value candidate passages.
 
 Boards in released KiCad 5, 6, 7, 8 or 9 formats are read only through a recorded
 upgrade derivative (below). Schematic parity, netlist/fabrication/BOM/placement-file parsing,
@@ -189,8 +189,8 @@ left behind; a refused upload never hides the failure itself.
 Every successful build declares JSON DRC, Gerber X2 for every copper layer (`F.Cu`,
 `In1.Cu` … `B.Cu`) and `F.Mask`, `B.Mask`, `F.SilkS`, `B.SilkS`, `F.Paste`, `B.Paste`,
 `Edge.Cuts`, the Gerber job, separate PTH/NPTH Excellon files and a bounded hash
-manifest. Gerber precision is 4.6 millimetres; drills use absolute coordinates,
-millimetres and decimal zeros, with oval holes as G85 slots. Fixed command-line plot
+manifest. Gerber precision is 4.6 millimeters; drills use absolute coordinates,
+millimeters and decimal zeros, with oval holes as G85 slots. Fixed command-line plot
 options apply; board-saved plot settings are not used. KiCad's output Y axis has the
 opposite sign from its native board coordinates. Empty layers and empty drill
 categories remain explicit files. Missing outputs fail; failed or partial stages
@@ -500,7 +500,7 @@ The `board` kind may carry typed interface content (`interface.create`/`update` 
 `kind: "board"`); a generic board without it stays a valid untyped part until its first
 typed edit, and `interface.freeze` requires the typed content. A board declares:
 
-- **terminals**: labelled pads, holes, contacts or test points with a group (for
+- **terminals**: labeled pads, holes, contacts or test points with a group (for
   example "Connector side" or "Cable side") and side. Labels are display text; the stable
   `terminal_id` is the identity. KiCad-derived terminals keep exact native pad UUIDs.
 - **carried connectors**: an exact connector body revision and which terminal lands on

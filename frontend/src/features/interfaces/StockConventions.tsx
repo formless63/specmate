@@ -28,13 +28,13 @@ export function StockConventions({ revisionId }: { revisionId: string }) {
     {!found && !error && <Text size="sm" role="status">Loading conventions…</Text>}
     {found && items.length === 0 && <Text size="sm">No frozen convention applies to this revision. What each conductor carries is <SbUnknown what="Use" />.</Text>}
     {items.map((item) => <Card withBorder key={item.revision_id}><Stack gap={4}>
-      <Text fw={600} size="sm">{item.name} · revision {item.number} · {item.scope === "stock" ? (item.exact ? "pinned to this revision" : "pinned to another revision of this stock") : "general colour code"}</Text>
+      <Text fw={600} size="sm">{item.name} · revision {item.number} · {item.scope === "stock" ? (item.exact ? "pinned to this revision" : "pinned to another revision of this stock") : "general color code"}</Text>
       <Text size="xs"><RevisionLabel id={item.revision_id} role="convention" /></Text>
       {item.convention && <ConventionRows view={item.convention} />}
       {!item.exact && item.scope === "stock" && <Text size="sm">Its mappings are not shown here: open it to compare them with this revision.</Text>}
       {item.matches && <Table.ScrollContainer minWidth={520}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
-        <Table.Thead><Table.Tr><Table.Th>Conductor</Table.Th><Table.Th>Matched colour</Table.Th><Table.Th>Usually used for</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>{item.matches.map((m) => <Table.Tr key={m.element_path}><Table.Td className="sb-signal-name">{m.element_label}</Table.Td><Table.Td>{m.rule.colour} <Text component="span" className="sb-mono" size="xs" c="dimmed">{m.rule.colour_hex}</Text></Table.Td><Table.Td>{useText(m.rule.use)} · {m.rule.preference}</Table.Td></Table.Tr>)}</Table.Tbody>
+        <Table.Thead><Table.Tr><Table.Th>Conductor</Table.Th><Table.Th>Matched color</Table.Th><Table.Th>Usually used for</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>{item.matches.map((m) => <Table.Tr key={m.element_path}><Table.Td className="sb-signal-name">{m.element_label}</Table.Td><Table.Td>{m.rule.color} <Text component="span" className="sb-mono" size="xs" c="dimmed">{m.rule.color_hex}</Text></Table.Td><Table.Td>{useText(m.rule.use)} · {m.rule.preference}</Table.Td></Table.Tr>)}</Table.Tbody>
       </Table></Table.ScrollContainer>}
     </Stack></Card>)}
     {found && <Text size="xs" c="dimmed">{found.effect_note}</Text>}

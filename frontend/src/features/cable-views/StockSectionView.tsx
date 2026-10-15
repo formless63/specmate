@@ -22,11 +22,11 @@ export function StockSectionView({ section, title, label = 'Stock section drawin
         const on = current === row.path;
         return <UnstyledButton key={row.path} aria-pressed={on} onClick={() => choose(on ? null : row.path)}
           title={look.notes.join('; ') || row.path} className="sb-key-chip">
-          <Swatch look={look} />{row.tag} {row.label}{look.fillSource === 'unknown' ? ' (colour unknown)' : ''}
+          <Swatch look={look} />{row.tag} {row.label}{look.fillSource === 'unknown' ? ' (color unknown)' : ''}
         </UnstyledButton>;
       })}
     </Group>
     {section.features.some(f => rowLook(section.rows.find(r => r.path === f.path)!).fillSource === 'unknown') &&
-      <Text size="xs">Hatched elements have no recorded colour or material; they are drawn neutral, not guessed.</Text>}
+      <Text size="xs">Hatched elements have no recorded color or material; they are drawn neutral, not guessed.</Text>}
   </Stack>;
 }

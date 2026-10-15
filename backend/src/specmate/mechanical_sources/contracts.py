@@ -88,8 +88,8 @@ class ModelPin(Strict):
 
 
 AssumptionStatus = Literal["unknown", "declared", "not_applicable"]
-Millimetres = Annotated[float, Field(allow_inf_nan=False, ge=-1_000_000, le=1_000_000)]
-VectorMM = tuple[Millimetres, Millimetres, Millimetres]
+Millimeters = Annotated[float, Field(allow_inf_nan=False, ge=-1_000_000, le=1_000_000)]
+VectorMM = tuple[Millimeters, Millimeters, Millimeters]
 
 
 class ScopedAssumption(Strict):
@@ -139,8 +139,8 @@ class ToleranceAssumption(ScopedAssumption):
     model_local_id: str | None = Field(default=None, pattern=LOCAL)
     dimension: str = Field(min_length=1, max_length=200)
     units: Literal["mm"] = "mm"
-    lower_deviation: Millimetres | None = None
-    upper_deviation: Millimetres | None = None
+    lower_deviation: Millimeters | None = None
+    upper_deviation: Millimeters | None = None
 
     @model_validator(mode="after")
     def bounds(self):

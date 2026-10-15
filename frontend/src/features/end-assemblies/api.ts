@@ -83,7 +83,7 @@ export class ResolveError extends Error {
 /** Access denial (as opposed to an invalid stack): retained content must be withdrawn. */
 export const resolveDenied = (error: unknown) => error instanceof ResolveError && [401, 403, 404].includes(error.status);
 
-/** Resolve a stack or a frozen end assembly: layers, labelled terminals, joins (read-only). */
+/** Resolve a stack or a frozen end assembly: layers, labeled terminals, joins (read-only). */
 export async function resolveEnd(body: { stack: EndStack } | { end_assembly_revision_id: string }): Promise<ResolvedStack> {
   const csrf = document.cookie.split("; ").find((cookie) => cookie.startsWith("csrftoken="))?.split("=")[1];
   const response = await fetch("/api/v0/interfaces/end-stacks/resolve", {

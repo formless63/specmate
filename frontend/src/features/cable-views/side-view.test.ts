@@ -82,7 +82,7 @@ test('an unknown layer strip yields to a placing trim; invalid or unplaced lengt
   expect(elementExtent(end, 'stock.drain').extent).toEqual({ status: 'unknown', reason: 'strip back length unknown' });
 });
 
-test('recorded colours and tracer stripes are drawn; an unknown diameter is listed, never drawn', () => {
+test('recorded colors and tracer stripes are drawn; an unknown diameter is listed, never drawn', () => {
   const stock = shieldedPair();
   const jacket = stock.structure.children.find(c => c.id === 'jacket') as RoundElement;
   jacket.outer_diameter_mm = null;
@@ -165,14 +165,14 @@ describe('end A tag callouts', () => {
     expect(placed.get('stock.pair.core-b.insulation')!.anchor.x).toBeLessThan(14);
     expect(placed.get('stock.pair.core-b.wire')!.anchor.x).toBeLessThan(5);
     expect(placed.get('stock.pair.core-b.wire')!.occluded).toBe(false);
-    // Core A lies exactly behind core B in this view: it is called out as covered, at its centre line.
+    // Core A lies exactly behind core B in this view: it is called out as covered, at its center line.
     expect(placed.get('stock.pair.core-a.wire')).toMatchObject({ occluded: true, anchor: { y: 0 } });
     const svg = parse(renderSideViewSvg(view, 'Side'));
     expect(svg.querySelector('[data-callout="stock.pair.core-a.wire"]')!.getAttribute('data-occluded')).toBe('true');
     expect(svg.querySelector('[data-callout="stock.pair.core-b.wire"]')!.hasAttribute('data-occluded')).toBe(false);
   });
 
-  test('elements that show in the same place are labelled in tag order, and layout is deterministic', () => {
+  test('elements that show in the same place are labeled in tag order, and layout is deterministic', () => {
     const view = sideViewLayout(sectionLayout(screenedTwinWithDrain()), { mode: 'prepared', preparation: unknownScreen });
     const fs = sideAnnotationUnit(view);
     const order = [...sideCallouts(view, fs)].sort((p, q) => p.label.x - q.label.x).map(c => c.tag);

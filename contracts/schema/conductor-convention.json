@@ -17,7 +17,7 @@
           "default": null,
           "title": "Basis"
         },
-        "colour": {
+        "color": {
           "anyOf": [
             {
               "maxLength": 200,
@@ -29,9 +29,9 @@
             }
           ],
           "default": null,
-          "title": "Colour"
+          "title": "Color"
         },
-        "colour_hex": {
+        "color_hex": {
           "anyOf": [
             {
               "pattern": "^#[0-9a-fA-F]{6}$",
@@ -42,7 +42,7 @@
             }
           ],
           "default": null,
-          "title": "Colour Hex"
+          "title": "Color Hex"
         },
         "element_kind": {
           "anyOf": [
@@ -212,8 +212,8 @@
       "type": "array"
     },
     "schema_version": {
-      "const": "0.1",
-      "default": "0.1",
+      "const": "0.2",
+      "default": "0.2",
       "title": "Schema Version",
       "type": "string"
     },
@@ -221,7 +221,7 @@
       "default": "stock",
       "enum": [
         "stock",
-        "colour_code"
+        "color_code"
       ],
       "title": "Scope",
       "type": "string"

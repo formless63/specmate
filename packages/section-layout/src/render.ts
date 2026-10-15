@@ -9,7 +9,7 @@ import type { Section, SectionFeature, StockGeometry } from './model';
 const esc = (text: string): string => text.replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const n = (value: number): string => String(Math.round(value * 10000) / 10000);
-/** Base fill of a feature: recorded colour, a labelled typical metal colour, or an explicit unknown. */
+/** Base fill of a feature: recorded color, a labeled typical metal color, or an explicit unknown. */
 export const displayColor = (feature: Pick<SectionFeature, 'color' | 'kind' | 'material' | 'construction'>): string => appearanceOf(feature).base;
 
 export interface SectionSvgOptions {
@@ -49,7 +49,7 @@ function finishDefs(prefix: string): string {
     + `<radialGradient id="${prefix}-f-satin" cx="0.35" cy="0.3" r="0.85">${stops([[0, '#ffffff', 0.28], [0.5, '#ffffff', 0], [1, '#000000', 0.26]])}</radialGradient>`
     + `<radialGradient id="${prefix}-f-matt" cx="0.4" cy="0.35" r="0.9">${stops([[0, '#ffffff', 0.1], [1, '#000000', 0.2]])}</radialGradient>`;
 }
-const FINISH_FILL: Record<Appearance['finish'], string> = { metal: 'metal', foil: 'foil', gloss: 'gloss', satin: 'satin', matt: 'matt', foam: 'matt', fibre: 'matt', unknown: 'matt' };
+const FINISH_FILL: Record<Appearance['finish'], string> = { metal: 'metal', foil: 'foil', gloss: 'gloss', satin: 'satin', matt: 'matt', foam: 'matt', fiber: 'matt', unknown: 'matt' };
 
 /** Explicit-geometry texture tile for one element; no external resources. */
 function textureDef(id: string, texture: Appearance['texture'], base: string, t: number): string {
@@ -67,7 +67,7 @@ function textureDef(id: string, texture: Appearance['texture'], base: string, t:
       return tile(`<path d="M0 ${n(t / 2)}H${n(t)}" stroke="${dark}" stroke-width="${sw}"/><path d="M${n(t / 2)} 0V${n(t / 2)}M0 ${n(t)}V${n(t / 2)}" stroke="${dark}" stroke-width="${sw}" stroke-opacity="0.6"/>`);
     case 'foam':
       return tile(`<circle cx="${n(t * 0.3)}" cy="${n(t * 0.3)}" r="${n(t * 0.16)}" fill="${dark}" fill-opacity="0.28"/><circle cx="${n(t * 0.72)}" cy="${n(t * 0.68)}" r="${n(t * 0.12)}" fill="${light}" fill-opacity="0.5"/>`);
-    case 'fibre':
+    case 'fiber':
       return tile(`<path d="M0 ${n(t * 0.3)}H${n(t)}M0 ${n(t * 0.8)}H${n(t)}M${n(t * 0.5)} 0V${n(t)}" stroke="${dark}" stroke-width="${n(t * 0.05)}" stroke-opacity="0.45"/>`);
     case 'unknown':
       return tile(`<path d="M0 ${n(t)}L${n(t)} 0M${n(-t / 2)} ${n(t / 2)}L${n(t / 2)} ${n(-t / 2)}M${n(t / 2)} ${n(t * 1.5)}L${n(t * 1.5)} ${n(t / 2)}" stroke="#5f6870" stroke-width="${sw}" fill="none"/>`);
@@ -76,7 +76,7 @@ function textureDef(id: string, texture: Appearance['texture'], base: string, t:
   }
 }
 
-/** Extent of the section after mirroring and turning (outline of each feature, not its centre). */
+/** Extent of the section after mirroring and turning (outline of each feature, not its center). */
 export function viewBounds(section: Section, mirrored: boolean, rotationDeg: number): Section['bounds'] {
   const pts: { x: number; y: number }[] = [];
   const c = Math.cos(rotationDeg * Math.PI / 180), s = Math.sin(rotationDeg * Math.PI / 180);
@@ -200,7 +200,7 @@ export function renderSectionSvg(section: Section, title: string, options: Secti
   }).join('');
   const description = (section.unknown.length > 0 ? `Incomplete geometry: ${section.unknown.join('; ')}` :
     `${n(section.widthMm!)} × ${n(section.heightMm!)} mm. ${section.features.length} material elements. Viewed from ${section.viewedFrom}.`)
-    + (unknownFills > 0 ? ` ${unknownFills} element${unknownFills === 1 ? '' : 's'} drawn hatched because colour or material is not recorded.` : '');
+    + (unknownFills > 0 ? ` ${unknownFills} element${unknownFills === 1 ? '' : 's'} drawn hatched because color or material is not recorded.` : '');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(minX)} ${n(minY)} ${n(width)} ${n(height)}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title><desc>${esc(description)}</desc><defs>${defs.join('')}</defs>${body}${markers}</svg>`;
 }
 

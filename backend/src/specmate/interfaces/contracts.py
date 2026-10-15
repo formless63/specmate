@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import Field, TypeAdapter, model_validator
 
-from specmate.assemblies.contracts import LocalId, Path, StrictModel
+from specmate.assemblies.contracts import LocalId, Path, StrictModel, rename_keys
 from specmate.contracts import FiniteNumber
 from specmate.interfaces.assessment_contracts import InterfaceAssessment
 from specmate.interfaces.board_contracts import Board
@@ -217,7 +217,7 @@ class PortPin(StrictModel):
     """What the device does at one contact. Absent facts stay unknown."""
 
     contact_id: ContactId
-    behaviour: Literal["drives", "accepts", "passes", "none", "unknown"] = "unknown"
+    behavior: Literal["drives", "accepts", "passes", "none", "unknown"] = "unknown"
     level: SignalLevel = Field(default_factory=SignalLevel)
     impedance: SignalImpedance = Field(default_factory=SignalImpedance)
     coupling: Literal["ac", "dc", "unknown"] = "unknown"
@@ -226,6 +226,12 @@ class PortPin(StrictModel):
     must_not_connect: bool = False
     must_not_connect_reason: Text | None = None
     basis: Text | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade(cls, value):
+        # Pre-1.0: schema 0.1 pins spelled this key "behaviour".
+        return rename_keys(value, {"behaviour": "behavior"})
 
     @model_validator(mode="after")
     def reasoned(self):
@@ -236,11 +242,22 @@ class PortPin(StrictModel):
         return self
 
 
+def upgrade_port_content(value):
+    """Map schema 0.1 port content to 0.2 without validating it: pins spelled their device
+    "behaviour" and now say "behavior". Other content is returned unchanged."""
+    if not isinstance(value, dict) or value.get("schema_version", "0.1") != "0.1":
+        return value
+    pins = value.get("pins")
+    if isinstance(pins, list):
+        pins = [rename_keys(pin, {"behaviour": "behavior"}) for pin in pins]
+    return {**value, "schema_version": "0.2", **({"pins": pins} if pins is not None else {})}
+
+
 class Port(StrictModel):
     """A device socket or plug as the outside world sees it: one port per pinout variant."""
 
     kind: Literal["port"] = "port"
-    schema_version: Literal["0.1"] = "0.1"
+    schema_version: Literal["0.2"] = "0.2"
     device_label: Text
     pinout_revision_id: UUID
     role: Literal["source", "sink", "bidirectional", "unknown"] = "unknown"
@@ -248,6 +265,12 @@ class Port(StrictModel):
     pins: list[PortPin] = Field(default_factory=list, max_length=1000)
     review: Literal["unreviewed", "reviewed"] = "unreviewed"
     review_basis: Text | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def upgrade(cls, value):
+        # Pre-1.0: schema 0.1 (stored or submitted) is read through the 0.2 shape.
+        return upgrade_port_content(value)
 
     @model_validator(mode="after")
     def consistent(self):

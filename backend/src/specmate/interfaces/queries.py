@@ -666,7 +666,7 @@ def trace(user, revision_id, contact_id):
 
 
 def resolve_end(user, query):
-    """Layers, labelled terminals and joins of one stack or one frozen end assembly."""
+    """Layers, labeled terminals and joins of one stack or one frozen end assembly."""
     if query.end_assembly_revision_id is not None:
         revision, closure = read_revision(user, query.end_assembly_revision_id)
         if not isinstance(closure.root, EndAssembly):

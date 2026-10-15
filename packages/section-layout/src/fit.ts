@@ -46,7 +46,7 @@ function leafOf(node: LeafElement, path: string, parent: string, x: number | nul
   return { path, kind: node.kind, parent, x, y, rOut: outer === null ? null : outer / 2, rIn: inner === null ? null : inner / 2, tube };
 }
 
-/** Half-up millimetre text, identical to the backend. */
+/** Half-up millimeter text, identical to the backend. */
 export const fitMm = (value: number): string => (Math.floor(value * 1000 + 0.5) / 1000).toFixed(3);
 const unitOf = (leaf: Leaf, group: string): string => leaf.parent === group ? leaf.path : leaf.parent;
 const known = (...leaves: Leaf[]): boolean => leaves.every(l => l.x !== null && l.y !== null && l.rOut !== null);

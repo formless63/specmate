@@ -33,7 +33,7 @@ Two independent `--no-cache` builds on Docker 29.9.0 (containerd image store,
 BuildKit 0.34) gave this identical ID, and the package inventory equals the
 earlier non-pinned build. Without the `SOURCE_DATE_EPOCH` build argument the layers
 are identical but the image config `created` time differs, so the ID changes.
-Other Docker or BuildKit versions may serialise the config differently; if the ID
+Other Docker or BuildKit versions may serialize the config differently; if the ID
 differs, compare layer digests (`docker image inspect --format '{{json .RootFS.Layers}}'`)
 before re-pinning. snapshot.debian.org must stay reachable at build time.
 

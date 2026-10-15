@@ -101,7 +101,7 @@ def test_source_and_sink_ports_freeze_with_declared_and_unknown_facts(users, pro
     assert end["10"]["status"] == "unknown"
     sink = rows(end_expectations(owner, monitor))
     assert sink["15"]["signal"]["name"] == "Red video"
-    assert sink["15"]["device"]["behaviour"] == "accepts"
+    assert sink["15"]["device"]["behavior"] == "accepts"
     assert sink["20"]["device"]["level"]["status"] == "unknown"
     assert sink["20"]["device"]["impedance"]["status"] == "unknown"
     assert view["compatibility"] == "not_evaluated"

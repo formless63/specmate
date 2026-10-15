@@ -3,7 +3,7 @@
 Pure functions over an accepted native board report and declared parameters. They
 never write, never read files and never run a tool. A missing declaration keeps the
 dependent feature incomplete: no wall, tolerance, clearance, envelope or height is
-ever defaulted. Output geometry is planar in the native board frame (millimetres,
+ever defaulted. Output geometry is planar in the native board frame (millimeters,
 x right, y down). Passing every listed check is not a fit, printability, clearance
 or manufacturing conclusion.
 """
@@ -302,7 +302,7 @@ class Builder:
                     self.check(
                         "center_inside_outline",
                         any(_inside(poly, x, y) for poly in outline),
-                        "Native hole centre against the closed outline polygons.",
+                        "Native hole center against the closed outline polygons.",
                     )
                 )
             for poly in self.report.cutouts:
@@ -313,8 +313,8 @@ class Builder:
                     self.check(
                         "boss_clear_of_cutout",
                         clear,
-                        f"centre to cutout boundary {num(near)} mm"
-                        + ("; centre inside the cutout" if inside else ""),
+                        f"center to cutout boundary {num(near)} mm"
+                        + ("; center inside the cutout" if inside else ""),
                     )
                 )
             if pilot is not None and outer is not None:
@@ -356,7 +356,7 @@ class Builder:
                     "lid_clearance_diameter_mm": num(lid_hole),
                 },
                 checks,
-                ["Position is the native hole centre; the mounting purpose is a declared choice."],
+                ["Position is the native hole center; the mounting purpose is a declared choice."],
             )
         # pairwise overlaps among chosen bosses with known diameters
         extra = []
@@ -371,7 +371,7 @@ class Builder:
             for feature in self.features:
                 if feature["feature_id"] in (f1, f2):
                     feature["checks"].append(
-                        self.check("boss_overlap", False, f"{f1} and {f2} centres {num(dist)} mm")
+                        self.check("boss_overlap", False, f"{f1} and {f2} centers {num(dist)} mm")
                     )
 
     # -- connector openings --------------------------------------------------------
@@ -402,7 +402,7 @@ class Builder:
                 fid,
                 "connector.lateral_offset_mm",
                 decl.lateral_offset_mm,
-                "Connector centreline offset from the component origin is unknown.",
+                "Connector centerline offset from the component origin is unknown.",
             )
             axis = self.wall_axis(decl.side)
             lateral = None if offset is None else comp.position[axis] + offset
@@ -486,7 +486,7 @@ class Builder:
                 checks,
                 [
                     "Connector body and mating plug envelopes are declared sizes, not extracted "
-                    "geometry. The component origin is not the connector centreline."
+                    "geometry. The component origin is not the connector centerline."
                 ],
             )
         for side, spans in self.opening_spans.items():
@@ -734,7 +734,7 @@ def generate(report: Report, parameters: Parameters) -> dict:
         "remaining_physical_checks": REMAINING_CHECKS,
         "limitations": [
             "Planar proposal only; no solid, mesh or native CAD is produced.",
-            "Hole centres are native non-plated drills; mounting purpose is a declared choice.",
+            "Hole centers are native non-plated drills; mounting purpose is a declared choice.",
             *report.unsupported,
         ],
         "qualification": {

@@ -9,7 +9,7 @@ import { braidedCoax, shieldedPair, unrecordedCoax } from './fixtures';
 const model = (stock = braidedCoax()) => wireModel(sectionLayout(stock), 40, unpreparedProfile());
 
 describe('wire viewer materials', () => {
-  it('uses the recorded colour and physically based hints from the shared appearance model', () => {
+  it('uses the recorded color and physically based hints from the shared appearance model', () => {
     const jacket = model().pieces.find(p => p.elementPath === 'stock.jacket')!;
     expect(pieceAppearance(jacket)).toMatchObject({ base: '#6b4423', family: 'polyurethane', finish: 'gloss' });
     const materials = createMaterials({ environment: true });
@@ -41,7 +41,7 @@ describe('wire viewer materials', () => {
     expect(patternPixels('solid-metal')).toBeNull();
     expect(patternPixels('none')).toBeNull();
   });
-  it('shows unrecorded colour as neutral with a hatch map, never a guessed hue', () => {
+  it('shows unrecorded color as neutral with a hatch map, never a guessed hue', () => {
     const piece = model(unrecordedCoax()).pieces.find(p => p.elementPath === 'stock.jacket')!;
     expect(pieceAppearance(piece)).toMatchObject({ fillSource: 'unknown', texture: 'unknown' });
   });
@@ -54,14 +54,14 @@ describe('wire viewer materials', () => {
 });
 
 describe('3D text alternative', () => {
-  it('names every drawn element with recorded material and colour, and what is not drawn', () => {
+  it('names every drawn element with recorded material and color, and what is not drawn', () => {
     const text = modelSummary(model());
     expect(text).toContain('Straight wire preview of 40 mm');
-    expect(text).toContain('stock.jacket: Polyurethane, colour #6b4423');
+    expect(text).toContain('stock.jacket: Polyurethane, color #6b4423');
     expect(text).toContain('stock.braid: Tinned copper');
   });
   it('states unknowns instead of inventing them', () => {
     const text = modelSummary(model(unrecordedCoax()));
-    expect(text).toContain('stock.jacket: material unknown, colour unknown (drawn neutral)');
+    expect(text).toContain('stock.jacket: material unknown, color unknown (drawn neutral)');
   });
 });

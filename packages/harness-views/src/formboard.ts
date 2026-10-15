@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Formboard drawing of a harness: every physical stock section as a bar at one
- * length scale, drawn in its jacket's recorded colour, joined where breakouts join
- * them. Behaviour reference: the drawing-sheet views of cab-stu (MIT, formless63);
+ * length scale, drawn in its jacket's recorded color, joined where breakouts join
+ * them. Behavior reference: the drawing-sheet views of cab-stu (MIT, formless63);
  * the layout is written for Specmate's section/segment/breakout records and contains
  * none of that sheet's workshop format, artwork or fonts.
  *
  * Honesty rules: a section with no planned cut length is drawn with a placeholder
- * length, dashed, and labelled "length unknown". Legs that share their trunk's section
+ * length, dashed, and labeled "length unknown". Legs that share their trunk's section
  * have no recorded length and are drawn as dashed stubs. Position on the board implies
  * nothing about routing, electrical connection or fit.
  */

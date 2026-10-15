@@ -1,10 +1,10 @@
 """Check a cable against its intent: per-row paths and separate dimensions.
 
 Expected outcomes are derived by hand from the synthetic tables in
-``interfaces.examples`` (DIN_SHARED, RGB_PINS, ADAPTER_PADS, DEMO_CENTRES/SCREENS and the
+``interfaces.examples`` (DIN_SHARED, RGB_PINS, ADAPTER_PADS, DEMO_CENTERS/SCREENS and the
 port facts), not read back from the implementation:
 
-- video rows (DIN 2/4/6 -> RGB 7/15/11) pass: coax centres, 75 ohm stock, 0.7 Vpp both
+- video rows (DIN 2/4/6 -> RGB 7/15/11) pass: coax centers, 75 ohm stock, 0.7 Vpp both
   ends, each screen lands on video ground at both ends;
 - sync (1 -> 20) is unknown: the console declares no sync level (unknown is never pass),
   while its 470 ohm part is found on the board path;
@@ -217,7 +217,7 @@ def test_search_limit_reads_unknown(users, project, demo, monkeypatch):
 def test_wired_destination_without_a_source_is_flagged_and_its_short_fails(users, project, demo):
     def blanking_on_audio_screen(stock, end_a, end_b):
         cable = examples.av_demo_cable(stock, end_a, end_b)
-        # The grey screen also feeds the blanking resistor: blanking joins audio ground.
+        # The gray screen also feeds the blanking resistor: blanking joins audio ground.
         for assignment in cable["assignments"]:
             if (assignment["endpoint_id"], assignment["element_path"]) == (
                 "b",

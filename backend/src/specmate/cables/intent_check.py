@@ -153,13 +153,13 @@ class Graph:
             if len(steps) >= MAX_DEPTH:
                 self.limited = True
                 continue
-            for neighbour, status, text, detail in self.adjacent.get(node, ()):
-                if neighbour not in seen:
+            for neighbor, status, text, detail in self.adjacent.get(node, ()):
+                if neighbor not in seen:
                     stack.append(
                         (
-                            neighbour,
-                            [*steps, (node, neighbour, status, text, detail)],
-                            seen | {neighbour},
+                            neighbor,
+                            [*steps, (node, neighbor, status, text, detail)],
+                            seen | {neighbor},
                         )
                     )
         if stack:
@@ -319,13 +319,13 @@ class Check:
 
     # -- dimensions
 
-    def conductor_dim(self, row, centres):
+    def conductor_dim(self, row, centers):
         need = row.conductor
         if need.kind in ("unknown", "any"):
             return dim("not_evaluated", "The intent states no conductor requirement.")
-        if not centres:
+        if not centers:
             return dim("not_evaluated", "No conductor is on the path.")
-        for path in centres:
+        for path in centers:
             parent = self.parents.get(path)
             role = getattr(parent, "role", None)
             kind = {"coax": "coax", "pair": "pair"}.get(role, "single")
@@ -431,21 +431,21 @@ class Check:
             "end stack",
         )
 
-    def return_dim(self, row, centres):
+    def return_dim(self, row, centers):
         if row.return_policy in ("not_applicable",):
             return dim("not_evaluated", "This row is itself a return.")
         if row.return_policy != "dedicated_screen":
             return dim("not_evaluated", "The intent states no specific return for this row.")
-        if not centres:
+        if not centers:
             return dim("not_evaluated", "No conductor is on the path.")
         key = row.signal_ref.key if row.signal_ref else None
-        parent_path = centres[0].rsplit(".", 1)[0]
-        parent = self.parents.get(centres[0])
+        parent_path = centers[0].rsplit(".", 1)[0]
+        parent = self.parents.get(centers[0])
         screens = [
             f"{parent_path}.{c.id}" for c in getattr(parent, "children", []) if c.kind == "shield"
         ]
         if not screens:
-            return dim("fail", f"{centres[0]} has no screen of its own.")
+            return dim("fail", f"{centers[0]} has no screen of its own.")
         screen = screens[0]
         status = "pass"
         for side in ("from", "to"):
@@ -482,19 +482,19 @@ class Check:
             "pin signals",
         )
 
-    def convention_dim(self, row, centres):
-        if not centres or row.signal_ref is None:
+    def convention_dim(self, row, centers):
+        if not centers or row.signal_ref is None:
             return dim("not_evaluated", "No conductor or signal to compare.")
-        rule = self.conventions.get(centres[0])
+        rule = self.conventions.get(centers[0])
         if rule is None:
-            return dim("not_evaluated", f"No exact stock convention mentions {centres[0]}.")
+            return dim("not_evaluated", f"No exact stock convention mentions {centers[0]}.")
         entry, found = rule
         use = found["use"]
         evidence = f"{entry['name']} r{entry['number']}"
         if use["kind"] == "signal" and use.get("signal_key") == row.signal_ref.key:
             return dim("pass", "Follows the stock convention.", evidence)
         what = (use.get("signal") or {}).get("name") or use["kind"]
-        return dim("flagged", f"The convention uses {centres[0]} for {what}.", evidence)
+        return dim("flagged", f"The convention uses {centers[0]} for {what}.", evidence)
 
     # -- rows
 
@@ -646,20 +646,20 @@ class Check:
             dims["connection"] = dim("unknown", LIMIT_REASON, "declared path")
         chosen = next((c for c in row.to_contact_ids if c in far), next(iter(far), None))
         steps = far.get(chosen, [])
-        centres = [
+        centers = [
             d["element_path"]
             for *_, d in steps
             if d["kind"] == "conductor"
             and self.closure.elements[d["element_path"]].kind == "conductor"
         ]
         components = [d["component"] for *_, d in steps if d.get("component") is not None]
-        dims["conductor"] = self.conductor_dim(row, centres)
+        dims["conductor"] = self.conductor_dim(row, centers)
         dims["level"] = self.level_dim(
             row, "to", [c for c in row.to_contact_ids if c in far], components
         )
         dims["required_parts"] = self.parts_dim(row, components)
-        dims["return"] = self.return_dim(row, centres)
-        dims["convention"] = self.convention_dim(row, centres)
+        dims["return"] = self.return_dim(row, centers)
+        dims["convention"] = self.convention_dim(row, centers)
         path = self.chips(side, contact, start, steps, far_side, chosen) if chosen else []
         return {
             **base,

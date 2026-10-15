@@ -28,7 +28,7 @@ function wrap(node: React.ReactNode) {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{node}</QueryClientProvider></MantineProvider>;
 }
 
-test('an endpoint pins an end assembly; joints land on its labelled stack terminals by layer', async () => {
+test('an endpoint pins an end assembly; joints land on its labeled stack terminals by layer', async () => {
   const resolves: unknown[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (url.endsWith('end-stacks/resolve')) { resolves.push(JSON.parse(String(options?.body))); return response(resolved); }

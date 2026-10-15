@@ -53,6 +53,6 @@
     "A1_to_B1": "resistive-not-copper",
     "N2_to_N3_dc": "blocked",
     "N3_to_N5_joint_condition": "unsatisfiable",
-    "unmodelled_active_behavior": "unknown"
+    "unmodeled_active_behavior": "unknown"
   }
 }

@@ -289,7 +289,7 @@
       "lg": 1280,
       "xl": 1600
     },
-    "behaviour": {
+    "behavior": {
       "xl": "rail expanded, tree + view + inspector, optional second inspector column",
       "lg": "rail expanded, tree + view + inspector",
       "md": "rail collapsed 44, tree as push drawer (T), inspector docked 280",

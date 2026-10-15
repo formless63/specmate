@@ -89,14 +89,14 @@ def test_rounded_rectangle_exact_area_bbox_and_tessellation_bound(reverse):
 
 
 def test_tessellated_arc_vertices_lie_on_the_circle_and_chords_respect_tolerance():
-    radius, centre = 12.5, (3.0, -2.0)
-    start = (centre[0] + radius, centre[1])
-    mid = (centre[0], centre[1] + radius)
-    end = (centre[0] - radius, centre[1])
+    radius, center = 12.5, (3.0, -2.0)
+    start = (center[0] + radius, center[1])
+    mid = (center[0], center[1] + radius)
+    end = (center[0] - radius, center[1])
     edge = g.arc(start, mid, end)
     points = [start, *g._arc_points(edge, TOL)]
     for p in points:
-        assert math.dist(p, centre) == pytest.approx(radius, abs=1e-9)
+        assert math.dist(p, center) == pytest.approx(radius, abs=1e-9)
     for a, b in pairwise(points):
         sagitta = radius - math.sqrt(radius**2 - (math.dist(a, b) / 2) ** 2)
         assert sagitta <= TOL + 1e-12
@@ -175,7 +175,7 @@ def exact_report(result=None):
     }
 
 
-def test_report_accepts_exact_outline_and_projection_summarises_exact_values():
+def test_report_accepts_exact_outline_and_projection_summarizes_exact_values():
     payload = json.loads(json.dumps(exact_report()))
     report = Report.model_validate(payload)
     status, value = projected_value(payload)

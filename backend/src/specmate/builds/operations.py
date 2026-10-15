@@ -867,7 +867,7 @@ def complete(ctx: Context, p: CompleteStage) -> dict:
         raise Conflict("Stage lease expired; reconcile before completing.")
     _observe_image(stage, p.image_id)
     if p.outcome == "cancelled" and stage.cancellation_requested_at is None:
-        # Work that nobody asked to cancel is never labelled cancelled by a receipt.
+        # Work that nobody asked to cancel is never labeled cancelled by a receipt.
         raise ValidationFailed("A cancelled receipt requires an earlier cancellation request.")
     if p.outcome == "succeeded":
         if stage.cancellation_requested_at or not _execution_allowed(stage.build):

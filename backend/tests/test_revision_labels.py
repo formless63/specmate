@@ -19,7 +19,7 @@ def labels(user, *revision_ids):
 
 
 def two_revisions(owner, project):
-    item = create_part(owner, project, "Labelled bracket")
+    item = create_part(owner, project, "Labeled bracket")
     first = freeze(owner, item["draft_id"], item["state"])
     update = op(
         owner,
@@ -35,7 +35,7 @@ def test_reader_gets_name_kind_and_number_in_request_order(users, project):
     rows = labels(users["viewer"], second["revision_id"], first["revision_id"])
     assert [r["revision_id"] for r in rows] == [second["revision_id"], first["revision_id"]]
     assert [r["number"] for r in rows] == [2, 1]
-    assert all(r["readable"] and r["name"] == "Labelled bracket" for r in rows)
+    assert all(r["readable"] and r["name"] == "Labeled bracket" for r in rows)
     assert all(r["kind"] == "part" for r in rows)
 
 
@@ -88,7 +88,7 @@ def test_payload_is_bounded_and_unique_and_http_shares_the_operation(users, proj
     )
     assert response.status_code == 200
     body = response.json()["labels"]
-    assert body[0]["name"] == "Labelled bracket" and body[1]["readable"] is False
+    assert body[0]["name"] == "Labeled bracket" and body[1]["readable"] is False
     anonymous = api().get("/api/v0/catalog/revision-labels", {"revision_ids": [rid]})
     assert anonymous.status_code == 401
 
@@ -107,13 +107,13 @@ def test_source_revision_names_follow_source_read_authority(users, project):
         "source.create_original_bundle",
         {
             "workspace_id": workspace_of(project),
-            "name": "Labelled source",
+            "name": "Labeled source",
             "files": files(ORIGINAL),
         },
     )
     revision_id = original["revision_id"]
     row = source_label_rows(users["viewer"], revision_id)[0]
-    assert row["readable"] and row["name"] == "Labelled source"
+    assert row["readable"] and row["name"] == "Labeled source"
     assert row["kind"] == "original" and row["number"] == 1
     missing = str(uuid.uuid4())
     hidden = source_label_rows(users["outsider"], revision_id, missing)
@@ -138,7 +138,7 @@ def test_label_lookup_queries_do_not_grow_with_the_number_of_labels(users, proje
     owner = users["owner"]
     ids = []
     for index in range(12):
-        item = create_part(owner, project, f"Labelled part {index}")
+        item = create_part(owner, project, f"Labeled part {index}")
         ids.append(freeze(owner, item["draft_id"], item["state"])["revision_id"])
     with CaptureQueriesContext(connection) as one:
         labels(users["viewer"], ids[0])

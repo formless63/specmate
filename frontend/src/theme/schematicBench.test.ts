@@ -25,7 +25,7 @@ test("theme follows the design tokens for shape, type and motion", () => {
   expect(schematicBench.components?.Tabs?.defaultProps).toMatchObject({ variant: "silk" });
 });
 
-test("variables resolve semantic roles for both colour schemes with a non-accent focus ring", () => {
+test("variables resolve semantic roles for both color schemes with a non-accent focus ring", () => {
   const resolved = sbVariables(mergeMantineTheme(DEFAULT_THEME, schematicBench));
   expect(resolved.variables["--sb-motion-snap"]).toBe("80ms");
   for (const [scheme, role] of [["dark", tokens.semantic.dark], ["light", tokens.semantic.light]] as const) {

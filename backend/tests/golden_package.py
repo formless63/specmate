@@ -32,7 +32,7 @@ def sequential_ids(monkeypatch):
             field.__dict__.pop("_get_default", None)
 
 
-def summarise(files):
+def summarize(files):
     """Exact bytes of the manifest and review page, plus a SHA-256 for every other file."""
     return {
         "manifest.json": files["manifest.json"].decode(),

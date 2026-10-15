@@ -84,7 +84,7 @@ test('world section signed distances retain exactly the rendered half-space and 
   display.section.offset_mm = Number.NaN; expect(sectionPlane(display)).toBeNull(); expect(scene).toEqual(before);
 });
 
-test('exploded stock keeps exact six-millimetre diameter and twelve-point-five length through restore', () => {
+test('exploded stock keeps exact six-millimeter diameter and twelve-point-five length through restore', () => {
   const scene = syntheticScene(); scene.nodes = [scene.nodes[1]!];
   scene.geometry = [{ ...scene.geometry[0]!, type: 'wire_construction', stock: syntheticStock(), length_mm: '12.5' }];
   const before = structuredClone(scene), display = closedDisplay(); display.explosion.enabled = true;

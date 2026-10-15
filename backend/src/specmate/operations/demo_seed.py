@@ -288,7 +288,7 @@ class Seeder:
             examples.av_coax_convention(signals, stock["revision_id"]),
         )
         self.tally("convention")
-        interface("Demo AV colour code", examples.av_colour_code(signals))
+        interface("Demo AV color code", examples.av_color_code(signals))
         self.tally("convention")
         # Reusable cable ends: a board form and an inline-part form (CAB-001).
         plug_variant = interface(
@@ -301,7 +301,7 @@ class Seeder:
             examples.rgb_pinout(signals, rgb_plug["revision_id"], "sink"),
         )
         self.tally("pinout variant")
-        shell = self.define("part", "Demo small round overmould shell")
+        shell = self.define("part", "Demo small round overmold shell")
         hood = self.define("part", "Demo 21-pin hood")
         end_a = interface(
             "Demo 10-pin DIN plug + AV adapter board + shell",
@@ -985,7 +985,7 @@ class Seeder:
                 "scope": "workspace",
                 "values": {
                     "preferred_suppliers": ["Demo Supply"],
-                    "wire_colours": ["red", "black"],
+                    "wire_colors": ["red", "black"],
                     "default_length_unit": "mm",
                 },
             },
@@ -1014,7 +1014,7 @@ class Seeder:
                     "revision_id": revision["revision_id"],
                     "scheme": "supplier-sku",
                     "identifier": identifier,
-                    "label": "Demo supplier catalogue number",
+                    "label": "Demo supplier catalog number",
                     "rights_status": "unknown",
                     "rights": "Demo note; rights not assessed",
                 },

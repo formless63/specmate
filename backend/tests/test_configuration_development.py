@@ -294,7 +294,7 @@ def test_needs_are_typed_workspace_items_that_projects_reference(users, project,
             {
                 "workspace_id": workspace_id,
                 "kind": "component",
-                "name": "Mislabelled",
+                "name": "Mislabeled",
                 "content": {"development_need": {"need": "cable", "summary": "x"}},
             },
         )

@@ -7,7 +7,7 @@ export const round = (kind: RoundElement['kind'], id: string, outer: number, inn
 export const group = (id: string, children: StockElement[], extra: Partial<GroupElement> = {}): GroupElement =>
   ({ ...base, label: id, id, kind: 'group', role: 'stock', arrangement: 'concentric', pitch_mm: null, direction: 'cw', children, ...extra });
 
-/** Two coloured cores (one tracer-striped), foil screen, drain and jacket. Outer diameter 4.2 mm. */
+/** Two colored cores (one tracer-striped), foil screen, drain and jacket. Outer diameter 4.2 mm. */
 export const shieldedPair = (): StockSpecification => ({
   schema_version: '1', construction: 'pair', viewed_from: 'a', facts: {},
   structure: group('stock', [
@@ -22,12 +22,12 @@ export const shieldedPair = (): StockSpecification => ({
       ]),
     ], { role: 'pair', arrangement: 'ring', pitch_mm: 2, direction: 'cw' }),
     round('drain', 'drain', 0.4, 0, { material: 'Tinned copper', construction: 'stranded', x_mm: 1.2 }),
-    round('shield', 'screen', 3.4, 3.3, { material: 'Aluminium foil on polyester', construction: 'foil' }),
+    round('shield', 'screen', 3.4, 3.3, { material: 'Aluminum foil on polyester', construction: 'foil' }),
     round('jacket', 'jacket', 4.2, 3.4, { material: 'PVC', color: '#1b1b1d' }),
   ]),
 });
 
-/** Braided coax, Ø3.2 mm, with every colour and material recorded. */
+/** Braided coax, Ø3.2 mm, with every color and material recorded. */
 export const braidedCoax = (): StockSpecification => ({
   schema_version: '1', construction: 'coax', viewed_from: 'a', facts: {},
   structure: group('stock', [
@@ -38,7 +38,7 @@ export const braidedCoax = (): StockSpecification => ({
   ]),
 });
 
-/** Same geometry with nothing recorded about colour or material. */
+/** Same geometry with nothing recorded about color or material. */
 export const unrecordedCoax = (): StockSpecification => {
   const stock = braidedCoax();
   for (const child of stock.structure.children) if (child.kind !== 'group' && child.kind !== 'web') { child.material = null; child.color = null; }

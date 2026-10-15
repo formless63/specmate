@@ -24,8 +24,8 @@ import './wire-stock.css';
 
 export { MmEntry };
 
-/** Element kinds whose display colour a wire-colour preference may pre-fill. */
-const COLOUR_KINDS: StockElement['kind'][] = ['conductor', 'insulation', 'jacket'];
+/** Element kinds whose display color a wire-color preference may pre-fill. */
+const COLOR_KINDS: StockElement['kind'][] = ['conductor', 'insulation', 'jacket'];
 type Marks = Record<string, string>;
 
 const clone = <T,>(value: T): T => structuredClone(value);
@@ -52,7 +52,7 @@ function newElement(kind: StockElement['kind'], siblings: StockElement[]): Stock
   if (kind === 'web') return { ...base, kind, width_mm: null, height_mm: null };
   return { ...base, kind, outer_diameter_mm: null, inner_diameter_mm: null, construction: null, area_mm2: null };
 }
-function ElementEditor({ node, path, onChange, colour, marks, setMarks }: { node: StockElement; path: string; onChange: (path: string, patch: Partial<StockElement>) => void; colour: string | null; marks: Marks; setMarks: (update: (current: Marks) => Marks) => void }) {
+function ElementEditor({ node, path, onChange, color, marks, setMarks }: { node: StockElement; path: string; onChange: (path: string, patch: Partial<StockElement>) => void; color: string | null; marks: Marks; setMarks: (update: (current: Marks) => Marks) => void }) {
   const [addKind, setAddKind] = useState<StockElement['kind']>('conductor');
   const structure = usePermission('item.create');
   const numberField = (label: string, key: string, value: number | null) => <MmEntry label={`${path} ${label}`} value={value} onChange={v => onChange(path, { [key]: v })} />;
@@ -65,7 +65,7 @@ function ElementEditor({ node, path, onChange, colour, marks, setMarks }: { node
     </Group>
     <details className="sb-builder-advanced">
       <summary>Advanced placement · {path}</summary>
-      <Text size="xs" c="dimmed">Offsets move this element from its parent's centre. Members of ring, linear and figure-eight groups are already placed by the group pitch; an offset adds to that. Blank is an unknown position.</Text>
+      <Text size="xs" c="dimmed">Offsets move this element from its parent's center. Members of ring, linear and figure-eight groups are already placed by the group pitch; an offset adds to that. Blank is an unknown position.</Text>
       <Group>
         <NumberInput label={`${path} x offset mm`} value={node.x_mm ?? ''} onChange={v => onChange(path, { x_mm: typeof v === 'number' ? v : null })} />
         <NumberInput label={`${path} y offset mm`} value={node.y_mm ?? ''} onChange={v => onChange(path, { y_mm: typeof v === 'number' ? v : null })} />
@@ -78,17 +78,17 @@ function ElementEditor({ node, path, onChange, colour, marks, setMarks }: { node
       <Group><Select label={`${path} add element kind`} value={addKind} data={['group', 'conductor', 'dielectric', 'insulation', 'shield', 'drain', 'filler', 'web', 'jacket']} onChange={v => v && setAddKind(v as StockElement['kind'])} />
         <Button variant="light" onClick={() => {
           const added = newElement(addKind, node.children);
-          // A wire-colour preference fills only the display colour, and stays marked until edited or cleared.
-          if (colour && COLOUR_KINDS.includes(added.kind)) { added.color = colour; setMarks(current => ({ ...current, [added.id]: colour })); }
+          // A wire-color preference fills only the display color, and stays marked until edited or cleared.
+          if (color && COLOR_KINDS.includes(added.kind)) { added.color = color; setMarks(current => ({ ...current, [added.id]: color })); }
           onChange(path, { children: [...node.children, added] });
         }} {...structure.props}>Add element to {path}</Button></Group>
-      {node.children.map(child => <Stack key={child.id}><ElementEditor node={child} path={`${path}.${child.id}`} onChange={onChange} colour={colour} marks={marks} setMarks={setMarks} />
+      {node.children.map(child => <Stack key={child.id}><ElementEditor node={child} path={`${path}.${child.id}`} onChange={onChange} color={color} marks={marks} setMarks={setMarks} />
         <Button color="red" variant="subtle" size="xs" onClick={() => onChange(path, { children: node.children.filter(c => c.id !== child.id) })} {...structure.props}>Remove {path}.{child.id}</Button></Stack>)}
     </> : <>
       <Group>
         {node.kind === 'web' ? <>{numberField('width mm', 'width_mm', node.width_mm)}{numberField('height mm', 'height_mm', node.height_mm)}</> : <>{numberField('outer diameter mm', 'outer_diameter_mm', node.outer_diameter_mm)}{numberField('inner diameter mm', 'inner_diameter_mm', node.inner_diameter_mm)}</>}
         <TextInput label={`${path} color`} value={node.color ?? ''} placeholder="Unknown (#RRGGBB)" onChange={e => { setMarks(({ [node.id]: _gone, ...rest }) => rest); onChange(path, { color: e.target.value || null }); }} />
-        {marks[node.id] !== undefined && node.color === marks[node.id] && <FromPreference what={`${path} colour`} onClear={() => { setMarks(({ [node.id]: _gone, ...rest }) => rest); onChange(path, { color: null }); }} />}
+        {marks[node.id] !== undefined && node.color === marks[node.id] && <FromPreference what={`${path} color`} onClear={() => { setMarks(({ [node.id]: _gone, ...rest }) => rest); onChange(path, { color: null }); }} />}
       </Group>
     </>}
   </Stack>;
@@ -116,7 +116,7 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
   const section = useMemo(() => sectionLayout(stock), [stock]);
   const geometry = useMemo(() => stockGeometry(section, length), [section, length]);
   const fit = useMemo(() => evaluateFit(stock), [stock]);
-  // An incomplete builder construction is drawn with placeholder proportions, clearly labelled.
+  // An incomplete builder construction is drawn with placeholder proportions, clearly labeled.
   const illustration = useMemo(() => {
     if (!builder || section.unknown.length === 0) return null;
     const drawn = illustrate(builder);
@@ -247,7 +247,7 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
     <details className="sb-builder-elements" open={builder === null || undefined}>
       <summary><Title order={3} component="span">Element editor (advanced)</Title></summary>
       <Text size="sm" c="dimmed">Every stored element, including ones the builder computes. Editing here can take the construction out of the builder.</Text>
-      <ElementEditor colour={preferences.list('wire_colours')[0] ?? null} marks={marks} setMarks={setMarks} node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); changed(); }} />
+      <ElementEditor color={preferences.list('wire_colors')[0] ?? null} marks={marks} setMarks={setMarks} node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); changed(); }} />
     </details>
   </Stack>;
 }

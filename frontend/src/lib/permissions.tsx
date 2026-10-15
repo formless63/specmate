@@ -99,14 +99,14 @@ function lockFields(root: HTMLElement) {
     field.setAttribute("data-inspect-locked", "");
     field.setAttribute("aria-readonly", "true");
     // A field disabled by form state (e.g. an orientation datum while the side is unknown) is shown as read-only
-    // inspection too, never as a grey disabled box; the original state is restored on unlock.
+    // inspection too, never as a gray disabled box; the original state is restored on unlock.
     if ((field as HTMLInputElement).disabled) {
       field.setAttribute("data-inspect-was-disabled", "");
       (field as HTMLInputElement).disabled = false;
       field.removeAttribute("data-disabled");
     }
     if (field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && TEXT_LIKE(field))) field.readOnly = true;
-    // Choice controls have no readonly state; take them out of pointer and tab order instead of greying them.
+    // Choice controls have no readonly state; take them out of pointer and tab order instead of graying them.
     if (field instanceof HTMLSelectElement || (field instanceof HTMLInputElement && !TEXT_LIKE(field)) || field.getAttribute("aria-haspopup")) field.tabIndex = -1;
   });
 }

@@ -74,7 +74,7 @@ function LayerFields({ layer, label, definitions, onChange, hasConnector, nameFi
   if (layer.kind === "inline") return <InlineFields layer={layer} label={label} onChange={onChange} />;
   return <Stack gap={4}>
     <RevisionPicker label={`${label} shell`} title="Shell or hood part" kind="part" value={layer.part_revision_id ?? ""} onChange={(id) => onChange({ ...layer, part_revision_id: id || null })} definitions={definitions} />
-    <TextInput size="xs" label="Shell description" placeholder="e.g. Small overmould shell" value={layer.label ?? ""} onChange={(e) => onChange({ ...layer, label: e.currentTarget.value || null })} />
+    <TextInput size="xs" label="Shell description" placeholder="e.g. Small overmold shell" value={layer.label ?? ""} onChange={(e) => onChange({ ...layer, label: e.currentTarget.value || null })} />
     <Text size="xs" c="dimmed">A shell is mechanical: it joins nothing unless a bond is declared below.</Text>
   </Stack>;
 }

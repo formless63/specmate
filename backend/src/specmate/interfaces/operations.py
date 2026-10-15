@@ -223,7 +223,7 @@ def board_propose(ctx: Context, p: ProposeBoard):
 @operation(
     "end_assembly.resolve",
     ResolveEnd,
-    summary="Resolve one cable end stack's layers, labelled terminals and joins.",
+    summary="Resolve one cable end stack's layers, labeled terminals and joins.",
     supports_idempotency=False,
     access=Perm.WORKSPACE_READ,
 )

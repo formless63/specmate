@@ -21,7 +21,7 @@ export function PlacementEditor({ occurrence, busy, onSave, onRemove, authorized
     <Text>Local ID: {occurrence.local_id} · <RevisionLabel id={occurrence.revision_id} /></Text>
     <TextInput label={`Display reference for ${occurrence.local_id}`} value={displayRef} onChange={event => setDisplayRef(event.currentTarget.value)} />
     <Checkbox label={`Known placement for ${occurrence.local_id}`} checked={known} onChange={event => setKnown(event.currentTarget.checked)} />
-    <Text>Canonical frame: right handed, Z up, millimetres in the containing assembly. Unknown placement stores no coordinates or rotation.</Text>
+    <Text>Canonical frame: right handed, Z up, millimeters in the containing assembly. Unknown placement stores no coordinates or rotation.</Text>
     {known && <>
       <Group>{['X', 'Y', 'Z'].map((axis, index) => <NumberInput key={axis} label={`${occurrence.local_id} ${axis} (mm)`} value={translation[index]} onChange={value => setTranslation(current => current.map((old, i) => i === index ? value : old))} />)}</Group>
       <Group>{['X', 'Y', 'Z', 'W'].map((axis, index) => <NumberInput key={axis} label={`${occurrence.local_id} rotation ${axis}`} value={rotation[index]} onChange={value => setRotation(current => current.map((old, i) => i === index ? value : old))} />)}</Group>

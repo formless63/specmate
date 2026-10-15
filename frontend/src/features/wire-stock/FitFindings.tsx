@@ -39,6 +39,6 @@ export function FitFindings({ report, onSelect, acknowledged, onAcknowledge, can
     </details>}
     {report.failed > 0 && canFreeze && <Checkbox size="xs" checked={acknowledged} onChange={e => onAcknowledge(e.currentTarget.checked)}
       label={`I have reviewed the ${report.failed} fit problem${report.failed === 1 ? '' : 's'} and want to freeze anyway`} />}
-    <Text size="xs" c="dimmed">Compares declared outer circles with enclosing bores and neighbouring elements. Unknown values are not evaluated. Not clearance or physical qualification.</Text>
+    <Text size="xs" c="dimmed">Compares declared outer circles with enclosing bores and neighboring elements. Unknown values are not evaluated. Not clearance or physical qualification.</Text>
   </Stack>;
 }

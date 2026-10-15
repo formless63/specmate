@@ -33,6 +33,6 @@ def compose(parent, local):
     return result
 
 
-def millimetre_factor(unit):
+def millimeter_factor(unit):
     # Explicit declared units only. Dimensions/mesh extents cannot infer units.
     return {"mm": 1, "m": 1000, "in": 25.4}.get(unit)

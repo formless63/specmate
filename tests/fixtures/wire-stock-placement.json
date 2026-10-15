@@ -732,7 +732,7 @@
     },
     {
       "name": "three-core ring clockwise and too small",
-      "why": "Clockwise order; ring pitch smaller than touching so neighbouring cores overlap.",
+      "why": "Clockwise order; ring pitch smaller than touching so neighboring cores overlap.",
       "stock": {
         "schema_version": "1",
         "construction": "bundle",
@@ -1244,7 +1244,7 @@
     },
     {
       "name": "unknown drain offset",
-      "why": "A drain whose interstice position is not yet known keeps a null offset: position unknown, never the centre.",
+      "why": "A drain whose interstice position is not yet known keeps a null offset: position unknown, never the center.",
       "stock": {
         "schema_version": "1",
         "construction": "pair",

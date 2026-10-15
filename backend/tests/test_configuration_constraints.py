@@ -347,7 +347,7 @@ def test_invalid_rule_content_is_rejected(users, project, parts):
     }
     for rules in (
         [CURRENT, CURRENT],
-        [{**CURRENT, "option_key": "colour"}],
+        [{**CURRENT, "option_key": "color"}],
         [{**PAINT_NEEDS_SPLASH, "choice_keys": ["dry"]}],
         [{**PAINT_NEEDS_SPLASH, "when": {"option_key": "finish", "choice_key": "chrome"}}],
         [{**PAINT_NEEDS_SPLASH, "option_key": "finish", "choice_keys": ["bead"]}],

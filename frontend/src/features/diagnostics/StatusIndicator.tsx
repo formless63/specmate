@@ -11,7 +11,7 @@ type Props = {
   refreshKey?: number;
 };
 
-/** Top-bar job status: LED plus words from the scoped status read; never a bare colour. */
+/** Top-bar job status: LED plus words from the scoped status read; never a bare color. */
 export function StatusIndicator({ workspaceId, onOpen, refreshKey = 0 }: Props) {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [failure, setFailure] = useState<string | null>(null);

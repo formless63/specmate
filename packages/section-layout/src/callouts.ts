@@ -6,10 +6,10 @@
  */
 export interface CalloutItem {
   key: string;
-  /** Element centre, used to find its angle around the drawing. */
+  /** Element center, used to find its angle around the drawing. */
   x: number;
   y: number;
-  /** Where the leader starts on the element, given the label's angle. Defaults to the centre. */
+  /** Where the leader starts on the element, given the label's angle. Defaults to the center. */
   anchor?: (angle: number) => { x: number; y: number };
   /** Label text length in characters, for spacing. */
   chars?: number;
@@ -28,7 +28,7 @@ export interface CalloutOptions {
   /** Radius of a circle that contains every element. Labels sit just outside it. */
   radius: number;
   fontSize: number;
-  /** Least distance between neighbouring labels along the ring, drawing units. Defaults to 1.3 font sizes. */
+  /** Least distance between neighboring labels along the ring, drawing units. Defaults to 1.3 font sizes. */
   minLabelGap?: number;
 }
 
@@ -46,7 +46,7 @@ export function segmentsIntersect(a: P, b: P, c: P, d: P): boolean {
   return (d1 === 0 && on(c, d, a)) || (d2 === 0 && on(c, d, b)) || (d3 === 0 && on(a, b, c)) || (d4 === 0 && on(a, b, d));
 }
 
-/** Angles for every item: geometric where the element is off the drawing's centre, else in the widest free gap. */
+/** Angles for every item: geometric where the element is off the drawing's center, else in the widest free gap. */
 function preferredAngles(items: CalloutItem[], o: CalloutOptions): number[] {
   const eps = o.radius * 1e-6 + 1e-9;
   const angles: (number | null)[] = items.map(i => Math.hypot(i.x - o.cx, i.y - o.cy) <= eps ? null : norm(Math.atan2(i.y - o.cy, i.x - o.cx)));
@@ -71,7 +71,7 @@ function preferredAngles(items: CalloutItem[], o: CalloutOptions): number[] {
   return angles as number[];
 }
 
-/** Spread sorted circular angles so neighbours are at least `gap` apart, moving each as little as the order allows. */
+/** Spread sorted circular angles so neighbors are at least `gap` apart, moving each as little as the order allows. */
 function relax(sorted: number[], gap: number): number[] {
   const n = sorted.length;
   if (n === 1) return sorted;

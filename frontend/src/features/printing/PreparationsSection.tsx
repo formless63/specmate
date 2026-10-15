@@ -16,7 +16,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 
 function blank(technology: Technology): PrintPreparation {
   return {
-    schema_version: '1', variant_label: '', technology,
+    schema_version: '2', variant_label: '', technology,
     part: { mechanical_revision_id: '', snapshot_sha256: '', source_local_id: '', path: '' },
     model_units: { value: null, basis: 'unknown', source: null, note: null },
     profiles: { printer: { revision_id: '', snapshot_sha256: '' }, process: { revision_id: '', snapshot_sha256: '' }, material: { revision_id: '', snapshot_sha256: '' } },
@@ -187,7 +187,7 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
         <Group align="end">
           <Select label="Model units" value={draft.model_units.value ?? 'unknown'} data={['unknown', 'mm', 'in']}
             onChange={value => edit(next => { next.model_units = !value || value === 'unknown' ? { value: null, basis: 'unknown', source: null, note: null } : { value: value as 'mm' | 'in', basis: 'preference', source: null, note: 'Declared in print preparation' }; })} />
-          <Select label="Orientation" value={draft.orientation.status} data={[{ value: 'unknown', label: 'Unknown' }, { value: 'as_modelled', label: 'As modelled' }, { value: 'rotated', label: 'Rotated' }]}
+          <Select label="Orientation" value={draft.orientation.status} data={[{ value: 'unknown', label: 'Unknown' }, { value: 'as_modeled', label: 'As modeled' }, { value: 'rotated', label: 'Rotated' }]}
             onChange={value => edit(next => { const status = (value ?? 'unknown') as PrintPreparation['orientation']['status']; next.orientation = { status, rotation_deg: status === 'rotated' ? next.orientation.rotation_deg ?? [0, 0, 0] : null, basis: status === 'unknown' ? null : next.orientation.basis }; })} />
           {draft.orientation.rotation_deg && (['X', 'Y', 'Z'] as const).map((axis, index) => <NumberInput key={axis} label={`Rotate ${axis} deg`} min={-360} max={360} w={110}
             value={draft.orientation.rotation_deg![index]} onChange={v => edit(next => { const angles = [...next.orientation.rotation_deg!] as [number, number, number]; angles[index] = typeof v === 'number' ? v : 0; next.orientation.rotation_deg = angles; })} />)}

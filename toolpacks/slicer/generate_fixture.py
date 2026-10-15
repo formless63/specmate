@@ -1,4 +1,4 @@
-"""Generate original synthetic slicer fixtures (ASCII STL, millimetres).
+"""Generate original synthetic slicer fixtures (ASCII STL, millimeters).
 
 The shapes are defined here from first principles; no external model is copied.
 

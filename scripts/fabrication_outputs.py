@@ -12,7 +12,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
-ROUND = 3  # Excellon decimal millimetres carry three decimals.
+ROUND = 3  # Excellon decimal millimeters carry three decimals.
 FUNCTIONS = {
     "F.Mask": ("Soldermask,Top", "SolderMask,Top"),
     "B.Mask": ("Soldermask,Bot", "SolderMask,Bot"),
@@ -120,7 +120,7 @@ def check_drills(path, declared):
             f"{path.name}: independent round hit count differs from declared holes"
         )
     for (x, y, d), count in hits.items():
-        # KiCad rounds nanometre positions to three decimals; allow one unit of rounding.
+        # KiCad rounds nanometer positions to three decimals; allow one unit of rounding.
         for _ in range(count):
             key = next(
                 (

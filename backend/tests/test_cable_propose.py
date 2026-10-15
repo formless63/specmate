@@ -1,7 +1,7 @@
 """Propose wiring from an intent (auto-construct), checked by the cable intent checker.
 
 The expected assignments are the hand-built demo cable (``examples.av_demo_cable``):
-each coax centre on the board pad of its signal at the console end and on the monitor
+each coax center on the board pad of its signal at the console end and on the monitor
 contact of that signal; each screen on the ground pad of its signal's return, video
 screens split over monitor contacts 5 and 17 in stock order, audio screens on 4.
 """
@@ -60,7 +60,7 @@ def test_without_a_convention_equal_coax_are_questions(users, project, demo):  #
         {"intent_revision_id": demo["intent"], "stock_revision_id": plain, **ends(demo)},
     )
     ties = {q["row_id"]: q for q in result["questions"] if q["kind"] == "tie"}
-    # Red is the first video row by contact order; every coax centre is free and unranked.
+    # Red is the first video row by contact order; every coax center is free and unranked.
     assert len(ties["from-2"]["options"]) == 6
     assert {"from-1", "from-2", "from-4", "from-5", "from-6", "from-9"} <= set(ties)
     assert {r["row_id"]: r["status"] for r in result["rows"]}["from-4"] == "question"

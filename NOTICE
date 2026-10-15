@@ -71,7 +71,7 @@ The cable side view (packages/section-layout/src/side-view.ts) is written for Sp
 stock and end preparation records using only the behavior of cab-stu's cable cutaway
 (packages/docs/src/drawing/cutaway.ts: layers stepped out of one another and called out)
 and bench strip figure (packages/docs/src/bench/figures.ts: an end as it leaves the jacket);
-no code, artwork, marking, font or colour table is copied.
+no code, artwork, marking, font or color table is copied.
 The 3D explode and x-ray controls (packages/wire-geometry/src/explode.ts) are written for Specmate's
 wire model using only the behavior of cab-stu's 3D wire view (packages/layout/src/wire-model.ts and
 packages/editor-react/src/wire-scene.ts: layers pulled apart radially or axially, outer layers drawn

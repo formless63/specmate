@@ -99,7 +99,7 @@ container socket. Only the runner has that privileged authority. The jobs proces
 use application operations but cannot execute imported code in-process.
 
 Run untrusted parsing/conversion as sandboxed stages too; an import is not harmless
-merely because it is not labelled a script. Output registration validates path, size,
+merely because it is not labeled a script. Output registration validates path, size,
 hash, declared type, source links and rights before exposing artifacts. Cache correctness
 and permission to reuse/disclose an output are separate checks.
 

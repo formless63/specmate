@@ -111,7 +111,7 @@ def conventions_for_stock(request, revision_id: UUID):
 
 @router.post("/end-stacks/resolve")
 def end_stack(request, payload: ResolveEnd):
-    """One end stack's layers, labelled terminals and joins (read-only)."""
+    """One end stack's layers, labeled terminals and joins (read-only)."""
     return resolve_end(request.user, payload)
 
 

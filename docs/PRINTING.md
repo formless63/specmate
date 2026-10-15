@@ -32,7 +32,7 @@ A print preparation (`print_preparation`) is a manufacturing variant of one part
   and resin) reference the same part identity; `print_preparation.variants` lists them.
 - **Profiles:** exact printer, process and material profile revisions. Each must have the
   right role and the same technology as the variant.
-- **Declarations:** model units, orientation (`as_modelled` or an explicit X/Y/Z rotation)
+- **Declarations:** model units, orientation (`as_modeled` or an explicit X/Y/Z rotation)
   and support strategy (`none`, `auto`, `buildplate_only`), each with a basis. Also copies,
   the output format (G-code or a prepared 3MF project) and the slicer tool.
 

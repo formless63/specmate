@@ -63,7 +63,7 @@ def test_double_placement_is_reported_with_independent_arithmetic():
     assert fails[("stock.pair.c2", "stock.screen")]["code"] == "containment"
     # The jacket bore radius is 1.7.
     assert fails[("stock.pair.c1", "stock.jacket")]["excess_mm"] == pytest.approx(2.05 - 1.7)
-    # Drain radius 0.2 centred 1.5 below centre reaches 1.7, past the 1.35 screen bore.
+    # Drain radius 0.2 centerd 1.5 below center reaches 1.7, past the 1.35 screen bore.
     assert fails[("stock.drain", "stock.screen")]["excess_mm"] == pytest.approx(0.35)
     notes = [f["paths"][0] for f in report["findings"] if f["code"] == "offset_on_arranged"]
     assert notes == ["stock.pair.c1", "stock.pair.c2"]

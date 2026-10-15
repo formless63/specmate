@@ -10,12 +10,24 @@ FeatureId = Annotated[str, Field(min_length=1, max_length=200)]
 Path = Annotated[list[LocalId], Field(max_length=32)]
 
 
+def rename_keys(value, renames):
+    """Return a copy of a dict with legacy keys renamed; a legacy key never overrides its new
+    spelling. Anything that is not a dict, or has no legacy key, is returned unchanged."""
+    if not isinstance(value, dict) or not any(old in value for old in renames):
+        return value
+    return {
+        renames.get(key, key): item
+        for key, item in value.items()
+        if not (key in renames and renames[key] in value)
+    }
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 class Placement(StrictModel):
-    """A transform in the containing assembly's right-handed, z-up millimetre frame."""
+    """A transform in the containing assembly's right-handed, z-up millimeter frame."""
 
     status: Literal["known", "unknown"] = "unknown"
     unit: Literal["mm"] = "mm"

@@ -134,7 +134,7 @@ def place(structure: dict) -> Placement:
 
 
 def fmt(value: float) -> str:
-    """Half-up millimetre text, identical in the browser."""
+    """Half-up millimeter text, identical in the browser."""
     return f"{math.floor(value * 1000 + 0.5) / 1000:.3f}"
 
 
@@ -298,7 +298,7 @@ def evaluate(stock: dict) -> dict:
 
 
 def positions(stock: dict) -> dict[str, list[float] | None]:
-    """Leaf path -> [x, y] in millimetres, or None when the position is unknown."""
+    """Leaf path -> [x, y] in millimeters, or None when the position is unknown."""
     return {
         leaf.path: None if leaf.x is None or leaf.y is None else [leaf.x, leaf.y]
         for leaf in place(stock["structure"]).leaves
