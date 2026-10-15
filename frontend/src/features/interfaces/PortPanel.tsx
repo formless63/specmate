@@ -1,3 +1,4 @@
+import { DefinitionSelect } from '../../components/library/DefinitionSelect';
 import { Alert, Button, Card, Checkbox, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -76,7 +77,7 @@ function Ports({ projectId }: { projectId: string | null }) {
   </Stack>;
 }
 
-function PortDraft({ draft, definitions, onSaved }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void> }) {
+function PortDraft({ draft, definitions, onSaved }: { draft: Draft; definitions?: Definition[]; onSaved: () => Promise<void> }) {
   const editGate = usePermission("design.edit");
   const [value, setValue] = useState<Port>(() => (draft.content.interface as Port | undefined) ?? (initialInterface("port") as Port));
   const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
@@ -88,7 +89,7 @@ function PortDraft({ draft, definitions, onSaved }: { draft: Draft; definitions:
 }
 
 /** Port editor: device, pinout variant, condition choices and a dense per-contact facts table. */
-export function PortEditor({ value, onChange, definitions, mode = "draft" }: { value: Port; onChange: (v: Port) => void; definitions: Definition[]; mode?: WorkbenchMode }) {
+export function PortEditor({ value, onChange, definitions, mode = "draft" }: { value: Port; onChange: (v: Port) => void; definitions?: Definition[]; mode?: WorkbenchMode }) {
   const [variantDefinition, setVariantDefinition] = useState<string | null>(null);
   const identity = useQuery({ queryKey: ["port-variant-identity", variantDefinition], queryFn: () => read<Identity>(`catalog/definitions/${variantDefinition}`), enabled: !!variantDefinition });
   useLatestRevisionDefault(variantDefinition, identity.isError ? undefined : identity.data, (identity.data?.revisions.length ?? 50) < 50, value.pinout_revision_id, (id) => onChange({ ...value, pinout_revision_id: id, selected_conditions: {} }));
@@ -108,7 +109,7 @@ export function PortEditor({ value, onChange, definitions, mode = "draft" }: { v
       <Select label="Port role" value={value.role} data={ROLES} onChange={(v) => onChange({ ...value, role: (v ?? "unknown") as PinoutRole })} />
     </Group>
     <Group align="end">
-      <Select label="Pinout variant" searchable placeholder="Choose a pinout variant" value={variantDefinition} data={definitions.filter((d) => d.kind === "pinout").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={setVariantDefinition} />
+      <DefinitionSelect label="Pinout variant" kind="pinout" definitions={definitions} value={variantDefinition} onChange={setVariantDefinition} />
       {identity.data && <Select label="Pinout variant revision" value={value.pinout_revision_id || null} onChange={(v) => onChange({ ...value, pinout_revision_id: v ?? "", selected_conditions: {} })} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {value.pinout_revision_id && <Text size="xs"><RevisionLabel id={value.pinout_revision_id} role="Variant" /></Text>}
     </Group>

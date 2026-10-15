@@ -52,7 +52,7 @@ export function resolvedChips(resolved: ResolvedStack) {
 }
 
 /** Layer cards from the wire outward, then the joins between their terminals. */
-export function StackEditor({ value, onChange, definitions, resolved, label = "End", nameFilter = null }: { value: EndStack; onChange: (v: EndStack) => void; definitions: Definition[]; resolved?: ResolvedStack; label?: string; nameFilter?: string | null }) {
+export function StackEditor({ value, onChange, definitions, resolved, label = "End", nameFilter = null }: { value: EndStack; onChange: (v: EndStack) => void; definitions?: Definition[]; resolved?: ResolvedStack; label?: string; nameFilter?: string | null }) {
   const present = new Set(value.layers.map((l) => l.kind));
   const setLayer = (layerId: string, next: StackLayer) => onChange({ ...value, layers: value.layers.map((l) => (l.layer_id === layerId ? next : l)) });
   return <Stack gap="xs">
@@ -69,7 +69,7 @@ export function StackEditor({ value, onChange, definitions, resolved, label = "E
   </Stack>;
 }
 
-function LayerFields({ layer, label, definitions, onChange, hasConnector, nameFilter }: { layer: StackLayer; label: string; definitions: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean; nameFilter: string | null }) {
+function LayerFields({ layer, label, definitions, onChange, hasConnector, nameFilter }: { layer: StackLayer; label: string; definitions?: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean; nameFilter: string | null }) {
   if (layer.kind === "connector") return <ConnectorFields layer={layer} label={label} definitions={definitions} onChange={onChange} nameFilter={nameFilter} />;
   if (layer.kind === "board") return <BoardFields layer={layer} label={label} definitions={definitions} onChange={onChange} hasConnector={hasConnector} />;
   if (layer.kind === "inline") return <InlineFields layer={layer} label={label} onChange={onChange} />;
@@ -80,7 +80,7 @@ function LayerFields({ layer, label, definitions, onChange, hasConnector, nameFi
   </Stack>;
 }
 
-function ConnectorFields({ layer, label, definitions, onChange, nameFilter }: { layer: Extract<StackLayer, { kind: "connector" }>; label: string; definitions: Definition[]; onChange: (l: StackLayer) => void; nameFilter: string | null }) {
+function ConnectorFields({ layer, label, definitions, onChange, nameFilter }: { layer: Extract<StackLayer, { kind: "connector" }>; label: string; definitions?: Definition[]; onChange: (l: StackLayer) => void; nameFilter: string | null }) {
   const body = useQuery({ queryKey: ["cable-body", layer.body_revision_id], queryFn: () => readBoard<InterfaceInspection>(`interfaces/revisions/${layer.body_revision_id}`), enabled: !!layer.body_revision_id });
   const variants = body.data?.pinout_variants?.filter((v) => v.same_body_revision) ?? [];
   return <Stack gap={4}>
@@ -93,7 +93,7 @@ function ConnectorFields({ layer, label, definitions, onChange, nameFilter }: { 
   </Stack>;
 }
 
-function BoardFields({ layer, label, definitions, onChange, hasConnector }: { layer: Extract<StackLayer, { kind: "board" }>; label: string; definitions: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean }) {
+function BoardFields({ layer, label, definitions, onChange, hasConnector }: { layer: Extract<StackLayer, { kind: "board" }>; label: string; definitions?: Definition[]; onChange: (l: StackLayer) => void; hasConnector: boolean }) {
   const board = useQuery({ queryKey: ["cable-board", layer.board_revision_id], queryFn: () => readBoard<BoardInspection>(`interfaces/revisions/${layer.board_revision_id}`), enabled: !!layer.board_revision_id });
   const carried = board.data?.board?.connectors ?? [];
   return <Stack gap={4}>

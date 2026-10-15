@@ -73,6 +73,7 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
       const id = new URL(path, "http://test").pathname.split("/").pop();
       return reply(id === "s1" ? { ...library[0]!, record_id: "s1", kind: "wire_stock", label: "Bench stock" } : library[0]);
     }
+    if (path.startsWith("/api/v0/catalog/where-used?")) return reply({ revision_id: "r1", results: [], next_after: null, project_references: [{ reference_id: "ref1", project_id: "project-b", project_name: "Project B", archived: false, relation: "project_reference_floating", role: "uses" }] });
     if (path.startsWith("/api/v0/workspace/library?") || path.startsWith("/api/v0/workspace/library-table?")) {
       const url = new URL(path, "http://test");
       const projectId = url.searchParams.get("project_id");
@@ -222,7 +223,7 @@ test("documents, interfaces and knowledge mount with scoped read controls", asyn
   await screen.findByRole("heading", { name: "Coordinated documents" });
   expect((screen.getByRole("button", { name: "Generate reviewed document set" }) as HTMLButtonElement).disabled).toBe(true);
   await openTool("Connectors");
-  await screen.findByRole("heading", { name: "Interface assessments" });
+  await screen.findByRole("heading", { name: "Connector bodies" });
   expect(screen.queryByRole("button", { name: "New assessment" })).toBeNull();
   await openTool("Notes & files");
   fireEvent.click(await screen.findByRole("button", { name: "Open Notes & files in Project A" }));
@@ -353,6 +354,12 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       const list = await screen.findByRole("region", { name: "Wire stocks" });
       fireEvent.click(within(list).getByRole("button", { name: "New wire stock" }));
       expect(await screen.findByLabelText("Stock name")).toBeTruthy();
+      continue;
+    }
+    if (["interfaces", "ports", "end-assemblies"].includes(toolId)) {
+      const list = await screen.findByRole("region", { name: toolId === "interfaces" ? "Connector bodies" : typed!.title });
+      expect(within(list).getByRole("button", { name: `New ${toolId === "interfaces" ? "connector body" : typed!.noun}` })).toBeTruthy();
+      expect(screen.queryByRole("region", { name: `${typed!.title} editor` })).toBeNull();
       continue;
     }
     expect(await screen.findByRole("region", { name: `${typed?.title ?? view.title} editor` })).toBeTruthy();

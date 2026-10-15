@@ -72,7 +72,7 @@ function EndAssemblies({ projectId }: { projectId: string | null }) {
   </Stack>;
 }
 
-function DraftEditor({ draft, definitions, onSaved }: { draft: EndAssemblyDraft; definitions: Definition[]; onSaved: () => Promise<void> }) {
+function DraftEditor({ draft, definitions, onSaved }: { draft: EndAssemblyDraft; definitions?: Definition[]; onSaved: () => Promise<void> }) {
   const editGate = usePermission("design.edit");
   const [value, setValue] = useState<EndAssembly>(() => draft.content.interface ?? emptyEndAssembly());
   const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
@@ -84,7 +84,7 @@ function DraftEditor({ draft, definitions, onSaved }: { draft: EndAssemblyDraft;
 }
 
 /** Layer cards with the resolved terminals beside them, so joins pick labels, not IDs. */
-export function AssemblyEditor({ value, onChange, definitions }: { value: EndAssembly; onChange: (v: EndAssembly) => void; definitions: Definition[] }) {
+export function AssemblyEditor({ value, onChange, definitions }: { value: EndAssembly; onChange: (v: EndAssembly) => void; definitions?: Definition[] }) {
   const resolved = useResolvedStack({ stack: value.stack, end_assembly_revision_id: null });
   return <Stack gap="xs">
     <TextInput size="xs" label="Description" placeholder="Optional" value={value.description ?? ""} onChange={(e) => onChange({ ...value, description: e.currentTarget.value || null })} />

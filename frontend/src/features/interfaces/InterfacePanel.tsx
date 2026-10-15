@@ -1,3 +1,4 @@
+import { DefinitionSelect } from '../../components/library/DefinitionSelect';
 import { formatCoordinates } from "../../lib/format";
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
@@ -76,26 +77,26 @@ function Workspace({ projectId, initialKind }: { projectId: string | null; initi
   </Stack>;
 }
 
-function DraftEditor({ draft, definitions, onSaved }: { draft: Draft; definitions: Definition[]; onSaved: () => Promise<void> }) {
+function DraftEditor({ draft, definitions, onSaved }: { draft: Draft; definitions?: Definition[]; onSaved: () => Promise<void> }) {
   const editGate = usePermission('design.edit');
   const [value, setValue] = useState(() => draft.content.interface ?? initialInterface(draft.kind));
   const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
   return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{draft.state}</Text><InspectionScope permission="design.edit"><Editor value={value} onChange={setValue} definitions={definitions} mode="draft" definitionId={draft.definition_id} /></InspectionScope><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save interface draft</Button><ReadOnlyNote permission="design.edit">Saving interface drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
 }
-function Editor({ value, onChange, definitions, mode, definitionId = null }: { value: Interface; onChange: (v: Interface) => void; definitions: Definition[]; mode: WorkbenchMode; definitionId?: string | null }) {
+function Editor({ value, onChange, definitions, mode, definitionId = null }: { value: Interface; onChange: (v: Interface) => void; definitions?: Definition[]; mode: WorkbenchMode; definitionId?: string | null }) {
   if (value.kind === "connector_body") return <BodyEditor value={value} onChange={onChange} definitions={definitions} />;
   if (value.kind === "pinout") return <PinoutEditor value={value} onChange={onChange} definitions={definitions} mode={mode} definitionId={definitionId} />;
   if (value.kind === "signal_set") return <SignalSetEditor value={value} onChange={onChange} />;
   if (value.kind === "port") return <PortEditor value={value} onChange={onChange} definitions={definitions} mode={mode} />;
-  if (value.kind === "conductor_convention") return <ConventionEditor value={value} onChange={onChange} definitions={definitions} />;
+  if (value.kind === "conductor_convention") return <ConventionEditor value={value} onChange={onChange} definitions={definitions ?? []} />;
   return <MappingEditor value={value} onChange={onChange} definitions={definitions} />;
 }
 function OrientationEditor({ value, onChange }: { value: Orientation; onChange: (v: Orientation) => void }) {
   return <Group align="end"><Select label="Viewing side" value={value.viewing_side} data={["unknown", "mating", "termination"]} onChange={(v) => onChange(v === "unknown" ? { viewing_side: "unknown", rotation_degrees: null, datum: null } : { ...value, viewing_side: v as Orientation["viewing_side"] })} /><TextInput label="Orientation datum" disabled={value.viewing_side === "unknown"} value={value.datum ?? ""} onChange={(e) => onChange({ ...value, datum: e.currentTarget.value || null })} /><OperatingNumberInput label="Rotation degrees (blank = unknown)" min={0} max={359.999} disabled={value.viewing_side === "unknown"} value={value.rotation_degrees ?? ""} onChange={(v) => onChange({ ...value, rotation_degrees: v })} /></Group>;
 }
-function BodyEditor({ value, onChange, definitions }: { value: Body; onChange: (v: Body) => void; definitions: Definition[] }) {
+export function BodyEditor({ value, onChange, definitions, face = true }: { value: Body; onChange: (v: Body) => void; definitions?: Definition[]; face?: boolean }) {
   const [contactId, setContactId] = useState("");
-  return <Stack><BodyFace body={value} caption="Face preview" /><GeometryPicker body={value} onChange={onChange} /><Group><TextInput label="Body family (blank = unknown)" value={value.family ?? ""} onChange={(e) => onChange({ ...value, family: e.currentTarget.value || null })} /><Select label="Mating role" value={value.mating_role} data={["unknown", "plug", "receptacle", "hermaphroditic"]} onChange={(v) => onChange({ ...value, mating_role: v ?? "unknown" })} /></Group><OrientationEditor value={value.drawing_orientation} onChange={(v) => onChange({ ...value, drawing_orientation: v })} />
+  return <Stack>{face && <BodyFace body={value} caption="Face preview" />}<GeometryPicker body={value} onChange={onChange} /><Group><TextInput label="Body family (blank = unknown)" value={value.family ?? ""} onChange={(e) => onChange({ ...value, family: e.currentTarget.value || null })} /><Select label="Mating role" value={value.mating_role} data={["unknown", "plug", "receptacle", "hermaphroditic"]} onChange={(v) => onChange({ ...value, mating_role: v ?? "unknown" })} /></Group><OrientationEditor value={value.drawing_orientation} onChange={(v) => onChange({ ...value, drawing_orientation: v })} />
     {value.contacts.map((contact, i) => <Group key={contact.contact_id}><Text>{contact.contact_id}</Text><TextInput label={`Contact ${contact.contact_id} number (blank = unknown)`} value={contact.number ?? ""} onChange={e => onChange({ ...value, contacts: value.contacts.map((c, j) => j === i ? { ...c, number: e.currentTarget.value || null } : c) })} /><ContactPositionEditor contactId={contact.contact_id} value={contact.position_mm} onChange={position_mm => onChange({ ...value, contacts: value.contacts.map((c, j) => j === i ? { ...c, position_mm } : c) })} /><TextInput label="Contact label" value={contact.label} onChange={(e) => onChange({ ...value, contacts: value.contacts.map((c, j) => j === i ? { ...c, label: e.currentTarget.value } : c) })} /><Select label="Physical role" value={contact.physical_role} data={["contact", "shell", "key"]} onChange={(v) => onChange({ ...value, contacts: value.contacts.map((c, j) => j === i ? { ...c, physical_role: v as typeof c.physical_role } : c) })} /><Button variant="subtle" onClick={() => onChange({ ...value, contacts: value.contacts.filter((_, j) => j !== i) })}>Remove contact {contact.contact_id}</Button></Group>)}
     <MatesEditor value={value} onChange={onChange} definitions={definitions} />
     <Group align="end"><TextInput label="New physical contact ID" value={contactId} onChange={(e) => setContactId(e.currentTarget.value)} /><Button disabled={!contactId || value.contacts.some((c) => c.contact_id === contactId)} onClick={() => { onChange({ ...value, contacts: [...value.contacts, { contact_id: contactId, physical_role: "contact", label: "", position_mm: null }] }); setContactId(""); }}>Add contact</Button></Group>
@@ -103,7 +104,7 @@ function BodyEditor({ value, onChange, definitions }: { value: Body; onChange: (
 }
 
 /** Declared mating partners: an exact partner body revision, contact correspondence and review. Never inferred from family names. */
-function MatesEditor({ value, onChange, definitions }: { value: Body; onChange: (v: Body) => void; definitions: Definition[] }) {
+function MatesEditor({ value, onChange, definitions }: { value: Body; onChange: (v: Body) => void; definitions?: Definition[] }) {
   const [partner, setPartner] = useState("");
   const [correspondence, setCorrespondence] = useState<"same_contact_id" | "explicit">("same_contact_id");
   const [pairs, setPairs] = useState<{ this: string; other: string }[]>([]);
@@ -134,22 +135,22 @@ function MatesEditor({ value, onChange, definitions }: { value: Body; onChange: 
   </Stack>;
 }
 
-function RevisionPicker({ label, kind, value, onChange, definitions }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[] }) {
+function RevisionPicker({ label, kind, value, onChange, definitions }: { label: string; kind: string; value: string; onChange: (v: string) => void; definitions?: Definition[] }) {
   const [definition, setDefinition] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const identity = useQuery({ queryKey: ["interface-reference", definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
-  return <Stack gap="xs"><Select label={`${label} definition`} searchable value={definition} data={definitions.filter((d) => d.kind === kind).map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setDefinition(v); setOffset(0); }} /><Select label={`${label} revision`} value={value || null} onChange={(v) => onChange(v ?? "")} data={newestFirst(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))} />{identity.data && <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}<TextInput label={`${label} exact revision ID`} description="An accessible revision from another project can also be supplied." value={value} onChange={(e) => onChange(e.currentTarget.value)} />{identity.isError && <Alert color="red">{identity.error.message}</Alert>}</Stack>;
+  return <Stack gap="xs"><DefinitionSelect label={`${label} definition`} kind={kind} definitions={definitions} value={definition} onChange={(v) => { setDefinition(v); setOffset(0); }} /><Select label={`${label} revision`} value={value || null} onChange={(v) => onChange(v ?? "")} data={newestFirst(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))} />{identity.data && <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}<TextInput label={`${label} exact revision ID`} description="An accessible revision from another project can also be supplied." value={value} onChange={(e) => onChange(e.currentTarget.value)} />{identity.isError && <Alert color="red">{identity.error.message}</Alert>}</Stack>;
 }
-function PinoutEditor({ value, onChange, definitions, mode, definitionId }: { value: Pinout; onChange: (v: Pinout) => void; definitions: Definition[]; mode: WorkbenchMode; definitionId: string | null }) {
+export function PinoutEditor({ value, onChange, definitions, mode, definitionId, workbench = true }: { value: Pinout; onChange: (v: Pinout) => void; definitions?: Definition[]; mode: WorkbenchMode; definitionId: string | null; workbench?: boolean }) {
   const body = useQuery({ queryKey: ["interface-inspect", value.body_revision_id], queryFn: () => read<Inspection>(`interfaces/revisions/${value.body_revision_id}`), enabled: !!value.body_revision_id });
   return <Stack><RevisionPicker label="Physical body" kind="connector_body" value={value.body_revision_id} onChange={(v) => onChange({ ...value, body_revision_id: v })} definitions={definitions} />{body.isError && <Alert color="red">{body.error.message}</Alert>}
     <PinoutVariantFields value={value} onChange={onChange} />
-    <PinoutWorkbench value={value} onChange={onChange} mode={mode} definitions={definitions} definitionId={definitionId} />
+    {workbench && <PinoutWorkbench value={value} onChange={onChange} mode={mode} definitions={definitions} definitionId={definitionId} />}
     <OrientationEditor value={value.orientation} onChange={(v) => onChange({ ...value, orientation: v })} />
     <Group><Select label="Pin table review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: v as Pinout["review"] })} /><TextInput label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></Group>
   </Stack>;
 }
-function MappingEditor({ value, onChange, definitions }: { value: Mapping; onChange: (v: Mapping) => void; definitions: Definition[] }) {
+function MappingEditor({ value, onChange, definitions }: { value: Mapping; onChange: (v: Mapping) => void; definitions?: Definition[] }) {
   const [contactId, setContactId] = useState<string | null>(null);
   const [path, setPath] = useState<string | null>(null);
   const [localId, setLocalId] = useState("");

@@ -1,3 +1,4 @@
+import { DefinitionSelect } from '../../components/library/DefinitionSelect';
 import { Alert, Button, Group, SegmentedControl, Select, Stack, Switch, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -31,7 +32,7 @@ const SELF = "self";
  * compatibility; unknown pins stay hatched and unknown.
  */
 export function PinoutWorkbench({ value, onChange, mode, definitions, definitionId = null, inspection = null }: {
-  value: Pinout; onChange?: (v: Pinout) => void; mode: WorkbenchMode; definitions: Definition[];
+  value: Pinout; onChange?: (v: Pinout) => void; mode: WorkbenchMode; definitions?: Definition[];
   /** The pinout's definition (drafts): finds its frozen ports and leaves it out of the other variants. */
   definitionId?: string | null;
   /** A frozen pin table's inspection: rows come from its resolved signals. */
@@ -211,11 +212,11 @@ function PinMeaning({ row }: { row: PinRow }) {
   return <Group gap={6} wrap="nowrap"><Text size="sm" fw={600}>{row.meaning?.name}</Text>{row.meaning?.type && <SignalTypeChip type={row.meaning.type} />}</Group>;
 }
 
-function SetPicker({ definitions, onPick, label = "Signal set" }: { definitions: Definition[]; onPick: (revisionId: string | null) => void; label?: string }) {
+function SetPicker({ definitions, onPick, label = "Signal set" }: { definitions?: Definition[]; onPick: (revisionId: string | null) => void; label?: string }) {
   const [definition, setDefinition] = useState<string | null>(null);
   const identity = useQuery({ queryKey: ["signal-set-identity", definition], queryFn: () => read<Identity>(`catalog/definitions/${definition}`), enabled: !!definition });
   return <Group align="end" gap="xs">
-    <Select size="xs" label={label} searchable placeholder="Choose a signal set" value={definition} data={definitions.filter((d) => d.kind === "signal_set").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={setDefinition} />
+    <DefinitionSelect label={label} kind="signal_set" definitions={definitions} value={definition} onChange={setDefinition} />
     {identity.data && <Select size="xs" label="Signal set revision" value={null} onChange={onPick} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
   </Group>;
 }

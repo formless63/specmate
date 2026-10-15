@@ -1,3 +1,4 @@
+import { DefinitionSelect } from '../../components/library/DefinitionSelect';
 import { Alert, Anchor, Button, Group, Select, Stack, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -9,7 +10,7 @@ import { read, type Definition, type Identity } from './api';
  * defaults to the latest frozen revision (older ones stay selectable). Pasting an exact revision
  * ID, including one from another project, is kept behind an Advanced disclosure.
  */
-export function RevisionPicker({ label, title, kind, value, onChange, definitions, nameFilter, error }: { error?: string; label: string; title?: string; kind: string; value: string; onChange: (v: string) => void; definitions: Definition[]; nameFilter?: string | null }) {
+export function RevisionPicker({ label, title, kind, value, onChange, definitions, nameFilter, error }: { error?: string; label: string; title?: string; kind: string; value: string; onChange: (v: string) => void; definitions?: Definition[]; nameFilter?: string | null }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [advanced, setAdvanced] = useState(false);
@@ -30,9 +31,7 @@ export function RevisionPicker({ label, title, kind, value, onChange, definition
   const latestId = single ? revisions[revisions.length - 1]?.revision_id : undefined;
   return <Stack gap="xs">
     <Group align="flex-start" gap="xs" grow wrap="wrap">
-      <Select label={title ?? `${label} definition`} aria-label={`${label} definition`} searchable placeholder="Search by name" nothingFoundMessage="No match" value={definitions.some(d => d.definition_id === definition) ? definition : null}
-        data={definitions.filter((d) => d.kind === kind && (!nameFilter || d.name.toLowerCase().includes(nameFilter.toLowerCase()))).map((d) => ({ value: d.definition_id, label: d.name }))}
-        onChange={(v) => { setChosen(v); setOffset(0); autoPick.current = v; if (v !== definition) onChange(""); }} />
+      <DefinitionSelect label={title ?? `${label} definition`} kind={kind} definitions={definitions} nameFilter={nameFilter} value={definition} onChange={(v) => { setChosen(v); setOffset(0); autoPick.current = v; if (v !== definition) onChange(""); }} />
       <Select label={title ? 'Revision' : `${label} revision`} aria-label={`${label} revision`} value={identity.isError ? null : revisions.some(r => r.revision_id === value) ? value : null} disabled={identity.isError || !definition} error={error} onChange={(v) => onChange(v ?? "")}
         data={newestFirst(revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number, r.revision_id === latestId ? 'latest' : undefined) }))} />
     </Group>

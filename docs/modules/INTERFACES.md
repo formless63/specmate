@@ -37,12 +37,20 @@ create/update/capture/read paths. Capture derives the exact dependency closure, 
 must reject caller-supplied pins that differ. Dedicated module commands also enforce
 these checks. Core immutable snapshot/dependency constraints preserve frozen state.
 
-The React `InterfacePanel(projectId)` exposes creation, editing, freezing, inspection
-and declared trace. The application shell supplies the authenticated session and
-project. Feature and operation tests cover the two pinouts on one body (INT-001),
-exact repeated occurrence addressing (INT-002), strict failures, current authorization,
-replay, atomic validation rollback and concurrent writes. Integrated generic hooks,
-root navigation and browser journeys are integration checkpoint obligations.
+The workspace Connector record uses one retained controller across bodies, pinouts,
+device ports and saved end stacks. The body page separates Pinouts from Device ports;
+related records open their exact listed revision. New variants, ports and end stacks
+copy explicit exact pins into independent local creation buffers. A project filters
+collection rows or receives an explicit reference; it never owns the editor.
+
+Source choices use lazy kind-filtered metadata pages. A selected state and its complete
+reference closure are reauthorized on activation and focus before retained drawings or
+fields become visible. Principal/workspace changes replace retained local sessions.
+Multiple editable drafts require an explicit exact draft choice, never catalog order.
+Save and freeze use the retained original CAS token and returned successor token.
+Feature and operation tests cover two pinouts on one body (INT-001), exact repeated
+occurrence addressing (INT-002), current authorization, replay, atomic validation
+rollback and concurrent writes. Browser journeys remain integration checkpoints.
 
 `interface.related` and `GET /interfaces/revisions/{body_revision_id}/related` list
 bounded connector-record relations for an exact authorized body revision. They return

@@ -46,6 +46,7 @@ const PcbPanel = lazy(() => import("./features/pcb/PcbPanel").then((module) => (
 const IntentPanel = lazy(() => import("./features/intents/IntentPanel").then((module) => ({ default: module.IntentPanel })));
 const EndAssemblyPanel = lazy(() => import("./features/end-assemblies/EndAssemblyPanel").then((module) => ({ default: module.EndAssemblyPanel })));
 const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
+const ConnectorLibrary = lazy(() => import("./features/interfaces/ConnectorLibrary").then(module => ({ default: module.ConnectorLibrary })));
 const StockLibrary = lazy(() => import("./features/wire-stock/StockLibrary").then(module => ({ default: module.StockLibrary })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
@@ -163,7 +164,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   };
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
-  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock");
+  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && !["interfaces", "ports", "end-assemblies"].includes(active));
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -180,7 +181,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
           onOpen={record => navigation?.navigate({ area: "designs", lens: toolForKind(record.kind), project: null, probe: { object: record.record_id, rev: null, path: [] } })}
           onCreate={openCreate} />)}</ToolPanel>
         <ToolPanel value="history">{tools.has("history") && <Stack><Text component="h1" fw={600}>History</Text><Text>Workspace change history is not available yet. Open a record to inspect its retained revisions.</Text></Stack>}</ToolPanel>
-        {ALL_TOOLS.filter(tool => !["designs", "history"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
+        {["interfaces", "ports", "end-assemblies"].some(tool => tools.has(tool)) && <div hidden={!["interfaces", "ports", "end-assemblies"].includes(active)}><ConnectorLibrary active={["interfaces", "ports", "end-assemblies"].includes(active)} toolId={["interfaces", "ports", "end-assemblies"].includes(active) ? active : "interfaces"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => openInProject(projectId, toolForKind(record.kind), record)} /></div>}
+        {ALL_TOOLS.filter(tool => !["designs", "history", "interfaces", "ports", "end-assemblies"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
           {tools.has(tool.id) && <LibraryTool key={createKeys[tool.id] ?? 0} toolId={tool.id} toolLabel={tool.label} record={selected.isError ? undefined : selected.data} scope={scope} onOpenInProject={openInProject}
             lens={{ scope, projectId: tool.id === "knowledge" ? notesProject : null, active, setActive, onStatusChanged: () => setStatusTick(n => n + 1), upgradeProposalId, setUpgradeProposalId }} />}
         </ToolPanel>)}

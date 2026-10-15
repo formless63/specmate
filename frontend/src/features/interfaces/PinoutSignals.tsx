@@ -1,3 +1,4 @@
+import { DefinitionSelect } from '../../components/library/DefinitionSelect';
 import { Alert, Button, Group, Select, Stack, Table, Text, TextInput } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -59,7 +60,7 @@ export function firstSetRevision(value: Pinout): string | null {
  * signal name and its type; contacts without a typed signal stay unknown.
  */
 export function PinoutSignalsEditor({ value, onChange, definitions, contacts, setRevision: controlled, onSetRevision, selected, onSelect, hideConditions }: {
-  value: Pinout; onChange: (v: Pinout) => void; definitions: Definition[]; contacts: Contact[];
+  value: Pinout; onChange: (v: Pinout) => void; definitions?: Definition[]; contacts: Contact[];
   /** Optional controlled signal set revision (shared with the face editor). */
   setRevision?: string | null; onSetRevision?: (id: string | null) => void;
   /** Optional pin selection shared with an inspector: the contact cell becomes a button. */
@@ -94,7 +95,7 @@ export function PinoutSignalsEditor({ value, onChange, definitions, contacts, se
   return <Stack gap="xs">
     <Text className="sb-silk">Pin signals</Text>
     <Group align="end">
-      <Select label="Signal set" searchable placeholder="Choose a signal set" value={setDefinition} data={definitions.filter((d) => d.kind === "signal_set").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setSetDefinition(v); setPicked(null); }} />
+      <DefinitionSelect label="Signal set" kind="signal_set" definitions={definitions} value={setDefinition} onChange={(v) => { setSetDefinition(v); setPicked(null); }} />
       {identity.data && <Select label="Signal set revision" value={picked} onChange={setPicked} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {setRevision && <Text size="xs"><RevisionLabel id={setRevision} role="Signals from" /></Text>}
     </Group>
