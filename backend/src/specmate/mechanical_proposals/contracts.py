@@ -2,7 +2,7 @@
 
 Every numeric field is nullable: ``None`` is an explicit unknown that keeps the
 dependent feature incomplete. Zero is only ever a deliberate declaration where the
-field permits it. Coordinates and sizes are millimetres in the native board frame.
+field permits it. Coordinates and sizes are millimeters in the native board frame.
 """
 
 from typing import Annotated, Literal

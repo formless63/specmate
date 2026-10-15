@@ -85,7 +85,7 @@ def test_formboard_print_is_a_deterministic_server_output_from_exact_revisions(u
     assert again[1] == raw and again[0]["sha256"] == reviewed["sha256"]
 
 
-def test_long_board_is_tiled_and_unknown_length_is_labelled_not_measured(users, project):
+def test_long_board_is_tiled_and_unknown_length_is_labeled_not_measured(users, project):
     def longer(harness):
         harness["sections"][0]["planned_cut_length_mm"] = 600
         harness["sections"][1]["planned_cut_length_mm"] = None

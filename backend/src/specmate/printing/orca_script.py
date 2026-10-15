@@ -210,9 +210,9 @@ argv = [
 if fmt == "3mf":
     argv += ["--export-3mf", "sliced.3mf"]
 # OrcaSlicer 2.4.2 terminates with SIGSEGV on --rotate/--rotate-x/--rotate-y, so only
-# as-modelled orientation is accepted; the application refuses rotations earlier.
+# as-modeled orientation is accepted; the application refuses rotations earlier.
 if spec["orientation"]["status"] != "as_modelled":
-    fail("Only as-modelled orientation is supported with OrcaSlicer 2.4.2")
+    fail("Only as-modeled orientation is supported with OrcaSlicer 2.4.2")
 if spec["copies"] > 1:
     argv += ["--clone-objects", str(spec["copies"]), "--arrange", "1"]
 argv += ["--ensure-on-bed", str(model)]

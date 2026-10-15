@@ -1,7 +1,7 @@
 """Propose a cable test plan from a frozen cable and its intent (CAB-004, CAB-006 proposed).
 
 Expected expectations are derived by hand from the synthetic tables in
-``interfaces.examples`` (DIN_SHARED, RGB_PINS, ADAPTER_PADS, DEMO_CENTRES/SCREENS):
+``interfaces.examples`` (DIN_SHARED, RGB_PINS, ADAPTER_PADS, DEMO_CENTERS/SCREENS):
 
 - eight wired signal rows (DIN 1, 2, 3, 4, 5, 6, 7, 9) give nine continuity pairs: video
   ground (3) reaches both monitor 5 and 17; sync (1 -> 20) passes the board's 470 R, so

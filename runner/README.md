@@ -45,7 +45,7 @@ CPU/memory/PID limits and bounded temporary space. They receive no database cred
 runner bearer token or runtime socket. The controller currently supports only network
 policy `none`; a recipe requiring network access fails validation.
 
-A durable receipt and deterministic labelled container name precede startup. Recovery
+A durable receipt and deterministic labeled container name precede startup. Recovery
 reconciles that existing container before starting new work. Exit state, timeout and
 cancellation refer to the actual container. A cancellation is reported only after
 termination is confirmed. Loss of application control stops execution and preserves

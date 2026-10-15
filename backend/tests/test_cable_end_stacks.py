@@ -54,7 +54,7 @@ def kit(users, project):
             owner, project, examples.rgb_pinout(signals, rgb_plug, "sink"), "21-pin RGB input"
         ),
         "board": frozen(owner, project, examples.av_adapter_board(plug), "AV adapter board"),
-        "shell": part(owner, project, "Small round overmould shell"),
+        "shell": part(owner, project, "Small round overmold shell"),
         "hood": part(owner, project, "21-pin hood"),
         "stock": frozen_stock(owner, project),
     }

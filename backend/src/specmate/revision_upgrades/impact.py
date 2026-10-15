@@ -94,7 +94,7 @@ def cable_disciplines(sections, identical):
             out[discipline] = {
                 "status": "no_difference_found",
                 "reason": "No compared cable section that maps to this discipline changed. "
-                "Behaviour outside the compared sections is not evaluated.",
+                "Behavior outside the compared sections is not evaluated.",
                 "sections": [],
             }
     out["firmware"] = not_evaluated(

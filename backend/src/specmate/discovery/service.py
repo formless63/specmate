@@ -120,7 +120,7 @@ def describe(
     is_owner = installation is not None and installation.owner_id == ctx.user.pk
     native = _native_execution(workspace.id if workspace is not None else None, held)
 
-    # Additive: maker preferences, labelled as preferences (defaults, never engineering facts).
+    # Additive: maker preferences, labeled as preferences (defaults, never engineering facts).
     preferences = None
     if workspace is not None:
         from specmate.preferences.queries import describe_preferences

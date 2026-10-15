@@ -9,11 +9,11 @@ so the SVG bytes match the TypeScript output for the same inputs (the tests comp
 against a golden produced by the TypeScript renderer).
 
 Only the length axis is to scale, and only for sections with a recorded planned cut
-length. Sections without one are drawn at a labelled, dashed placeholder length. Nothing
+length. Sections without one are drawn at a labeled, dashed placeholder length. Nothing
 here implies routing, electrical connection, fit or manufacturing approval.
 
 Only the print path is ported: no selection highlight, scale bar, labels or build sheet.
-Backend stock colours are `#rrggbb` or null; named-colour parsing is kept for parity.
+Backend stock colors are `#rrggbb` or null; named-color parsing is kept for parity.
 """
 
 import math
@@ -66,8 +66,8 @@ NAMED_COLORS = {
     "blue": "#1f5fbf",
     "violet": "#7a3fa0",
     "purple": "#7a3fa0",
-    "grey": "#8a9096",
     "gray": "#8a9096",
+    "grey": "#8a9096",
     "white": "#f4f4f0",
     "pink": "#e58ab0",
     "turquoise": "#2bb5b0",
@@ -82,29 +82,29 @@ UNKNOWN_FILL = "#7d838b"
 _HEX = re.compile(r"^#([0-9a-f]{6})$", re.I)
 _SHORT = re.compile(r"^#([0-9a-f])([0-9a-f])([0-9a-f])$", re.I)
 
-# family: (is_metal, typical colour)
+# family: (is_metal, typical color)
 _FAMILY = {
     "copper": (True, "#b87333"),
     "tinned-copper": (True, "#c3c8cb"),
     "silver-plated-copper": (True, "#d5d8db"),
     "nickel-plated-copper": (True, "#aeb2b4"),
-    "copper-clad-aluminium": (True, "#b87333"),
-    "aluminium": (True, "#c9ced3"),
+    "copper-clad-aluminum": (True, "#b87333"),
+    "aluminum": (True, "#c9ced3"),
     "steel": (True, "#9aa0a6"),
-    "aluminium-foil": (True, "#d2d7dc"),
+    "aluminum-foil": (True, "#d2d7dc"),
 }
 _RULES = [
-    (r"copper[- ]?clad[- ]?alumin|\bcca\b", "copper-clad-aluminium"),
+    (r"copper[- ]?clad[- ]?alumin|\bcca\b", "copper-clad-aluminum"),
     (r"tinned|tin[- ]?plated|\bsn[- ]?cu\b", "tinned-copper"),
     (r"silver|\bag[- ]?cu\b", "silver-plated-copper"),
     (r"nickel|\bni[- ]?cu\b", "nickel-plated-copper"),
     (
         r"(alumin(i)?um|\bal\b).*(foil|mylar|laminate|tape)|"
         r"(foil|mylar|laminate).*(alumin(i)?um|\bal\b)",
-        "aluminium-foil",
+        "aluminum-foil",
     ),
     (r"\bcopper\b|\bcu\b|\bofc\b|\betp\b", "copper"),
-    (r"alumin(i)?um|\bal\b", "aluminium"),
+    (r"alumin(i)?um|\bal\b", "aluminum"),
     (r"steel|stainless", "steel"),
     (r"foam|cellular|gas[- ]?injected", "other"),
     (r"ptfe|teflon|\bfep\b|\bpfa\b|\betfe\b|fluoro", "other"),
@@ -118,12 +118,12 @@ _RULES = [
     (r"polypropylene|\bpp\b", "other"),
     (r"nylon|polyamide", "other"),
     (r"paper", "other"),
-    (r"cotton|textile|fibre|fiber|yarn|aramid|kevlar|glass|cord|braid(ed)? (yarn|thread)", "other"),
+    (r"cotton|textile|fiber|fiber|yarn|aramid|kevlar|glass|cord|braid(ed)? (yarn|thread)", "other"),
 ]
 
 
 def classify_material(material):
-    """Metal family name, 'other' (a recognised non-metal), 'unrecognized' or 'unrecorded'."""
+    """Metal family name, 'other' (a recognized non-metal), 'unrecognized' or 'unrecorded'."""
     if material is None or material.strip() == "":
         return "unrecorded"
     text = material.lower()
@@ -791,7 +791,7 @@ def plan_print(board, title, **overrides):
             {
                 "code": "unknown-length",
                 "severity": "warn",
-                "text": f'{unknown} section{" is" if unknown == 1 else "s are"} drawn at a placeholder length, dashed and labelled "length unknown"; that length is not to scale.',
+                "text": f'{unknown} section{" is" if unknown == 1 else "s are"} drawn at a placeholder length, dashed and labeled "length unknown"; that length is not to scale.',
             }
         )
     if board.stubs:

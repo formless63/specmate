@@ -45,7 +45,7 @@ class ElementBase(StrictModel):
     source: str | None = Field(default=None, max_length=1000)
     # Explicit offsets locate interstitial elements without a hidden workshop rule.
     # Null is an unknown offset (for example a drain whose lay-up is not yet known);
-    # it leaves the element's position unknown rather than at the parent's centre.
+    # it leaves the element's position unknown rather than at the parent's center.
     x_mm: Coordinate | None = 0
     y_mm: Coordinate | None = 0
 

@@ -80,10 +80,10 @@ def normalized_png(data):
         at = end
     if not ended or header is None:
         raise ValueError
-    width, height, depth, colour, compression, filtering, interlace = struct.unpack(
+    width, height, depth, color, compression, filtering, interlace = struct.unpack(
         ">IIBBBBB", header
     )
-    channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(colour)
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(color)
     if (
         not channels
         or depth != 8

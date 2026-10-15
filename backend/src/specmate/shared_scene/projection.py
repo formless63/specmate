@@ -18,7 +18,7 @@ from specmate.operations import NotFound, ValidationFailed
 from specmate.pcb.models import PcbInterpretation
 from specmate.pcb.population import review_payload
 from specmate.pcb.report import Report
-from specmate.shared_scene.transforms import IDENTITY, compose, millimetre_factor, placement_matrix
+from specmate.shared_scene.transforms import IDENTITY, compose, millimeter_factor, placement_matrix
 from specmate.sources.models import SourceBundleFile
 
 MAX_FEATURES = 100000
@@ -351,7 +351,7 @@ class Resources:
                         "quality": "declared_unextracted",
                         "units": model["units"],
                         "frame": model["frame"],
-                        "millimetre_factor": millimetre_factor(model["units"]),
+                        "millimeter_factor": millimeter_factor(model["units"]),
                         "source": model,
                         "limitations": [
                             "Native source is inert; supported extraction and target frame "

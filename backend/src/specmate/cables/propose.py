@@ -5,7 +5,7 @@ accepts rows into a cable draft through the ordinary cable commands.
 
 1. Conductors for signal rows: candidates must meet the row's conductor requirement
    (coax, pair or single) and be unused. They are ranked by the stock's exact conventions,
-   then colour codes: preferred, then allowed, then spare, then unranked. A conductor a
+   then color codes: preferred, then allowed, then spare, then unranked. A conductor a
    convention keeps for another signal, ``avoid`` and ``do not use`` are never chosen.
    More than one best candidate is a question; none is a question.
 2. Returns: the screen of each chosen coax goes to the row that returns its signal when a
@@ -121,12 +121,12 @@ class Proposer:
         parent = self.check.parents.get(path)
         return {"coax": "coax", "pair": "pair"}.get(getattr(parent, "role", None), "single")
 
-    def centres(self):
+    def centers(self):
         return [p for p, e in self.closure.elements.items() if e.kind == "conductor"]
 
-    def screen_of(self, centre):
-        parent = self.check.parents.get(centre)
-        base = centre.rsplit(".", 1)[0]
+    def screen_of(self, center):
+        parent = self.check.parents.get(center)
+        base = center.rsplit(".", 1)[0]
         for child in getattr(parent, "children", []):
             if child.kind == "shield":
                 return f"{base}.{child.id}"
@@ -259,7 +259,7 @@ class Proposer:
             need = row.conductor.kind
             pool = [
                 p
-                for p in self.centres()
+                for p in self.centers()
                 if p not in self.used and (need in ("unknown", "any") or self.kind_of(p) == need)
             ]
             ranked = sorted(

@@ -124,7 +124,7 @@ def test_supplied_association_and_cursor_must_match_the_exact_current_query(
 
 
 def foreign_target(users):
-    """An identically labelled revision in the outsider's separate workspace."""
+    """An identically labeled revision in the outsider's separate workspace."""
     child = op(
         users["outsider"],
         "definition.create",

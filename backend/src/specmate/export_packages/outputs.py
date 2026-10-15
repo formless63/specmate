@@ -42,7 +42,7 @@ def formboard_print(user, revision_id):
 
     Returns the printable HTML bytes, a machine-readable plan, the exact stock revisions
     drawn, and `unavailable` (a plain reason) when the plan cannot be produced. Unknown
-    cut lengths are drawn dashed at a labelled placeholder length, never as measurements.
+    cut lengths are drawn dashed at a labeled placeholder length, never as measurements.
     """
     revision, closure = read_revision(user, revision_id)
     harness = content(revision)["harness"]

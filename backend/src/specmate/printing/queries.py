@@ -258,13 +258,13 @@ def orca_blockers(preparation: PrintPreparation, closure) -> list[str]:
     if preparation.model_units.basis == "unknown":
         blockers.append("Model units are unknown; declare them before slicing.")
     elif preparation.model_units.value != "mm":
-        blockers.append("Only millimetre models are qualified; no scale conversion is applied.")
+        blockers.append("Only millimeter models are qualified; no scale conversion is applied.")
     if preparation.orientation.status == "unknown":
-        blockers.append("Orientation is unknown; declare as-modelled or an explicit rotation.")
+        blockers.append("Orientation is unknown; declare as-modeled or an explicit rotation.")
     elif preparation.orientation.status == "rotated":
         blockers.append(
             "OrcaSlicer 2.4.2 crashes when its command line rotates a model; supply a model "
-            "already oriented for printing and declare it as modelled."
+            "already oriented for printing and declare it as modeled."
         )
     if preparation.supports.status == "unknown":
         blockers.append("The support strategy is unknown; declare none, auto or build-plate only.")
@@ -297,9 +297,9 @@ def slicing_blockers(preparation: PrintPreparation, closure) -> list[str]:
     if preparation.model_units.basis == "unknown":
         blockers.append("Model units are unknown; declare them before slicing.")
     elif preparation.model_units.value != "mm":
-        blockers.append("Only millimetre models are qualified; no scale conversion is applied.")
+        blockers.append("Only millimeter models are qualified; no scale conversion is applied.")
     if preparation.orientation.status == "unknown":
-        blockers.append("Orientation is unknown; declare as-modelled or an explicit rotation.")
+        blockers.append("Orientation is unknown; declare as-modeled or an explicit rotation.")
     if preparation.supports.status == "unknown":
         blockers.append("The support strategy is unknown; declare none, auto or build-plate only.")
     profiles = {r: p.model_dump(mode="json") for r, (_, p) in closure["profiles"].items()}

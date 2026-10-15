@@ -110,7 +110,7 @@ def test_preferences_cannot_carry_ratings_or_invalid_values(users, workspace, va
         call(users["owner"], {"workspace_id": workspace, "scope": "workspace", "values": values})
 
 
-def test_preference_is_labelled_and_creates_no_fact(users, workspace):
+def test_preference_is_labeled_and_creates_no_fact(users, workspace):
     before = FactAssertion.objects.count()
     call(
         users["owner"],

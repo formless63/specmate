@@ -361,7 +361,7 @@ def test_report_rejects_other_kinds(users, sourced):
         report(users["owner"], sourced["board"]["revision_id"])
 
 
-def test_material_plan_demand_uses_length_stock_and_per_metre_price(users, project):
+def test_material_plan_demand_uses_length_stock_and_per_meter_price(users, project):
     from .test_material_accounting import consumable
     from .test_material_accounting import create as create_plan
     from .test_material_accounting import fixture as plan_fixture

@@ -2,8 +2,8 @@
 
 A convention is a preference. It ranks proposals and flags later deviations; it can never
 make a check pass, and a conductor it does not mention stays unknown. A stock convention
-pins one exact stock revision and maps its conductors, screens and drains; a colour code is
-general and maps wire colours. Both name signals only through one exact signal set revision.
+pins one exact stock revision and maps its conductors, screens and drains; a color code is
+general and maps wire colors. Both name signals only through one exact signal set revision.
 """
 
 from typing import Annotated, Literal
@@ -43,7 +43,7 @@ class ConventionUse(StrictModel):
 class ConventionRule(StrictModel):
     # Stock scope: the dot-separated path of one stock element ("stock.core-1.center").
     element_path: ElementPath | None = None
-    # Colour-code scope: a colour name, optionally with the exact display colour it means.
+    # Color-code scope: a color name, optionally with the exact display color it means.
     colour: Text | None = None
     colour_hex: Hex | None = None
     element_kind: ConductiveKind | None = None
@@ -54,11 +54,11 @@ class ConventionRule(StrictModel):
     @model_validator(mode="after")
     def one_matcher(self):
         if (self.element_path is None) == (self.colour is None):
-            raise ValueError("A rule matches either one stock element or one colour.")
+            raise ValueError("A rule matches either one stock element or one color.")
         if self.element_path is not None and (self.colour_hex or self.element_kind):
-            raise ValueError("A stock element rule carries no colour or element kind.")
+            raise ValueError("A stock element rule carries no color or element kind.")
         if self.colour is None and self.colour_hex:
-            raise ValueError("An exact display colour needs a colour name.")
+            raise ValueError("An exact display color needs a color name.")
         return self
 
 
@@ -76,9 +76,7 @@ class ConductorConvention(StrictModel):
     @model_validator(mode="after")
     def consistent(self):
         if (self.scope == "stock") != (self.stock_revision_id is not None):
-            raise ValueError(
-                "A stock convention pins one exact stock revision; a colour code none."
-            )
+            raise ValueError("A stock convention pins one exact stock revision; a color code none.")
         if self.review == "reviewed" and not self.review_basis:
             raise ValueError("Reviewed conventions require a review basis.")
         seen = set()

@@ -11,7 +11,7 @@ from specmate.design.models import Snapshot
 from specmate.operations import NotFound, ValidationFailed
 from specmate.shared_scene import operations  # noqa: F401
 from specmate.shared_scene.api import inspect_snapshot
-from specmate.shared_scene.transforms import millimetre_factor
+from specmate.shared_scene.transforms import millimeter_factor
 
 from .conftest import member, op, remove_member
 from .scope_helpers import workspace_of
@@ -197,7 +197,7 @@ def test_all_disciplines_known_length_unknown_routes_and_inert_models(
     cable_geometry = next(g for g in result["geometry"] if g.get("length_mm") is not None)
     assert cable_geometry["length_mm"] == "127.5"
     assert cable_geometry["source"]["revision_id"] == stock["revision_id"]
-    assert geometries["unavailable_model"]["millimetre_factor"] == 25.4
+    assert geometries["unavailable_model"]["millimeter_factor"] == 25.4
     assert geometries["unavailable_model"]["role"] == "clearance"
     assert (
         geometries["unavailable_model"]["source"]["representation_id"] == model["representation_id"]
@@ -208,8 +208,8 @@ def test_all_disciplines_known_length_unknown_routes_and_inert_models(
     assert sum(f["role"] == "segment" for f in harness_node["features"]) == 2
     assert all(f["world_transform"] is None for f in harness_node["features"])
     assert all(n["world_transform"] is None for n in result["nodes"])
-    assert millimetre_factor("m") == 1000 and millimetre_factor(None) is None
-    assert millimetre_factor("unknown") is None
+    assert millimeter_factor("m") == 1000 and millimeter_factor(None) is None
+    assert millimeter_factor("unknown") is None
 
 
 def test_revoked_nested_parent_no_scene_or_diagnostics(users, project):
@@ -414,7 +414,7 @@ def test_model_revision_authority_is_independent_from_mechanical_target(
     frozen = freeze(user, create(user, project, [occ("enclosure", revision)]))
     first = scene(user, frozen)
     model_resource = next(g for g in first["geometry"] if g["type"] == "unavailable_model")
-    assert model_resource["role"] == "manufacturing" and model_resource["millimetre_factor"] == 1000
+    assert model_resource["role"] == "manufacturing" and model_resource["millimeter_factor"] == 1000
     assert model_resource["source"]["revision_id"] != mec_target["revision_id"]
     # The represented model is its own workspace item; the scene reports it independently
     # of the mechanical target, and membership decides both.

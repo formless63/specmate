@@ -140,8 +140,8 @@ def stock_conventions(user, stock_revision_id):
     """Frozen conventions that apply to one frozen stock revision, read-only.
 
     Stock conventions pinned to this exact revision rank first; ones pinned to another
-    revision of the same stock are listed as such and carry no rows. Colour codes appear
-    only where a rule's exact display colour matches an element of this stock.
+    revision of the same stock are listed as such and carry no rows. Color codes appear
+    only where a rule's exact display color matches an element of this stock.
     """
     from specmate.interfaces.queries import read_revision
 
@@ -193,16 +193,16 @@ def stock_conventions(user, stock_revision_id):
     for revision in coded.values():
         content = json.loads(bytes(revision.snapshot.canonical))["content"]
         value = ConductorConvention.model_validate(content["interface"])
-        matches = _colour_matches(value, elements)
+        matches = _color_matches(value, elements)
         if not matches:
             continue
         _, closure = read_revision(user, revision.id)
         entry = _entry(revision, value)
         view = convention_view(value, closure)
-        by_colour = {(r["colour"], r["colour_hex"], r["element_kind"]): r for r in view["rows"]}
+        by_color = {(r["colour"], r["colour_hex"], r["element_kind"]): r for r in view["rows"]}
         entry["exact"] = False
         entry["matches"] = [
-            {"element_path": path, "element_label": label, "rule": by_colour[key]}
+            {"element_path": path, "element_label": label, "rule": by_color[key]}
             for path, label, key in matches
         ]
         found.append(entry)
@@ -239,7 +239,7 @@ def _entry(revision, value):
     }
 
 
-def _colour_matches(convention, elements):
+def _color_matches(convention, elements):
     matches = []
     for rule in convention.rules:
         if not rule.colour_hex:

@@ -227,14 +227,14 @@ def regional_console_pinout(set_revision_id, body_revision_id):
     return value
 
 
-def _video_pin(contact, behaviour, impedance):
+def _video_pin(contact, behavior, impedance):
     return {
         "contact_id": contact,
-        "behaviour": behaviour,
+        "behaviour": behavior,
         "level": _level(0.7, "Vpp"),
         "impedance": _ohm(impedance),
-        "coupling": "dc" if behaviour == "drives" else "ac",
-        "termination": "source_terminated" if behaviour == "drives" else "load_terminated",
+        "coupling": "dc" if behavior == "drives" else "ac",
+        "termination": "source_terminated" if behavior == "drives" else "load_terminated",
         "basis": BASIS,
     }
 
@@ -365,20 +365,20 @@ def av_adapter_board(plug_revision_id):
     }
 
 
-# Six miniature coax cores in a ring under one jacket. The core colours are display colours
-# only; what each core carries is stated by a convention, never by its colour.
+# Six miniature coax cores in a ring under one jacket. The core colors are display colors
+# only; what each core carries is stated by a convention, never by its color.
 COAX_CORES = (
     ("red", "#c0392b", "video_red", "Red"),
     ("green", "#2e8b57", "video_green", "Green"),
     ("blue", "#2f5fb0", "video_blue", "Blue"),
     ("yellow", "#d4b21a", "composite_sync", "Yellow"),
     ("white", "#e8e8e8", "audio_left", "White"),
-    ("grey", "#8a8a8a", "audio_right", "Grey"),
+    ("gray", "#8a8a8a", "audio_right", "Gray"),
 )
 
 
 def six_coax_stock():
-    """Synthetic six-coax AV stock; every core is a centre, dielectric and braid screen."""
+    """Synthetic six-coax AV stock; every core is a center, dielectric and braid screen."""
     source = "Synthetic example construction"
 
     def element(identifier, label, kind, outer, inner, **extra):
@@ -393,15 +393,15 @@ def six_coax_stock():
         }
 
     cores = []
-    for number, (colour, hex_, _, _) in enumerate(COAX_CORES, start=1):
+    for number, (color, hex_, _, _) in enumerate(COAX_CORES, start=1):
         cores.append(
             {
                 "id": f"core-{number}",
-                "label": f"Core {number} ({colour})",
+                "label": f"Core {number} ({color})",
                 "kind": "group",
                 "role": "coax",
                 "children": [
-                    element("center", "Centre", "conductor", 0.3, 0, color=hex_),
+                    element("center", "Center", "conductor", 0.3, 0, color=hex_),
                     element("dielectric", "Dielectric", "dielectric", 1.0, 0.3),
                     element("screen", "Screen", "shield", 1.2, 1.0, construction="braid"),
                 ],
@@ -435,22 +435,22 @@ def six_coax_stock():
 
 
 def av_coax_convention(signal_set_revision_id, stock_revision_id):
-    """Each coax centre carries its signal and its screen returns that same signal."""
+    """Each coax center carries its signal and its screen returns that same signal."""
     rules = []
-    for number, (colour, _, signal, _) in enumerate(COAX_CORES, start=1):
+    for number, (color, _, signal, _) in enumerate(COAX_CORES, start=1):
         base = f"stock.core-{number}"
         rules.append(
             {
                 "element_path": f"{base}.center",
                 "use": {"kind": "signal", "signal_key": signal},
-                "basis": f"Shop habit for the {colour} core",
+                "basis": f"Shop habit for the {color} core",
             }
         )
         rules.append(
             {
                 "element_path": f"{base}.screen",
                 "use": {"kind": "return_of", "signal_key": signal},
-                "basis": f"Shop habit for the {colour} core",
+                "basis": f"Shop habit for the {color} core",
             }
         )
     return {
@@ -466,12 +466,12 @@ def av_coax_convention(signal_set_revision_id, stock_revision_id):
 
 
 def av_colour_code(signal_set_revision_id):
-    """A general colour code: matches by exact display colour, never by wire label."""
+    """A general color code: matches by exact display color, never by wire label."""
     return {
         "kind": "conductor_convention",
         "scope": "colour_code",
         "signal_set_revision_id": signal_set_revision_id,
-        "description": "Synthetic AV colour habits",
+        "description": "Synthetic AV color habits",
         "rules": [
             {
                 "colour": "Red",
@@ -482,7 +482,7 @@ def av_colour_code(signal_set_revision_id):
                 "basis": "Synthetic habit",
             },
             {
-                "colour": "Grey",
+                "colour": "Gray",
                 "colour_hex": "#8a8a8a",
                 "element_kind": "conductor",
                 "use": {"kind": "spare"},
@@ -586,8 +586,8 @@ def rgb_inline_end(plug_revision_id, plug_pinout_revision_id, hood=None):
     }
 
 
-# (core number, adapter board pad at end A, 21-pin contact at end B) for each coax centre.
-DEMO_CENTRES = [
+# (core number, adapter board pad at end A, 21-pin contact at end B) for each coax center.
+DEMO_CENTERS = [
     (1, "r", "15"),
     (2, "g", "11"),
     (3, "b", "7"),
@@ -623,7 +623,7 @@ def av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
     """
     basis = "Synthetic wiring table written for this example"
     assignments = []
-    for core, pad, contact in DEMO_CENTRES:
+    for core, pad, contact in DEMO_CENTERS:
         path = f"stock.core-{core}.center"
         assignments.append(_land("a", path, "board", pad))
         assignments.append(_land("b", path, "connector", contact))
@@ -697,19 +697,19 @@ def _retarget(cable, endpoint_id, element_path, terminal_id, layer_id=None):
 
 
 def av_swapped_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
-    """Red and blue centres swapped on the adapter board's pads at the console end."""
+    """Red and blue centers swapped on the adapter board's pads at the console end."""
     cable = av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id)
     _retarget(cable, "a", "stock.core-1.center", "b")
     return _retarget(cable, "a", "stock.core-3.center", "r")
 
 
 def av_missing_resistor_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
-    """Sync centre soldered to the board's connector-side pad, bypassing the 470 ohm part."""
+    """Sync center soldered to the board's connector-side pad, bypassing the 470 ohm part."""
     cable = av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id)
     return _retarget(cable, "a", "stock.core-4.center", "din-1")
 
 
 def av_power_to_sync_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
-    """Sync centre landed on the +5 V contact pad: supply into the monitor's sync input."""
+    """Sync center landed on the +5 V contact pad: supply into the monitor's sync input."""
     cable = av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id)
     return _retarget(cable, "a", "stock.core-4.center", "din-8")

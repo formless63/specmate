@@ -15,7 +15,7 @@ class StrictModel(BaseModel):
 
 
 class Placement(StrictModel):
-    """A transform in the containing assembly's right-handed, z-up millimetre frame."""
+    """A transform in the containing assembly's right-handed, z-up millimeter frame."""
 
     status: Literal["known", "unknown"] = "unknown"
     unit: Literal["mm"] = "mm"

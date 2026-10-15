@@ -297,7 +297,7 @@ PARAMETERS: tuple[Parameter, ...] = (
         slicer_key="brim_width",
         orca_keys=("brim_width", "brim_type"),
     ),
-    # Resin: modelled for variants and provenance; no qualified slicing pack exists.
+    # Resin: modeled for variants and provenance; no qualified slicing pack exists.
     _p("resin", "printer", "display_width_mm", "Display width", unit="mm", minimum=1, maximum=1000),
     _p(
         "resin",
