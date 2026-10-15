@@ -19,6 +19,7 @@ import { blankSpec, exampleCoax, generate, illustrate, readBuilder, TEMPLATES } 
 import type { BuilderSpec } from './builder';
 import { ConstructionBuilder } from './ConstructionBuilder';
 import { FitFindings } from './FitFindings';
+import { TemplateStrip } from './TemplateStrip';
 import { fitOverlay } from './builder-visual';
 import { SectionCanvas } from './SectionCanvas';
 import { MmEntry } from './MmEntry';
@@ -168,23 +169,18 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
     <Title order={2}>Wire stock</Title>
     <Text>Describe reusable stock independently of finished cables. Unknown values remain unknown.</Text>
     {error && <Alert color="red" role="alert">{error}</Alert>}{message && <Alert color="green">{message}</Alert>}
+    <TemplateStrip onChoose={kind => {
+      const spec = blankSpec(kind);
+      setStock(generate(spec), spec); setName(`New ${TEMPLATES.find(t => t.value === kind)?.label.toLowerCase()}`);
+      setCurrent(null); setDirty(true); setMessage('');
+    }} />
+    <details className="sb-builder-advanced">
+      <summary>Synthetic examples</summary>
+      <Group gap="xs">{Object.keys(stockPresets).map(key => <Button key={key} size="xs" variant="light" {...edit.props} onClick={() => {
+        setStock(clone(stockPresets[key]!)); setName(`Synthetic ${key}`); setCurrent(null); setDirty(true); setMessage('');
+      }}>{key}</Button>)}</Group>
+    </details>
     <Group>
-      <Select label="Saved stock" data={stocks.map(item => ({ value: item.draft_id, label: item.in_project ? `${item.name} · in this project` : item.name }))} value={current?.draft_id ?? null} onChange={id => {
-        const record = stocks.find(item => item.draft_id === id); if (!record?.content.stock) return;
-        setCurrent(record); setDirty(false); setName(record.name); setStock(clone(record.content.stock)); setMessage('');
-      }} />
-      <Select label="New construction" value={null} placeholder="Choose a template" data={[
-        { group: 'Templates', items: TEMPLATES.map(t => ({ value: `template:${t.value}`, label: t.label })) },
-        { group: 'Synthetic examples', items: Object.keys(stockPresets).map(key => ({ value: `example:${key}`, label: key })) },
-      ]} onChange={key => {
-        if (!key) return;
-        const [kind, value] = key.split(':') as [string, string];
-        if (kind === 'template') {
-          const spec = blankSpec(value as BuilderSpec['template']);
-          setStock(generate(spec), spec); setName(`New ${TEMPLATES.find(t => t.value === value)?.label.toLowerCase()}`);
-        } else if (stockPresets[value]) { setStock(clone(stockPresets[value])); setName(`Synthetic ${value}`); }
-        setCurrent(null); setDirty(true); setMessage('');
-      }} />
       <TextInput label="Stock name" value={name} disabled={current !== null} onChange={e => setName(e.target.value)} />
       <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }, builder); setDirty(true); } }} />
     </Group>

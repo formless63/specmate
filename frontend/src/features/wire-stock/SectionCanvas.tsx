@@ -43,14 +43,15 @@ export function SectionCanvas({ section, title, label = 'Stock section drawing',
   }, [dragging, handle, onOd, vb]);
 
   const interactive = editable && handle && onOd;
-  return <div className="sb-stock-canvas" style={{ aspectRatio: `${vb.w} / ${vb.h}` }} data-dragging={dragging || undefined}>
+  return <>
+  <div className="sb-stock-canvas" style={{ aspectRatio: `${vb.w} / ${vb.h}` }} data-dragging={dragging || undefined}>
     <div aria-label={label} className="sb-viewer sb-stock-canvas__drawing" style={{ color: 'var(--sb-text-primary)' }}
       onClick={event => { const hit = (event.target as Element).closest('[data-element]'); if (hit) onSelect?.(hit.getAttribute('data-element')); }}
       dangerouslySetInnerHTML={{ __html: svg }} />
     <svg ref={overlayRef} className="sb-stock-canvas__overlay" viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} aria-label="Fit findings and jacket handle" data-overlay>
       <defs>
-        <pattern id={`${id}-hatch`} width={u * 1.4} height={u * 1.4} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2={u * 1.4} stroke="var(--sb-invalid)" strokeWidth={u * 0.45} />
+        <pattern id={`${id}-hatch`} width={u * 1.8} height={u * 1.8} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2={u * 1.8} stroke="var(--sb-invalid)" strokeWidth={u * 0.22} opacity="0.85" />
         </pattern>
         {overlay?.bands.map((band, i) => band.bore && <clipPath key={i} id={`${id}-out${i}`}>
           <path clipRule="evenodd" d={`M${-big} ${-big}H${big}V${big}H${-big}Z${circlePath(band.bore.cx, band.bore.cy, band.bore.r)}`} />
@@ -60,8 +61,11 @@ export function SectionCanvas({ section, title, label = 'Stock section drawing',
         fill={`url(#${id}-hatch)`} clipPath={`url(#${id}-out${i})`} />)}
       {overlay?.bores.map(b => <circle key={`bore${b.path}`} data-fit-bore={b.path} cx={b.cx} cy={b.cy} r={b.r} fill="none" stroke="var(--sb-invalid)" strokeWidth={u * 0.5} strokeDasharray={`${u * 1.6} ${u * 1.1}`} />)}
       {overlay?.rings.map(ring => <circle key={`ring${ring.path}`} data-fit-ring={ring.path} cx={ring.cx} cy={ring.cy} r={ring.r + u * 0.9} fill="none" stroke="var(--sb-invalid)" strokeWidth={u * 0.5} />)}
-      {overlay?.notes.map((note, i) => <g key={`note${note.path}`} data-fit-note={note.path}>
-        <text x={note.x} y={note.y + i * u * 3.2} fontSize={u * 2.6} fill="var(--sb-invalid)" fontFamily="var(--sb-font-data)" fontWeight="600" paintOrder="stroke" stroke="var(--sb-surface-sunken)" strokeWidth={u * 0.9}>{note.text}</text>
+      {overlay?.callouts.map(call => <g key={`call${call.n}`} data-fit-callout={call.n} color="var(--sb-invalid)">
+        <path d={`M${call.anchor.x} ${call.anchor.y}L${call.end.x} ${call.end.y}`} stroke="var(--sb-invalid)" strokeWidth={u * 0.35} fill="none" />
+        <circle cx={call.anchor.x} cy={call.anchor.y} r={u * 0.6} fill="var(--sb-invalid)" />
+        <circle cx={call.end.x} cy={call.end.y} r={u * 2.1} fill="var(--sb-invalid)" stroke="var(--sb-surface-sunken)" strokeWidth={u * 0.4} />
+        <text x={call.end.x} y={call.end.y + u * 1} fontSize={u * 2.8} textAnchor="middle" fill="var(--sb-surface-sunken)" fontFamily="var(--sb-font-data)" fontWeight="700">{call.n}</text>
       </g>)}
       {handle && <g className="sb-stock-handle" data-editable={interactive ? 'true' : 'false'}>
         <circle cx={0} cy={0} r={handle.od / 2} fill="none" stroke="var(--sb-accent)" strokeWidth={u * 0.3} strokeDasharray={`${u * 0.8} ${u * 1.2}`} opacity="0.7" />
@@ -78,8 +82,12 @@ export function SectionCanvas({ section, title, label = 'Stock section drawing',
           <circle r={u * 1.7} fill="var(--sb-accent)" stroke="var(--sb-surface-sunken)" strokeWidth={u * 0.4} />
           <path d={`M${-u * 0.7} ${-u * 0.6}L${-u * 1.2} 0L${-u * 0.7} ${u * 0.6}M${u * 0.7} ${-u * 0.6}L${u * 1.2} 0L${u * 0.7} ${u * 0.6}`} stroke="var(--sb-accent-ink)" strokeWidth={u * 0.3} fill="none" />
         </g>
-        <text x={handle.od / 2 + u * 3} y={-u * 2.4} fontSize={u * 3} fill="var(--sb-text-primary)" fontFamily="var(--sb-font-data)" paintOrder="stroke" stroke="var(--sb-surface-sunken)" strokeWidth={u * 0.8}>OD {handle.od} mm</text>
+        <text x={vb.x + vb.w - u * 2} y={vb.y + vb.h - u * 2} textAnchor="end" fontSize={u * 3} fill="var(--sb-text-primary)" fontFamily="var(--sb-font-data)" paintOrder="stroke" stroke="var(--sb-surface-sunken)" strokeWidth={u * 0.8}>OD {handle.od} mm</text>
       </g>}
     </svg>
-  </div>;
+  </div>
+  {overlay && overlay.callouts.length > 0 && <ol className="sb-stock-callouts" aria-label="Fit problems">
+    {overlay.callouts.map(call => <li key={call.n} value={call.n}><span aria-hidden="true" className="sb-stock-callouts__n">{call.n}</span>{call.text}</li>)}
+  </ol>}
+  </>;
 }

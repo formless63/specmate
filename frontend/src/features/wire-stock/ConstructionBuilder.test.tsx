@@ -11,6 +11,7 @@ test('a failing jacket is drawn on the section and fixed in one click', () => {
   show();
   fireEvent.change(screen.getByLabelText('Jacket wall'), { target: { value: '1' } });
   expect(document.querySelector('[data-fit-bore="stock.jacket"]')).toBeTruthy();
+  expect(screen.getByLabelText('Fit problems').textContent).toContain("won't fit Jacket bore 1 mm");
   expect(screen.getByText('Problems')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Set jacket OD to fit' }));
   expect(document.querySelector('[data-fit-bore]')).toBeNull();
@@ -33,6 +34,13 @@ test('a viewer sees the drawing and meters but cannot move sliders or the handle
   fireEvent.change(screen.getByLabelText('Jacket outer diameter slider'), { target: { value: '9' } });
   expect((screen.getByLabelText('Jacket outer diameter') as HTMLInputElement).value).toBe(before);
   expect(screen.getByLabelText('Jacket outer diameter slider').getAttribute('aria-readonly')).toBe('true');
-  expect(screen.getByRole('slider', { name: 'Jacket outer diameter handle' }).getAttribute('aria-disabled')).toBe('true');
+  expect(screen.queryByRole('slider', { name: 'Jacket outer diameter handle' })).toBeNull();
   expect(screen.getByLabelText('Stock section drawing').querySelectorAll('[data-element]').length).toBeGreaterThan(0);
+});
+
+test('the template strip starts a construction from a drawn template', () => {
+  show();
+  expect(screen.getAllByRole('button', { name: /^New / })).toHaveLength(6);
+  fireEvent.click(screen.getByRole('button', { name: 'New Ribbon' }));
+  expect(screen.getByRole('group', { name: 'Cores' })).toBeTruthy();
 });

@@ -28,15 +28,12 @@ test('keyboard nudges the jacket handle and a drag maps pointer position to OD',
   fireEvent(window, new Event('pointerup'));
 });
 
-test('read-only users get a fixed handle and fit failures are drawn on the section', () => {
-  const onOd = vi.fn();
-  const { container } = render(<SectionCanvas section={section} title="t" handle={{ od: 3.2, minOd: 2.85 }} editable={false} onOd={onOd} overlay={fitOverlay(section, fit)} />);
-  const handle = screen.getByRole('slider', { name: 'Jacket outer diameter handle' });
-  expect(handle.getAttribute('aria-disabled')).toBe('true');
-  fireEvent.keyDown(handle, { key: 'ArrowRight' });
-  expect(onOd).not.toHaveBeenCalled();
+test('fit failures are drawn on the section with a numbered callout and a worded list', () => {
+  const { container } = render(<SectionCanvas section={section} title="t" handle={null} editable={false} overlay={fitOverlay(section, fit)} />);
   expect(container.querySelector('[data-fit-bore="stock.jacket"]')).toBeTruthy();
   expect(container.querySelector('[data-fit-band]')).toBeTruthy();
   expect(container.querySelector('[data-fit-ring]')).toBeTruthy();
-  expect(container.querySelector('[data-fit-note]')?.textContent).toMatch(/mm$/);
+  expect(container.querySelector('[data-fit-callout="1"]')).toBeTruthy();
+  expect(screen.getByLabelText('Fit problems').textContent).toMatch(/won't fit .* bore .* mm \(\+/);
+  expect(screen.queryByRole('slider')).toBeNull();
 });

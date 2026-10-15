@@ -47,7 +47,11 @@ describe('fit fixes and overlay', () => {
     expect(overlay.bores.map(b => b.path)).toContain('stock.jacket');
     expect(overlay.bands.length).toBeGreaterThan(0);
     expect(overlay.rings.length).toBeGreaterThan(0);
-    expect(overlay.notes[0]!.text).toMatch(/^\+\d+\.\d{3} mm$/);
+    expect(overlay.callouts).toHaveLength(1);
+    expect(overlay.callouts[0]!.text).toMatch(/won't fit Jacket bore 2\.4 mm \(\+\d\.\d{3} mm\)$/);
+    // The badge sits on a ring outside the numbered layer tags, on a free angle.
+    const c = overlay.callouts[0]!;
+    expect(Math.hypot(c.end.x, c.end.y)).toBeGreaterThan(Math.hypot(c.anchor.x, c.anchor.y));
     const fixes = fitFixes(spec, stock, section, fit);
     expect(fixes.map(f => f.id)).toEqual(['jacket-od', 'jacket-wall']);
     for (const fix of fixes) {
@@ -60,7 +64,7 @@ describe('fit fixes and overlay', () => {
   it('offers no fix and draws nothing for a fitting or unknown construction', () => {
     const ok = analyze(twoCore(4.2, 0.4));
     expect(fitFixes(twoCore(4.2, 0.4), ok.stock, ok.section, ok.fit)).toEqual([]);
-    expect(fitOverlay(ok.section, ok.fit)).toEqual({ bores: [], rings: [], bands: [], notes: [] });
+    expect(fitOverlay(ok.section, ok.fit)).toEqual({ bores: [], rings: [], bands: [], callouts: [] });
     const unknown = analyze(blankSpec('round', 2));
     expect(fitOverlay(unknown.section, unknown.fit).bores).toEqual([]);
   });

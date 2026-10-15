@@ -207,7 +207,7 @@ export function ConstructionBuilder({ spec, onChange, view }: { spec: BuilderSpe
       <div className="sb-stock-stage">
         {illustration && <div className="sb-illustrative" role="note"><strong>Illustrative</strong> · placeholder proportions for unknown {illustration.substituted.join(', ')}; not dimensions.</div>}
         <SectionCanvas section={drawn} title={illustration ? `${view.name} (illustrative)` : view.name} label={illustration ? 'Illustrative section drawing' : 'Stock section drawing'}
-          selected={view.selected} onSelect={view.onSelect} overlay={illustration ? undefined : overlay} handle={handle} editable={edit.allowed} onOd={setOd} />
+          selected={view.selected} onSelect={view.onSelect} overlay={illustration ? undefined : overlay} handle={edit.allowed ? handle : null} editable={edit.allowed} onOd={setOd} />
         {fixes.length > 0 && <Group gap="xs" className="sb-stock-fixes" aria-label="Fit fixes">
           {fixes.map(fix => <Button key={fix.id} size="xs" variant="light" color="red" title={fix.detail} onClick={() => onChange(fix.apply(spec))} {...edit.props}>{fix.label}</Button>)}
           <Text size="xs" c="dimmed">{fixes[0]!.detail}</Text>

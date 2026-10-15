@@ -4,8 +4,8 @@
  * Placement and fit stay in packages/section-layout; nothing here re-derives them.
  * A value that depends on an unknown input is null, never zero.
  */
-import { fitMm } from '../../../../packages/section-layout/src';
-import type { FitFinding, FitReport, Section, SectionFeature, StockSpecification } from '../../../../packages/section-layout/src';
+import { fitMm, layoutCallouts } from '../../../../packages/section-layout/src';
+import type { CalloutItem, FitFinding, FitReport, Section, SectionFeature, StockSpecification } from '../../../../packages/section-layout/src';
 import { drainPlacement, hasJacket, hasWeb, layup, multiUnit } from './builder';
 import type { BuilderSpec, Known, Layup } from './builder';
 
@@ -109,14 +109,21 @@ export function clientToMm(box: { left: number; top: number; width: number; heig
 // --- fit findings drawn on the section ----------------------------------------------
 
 export interface Circle { cx: number; cy: number; r: number }
+export interface FitCallout {
+  n: number; path: string;
+  /** What does not fit, in words. */
+  text: string;
+  /** Leader start on the offender's edge, and the numbered badge on the outer ring. */
+  anchor: { x: number; y: number }; end: { x: number; y: number };
+}
 export interface OverlayShapes {
   /** Dashed red bore of an enclosing layer that something does not fit in. */
   bores: (Circle & { path: string })[];
-  /** Offending element or unit, ringed. */
+  /** Worst offender per enclosing layer, ringed. */
   rings: (Circle & { path: string })[];
-  /** Offender area outside the bore (or the overlap lens), to be hatched. */
+  /** Offender area outside the bore: the interference band to hatch. */
   bands: { offender: Circle; bore: Circle | null; path: string }[];
-  notes: { x: number; y: number; text: string; path: string }[];
+  callouts: FitCallout[];
 }
 function extentOf(section: Section, path: string): Circle | null {
   const inside = section.features.filter(f => f.path === path || f.path.startsWith(`${path}.`));
@@ -133,34 +140,83 @@ const boreOf = (section: Section, path: string): Circle | null => {
 };
 
 /** Geometry for failing findings only. Unknown (not evaluated) checks are never drawn as failures. */
+const TAU = Math.PI * 2;
+const mm = (v: number | null): string => v === null ? 'unknown' : `${Number(v.toFixed(3))} mm`;
+/** Angles the renderer gives its numbered layer tags (same ring and spacing), so fit badges can sit between them. */
+function tagAngles(section: Section, cx: number, cy: number, radius: number, fontSize: number): number[] {
+  const items: CalloutItem[] = section.rows.flatMap(row => {
+    const f = section.features.find(item => item.path === row.path);
+    return f ? [{ key: row.path, x: f.x, y: f.y, chars: row.tag.length }] : [];
+  });
+  return layoutCallouts(items, { cx, cy, radius, fontSize }).map(c => c.angle);
+}
+/** Free angles: midpoints between layer tags, then quarter points, ordered by distance from `want`. */
+function freeAngles(tags: number[], want: number): number[] {
+  const sorted = [...tags].sort((a, b) => a - b);
+  if (sorted.length === 0) return [want];
+  const out: number[] = [];
+  for (const frac of [0.5, 0.25, 0.75]) sorted.forEach((a, i) => {
+    const next = i + 1 < sorted.length ? sorted[i + 1]! : sorted[0]! + TAU;
+    out.push((a + (next - a) * frac) % TAU);
+  });
+  const d = (a: number) => { const x = Math.abs(a - want) % TAU; return Math.min(x, TAU - x); };
+  return out.sort((a, b) => d(a) - d(b));
+}
+function rowFor(section: Section, path: string) {
+  const inside = section.rows.filter(r => r.path === path || r.path.startsWith(`${path}.`));
+  return inside.reduce<typeof inside[number] | undefined>((best, r) => !best || (r.outerDiameterMm ?? 0) > (best.outerDiameterMm ?? 0) ? r : best, undefined);
+}
+function describe(section: Section, f: FitFinding): string {
+  const a = rowFor(section, f.paths[0]), b = rowFor(section, f.paths[1]);
+  const first = `${a?.label ?? f.paths[0]} ${mm(a?.outerDiameterMm ?? null)}`;
+  const excess = f.excess_mm === null ? '' : ` (+${fitMm(f.excess_mm)} mm)`;
+  if (f.code === 'overlap') return `${a?.label ?? f.paths[0]} overlaps ${b?.label ?? f.paths[1]}${excess}`;
+  if (f.code === 'outside') return `${first} lies outside ${b?.label ?? f.paths[1]}, the outer layer${excess}`;
+  if (f.code === 'wall_overlap') return `${first} overlaps the wall of ${b?.label ?? f.paths[1]}${excess}`;
+  return `${first} won't fit ${b?.label ?? f.paths[1]} bore ${mm(b?.innerDiameterMm ?? null)}${excess}`;
+}
+
+/** Geometry for failing findings only. Unknown (not evaluated) checks are never drawn as failures. */
 export function fitOverlay(section: Section, report: FitReport): OverlayShapes {
-  const out: OverlayShapes = { bores: [], rings: [], bands: [], notes: [] };
-  const seen = new Set<string>();
-  const once = (kind: string, path: string) => { const key = `${kind}|${path}`; if (seen.has(key)) return false; seen.add(key); return true; };
-  // One hatched band and one callout per enclosing layer (its worst offender), so a single mistake reads as one mark.
+  const out: OverlayShapes = { bores: [], rings: [], bands: [], callouts: [] };
+  const b = section.bounds;
+  if (!b) return out;
+  // One band, ring and callout per enclosing layer (its worst offender), so one mistake reads as one mark.
   const worst = new Map<string, FitFinding>();
+  // A layer that wraps the checked tube (the jacket against the screen) is not the thing that fails to fit.
+  const wraps = (f: FitFinding): boolean => {
+    const a = rowFor(section, f.paths[0]), t = rowFor(section, f.paths[1]);
+    return f.code !== 'overlap' && !!a && !!t && (a.innerDiameterMm ?? 0) > 0 && t.outerDiameterMm !== null && a.outerDiameterMm !== null && a.outerDiameterMm >= t.outerDiameterMm;
+  };
   for (const f of report.findings as FitFinding[]) {
-    if (f.status !== 'fail') continue;
+    if (f.status !== 'fail' || wraps(f)) continue;
     const key = f.code === 'overlap' ? f.paths.join('|') : f.paths[1];
     const held = worst.get(key);
     if (!held || (f.excess_mm ?? 0) > (held.excess_mm ?? 0)) worst.set(key, f);
   }
-  for (const f of report.findings as FitFinding[]) {
-    if (f.status !== 'fail') continue;
+  if (worst.size === 0) return out;
+  const span = Math.max(b.maxX - b.minX, b.maxY - b.minY, 1), fontSize = span / 12;
+  const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+  let radius = 0;
+  for (const f of section.features) radius = Math.max(radius, Math.hypot(f.x - cx, f.y - cy) + radiusOf(f));
+  const ringR = radius + fontSize * 2.6;
+  const tags = tagAngles(section, cx, cy, radius, fontSize);
+  const taken: number[] = [];
+  for (const f of worst.values()) {
     const [first, second] = f.paths;
     const offender = extentOf(section, first);
     if (!offender) continue;
     const enclosing = f.code === 'overlap' ? null : boreOf(section, second);
-    if (enclosing && once('bore', second)) out.bores.push({ ...enclosing, path: second });
-    if (once('ring', first)) out.rings.push({ ...offender, path: first });
-    if (f.code === 'overlap') {
-      const other = extentOf(section, second);
-      if (other && once('ring', second)) out.rings.push({ ...other, path: second });
-    }
-    if (worst.get(f.code === 'overlap' ? f.paths.join('|') : second) !== f) continue;
+    if (enclosing) out.bores.push({ ...enclosing, path: second });
+    out.rings.push({ ...offender, path: first });
+    if (f.code === 'overlap') { const other = extentOf(section, second); if (other) out.rings.push({ ...other, path: second }); }
     out.bands.push({ offender, bore: enclosing, path: first });
-    const text = f.excess_mm === null ? '' : `+${fitMm(f.excess_mm)} mm`;
-    if (text) out.notes.push({ x: offender.cx + offender.r * 0.72, y: offender.cy - offender.r * 0.72, text, path: first });
+    const want = ((Math.atan2(offender.cy - cy, offender.cx - cx) % TAU) + TAU) % TAU;
+    const angle = freeAngles(tags, want).find(a => taken.every(t => Math.abs(Math.sin((a - t) / 2)) > 0.12)) ?? want;
+    taken.push(angle);
+    out.callouts.push({ n: out.callouts.length + 1, path: first, text: describe(section, f),
+      anchor: { x: offender.cx + offender.r * Math.cos(angle), y: offender.cy + offender.r * Math.sin(angle) },
+      end: { x: cx + ringR * Math.cos(angle), y: cy + ringR * Math.sin(angle) } });
   }
   return out;
 }

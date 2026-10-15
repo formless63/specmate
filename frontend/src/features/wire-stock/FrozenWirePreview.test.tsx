@@ -3,10 +3,10 @@ import { MantineProvider } from '@mantine/core';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FrozenWirePreview } from './FrozenWirePreview';
+import { ProbeProvider } from '../probe';
 import { WireStockPanel } from './WireStockPanel';
 import { stockPresets } from './presets';
 import { profileRevision } from './profile-test-fixtures';
-import { ProbeProvider } from '../probe';
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -39,10 +39,9 @@ function installApi(exactProfile = profileRevision(), frozenStock = stockPresets
 }
 test('shows pinned construction independently of the edited draft and locks frozen profile suggestions', async () => {
   const fetcher = installApi();
-  render(<MantineProvider><WireStockPanel projectId="project1" /></MantineProvider>);
-  await choose('Saved stock', /Editable stock/);
-  expect(screen.getByText(byContent(/Section: 8 mm × 8 mm/))).toBeTruthy();
-  await choose('Frozen stock definition', /Synthetic stock/);
+  render(<MantineProvider><ProbeProvider probe={{ object: 'stock-definition', rev: 1, path: [] }} onProbe={() => {}}><WireStockPanel projectId="project1" /></ProbeProvider></MantineProvider>);
+  await screen.findByText(byContent(/Section: 8 mm × 8 mm/));
+  // The same probe also selects the frozen definition.
   await choose('Exact stock revision', /Synthetic stock · r1/);
   await screen.findByText(byContent(/Section: 3 mm × 3 mm/)); expect(screen.getAllByText('stock-r1', { selector: 'code' }).length).toBeGreaterThan(0);
   await choose('Matching frozen profile', /Synthetic stripping · revision 1 · profile-r1/);
