@@ -49,8 +49,8 @@ function EndAssemblies({ projectId }: { projectId: string | null }) {
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     <Group align="end">
       <Select label="End assembly" searchable placeholder={assemblies.length ? "Choose an end assembly" : "No end assemblies yet"} data={assemblies.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
-      {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
+      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={(identity.data.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && (identity.data.drafts?.length ?? 0) > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={(identity.data.drafts ?? []).map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
     </Group>
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {revisionId && <Inspector key={revisionId} revisionId={revisionId} />}
