@@ -33,12 +33,17 @@ function Frame({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function StockThumb({ stock, title, id }: { stock: unknown; title: string; id: string }) {
-  const svg = useMemo(() => {
+  const drawn = useMemo(() => {
     const section = stockSection(stock);
-    return section && section.features.length ? renderSectionSvg(section, title, { callouts: false, idPrefix: `lg${id.replace(/[^a-z0-9]/gi, "").slice(0, 12)}` }) : null;
+    if (!section) return { svg: null, rows: 0 };
+    const svg = section.features.length ? renderSectionSvg(section, title, { callouts: false, idPrefix: `lg${id.replace(/[^a-z0-9]/gi, "").slice(0, 12)}` }) : null;
+    return { svg, rows: section.rows.length };
   }, [stock, title, id]);
-  if (!svg) return <Frame title={title}><rect x={80} y={20} width={80} height={80} rx={40} className="lg-unknown-fill" /><Note>construction not recorded</Note></Frame>;
-  return <div className="lg-thumb-html" dangerouslySetInnerHTML={{ __html: svg }} />;
+  if (!drawn.svg) {
+    return <Frame title={title}><rect x={80} y={20} width={80} height={80} rx={40} className="lg-unknown-fill" />
+      <Note>{drawn.rows ? `${drawn.rows} elements, dimensions not recorded` : "construction not recorded"}</Note></Frame>;
+  }
+  return <div className="lg-thumb-html" dangerouslySetInnerHTML={{ __html: drawn.svg }} />;
 }
 
 /** Cable as a drawn sketch: two ends, the jacket in its recorded color and the conductors fanned out. */

@@ -22,9 +22,14 @@ test("wire stock draws its recorded cross-section without callouts", () => {
   expect(screen.getByRole("img", { name: "Synthetic item (wire stock)" })).toBeTruthy();
 });
 
-test("stock without a construction says so instead of drawing a default", () => {
+test("stock without a construction or dimensions says so instead of drawing a default", () => {
   draw("wire_stock", preview("wire_stock", { gauge: "unknown" }, { source: "draft", revision: null }));
   expect(screen.getByText("construction not recorded")).toBeTruthy();
+  const stock = shieldedPair();
+  const strip = (element: Record<string, unknown>): Record<string, unknown> => ({ ...element, outer_diameter_mm: null, inner_diameter_mm: null,
+    ...(Array.isArray(element.children) ? { children: element.children.map((child) => strip(child as Record<string, unknown>)) } : {}) });
+  draw("wire_stock", preview("wire_stock", { stock: { ...stock, structure: strip(stock.structure as unknown as Record<string, unknown>) } }));
+  expect(screen.getByText(/elements, dimensions not recorded/)).toBeTruthy();
 });
 
 test("a cable sketch fans out its stock's conductors in their recorded colors", () => {
