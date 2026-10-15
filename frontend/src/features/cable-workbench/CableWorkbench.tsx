@@ -174,11 +174,6 @@ export function CableWorkbench(props: WorkbenchProps) {
         <Cell label="Revision" testId="cell-revision" sub={props.revision.sub}>{props.revision.value}</Cell>
       </dl>
       <div className="cwb-stage">
-        <div className="cwb-stage-tools" role="group" aria-label="Drawing zoom">
-          <ActionIcon size="sm" variant="default" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, Math.round(((z ?? 0.8) - 0.2) * 10) / 10))}>−</ActionIcon>
-          <Button size="compact-xs" variant={zoom === null ? "primary" : "default"} onClick={() => setZoom(null)}>Fit</Button>
-          <ActionIcon size="sm" variant="default" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(2.5, Math.round(((z ?? 0.8) + 0.2) * 10) / 10))}>+</ActionIcon>
-        </div>
         <div className="cwb-viewport">
           <CableDrawing drawing={drawing} lit={lit} selection={selection} onSelect={select} armedEnd={armed?.endpointId ?? null} onLand={land}
             bodies={bodies} section={section} lengthText={length ? `${length.text} ${length.kind}` : null} showStatus={!!checkData} zoom={zoom}
@@ -195,6 +190,11 @@ export function CableWorkbench(props: WorkbenchProps) {
           {pendingRows.length > 0 && <span><svg width="18" height="6" aria-hidden="true"><line x1="0" y1="3" x2="18" y2="3" className="cwb-proposal-line" /></svg>proposed</span>}
           {families.map((f) => <span key={f}><span className="cwb-swatch" style={{ background: familyColor(f) }} aria-hidden="true" />{FAMILY_LABELS[f]}</span>)}
           <span><span className="cwb-swatch sb-hatch" aria-hidden="true" />not recorded</span>
+          <div className="cwb-stage-tools" role="group" aria-label="Drawing zoom">
+          <ActionIcon size="sm" variant="default" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, Math.round(((z ?? 0.8) - 0.2) * 10) / 10))}>−</ActionIcon>
+          <Button size="compact-xs" variant={zoom === null ? "primary" : "default"} onClick={() => setZoom(null)}>Fit</Button>
+          <ActionIcon size="sm" variant="default" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(2.5, Math.round(((z ?? 0.8) + 0.2) * 10) / 10))}>+</ActionIcon>
+        </div>
         </div>
       </div>
       <SignalStrip drawing={drawing} checkRows={rows} lit={lit} selection={selection} onSelect={select} />
@@ -202,7 +202,7 @@ export function CableWorkbench(props: WorkbenchProps) {
       {check.isError && intentId && <Alert color="orange">{check.error.message}</Alert>}
       {proposal.data && <section className="cwb-proposals" aria-label="Proposed wiring">
         <Group justify="space-between" gap="xs"><Text fw={600} size="sm">Proposed wiring</Text>
-          <Text size="xs" c="dimmed">{pendingRows.length ? `${pendingRows.length} row${pendingRows.length === 1 ? "" : "s"} differ from the ${mode === "draft" ? "draft" : "cable"}. Nothing is saved until you accept.` : "Every proposed row matches or was decided."}</Text></Group>
+          <Text size="xs" c="dimmed">{pendingRows.length ? `${pendingRows.length} row${pendingRows.length === 1 ? " differs" : "s differ"} from the ${mode === "draft" ? "draft" : "cable"}. Nothing is saved until you accept.` : "Every proposed row matches or was decided."}</Text></Group>
         {proposal.data.questions.length > 0 && <Alert color="yellow" title={`${proposal.data.questions.length} question${proposal.data.questions.length === 1 ? "" : "s"}`}>
           <Stack gap={2}>{proposal.data.questions.map((q, i) => <Text key={i} size="xs">{q.row_id}: {q.text}{q.options ? ` Options: ${q.options.join(", ")}.` : ""}</Text>)}</Stack></Alert>}
         {pendingRows.map((row) => <div key={row.row_id} className="cwb-proposal-row" data-selected={selection === proposedKey(row.row_id) || undefined}>

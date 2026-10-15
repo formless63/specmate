@@ -23,8 +23,8 @@
 .cwb-stage { position: relative; border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-canvas); min-width: 0; }
 .cwb-viewport { overflow: auto; max-height: 72vh; overscroll-behavior: contain; touch-action: pan-x pan-y pinch-zoom; }
 .cwb-viewport > svg { display: block; }
-.cwb-stage-tools { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; z-index: 1; }
-.cwb-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; border-top: 1px solid var(--sb-border-subtle); font-size: 11px; color: var(--sb-text-secondary); }
+.cwb-stage-tools { display: flex; gap: 2px; margin-left: auto; }
+.cwb-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 4px 8px; border-top: 1px solid var(--sb-border-subtle); font-size: 11px; color: var(--sb-text-secondary); }
 .cwb-legend span { display: inline-flex; align-items: center; gap: 4px; }
 .cwb-swatch { display: inline-block; width: 10px; height: 10px; border: 1px solid var(--sb-border-control); }
 .cwb-armed { padding: 4px 8px; border-top: 1px solid var(--sb-accent); color: var(--sb-accent); font-size: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -122,6 +122,7 @@
 .cwb-inspector { border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-panel); min-width: 0; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; }
 @media (max-width: 1099px) { .cwb-inspector { position: static; max-height: none; } }
 .cwb-inspector-body { padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cwb-inspector-body[hidden] { display: none; }
 .cwb-section-title { font-family: var(--sb-font-data); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; color: var(--sb-text-tertiary); margin: 0 0 4px; }
 .cwb-dims { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; align-items: start; font-size: 12px; }
 .cwb-dims .cwb-why { color: var(--sb-text-secondary); font-size: 11.5px; overflow-wrap: anywhere; }

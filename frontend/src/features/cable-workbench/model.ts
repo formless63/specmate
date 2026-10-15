@@ -107,7 +107,7 @@ export function indexCheck(check: IntentCheck | undefined | null): CheckIndex {
 // ---------------------------------------------------------------- layout
 
 export const PITCH = 18;
-export const FACE = 92;
+export const FACE = 112;
 const WIDTHS: Record<LayerKind | "unknown", number> = { shell: 30, connector: 104, board: 160, inline: 96, unknown: 120 };
 const GAP = 30;
 const MARGIN = 14;
