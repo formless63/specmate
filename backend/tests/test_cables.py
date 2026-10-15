@@ -467,3 +467,27 @@ def test_new_reference_authority_precedes_stale_token(users, project):
             {"draft_id": draft["draft_id"], "cable": hidden},
             expected_state="stale",
         )
+
+
+def test_cable_create_from_project_context_adds_only_a_reference(users, project):
+    user = users["owner"]
+    cable = fixture(user, project)[-1]
+    before = op(user, "project.references", {"project_id": project})["references"]
+    created = op(
+        user,
+        "cable.create",
+        {
+            "workspace_id": workspace_of(project),
+            "project_id": project,
+            "name": "Context cable",
+            "cable": cable,
+        },
+    )
+    references = op(user, "project.references", {"project_id": project})["references"]
+    assert len(references) == len(before) + 1
+    assert any(r["target_id"] == created["definition_id"] for r in references)
+    # Without project context nothing is referenced.
+    create(user, project, cable)
+    assert len(op(user, "project.references", {"project_id": project})["references"]) == len(
+        references
+    )

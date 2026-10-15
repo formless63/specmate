@@ -86,7 +86,7 @@ test('a never-frozen cable shows its draft as saved now, with the stock drawn fr
 test('a draft with no stock chosen draws nothing and says unknown', async () => {
   serve({ drafts: [{ draft_id: 'draft-1', state: 'draft-v3' }] });
   show(record('d1', 'Lead'));
-  expect(await screen.findByText(/No cable stock is chosen in this draft/)).toBeTruthy();
+  expect(await screen.findByText(/No stock is chosen in this draft/)).toBeTruthy();
   expect(screen.queryByLabelText('Cable section drawing')).toBeNull();
   expect(document.querySelector('[data-unknown="true"]')).not.toBeNull();
 });

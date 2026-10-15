@@ -106,7 +106,13 @@ def create(ctx: Context, p: CreateCable):
         authorize_content(ctx.user, content)
     return create_definition(
         ctx,
-        CreateDefinition(workspace_id=workspace.id, name=p.name, kind="cable", content=content),
+        CreateDefinition(
+            workspace_id=workspace.id,
+            name=p.name,
+            kind="cable",
+            content=content,
+            project_id=p.project_id,
+        ),
     )
 
 
