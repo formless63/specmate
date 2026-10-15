@@ -57,6 +57,7 @@
     },
     "Endpoint": {
       "additionalProperties": false,
+      "description": "A schema 0.1 cable end (and a harness end): one connector body and pinout.",
       "properties": {
         "body_revision_id": {
           "format": "uuid",

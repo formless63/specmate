@@ -23,6 +23,8 @@ from specmate.interfaces.contracts import (
     Pinout,
     Port,
 )
+from specmate.interfaces.end_assembly_contracts import EndAssembly
+from specmate.interfaces.end_stacks import ResolvedStack, stack_references
 from specmate.interfaces.signal_contracts import SignalSet, role_accepts
 from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 
@@ -57,6 +59,8 @@ def references(value):
         return [value.pinout_revision_id]
     if isinstance(value, Board):
         return board_references(value)
+    if isinstance(value, EndAssembly):
+        return stack_references(value.stack)
     if isinstance(value, ConductorConvention):
         return [
             value.signal_set_revision_id,
@@ -85,7 +89,33 @@ def signal_set_revisions(pinout):
     return list(dict.fromkeys(ref.signal_set_revision_id for _, ref in signal_refs(pinout)))
 
 
-class Closure:
+class Lookup:
+    """Typed signal lookups over loaded ``values`` and ``revisions`` by revision ID."""
+
+    def signal(self, ref):
+        signals = self.values.get(ref.signal_set_revision_id)
+        if not isinstance(signals, SignalSet):
+            raise ValidationFailed("A typed pin signal requires an exact signal set revision.")
+        for signal in signals.signals:
+            if signal.key == ref.key:
+                return signal
+        raise ValidationFailed("The signal is not declared in the pinned signal set.")
+
+    def describe(self, ref):
+        if ref is None:
+            return None
+        signal = self.signal(ref)
+        revision = self.revisions[ref.signal_set_revision_id]
+        return {
+            **ref.model_dump(mode="json"),
+            "name": signal.name,
+            "type": signal.type,
+            "set_name": revision.definition.name,
+            "set_revision_number": revision.number,
+        }
+
+
+class Closure(Lookup):
     def __init__(self, user, content, kind=None, dependencies=()):
         # One membership read per workspace for the whole read-only closure walk.
         with closure_reads():
@@ -172,6 +202,10 @@ class Closure:
             self.validate_port(value)
         if isinstance(value, Board):
             validate_board(self, value)
+        if isinstance(value, EndAssembly):
+            resolved = ResolvedStack(value.stack, self)
+            if value is self.root:
+                self.resolved = resolved
         if isinstance(value, ConductorConvention):
             from specmate.interfaces.conventions import validate_convention
 
@@ -244,28 +278,6 @@ class Closure:
         for pin in port.pins:
             if pin.contact_id not in contacts:
                 raise ValidationFailed("A port pin must identify a contact of the pinned body.")
-
-    def signal(self, ref):
-        signals = self.values.get(ref.signal_set_revision_id)
-        if not isinstance(signals, SignalSet):
-            raise ValidationFailed("A typed pin signal requires an exact signal set revision.")
-        for signal in signals.signals:
-            if signal.key == ref.key:
-                return signal
-        raise ValidationFailed("The signal is not declared in the pinned signal set.")
-
-    def describe(self, ref):
-        if ref is None:
-            return None
-        signal = self.signal(ref)
-        revision = self.revisions[ref.signal_set_revision_id]
-        return {
-            **ref.model_dump(mode="json"),
-            "name": signal.name,
-            "type": signal.type,
-            "set_name": revision.definition.name,
-            "set_revision_number": revision.number,
-        }
 
     def feature_status(self, rid, feature_id):
         value = self.values.get(rid)
@@ -360,6 +372,8 @@ def inspect_revision(user, revision_id):
         result["end"] = end_rows(closure.root, revision, closure)
     if isinstance(closure.root, Board):
         result["board"] = board_view(closure.root, closure)
+    if isinstance(closure.root, EndAssembly):
+        result["end_stack"] = ResolvedStack(closure.root.stack, closure).view()
     if isinstance(closure.root, ConductorConvention):
         from specmate.interfaces.conventions import convention_view
 
@@ -641,3 +655,19 @@ def trace(user, revision_id, contact_id):
             for p in passages
         ],
     }
+
+
+def resolve_end(user, query):
+    """Layers, labelled terminals and joins of one stack or one frozen end assembly."""
+    if query.end_assembly_revision_id is not None:
+        revision, closure = read_revision(user, query.end_assembly_revision_id)
+        if not isinstance(closure.root, EndAssembly):
+            raise ValidationFailed("Revision is not an end assembly.")
+        return {
+            "end_assembly_revision_id": str(revision.id),
+            "name": f"{revision.definition.name} r{revision.number}",
+            **ResolvedStack(closure.root.stack, closure).view(),
+        }
+    root = EndAssembly(stack=query.stack)
+    closure = Closure(user, {"interface": root.model_dump(mode="json")})
+    return {"end_assembly_revision_id": None, "name": None, **closure.resolved.view()}

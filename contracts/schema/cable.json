@@ -64,6 +64,110 @@
       "title": "Allowance",
       "type": "object"
     },
+    "BoardLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "board_revision_id": {
+          "format": "uuid",
+          "title": "Board Revision Id",
+          "type": "string"
+        },
+        "carried_connector_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carried Connector Id"
+        },
+        "kind": {
+          "const": "board",
+          "default": "board",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer_id",
+        "board_revision_id"
+      ],
+      "title": "BoardLayer",
+      "type": "object"
+    },
+    "CableEnd": {
+      "additionalProperties": false,
+      "description": "One cable end: a pinned end assembly or an ad-hoc stack, and the stock end it uses.",
+      "properties": {
+        "end_assembly_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Assembly Revision Id"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "local_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        },
+        "stack": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndStack"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stock_end": {
+          "default": "unknown",
+          "enum": [
+            "a",
+            "b",
+            "unknown"
+          ],
+          "title": "Stock End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id"
+      ],
+      "title": "CableEnd",
+      "type": "object"
+    },
     "ConductorLength": {
       "additionalProperties": false,
       "properties": {
@@ -94,13 +198,215 @@
       "title": "ConductorLength",
       "type": "object"
     },
-    "Endpoint": {
+    "ConnectorLayer": {
       "additionalProperties": false,
       "properties": {
         "body_revision_id": {
           "format": "uuid",
           "title": "Body Revision Id",
           "type": "string"
+        },
+        "kind": {
+          "const": "connector",
+          "default": "connector",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "pinout_revision_id": {
+          "format": "uuid",
+          "title": "Pinout Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer_id",
+        "body_revision_id",
+        "pinout_revision_id"
+      ],
+      "title": "ConnectorLayer",
+      "type": "object"
+    },
+    "EndStack": {
+      "additionalProperties": false,
+      "properties": {
+        "joins": {
+          "items": {
+            "$ref": "#/$defs/Join"
+          },
+          "maxItems": 500,
+          "title": "Joins",
+          "type": "array"
+        },
+        "layers": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "board": "#/$defs/BoardLayer",
+                "connector": "#/$defs/ConnectorLayer",
+                "inline": "#/$defs/InlineLayer",
+                "shell": "#/$defs/ShellLayer"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ConnectorLayer"
+              },
+              {
+                "$ref": "#/$defs/BoardLayer"
+              },
+              {
+                "$ref": "#/$defs/InlineLayer"
+              },
+              {
+                "$ref": "#/$defs/ShellLayer"
+              }
+            ]
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Layers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layers"
+      ],
+      "title": "EndStack",
+      "type": "object"
+    },
+    "InlineComponent": {
+      "additionalProperties": false,
+      "description": "A part on a signal path: its kind, the value as written and exact parameters.\n\nThe written value (\"470 R\", \"220u\") is kept as typed text. Exact parameters are\nstated separately; when both are present they must agree, nothing is guessed.",
+      "properties": {
+        "capacitance_f": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacitance F"
+        },
+        "kind": {
+          "default": "unknown",
+          "enum": [
+            "resistor",
+            "capacitor",
+            "diode",
+            "inductor",
+            "transformer",
+            "active",
+            "unknown"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference"
+        },
+        "resistance_ohm": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "ge": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resistance Ohm"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "title": "InlineComponent",
+      "type": "object"
+    },
+    "InlineLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "inline",
+          "default": "inline",
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/InlinePart"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Parts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer_id",
+        "parts"
+      ],
+      "title": "InlineLayer",
+      "type": "object"
+    },
+    "InlinePart": {
+      "additionalProperties": false,
+      "description": "One hand-soldered part with two terminals, ``<local_id>.1`` and ``<local_id>.2``.",
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/InlineComponent"
         },
         "label": {
           "anyOf": [
@@ -117,22 +423,59 @@
           "title": "Label"
         },
         "local_id": {
-          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
           "title": "Local Id",
-          "type": "string"
-        },
-        "pinout_revision_id": {
-          "format": "uuid",
-          "title": "Pinout Revision Id",
           "type": "string"
         }
       },
       "required": [
         "local_id",
-        "body_revision_id",
-        "pinout_revision_id"
+        "component"
       ],
-      "title": "Endpoint",
+      "title": "InlinePart",
+      "type": "object"
+    },
+    "Join": {
+      "additionalProperties": false,
+      "description": "A declared connection between terminals of two different layers.",
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/StackTerminal"
+        },
+        "b": {
+          "$ref": "#/$defs/StackTerminal"
+        },
+        "basis": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "solder",
+            "crimp",
+            "mated",
+            "integrated",
+            "bond"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Local Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_id",
+        "a",
+        "b",
+        "kind",
+        "basis"
+      ],
+      "title": "Join",
       "type": "object"
     },
     "LengthDeclaration": {
@@ -275,20 +618,85 @@
       "title": "PreparedLength",
       "type": "object"
     },
-    "Termination": {
+    "ShellLayer": {
       "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "shell",
+          "default": "shell",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "part_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Part Revision Id"
+        }
+      },
+      "required": [
+        "layer_id"
+      ],
+      "title": "ShellLayer",
+      "type": "object"
+    },
+    "StackTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "terminal_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer_id",
+        "terminal_id"
+      ],
+      "title": "StackTerminal",
+      "type": "object"
+    },
+    "StackTermination": {
+      "additionalProperties": false,
+      "description": "A conductive stock element landed on one terminal of one layer of an end's stack.",
       "properties": {
         "basis": {
           "maxLength": 200,
           "minLength": 1,
           "title": "Basis",
-          "type": "string"
-        },
-        "contact_id": {
-          "maxLength": 100,
-          "minLength": 1,
-          "pattern": "^\\S+$",
-          "title": "Contact Id",
           "type": "string"
         },
         "element_path": {
@@ -302,15 +710,28 @@
           "pattern": "^[a-z][a-z0-9_-]{0,79}$",
           "title": "Endpoint Id",
           "type": "string"
+        },
+        "layer_id": {
+          "pattern": "^[a-z][a-z0-9_-]{0,79}$",
+          "title": "Layer Id",
+          "type": "string"
+        },
+        "terminal_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "title": "Terminal Id",
+          "type": "string"
         }
       },
       "required": [
         "endpoint_id",
         "element_path",
-        "contact_id",
+        "layer_id",
+        "terminal_id",
         "basis"
       ],
-      "title": "Termination",
+      "title": "StackTermination",
       "type": "object"
     }
   },
@@ -318,7 +739,7 @@
   "properties": {
     "assignments": {
       "items": {
-        "$ref": "#/$defs/Termination"
+        "$ref": "#/$defs/StackTermination"
       },
       "maxItems": 2048,
       "title": "Assignments",
@@ -326,7 +747,7 @@
     },
     "endpoints": {
       "items": {
-        "$ref": "#/$defs/Endpoint"
+        "$ref": "#/$defs/CableEnd"
       },
       "maxItems": 2,
       "minItems": 2,
@@ -368,8 +789,8 @@
       "title": "Review Basis"
     },
     "schema_version": {
-      "const": "0.1",
-      "default": "0.1",
+      "const": "0.2",
+      "default": "0.2",
       "title": "Schema Version",
       "type": "string"
     },

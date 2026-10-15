@@ -39,6 +39,15 @@ class CarriedContactTerminal(StrictModel):
     contact_id: str
 
 
+class StackTerminal(StrictModel):
+    """A board pad, inline part lead or shell body in one cable end's stack."""
+
+    kind: Literal["stack_terminal"] = "stack_terminal"
+    endpoint_id: str
+    layer_id: str
+    terminal_id: str
+
+
 Terminal = Annotated[
     SegmentTerminal
     | EndpointTerminal
@@ -46,7 +55,8 @@ Terminal = Annotated[
     | ContactTerminal
     | PadTerminal
     | BoardTerminal
-    | CarriedContactTerminal,
+    | CarriedContactTerminal
+    | StackTerminal,
     Field(discriminator="kind"),
 ]
 
@@ -71,7 +81,14 @@ class Node(StrictModel):
 class Edge(StrictModel):
     id: str
     kind: Literal[
-        "wire", "termination", "splice", "shield_bond", "through", "native_net", "board_copper"
+        "wire",
+        "termination",
+        "splice",
+        "shield_bond",
+        "through",
+        "native_net",
+        "board_copper",
+        "join",
     ]
     evidence: Literal["declared_copper", "reported_net_membership"]
     members: list[str] = Field(min_length=2, max_length=20000)

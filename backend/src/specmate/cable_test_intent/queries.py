@@ -66,7 +66,9 @@ def target(user, p, *, validate=True):
 def terminals(cable):
     rows = []
     for endpoint in cable["endpoints"]:
-        for contact in endpoint["body"]["contacts"]:
+        # Test terminals are connector contacts and stock features; an end without a
+        # connector layer offers only its stock features (board pads are not test points).
+        for contact in (endpoint["body"] or {}).get("contacts", []):
             if contact["physical_role"] == "key":
                 continue
             rows.append(

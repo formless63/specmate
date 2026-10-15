@@ -125,7 +125,7 @@ class Builder:
     def cable(self, revision, path, content):
         closure = CableClosure(self.user, content, revision.definition.kind)
         value = closure.cable
-        conductors, contacts = {}, {}
+        conductors = {}
         for element_path, element in closure.elements.items():
             members = []
             for endpoint in value.endpoints:
@@ -152,23 +152,9 @@ class Builder:
                 members,
                 "Same conductive feature between the two declared cable ends.",
             )
-        for endpoint, connector, _pinout in closure.endpoints.values():
-            for contact in connector.contacts:
-                if contact.physical_role == "key":
-                    continue
-                contacts[endpoint.local_id, contact.contact_id] = self.node(
-                    revision,
-                    path,
-                    {
-                        "kind": "endpoint",
-                        "endpoint_id": endpoint.local_id,
-                        "contact_id": contact.contact_id,
-                    },
-                    f"{endpoint.local_id} / {contact.contact_id}",
-                    contact.physical_role,
-                    body_revision_id=str(endpoint.body_revision_id),
-                    pinout_revision_id=str(endpoint.pinout_revision_id),
-                )
+        terminals = {}
+        for endpoint, resolved in closure.endpoints.values():
+            self.end_stack(revision, path, endpoint, resolved, terminals)
         for assignment in value.assignments:
             self.record(
                 revision,
@@ -177,10 +163,138 @@ class Builder:
                 "termination",
                 [
                     conductors[assignment.endpoint_id, assignment.element_path],
-                    contacts[assignment.endpoint_id, assignment.contact_id],
+                    terminals[assignment.endpoint_id, assignment.layer_id, assignment.terminal_id],
                 ],
                 assignment.basis,
             )
+
+    def end_stack(self, revision, path, endpoint, resolved, terminals):
+        """One cable end's stack: connector contacts, board pads, inline leads, shell body.
+
+        Declared joins, straight board copper and a reviewed carried-connector landing join
+        copper; an unreviewed landing is an unknown boundary. Inline parts and component or
+        switch board paths never merge copper; they are not-evaluated boundaries. A shell is
+        joined only by a declared bond or termination.
+        """
+        connector = resolved.connector
+        for layer in resolved.layers:
+            for terminal in layer["terminals"]:
+                if layer["kind"] == "connector":
+                    shape = {
+                        "kind": "endpoint",
+                        "endpoint_id": endpoint.local_id,
+                        "contact_id": terminal["terminal_id"],
+                    }
+                    extra = {
+                        "body_revision_id": str(connector[0].body_revision_id),
+                        "pinout_revision_id": str(connector[0].pinout_revision_id),
+                    }
+                    label = f"{endpoint.local_id} / {terminal['terminal_id']}"
+                else:
+                    shape = {
+                        "kind": "stack_terminal",
+                        "endpoint_id": endpoint.local_id,
+                        "layer_id": layer["layer_id"],
+                        "terminal_id": terminal["terminal_id"],
+                    }
+                    extra = {"layer_kind": layer["kind"]}
+                    label = f"{endpoint.local_id} / {layer['layer_id']} / {terminal['label']}"
+                if endpoint.end_assembly_revision_id:
+                    extra["end_assembly_revision_id"] = str(endpoint.end_assembly_revision_id)
+                terminals[endpoint.local_id, layer["layer_id"], terminal["terminal_id"]] = (
+                    self.node(
+                        revision,
+                        path,
+                        shape,
+                        label,
+                        terminal["kind"],
+                        **extra,
+                    )
+                )
+
+        def key(end):
+            return terminals[endpoint.local_id, end["layer_id"], end["terminal_id"]]
+
+        for join in resolved.joins:
+            members = [key(join["a"]), key(join["b"])]
+            local = [endpoint.local_id, "join", join["local_id"]]
+            if join["status"] == "unknown":
+                self.record(
+                    revision,
+                    path,
+                    local,
+                    "carried_connector_correspondence",
+                    members,
+                    "Unreviewed board terminal/contact correspondence is unknown.",
+                    boundary="unknown",
+                    declaration=join,
+                )
+            else:
+                self.record(
+                    revision,
+                    path,
+                    local,
+                    "shield_bond" if join["kind"] == "bond" else "join",
+                    members,
+                    join["basis"],
+                    declaration=join,
+                )
+        if resolved.board:
+            layer, board = resolved.board
+            for board_path in board.paths:
+                members = [
+                    terminals[endpoint.local_id, layer.layer_id, board_path.from_terminal],
+                    terminals[endpoint.local_id, layer.layer_id, board_path.to_terminal],
+                ]
+                local = [endpoint.local_id, layer.layer_id, board_path.local_id]
+                declaration = board_path.model_dump(mode="json")
+                if board_path.via == "copper":
+                    self.record(
+                        revision,
+                        path,
+                        local,
+                        "board_copper",
+                        members,
+                        board_path.basis,
+                        evidence="reported_net_membership"
+                        if board_path.provenance == "reported_net_membership"
+                        else "declared_copper",
+                        declaration=declaration,
+                        board_revision_id=str(layer.board_revision_id),
+                    )
+                else:
+                    self.record(
+                        revision,
+                        path,
+                        local,
+                        board_path.component.kind
+                        if board_path.component
+                        else "conditional"
+                        if board_path.switch
+                        else "unknown_path",
+                        members,
+                        board_path.basis,
+                        boundary="unknown" if board_path.via == "unknown" else "not_evaluated",
+                        declaration=declaration,
+                        board_revision_id=str(layer.board_revision_id),
+                    )
+        for layer in resolved.stack.layers:
+            if layer.kind != "inline":
+                continue
+            for part in layer.parts:
+                self.record(
+                    revision,
+                    path,
+                    [endpoint.local_id, layer.layer_id, part.local_id],
+                    part.component.kind,
+                    [
+                        terminals[endpoint.local_id, layer.layer_id, f"{part.local_id}.1"],
+                        terminals[endpoint.local_id, layer.layer_id, f"{part.local_id}.2"],
+                    ],
+                    "An inline part separates copper; its behaviour is not evaluated here.",
+                    boundary="not_evaluated",
+                    declaration=part.model_dump(mode="json"),
+                )
 
     def harness(self, revision, path, content):
         closure = HarnessClosure(self.user, content, revision.definition.kind)

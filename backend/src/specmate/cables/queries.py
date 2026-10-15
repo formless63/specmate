@@ -12,7 +12,9 @@ from specmate.design.closure_reads import closure_reads
 from specmate.design.models import Revision, SnapshotDependency
 from specmate.design.operations import authorize_snapshots
 from specmate.design.pins import check_pin
-from specmate.interfaces.contracts import ConnectorBody, Pinout
+from specmate.interfaces.end_assembly_contracts import EndAssembly
+from specmate.interfaces.end_stacks import ResolvedStack, stack_references
+from specmate.interfaces.queries import Lookup
 from specmate.interfaces.queries import parse_content as parse_interface
 from specmate.operations import NotFound, ValidationFailed
 from specmate.wire_stock.schemas import StockSpecification
@@ -45,9 +47,15 @@ def parse_content(content, kind=None):
     if kind is not None and kind != "cable":
         raise ValidationFailed("Cable content requires a cable definition.")
     try:
+        # Frozen schema 0.1 content stays readable; it is upgraded in memory, never rewritten.
         return Cable.model_validate(content["cable"])
     except ValidationError:
         raise ValidationFailed("Invalid cable content.") from None
+
+
+def stored_schema_version(content):
+    raw = content.get("cable")
+    return raw.get("schema_version", "0.1") if isinstance(raw, dict) else None
 
 
 def validate_content(kind, content):
@@ -63,7 +71,13 @@ def conductive_elements(node, prefix=""):
         yield from conductive_elements(child, path)
 
 
-class Closure:
+def end_references(endpoint):
+    if endpoint.end_assembly_revision_id is not None:
+        return [endpoint.end_assembly_revision_id]
+    return stack_references(endpoint.stack)
+
+
+class Closure(Lookup):
     def __init__(self, user, content, kind=None, dependencies=(), *, authority_only=False):
         # One membership read per workspace for the whole read-only closure walk.
         with closure_reads():
@@ -76,8 +90,7 @@ class Closure:
             return
         pending = [
             self.cable.stock_revision_id,
-            *(e.body_revision_id for e in self.cable.endpoints),
-            *(e.pinout_revision_id for e in self.cable.endpoints),
+            *(rid for e in self.cable.endpoints for rid in end_references(e)),
             *dependencies,
         ]
         pin_scope = None
@@ -129,32 +142,49 @@ class Closure:
                         raise ValidationFailed(
                             "Length allowance endpoint is absent from this cable."
                         )
+        self.values = {}
+        for rid, revision in self.revisions.items():
+            body = json.loads(bytes(revision.snapshot.canonical))["content"]
+            if "interface" in body:
+                self.values[rid] = parse_interface(body, revision.definition.kind)
         self.endpoints = {}
         for endpoint in self.cable.endpoints:
-            body_revision = self.revisions[endpoint.body_revision_id]
-            pinout_revision = self.revisions[endpoint.pinout_revision_id]
-            body = parse_interface(
-                json.loads(bytes(body_revision.snapshot.canonical))["content"],
-                body_revision.definition.kind,
-            )
-            pinout = parse_interface(
-                json.loads(bytes(pinout_revision.snapshot.canonical))["content"],
-                pinout_revision.definition.kind,
-            )
-            if not isinstance(body, ConnectorBody) or not isinstance(pinout, Pinout):
-                raise ValidationFailed("Cable endpoints require exact body and pinout revisions.")
-            if pinout.body_revision_id != endpoint.body_revision_id:
-                raise ValidationFailed("Endpoint body must match the pinout's exact body revision.")
-            self.endpoints[endpoint.local_id] = (endpoint, body, pinout)
+            stack = endpoint.stack
+            if endpoint.end_assembly_revision_id is not None:
+                assembly = self.values.get(endpoint.end_assembly_revision_id)
+                if not isinstance(assembly, EndAssembly):
+                    raise ValidationFailed("A cable end pins an exact end assembly revision.")
+                stack = assembly.stack
+            self.endpoints[endpoint.local_id] = (endpoint, ResolvedStack(stack, self))
         for assignment in self.cable.assignments:
             endpoint = self.endpoints.get(assignment.endpoint_id)
             if endpoint is None:
                 raise ValidationFailed("Termination endpoint is absent from this cable.")
             if assignment.element_path not in self.elements:
                 raise ValidationFailed("Termination must identify a conductive stock element.")
-            contacts = {c.contact_id for c in endpoint[1].contacts if c.physical_role != "key"}
-            if assignment.contact_id not in contacts:
-                raise ValidationFailed("Termination must identify a physical contact or shell.")
+            endpoint[1].require(assignment.layer_id, assignment.terminal_id, "A termination")
+
+    def connector(self, endpoint_id):
+        """The end's connector layer (layer, body, pinout), or None without one."""
+        return self.endpoints[endpoint_id][1].connector
+
+    def termination(self, assignment):
+        """A termination with its layer kind, terminal label and reached connector contacts."""
+        resolved = self.endpoints[assignment.endpoint_id][1]
+        layer = resolved.layer(assignment.layer_id)
+        terminal = resolved.terminals[assignment.layer_id, assignment.terminal_id]
+        direct = layer.kind == "connector"
+        return {
+            **assignment.model_dump(mode="json"),
+            "layer_kind": layer.kind,
+            "terminal_label": terminal["label"],
+            # The connector contact when landed directly on one; else null (see "reaches").
+            "contact_id": assignment.terminal_id if direct else None,
+            "signal": terminal.get("signal") if direct else None,
+            "reaches": []
+            if direct
+            else resolved.reaches(assignment.layer_id, assignment.terminal_id),
+        }
 
 
 def authorize_content(user, content, *, authority_only=False):
@@ -180,14 +210,40 @@ def inspect_revision(user, revision_id):
     )
     if closure.cable is None:
         raise ValidationFailed("Revision is not a cable.")
-    assignments = {(a.element_path, a.endpoint_id): a for a in closure.cable.assignments}
+    terminations = [closure.termination(a) for a in closure.cable.assignments]
+    assignments = {(t["element_path"], t["endpoint_id"]): t for t in terminations}
+    endpoints = []
+    for endpoint, resolved in closure.endpoints.values():
+        connector = resolved.connector
+        assembly = (
+            closure.revisions[endpoint.end_assembly_revision_id]
+            if endpoint.end_assembly_revision_id
+            else None
+        )
+        endpoints.append(
+            {
+                **endpoint.model_dump(mode="json"),
+                "end_assembly_name": assembly.definition.name if assembly else None,
+                "end_assembly_revision_number": assembly.number if assembly else None,
+                "resolved_stack": resolved.view(),
+                # The connector layer, read as a 0.1 endpoint by connector-only consumers.
+                "body_revision_id": str(connector[0].body_revision_id) if connector else None,
+                "pinout_revision_id": str(connector[0].pinout_revision_id) if connector else None,
+                "body": connector[1].model_dump(mode="json") if connector else None,
+                "pinout": connector[2].model_dump(mode="json") if connector else None,
+            }
+        )
     return {
         "definition_id": str(revision.definition_id),
         "lengths": closure.lengths,
         "revision_id": str(revision.id),
         "snapshot_id": str(revision.snapshot_id),
         "sha256": revision.snapshot.sha256,
+        "stored_schema_version": stored_schema_version(
+            json.loads(bytes(revision.snapshot.canonical))["content"]
+        ),
         "cable": closure.cable.model_dump(mode="json"),
+        "terminations": terminations,
         "conductors": [
             {
                 "element_path": path,
@@ -197,25 +253,14 @@ def inspect_revision(user, revision_id):
                 "ends": [
                     {
                         "endpoint_id": endpoint.local_id,
-                        "assignment": (
-                            assignments[path, endpoint.local_id].model_dump(mode="json")
-                            if (path, endpoint.local_id) in assignments
-                            else None
-                        ),
+                        "assignment": assignments.get((path, endpoint.local_id)),
                     }
                     for endpoint in closure.cable.endpoints
                 ],
             }
             for path, element in closure.elements.items()
         ],
-        "endpoints": [
-            {
-                **endpoint.model_dump(mode="json"),
-                "body": body.model_dump(mode="json"),
-                "pinout": pinout.model_dump(mode="json"),
-            }
-            for endpoint, body, pinout in closure.endpoints.values()
-        ],
+        "endpoints": endpoints,
         "continuity": "not_evaluated",
         "compatibility": "not_evaluated",
         "physical_qualification": "not_evaluated",
@@ -291,9 +336,10 @@ def _section_changes(before, after):
         if a is None or b is None:
             connectors.append({"endpoint_id": local_id, "before": a, "after": b})
             continue
-        if (a["body_revision_id"], a["pinout_revision_id"]) != (
-            b["body_revision_id"],
-            b["pinout_revision_id"],
+        if (a["end_assembly_revision_id"], a["stack"], a["stock_end"]) != (
+            b["end_assembly_revision_id"],
+            b["stack"],
+            b["stock_end"],
         ):
             connectors.append({"endpoint_id": local_id, "before": a, "after": b})
         if a.get("label") != b.get("label"):
@@ -304,24 +350,28 @@ def _section_changes(before, after):
         add(
             "connectors",
             {_PREPARATION, _DOCUMENTS},
-            "Endpoint connector body or pinout changed; end preparation profiles bound to "
-            "these ends must be re-applied.",
+            "End stack (end assembly, board, inline parts, connector, pinout or shell) or "
+            "stock end changed; end preparation profiles bound to these ends must be "
+            "re-applied.",
             connectors,
         )
 
     def termination_key(row):
         return (row["element_path"], row["endpoint_id"])
 
-    old_terms = _keyed(old["assignments"], termination_key)
-    new_terms = _keyed(new["assignments"], termination_key)
+    old_terms = _keyed(before["terminations"], termination_key)
+    new_terms = _keyed(after["terminations"], termination_key)
     terminations = []
     for key in sorted(old_terms.keys() | new_terms.keys()):
         a, b = old_terms.get(key), new_terms.get(key)
-        if a != b:
+        declared = ("layer_id", "terminal_id", "basis")
+        if a is None or b is None or any(a[f] != b[f] for f in declared):
             terminations.append(
                 {
                     "element_path": key[0],
                     "endpoint_id": key[1],
+                    "before_target": a and f"{a['layer_id']} / {a['terminal_label']}",
+                    "after_target": b and f"{b['layer_id']} / {b['terminal_label']}",
                     "before_contact_id": a and a["contact_id"],
                     "after_contact_id": b and b["contact_id"],
                     "before_basis": a and a["basis"],
@@ -332,7 +382,7 @@ def _section_changes(before, after):
         add(
             "terminations",
             {_PREPARATION, _DOCUMENTS},
-            "Conductor-to-contact terminations changed; terminations, schematic, build sheet, "
+            "Conductor terminations changed; terminations, schematic, build sheet, "
             "test intent and end preparation must be re-reviewed.",
             terminations,
         )

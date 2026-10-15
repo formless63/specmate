@@ -16,10 +16,18 @@ function wrap(children: React.ReactNode, cache = new QueryClient({ defaultOption
 const body = { kind: 'connector_body', family: null, mating_role: 'unknown', drawing_orientation: unknownOrientation(), contacts: ['one', 'two', 'key'].map(contact_id => ({ contact_id, physical_role: contact_id === 'key' ? 'key' : 'contact', label: '', position_mm: null })) };
 const pinout = { kind: 'pinout', body_revision_id: 'body-rev', assignments: [{ contact_id: 'one', electrical: unknownElectrical() }], review: 'unreviewed', review_basis: null, orientation: unknownOrientation() };
 const stock = { structure: { id: 'stock', kind: 'group', children: [{ id: 'core', kind: 'conductor', label: 'Core' }, { id: 'screen', kind: 'shield', label: 'Screen' }, { id: 'jacket', kind: 'jacket', label: 'Jacket' }] } };
+// What the server resolves for a one-connector stack on the synthetic body.
+const resolvedStack = () => ({ layers: [{ layer_id: 'connector', kind: 'connector', name: 'Synthetic body r1', variant_label: null, terminals: ['one', 'two'].map(id => ({ terminal_id: id, label: id, kind: 'contact', signal: null, signal_status: 'unknown', reaches: [] })) }],
+  joins: [], connector_layer_id: 'connector', body_revision_id: 'body-rev', pinout_revision_id: 'pinout-rev', evaluation: [], continuity: 'not_evaluated' });
+const isResolve = (url: string) => url.includes('end-stacks/resolve');
+function connectorEnds(cable: Cable) {
+  cable.endpoints.forEach(e => { e.stack = { layers: [{ kind: 'connector', layer_id: 'connector', body_revision_id: 'body-rev', pinout_revision_id: 'pinout-rev' }], joins: [] }; });
+}
+const land = (endpoint_id: string, element_path: string, terminal_id: string, basis: string) => ({ endpoint_id, element_path, layer_id: 'connector', terminal_id, basis });
 function inspected(cable: Cable) {
   return { revision_id: 'cable-rev', cable, continuity: 'not_evaluated', compatibility: 'not_evaluated', physical_qualification: 'not_evaluated',
     conductors: ['core', 'screen'].map(id => ({ element_path: `stock.${id}`, kind: id === 'core' ? 'conductor' : 'shield', ends: cable.endpoints.map(e => ({ endpoint_id: e.local_id, assignment: cable.assignments.find(a => a.element_path === `stock.${id}` && a.endpoint_id === e.local_id) ?? null })) })),
-    endpoints: cable.endpoints.map(e => ({ ...e, body, pinout })) };
+    endpoints: cable.endpoints.map(e => ({ ...e, body, pinout, body_revision_id: 'body-rev', pinout_revision_id: 'pinout-rev' })) };
 }
 async function paste(label: string, value: string) {
   fireEvent.click(screen.getByRole('button', { name: `Advanced: paste exact revision ID for ${label}` }));
@@ -41,7 +49,8 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   const draft = () => ({ definition_id: 'cable', draft_id: 'draft', state, content: { cable } });
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     let data: unknown;
-    if (options?.method === 'POST') {
+    if (isResolve(url)) data = resolvedStack();
+    else if (options?.method === 'POST') {
       const cmd = JSON.parse(String(options.body)); commands.push(cmd);
       if (cmd.payload.cable) cable = cmd.payload.cable;
       if (cmd.operation === 'cable.update') state = 'draft-v2';
@@ -62,7 +71,7 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
     await paste(`Endpoint ${index} body`, 'body-rev');
     await paste(`Endpoint ${index} pinout`, 'pinout-rev');
     fireEvent.change(await screen.findByLabelText(`Endpoint ${index} stock.core termination basis`), { target: { value: 'Synthetic table' } });
-    await select(`Endpoint ${index} stock.core contact`, `${index === 1 ? 'one' : 'two'} (contact)`);
+    await select(`Endpoint ${index} stock.core target`, index === 1 ? 'one' : 'two');
   }
   fireEvent.click(screen.getByLabelText('Record independent cable lengths'));
   fireEvent.change(screen.getByLabelText('Route declared mm'), { target: { value: '1000.000001' } });
@@ -77,7 +86,7 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   await screen.findByText('draft-v2');
   fireEvent.click(screen.getByText('Freeze cable revision'));
   await screen.findAllByText('cable-rev', { selector: 'code' });
-  expect(commands[0]).toMatchObject({ operation: 'cable.create', payload: { project_id: 'project', cable: { stock_revision_id: 'stock-rev', assignments: [{ endpoint_id: 'a', element_path: 'stock.core', contact_id: 'one' }, { endpoint_id: 'b', element_path: 'stock.core', contact_id: 'two' }] } } });
+  expect(commands[0]).toMatchObject({ operation: 'cable.create', payload: { project_id: 'project', cable: { stock_revision_id: 'stock-rev', assignments: [{ endpoint_id: 'a', element_path: 'stock.core', layer_id: 'connector', terminal_id: 'one' }, { endpoint_id: 'b', element_path: 'stock.core', layer_id: 'connector', terminal_id: 'two' }] } } });
   expect(commands[1]).toMatchObject({ operation: 'cable.update', expected_state: 'draft-v1', payload: { cable: { lengths: { route: { amount_mm: '1100.000001' } } } } });
   expect(commands[2]).toMatchObject({ operation: 'cable.freeze', expected_state: 'draft-v2' });
   expect(await screen.findByText('stock.core · conductor')).toBeTruthy();
@@ -92,29 +101,31 @@ test('inaccessible frozen cable reveals no assignments or pins', async () => {
   expect(screen.queryByRole('table')).toBeNull();
 });
 
-test('mismatched exact body pin blocks adding a terminal and keys are excluded', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('interfaces/revisions/body') ? { interface: body } : url.includes('interfaces/revisions/pinout') ? { interface: { ...pinout, body_revision_id: 'different-body' } } : url.includes('/snapshot') ? { content: { stock } } : []), { status: 200 })));
+test('a stack the server rejects (pinout of another body) blocks choosing any terminal', async () => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => isResolve(url)
+    ? new Response(JSON.stringify({ error: { code: 'validation_failed', message: "A connector layer's pinout must pin its exact body revision." } }), { status: 422 })
+    : new Response(JSON.stringify(url.includes('interfaces/revisions/body') ? { interface: body } : url.includes('/snapshot') ? { content: { stock } } : []), { status: 200 })));
   render(wrap(<CablePanel projectId="project" />));
   await paste('Stock', 'stock-rev');
   await paste('Endpoint 1 body', 'body-rev');
   await paste('Endpoint 1 pinout', 'pinout-rev');
-  expect(await screen.findByText('The pinout must reference this exact body revision.')).toBeTruthy();
-  const contact = await screen.findByRole('combobox', { name: 'Endpoint 1 stock.core contact' });
-  // A pinout for a different body blocks choosing any contact.
+  expect(await screen.findByText("A connector layer's pinout must pin its exact body revision.")).toBeTruthy();
+  const contact = await screen.findByRole('combobox', { name: 'Endpoint 1 stock.core target' });
+  // An unresolvable stack offers no terminal to land on.
   expect((contact as HTMLInputElement).disabled).toBe(true);
 });
 
 async function openRetainedDraft(permissions?: string[]) {
   const cable = initialCable();
   cable.stock_revision_id = 'stock-rev';
-  cable.endpoints.forEach(e => { e.body_revision_id = 'body-rev'; e.pinout_revision_id = 'pinout-rev'; });
+  connectorEnds(cable);
   cable.lengths = { route: { amount_mm: '1234', basis: 'human_declaration', explanation: 'Private route basis' }, finished: { declaration: { amount_mm: null, basis: 'unknown', explanation: null }, model: null }, stock_cut: { declaration: { amount_mm: null, basis: 'unknown', explanation: null }, model: null }, conductor_cuts: [] };
-  cable.assignments = [{ endpoint_id: 'a', element_path: 'stock.core', contact_id: 'one', basis: 'Private assignment basis' }];
+  cable.assignments = [land('a', 'stock.core', 'one', 'Private assignment basis')];
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let deniedPath = '';
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (deniedPath && url.includes(deniedPath)) return new Response(JSON.stringify({ error: { message: 'Current access denied.' } }), { status: 404 });
-    const data = url.includes('cables/drafts') ? { definition_id: 'cable', draft_id: 'draft', state: 'draft-v1', content: { cable } }
+    const data = isResolve(url) ? resolvedStack() : url.includes('cables/drafts') ? { definition_id: 'cable', draft_id: 'draft', state: 'draft-v1', content: { cable } }
       : url.includes('catalog/definitions') ? { drafts: [{ draft_id: 'draft', state: 'draft-v1' }], revisions: [{ revision_id: 'private-rev', number: 1 }] }
       : url.includes('interfaces/revisions/body-rev') ? { interface: body }
       : url.includes('interfaces/revisions/pinout-rev') ? { interface: pinout }
@@ -128,7 +139,7 @@ async function openRetainedDraft(permissions?: string[]) {
   await screen.findByDisplayValue('Private assignment basis');
   const heading = screen.getByText('Edit draft');
   const editor = within(heading.closest('.mantine-Card-root')! as HTMLElement);
-  await waitFor(() => expect(cache.getQueryData(['cable-pinout', 'pinout-rev'])).toBeTruthy());
+  await waitFor(() => expect(cache.getQueriesData({ queryKey: ['cable-end-resolve'] }).some(([, data]) => !!data)).toBe(true));
   return { cache, editor, deny: (path: string) => { deniedPath = path; } };
 }
 
@@ -158,15 +169,15 @@ test.each([
 test.each([
   ['stock', '/snapshot', ['cable-stock', 'stock-rev']],
   ['body', 'interfaces/revisions/body-rev', ['cable-body', 'body-rev']],
-  ['pinout', 'interfaces/revisions/pinout-rev', ['cable-pinout', 'pinout-rev']],
+  ['end stack', 'end-stacks/resolve', ['cable-end-resolve']],
 ])('%s denial after successful read removes assignments and cached source choices', async (_name, path, key) => {
   const { cache, editor, deny } = await openRetainedDraft();
   fireEvent.change(editor.getByLabelText('Endpoint 1 stock.screen termination basis'), { target: { value: 'New declaration' } });
-  const contact = editor.getByRole('combobox', { name: 'Endpoint 1 stock.screen contact' });
+  const contact = editor.getByRole('combobox', { name: 'Endpoint 1 stock.screen target' });
   fireEvent.focus(contact); fireEvent.keyDown(contact, { key: 'ArrowDown' });
-  expect(screen.queryByRole('option', { name: 'key (key)' })).toBeNull();
-  fireEvent.click(await within(screen.getAllByRole('listbox', { name: 'Endpoint 1 stock.screen contact', hidden: true }).at(-1)!).findByText('two (contact)'));
-  expect((contact as HTMLInputElement).value).toBe('two (contact)');
+  expect(screen.queryByRole('option', { name: 'key' })).toBeNull();
+  fireEvent.click(await within(screen.getAllByRole('listbox', { name: 'Endpoint 1 stock.screen target', hidden: true }).at(-1)!).findByText('two'));
+  expect((contact as HTMLInputElement).value).toBe('two');
   expect(editor.getByDisplayValue('New declaration')).toBeTruthy();
   deny(path);
   await act(async () => { await cache.refetchQueries({ queryKey: key }); });
@@ -174,10 +185,10 @@ test.each([
   expect(screen.queryByDisplayValue('Private assignment basis')).toBeNull();
   expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
   // The termination rows and their retained choices are withdrawn with the denied source.
-  expect(screen.queryByRole('combobox', { name: 'Endpoint 1 stock.screen contact' })).toBeNull();
+  expect(screen.queryByRole('combobox', { name: 'Endpoint 1 stock.screen target' })).toBeNull();
   expect(screen.queryByDisplayValue('New declaration')).toBeNull();
   for (const name of ['Save cable draft', 'Freeze cable revision']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.queryByRole('combobox', { name: 'Endpoint 1 stock.screen contact' })).toBeNull();
+  expect(screen.queryByRole('combobox', { name: 'Endpoint 1 stock.screen target' })).toBeNull();
 });
 
 test('a denied reference identity refresh clears its retained revision choices', async () => {
@@ -207,6 +218,7 @@ test.each([
   const commands: { operation: string; expected_state?: string; payload: { cable?: Cable } }[] = [];
   const savedDraft = () => ({ definition_id: 'cable', draft_id: 'draft', state, content: { cable: serverCable } });
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (isResolve(url)) return new Response(JSON.stringify(resolvedStack()), { status: 200 });
     if (options?.method === 'POST') {
       const cmd = JSON.parse(String(options.body)); commands.push(cmd);
       if (denyMutation && cmd.operation === operation) {
@@ -325,17 +337,21 @@ test('validation details from a rejected create appear on the offending fields',
 });
 
 test('the editor leads with a cable summary: both ends, the stock and termination counts', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.includes('/snapshot') ? { content: { stock } } : url.includes('interfaces/revisions/body') ? { interface: body } : url.includes('interfaces/revisions/pinout') ? { interface: pinout } : { labels: [], source_labels: [] }), { status: 200 })));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(isResolve(url) ? resolvedStack() : url.includes('/snapshot') ? { content: { stock } } : url.includes('interfaces/revisions/body') ? { interface: body } : { labels: [], source_labels: [] }), { status: 200 })));
   const cable = initialCable();
   cable.stock_revision_id = 'stock-rev';
-  cable.endpoints.forEach(e => { e.body_revision_id = 'body-rev'; e.pinout_revision_id = 'pinout-rev'; });
+  connectorEnds(cable);
   cable.endpoints[0]!.label = 'Plug';
-  cable.assignments = [{ endpoint_id: 'a', element_path: 'stock.core', contact_id: 'one', basis: 'Synthetic' }];
+  cable.endpoints[0]!.stock_end = 'a';
+  cable.assignments = [land('a', 'stock.core', 'one', 'Synthetic')];
   render(wrap(<CableEditor value={cable} onChange={vi.fn()} definitions={[]} />));
   const summary = screen.getByLabelText('Cable summary');
   expect(within(summary).getByText('Plug')).toBeTruthy();
   expect(within(summary).getByText('End B')).toBeTruthy();
   expect(within(summary).getByText(/Length/)).toBeTruthy();
   await waitFor(() => expect(within(summary).getByTestId('terminated-a').textContent).toBe('1 of 2 terminated'));
+  // Each end reads as its layer stack once resolved, with the stock end it uses.
+  expect(within(summary).getByText('Stock end A')).toBeTruthy();
+  expect(await within(summary).findByRole('list', { name: 'Plug layers' })).toBeTruthy();
   expect(screen.queryByLabelText('Stock exact revision ID')).toBeNull();
 });
