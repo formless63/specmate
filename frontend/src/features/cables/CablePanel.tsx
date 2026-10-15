@@ -15,6 +15,7 @@ import { CableOperationError, authorityDenied, command, read, initialCable, type
 import { RevisionPicker } from './RevisionPicker';
 import { NewIntent } from '../intents/IntentPanel';
 import { IntentCheckPanel } from '../intent-check/IntentCheckPanel';
+import { ProposeWiring } from '../intent-propose/ProposeWiring';
 import { SbUnknown } from '../../components/sb';
 import { connectorStack, resolveDenied, splitKey, terminalKey, type ResolvedStack } from '../end-assemblies/api';
 import { SignalCell, StackDiagram, StackEditor, StackView, findTerminal, resolvedChips, targetOptions, useResolvedStacks } from '../end-assemblies/StackEditor';
@@ -96,7 +97,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     <Title order={2}>Cables</Title>
     <Text>A cable is a finished assembly: a wire stock cut to length with a connector and pinout at each end, and each conductor, shield and drain terminated to a contact. Review records declared terminations; continuity and physical qualification remain unevaluated.</Text>
     {authorityBlocked && <Alert color="red"><Stack><Text>Cable access must be rechecked before retained content can be shown.</Text><Button loading={checkingAuthority} onClick={() => void refreshAuthority()}>Refresh cable access</Button></Stack></Alert>}
-    {!authorityBlocked && <NewCableFromIntent projectId={projectId} definitions={currentDefinitions} onUse={intent_revision_id => setValue(current => ({ ...current, intent_revision_id }))} />}
+    {!authorityBlocked && <NewCableFromIntent projectId={projectId} definitions={currentDefinitions} onUse={intent_revision_id => setValue(current => ({ ...current, intent_revision_id }))} onPropose={cable => setValue(current => ({ ...cable, lengths: current.lengths, review: current.review, review_basis: current.review_basis }))} />}
     {!authorityBlocked && <Card withBorder><Stack>
       <Title order={3}>New cable</Title>
       <InspectionScope permission="item.create"><TextInput label="Cable name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
@@ -121,12 +122,27 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   </Stack>;
 }
 
-/** Steps 1-3 of a cable from intent: from end, to end, signal rows. The frozen intent then seeds the new cable below. */
-function NewCableFromIntent({ projectId, definitions, onUse }: { projectId: string | null; definitions: Definition[]; onUse: (intentRevisionId: string) => void }) {
+/** A cable from intent: steps 1-3 state the intent, then stock and ends, then the proposed wiring. */
+function NewCableFromIntent({ projectId, definitions, onUse, onPropose }: { projectId: string | null; definitions: Definition[]; onUse: (intentRevisionId: string) => void; onPropose: (cable: Cable) => void }) {
   const [open, setOpen] = useState(false);
+  const [intent, setIntent] = useState("");
+  const [stock, setStock] = useState("");
+  const [fromEnd, setFromEnd] = useState("");
+  const [toEnd, setToEnd] = useState("");
+  const useIntent = (id: string) => { setIntent(id); if (id) onUse(id); };
   if (!open) return <Group><Button variant="default" onClick={() => setOpen(true)}>New cable from intent</Button><Text size="xs" c="dimmed">Start from the two ends and the signals the cable must carry.</Text></Group>;
-  return <Stack gap="xs"><NewIntent title="New cable from intent" projectId={projectId} definitions={definitions} onFrozen={onUse} />
-    <Text size="xs" c="dimmed">Once frozen, the intent is pinned on the new cable below. Proposing the wiring from it comes later.</Text>
+  return <Stack gap="xs">
+    <NewIntent title="New cable from intent" projectId={projectId} definitions={definitions} onFrozen={useIntent} />
+    <Card withBorder><Stack gap="xs">
+      <Title order={4}>4 · Stock and ends</Title>
+      <RevisionPicker label="Intent to wire" title="Cable intent (frozen above, or an existing one)" kind="cable_intent" value={intent} onChange={useIntent} definitions={definitions} />
+      <RevisionPicker label="Proposal stock" title="Stock" kind="wire_stock" value={stock} onChange={setStock} definitions={definitions} />
+      <Group grow align="flex-start">
+        <RevisionPicker label="From end assembly" title="From end assembly" kind="end_assembly" value={fromEnd} onChange={setFromEnd} definitions={definitions} />
+        <RevisionPicker label="To end assembly" title="To end assembly" kind="end_assembly" value={toEnd} onChange={setToEnd} definitions={definitions} />
+      </Group>
+      {intent && <ProposeWiring intentRevisionId={intent} stockRevisionId={stock || null} fromEnd={fromEnd ? { end_assembly_revision_id: fromEnd } : null} toEnd={toEnd ? { end_assembly_revision_id: toEnd } : null} onAccept={onPropose} acceptLabel="Use accepted rows for the new cable" />}
+    </Stack></Card>
     <Anchor component="button" type="button" size="xs" w="fit-content" onClick={() => setOpen(false)}>Close</Anchor></Stack>;
 }
 
@@ -146,6 +162,8 @@ function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, 
   const saveErrors = save.error instanceof CableOperationError ? save.error.fieldErrors : undefined;
   if (hidden) return null;
   return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor errors={saveErrors} value={value} onChange={setValue} definitions={definitions} workspaceId={workspaceId} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}
+    {!sourceDenied && base.content.cable?.intent_revision_id && <ProposeWiring key={`propose:${base.state}`} intentRevisionId={base.content.cable.intent_revision_id} draftId={base.draft_id} current={value} acceptLabel="Accept into draft"
+      onAccept={async cable => { const data = await command<Draft>("cable.update", { draft_id: base.draft_id, cable }, base.state); setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }} />}
     {!sourceDenied && <IntentCheckPanel key={base.state} draftId={base.draft_id} intentRevisionId={base.content.cable?.intent_revision_id ?? null} />}</Stack></Card>;
 }
 type Choice = { value: string; label: string; display: string; look: ReturnType<typeof appearanceOf> };
