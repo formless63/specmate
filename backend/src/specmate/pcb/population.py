@@ -375,6 +375,7 @@ def review_payload(user, definition, content) -> dict:
     return {
         "population": population.model_dump(mode="json"),
         "interpretation": {
+            "intake_id": str(interpretation.attempt.intake_id),
             "interpretation_id": str(interpretation.id),
             "sha256": interpretation.sha256,
             "attempt_id": str(interpretation.attempt_id),

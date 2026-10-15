@@ -530,3 +530,9 @@ graph, board terminals are nodes, copper paths are `board_copper` edges, and com
 switch and unknown paths plus connector correspondence stay boundaries. Continuity and
 physical qualification remain `not_evaluated`. The Boards lens edits board rows at
 Library or project scope.
+
+The authorized draft/frozen population review includes
+`interpretation.intake_id` alongside the exact interpretation, attempt, output
+and source pins. Record pages use this existing intake identity to open Sources
+directly; they need not scan other intakes. It is returned only after the same
+current population/source/association closure checks as the rest of the review.

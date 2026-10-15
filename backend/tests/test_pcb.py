@@ -611,7 +611,7 @@ def test_population_options_exclude_omitted_part_without_promoting_native_dnp(us
 
 
 def test_population_reviewed_associations_pin_every_target_and_evidence(
-    users, workspace, source, population
+    users, workspace, source, population, intake
 ):
     from specmate.pcb.population import closure
 
@@ -761,6 +761,7 @@ def test_population_reviewed_associations_pin_every_target_and_evidence(
     assert frozen_review.status_code == 200
     reviewed = frozen_review.json()
     assert reviewed["snapshot_id"] == frozen["snapshot_id"]
+    assert reviewed["interpretation"]["intake_id"] == intake["intake_id"]
     assert reviewed["interpretation"]["interpretation_id"] == interpretation["interpretation_id"]
     assert reviewed["report"]["components"][0]["dnp"] is True
     assert reviewed["associations"][0]["association"]["target_contact_id"] == "1"
@@ -1075,7 +1076,7 @@ def test_population_snapshot_guard_allows_older_revision_in_acyclic_history(user
 
 
 def test_frozen_population_review_reopens_old_state_after_draft_edit_and_revocation(
-    users, workspace, population
+    users, workspace, population, intake
 ):
     created, interpretation, component_ids, _ = population
     content = copy.deepcopy(created["content"]["pcb_population"])
@@ -1123,6 +1124,8 @@ def test_frozen_population_review_reopens_old_state_after_draft_edit_and_revocat
     old = client.get(frozen_path)
     live = client.get(draft_path)
     assert old.status_code == live.status_code == 200
+    assert old.json()["interpretation"]["intake_id"] == intake["intake_id"]
+    assert live.json()["interpretation"]["intake_id"] == intake["intake_id"]
     assert old.json()["population"]["options"][0]["decisions"][0]["status"] == "omit"
     assert live.json()["population"]["options"][0]["decisions"][0]["status"] == "populate"
     assert old.json()["interpretation"]["interpretation_id"] == interpretation["interpretation_id"]
@@ -1131,3 +1134,4 @@ def test_frozen_population_review_reopens_old_state_after_draft_edit_and_revocat
         response = client.get(path)
         assert response.status_code == 404
         assert b"Leave R1 out" not in response.content
+        assert intake["intake_id"].encode() not in response.content
