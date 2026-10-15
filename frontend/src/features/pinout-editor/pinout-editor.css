@@ -67,7 +67,7 @@
 .pwb-choice { font-family: var(--sb-font-data); font-size: 11px; color: var(--sb-text-secondary); min-width: 64px; }
 .pwb-details > summary { cursor: pointer; font-size: 12px; color: var(--sb-text-secondary); padding: 2px 0; }
 .pwb-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin: 0; }
-.pwb-facts .sb-cell dd { font-size: 13px; }
+.pwb-facts .sb-cell dd { font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
 
 .pwb-setup { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--sb-border-subtle); padding-top: 6px; }
 .pwb-scroll { overflow-x: auto; max-width: 100%; }

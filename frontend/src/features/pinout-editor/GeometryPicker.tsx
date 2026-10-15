@@ -25,13 +25,13 @@ export function GeometryPicker({ body, onChange }: { body: Body; onChange: (next
     <Text className="sb-silk">Face drawing</Text>
     <Text size="xs" c="dimmed">{count ? `Faces with ${count} numbered positions` : "No contacts yet: every drawn face is offered, and its positions can become the contacts"}. Choosing one only sets how the body is drawn.</Text>
     {choices.length === 0 ? <Text size="sm" c="dimmed">No face in the library has {count} positions; the body stays without a drawing.</Text>
-      : <div className="pwb-geo" role="group" aria-label="Face drawings">{choices.map((c) => {
+      : <details className="pwb-details" open={(count > 0 && !body.geometry_key) || undefined}><summary>{body.geometry_key ? "Change the face drawing" : `Choose a face drawing (${choices.length})`}</summary><div className="pwb-geo" role="group" aria-label="Face drawings">{choices.map((c) => {
         const geometry = geometryByKey(c.key, genderFor(body.mating_role))!;
         return <button type="button" key={c.key} className="pwb-geo-card" aria-pressed={body.geometry_key === c.key} aria-label={`Draw as ${c.label}`} onClick={() => onChange({ ...body, geometry_key: body.geometry_key === c.key ? null : c.key })}>
           <ConnectorFace geometry={geometry} size={96} title={c.label} />
           <span>{c.label}</span>
         </button>;
-      })}</div>}
+      })}</div></details>}
     {body.geometry_key && !choices.some((c) => c.key === body.geometry_key) && <Group gap={6}><Text size="xs">Face {chosen?.label ?? body.geometry_key} {chosen ? `has ${chosen.pinCount} positions, not ${count}` : "is not in this library"}.</Text><Button size="compact-xs" variant="subtle" onClick={() => onChange({ ...body, geometry_key: null })}>Clear face</Button></Group>}
     {chosen && count === 0 && <Group gap={6}><Button size="compact-xs" variant="default" onClick={() => onChange({ ...body, contacts: contactsFor(chosen) })}>Add its {chosen.pinCount} positions as contacts</Button></Group>}
   </Stack>;
