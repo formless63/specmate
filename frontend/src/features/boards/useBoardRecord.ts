@@ -94,19 +94,18 @@ export function useBoardRecord({ active, principalKey, workspaceId, definitionId
     setCurrent(draft.data); setBuffer(clone(draft.data.content)); setDirty(false);
   }, [draft.data, draft.isSuccess]);
   const change = (value: BoardContent) => { if (!editing || !enabled.current.edit || !enabled.current.active || enabled.current.unavailable || enabled.current.checking) return; edits.current += 1; setBuffer(value); setDirty(true); };
-  const working = pins(buffer); const stored = pins(current?.content ?? {});
-  const added: LocalPins = { revisions: working.revisions.filter(id => !stored.revisions.includes(id)), sources: working.sources.filter(id => !stored.sources.includes(id)), models: working.models.filter(id => !stored.models.includes(id)) };
-  const localAuthority = useQuery({ queryKey: [...base, 'working-authority', JSON.stringify(added)], enabled: active && editing, retry: false, refetchOnWindowFocus: 'always',
+  const workingPins = pins(buffer);
+  const localAuthority = useQuery({ queryKey: [...base, 'working-authority', JSON.stringify(workingPins)], enabled: active && editing, retry: false, refetchOnWindowFocus: 'always',
     queryFn: async ({ signal }) => {
       if (!definitionId) { const access = await requestJson<{ workspace_id: string }>(`/api/v0/access/workspace?workspace_id=${workspaceId}`, { signal }); if (access.workspace_id !== workspaceId) throw new ApiError(403, 'Workspace unavailable.'); }
-      // Saved content is authorized by its exact read. Only additional working pins need this batch.
-      for (let at = 0; at < Math.max(added.revisions.length, added.sources.length); at += 50) {
-        const revisions = added.revisions.slice(at, at + 50); const sources = added.sources.slice(at, at + 50); const query = new URLSearchParams();
+      // The retained buffer can include pins another session removed from saved content. Reauthorize every working pin, including the original loaded ones.
+      for (let at = 0; at < Math.max(workingPins.revisions.length, workingPins.sources.length); at += 50) {
+        const revisions = workingPins.revisions.slice(at, at + 50); const sources = workingPins.sources.slice(at, at + 50); const query = new URLSearchParams();
         revisions.forEach(id => query.append('revision_ids', id)); sources.forEach(id => query.append('source_revision_ids', id));
         const result = await requestJson<{ labels: { revision_id: string; readable: boolean }[]; source_labels: { revision_id: string; readable: boolean }[] }>(`/api/v0/catalog/revision-labels?${query}`, { signal });
         if (revisions.some(id => !result.labels.some(row => row.revision_id === id && row.readable)) || sources.some(id => !result.source_labels.some(row => row.revision_id === id && row.readable))) throw new ApiError(403, 'A working reference is unavailable. Local edits and their original editing token are retained.');
       }
-      if (added.models.length) { const targets = await associationTargets(workspaceId, signal); if (added.models.some(id => !targets.models.some(row => row.representation_id === id))) throw new ApiError(403, 'A working model reference is unavailable.'); }
+      if (workingPins.models.length) { const targets = await associationTargets(workspaceId, signal); if (workingPins.models.some(id => !targets.models.some(row => row.representation_id === id))) throw new ApiError(403, 'A working model reference is unavailable.'); }
       return true;
     } });
   useEffect(() => { if (!active) return; const check = () => { if (editing) void localAuthority.refetch(); if (definitionId) { void metadata.refetch(); if (editing && draftId) void draft.refetch(); else if (revision) void frozen.refetch(); } }; window.addEventListener('focus', check); return () => window.removeEventListener('focus', check); }, [active, editing, definitionId, draftId, revision?.revision_id, localAuthority.refetch]);
