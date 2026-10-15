@@ -8,3 +8,31 @@
 .sb-illustrative { border: 1px dashed var(--sb-border-strong); padding: 4px 8px; font-size: 12px; color: var(--sb-text-secondary);
   background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 6px); }
 .sb-illustrative strong { font-family: var(--sb-font-data); letter-spacing: 0.1em; text-transform: uppercase; color: var(--sb-text-primary); }
+
+/* Visual stock builder: the section is the primary surface; controls sit beside it. */
+.sb-stock-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.sb-stock-stage { flex: 3 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.sb-stock-controls { flex: 2 1 300px; min-width: 0; max-width: 100%; }
+.sb-stock-canvas { position: relative; width: min(100%, 78vh); max-height: 78vh; margin: 0 auto; background: var(--sb-surface-sunken); border: 1px solid var(--sb-border-subtle); }
+.sb-stock-canvas__drawing, .sb-stock-canvas__overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sb-stock-canvas__drawing > svg { width: 100%; height: 100%; display: block; }
+.sb-stock-canvas__overlay { pointer-events: none; overflow: visible; }
+.sb-stock-canvas[data-dragging] { cursor: ew-resize; }
+.sb-stock-handle g[role="slider"]:focus { outline: none; }
+.sb-stock-handle g[role="slider"]:focus-visible circle:nth-of-type(2) { stroke: var(--sb-focus); }
+.sb-stock-fixes { border: 1px solid var(--sb-invalid); padding: 4px 8px; }
+.sb-stock-group { border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-panel); padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sb-stock-group > h3 { margin: 0; }
+.sb-dim { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sb-dim__slider { width: 100%; accent-color: var(--sb-accent); min-height: 24px; margin: 0; }
+.sb-dim__slider[data-unknown] { opacity: 0.55; }
+.sb-dim__slider:disabled { cursor: not-allowed; }
+.sb-stepper { display: flex; flex-direction: column; gap: 2px; }
+.sb-stepper__box { display: inline-flex; align-items: center; border: 1px solid var(--sb-border-control); }
+.sb-stepper__box button { width: 32px; height: 30px; border: 0; background: transparent; color: var(--sb-text-primary); cursor: pointer; font-size: 16px; }
+.sb-stepper__box button:disabled { color: var(--sb-text-disabled); cursor: not-allowed; }
+.sb-stepper__box output { min-width: 34px; text-align: center; font-family: var(--sb-font-data); font-size: 14px; }
+.sb-builder-inspector { border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-panel); padding: 6px 10px; }
+.sb-builder-inspector > summary { cursor: pointer; color: var(--sb-text-secondary); font-size: 12px; }
+@media (max-width: 599px) { .sb-stock-stage, .sb-stock-controls { flex-basis: 100%; } }
+.sb-dim__slider[data-inspect-locked] { pointer-events: none; }

@@ -19,6 +19,8 @@ import { blankSpec, exampleCoax, generate, illustrate, readBuilder, TEMPLATES } 
 import type { BuilderSpec } from './builder';
 import { ConstructionBuilder } from './ConstructionBuilder';
 import { FitFindings } from './FitFindings';
+import { fitOverlay } from './builder-visual';
+import { SectionCanvas } from './SectionCanvas';
 import { MmEntry } from './MmEntry';
 import './wire-stock.css';
 
@@ -201,22 +203,16 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
       } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     }}>Reload saved stock (discard local edits)</Button>
     <Title order={3}>Construction</Title>
-    <Group align="flex-start" wrap="wrap" gap="md">
-      <Stack style={{ flex: '3 1 520px', minWidth: 0 }}>
-        {builder
-          ? <ConstructionBuilder key={`${current?.draft_id ?? 'new'}:${builder.template}`} spec={builder} onChange={spec => { setStock(generate(spec, stock), spec); changed(); }} />
-          : <Alert color="yellow" title="Element-by-element construction">This construction was edited element by element, so the builder cannot regenerate it exactly. Edit it in the element editor below, or start again from a template.</Alert>}
-      </Stack>
-      <Stack gap="xs" style={{ flex: '2 1 360px', maxWidth: 460, minWidth: 0 }}>
-        <FitFindings report={fit} onSelect={selectFinding} acknowledged={acknowledged} onAcknowledge={setAcknowledged} canFreeze={freezeGate.allowed} />
-        {illustration
-          ? <>
-            <div className="sb-illustrative" role="note"><strong>Illustrative</strong> · placeholder proportions for unknown {illustration.substituted.join(', ')}; not dimensions.</div>
-            <StockSectionView section={illustration.section} title={`${name} (illustrative)`} label="Illustrative section drawing" />
-          </>
-          : <StockSectionView section={section} title={name} label="Stock section drawing" selected={selected} onSelect={setSelected} />}
-      </Stack>
-    </Group>
+    {builder
+      ? <ConstructionBuilder key={`${current?.draft_id ?? 'new'}:${builder.template}`} spec={builder} onChange={spec => { setStock(generate(spec, stock), spec); changed(); }}
+        view={{ stock, section, fit, name, illustration, selected, onSelect: setSelected, onSelectFinding: selectFinding, acknowledged, onAcknowledge: setAcknowledged, canFreeze: freezeGate.allowed }} />
+      : <Stack gap="xs">
+        <Alert color="yellow" title="Element-by-element construction">This construction was edited element by element, so the builder cannot regenerate it exactly. Edit it in the element editor below, or start again from a template.</Alert>
+        <div className="sb-stock-stage">
+          <SectionCanvas section={section} title={name} selected={selected} onSelect={setSelected} overlay={fitOverlay(section, fit)} editable={false} />
+          <FitFindings report={fit} onSelect={selectFinding} acknowledged={acknowledged} onAcknowledge={setAcknowledged} canFreeze={freezeGate.allowed} />
+        </div>
+      </Stack>}
     <Text>Section: {dimension(section.widthMm)} × {dimension(section.heightMm)} · {section.rows.length} material elements · view {section.viewedFrom}</Text>
     {section.unknown.length > 0 && <Alert color="yellow">Incomplete geometry: {section.unknown.join('; ')}</Alert>}
     <Group align="flex-start" grow>
