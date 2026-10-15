@@ -23,27 +23,42 @@ function SettingsWorkspace({ workspaceId, active = true, onAccessLost, section }
   const [current, setCurrent] = useState<WorkspaceSettings | null>(null);
   const [values, setValues] = useState<SettingsValues>({ documents: {}, numbering: null });
   const [text, setText] = useState("null"); const [samples, setSamples] = useState(""); const [report, setReport] = useState<string[]>([]);
-  const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [busy, setBusy] = useState(false); const [blocked, setBlocked] = useState(false);
-  const alive = useRef(false); const epoch = useRef(0);
+  const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [busy, setBusy] = useState(false); const [blocked, setBlocked] = useState(false); const [confirmed, setConfirmed] = useState(false);
+  const alive = useRef(false); const epoch = useRef(0); const readEpoch = useRef(0);
+  const currentRef = useRef(current); currentRef.current = current;
   const gate = usePermission("workspace.admin");
   const valid = (version: number) => alive.current && version === epoch.current;
   function adopt(result: WorkspaceSettings) { setCurrent(result); setValues(result.values); setText(JSON.stringify(result.values.numbering ?? null, null, 2)); setReport([]); }
-  function fail(reason: unknown) { setError(reason instanceof Error ? reason.message : "Settings are unavailable."); if (denied(reason)) { setBlocked(true); void onAccessLost?.(); } }
+  function fail(reason: unknown) { setError(reason instanceof Error ? reason.message : "Settings are unavailable."); if (denied(reason)) { readEpoch.current += 1; setConfirmed(false); setBlocked(true); void onAccessLost?.(); } }
   useEffect(() => {
-    alive.current = true; const version = ++epoch.current;
-    readSettings(workspaceId).then(result => { if (valid(version)) adopt(result); }, reason => { if (valid(version)) fail(reason); });
-    return () => { alive.current = false; epoch.current += 1; };
+    alive.current = true; epoch.current += 1;
+    return () => { alive.current = false; epoch.current += 1; readEpoch.current += 1; };
   }, [workspaceId]);
-  async function refresh(discard: boolean) {
-    if (busy) return; const version = ++epoch.current; setBusy(true); setError("");
-    try { const result = await readSettings(workspaceId); if (!valid(version)) return;
-      if (!current || discard) adopt(result);
-      else if (result.state_token !== current.state_token) setNotice("Saved settings changed elsewhere. Prepared values and their original save token are retained; reload saved settings to discard them.");
-      setBlocked(false);
-    } catch (reason) { if (valid(version)) fail(reason); } finally { if (valid(version)) setBusy(false); }
+  const revalidate = useRef<() => void>(() => {});
+  revalidate.current = () => { void refresh(false, true); };
+  useEffect(() => {
+    setConfirmed(false);
+    if (!active) { readEpoch.current += 1; return; }
+    revalidate.current();
+    const focus = () => revalidate.current();
+    window.addEventListener('focus', focus);
+    return () => { window.removeEventListener('focus', focus); readEpoch.current += 1; };
+  }, [active, workspaceId]);
+  async function refresh(discard: boolean, fence = false) {
+    if (busy && !fence) return;
+    const version = epoch.current, read = ++readEpoch.current;
+    if (fence) setConfirmed(false); else setBusy(true);
+    setError("");
+    try { const result = await readSettings(workspaceId); if (!valid(version) || read !== readEpoch.current) return;
+      const retained = currentRef.current;
+      if (!retained || discard) adopt(result);
+      else if (result.state_token !== retained.state_token) setNotice("Saved settings changed elsewhere. Prepared values and their original save token are retained; reload saved settings to discard them.");
+      setBlocked(false); setConfirmed(true);
+    } catch (reason) { if (valid(version) && read === readEpoch.current) fail(reason); }
+    finally { if (!fence && valid(version)) setBusy(false); }
   }
   async function save() {
-    if (!current || busy || blocked || !gate.allowed) return; const version = epoch.current; setBusy(true); setError(""); setNotice("");
+    if (!current || busy || blocked || !active || !confirmed || !gate.allowed) return; const version = epoch.current; setBusy(true); setError(""); setNotice("");
     try {
       const numbering = section === "part-numbering" ? JSON.parse(text) : values.numbering ?? null;
       if (numbering !== null) schemeFromConfig(numbering);
@@ -56,12 +71,12 @@ function SettingsWorkspace({ workspaceId, active = true, onAccessLost, section }
       const scheme = schemeFromConfig(config); setReport(samples.split(/\s+/).filter(Boolean).slice(0, 20).map(value => `${value}: ${scheme.check(value).map(issue => issue.message).join('; ') || 'Matches this scheme'}`)); setError("");
     } catch (reason) { fail(reason); }
   }
-  const locked = busy || blocked || !active;
+  const locked = busy || blocked || !active || !confirmed;
   return <Stack><Title order={2}>{titles[section]}</Title>
     {error && <Alert color="red" role="alert">{error}</Alert>}{notice && !blocked && <Alert role="status">{notice}</Alert>}
     {blocked && <Alert color="red">Current workspace settings access must be confirmed. Prepared values and their original save token stay retained. <Button variant="quiet" disabled={busy} onClick={() => void refresh(false)}>Refresh settings access</Button></Alert>}
-    {!current && !blocked && <Text>Reading workspace settings…</Text>}
-    {current && <div hidden={blocked || !active} inert={blocked || !active || undefined}>
+    {!confirmed && !blocked && active && <Text>Confirming workspace settings access…{error && <Button variant="quiet" onClick={() => void refresh(false, true)}>Refresh settings access</Button>}</Text>}
+    {current && <div hidden={blocked || !active || !confirmed} inert={blocked || !active || !confirmed || undefined}>
       <Text size="sm">Workspace defaults · version {current.version}. Only workspace admins change these settings.</Text>
       <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><Card withBorder><Stack><InspectionScope permission="workspace.admin">
         {section === "settings-documents" ? <><Text size="sm">Copy these defaults into a new document review, then edit or confirm them. Retained documents keep their own reviewed fields.</Text><DocumentFields disabled={locked || !gate.allowed} value={values.documents} onChange={documents => { if (!locked && gate.allowed) setValues(previous => ({ ...previous, documents })); }} /></> : <NumberingFields disabled={locked || !gate.allowed} text={text} onChange={value => { if (!locked && gate.allowed) { setText(value); setReport([]); } }} />}

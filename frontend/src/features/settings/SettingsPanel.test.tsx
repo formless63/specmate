@@ -77,6 +77,9 @@ test('saving locks fields and ignores edits dispatched while a save is pending',
   expect(field.closest('fieldset')?.disabled).toBe(true);
   fireEvent.change(field, { target: { value: 'Unreviewed pending edit' } });
   expect((field as HTMLInputElement).value).toBe('Reviewed workshop');
+  fireEvent(window, new Event('focus'));
+  await screen.findByRole('textbox', { name: 'Organization' });
+  expect(field.closest('fieldset')?.disabled).toBe(true);
   await act(async () => pending.resolve({ ...settings, version: 2, state_token: 'settings-v2', values: { ...settings.values, documents: { ...settings.values.documents, organization: 'Reviewed workshop' } } }));
   expect((field as HTMLInputElement).value).toBe('Reviewed workshop');
 });
@@ -119,4 +122,40 @@ test('common prefix setup uses kind rows, digit count, separator and a live exam
   await screen.findByText('CAB_0001'); fireEvent.click(screen.getByRole('button', { name: 'Save part numbering settings' }));
   await waitFor(() => expect(saveSettings).toHaveBeenCalledTimes(1));
   expect(vi.mocked(saveSettings).mock.calls[0]?.[1].numbering).toEqual({ prefixes: { cable: 'CAB' }, digits: 4, separator: '_' });
+});
+
+test.each(['reactivation', 'focus'])('%s fences retained settings until fresh authority succeeds; denial and recovery preserve edits and CAS', async trigger => {
+  vi.mocked(saveSettings).mockRejectedValue(new Error('Captured original save token'));
+  const lost = vi.fn();
+  const component = (active: boolean) => wrap(<SettingsPanel workspaceId="ws" principalKey="same" active={active} onAccessLost={lost} section="settings-documents" />);
+  const view = render(component(true));
+  const field = await screen.findByRole('textbox', { name: 'Organization' });
+  fireEvent.change(field, { target: { value: 'Retained prepared values' } });
+  let deny!: (reason: Error) => void;
+  vi.mocked(readSettings).mockImplementationOnce(() => new Promise((_, reject) => { deny = reject; }));
+  if (trigger === 'reactivation') { view.rerender(component(false)); view.rerender(component(true)); }
+  else fireEvent(window, new Event('focus'));
+  expect(screen.queryByRole('textbox', { name: 'Organization' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Save documents settings' })).toBeNull();
+  await act(async () => deny(new ApiError(403, 'Current settings denied')));
+  await screen.findByText('Current settings denied'); expect(lost).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('textbox', { name: 'Organization' })).toBeNull();
+  vi.mocked(readSettings).mockResolvedValue({ ...settings, version: 2, state_token: 'settings-v2', values: { documents: { organization: 'New server default' } } });
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh settings access' }));
+  expect((await screen.findByRole('textbox', { name: 'Organization' }) as HTMLInputElement).value).toBe('Retained prepared values');
+  fireEvent.click(screen.getByRole('button', { name: 'Save documents settings' }));
+  await screen.findByText('Captured original save token'); expect(vi.mocked(saveSettings).mock.calls[0]?.[2]).toBe('settings-v1');
+});
+
+test.each([1, 2])('successful reactivation at server version %s retains the prepared buffer and original save token', async version => {
+  vi.mocked(saveSettings).mockRejectedValue(new Error('Captured original save token'));
+  const component = (active: boolean) => wrap(<SettingsPanel workspaceId="ws" active={active} section="settings-documents" />);
+  const view = render(component(true));
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Organization' }), { target: { value: 'Unsaved workshop' } });
+  view.rerender(component(false));
+  vi.mocked(readSettings).mockResolvedValue({ ...settings, version, state_token: `settings-v${version}`, values: { documents: { organization: 'Saved elsewhere' } } });
+  view.rerender(component(true));
+  expect((await screen.findByRole('textbox', { name: 'Organization' }) as HTMLInputElement).value).toBe('Unsaved workshop');
+  fireEvent.click(screen.getByRole('button', { name: 'Save documents settings' }));
+  await screen.findByText('Captured original save token'); expect(vi.mocked(saveSettings).mock.calls[0]?.[2]).toBe('settings-v1');
 });
