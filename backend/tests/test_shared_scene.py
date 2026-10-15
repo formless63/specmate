@@ -8,7 +8,7 @@ import pytest
 from django.test import Client, RequestFactory
 
 from specmate.design.models import Snapshot
-from specmate.operations import NotFound, ValidationFailed
+from specmate.operations import NotFound, Unauthenticated, ValidationFailed
 from specmate.shared_scene import operations  # noqa: F401
 from specmate.shared_scene.api import inspect_snapshot
 from specmate.shared_scene.transforms import millimeter_factor
@@ -296,6 +296,8 @@ def test_source_origin_ancestor_revocation_denies_exact_frozen_scene(
     with pytest.raises(NotFound):
         scene(users["viewer"], frozen)
     with pytest.raises(NotFound):
+        preview(users["viewer"], frozen)
+    with pytest.raises(NotFound):
         op(users["viewer"], "shared_scene.list", {"workspace_id": workspace_of(project)})
     member(users["viewer"], "viewer")
     assert scene(users["viewer"], frozen) == first
@@ -363,6 +365,8 @@ def test_generic_unsupported_child_still_authorizes_its_facts_and_sources(
     revoke()
     with pytest.raises(NotFound):
         scene(users["viewer"], frozen)
+    with pytest.raises(NotFound):
+        preview(users["viewer"], frozen)
     with pytest.raises(NotFound):
         op(users["viewer"], "shared_scene.list", {"workspace_id": workspace_of(project)})
 
@@ -467,9 +471,154 @@ def test_root_adoption_origin_authority_is_rechecked_before_any_root_label(users
     draft = get_draft(users["owner"], record.draft_id)
     frozen = freeze(users["owner"], draft)
     scene(users["viewer"], frozen)
+    preview(users["viewer"], frozen)
     # The retained pack's entire origin closure is distinct from adopted item dependencies.
     remove_member(users["viewer"])
     with pytest.raises(NotFound):
         scene(users["viewer"], frozen)
     with pytest.raises(NotFound):
+        preview(users["viewer"], frozen)
+    with pytest.raises(NotFound):
         op(users["viewer"], "shared_scene.list", {"workspace_id": workspace_of(project)})
+
+
+def preview(user, captured):
+    return op(user, "shared_scene.preview_captured", {"snapshot_id": captured["snapshot_id"]})
+
+
+def test_captured_preview_exact_basis_geometry_unknowns_and_later_edits(
+    users,
+    project,
+    mec_board,  # noqa: F811
+):
+    user = users["owner"]
+    root = create(
+        user,
+        project,
+        [
+            occ("placed", mec_board, placement=placement(3, 4, 5)),
+            occ("unknown", mec_board),
+        ],
+    )
+    captured = op(
+        user, "assembly.snapshot", {"draft_id": root["draft_id"]}, expected_state=root["state"]
+    )
+    stored = Snapshot.objects.get(id=captured["snapshot_id"])
+    canonical = bytes(stored.canonical)
+    first = preview(users["viewer"], captured)
+    assert first["basis"] == {
+        "kind": "captured_draft",
+        "draft_id": root["draft_id"],
+        "draft_version": stored.draft_version,
+        "snapshot_id": captured["snapshot_id"],
+        "snapshot_sha256": stored.sha256,
+    }
+    assert "revision_id" not in first["root"]
+    assert first["root"]["definition_id"] == root["definition_id"]
+    assert first["root"]["snapshot_sha256"] == stored.sha256
+    placed, unknown = first["nodes"]
+    assert placed["revision_id"] == unknown["revision_id"] == mec_board["revision_id"]
+    assert [row[3] for row in placed["world_transform"][:3]] == [3, 4, 5]
+    assert unknown["world_transform"] is None and unknown["world_status"] == "unknown"
+    assert placed["geometry_ids"] == unknown["geometry_ids"]
+    assert first["geometry"][0]["quality"] == "native_extracted_planar"
+    assert first["qualification"] == {
+        "fit": "not_evaluated",
+        "clearance": "not_evaluated",
+        "manufacturing": "not_evaluated",
+        "physical": False,
+    }
+    with pytest.raises(ValidationFailed, match="frozen"):
+        scene(users["viewer"], captured)
+    frozen = freeze(user, root)
+    assert frozen["snapshot_id"] != captured["snapshot_id"]
+    edited = op(
+        user,
+        "assembly.update",
+        {"draft_id": root["draft_id"], "assembly": {}},
+        expected_state=frozen["draft"]["state"],
+    )
+    assert edited["state"] != root["state"]
+    assert preview(users["viewer"], captured) == first
+    stored.refresh_from_db()
+    assert bytes(stored.canonical) == canonical
+    assert stored.draft_version == first["basis"]["draft_version"]
+    with pytest.raises(ValidationFailed, match="frozen"):
+        scene(users["viewer"], captured)
+    frozen_preview = preview(users["viewer"], frozen)
+    assert frozen_preview["basis"]["kind"] == "captured_draft"
+    assert "revision_id" not in frozen_preview["root"]
+
+
+def test_captured_preview_http_operation_current_actor_and_no_cache(users, project):
+    root = create(users["owner"], project)
+    captured = op(
+        users["owner"],
+        "assembly.snapshot",
+        {"draft_id": root["draft_id"]},
+        expected_state=root["state"],
+    )
+    expected = preview(users["viewer"], captured)
+    client = Client()
+    client.force_login(users["viewer"])
+    path = f"/api/v0/shared-scenes/captured-snapshots/{captured['snapshot_id']}/preview"
+    assert client.get(path).json() == expected
+    response = client.post(
+        "/api/v0/operations",
+        data=json.dumps(
+            {
+                "operation": "shared_scene.preview_captured",
+                "request_id": "captured-preview",
+                "payload": {"snapshot_id": captured["snapshot_id"]},
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 200 and response.json()["result"] == expected
+    with pytest.raises(ValidationFailed):
+        op(
+            users["viewer"],
+            "shared_scene.preview_captured",
+            {"snapshot_id": captured["snapshot_id"]},
+            idempotency_key="not-cached",
+        )
+    remove_member(users["viewer"])
+    for actor in (users["viewer"], users["outsider"]):
+        client.force_login(actor)
+        denial = client.get(path)
+        assert denial.status_code == 404 and denial.json()["error"]["details"] == {}
+        with pytest.raises(NotFound):
+            preview(actor, captured)
+    users["owner"].is_active = False
+    users["owner"].save(update_fields=["is_active"])
+    with pytest.raises(Unauthenticated):
+        preview(users["owner"], captured)
+
+
+def test_captured_preview_rechecks_nested_source_closure(users, project, sourced_child):  # noqa: F811
+    revision, revoke = sourced_child
+    root = create(users["owner"], project, [occ("module", revision)])
+    captured = op(
+        users["owner"],
+        "assembly.snapshot",
+        {"draft_id": root["draft_id"]},
+        expected_state=root["state"],
+    )
+    assert len(preview(users["viewer"], captured)["nodes"]) == 2
+    revoke()
+    with pytest.raises(NotFound) as error:
+        preview(users["viewer"], captured)
+    assert error.value.details == {}
+
+
+def test_captured_preview_preserves_scene_feature_limit(users, project, mec_board, monkeypatch):  # noqa: F811
+    root = create(users["owner"], project, [occ("board", mec_board)])
+    captured = op(
+        users["owner"],
+        "assembly.snapshot",
+        {"draft_id": root["draft_id"]},
+        expected_state=root["state"],
+    )
+    monkeypatch.setattr("specmate.shared_scene.projection.MAX_FEATURES", 0)
+    with pytest.raises(ValidationFailed, match="feature limit"):
+        preview(users["viewer"], captured)

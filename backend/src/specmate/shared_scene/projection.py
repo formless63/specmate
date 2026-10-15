@@ -1,4 +1,4 @@
-"""Fresh projections of authorized frozen state; no mesh/source parsing or mutation.
+"""Fresh projections of authorized immutable state; no mesh/source parsing or mutation.
 
 All occurrences survive missing geometry. Geometry resources can be shared, while
 selection always includes root snapshot, contextual path and stable feature ID.
@@ -412,6 +412,38 @@ def read_scene(user, snapshot_id):
     root_revision = Revision.objects.filter(snapshot=snapshot).first()
     if root_revision is None:
         raise ValidationFailed("Shared scene requires a frozen assembly revision.")
+    return _project_scene(user, snapshot, closure, identity(root_revision))
+
+
+def preview_captured_scene(user, snapshot_id):
+    """Inspect an immutable capture without promoting it to a frozen revision.
+
+    The capture's stored draft version remains its basis even after later edits or
+    freezing. This read does not establish fit, clearance or manufacturing approval.
+    """
+    user = current_actor(user)
+    snapshot, closure = scene_snapshot(user, snapshot_id)
+    result = _project_scene(
+        user,
+        snapshot,
+        closure,
+        {
+            "definition_id": str(snapshot.definition_id),
+            "snapshot_sha256": snapshot.sha256,
+            "kind": snapshot.definition.kind,
+        },
+    )
+    result["basis"] = {
+        "kind": "captured_draft",
+        "draft_id": str(snapshot.draft_id),
+        "draft_version": snapshot.draft_version,
+        "snapshot_id": str(snapshot.id),
+        "snapshot_sha256": snapshot.sha256,
+    }
+    return result
+
+
+def _project_scene(user, snapshot, closure, root):
     resources = Resources(user, closure)
     transforms = {(): IDENTITY}
     nodes = []
@@ -454,7 +486,7 @@ def read_scene(user, snapshot_id):
         "schema_version": "1",
         "snapshot_id": str(snapshot.id),
         "sha256": snapshot.sha256,
-        "root": {**identity(root_revision), "world_transform": IDENTITY},
+        "root": {**root, "world_transform": IDENTITY},
         "units": "mm",
         "frame": "right_handed_z_up",
         "matrix_convention": "row-major; column vectors; parent-from-local",

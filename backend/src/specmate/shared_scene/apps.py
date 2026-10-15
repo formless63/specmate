@@ -21,6 +21,7 @@ class SharedSceneConfig(AppConfig):
 
         SCHEMAS["shared-scene-list"] = ListScenes
         SCHEMAS["shared-scene-read"] = ReadAssembly
+        SCHEMAS["shared-scene-preview-captured"] = ReadAssembly
         SCHEMAS["shared-scene-create-drawing"] = CreateDrawing
         SCHEMAS["shared-scene-read-drawing"] = ReadDrawing
         SCHEMAS["shared-scene-read-drawing-scene"] = ReadDrawingScene

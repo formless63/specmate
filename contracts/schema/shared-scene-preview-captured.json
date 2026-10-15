@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id"
+  ],
+  "title": "ReadAssembly",
+  "type": "object"
+}

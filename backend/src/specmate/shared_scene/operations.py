@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from specmate.access.permissions import Perm
 from specmate.assemblies.contracts import ReadAssembly
 from specmate.operations import Context, operation
-from specmate.shared_scene.projection import list_scenes, read_scene
+from specmate.shared_scene.projection import list_scenes, preview_captured_scene, read_scene
 
 
 class ListScenes(BaseModel):
@@ -34,3 +34,14 @@ def inspect_choices(ctx: Context, payload: ListScenes):
 )
 def inspect_scene(ctx: Context, payload: ReadAssembly):
     return read_scene(ctx.user, payload.snapshot_id)
+
+
+@operation(
+    "shared_scene.preview_captured",
+    ReadAssembly,
+    summary="Preview an exact saved assembly capture without a frozen revision or qualification.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def inspect_captured_scene(ctx: Context, payload: ReadAssembly):
+    return preview_captured_scene(ctx.user, payload.snapshot_id)

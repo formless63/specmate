@@ -13,7 +13,12 @@ from specmate.shared_scene.drawing_operations import (
     read_drawing,
     read_drawing_scene,
 )
-from specmate.shared_scene.operations import ListScenes, inspect_choices, inspect_scene
+from specmate.shared_scene.operations import (
+    ListScenes,
+    inspect_captured_scene,
+    inspect_choices,
+    inspect_scene,
+)
 
 router = Router(tags=["shared scene"])
 
@@ -30,6 +35,14 @@ def choices(request, workspace_id: UUID | None = None):
 def inspect_snapshot(request, snapshot_id: UUID):
     return inspect_scene(
         Context(user=request.user, via="api", request_id="scene-read"),
+        ReadAssembly(snapshot_id=snapshot_id),
+    )
+
+
+@router.get("/captured-snapshots/{snapshot_id}/preview")
+def inspect_captured_snapshot(request, snapshot_id: UUID):
+    return inspect_captured_scene(
+        Context(user=request.user, via="api", request_id="scene-captured-preview"),
         ReadAssembly(snapshot_id=snapshot_id),
     )
 

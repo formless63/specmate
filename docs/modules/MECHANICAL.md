@@ -100,6 +100,18 @@ the actor's workspace collection (members read every item), and `/snapshots/{sna
 scene. Older snapshots remain addressable explicitly. Captured unfrozen draft
 snapshots are rejected by this view; they are not presented as frozen design state.
 
+An explicit `assembly.snapshot` capture can instead be inspected through the read-only
+`shared_scene.preview_captured` operation or
+`/api/v0/shared-scenes/captured-snapshots/{snapshot_id}/preview`. This uses the same
+current actor, root origin, complete dependency/source authorization, geometry limits
+and transform projection. Its separate `basis.kind = captured_draft` reports the
+immutable snapshot's draft ID, captured draft version, snapshot ID and hash. The root
+has no revision ID. Later editing or freezing cannot change that captured basis. The
+preview neither saves nor freezes anything and establishes no fit, clearance,
+manufacturing or physical qualification. A client must withdraw it when its working
+buffer diverges from the captured state; frozen-only contextual reads keep their
+existing exact-revision contract.
+
 The projection reuses the assembly's canonical `Placement`, exact dependency
 closure and contextual firmware assignments. Every nested occurrence retains its
 root snapshot/path address, exact definition/revision/snapshot hash and independent
