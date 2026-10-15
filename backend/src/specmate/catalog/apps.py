@@ -23,9 +23,16 @@ class CatalogConfig(AppConfig):
             WhereUsed,
         )
         from specmate.contracts import SCHEMAS
+        from specmate.parts import membership, records  # noqa: F401
+        from specmate.parts.contracts import CatalogRecord, Kit, Part, ReadKits, ReadRecord
 
         SCHEMAS.update(
             {
+                "catalog-record": ReadRecord,
+                "catalog-record-result": CatalogRecord,
+                "catalog-kits-for-revision": ReadKits,
+                "catalog-part": Part,
+                "catalog-kit": Kit,
                 "catalog-lot": LotResult,
                 "catalog-representation": RepresentationResult,
                 "catalog-source-identifier": SourceIdentifierResult,

@@ -10,6 +10,7 @@ from specmate.workspace.contracts import LibraryPage, LibraryRecord, ListLibrary
 
 class ListLibraryTable(ListLibrary):
     family: Literal["definition"] = "definition"
+    catalog_class: Literal["parts", "hardware", "kits"] | None = None
 
 
 class LibraryNumber(BaseModel):

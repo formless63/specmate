@@ -14,6 +14,9 @@ from specmate.catalog.discovery import (
     where_used,
 )
 from specmate.operations import ValidationFailed
+from specmate.parts.contracts import KitPage, RecordSelection
+from specmate.parts.membership import kits_for_revision
+from specmate.parts.records import selected_record
 
 router = Router(tags=["catalog"])
 
@@ -73,3 +76,13 @@ def get_identity(request, definition_id: UUID, offset: int = 0, limit: int = 50)
 @router.get("/revisions/{revision_id}")
 def get_revision_catalog(request, revision_id: UUID, offset: int = 0, limit: int = 50):
     return queries.get_revision_catalog(request.user, revision_id, **page(offset, limit))
+
+
+@router.get("/revisions/{revision_id}/kits")
+def exact_kits(request, revision_id: UUID, payload: Query[KitPage]):
+    return kits_for_revision(request.user, revision_id, payload)
+
+
+@router.get("/definitions/{definition_id}/record")
+def selected(request, definition_id: UUID, payload: Query[RecordSelection]):
+    return selected_record(request.user, definition_id, payload)

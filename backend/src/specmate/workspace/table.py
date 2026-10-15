@@ -7,11 +7,26 @@ an exact revision; a later draft or freeze cannot change the selected row's basi
 import json
 from collections import defaultdict
 
-from django.db.models import Exists, F, OuterRef, Q, Subquery, Window
-from django.db.models.functions import RowNumber
+from django.db.models import (
+    Exists,
+    F,
+    Func,
+    JSONField,
+    OuterRef,
+    Q,
+    Subquery,
+    TextField,
+    Value,
+    Window,
+)
+from django.db.models.functions import Cast, RowNumber
 
 from specmate.catalog.models import ManufacturerVariant
+from specmate.design.closure_reads import closure_reads, prefetch_origins
 from specmate.design.models import Draft, Revision
+from specmate.design.operations import authorize_design_content
+from specmate.operations import OperationError
+from specmate.parts.queries import readable_revisions
 from specmate.workspace.contracts import ListLibrary
 from specmate.workspace.queries import (
     _actor,
@@ -101,6 +116,30 @@ def _fields(kind, content):
         ):
             value = population.get(key)
             field(key, label, len(value) if isinstance(value, list) else None)
+    elif kind == "part":
+        part = content.get("part")
+        part = part if isinstance(part, dict) and part.get("schema_version") == "1" else {}
+        field("category", "Category", part.get("category"))
+        field("value", "Value", part.get("value"))
+        field("package", "Package", part.get("package"))
+        field(
+            "declared_fits", "Declared fit targets", len(part["fits"]) if "fits" in part else None
+        )
+    elif kind == "kit":
+        kit = content.get("kit") or {}
+        field(
+            "part_lines",
+            "Part lines",
+            len(kit["lines"]) if isinstance(kit.get("lines"), list) else None,
+        )
+    elif kind == "mechanical_source":
+        mechanical = content.get("mechanical_source") or {}
+        field("role", "Role", mechanical.get("item_role"))
+        field(
+            "declared_targets",
+            "Declared targets",
+            len(mechanical["targets"]) if isinstance(mechanical.get("targets"), list) else None,
+        )
     elif kind == "signal_set":
         field("signals", "Signals", count("signals"))
     elif kind == "end_assembly":
@@ -113,10 +152,66 @@ def list_library_table(user, payload: ListLibraryTable) -> dict:
     workspace = _workspace(actor, payload.workspace_id)
     context = _context(workspace, payload.project_id)
     # Reuse reference semantics and cursor ordering, widening name search to exact MPN.
-    base = ListLibrary(**{**payload.model_dump(), "query": ""})
+    base = ListLibrary(**{**payload.model_dump(exclude={"catalog_class"}), "query": ""})
     query, referenced, render, loader = _definitions(workspace, base, context)
     newest_draft = Draft.objects.filter(definition=OuterRef("pk")).order_by("-updated_at", "-id")
     query = query.annotate(selected_draft_id=Subquery(newest_draft.values("id")[:1]))
+    if payload.catalog_class == "kits":
+        query = query.filter(kind="kit")
+    elif payload.catalog_class == "parts":
+        query = query.filter(kind__in=["part", "material", "hardware", "mechanical_source"])
+    elif payload.catalog_class == "hardware":
+        # Match the same exact saved state used by the row: latest frozen, otherwise draft.
+        latest = Revision.objects.filter(definition=OuterRef("pk")).order_by("-number")
+        query = query.annotate(
+            catalog_frozen=Cast(
+                Func(
+                    Subquery(latest.values("snapshot__canonical")[:1]),
+                    Value("UTF8"),
+                    function="convert_from",
+                    output_field=TextField(),
+                ),
+                JSONField(),
+            ),
+            catalog_draft=Subquery(newest_draft.values("content")[:1]),
+        )
+        mechanical_roles = ["enclosure", "hardware"]
+        part_categories = [
+            "shell",
+            "hardware",
+            "enclosure",
+            "fastener",
+            "boot",
+            "contact",
+            "seal",
+            "plug",
+            "tool",
+        ]
+        query = query.filter(
+            Q(kind="hardware")
+            | Q(
+                latest_revision_id__isnull=False,
+                kind="part",
+                catalog_frozen__content__part__schema_version="1",
+                catalog_frozen__content__part__category__in=part_categories,
+            )
+            | Q(
+                latest_revision_id__isnull=True,
+                kind="part",
+                catalog_draft__part__schema_version="1",
+                catalog_draft__part__category__in=part_categories,
+            )
+            | Q(
+                latest_revision_id__isnull=False,
+                kind="mechanical_source",
+                catalog_frozen__content__mechanical_source__item_role__in=mechanical_roles,
+            )
+            | Q(
+                latest_revision_id__isnull=True,
+                kind="mechanical_source",
+                catalog_draft__mechanical_source__item_role__in=mechanical_roles,
+            )
+        )
     if payload.query:
         variants = ManufacturerVariant.objects.filter(
             revision_id=OuterRef("latest_revision_id")
@@ -136,13 +231,13 @@ def list_library_table(user, payload: ListLibraryTable) -> dict:
     # The exact ids from the page govern every later load, including the base record.
     revisions = Revision.objects.filter(
         id__in=[r.latest_revision_id for r in page if r.latest_revision_id]
-    ).select_related("snapshot")
+    ).select_related("definition", "snapshot__definition")
     frozen = {r.id: r for r in revisions}
     drafts = {
         d.id: d
         for d in Draft.objects.filter(
             id__in=[r.selected_draft_id for r in page if not r.latest_revision_id]
-        )
+        ).select_related("definition")
     }
     numbers = defaultdict(list)
     for number in (
@@ -160,6 +255,23 @@ def list_library_table(user, payload: ListLibraryTable) -> dict:
         numbers[number.revision_id].append(
             LibraryNumber(manufacturer=number.manufacturer, value=number.part_number)
         )
+    protected_kinds = {"part", "kit", "material", "hardware", "mechanical_source"}
+    protected = [
+        revision for revision in frozen.values() if revision.definition.kind in protected_kinds
+    ]
+    allowed_drafts = set()
+    with closure_reads():
+        allowed_frozen = readable_revisions(actor, protected)
+        prefetch_origins(draft.definition_id for draft in drafts.values())
+        for draft in drafts.values():
+            if draft.definition.kind not in protected_kinds:
+                allowed_drafts.add(draft.id)
+                continue
+            try:
+                authorize_design_content(actor, draft.definition, draft.content)
+                allowed_drafts.add(draft.id)
+            except OperationError:
+                pass
     records = _records(page, render, loader, context)
     results = []
     for row, record in zip(page, records, strict=True):
@@ -172,16 +284,26 @@ def list_library_table(user, payload: ListLibraryTable) -> dict:
             if draft
             else {}
         )
+        unavailable = row.kind in protected_kinds and (
+            (revision is not None and revision.id not in allowed_frozen)
+            or (draft is not None and draft.id not in allowed_drafts)
+        )
+        if unavailable:
+            revision, draft, content = None, None, {}
         basis = "latest_frozen" if revision else "newest_draft" if draft else "unknown"
         summary = LibrarySummary(
             basis=basis,
             revision_id=revision.id if revision else None,
             draft_id=draft.id if draft else None,
             draft_version=draft.version if draft else None,
-            numbers=numbers[row.latest_revision_id][:20],
-            numbers_truncated=len(numbers[row.latest_revision_id]) > 20,
+            numbers=[] if unavailable else numbers[row.latest_revision_id][:20],
+            numbers_truncated=not unavailable and len(numbers[row.latest_revision_id]) > 20,
             fields=_fields(row.kind, content),
-            flags=["No saved content"] if not content else [],
+            flags=["Current content unavailable"]
+            if unavailable
+            else ["No saved content"]
+            if not content
+            else [],
         )
         results.append(LibraryTableRecord(**record.model_dump(), summary=summary))
     next_after = None

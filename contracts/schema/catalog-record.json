@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "definition_id": {
+      "format": "uuid",
+      "title": "Definition Id",
+      "type": "string"
+    },
+    "draft_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Draft Id"
+    },
+    "include_content": {
+      "default": true,
+      "title": "Include Content",
+      "type": "boolean"
+    },
+    "revision_number": {
+      "anyOf": [
+        {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Revision Number"
+    },
+    "working": {
+      "default": false,
+      "title": "Working",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "definition_id"
+  ],
+  "title": "ReadRecord",
+  "type": "object"
+}

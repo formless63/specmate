@@ -17,7 +17,7 @@ The workspace owns its **global collections**. Nothing in a collection lives in 
 
 | Collection | Contents |
 | --- | --- |
-| Definitions | Every definition kind with its drafts, snapshots and revisions: parts, connector bodies, pinouts, wire stock, cables, harnesses, boards and populations, firmware, interfaces and assessments, assemblies, option sets and configurations, workshop and preparation profiles, BOM, material and test plans, mechanical sources, passive models, PCB source reviews. |
+| Definitions | Every definition kind with its drafts, snapshots and revisions: parts, catalog kits, connector bodies, pinouts, wire stock, cables, harnesses, boards and populations, firmware, interfaces and assessments, assemblies, option sets and configurations, workshop and preparation profiles, BOM, material and test plans, mechanical sources, passive models, PCB source reviews. |
 | Catalog associations | Manufacturer variants, representations, physical lots, reviewed match candidates/decisions, passive-model reviews, upgrade proposals and their reviews/applications, firmware adoptions. |
 | Catalog packs | Installed packs, versions, entries and adoption decisions. Adoption creates workspace definitions. |
 | Sources | Blobs, original and derivative bundles, revisions, files, archive expansions, edit submissions and property-authority lineages. Identical bytes are registered once per workspace. |
@@ -85,6 +85,12 @@ and review; no frozen consumer is rewritten. [Revision upgrade proposals](REVISI
 retain exact assembly snapshots and selected direct occurrences, separate review history,
 explicit declared-contact correspondence and deliberate adoption into an owning draft.
 Nested adoption, other owning kinds and further feature adapters remain separate work.
+
+A catalog **kit** is an explicitly declared grouping of exact design revisions and
+nullable quantities. It is distinct from an assembly, a stocked lot or a physical
+unit. Membership does not create an occurrence, consume stock or expand a BOM.
+Part **Declared fit** links similarly retain exact targets and a basis; they do
+not establish physical compatibility or qualification.
 
 ## Occurrences and composition
 

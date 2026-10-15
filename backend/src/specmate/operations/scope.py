@@ -116,7 +116,7 @@ def builtin_scope(name, ctx, payload) -> str:
 
 
 def _authorize_retained_design(name, ctx, payload, scope):
-    """Protect mechanical and firmware outcomes before generic command fingerprint diagnostics.
+    """Protect typed engineering outcomes before generic command fingerprint diagnostics.
 
     Determine the retained kind from server-owned state: changing the incoming
     create kind or content must not bypass authority over an earlier result.
@@ -148,7 +148,12 @@ def _authorize_retained_design(name, ctx, payload, scope):
             .first()
         )
         definition = snapshot.definition if snapshot else None
-    if definition is not None and definition.kind in {"mechanical_source", "firmware"}:
+    if definition is not None and definition.kind in {
+        "mechanical_source",
+        "firmware",
+        "part",
+        "kit",
+    }:
         if snapshot is not None:
             from specmate.design.operations import authorize_snapshot
 

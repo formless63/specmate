@@ -137,6 +137,10 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
         raise ValidationFailed("Duplicate dependency.")
     dependencies = p.dependencies
     derived = None
+    if draft.definition.kind in {"part", "kit"}:
+        from specmate.parts.queries import dependency_revisions as catalog_dependencies
+
+        derived = catalog_dependencies(ctx.user, draft.definition, draft.content)
     if draft.definition.kind == "assembly" and "assembly" in draft.content:
         from specmate.assemblies.queries import dependency_revisions
 
@@ -320,6 +324,14 @@ def freeze_draft(ctx: Context, p: CaptureDraft) -> dict:
 
 
 def validate_content(kind, content):
+    if (
+        kind in {"part", "kit"}
+        or "kit" in content
+        or (isinstance(content.get("part"), dict) and "schema_version" in content["part"])
+    ):
+        from specmate.parts.queries import validate_content as validate_catalog_content
+
+        content = validate_catalog_content(kind, content)
     if kind == "mechanical_source" or "mechanical_source" in content:
         from specmate.mechanical_sources.operations import validate_content as validate_mechanical
 
@@ -424,6 +436,10 @@ def _authorize_design_content(user, definition, content):
     from specmate.catalog_packs.authoring import authorize_origin
 
     authorize_origin(user, definition)
+    if definition.kind in {"part", "kit"}:
+        from specmate.parts.queries import dependency_revisions as catalog_dependencies
+
+        catalog_dependencies(user, definition, content)
     if definition.kind == "mechanical_source" or "mechanical_source" in content:
         from specmate.mechanical_sources.operations import authorize_content as authorize_mechanical
 
