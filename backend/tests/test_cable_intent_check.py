@@ -67,7 +67,14 @@ def demo(users, project):
         examples.console_to_monitor_intent(port, monitor, proposal["rows"]),
         "Console A to monitor",
     )
-    return {"stock": stock, "end_a": end_a, "end_b": end_b, "intent": intent}
+    return {
+        "stock": stock,
+        "end_a": end_a,
+        "end_b": end_b,
+        "intent": intent,
+        "plug": plug,
+        "plug_variant": plug_variant,
+    }
 
 
 def check_of(users, project, demo, builder):

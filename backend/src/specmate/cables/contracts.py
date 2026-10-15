@@ -208,3 +208,28 @@ class CheckIntent(StrictModel):
         if (self.cable_revision_id is None) == (self.draft_id is None):
             raise ValueError("Check either a cable revision or a cable draft.")
         return self
+
+
+class EndChoice(StrictModel):
+    """One end for a proposal: a pinned end assembly or an ad-hoc stack."""
+
+    label: Text | None = None
+    stock_end: Literal["a", "b", "unknown"] | None = None
+    end_assembly_revision_id: UUID | None = None
+    stack: EndStack | None = None
+
+    @model_validator(mode="after")
+    def one_source(self):
+        if (self.end_assembly_revision_id is None) == (self.stack is None):
+            raise ValueError("An end pins an end assembly or declares a stack, not both.")
+        return self
+
+
+class ProposeCable(StrictModel):
+    """Propose wiring from an intent; for a draft, its stock and ends are the defaults."""
+
+    intent_revision_id: UUID
+    stock_revision_id: UUID | None = None
+    from_end: EndChoice | None = None
+    to_end: EndChoice | None = None
+    draft_id: UUID | None = None

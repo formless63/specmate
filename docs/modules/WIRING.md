@@ -834,3 +834,28 @@ A destination contact wired without an intent source reads connection `flagged`
 revisions as a recorded design result (`cable_intent_check` source) pinned to both and to
 the cable's dependencies; newer revisions make it stale on read. It is not physical
 qualification.
+
+## Proposing wiring from an intent
+
+`cable_intent.propose_cable` (and `POST /api/v0/cables/propose`) proposes a whole cable
+from an exact intent, a stock and two ends (end assembly revisions or ad-hoc stacks), or
+for an existing draft from its stock and ends. Nothing is stored: rows are accepted into a
+draft through `cable.create`/`cable.update`. The rules are deterministic:
+
+- **Conductors** for signal rows meet the row's conductor requirement (coax, pair,
+  single) and are unused, ranked by the stock's exact conventions, then colour codes:
+  preferred, allowed, spare, unranked. A conductor kept for another signal, `avoid` and
+  `do not use` are never chosen. Several best candidates are a `tie` question; none is a
+  `no_conductor` question.
+- **Returns**: a chosen coax's own screen goes to the row that returns its signal when a
+  convention names it that signal's return or the row asks for a dedicated screen;
+  several screens over several destination contacts are split in contiguous blocks in
+  stock order.
+- **Landings**: at each end, the stack terminal that reaches the row's contact through
+  the most declared steps (the cable-side pad rather than the connector-side pad),
+  preferring a path that carries a required part. Equal choices are a question.
+- **Parts**: a required part on neither end's path is a `missing_part` question with a
+  suggested `development_need` (adapter board) and the workspace's existing needs.
+
+No joint, bond, board path or part is ever added. Every proposal is returned with the
+same check as `cable_intent.check` and, for a draft, a per-conductor difference.

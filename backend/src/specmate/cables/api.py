@@ -3,6 +3,7 @@ from uuid import UUID
 from ninja import Router
 
 from specmate.access.permissions import Perm
+from specmate.cables.contracts import ProposeCable
 from specmate.cables.operations import cable_draft
 from specmate.cables.queries import inspect_revision, length_impact
 from specmate.design.operations import draft_state
@@ -51,3 +52,20 @@ def draft_intent_check(request, draft_id: UUID, intent_revision_id: UUID | None 
     )
     result = check(request.user, value.content, "cable", intent_revision_id)
     return {"cable_revision_id": None, "draft_id": str(value.id), **result}
+
+
+@router.post("/propose")
+def propose(request, payload: ProposeCable):
+    """Proposed wiring from an intent, with its check result (read-only, never stored)."""
+    from specmate.cables.propose import propose_cable
+
+    draft = (
+        cable_draft(
+            Context(user=request.user, via="api", request_id="read"),
+            payload.draft_id,
+            Perm.WORKSPACE_READ,
+        )
+        if payload.draft_id
+        else None
+    )
+    return propose_cable(request.user, payload, draft)
