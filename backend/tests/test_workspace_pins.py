@@ -11,7 +11,7 @@ import copy
 import pytest
 
 from specmate.design.models import Definition, Draft, Snapshot
-from specmate.operations import NotFound, ValidationFailed
+from specmate.operations import NotFound
 
 from .conftest import ensure_member, op
 from .scope_helpers import workspace_of
@@ -116,7 +116,7 @@ def test_interface_bom_and_material_plans_reject_foreign_roots(users, project, d
     assert counts() == before
 
 
-def test_create_takes_a_workspace_and_never_a_project(users, project, workspace):
+def test_create_lives_in_the_workspace_with_project_as_context(users, project, workspace):
     *_, cable = cable_fixture(users["owner"], project)
     created = op(
         users["contributor"],
@@ -127,10 +127,11 @@ def test_create_takes_a_workspace_and_never_a_project(users, project, workspace)
     # An omitted workspace is the actor's only one.
     omitted = op(users["contributor"], "cable.create", {"name": "Implicit", "cable": cable})
     assert omitted["workspace_id"] == workspace
-    with pytest.raises(ValidationFailed, match="Invalid payload"):
-        op(
-            users["owner"],
-            "cable.create",
-            {"project_id": project, "name": "Old payload", "cable": cable},
-        )
+    # A project is only reference context: the cable still lives in the workspace.
+    in_project = op(
+        users["owner"],
+        "cable.create",
+        {"project_id": project, "name": "Project context", "cable": cable},
+    )
+    assert in_project["workspace_id"] == workspace
     assert workspace_of(project) == workspace
