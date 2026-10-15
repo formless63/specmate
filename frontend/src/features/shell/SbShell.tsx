@@ -2,6 +2,7 @@ import { AppShell, Button, Group, Menu, Tabs, Text, VisuallyHidden } from "@mant
 import { useMediaQuery } from "@mantine/hooks";
 import { Spotlight, spotlight, type SpotlightActionData, type SpotlightActionGroupData } from "@mantine/spotlight";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ItemSpotlight } from "../item-search";
 import { breakpoints, rail, topBarHeight } from "../../theme/schematicBench";
 import type { ShellChrome } from "../workspace";
 import { AREAS, areaOfTool, describeAccess, toolLabel, type AreaDef } from "./areas";
@@ -20,6 +21,8 @@ type SbShellProps = {
   libraryScope?: boolean;
   /** Extra palette entries, e.g. switching scope. */
   extraActions?: SpotlightActionGroupData[];
+  /** Principal key of the signed-in member: with it, the palette also searches library items. */
+  itemSearchKey?: string;
   activeTool: string;
   /** Called for every lens or area change; the owner mounts the tool on first visit. */
   onToolChange: (toolId: string) => void;
@@ -29,7 +32,7 @@ type SbShellProps = {
   children: ReactNode;
 };
 
-export function SbShell({ projectName, permissions, role = null, libraryScope = false, extraActions = NO_ACTIONS, activeTool, onToolChange, chrome, statusIndicator, children }: SbShellProps) {
+export function SbShell({ projectName, permissions, role = null, libraryScope = false, extraActions = NO_ACTIONS, itemSearchKey, activeTool, onToolChange, chrome, statusIndicator, children }: SbShellProps) {
   const area = areaOfTool(activeTool);
   const wide = useMediaQuery(`(min-width: ${breakpoints.lg}px)`, false, { getInitialValueInEffect: false });
   const narrow = useMediaQuery(`(max-width: ${breakpoints.sm - 1}px)`, false, { getInitialValueInEffect: false });
@@ -59,7 +62,7 @@ export function SbShell({ projectName, permissions, role = null, libraryScope = 
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const actions = useMemo<(SpotlightActionData | SpotlightActionGroupData)[]>(() => [
+  const toolActions = useMemo<SpotlightActionGroupData[]>(() => [
     { group: "Areas", actions: AREAS.map((item) => ({
       id: `area:${item.id}`, label: item.label, description: `Area ${item.key} · ${item.tools.length} tools`,
       onClick: () => openAreaRef.current(item),
@@ -68,8 +71,8 @@ export function SbShell({ projectName, permissions, role = null, libraryScope = 
       id: `tool:${tool.id}`, label: tool.label, description: `${item.label} area`,
       onClick: () => onToolChange(tool.id),
     })) })),
-    ...extraActions,
-  ], [onToolChange, extraActions]);
+  ], [onToolChange]);
+  const actions = useMemo<(SpotlightActionData | SpotlightActionGroupData)[]>(() => [...toolActions, ...extraActions], [toolActions, extraActions]);
 
   const access = describeAccess(permissions, role);
   const railWidth = narrow ? 0 : wide ? rail.expanded : rail.collapsed;
@@ -82,9 +85,9 @@ export function SbShell({ projectName, permissions, role = null, libraryScope = 
         {!narrow && <span className="sb-wordmark">SPECMATE</span>}
         {!compact && chrome.projectControl}
         {compact && (chrome.projectMenu ?? <span className="sb-project-button"><span className="sb-project-name">{projectName}</span></span>)}
-        <button type="button" className="sb-search" data-compact={compact} onClick={() => spotlight.open()} aria-label="Jump to a tool or area" aria-keyshortcuts="Control+K">
+        <button type="button" className="sb-search" data-compact={compact} onClick={() => spotlight.open()} aria-label={itemSearchKey ? "Find an item or jump to a tool" : "Jump to a tool or area"} aria-keyshortcuts="Control+K">
           <span className="sb-mono" aria-hidden="true" style={{ color: "var(--sb-accent)" }}>›</span>
-          {!compact && <span className="sb-search-hint">jump, search or command</span>}
+          {!compact && <span className="sb-search-hint">find an item, tool or area</span>}
           {!compact && <span className="sb-keycap" aria-hidden="true">Ctrl K</span>}
           {compact && <span className="sb-keycap" aria-hidden="true">K</span>}
         </button>
@@ -135,8 +138,11 @@ export function SbShell({ projectName, permissions, role = null, libraryScope = 
       </div>
     </AppShell.Footer>
 
-    <Spotlight actions={actions} shortcut="mod + K" nothingFound="No matching area or tool" highlightQuery
-      searchProps={{ placeholder: extraActions.length ? "Jump to an area, tool or project" : "Jump to an area or tool", "aria-label": "Jump to an area or tool" }} />
+    {itemSearchKey
+      ? <ItemSpotlight principalKey={itemSearchKey} toolActions={toolActions} extraActions={extraActions}
+        placeholder={extraActions.length ? "Find an item, or jump to an area, tool or project" : "Find an item, or jump to an area or tool"} />
+      : <Spotlight actions={actions} shortcut="mod + K" nothingFound="No matching area or tool" highlightQuery
+        searchProps={{ placeholder: extraActions.length ? "Jump to an area, tool or project" : "Jump to an area or tool", "aria-label": "Jump to an area or tool" }} />}
   </AppShell>;
 }
 

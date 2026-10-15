@@ -115,3 +115,31 @@ class LibraryPreview(BaseModel):
 class LibraryPreviews(BaseModel):
     workspace_id: UUID
     previews: list[LibraryPreview] = Field(description="Only definitions of this workspace.")
+
+
+MatchField = Literal["name", "part_number", "identifier", "connector_family", "kind"]
+
+
+class SearchLibrary(Query):
+    """Find library items by name, part number or source identifier, connector family or kind."""
+
+    workspace_id: UUID | None = None
+    query: str = Field(min_length=1, max_length=100)
+    limit: int = Field(default=8, ge=1, le=25)
+
+
+class SearchMatch(BaseModel):
+    field: MatchField
+    text: str = Field(description="The matched value as stored.")
+    rank: Literal[0, 1, 2] = Field(description="0 exact, 1 prefix, 2 substring.")
+
+
+class SearchResult(HomeItem):
+    match: SearchMatch
+
+
+class LibrarySearch(BaseModel):
+    workspace_id: UUID
+    query: str
+    results: list[SearchResult]
+    truncated: bool = Field(description="More items match than were returned or scanned.")

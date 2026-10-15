@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "description": "Find library items by name, part number or source identifier, connector family or kind.",
+  "properties": {
+    "limit": {
+      "default": 8,
+      "maximum": 25,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "query": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "title": "SearchLibrary",
+  "type": "object"
+}
