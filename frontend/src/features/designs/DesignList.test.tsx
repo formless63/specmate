@@ -29,13 +29,13 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function show(at = "/designs", editable = true) {
   const history = createMemoryHistory({ initialEntries: [at] });
-  const open = vi.fn(); const create = vi.fn();
+  const open = vi.fn(); const create = vi.fn(); const accessLost = vi.fn();
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MantineProvider><QueryClientProvider client={cache}><NavigationProvider history={history}>
     <PermissionsProvider permissions={editable ? ["workspace.read", "item.create"] : ["workspace.read"]}>
-      <DesignList principalKey="member" projectId={null} projects={[]} onOpen={open} onCreate={create} />
+      <DesignList principalKey="member" projectId={null} projects={[]} onOpen={open} onCreate={create} onAccessLost={accessLost} />
     </PermissionsProvider></NavigationProvider></QueryClientProvider></MantineProvider>);
-  return { history, open, create };
+  return { history, open, create, cache, accessLost };
 }
 
 test("a design name and Enter open the record; review is never presented as passing checks", async () => {
@@ -85,4 +85,35 @@ test("new design offers each existing design kind without creating anything on s
   expect(create).not.toHaveBeenCalled();
   fireEvent.click(await screen.findByRole("menuitem", { name: "Harness" }));
   expect(create).toHaveBeenCalledWith("harness");
+});
+
+
+test.each([401, 403, 404])("a denied %s refetch withdraws retained rows and the selected drawer", async (status) => {
+  const { cache, accessLost } = show();
+  fireEvent.click(await screen.findByRole("row", { name: "Bench lead, Cable" }));
+  expect(await screen.findByRole("dialog")).toBeTruthy();
+  expect(screen.getByText("Pair stock · r1")).toBeTruthy();
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation((input, init) => String(input).startsWith("/api/v0/workspace/designs?")
+    ? Promise.resolve(reply({ error: { message: "Designs unavailable." } }, status)) : original(input, init));
+  await cache.invalidateQueries({ queryKey: ["workspace", "designs"] });
+  await waitFor(() => expect(accessLost).toHaveBeenCalledTimes(1));
+  expect(screen.queryByRole("row", { name: "Bench lead, Cable" })).toBeNull();
+  expect(screen.queryByText("Bench lead")).toBeNull();
+  expect(screen.queryByText(/Pair stock/)).toBeNull();
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+test("a transient server failure keeps retained content without claiming an authority loss", async () => {
+  const { cache, accessLost } = show();
+  fireEvent.click(await screen.findByRole("row", { name: "Bench lead, Cable" }));
+  expect(await screen.findByRole("dialog")).toBeTruthy();
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation((input, init) => String(input).startsWith("/api/v0/workspace/designs?")
+    ? Promise.resolve(reply({ error: { message: "Temporary server failure." } }, 500)) : original(input, init));
+  await cache.invalidateQueries({ queryKey: ["workspace", "designs"] });
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(screen.getByRole("row", { name: "Bench lead, Cable" })).toBeTruthy();
+  expect(screen.getByRole("dialog")).toBeTruthy();
+  expect(accessLost).not.toHaveBeenCalled();
 });

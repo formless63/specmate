@@ -164,7 +164,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
       activeTool={active} onToolChange={setActive} onAreaChange={tool => navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, probe: null })} chrome={chrome} extraActions={scopeActions} itemSearchKey={scope.principalKey}
       statusIndicator={scope.projectId ? <StatusIndicator workspaceId={scope.workspaceId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} /> : undefined}>
       <Fragment key={scopeKey}><RecordFocusContext.Provider value={activeFocus}>
-        <ToolPanel value="designs">{tools.has("designs") && (url.probe ? <Text role="status">{selected.isError ? "This design is not available." : "Opening design…"}</Text> : <DesignList active={active === "designs"} principalKey={scope.principalKey} projectId={scope.projectId} projects={scope.projects}
+        <ToolPanel value="designs">{tools.has("designs") && (url.probe ? <Text role="status">{selected.isError ? "This design is not available." : "Opening design…"}</Text> : <DesignList onAccessLost={scope.refresh} active={active === "designs"} principalKey={scope.principalKey} projectId={scope.projectId} projects={scope.projects}
           onOpen={record => navigation?.navigate({ area: "designs", lens: toolForKind(record.kind), probe: { object: record.record_id, rev: null, path: [] } })}
           onCreate={openCreate} />)}</ToolPanel>
         <ToolPanel value="history">{tools.has("history") && <Stack><Text component="h1" fw={600}>History</Text><Text>Workspace change history is not available yet. Open a record to inspect its retained revisions.</Text></Stack>}</ToolPanel>

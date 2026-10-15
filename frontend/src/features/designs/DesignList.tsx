@@ -1,13 +1,13 @@
 import { Alert, Badge, Button, Drawer, Group, Menu, Popover, SegmentedControl, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePermission } from "../../lib/permissions";
 import { ItemCard, revisionTag } from "../library-gallery/ItemCard";
 import { loadPreview } from "../library-gallery/api";
 import { ItemThumb } from "../library-gallery/thumbs";
 import { useNavigation } from "../navigation";
-import type { LibraryRecord, Project } from "../workspace/api";
+import { ApiError, type LibraryRecord, type Project } from "../workspace/api";
 import { listDesigns, type DesignEnd, type DesignKind, type DesignRow } from "./api";
 import "./designs.css";
 
@@ -28,13 +28,14 @@ function End({ end }: { end: DesignEnd }) {
   </span>;
 }
 
-export function DesignList({ principalKey, projectId, projects, onOpen, onCreate, active = true }: {
+export function DesignList({ principalKey, projectId, projects, onOpen, onCreate, onAccessLost, active = true }: {
   principalKey: string;
   projectId: string | null;
   projects: Project[];
   onOpen: (record: LibraryRecord) => void;
   onCreate: (kind: DesignKind) => void;
   active?: boolean;
+  onAccessLost?: () => void | Promise<void>;
 }) {
   const navigation = useNavigation();
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({});
@@ -52,7 +53,15 @@ export function DesignList({ principalKey, projectId, projects, onOpen, onCreate
     enabled: active,
     retry: false,
   });
-  const rows = records.data?.pages.flatMap((page) => page.results) ?? [];
+  const denied = records.isError && records.error instanceof ApiError && [401, 403, 404].includes(records.error.status);
+  // A failed authorization refetch must withdraw retained query data immediately. A server
+  // outage keeps its separate error state and does not claim that membership was revoked.
+  const rows = denied ? [] : records.data?.pages.flatMap((page) => page.results) ?? [];
+  useEffect(() => {
+    if (!denied) return;
+    setSelectedId(null);
+    void Promise.resolve().then(() => onAccessLost?.()).catch(() => { /* The denied list stays hidden if session refresh also fails. */ });
+  }, [denied, onAccessLost]);
   const selected = rows.find((row) => row.record_id === selectedId) ?? null;
   const activeFilters = Object.entries(filters).filter(([key, value]) => FILTER_NAMES[key] && value);
   const setFilter = (key: string, value: string | null) => {
