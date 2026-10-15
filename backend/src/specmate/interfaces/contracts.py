@@ -17,6 +17,7 @@ from specmate.interfaces.signal_contracts import SignalImpedance, SignalLevel, S
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
 Text = Annotated[str, Field(min_length=1, max_length=200)]
+GeometryKey = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9.-]{0,79}$")]
 
 
 class Orientation(StrictModel):
@@ -78,6 +79,9 @@ class ConnectorBody(StrictModel):
     contacts: list[Contact] = Field(default_factory=list, max_length=1000)
     drawing_orientation: Orientation = Field(default_factory=Orientation)
     mates_with: list[MatesWith] = Field(default_factory=list, max_length=50)
+    # Presentation only: the connector face drawing (a connector-art library key) this body
+    # is drawn with. It never establishes mating, fit, contact identity or compatibility.
+    geometry_key: GeometryKey | None = None
 
     @model_validator(mode="after")
     def unique(self):
