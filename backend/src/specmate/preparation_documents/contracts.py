@@ -9,7 +9,7 @@ from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.preparation.contracts import Application
 from specmate.selected_packages.contracts import RightsReview
 
-GENERATOR = "specmate.preparation-documents/1"
+GENERATOR = "specmate.preparation-documents/2"
 FORMAT = "specmate.coordinated-document-set/0.1"
 DOCUMENTS = (
     "specifications.json",

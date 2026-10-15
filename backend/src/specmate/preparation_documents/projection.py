@@ -82,6 +82,75 @@ def decimal_total(length, quantity):
         raise ValidationFailed("Document totals exceed exact supported quantity bounds.") from None
 
 
+def _signal_text(signal):
+    if not signal:
+        return None
+    return {"name": signal["name"], "type": signal["type"]}
+
+
+def termination_rows(inspected):
+    """One row per declared termination: conductor, layer target, signals and part notes.
+
+    Signals are the connector contacts' typed signals (for a pad or inline lead, those of
+    the contacts it is declared to reach). Part notes are the declared board-path or inline
+    parts at that terminal. A missing signal stays null (unknown), never inferred.
+    """
+    endpoints = {e["local_id"]: e for e in inspected["endpoints"]}
+    labels = {c["element_path"]: c["label"] for c in inspected["conductors"]}
+    rows = []
+    for t in inspected["terminations"]:
+        endpoint = endpoints[t["endpoint_id"]]
+        layers = {layer["layer_id"]: layer for layer in endpoint["resolved_stack"]["layers"]}
+        layer = layers.get(t["layer_id"], {})
+        notes = []
+        if layer.get("kind") == "board":
+            notes = [
+                p["summary"]
+                for p in layer.get("paths", [])
+                if p["via"] != "copper"
+                and t["terminal_id"] in (p["from_terminal"], p["to_terminal"])
+            ]
+        elif layer.get("kind") == "inline":
+            part_id = t["terminal_id"].split(".", 1)[0]
+            notes = [p["summary"] for p in layer.get("parts", []) if p["local_id"] == part_id]
+        if t["contact_id"] is not None:
+            targets = [
+                {
+                    "contact_id": t["contact_id"],
+                    "label": t["terminal_label"],
+                    "signal": _signal_text(t["signal"]),
+                    "status": "declared",
+                }
+            ]
+        else:
+            targets = [
+                {
+                    "contact_id": r["contact_id"],
+                    "label": r["label"],
+                    "signal": _signal_text(r["signal"]),
+                    "status": r["status"],
+                }
+                for r in t["reaches"]
+            ]
+        rows.append(
+            {
+                "endpoint_id": t["endpoint_id"],
+                "endpoint_label": endpoint.get("label") or t["endpoint_id"],
+                "stock_end": endpoint.get("stock_end", "unknown"),
+                "element_path": t["element_path"],
+                "element_label": labels.get(t["element_path"]),
+                "layer_id": t["layer_id"],
+                "layer_kind": t["layer_kind"],
+                "target_label": t["terminal_label"],
+                "contacts": targets,
+                "part_notes": notes,
+                "basis": t["basis"],
+            }
+        )
+    rows.sort(key=lambda r: (r["endpoint_id"], r["layer_id"], r["target_label"], r["element_path"]))
+    return rows
+
+
 def project(user, configuration):
     user, captured, source_files, opaque = authorize_inputs(user, configuration)
     root = captured[configuration.root_revision_id]
@@ -293,6 +362,7 @@ def project(user, configuration):
                 {
                     "address": address,
                     "assignments": cable["assignments"],
+                    "rows": termination_rows(inspected),
                     "unassigned": [
                         {"element_path": r["element_path"], "endpoint_id": e["endpoint_id"]}
                         for r in inspected["conductors"]

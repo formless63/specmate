@@ -43,6 +43,30 @@ its exact bundle revision, path, hash and declared rights; source bytes are omit
 The package's hash identifies the exported bytes. Reading this package does not
 establish distribution rights, which remain `not_evaluated`.
 
+## Proposed from a cable intent
+
+`cable_test_plan.derive_from_intent` reads an exact frozen cable in its exact scope and
+the cable intent it pins (or a named intent revision) and proposes a plan body; nothing
+is stored or frozen, and the proposal is accepted only through `cable_test_plan.create`
+or `.update` and reviewed before freezing. The derivation reuses the intent check's
+declared path search and end mating:
+
+- each required (or optional and wired) intent row gives a **continuity** pair from the
+  cable contact at the from end to each destination contact, only where the cable
+  declares a path. Declared resistors on the path give `expected_resistance_ohm` (their
+  series sum); a resistor without a stated value leaves it null. A path through an
+  unreviewed landing or unknown board path, or through a capacitor or unknown part, is
+  proposed as `unknown` with the reason;
+- every two rows that the intent keeps apart (no shared intended contact) give an
+  **isolation** pair at the from end; a must-not-connect row gives isolation from every
+  other tested net and from its destination contacts;
+- rows the cable does not carry (no declared path, an open question, an unmapped pin,
+  optional and unwired, no source pin) propose nothing and are listed with the reason;
+- labels name each tested contact by number and signal, and each end by its intent end.
+
+Pairs may carry a display `signal` and a `derived_from` record (intent revision and row
+IDs). Neither identifies a terminal or establishes a result.
+
 Authored expectations are separate from declared copper, native reported-net
 membership, interpreted paths, physical-unit measurements and test results.
 `physical_test: not_performed` describes the evidence in this plan/package, not

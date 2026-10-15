@@ -32,6 +32,15 @@ class Terminal(StrictModel):
         return self.endpoint_id, self.kind, self.contact_id or self.element_path
 
 
+class DerivedFrom(StrictModel):
+    """The cable intent row an expectation was proposed from; a record, never evidence."""
+
+    intent_revision_id: UUID
+    row_ids: list[Annotated[str, Field(min_length=1, max_length=80)]] = Field(
+        min_length=1, max_length=2
+    )
+
+
 class PairExpectation(StrictModel):
     local_id: LocalId
     first: Terminal
@@ -39,6 +48,17 @@ class PairExpectation(StrictModel):
     intent: Literal["continuity", "isolation", "unknown"] = "unknown"
     basis: Declaration
     evidence: EvidenceInput = Field(default_factory=EvidenceInput)
+    # What the pair carries, as named by the intent; display only, never a terminal key.
+    signal: Annotated[str, Field(min_length=1, max_length=200)] | None = None
+    # A declared series resistance on the path (for example a board's sync resistor).
+    expected_resistance_ohm: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
+    derived_from: DerivedFrom | None = None
+
+    @model_validator(mode="after")
+    def resistance_needs_continuity(self):
+        if self.expected_resistance_ohm is not None and self.intent != "continuity":
+            raise ValueError("An expected series resistance belongs to a continuity pair.")
+        return self
 
     @model_validator(mode="after")
     def distinct(self):
@@ -98,6 +118,15 @@ class CapturePlan(StrictModel):
 
 class ReadPlan(StrictModel):
     revision_id: UUID
+
+
+class DeriveFromIntent(StrictModel):
+    """Propose expectations for an exact frozen cable from its pinned (or a named) intent."""
+
+    root_revision_id: UUID
+    occurrence_path: Path = Field(default_factory=list)
+    cable_revision_id: UUID
+    intent_revision_id: UUID | None = None
 
 
 class InspectTarget(StrictModel):

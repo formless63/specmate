@@ -5,6 +5,7 @@ from specmate.cable_test_intent import queries
 from specmate.cable_test_intent.contracts import (
     CapturePlan,
     CreatePlan,
+    DeriveFromIntent,
     InspectTarget,
     ReadPlan,
     UpdatePlan,
@@ -180,6 +181,22 @@ def read(ctx: Context, p: ReadPlan):
 )
 def inspect_target(ctx: Context, p: InspectTarget):
     return queries.inspect_target(ctx.user, p)
+
+
+@operation(
+    "cable_test_plan.derive_from_intent",
+    DeriveFromIntent,
+    summary=(
+        "Propose continuity and isolation expectations for an exact frozen cable from its "
+        "cable intent; nothing is stored or frozen."
+    ),
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def derive_from_intent(ctx: Context, p: DeriveFromIntent):
+    from specmate.cable_test_intent.derive import derive
+
+    return derive(ctx.user, p)
 
 
 @operation(
