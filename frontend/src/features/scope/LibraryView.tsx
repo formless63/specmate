@@ -123,7 +123,7 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
     <Group justify="space-between" align="flex-end" wrap="wrap" gap="xs">
       <Title order={2} className="sb-dash-title">{title}</Title>
       <Group gap="xs">
-      {editor && <Button variant="commit" size="xs" onClick={() => { setSelected(null); editor.reveal(true); }} {...create.props}>New {view.noun}</Button>}
+      {editor && <Button variant="commit" size="xs" onClick={() => { setSelected(null); editor.reveal(true, view.noun); }} {...create.props}>New {view.noun}</Button>}
       {projectId && <SegmentedControl size="xs" value={mode} onChange={(value) => setMode(value as "project" | "library")} aria-label="List scope"
         data={[{ value: "project", label: "This project" }, { value: "library", label: "Whole library" }]} />}
       </Group>

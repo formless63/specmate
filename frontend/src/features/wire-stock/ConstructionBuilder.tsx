@@ -2,14 +2,14 @@ import { Autocomplete, Checkbox, ColorInput, Fieldset, Group, NumberInput, Segme
 import { useState } from 'react';
 import { SbQuantity } from '../../components/sb';
 import { InspectionScope } from '../../lib/permissions';
-import { areaDiameterMm, awgAreaMm2, awgDiameterMm, awgForArea, coreLooks, drainPlacement, hasDrain, hasJacket, hasWeb, layup, TEMPLATES } from './builder';
+import { coaxLooks, coaxName, multiUnit, areaDiameterMm, awgAreaMm2, awgDiameterMm, awgForArea, coreLooks, drainPlacement, hasDrain, hasJacket, hasWeb, layup, TEMPLATES } from './builder';
 import type { BuilderSpec, Known, ShieldKind } from './builder';
 import { MmEntry } from './MmEntry';
 
-const CONDUCTOR_MATERIALS = ['copper', 'tinned copper', 'silver-plated copper', 'aluminium', 'copper-clad aluminium'];
-const INSULATION_MATERIALS = ['PVC', 'polyethylene', 'foam polyethylene', 'XLPE', 'FEP', 'PTFE', 'silicone', 'polypropylene'];
-const JACKET_MATERIALS = ['PVC', 'polyurethane (PUR)', 'TPE', 'silicone', 'polyethylene'];
-const SHIELD_MATERIALS = ['aluminium foil', 'tinned copper', 'copper'];
+const CONDUCTOR_MATERIALS = ['copper', 'tinned copper', 'silver-plated copper', 'aluminium', 'copper-clad aluminium', 'copper-clad steel (CCS)'];
+const INSULATION_MATERIALS = ['PVC', 'PE (polyethylene)', 'foam PE', 'XLPE', 'FEP', 'PTFE', 'PP (polypropylene)', 'TPE', 'silicone', 'LSZH'];
+const JACKET_MATERIALS = ['PVC', 'PE (polyethylene)', 'foam PE', 'PUR (polyurethane)', 'TPE', 'silicone', 'PTFE', 'FEP', 'PP (polypropylene)', 'XLPE', 'LSZH'];
+const SHIELD_MATERIALS = ['aluminium foil', 'Cu braid', 'tinned copper braid', 'copper', 'tinned copper'];
 const SWATCHES = ['#d62728', '#1f1f1f', '#f2d21b', '#1f5fbf', '#2e8b3a', '#8b5a2b', '#7f7f7f', '#f2f2f2', '#ff7f0e', '#303030'];
 const shown = (v: Known): Known => v === null ? null : Number(v.toFixed(4));
 const cell = (label: string, value: Known, note?: string) => <div className="sb-cell" key={label}>
@@ -42,6 +42,10 @@ export function ConstructionBuilder({ spec, onChange }: { spec: BuilderSpec; onC
     const fresh = coreLooks(t, n);
     set({ cores: fresh.map((look, i) => spec.cores[i] ?? look) });
   };
+  const multi = (patch: Partial<BuilderSpec['multi']>) => set({ multi: { ...spec.multi, ...patch } });
+  const mc = t === 'multicoax';
+  const setCoaxCount = (n: number) => multi({ looks: coaxLooks(n).map((look, i) => spec.multi.looks[i] ?? look) });
+  const setPlainCount = (n: number) => set({ cores: coreLooks(t, n).map((look, i) => spec.cores[i] ?? look) });
   const sizeFromAwg = (n: number) => {
     // AWG fixes the nominal area; a stranded conductor's overall diameter is not the solid-equivalent one.
     conductor({ area_mm2: Number(awgAreaMm2(n).toFixed(4)), ...(stranded ? {} : { diameter_mm: Number(awgDiameterMm(n).toFixed(4)) }) });
@@ -51,8 +55,8 @@ export function ConstructionBuilder({ spec, onChange }: { spec: BuilderSpec; onC
   if (ins !== null && cd !== null && ins <= cd) problems.push(`${t === 'coax' ? 'Dielectric' : 'Insulation'} diameter must exceed the conductor diameter.`);
   if (spec.jacket.od_mm !== null && spec.jacket.wall_mm !== null && spec.jacket.od_mm <= 2 * spec.jacket.wall_mm) problems.push('Jacket wall is too thick for its outer diameter.');
   // Derived geometry, shown as discrete cells.
-  const unit = pairs && count > 1 ? (ins === null ? null : 2 * ins) : ins;
-  const lay = t === 'round' || pairs ? (pairs && count === 1 ? layup(ins, 2) : layup(unit, count)) : null;
+  const unit = mc ? multiUnit(spec) : pairs && count > 1 ? (ins === null ? null : 2 * ins) : ins;
+  const lay = mc ? layup(unit, spec.multi.looks.length + spec.cores.length) : t === 'round' || pairs ? (pairs && count === 1 ? layup(ins, 2) : layup(unit, count)) : null;
   const drain = lay && spec.drain ? drainPlacement(lay, spec.drain_diameter_mm) : null;
   const bore = lay ? (drain ? (drain.boreRadius === null ? null : 2 * drain.boreRadius) : (lay.outerRadius === null ? null : 2 * lay.outerRadius)) : (t === 'coax' ? ins : null);
   const pitch = hasWeb(t) ? spec.spacing_mm ?? ins : null;
@@ -82,7 +86,7 @@ export function ConstructionBuilder({ spec, onChange }: { spec: BuilderSpec; onC
           <Colour label="Conductor colour" value={spec.conductor.color} onChange={v => conductor({ color: v })} />
         </SimpleGrid>
       </Fieldset>
-      <Fieldset legend={t === 'coax' ? 'Dielectric' : 'Core insulation'} variant="unstyled" className="sb-builder-set">
+      <Fieldset legend={t === 'coax' ? 'Dielectric' : mc ? 'Plain core insulation' : 'Core insulation'} variant="unstyled" className="sb-builder-set">
         <SimpleGrid cols={{ base: 1, sm: t === 'coax' ? 3 : 2 }} spacing="xs">
           <MmEntry label={t === 'coax' ? 'Dielectric outer diameter' : 'Insulation outer diameter'} value={shown(ins)} onChange={v => set({ insulation: { ...spec.insulation, od_mm: v } })} />
           <Autocomplete size="xs" label={t === 'coax' ? 'Dielectric material' : 'Insulation material'} placeholder="Unknown" data={INSULATION_MATERIALS} value={spec.insulation.material ?? ''}
@@ -96,7 +100,42 @@ export function ConstructionBuilder({ spec, onChange }: { spec: BuilderSpec; onC
         {t === 'round' && count >= 3 && <Checkbox size="xs" label="Centre filler (fills the space between cores)" checked={spec.filler} onChange={e => set({ filler: e.currentTarget.checked })} />}
       </Fieldset>
     </SimpleGrid>
-    {t !== 'coax' && <Table className="sb-ws-table" withRowBorders={false} aria-label="Cores">
+    {mc && <Fieldset legend="Coax units" variant="unstyled" className="sb-builder-set">
+      <Group gap="xs" align="flex-end" wrap="wrap">
+        <NumberInput size="xs" w={110} label="Coax units" min={1} max={24} allowDecimal={false} value={spec.multi.looks.length}
+          onChange={v => { const n = Number(v); if (Number.isInteger(n) && n >= 1 && n <= 24) setCoaxCount(n); }} />
+        <NumberInput size="xs" w={130} label="Plain cores" min={0} max={24} allowDecimal={false} value={spec.cores.length}
+          onChange={v => { const n = Number(v); if (Number.isInteger(n) && n >= 0 && n <= 24) setPlainCount(n); }} />
+        <MmEntry label="Coax centre diameter" value={shown(spec.multi.centre_mm)} onChange={v => multi({ centre_mm: v })} />
+        <MmEntry label="Coax dielectric diameter" value={shown(spec.multi.dielectric_od_mm)} onChange={v => multi({ dielectric_od_mm: v })} />
+        <Autocomplete size="xs" label="Coax dielectric material" placeholder="Unknown" data={INSULATION_MATERIALS} value={spec.multi.dielectric_material ?? ''} onChange={v => multi({ dielectric_material: text(v) })} />
+      </Group>
+      <Group gap="xs" align="flex-end" wrap="wrap">
+        <Select size="xs" w={130} label="Coax screen" value={spec.multi.screen} data={[{ value: 'none', label: 'None' }, { value: 'foil', label: 'Foil' }, { value: 'braid', label: 'Braid' }]}
+          onChange={v => v && multi({ screen: v as BuilderSpec['multi']['screen'] })} />
+        {spec.multi.screen !== 'none' && <MmEntry label="Coax screen thickness" value={shown(spec.multi.screen_thickness_mm)} onChange={v => multi({ screen_thickness_mm: v })} />}
+        {spec.multi.screen !== 'none' && <Autocomplete size="xs" label="Coax screen material" placeholder="Unknown" data={SHIELD_MATERIALS} value={spec.multi.screen_material ?? ''} onChange={v => multi({ screen_material: text(v) })} />}
+        <Checkbox size="xs" label="Own jacket on each coax" checked={spec.multi.jacket} onChange={e => multi({ jacket: e.currentTarget.checked })} />
+        {spec.multi.jacket && <MmEntry label="Coax jacket outer diameter" value={shown(spec.multi.jacket_od_mm)} onChange={v => multi({ jacket_od_mm: v })} />}
+        {spec.multi.jacket && <Autocomplete size="xs" label="Coax jacket material" placeholder="Unknown" data={JACKET_MATERIALS} value={spec.multi.jacket_material ?? ''} onChange={v => multi({ jacket_material: text(v) })} />}
+        <Select size="xs" w={260} label="Quick coax colour code" placeholder="Choose to fill all coax colours" value={null} clearable={false}
+          data={[{ value: 'sequence', label: 'Hook-up sequence (red, black, yellow, ...)' }, { value: 'unknown', label: 'Clear: all colours unknown' }]}
+          onChange={v => { if (v === 'sequence' || v === 'unknown') multi({ looks: coaxLooks(spec.multi.looks.length, v).map((look, i) => ({ label: spec.multi.looks[i]?.label ?? look.label, color: look.color })) }); }} />
+      </Group>
+      <Table className="sb-ws-table" withRowBorders={false} aria-label="Coax units">
+        <Table.Thead><Table.Tr><Table.Th>Coax</Table.Th><Table.Th>Label</Table.Th><Table.Th>{spec.multi.jacket ? 'Jacket colour' : 'Dielectric colour'}</Table.Th><Table.Th>Shown as</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>{spec.multi.looks.map((look, i) => <Table.Tr key={i}>
+          <Table.Td className="sb-mono">{i + 1}</Table.Td>
+          <Table.Td><TextInput size="xs" aria-label={`Coax ${i + 1} label`} value={look.label} onChange={e => multi({ looks: spec.multi.looks.map((c, j) => j === i ? { ...c, label: e.target.value || c.label } : c) })} /></Table.Td>
+          <Table.Td><Colour bare label={`Coax ${i + 1} colour`} value={look.color} onChange={v => multi({ looks: spec.multi.looks.map((c, j) => j === i ? { ...c, color: v } : c) })} /></Table.Td>
+          <Table.Td className="sb-mono">{coaxName(look)} centre</Table.Td>
+        </Table.Tr>)}</Table.Tbody>
+      </Table>
+    </Fieldset>}
+    {t !== 'coax' && !(mc && spec.cores.length === 0) && <Select size="xs" w={260} label="Quick colour code" aria-label="Quick colour code" placeholder="Choose to fill all core colours" value={null} clearable={false}
+      data={[{ value: 'sequence', label: pairs ? 'Pair sequence (blue/white, orange/white, ...)' : 'Hook-up sequence (red, black, yellow, blue, ...)' }, { value: 'unknown', label: 'Clear: all colours unknown' }]}
+      onChange={v => { if (v === 'sequence' || v === 'unknown') set({ cores: coreLooks(t, count, v).map((look, i) => ({ label: spec.cores[i]?.label ?? look.label, color: look.color })) }); }} />}
+    {t !== 'coax' && !(mc && spec.cores.length === 0) && <Table className="sb-ws-table" withRowBorders={false} aria-label="Cores">
       <Table.Thead><Table.Tr><Table.Th>Core</Table.Th><Table.Th>Label</Table.Th><Table.Th>Insulation colour</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>{spec.cores.map((look, i) => <Table.Tr key={i}>
         <Table.Td className="sb-mono">{pairs ? `${Math.floor(i / 2) + 1}${i % 2 ? 'B' : 'A'}` : i + 1}</Table.Td>

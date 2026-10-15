@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateFit, placeStock, sectionLayout } from '../../../../packages/section-layout/src';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
-import { awgAreaMm2, awgDiameterMm, awgForArea, blankSpec, drainPlacement, exampleCoax, generate, illustrate, layup, readBuilder } from './builder';
+import { awgAreaMm2, awgDiameterMm, awgForArea, blankSpec, coaxLooks, colourName, coreLooks, drainPlacement, exampleCoax, generate, illustrate, layup, readBuilder } from './builder';
 import type { BuilderSpec } from './builder';
 import { stockPresets } from './presets';
 
@@ -121,5 +121,42 @@ describe('construction builder', () => {
     expect(awgDiameterMm(36)).toBeCloseTo(0.127, 12);
     expect(awgForArea(0.2047)).toBe(24);
     expect(awgForArea(0.3)).toBeNull();
+  });
+
+  it('labels generated nodes by core and keeps entered colours, round-tripping exactly', () => {
+    const spec = { ...shieldedTwoCore(), cores: coreLooks('round', 2, 'sequence') };
+    const stock = generate(spec);
+    const cores = stock.structure.children.find(c => c.id === 'cores');
+    const core1 = (cores as { children: { id: string; children: { label: string; color: string | null }[] }[] }).children[0]!;
+    expect(core1.children.map(c => c.label)).toEqual(['Core 1', 'Core 1 insulation']);
+    expect(core1.children[1]!.color).toBe('#d62728');
+    expect(colourName('#d62728')).toBe('red');
+    expect(stock.structure.children.find(c => c.id === 'braid')!.label).toBe('Screen');
+    expect(readBuilder(stock)).toEqual(spec);
+  });
+
+  it('leaves core colours unknown until a colour code is chosen', () => {
+    expect(coreLooks('round', 3).map(l => l.color)).toEqual([null, null, null]);
+    expect(coreLooks('pairs', 1, 'sequence').map(l => l.color)).toEqual(['#1f5fbf', '#f2f2f2']);
+  });
+
+  it('builds a multi-coax bundle with plain cores, labels by coax and colour, and round-trips', () => {
+    const base = blankSpec('multicoax');
+    const spec: BuilderSpec = { ...base, source: 'Synthetic', conductor: { ...base.conductor, diameter_mm: 0.3, material: 'copper' },
+      insulation: { od_mm: 0.8, material: 'PE' }, cores: coreLooks('multicoax', 2, 'sequence'),
+      multi: { ...base.multi, centre_mm: 0.15, dielectric_od_mm: 0.7, screen: 'braid', screen_thickness_mm: 0.05, jacket: true, jacket_od_mm: 1.1, looks: coaxLooks(6, 'sequence') },
+      shield: 'braid', braid_thickness_mm: 0.1, jacket: { od_mm: 5, wall_mm: 0.5, material: 'PVC', color: '#303030' } };
+    const stock = generate(spec);
+    const units = (stock.structure.children[0] as { children: { id: string; children: { label: string }[] }[] }).children;
+    expect(units).toHaveLength(8);
+    expect(units[0]!.children.map(c => c.label)).toEqual(['Coax 1 (red) centre', 'Coax 1 (red) dielectric', 'Coax 1 (red) screen', 'Coax 1 (red) jacket']);
+    expect(stock.structure.children[0]).toMatchObject({ arrangement: 'ring', pitch_mm: expect.any(Number) });
+    expect(readBuilder(stock)).toEqual(spec);
+  });
+
+  it('keeps multi-coax lay-up unknown when a size is unknown', () => {
+    const stock = generate({ ...blankSpec('multicoax'), source: null });
+    expect(stock.structure.children[0]).toMatchObject({ pitch_mm: null });
+    expect(readBuilder(stock)).not.toBeNull();
   });
 });
