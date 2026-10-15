@@ -727,7 +727,8 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Represent bought boards by declared ports and reuse board revisions independently.",
       "expect": [
-        "A bought board participates in a device without an invented schematic or separate purchase of its internals."
+        "A bought board participates in a device without an invented schematic or separate purchase of its internals.",
+        "A black-box board declares labelled pads, the connector it carries with reviewed pad-to-contact correspondence and pad-to-pad paths (straight copper, a series resistor, a switch state); the resistor stays a boundary in copper inspection and is interpreted only by the passive model; unreviewed correspondence and pads without a path read unknown; a KiCad-derived proposal keeps native pad identities and reported net membership and is never accepted without an explicit create."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

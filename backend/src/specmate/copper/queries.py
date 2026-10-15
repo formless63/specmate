@@ -58,7 +58,17 @@ class Builder:
         return key
 
     def record(
-        self, revision, path, local_id, kind, members, basis, *, boundary=None, **provenance
+        self,
+        revision,
+        path,
+        local_id,
+        kind,
+        members,
+        basis,
+        *,
+        boundary=None,
+        evidence=None,
+        **provenance,
     ):
         if len(self.edges) + len(self.boundaries) >= MAX_RECORDS:
             raise ValidationFailed("Copper graph relationship limit exceeded.")
@@ -82,9 +92,8 @@ class Builder:
                     "kind": kind,
                     "members": members,
                     "basis": basis,
-                    "evidence": "reported_net_membership"
-                    if kind == "native_net"
-                    else "declared_copper",
+                    "evidence": evidence
+                    or ("reported_net_membership" if kind == "native_net" else "declared_copper"),
                     "provenance": origin,
                 }
             )
@@ -99,6 +108,8 @@ class Builder:
             self.interface(revision, path, content)
         elif kind == "pcb_population":
             self.pcb(revision, path, content)
+        elif kind == "board" and "interface" in content:
+            self.board(revision, path, content)
         elif kind != "assembly":
             self.record(
                 revision,
@@ -269,6 +280,86 @@ class Builder:
                     "A declared passage does not specify unconditional copper identity.",
                     boundary="not_evaluated",
                     declaration=passage.model_dump(mode="json"),
+                )
+
+    def board(self, revision, path, content):
+        """Board terminals; copper paths join them, other paths stay boundaries."""
+        closure = InterfaceClosure(self.user, content, revision.definition.kind)
+        board = closure.root
+        keys = {
+            t.terminal_id: self.node(
+                revision,
+                path,
+                {"kind": "board_terminal", "terminal_id": t.terminal_id},
+                t.label,
+                t.kind,
+                group=t.group,
+                native_pad_ids=[str(pad) for pad in t.native_pad_ids],
+            )
+            for t in board.terminals
+        }
+        for connector in board.carried_connectors:
+            body = closure.values[connector.body_revision_id]
+            contacts = {
+                c.contact_id: self.node(
+                    revision,
+                    path,
+                    {
+                        "kind": "carried_contact",
+                        "connector_id": connector.local_id,
+                        "contact_id": c.contact_id,
+                    },
+                    f"{connector.local_id} / {c.number or c.contact_id}",
+                    c.physical_role,
+                    body_revision_id=str(connector.body_revision_id),
+                )
+                for c in body.contacts
+                if c.physical_role != "key"
+            }
+            for pair in connector.correspondence:
+                self.record(
+                    revision,
+                    path,
+                    [connector.local_id, pair.terminal_id],
+                    "carried_connector_correspondence",
+                    [keys[pair.terminal_id], contacts[pair.contact_id]],
+                    "A declared terminal/contact landing does not assert copper identity."
+                    if connector.review == "reviewed"
+                    else "Unreviewed terminal/contact correspondence is unknown.",
+                    boundary="not_evaluated" if connector.review == "reviewed" else "unknown",
+                    declaration={**pair.model_dump(mode="json"), "review": connector.review},
+                )
+        for board_path in board.paths:
+            members = [keys[board_path.from_terminal], keys[board_path.to_terminal]]
+            declaration = board_path.model_dump(mode="json")
+            if board_path.via == "copper":
+                self.record(
+                    revision,
+                    path,
+                    board_path.local_id,
+                    "board_copper",
+                    members,
+                    board_path.basis,
+                    evidence="reported_net_membership"
+                    if board_path.provenance == "reported_net_membership"
+                    else "declared_copper",
+                    declaration=declaration,
+                )
+            else:
+                # Components and switches never merge copper; they are interpreted separately.
+                self.record(
+                    revision,
+                    path,
+                    board_path.local_id,
+                    board_path.component.kind
+                    if board_path.component
+                    else "conditional"
+                    if board_path.switch
+                    else "unknown_path",
+                    members,
+                    board_path.basis,
+                    boundary="unknown" if board_path.via == "unknown" else "not_evaluated",
+                    declaration=declaration,
                 )
 
     def pcb(self, revision, path, content):

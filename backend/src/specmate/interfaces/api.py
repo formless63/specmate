@@ -1,12 +1,15 @@
 from uuid import UUID
 
-from ninja import Router
+from ninja import Query, Router
+from pydantic import ValidationError
 
 from specmate.access.permissions import Perm
 from specmate.design.operations import draft_state
+from specmate.interfaces.board_contracts import ProposeBoard, TraceBoard
+from specmate.interfaces.boards import propose_board, trace_board
 from specmate.interfaces.operations import interface_draft
 from specmate.interfaces.queries import end_expectations, inspect_revision, trace
-from specmate.operations import Context
+from specmate.operations import Context, ValidationFailed
 
 router = Router(tags=["interfaces"])
 
@@ -37,3 +40,55 @@ def declared_trace(request, revision_id: UUID, contact_id: str):
 def cable_end(request, revision_id: UUID):
     """Per-contact expectations of a device port or a bare pinout variant."""
     return end_expectations(request.user, revision_id)
+
+
+@router.get("/revisions/{revision_id}/board-trace")
+def board_trace(
+    request,
+    revision_id: UUID,
+    from_terminal_id: str,
+    to_terminal_id: str,
+    query: str = "dc_continuity",
+    copper_assumption: str = "unspecified",
+    frequency_hz: str | None = None,
+    condition: list[str] = Query(None),  # noqa: B008
+):
+    """Declared board paths between two terminals; ``condition`` items read ``key=state``."""
+    assignments = []
+    for item in condition or []:
+        key, _, state = item.partition("=")
+        assignments.append({"condition_id": key, "state": state})
+    payload = {
+        "revision_id": revision_id,
+        "from_terminal_id": from_terminal_id,
+        "to_terminal_id": to_terminal_id,
+        "query": query,
+        "copper_assumption": copper_assumption,
+        "condition_assignments": assignments,
+    }
+    if frequency_hz is not None:
+        payload["frequency_hz"] = frequency_hz
+    return trace_board(request.user, parse(TraceBoard, payload))
+
+
+@router.get("/boards/propose")
+def board_proposal(
+    request,
+    population_revision_id: UUID,
+    component_id: list[UUID] = Query(None),  # noqa: B008
+):
+    """Terminals and paths proposed from a frozen PCB population; nothing is stored."""
+    return propose_board(
+        request.user,
+        parse(
+            ProposeBoard,
+            {"population_revision_id": population_revision_id, "component_ids": component_id},
+        ),
+    )
+
+
+def parse(model, payload):
+    try:
+        return model.model_validate(payload)
+    except ValidationError as exc:
+        raise ValidationFailed("Invalid board query.") from exc

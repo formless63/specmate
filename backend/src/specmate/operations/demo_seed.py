@@ -244,7 +244,12 @@ class Seeder:
             )["revision_id"]
             self.tally("pinout variant")
         # Cable-side plugs declare reviewed mating with the device sockets (INT-002).
-        interface("Demo 10-pin round DIN plug", examples.round_din_10_plug(din["revision_id"]))
+        plug = interface(
+            "Demo 10-pin round DIN plug", examples.round_din_10_plug(din["revision_id"])
+        )
+        # A bought black-box adapter board carrying the plug (PCB-006).
+        interface("Demo AV adapter board", examples.av_adapter_board(plug["revision_id"]))
+        self.tally("board")
         interface("Demo 21-pin RGB plug", examples.rgb_21_plug(rgb["revision_id"]))
         for variant in ("Console A AV", "Console B AV"):
             device = f"{variant} out"

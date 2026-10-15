@@ -25,7 +25,8 @@ under `/api/v0/interfaces`; mutation adapters use the normal operations endpoint
 
 Body/pinout contact targets are checked against their pinned body. Other feature IDs
 (such as board pads) retain their exact occurrence/revision address but report
-`not_evaluated`; this slice does not invent a board terminal registry. Tracing returns
+`not_evaluated`; board terminals are declared on typed `board` records (see PCB.md),
+not inferred from interface maps. Tracing returns
 `declared` or `unknown`, and always reports continuity and compatibility as
 `not_evaluated`. It does not infer copper paths, mating, clearance or measurements.
 

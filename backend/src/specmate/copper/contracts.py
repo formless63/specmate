@@ -26,8 +26,27 @@ class PadTerminal(StrictModel):
     component_id: UUID
 
 
+class BoardTerminal(StrictModel):
+    kind: Literal["board_terminal"] = "board_terminal"
+    terminal_id: str
+
+
+class CarriedContactTerminal(StrictModel):
+    """A contact of a connector body that a board declares it carries."""
+
+    kind: Literal["carried_contact"] = "carried_contact"
+    connector_id: str
+    contact_id: str
+
+
 Terminal = Annotated[
-    SegmentTerminal | EndpointTerminal | CableTerminal | ContactTerminal | PadTerminal,
+    SegmentTerminal
+    | EndpointTerminal
+    | CableTerminal
+    | ContactTerminal
+    | PadTerminal
+    | BoardTerminal
+    | CarriedContactTerminal,
     Field(discriminator="kind"),
 ]
 
@@ -51,7 +70,9 @@ class Node(StrictModel):
 
 class Edge(StrictModel):
     id: str
-    kind: Literal["wire", "termination", "splice", "shield_bond", "through", "native_net"]
+    kind: Literal[
+        "wire", "termination", "splice", "shield_bond", "through", "native_net", "board_copper"
+    ]
     evidence: Literal["declared_copper", "reported_net_membership"]
     members: list[str] = Field(min_length=2, max_length=20000)
     basis: str

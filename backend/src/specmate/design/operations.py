@@ -143,7 +143,8 @@ def _capture_scoped(ctx: Context, p: CaptureDraft, draft: Draft) -> tuple[Draft,
         derived = dependency_revisions(ctx.user, draft.definition, draft.content)
     from specmate.interfaces.contracts import KINDS as INTERFACE_KINDS
 
-    if draft.definition.kind in INTERFACE_KINDS:
+    # A generic board becomes an interface record once it declares terminals and paths.
+    if draft.definition.kind in INTERFACE_KINDS or "interface" in draft.content:
         from specmate.interfaces.queries import dependency_revisions as interface_dependencies
 
         derived = interface_dependencies(ctx.user, draft.definition, draft.content)

@@ -8,6 +8,7 @@ from pydantic import Field, TypeAdapter, model_validator
 from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.contracts import FiniteNumber
 from specmate.interfaces.assessment_contracts import InterfaceAssessment
+from specmate.interfaces.board_contracts import Board
 from specmate.interfaces.condition_contracts import ConditionalRating, Polarity
 from specmate.interfaces.signal_contracts import SignalImpedance, SignalLevel, SignalRef, SignalSet
 
@@ -289,7 +290,7 @@ def unique(values):
 
 
 Interface = Annotated[
-    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment | SignalSet | Port,
+    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment | SignalSet | Port | Board,
     Field(discriminator="kind"),
 ]
 INTERFACE_ADAPTER = TypeAdapter(Interface)
@@ -301,6 +302,9 @@ KINDS = {
     "signal_set",
     "port",
 }
+# Kinds that may also exist untyped: a generic board definition (for example a part in an
+# assembly) has no interface content until its terminals and paths are declared.
+OPTIONAL_KINDS = {"board"}
 
 
 class CreateInterface(StrictModel):

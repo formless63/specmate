@@ -1,5 +1,25 @@
 {
   "$defs": {
+    "BoardTerminal": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "board_terminal",
+          "default": "board_terminal",
+          "title": "Kind",
+          "type": "string"
+        },
+        "terminal_id": {
+          "title": "Terminal Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "terminal_id"
+      ],
+      "title": "BoardTerminal",
+      "type": "object"
+    },
     "Boundary": {
       "additionalProperties": false,
       "properties": {
@@ -71,6 +91,32 @@
         "element_path"
       ],
       "title": "CableTerminal",
+      "type": "object"
+    },
+    "CarriedContactTerminal": {
+      "additionalProperties": false,
+      "description": "A contact of a connector body that a board declares it carries.",
+      "properties": {
+        "connector_id": {
+          "title": "Connector Id",
+          "type": "string"
+        },
+        "contact_id": {
+          "title": "Contact Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "carried_contact",
+          "default": "carried_contact",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "connector_id",
+        "contact_id"
+      ],
+      "title": "CarriedContactTerminal",
       "type": "object"
     },
     "Component": {
@@ -169,7 +215,8 @@
             "splice",
             "shield_bond",
             "through",
-            "native_net"
+            "native_net",
+            "board_copper"
           ],
           "title": "Kind",
           "type": "string"
@@ -266,7 +313,9 @@
         "terminal": {
           "discriminator": {
             "mapping": {
+              "board_terminal": "#/$defs/BoardTerminal",
               "cable_conductor": "#/$defs/CableTerminal",
+              "carried_contact": "#/$defs/CarriedContactTerminal",
               "contact": "#/$defs/ContactTerminal",
               "endpoint": "#/$defs/EndpointTerminal",
               "pad": "#/$defs/PadTerminal",
@@ -289,6 +338,12 @@
             },
             {
               "$ref": "#/$defs/PadTerminal"
+            },
+            {
+              "$ref": "#/$defs/BoardTerminal"
+            },
+            {
+              "$ref": "#/$defs/CarriedContactTerminal"
             }
           ],
           "title": "Terminal"

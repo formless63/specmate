@@ -33,6 +33,7 @@ const SignalSetPanel = lazy(() => import("./features/interfaces/SignalSetPanel")
 const InterfaceAssessmentPanel = lazy(() => import("./features/interfaces/InterfaceAssessmentPanel").then((module) => ({ default: module.InterfaceAssessmentPanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
 const PcbPanel = lazy(() => import("./features/pcb/PcbPanel").then((module) => ({ default: module.PcbPanel })));
+const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
 const WorkshopProfilePanel = lazy(() => import("./features/workshop-profiles/WorkshopProfilePanel").then((module) => ({ default: module.WorkshopProfilePanel })));
 const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPanel").then((module) => ({ default: module.PreferencesPanel })));
@@ -249,7 +250,8 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "cables": return <CablePanel projectId={projectId} workspaceId={workspaceId} />;
     case "harnesses": return <HarnessPanel projectId={projectId} />;
     case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
-    case "pcb": return <PcbPanel workspaceId={workspaceId} projectId={projectId} />;
+    // Board pads and paths edit "board" rows; intake and populations follow.
+    case "pcb": return <Stack><BoardPanel projectId={projectId} /><PcbPanel workspaceId={workspaceId} projectId={projectId} /></Stack>;
     case "pcb-disagreement": return <PcbDisagreementPanel workspaceId={workspaceId} projectId={projectId} />;
     // Firmware definitions are declared here; per-occurrence firmware choices follow.
     case "occurrence-firmware": return <Stack><FirmwarePanel workspaceId={workspaceId} onAccessLost={onAccessChanged} /><FirmwareOccurrencesPanel workspaceId={workspaceId} /></Stack>;

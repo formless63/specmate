@@ -493,3 +493,40 @@ The original fixture, contradictory variant, malformed input and trusted program
 checked with the exact isolated KiCad image. Full approved runner transport, cancellation,
 fencing/recovery and application acceptance remain an integration checkpoint. Hierarchy,
 variants, other formats, schematic parity and physical qualification remain unsupported.
+
+## Board terminals and declared paths (PCB-006, PCB-003, TOP-001, TOP-002)
+
+The `board` kind may carry typed interface content (`interface.create`/`update` with
+`kind: "board"`); a generic board without it stays a valid untyped part until its first
+typed edit, and `interface.freeze` requires the typed content. A board declares:
+
+- **terminals**: labelled pads, holes, contacts or test points with a group (for
+  example "Connector side" or "Cable side") and side. Labels are display text; the stable
+  `terminal_id` is the identity. KiCad-derived terminals keep exact native pad UUIDs.
+- **carried connectors**: an exact connector body revision and which terminal lands on
+  which contact, with a review state. Unreviewed correspondence reads `unknown`.
+- **switches and jumpers**: named conditions with mutually exclusive states.
+- **paths** between two terminals: straight copper, through a component (kind, written
+  value, reference, exact resistance or capacitance, which must agree with the written
+  value when both are given), through a switch state, or unknown. The component shape is
+  shared with inline cable parts. A terminal without a path is `unknown`, never
+  unconnected.
+
+Origin is `black_box` (typed from a drawing or datasheet) or `kicad_derived`, which pins
+the exact frozen population revision and its interpretation hash; native pad IDs must
+exist in that report. `interface.board_propose` (`GET interfaces/boards/propose`) returns
+a proposal from a frozen population: the user chooses which components' pads become
+terminals (default: those with accepted port associations), native nets among them become
+copper paths with `reported_net_membership` provenance, resistor passages whose nets reach
+two chosen terminals become component paths, and port associations become an unreviewed
+carried connector. The proposal is never stored or accepted; creating the board is a
+separate, explicit command.
+
+`interface.board_trace` (`GET interfaces/revisions/{id}/board-trace`) interprets the
+declared paths between two terminals with the passive-passage interpreter: copper needs
+the explicit ideal assumption, resistors add declared series resistance, switch paths
+follow selected states, and an absent path is not a disconnection proof. In the copper
+graph, board terminals are nodes, copper paths are `board_copper` edges, and component,
+switch and unknown paths plus connector correspondence stay boundaries. Continuity and
+physical qualification remain `not_evaluated`. The Boards lens edits board rows at
+Library or project scope.
