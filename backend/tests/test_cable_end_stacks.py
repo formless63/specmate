@@ -418,3 +418,17 @@ def test_end_assembly_is_a_workspace_item_freezable_by_editors(users, project, k
     assert draft["state"]
     with pytest.raises(PermissionDenied):
         freeze(users["viewer"], draft)
+
+
+def test_resolve_route_reads_an_end_assembly_for_a_signed_in_viewer(users, kit):
+    from django.test import Client
+
+    client = Client()
+    client.force_login(users["viewer"])
+    response = client.post(
+        "/api/v0/interfaces/end-stacks/resolve",
+        data=json.dumps({"end_assembly_revision_id": kit["end_b"]}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert [x["kind"] for x in response.json()["layers"]] == ["inline", "connector", "shell"]
