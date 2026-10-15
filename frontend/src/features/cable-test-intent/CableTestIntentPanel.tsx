@@ -1,9 +1,10 @@
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { SbStatus, SbUnknown } from '../../components/sb';
 import { Alert, Button, Card, Group, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../workspace/api';
-import { command, initialPlan, inspectTarget, keyOf, read, terminalText, type Definition, type Draft, type Evidence, type Identity, type Inspection, type Label, type Pair, type TestPlan } from './api';
+import { command, deriveFromIntent, initialPlan, inspectTarget, keyOf, read, terminalText, type Definition, type Derivation, type Draft, type Evidence, type Identity, type Inspection, type Label, type Pair, type TestPlan } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
@@ -188,6 +189,7 @@ export function PlanEditor({ value, onChange, hidden = false, refresh = 0, disab
     {target.isError && <Alert color="red">{target.error.message}</Alert>}
     {!denied && <>
       <Text size="sm">Root snapshot {target.data!.root_snapshot_id} · SHA-256 {target.data!.root_sha256}. Cable SHA-256 {target.data!.cable_sha256}.</Text>
+      <ProposeFromIntent value={value} disabled={disabled} onUse={(proposal) => onChange({ ...value, pairs: proposal.pairs, labels: proposal.labels })} />
       <Title order={4}>Expected terminal pairs</Title>
       <PairTable pairs={value.pairs} />
       {value.pairs.map(p => <Button disabled={disabled} key={p.local_id} variant="subtle" onClick={() => onChange({ ...value, pairs: value.pairs.filter(row => row !== p) })}>Remove pair {p.local_id}</Button>)}
@@ -219,8 +221,31 @@ function EvidenceEditor({ prefix, value, onChange, disabled = false }: { disable
     {value.status === 'registered_file' && <><TextInput disabled={disabled} label={`${prefix} source bundle revision ID`} value={value.source_bundle_revision_id ?? ''} onChange={e => onChange({ ...value, source_bundle_revision_id: e.currentTarget.value })} /><TextInput disabled={disabled} label={`${prefix} exact source path`} value={value.source_path ?? ''} onChange={e => onChange({ ...value, source_path: e.currentTarget.value })} /></>}
   </Stack>;
 }
+const resistanceText = (p: Pair) => p.expected_resistance_ohm != null ? `${p.expected_resistance_ohm} Ω` : p.intent === 'continuity' ? 'none stated' : '';
 function PairTable({ pairs }: { pairs: Pair[] }) {
-  return <Table><Table.Thead><Table.Tr><Table.Th>Pair</Table.Th><Table.Th>Exact first terminal</Table.Th><Table.Th>Exact second terminal</Table.Th><Table.Th>Expected intent</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{pairs.map(p => <Table.Tr key={p.local_id}><Table.Td>{p.local_id}</Table.Td><Table.Td>{terminalText(p.first)}</Table.Td><Table.Td>{terminalText(p.second)}</Table.Td><Table.Td>{p.intent}</Table.Td><Table.Td>{p.basis}</Table.Td></Table.Tr>)}</Table.Tbody></Table>;
+  return <Table><Table.Thead><Table.Tr><Table.Th>Pair</Table.Th><Table.Th>Exact first terminal</Table.Th><Table.Th>Exact second terminal</Table.Th><Table.Th>Expected intent</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Series resistance</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{pairs.map(p => <Table.Tr key={p.local_id}><Table.Td>{p.local_id}</Table.Td><Table.Td>{terminalText(p.first)}</Table.Td><Table.Td>{terminalText(p.second)}</Table.Td><Table.Td><SbStatus led={p.intent === 'unknown' ? 'unknown' : 'info'} dimension="expect" value={p.intent} /></Table.Td><Table.Td>{p.signal ?? ''}</Table.Td><Table.Td>{resistanceText(p)}</Table.Td><Table.Td>{p.basis}</Table.Td></Table.Tr>)}</Table.Tbody></Table>;
+}
+
+/**
+ * Propose pairs and labels from the cable's pinned intent. The proposal replaces the
+ * editor's unsaved pairs and labels only when chosen; saving and freezing stay separate.
+ */
+function ProposeFromIntent({ value, disabled, onUse }: { value: TestPlan; disabled: boolean; onUse: (plan: TestPlan) => void }) {
+  const [proposal, setProposal] = useState<Derivation | null>(null);
+  const derive = useMutation({ mutationFn: () => deriveFromIntent(value), onSuccess: setProposal });
+  const current = proposal && proposal.test_plan.cable_revision_id === value.cable_revision_id && proposal.test_plan.root_revision_id === value.root_revision_id ? proposal : null;
+  return <Card withBorder padding="sm"><Stack gap="xs">
+    <Group justify="space-between"><Title order={4}>Propose from cable intent</Title>
+      <Button size="compact-sm" variant="default" disabled={disabled} loading={derive.isPending} onClick={() => derive.mutate()}>Propose expectations</Button></Group>
+    <Text size="sm" c="dimmed">Continuity per intent row through the declared paths, isolation between signals and for must-not-connect pins. Nothing is saved until you save the draft.</Text>
+    {derive.isError && <Alert color="red">{derive.error.message}</Alert>}
+    {current && <>
+      <Text size="sm">From {current.intent_name} r{current.intent_number}: {current.counts.continuity} continuity · {current.counts.isolation} isolation · {current.counts.unknown} unknown{current.limited ? ' · pair limit reached' : ''}</Text>
+      <Table aria-label="Proposal by intent row"><Table.Thead><Table.Tr><Table.Th>Row</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Pairs</Table.Th><Table.Th>Not proposed because</Table.Th></Table.Tr></Table.Thead>
+        <Table.Tbody>{current.rows.map(row => <Table.Tr key={row.row_id}><Table.Td>{row.row_id}{row.requirement === 'must_not_connect' ? ' · must not connect' : row.requirement === 'optional' ? ' · optional' : ''}</Table.Td><Table.Td>{row.signal ?? <SbUnknown what="signal" />}</Table.Td><Table.Td>{row.pairs.length ? row.pairs.join(', ') : <SbStatus led="not-evaluated" dimension="pairs" value="none proposed" />}</Table.Td><Table.Td>{row.reasons.join(' ')}</Table.Td></Table.Tr>)}</Table.Tbody></Table>
+      <Group><Button size="compact-sm" disabled={disabled} onClick={() => onUse(current.test_plan)}>Use proposed pairs and labels</Button><Text size="xs" c="dimmed">Replaces the unsaved pairs and labels in this editor.</Text></Group>
+    </>}
+  </Stack></Card>;
 }
 function LabelTable({ labels }: { labels: Label[] }) {
   return <Table><Table.Thead><Table.Tr><Table.Th>Label</Table.Th><Table.Th>Text</Table.Th><Table.Th>Target</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead><Table.Tbody>{labels.map(l => <Table.Tr key={l.local_id}><Table.Td>{l.local_id}</Table.Td><Table.Td>{l.text}</Table.Td><Table.Td>{l.terminal ? terminalText(l.terminal) : l.endpoint_id ?? 'whole cable'}</Table.Td><Table.Td>{l.basis}</Table.Td></Table.Tr>)}</Table.Tbody></Table>;

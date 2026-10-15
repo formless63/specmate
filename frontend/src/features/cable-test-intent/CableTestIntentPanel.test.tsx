@@ -351,3 +351,28 @@ test.each([
   else await waitFor(() => { expect(save.disabled).toBe(false); expect(freeze.disabled).toBe(freezeOff); });
   expect(screen.getByRole('button', { name: 'Create test-plan draft' }).hasAttribute('data-readonly-reason')).toBe(saveOff);
 });
+
+test('a proposal from the cable intent fills unsaved pairs and labels only when chosen', async () => {
+  const values: TestPlan[] = [];
+  const proposedPlan: TestPlan = { ...plan(), pairs: [
+    { local_id: 'c1', first: terminal('a', '1'), second: terminal('b', '2'), intent: 'continuity', basis: 'Proposed from intent row from-1', evidence: { status: 'unknown' }, signal: 'Composite sync (sync)', expected_resistance_ohm: 470, derived_from: { intent_revision_id: 'intent-r1', row_ids: ['from-1'] } },
+  ], labels: [{ local_id: 'l1', text: '1 · Composite sync', terminal: terminal('a', '1'), basis: 'Pin and signal named by intent row from-1.', evidence: { status: 'unknown' } }] };
+  const derivation = { algorithm_version: 'x', intent_revision_id: 'intent-r1', intent_name: 'Console to monitor', intent_number: 1, test_plan: proposedPlan, counts: { continuity: 1, isolation: 0, unknown: 0 }, limited: false, review: 'required', stored: false, physical_test: 'not_performed',
+    rows: [{ row_id: 'from-1', requirement: 'required', signal: 'Composite sync (sync)', pairs: ['c1'], reasons: [] }, { row_id: 'from-shell', requirement: 'optional', signal: null, pairs: [], reasons: ['Optional row; the cable does not wire it.'] }] };
+  const operations: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options: RequestInit) => {
+    const cmd = JSON.parse(String(options.body)); operations.push(cmd.operation);
+    return response({ result: cmd.operation === 'cable_test_plan.derive_from_intent' ? derivation : target });
+  }));
+  render(wrap(<Harness onValue={v => values.push(v)} />));
+  fireEvent.click(await screen.findByRole('button', { name: 'Propose expectations' }));
+  await screen.findByText(/1 continuity · 0 isolation · 0 unknown/);
+  expect(screen.getByText('Optional row; the cable does not wire it.')).toBeTruthy();
+  expect(screen.getByText('signal unknown')).toBeTruthy();
+  expect(values).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Use proposed pairs and labels' }));
+  expect(values.at(-1)?.pairs[0]).toMatchObject({ local_id: 'c1', expected_resistance_ohm: 470 });
+  expect(values.at(-1)?.labels[0].text).toBe('1 · Composite sync');
+  expect(await screen.findByText('470 Ω')).toBeTruthy();
+  expect(operations.filter(o => o.startsWith('cable_test_plan.create') || o.startsWith('cable_test_plan.update'))).toHaveLength(0);
+});
