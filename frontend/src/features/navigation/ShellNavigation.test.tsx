@@ -5,6 +5,15 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "../../App";
 import { project, record, reply, workspaceServer } from "../../test/workspaceServer";
 
+vi.mock("../cables/CableRecordEditor", async () => {
+  const { useProbe } = await import("../probe");
+  const { useNavigation } = await import("./index");
+  return { CableRecordHost: () => {
+    const probe = useProbe()?.probe; const navigation = useNavigation();
+    return <section aria-label="Cable record frame"><p>{JSON.stringify(probe)}</p><button onClick={() => navigation?.navigate({ filters: { view: "documents" } })}>Show cable documents</button></section>;
+  } };
+});
+
 beforeEach(() => { localStorage.setItem("specmate.library.layout", "table"); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const board = record("b1", "Main board", { kind: "board", latest_revision: 2, latest_revision_id: "r2" });
@@ -82,4 +91,17 @@ test.each([
   start(`/library/${id}${suffix}?lens=library-home`);
   await at(expected);
   expect(await within(await selection()).findByText("Synthetic record")).toBeTruthy();
+});
+
+
+test("confirmed cable frames omit the redundant selection strip while exact probe and Advanced remain reachable", async () => {
+  workspaceServer({ projects: [project("p1", "Bench")] }, path => path === "/api/v0/workspace/library/c1" ? reply(record("c1", "Synthetic cable", { kind: "cable", latest_revision: 2 })) : undefined);
+  start("/designs/c1@2/~/ends/A?project=p1");
+  const frame = await screen.findByRole("region", { name: "Cable record frame" });
+  expect(within(frame).getByText(JSON.stringify({ object: "c1", rev: 2, path: ["ends", "A"] }))).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
+  fireEvent.click(within(frame).getByRole("button", { name: "Show cable documents" }));
+  await at("/designs/c1@2/~/ends/A?project=p1&view=documents");
+  fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
+  expect(await screen.findByRole("menuitem", { name: "Cable intents" })).toBeTruthy();
 });

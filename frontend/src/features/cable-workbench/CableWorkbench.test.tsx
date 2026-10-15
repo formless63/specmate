@@ -130,3 +130,15 @@ test("record Signals withdraws successful rows and intent metadata when current 
   expect(screen.queryByRole("button", { name: "Record this check as evidence" })).toBeNull();
   expect(await screen.findByText("Check access withdrawn")).toBeTruthy();
 });
+
+
+test("Fit uses the available phone width while explicit zoom retains a larger scrollable drawing", () => {
+  serve(); render(wrap(bench()));
+  const drawing = screen.getByRole("group", { name: /^Cable drawing of Synthetic cable/ });
+  expect(drawing.getAttribute("width")).toBe("100%");
+  expect(drawing.style.minWidth).toBe("0px");
+  fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+  expect(Number(drawing.getAttribute("width"))).toBeGreaterThan(390);
+  fireEvent.click(screen.getByRole("button", { name: "Fit" }));
+  expect(drawing.getAttribute("width")).toBe("100%");
+});
