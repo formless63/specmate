@@ -55,6 +55,13 @@ with exact frozen state in the shared revision/snapshot records. Dedicated
 same authorization, idempotency and optimistic state tokens as other operations.
 Stock queries do not require connectors, devices, PCB sources or topology.
 
+The stock record reads one authorized definition with
+`GET /api/v0/stocks?definition_id=<uuid>&latest_only=true`. Workspace authority
+is resolved before the definition filter; unrelated kinds return no drafts. The
+newest draft uses updated time and UUID as a stable tie breaker. Omitting these
+parameters preserves the existing list behavior. Frozen records read their exact
+revision snapshot separately, never a newer editable draft.
+
 Stable local element IDs form hierarchical paths. Groups declare concentric,
 ring, linear or figure-eight arrangements. Explicit pitches and offsets locate
 conductors, drains, and nested groups. Round material elements declare both inner

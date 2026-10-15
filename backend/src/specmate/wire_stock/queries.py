@@ -5,7 +5,7 @@ from uuid import UUID
 from specmate.access.permissions import Perm
 from specmate.design.models import Draft
 from specmate.design.operations import draft_state, scoped_draft
-from specmate.operations import Context, NotFound
+from specmate.operations import Context, NotFound, ValidationFailed
 
 
 def stock_geometry(content: dict) -> dict | None:
@@ -28,7 +28,14 @@ def stock_record(draft, in_project=None) -> dict:
     return record
 
 
-def list_stocks(user, workspace_id: UUID | None = None, project_id: UUID | None = None):
+def list_stocks(
+    user,
+    workspace_id: UUID | None = None,
+    project_id: UUID | None = None,
+    *,
+    definition_id: UUID | None = None,
+    latest_only: bool = False,
+):
     """Every wire stock draft in the library; a project context lists its references first."""
     from specmate.catalog.scope import library_scope, references_definition
 
@@ -36,6 +43,12 @@ def list_stocks(user, workspace_id: UUID | None = None, project_id: UUID | None 
     drafts = Draft.objects.select_related("definition").filter(
         definition__workspace=workspace, definition__kind="wire_stock"
     )
+    if definition_id is not None:
+        drafts = drafts.filter(definition_id=definition_id)
+    if latest_only:
+        if definition_id is None:
+            raise ValidationFailed("Select a definition to read its newest draft.")
+        return [stock_record(d) for d in drafts.order_by("-updated_at", "-id")[:1]]
     order = ["definition__created_at", "id"]
     if project is not None:
         drafts = drafts.annotate(in_project=references_definition(project, "definition_id"))

@@ -8,8 +8,16 @@ router = Router(tags=["wire stock"])
 
 
 @router.get("/stocks")
-def stocks(request, workspace_id: UUID | None = None, project_id: UUID | None = None):
-    return list_stocks(request.user, workspace_id, project_id)
+def stocks(
+    request,
+    workspace_id: UUID | None = None,
+    project_id: UUID | None = None,
+    definition_id: UUID | None = None,
+    latest_only: bool = False,
+):
+    return list_stocks(
+        request.user, workspace_id, project_id, definition_id=definition_id, latest_only=latest_only
+    )
 
 
 @router.get("/stocks/{draft_id}")
