@@ -39,7 +39,7 @@ test.each(redirects)("/%s?lens=%s redirects to %s", (area, lens, expected) => {
 test("every existing tool has a stable reachable canonical home", () => {
   for (const area of AREAS) for (const tool of area.tools) {
     const location = { ...HOME, area: area.id, lens: tool.id };
-    expect(parseLocation(formatLocation(location).split("?")[0]!, formatLocation(location).split("?")[1] ? `?${formatLocation(location).split("?")[1]}` : "").lens, tool.id).toBe(tool.id);
+    expect(parseLocation(formatLocation(location).split("?")[0]!, formatLocation(location).split("?")[1] ? `?${formatLocation(location).split("?")[1]}` : "").lens, tool.id).toBe(tool.id === "cables" ? "designs" : tool.id);
   }
 });
 
@@ -55,6 +55,11 @@ test("project pages and notes preserve context separately from record selection"
   expect(formatLocation(parseLocation("/project", "?lens=overview&project=p1"))).toBe("/projects/p1");
   expect(formatLocation(parseLocation("/project", "?lens=knowledge&project=p1"))).toBe("/projects/p1/notes");
   expect(parseLocation("/projects/p1/notes", "")).toMatchObject({ lens: "knowledge", project: "p1", probe: null });
+});
+
+test("retired cable picker links return to Designs while exact record links remain", () => {
+  expect(formatLocation(parseLocation("/designs", "?tool=cables"))).toBe("/designs");
+  expect(parseLocation("/designs/c1@2", "?tool=cables")).toMatchObject({ lens: "cables", probe: { object: "c1", rev: 2, path: [] } });
 });
 
 test("selections that are not workspace addresses are malformed, never guessed", () => {

@@ -305,7 +305,11 @@ test("Library is the editing home: every collection lens mounts its editor witho
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   for (const [toolId, view] of Object.entries(LIBRARY_VIEWS)) {
     const tool = AREAS.flatMap((area) => area.tools).find((item) => item.id === toolId)!;
-    await openTool(tool.label);
+    if (toolId === "cables") {
+      fireEvent.click(screen.getByRole("button", { name: "Designs" }));
+      fireEvent.click(await screen.findByRole("button", { name: "New design" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Cable" }));
+    } else await openTool(tool.label);
     if (["cables", "harnesses", "assemblies"].includes(toolId)) {
       const create: Record<string, string> = { cables: "Create cable draft", harnesses: "Create harness draft", assemblies: "Create assembly draft" };
       expect(await screen.findByRole("button", { name: create[toolId]! })).toBeTruthy();
@@ -323,8 +327,9 @@ test("Library is the editing home: every collection lens mounts its editor witho
   // Designs supplies the collection list; existing authoring controls remain reachable.
   fireEvent.click(screen.getByRole("button", { name: "Designs" }));
   expect(await screen.findByRole("button", { name: "Patch lead" })).toBeTruthy();
-  await openTool("Cables");
-  expect(await screen.findByRole("button", { name: "Create cable draft" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Designs advanced tools" }));
+  expect(screen.queryByRole("menuitem", { name: "Cables" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Create cable draft" })).toBeNull();
 });
 
 test("Library scope lists the lens's collection with Used in, and opening a use switches scope but keeps the lens", async () => {

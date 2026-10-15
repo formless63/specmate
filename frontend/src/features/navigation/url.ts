@@ -92,6 +92,7 @@ export function parseLocation(pathname: string, search: string): WorkspaceLocati
     malformed ||= probe === null;
   }
   if (legacy && !probe && ["cables", "harnesses", "assemblies"].includes(lens)) lens = "designs";
+  if (!probe && lens === "cables") lens = "designs";
   if (legacy && lens === "intents" && !probe) { lens = "new-cable"; filters.kind = "cable"; }
   if (lens === "discovery") filters.palette = "open";
   return { area: areaOfTool(lens).id, lens, project, probe, malformed, ...(Object.keys(filters).length ? { filters } : {}) };

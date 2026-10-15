@@ -12,6 +12,7 @@ import { AREAS, areaOfTool, describeAccess, primaryTools, toolLabel, type AreaDe
 
 const STATUS_LINE_HEIGHT = 24;
 const NO_ACTIONS: SpotlightActionGroupData[] = [];
+const RECORD_ONLY_TOOLS = new Set(["cables"]);
 
 type SbShellProps = {
   /** The current scope's name: "Library" or the project's name. */
@@ -40,7 +41,7 @@ type SbShellProps = {
 export function AppShell({ projectName, recordName, permissions, role = null, libraryScope = false, extraActions = NO_ACTIONS, itemSearchKey, activeTool, onToolChange, onAreaChange, chrome, statusIndicator, children }: SbShellProps) {
   const area = areaOfTool(activeTool);
   const visibleTools = primaryTools(area);
-  const advanced = area.tools.filter(tool => !visibleTools.some(item => item.id === tool.id) && !["designs", "library-home", "history"].includes(tool.id) && !tool.id.startsWith("new-"));
+  const advanced = area.tools.filter(tool => !visibleTools.some(item => item.id === tool.id) && !RECORD_ONLY_TOOLS.has(tool.id) && !["designs", "library-home", "history"].includes(tool.id) && !tool.id.startsWith("new-"));
   const wide = useMediaQuery(`(min-width: ${breakpoints.lg}px)`, false, { getInitialValueInEffect: false });
   const narrow = useMediaQuery(`(max-width: ${breakpoints.sm - 1}px)`, false, { getInitialValueInEffect: false });
   // The top bar switches to its compact form (project menu, account menu) before the area rail disappears.
@@ -71,7 +72,7 @@ export function AppShell({ projectName, recordName, permissions, role = null, li
     { group: "Actions", actions: [{ id: "new-design", label: "Browse designs", description: "Find a cable, harness or device", onClick: () => (onAreaChange ?? onToolChange)("designs") }] },
     { group: "Areas and tools", actions: AREAS.flatMap(item => [
       { id: `area:${item.id}`, label: item.label, description: `Area ${item.key}`, onClick: () => openAreaRef.current(item) },
-      ...item.tools.filter(tool => tool.id !== item.tools[0]?.id).map(tool => ({ id: `tool:${tool.id}`, label: tool.label, description: item.label, onClick: () => onToolChange(tool.id) })),
+      ...item.tools.filter(tool => tool.id !== item.tools[0]?.id && !RECORD_ONLY_TOOLS.has(tool.id)).map(tool => ({ id: `tool:${tool.id}`, label: tool.label, description: item.label, onClick: () => onToolChange(tool.id) })),
     ]) },
   ], [onToolChange]);
   const actions = useMemo<(SpotlightActionData | SpotlightActionGroupData)[]>(() => [...extraActions, ...toolActions], [toolActions, extraActions]);
