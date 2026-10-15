@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "LibraryPreview": {
+      "properties": {
+        "body": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A pinout's or port's pinned connector body interface.",
+          "title": "Body"
+        },
+        "content": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Null when absent or too large.",
+          "title": "Content"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "pinout": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A port's pinned pinout interface.",
+          "title": "Pinout"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revision"
+        },
+        "signal_types": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Signal types used by the pinout, keyed '<signal set revision>/<key>'.",
+          "title": "Signal Types",
+          "type": "object"
+        },
+        "source": {
+          "description": "Latest frozen revision first; a never-frozen item shows its newest draft.",
+          "enum": [
+            "revision",
+            "draft",
+            "none"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "stock": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A cable's pinned wire stock construction, when readable.",
+          "title": "Stock"
+        },
+        "truncated": {
+          "description": "The content exceeded the preview size and is omitted.",
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "record_id",
+        "kind",
+        "source",
+        "revision",
+        "content",
+        "truncated"
+      ],
+      "title": "LibraryPreview",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "previews": {
+      "description": "Only definitions of this workspace.",
+      "items": {
+        "$ref": "#/$defs/LibraryPreview"
+      },
+      "title": "Previews",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "previews"
+  ],
+  "title": "LibraryPreviews",
+  "type": "object"
+}

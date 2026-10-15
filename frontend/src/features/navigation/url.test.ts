@@ -12,7 +12,8 @@ test("items are addressed in the workspace with an optional revision, path and p
     probe: { object: "b1", rev: 3, path: ["J1", "pin 3"] } });
   expect(formatLocation(location)).toBe("/design/b1@3/~/J1/pin%203?lens=pcb&project=p1");
   expect(parseLocation("/library/d1", "").probe).toEqual({ object: "d1", rev: null, path: [] });
-  expect(formatLocation({ ...HOME, area: "library", lens: "identity", probe: { object: "d1", rev: null, path: [] } })).toBe("/library/d1");
+  expect(formatLocation({ ...HOME, area: "library", lens: "library-home", probe: { object: "d1", rev: null, path: [] } })).toBe("/library/d1");
+  expect(formatLocation({ ...HOME, area: "library", lens: "identity", probe: { object: "d1", rev: null, path: [] } })).toBe("/library/d1?lens=identity");
 });
 
 test("the area default lens is left out and a lens from another area selects its own area", () => {

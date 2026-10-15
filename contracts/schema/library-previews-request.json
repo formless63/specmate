@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "description": "Compact newest content of up to 50 definitions, for drawing gallery thumbnails.",
+  "properties": {
+    "definition_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Definition Ids",
+      "type": "array"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
+    }
+  },
+  "required": [
+    "definition_ids"
+  ],
+  "title": "ReadLibraryPreviews",
+  "type": "object"
+}

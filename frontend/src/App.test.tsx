@@ -8,6 +8,8 @@ import { AREAS } from "./features/shell";
 import { LIBRARY_VIEWS } from "./features/shell/scope";
 
 beforeEach(() => {
+  // These cases exercise the dense table layout; the gallery default has its own tests.
+  localStorage.setItem("specmate.library.layout", "table");
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   Element.prototype.scrollIntoView = vi.fn();
 });

@@ -20,13 +20,27 @@ lenses, status line); there is no pre-project gate. The top bar's scope control 
 **Library** (the whole workspace) or one project, and is searchable. Every area is
 reachable at both scopes. Scope changes navigation and filtering only, never access.
 
-- At Library scope each lens lists its workspace collection in a dense, paginated table
-  (kind/role, name, latest frozen revision, and the projects that reference it), with
-  kind and text filters. Lists are served by bounded single queries; the browser never
-  fans out per project.
+- The Library area opens on the **Library home**: summary cells (needs attention, failing
+  checks, unknowns, open questions, stale evidence, items), a **Needs attention** row, a
+  collapsed **Unknown values** group, the member's **Recent** edits and freezes, and **All
+  items** as a visual gallery with search and kind chips. Attention comes only from existing
+  records: failing rows of the latest recorded check of each cable or interface assessment,
+  stale records and open intent questions. Items whose only reasons are unknowns (unknown
+  check rows, values declared unknown) are counted in the separate group. An item without a
+  recorded check is never counted as passing. **New…** picks a kind and opens its lens with
+  the New form. A link to an item (`/library/<object>`) opens it in its own lens.
+- At Library scope each lens lists its workspace collection as a paginated gallery of cards
+  by default, with a remembered switch to the dense table (kind/role, name, latest frozen
+  revision, and the projects that reference it) for scanning. A card draws the item from its
+  newest content (latest frozen revision, else newest draft): a stock cross-section, a cable
+  sketch in its stock's colors, board terminals and paths, an end assembly's layer stack,
+  intent lines, signal chips or a connector face. Anything not recorded is drawn as unknown,
+  never as a default. The revision tag is solid when frozen and dashed for a draft, and the
+  status LED carries words. Thumbnails load lazily in shared batches; cards hold no 3D.
+  Lists are served by bounded single queries; the browser never fans out per project.
 - The Library is where items are created and edited. Below its list every collection lens
   mounts the same editor it has in a project, with no project: **New** starts an item in the
-  editor and **Open** (or selecting the row, or a deep link to it) opens that item there, with
+  editor and **Open** (or selecting the card or row, or a deep link to it) opens that item there, with
   its newest draft for editing or its latest frozen revision. **Use in project…** stays a row
   action.
 - At project scope a library lens shows the items that project references first, with a
