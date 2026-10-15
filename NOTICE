@@ -15,6 +15,15 @@ Exception v1.0 additional permission is not required and is not applied to these
 adaptations. No predecessor catalog data, designs, fonts, preparation profiles,
 or native engineering models are included. See LICENSE for AGPL-3.0 text.
 
+Connector face geometry (packages/connector-art) adapts WireHub by formless63 at
+cbf919edf30a9d906a791971d3a40e22cb78b67e (AGPL-3.0-only):
+- packages/layout/src/connector-art.ts: D-subminiature shell table, mini-DIN shield
+  size, eight-pin DIN arc order and the mating-face mirror convention.
+- modules/av-video/pack/art/scart-21.json (CC0-1.0): SCART/JP21 outline proportions.
+The Module Exception additional permission is not applied. No predecessor catalog
+records, depictions or fonts are included; pin layouts were rechecked against
+published connector documentation.
+
 The GNU Affero General Public License version 3 text in LICENSE retains the Free
 Software Foundation's license-document copyright and verbatim-copy notice.
 
