@@ -50,7 +50,7 @@ export function RecordPage({ active, identity, state, actions, revisions, facts,
       </Tabs></div>
       {!compact && <aside className="record-inspector" aria-label="Record inspector panel">{panel}</aside>}
     </div>
-    {compact && <><Drawer opened={active && sheet} onClose={() => setSheet(false)} position="bottom" size="72dvh" title="Record inspector" keepMounted transitionProps={{ duration: active ? 200 : 0 }} styles={active ? undefined : { inner: { display: "none" }, overlay: { display: "none" } }}>{panel}</Drawer></>}
+    {compact && <><Drawer opened={active && sheet} onClose={() => setSheet(false)} position="bottom" size="72dvh" title="Record inspector" closeButtonProps={{ "aria-label": "Close record inspector" }} keepMounted transitionProps={{ duration: active ? 200 : 0 }} styles={active ? undefined : { inner: { display: "none" }, overlay: { display: "none" } }}>{panel}</Drawer></>}
   </section>;
 }
 

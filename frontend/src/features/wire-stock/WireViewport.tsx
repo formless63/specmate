@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Lazy, event-driven lifecycle adapted from WireHub WireModel3d.tsx (see NOTICE).
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Group, SegmentedControl, Slider, Stack, Switch, Text } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -48,7 +49,9 @@ export const EXPLODE_STEP = 0.25;
 const SMOOTH_STEP = 0.01;
 interface Live { scene: THREE.Scene; object?: ReturnType<typeof buildWireObject>; frame: (view?: CameraView, keep?: boolean) => void; rotate: (horizontal: number, vertical: number) => void; zoom: (factor: number) => void; environment: boolean; redraw: () => void }
 
-export default function WireViewport({ model, active = true, shownEnd = "both" }: { model: WireModel; active?: boolean; shownEnd?: "a" | "b" | "both" }) {
+export default function WireViewport({ model, active = true, shownEnd = "both", displayControls, compactControls = false }: { model: WireModel; active?: boolean; shownEnd?: "a" | "b" | "both"; displayControls?: ReactNode; compactControls?: boolean }) {
+  const phone = useMediaQuery("(max-width: 48em)");
+  const compact = compactControls && phone;
   const host = useRef<HTMLDivElement>(null);
   const descriptionId = useId();
   const live = useRef<Live | null>(null);
@@ -171,20 +174,22 @@ export default function WireViewport({ model, active = true, shownEnd = "both" }
   const description = useMemo(() => modelSummary(model), [model]);
   useEffect(() => { if (active) live.current?.redraw(); }, [active]);
   useEffect(() => { reset.current(shownEnd === "both" ? undefined : shownEnd); }, [shownEnd]);
-  return <Stack style={{ minWidth: 0, maxWidth: '100%' }}>
-    {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
-    <Group gap="xs"><Button size="xs" variant="quiet" onClick={() => { setExplode(0); setXray(false); reset.current(); }}>Reset view</Button><Button size="xs" variant="quiet" onClick={() => reset.current(undefined, true)}>Fit 3D view</Button><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button><Button variant="light" onClick={() => reset.current('top')}>Top view</Button><Button variant="light" onClick={() => reset.current('front')}>Front view</Button><Button size="xs" variant="quiet" onClick={() => reset.current('side')}>Side view</Button>
-      <Button size="xs" variant="quiet" aria-label="Rotate camera left" onClick={() => live.current?.rotate(-0.2, 0)}>←</Button><Button size="xs" variant="quiet" aria-label="Rotate camera right" onClick={() => live.current?.rotate(0.2, 0)}>→</Button><Button size="xs" variant="quiet" aria-label="Rotate camera up" onClick={() => live.current?.rotate(0, -0.2)}>↑</Button><Button size="xs" variant="quiet" aria-label="Rotate camera down" onClick={() => live.current?.rotate(0, 0.2)}>↓</Button><Button size="xs" variant="quiet" aria-label="Zoom camera in" onClick={() => live.current?.zoom(0.8)}>+</Button><Button size="xs" variant="quiet" aria-label="Zoom camera out" onClick={() => live.current?.zoom(1.25)}>−</Button></Group>
-    <Group align="flex-end" gap="md" wrap="wrap" data-testid="explode-controls">
+  const resetFit = <><Button size="xs" variant="quiet" onClick={() => { setExplode(0); setXray(false); reset.current(); }}>Reset view</Button><Button size="xs" variant="quiet" onClick={() => reset.current(undefined, true)}>Fit 3D view</Button></>;
+  const cameraControls = <><Button variant="light" onClick={() => reset.current('a')}>View end A</Button><Button variant="light" onClick={() => reset.current('b')}>View end B</Button><Button variant="light" onClick={() => reset.current('top')}>Top view</Button><Button variant="light" onClick={() => reset.current('front')}>Front view</Button><Button size="xs" variant="quiet" onClick={() => reset.current('side')}>Side view</Button>
+      <Button size="xs" variant="quiet" aria-label="Rotate camera left" onClick={() => live.current?.rotate(-0.2, 0)}>←</Button><Button size="xs" variant="quiet" aria-label="Rotate camera right" onClick={() => live.current?.rotate(0.2, 0)}>→</Button><Button size="xs" variant="quiet" aria-label="Rotate camera up" onClick={() => live.current?.rotate(0, -0.2)}>↑</Button><Button size="xs" variant="quiet" aria-label="Rotate camera down" onClick={() => live.current?.rotate(0, 0.2)}>↓</Button><Button size="xs" variant="quiet" aria-label="Zoom camera in" onClick={() => live.current?.zoom(0.8)}>+</Button><Button size="xs" variant="quiet" aria-label="Zoom camera out" onClick={() => live.current?.zoom(1.25)}>−</Button></>;
+  const explodeControls = <><Group align="flex-end" gap="md" wrap="wrap" data-testid="explode-controls">
       <Stack gap={2} style={{ flex: '1 1 220px' }}>
         <Text size="xs" className="sb-silk" id={`${descriptionId}-explode`}>Explode: {Math.round(explode * 100)}%{reduced ? ' (stepped)' : ''}</Text>
-        <Slider aria-labelledby={`${descriptionId}-explode`} min={0} max={1} step={reduced ? EXPLODE_STEP : SMOOTH_STEP} value={explode} onChange={setExplode} label={null} disabled={model.pieces.length === 0} />
+        <Slider thumbLabel="Explode layers" min={0} max={1} step={reduced ? EXPLODE_STEP : SMOOTH_STEP} value={explode} onChange={setExplode} label={null} disabled={model.pieces.length === 0} />
       </Stack>
       <SegmentedControl size="xs" aria-label="Explode direction" value={mode} onChange={v => setMode(v as ExplodeMode)} data={[{ value: 'axial', label: 'Axial' }, { value: 'radial', label: 'Radial' }]} />
       <Switch label="X-ray" checked={xray} onChange={e => setXray(e.currentTarget.checked)} disabled={model.pieces.length === 0} />
-    </Group>
+    </Group></>;
+  return <>{!compact && displayControls}<Stack style={{ minWidth: 0, maxWidth: '100%' }}>
+    {problem && <Alert color="yellow" role="alert">{problem}</Alert>}
+    {compact ? <><Group gap="xs">{resetFit}</Group><details className="stock-view-controls"><summary>View controls</summary><Stack gap="xs">{displayControls}<Group gap="xs">{cameraControls}</Group>{explodeControls}</Stack></details></> : <><Group gap="xs">{resetFit}{cameraControls}</Group>{explodeControls}</>}
     <div ref={host} className="sb-viewer sb-viewer-3d" style={{ display: problem ? 'none' : 'block', minWidth: 0, maxWidth: '100%', width: '100%' }} />
     <Text className="sb-visually-hidden" size="xs" id={descriptionId} data-testid={descriptionId} style={{ whiteSpace: 'normal', overflowWrap: 'anywhere', minWidth: 0 }}>{description}</Text>
     <details><summary>Camera and display notes</summary><Text size="sm" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>Drag to orbit, wheel to zoom, right-drag to pan. End A is x = 0; end B is x = preview length. Recorded colors and materials are shown as recorded; unrecorded ones are neutral. Explode and x-ray are display-only: they move or fade the drawn layers and establish no dimension, gap or construction. Radial explode moves only elements recorded off the cable axis. Leads are illustrative; geometry establishes no fit or qualification. Camera buttons also work with the keyboard.</Text></details>
-  </Stack>;
+  </Stack></>;
 }
