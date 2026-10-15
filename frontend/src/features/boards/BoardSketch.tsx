@@ -1,5 +1,5 @@
 import { Button, Group, Stack, Text } from '@mantine/core';
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BoardDrawing } from './BoardDrawing';
 import { layoutBoard } from './board-layout';
 import type { Board } from './api';
@@ -12,7 +12,21 @@ export function BoardSketch({ board, title, editable, selected, onSelect, onChan
 }) {
   const [drawing, setDrawing] = useState(false); const [armed, setArmed] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const stage = useRef<HTMLDivElement>(null);
+  const [bounds, setBounds] = useState<{ width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    const element = stage.current;
+    if (!element) return;
+    const observer = new ResizeObserver(entries => {
+      const { width, height } = entries[0]?.contentRect ?? { width: 0, height: 0 };
+      // Hidden retained records report zero; keep their last fit until visible again.
+      if (width > 0 && height > 0) setBounds(previous => previous?.width === width && previous.height === height ? previous : { width, height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const layout = useMemo(() => layoutBoard(board), [board]);
+  const scale = bounds ? Math.min(bounds.width / layout.width, bounds.height / layout.height) * zoom : null;
   const pickPad = (id: string) => {
     onSelect({ pad: id });
     if (!editable || !drawing) return;
@@ -31,7 +45,7 @@ export function BoardSketch({ board, title, editable, selected, onSelect, onChan
     {selected && <Button size="xs" variant="quiet" onClick={() => { onSelect(null); setArmed(null); }}>Clear selection</Button>}
   </Group>
     {drawing && <Text size="xs" role="status">{armed ? `Choose the second pad after ${board.terminals.find(pad => pad.terminal_id === armed)?.label ?? armed}.` : 'Choose two pads, then declare the path kind and basis in Paths.'}</Text>}
-    <div className="board-record-stage"><div style={{ width: `${zoom * 100}%`, minWidth: 0 }}>
+    <div ref={stage} className="board-record-stage"><div className="board-record-fit" style={{ width: scale === null ? "100%" : layout.width * scale, height: scale === null ? "100%" : layout.height * scale, marginInline: "auto", minWidth: 0 }}>
       {board.terminals.length ? <BoardDrawing board={board} layout={layout} title={title}
         selectedPad={selected && 'pad' in selected ? selected.pad : null} selectedPath={selected && 'path' in selected ? selected.path : null}
         armedPad={editable && drawing ? armed : null} onPad={pickPad} onPath={id => { setArmed(null); onSelect({ path: id }); }} />

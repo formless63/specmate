@@ -264,7 +264,7 @@ test('Cable versions discloses authorized record history lazily without adding a
   const calls = () => vi.mocked(fetch).mock.calls.filter(([path]) => String(path).startsWith('/api/v0/workspace/history?'));
   expect(calls()).toHaveLength(0); fireEvent.click(screen.getByRole('button', { name: 'Cable versions' }));
   const summary = await screen.findByText('History', { selector: 'summary' }); expect(calls()).toHaveLength(0);
-  fireEvent.click(summary); expect(await screen.findByRole('table', { name: 'Record history' })).toBeTruthy();
+  fireEvent.click(summary); expect(await screen.findByRole('list', { name: 'Record history' })).toBeTruthy();
   expect(String(calls()[0]![0])).toContain('definition_id=c1'); expect(screen.queryByRole('tab', { name: 'History' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Close cable versions' })); await waitFor(() => expect(screen.queryByRole('table', { name: 'Record history' })).toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: 'Close cable versions' })); await waitFor(() => expect(screen.queryByRole('list', { name: 'Record history' })).toBeNull());
 });
