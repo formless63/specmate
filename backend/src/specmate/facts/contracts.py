@@ -274,6 +274,10 @@ class RegisterSubject(StrictModel):
     target: Target
 
 
+class ResolveSubject(StrictModel):
+    target: Target
+
+
 class AppendFact(StrictModel):
     subject_id: UUID
     fact: FactContent

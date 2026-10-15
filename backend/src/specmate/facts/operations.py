@@ -4,7 +4,13 @@ import json
 from specmate.access.models import Workspace
 from specmate.access.permissions import Perm
 from specmate.design.operations import canonical_bytes
-from specmate.facts.contracts import AppendFact, PhysicalUnitTarget, ReadFacts, RegisterSubject
+from specmate.facts.contracts import (
+    AppendFact,
+    PhysicalUnitTarget,
+    ReadFacts,
+    RegisterSubject,
+    ResolveSubject,
+)
 from specmate.facts.models import AssertionInput, AssertionSource, FactAssertion, FactSubject
 from specmate.facts.queries import (
     MAX_ASSERTIONS,
@@ -26,6 +32,28 @@ from specmate.releases.warnings import raise_for_assertion
 
 def target_write_permission(target):
     return Perm.INVENTORY_MANAGE if isinstance(target, PhysicalUnitTarget) else Perm.ITEM_CREATE
+
+
+@operation(
+    "facts.resolve_subject",
+    ResolveSubject,
+    supports_idempotency=False,
+    summary="Resolve an existing selected engineering fact subject without creating a ledger.",
+    access=Perm.WORKSPACE_READ,
+)
+def resolve_subject(ctx: Context, p: ResolveSubject):
+    from specmate.catalog_matching.queries import current_actor
+
+    user = current_actor(ctx.user)
+    fields = resolve_target(user, p.target)
+    fingerprint = hashlib.sha256(canonical_bytes(p.target.model_dump(mode="json"))).hexdigest()
+    subject = FactSubject.objects.filter(
+        workspace=fields["workspace"], fingerprint=fingerprint
+    ).first()
+    if subject is None:
+        return {"subject": None}
+    current, _ = subject_with_assertions(user, subject.id)
+    return {"subject": subject_result(current)}
 
 
 def registration_scope(ctx, p):

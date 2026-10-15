@@ -76,6 +76,12 @@ checked before its name or lines are disclosed. Signed cursors bind the selected
 root, current actor, workspace, listing cutoff and scan offset; they carry no denied candidate identity or
 creation time. No hidden totals are returned.
 
+`facts.resolve_subject` accepts the existing typed fact target and reads only its
+existing ledger metadata, or returns `subject: null`. It never registers a subject.
+Current target origin/source authority is checked before lookup, then all assertion
+evidence is authorized before returning the subject. Definition and exact-revision
+ledgers remain distinct; viewers may resolve and inspect existing ledgers.
+
 ## Operations and reads
 
 `catalog.register_variant`, `catalog.register_representation` and `catalog.register_lot`
