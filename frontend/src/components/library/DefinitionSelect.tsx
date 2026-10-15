@@ -8,8 +8,8 @@ import type { Definition } from '../../features/identity/api';
 export const DefinitionPickerScope = createContext({ key: 'standalone', active: true });
 
 /** Source choices are metadata-only, bounded pages, fetched only while the picker is open. */
-export function DefinitionSelect({ label, kind, value, onChange, definitions, placeholder = 'Search by name', nameFilter }: {
-  label: string; kind: string; value: string | null; onChange: (id: string | null) => void;
+export function DefinitionSelect({ label, kind, value, onChange, definitions, placeholder = 'Search by name', nameFilter, ariaLabel }: {
+  label: string; ariaLabel?: string; kind: string; value: string | null; onChange: (id: string | null) => void;
   definitions?: Definition[]; placeholder?: string; nameFilter?: string | null;
 }) {
   const scope = useContext(DefinitionPickerScope);
@@ -22,7 +22,7 @@ export function DefinitionSelect({ label, kind, value, onChange, definitions, pl
   const choices = definitions ? definitions.filter(row => row.kind === kind && (!nameFilter || row.name.toLowerCase().includes(nameFilter.toLowerCase()))).map(row => ({ value: row.definition_id, label: row.name }))
     : page.isError || page.isFetching || !scope.active ? [] : (page.data?.results ?? []).map(row => ({ value: row.record_id, label: row.label }));
   const options = picked && !page.isError && !page.isFetching && scope.active && !choices.some(row => row.value === picked.value) ? [picked, ...choices] : choices;
-  return <Stack gap={4}><Select dropdownOpened={open && scope.active} label={label} searchValue={search} searchable placeholder={placeholder} value={value} data={options} filter={definitions ? undefined : ({ options }) => options}
+  return <Stack gap={4}><Select dropdownOpened={open && scope.active} label={label} aria-label={ariaLabel ?? label} searchValue={search} searchable placeholder={placeholder} value={value} data={options} filter={definitions ? undefined : ({ options }) => options}
     onDropdownOpen={() => setOpen(true)} onDropdownClose={() => setOpen(false)}
     onSearchChange={text => { setSearch(text); setAfter(null); setPrevious([]); }}
     onChange={id => { setPicked(options.find(row => row.value === id) ?? null); onChange(id); }}

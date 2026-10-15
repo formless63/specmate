@@ -31,7 +31,7 @@ export function RevisionPicker({ label, title, kind, value, onChange, definition
   const latestId = single ? revisions[revisions.length - 1]?.revision_id : undefined;
   return <Stack gap="xs">
     <Group align="flex-start" gap="xs" grow wrap="wrap">
-      <DefinitionSelect label={title ?? `${label} definition`} kind={kind} definitions={definitions} nameFilter={nameFilter} value={definition} onChange={(v) => { setChosen(v); setOffset(0); autoPick.current = v; if (v !== definition) onChange(""); }} />
+      <DefinitionSelect label={title ?? `${label} definition`} ariaLabel={`${label} definition`} kind={kind} definitions={definitions} nameFilter={nameFilter} value={definition} onChange={(v) => { setChosen(v); setOffset(0); autoPick.current = v; if (v !== definition) onChange(""); }} />
       <Select label={title ? 'Revision' : `${label} revision`} aria-label={`${label} revision`} value={identity.isError ? null : revisions.some(r => r.revision_id === value) ? value : null} disabled={identity.isError || !definition} error={error} onChange={(v) => onChange(v ?? "")}
         data={newestFirst(revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number, r.revision_id === latestId ? 'latest' : undefined) }))} />
     </Group>

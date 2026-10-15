@@ -88,10 +88,21 @@ test.each([
   ["u1", null, "physical_unit", "/make/units/u1", ""],
   ["src1", null, "source_bundle", "/library/src1?tool=sources", ""],
 ])("a legacy Library item %s resolves its kind through current workspace authority", async (id, kind, family, expected, suffix) => {
-  workspaceServer({}, path => path === `/api/v0/workspace/library/${id}` ? reply(record(id, "Synthetic record", { kind, family: family as "definition" | "physical_unit" | "source_bundle" })) : undefined);
+  const { fetchMock } = workspaceServer({}, path => {
+    if (path === `/api/v0/workspace/library/${id}`) return reply(record(id, "Synthetic record", { kind, family: family as "definition" | "physical_unit" | "source_bundle", latest_revision: kind === "port" ? 3 : null, latest_revision_id: kind === "port" ? "port-r3" : null }));
+    if (kind === "port" && path.startsWith("/api/v0/catalog/definitions/p2?")) return reply({ definition_id: "p2", revisions: [{ revision_id: "port-r3", number: 3 }], drafts: [] });
+    if (kind === "port" && path === "/api/v0/interfaces/revisions/port-r3") return reply({ definition_id: "p2", revision_id: "port-r3", interface: { kind: "port", device_label: "Synthetic device", pinout_revision_id: "", role: "unknown", selected_conditions: {}, pins: [], review: "unreviewed", review_basis: null } });
+    return undefined;
+  });
   start(`/library/${id}${suffix}?lens=library-home`);
   await at(expected);
-  expect(await within(await selection()).findByText("Synthetic record")).toBeTruthy();
+  if (kind === "port") {
+    expect(await screen.findByRole("heading", { name: "Synthetic record" })).toBeTruthy();
+    expect(screen.getByText("Frozen r3")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
+    expect(fetchMock.mock.calls.some(([path]) => String(path) === "/api/v0/workspace/library/p2")).toBe(true);
+    expect(fetchMock.mock.calls.some(([path]) => String(path) === "/api/v0/interfaces/revisions/port-r3")).toBe(true);
+  } else expect(await within(await selection()).findByText("Synthetic record")).toBeTruthy();
 });
 
 
