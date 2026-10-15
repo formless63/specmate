@@ -19,7 +19,7 @@ export type DrawingProps = {
   lengthText?: string | null;
   /** Check outcomes are drawn only when an intent check is shown. */
   showStatus?: boolean;
-  /** Scale of the drawing; null fits the box width (never narrower than a readable minimum). */
+  /** Scale of the drawing; null fits the available box width. */
   zoom?: number | null;
   title: string;
   onDragLanding?: (endpointId: string, path: string, terminalKey: string) => void;
@@ -243,7 +243,8 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
     {drawing.ends.map(end)}
     {faces}
     <g className="cwb-stock" data-dim={dim(STOCK_KEY) && !drawing.wires.some((w) => lit?.has(w.key)) ? true : undefined}>
-      {drawing.wires.map(wire)}
+      {/* Keep the selected landing handles above crossing wires and their hit paths. */}
+      {drawing.wires.filter(w => w.key !== selection).concat(drawing.wires.filter(w => w.key === selection)).map(wire)}
       <g role="button" tabIndex={0} aria-label="Stock: open stock details" {...activate(() => onSelect(STOCK_KEY))} className="cwb-jacket-hit">
         <rect x={stock.jacketX0} y={jacketTop} width={stock.jacketX1 - stock.jacketX0} height={stock.height} rx={stock.height / 2.6} className="cwb-jacket" style={{ fill: stock.jacket ? "url(#cwb-jacket)" : "url(#cwb-hatch)" }} data-selected={selection === STOCK_KEY || undefined} />
         <ellipse cx={stock.jacketX0} cy={stock.cy} rx={4} ry={stock.height / 2} className="cwb-jacket-cut" />

@@ -54,3 +54,20 @@ test("keyboard landing handle opens the same searchable target choices and Enter
   fireEvent.click(screen.getByRole("button", { name: "Undo gesture" }));
   expect(screen.getByLabelText("Saved landing").textContent).toBe("1");
 });
+
+test("a selected wire stays above overlapping wire hit paths so its landing handle can be dragged", () => {
+  mount();
+  const selected = handle().closest(".cwb-wire")!;
+  fireEvent.keyDown(handle(), { key: "Enter" });
+  fireEvent.click(screen.getByRole("button", { name: /^Cancel$/ }));
+  expect(selected.getAttribute("data-selected")).toBe("true");
+  expect([...document.querySelectorAll(".cwb-stock > .cwb-wire")].at(-1)).toBe(selected);
+  // Ending keyboard target selection must keep this pointer target in front.
+  fireEvent.pointerDown(handle(), pointer(0, 0));
+  fireEvent.pointerMove(svg(), pointer(target.x, target.y));
+  expect(document.querySelector(".cwb-drag-preview")).toBeTruthy();
+  fireEvent.pointerUp(svg(), pointer(target.x, target.y));
+  expect(screen.getByLabelText("Saved landing").textContent).toBe("r2.1");
+  fireEvent.click(screen.getByRole("button", { name: "Undo gesture" }));
+  expect(screen.getByLabelText("Saved landing").textContent).toBe("1");
+});
