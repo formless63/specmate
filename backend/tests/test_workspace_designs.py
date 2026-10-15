@@ -258,3 +258,59 @@ def test_cross_workspace_pins_never_resolve_names(users, workspace, other_worksp
     row = page(users["viewer"])["results"][0]
     assert row["design"]["boards"] == []
     assert page(users["viewer"], board="Foreign")["results"] == []
+
+
+@pytest.mark.parametrize("already_frozen", [False, True])
+def test_competing_freeze_keeps_labels_and_metadata_on_the_selected_state(
+    users, workspace, monkeypatch, already_frozen
+):
+    """Insert a real revision at the precise interleaving between the two read queries."""
+    from specmate.workspace import designs
+
+    owner = users["owner"]
+    definition, draft, selected_revision = design(
+        owner,
+        workspace,
+        "Changing cable",
+        content={"cable": {"review": "unreviewed"}},
+        freeze=already_frozen,
+    )
+    original_definitions = designs._definitions
+    competing = []
+
+    def freeze_before_label_read(*args):
+        # A freeze committed by another request after the metadata SELECT would be
+        # visible to this second read under READ COMMITTED. Reproduce that ordering
+        # deterministically with actual database rows, without thread scheduling.
+        draft.content = {"cable": {"review": "reviewed", "review_basis": "Synthetic review"}}
+        draft.version += 1
+        draft.save()
+        snapshot = Snapshot.objects.create(
+            definition=definition,
+            draft=draft,
+            draft_version=draft.version,
+            canonical=json.dumps({"content": draft.content}).encode(),
+            sha256="2" * 64,
+            created_by=owner,
+        )
+        competing.append(
+            Revision.objects.create(
+                definition=definition,
+                snapshot=snapshot,
+                number=2 if already_frozen else 1,
+                frozen_by=owner,
+            )
+        )
+        return original_definitions(*args)
+
+    monkeypatch.setattr(designs, "_definitions", freeze_before_label_read)
+    row = page(users["viewer"], status="unreviewed")["results"][0]
+    assert len(competing) == 1
+    assert Revision.objects.filter(definition=definition).count() == (2 if already_frozen else 1)
+    expected_number = selected_revision.number if selected_revision else None
+    expected_id = str(selected_revision.id) if selected_revision else None
+    assert row["latest_revision"] == row["design"]["revision"] == expected_number
+    assert row["latest_revision_id"] == row["design"]["revision_id"] == expected_id
+    assert row["design"]["review"] == "unreviewed"
+    assert row["design"]["basis"] == ("latest_frozen" if already_frozen else "newest_draft")
+    assert row["design"]["draft_id"] == (None if already_frozen else str(draft.id))

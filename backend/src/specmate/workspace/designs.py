@@ -176,10 +176,15 @@ def list_designs(user, payload: ListDesigns) -> dict:
         query = query.annotate(referenced=_referenced_flag(referenced))
     definitions = {row.id: row for row in query.filter(id__in=ids)}
     records = _records([definitions[id] for id in ids], render, loader, context)
-    results = [
-        DesignRecord(**record.model_dump(), design=json.loads(row[2]))
-        for record, row in zip(records, page, strict=True)
-    ]
+    results = []
+    for record, row in zip(records, page, strict=True):
+        metadata = json.loads(row[2])
+        # A competing freeze may be visible to the later label query. Keep the
+        # revision badge on the same state that supplied the filtered metadata.
+        fields = record.model_dump()
+        fields["latest_revision"] = metadata["revision"]
+        fields["latest_revision_id"] = metadata["revision_id"]
+        results.append(DesignRecord(**fields, design=metadata))
     next_after = (
         _encode([page[-1][1].isoformat(), str(page[-1][0])])
         if len(rows) > payload.limit and page
