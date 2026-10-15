@@ -78,7 +78,8 @@ test("at Library scope the list sits above the editor: New focuses creation, Ope
   expect(screen.getByRole("region", { name: "Interfaces editor" })).toBeTruthy();
   expect(await screen.findByRole("heading", { name: "Bodies, pinouts and boundary mappings" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "New interface record" }));
-  expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Definition name" }));
+  expect(screen.getByRole("heading", { name: "New interface record" })).toBeTruthy();
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Definition name" })));
   fireEvent.click(await screen.findByRole("button", { name: "Open Synthetic body in the editor" }));
   await waitFor(() => expect(selected("Existing interface definition")).toBe("Synthetic body (connector_body)"));
   expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
