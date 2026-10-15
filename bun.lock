@@ -35,6 +35,15 @@
         "vitest": "^5.0.3",
       },
     },
+    "packages/connector-art": {
+      "name": "@specmate/connector-art",
+      "dependencies": {
+        "react": "^19.3.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.3.0",
+      },
+    },
     "packages/wire-geometry": {
       "name": "@specmate/wire-geometry",
       "dependencies": {
@@ -139,6 +148,8 @@
     "@rolldown/binding-win32-x64-msvc": ["@rolldown/binding-win32-x64-msvc@1.2.12", "", { "os": "win32", "cpu": "x64" }, "sha512-WIw2haVKwjuYdXkHaoC0mF8Le71TuCBxjrdKqLbJGctbBABj+ClfmNvtbOnzpq3RokNo5+V1qhtSzJyXorsklQ=="],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.1", "", {}, "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw=="],
+
+    "@specmate/connector-art": ["@specmate/connector-art@workspace:packages/connector-art"],
 
     "@specmate/frontend": ["@specmate/frontend@workspace:frontend"],
 
