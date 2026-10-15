@@ -82,13 +82,26 @@ test("signal chips hatch unknown levels", () => {
   expect(screen.getByText("Red video").getAttribute("data-unknown")).toBeNull();
 });
 
-test("connector kinds use the placeholder face with recorded contacts only", () => {
-  const box = draw("port", preview("port", { interface: { device_label: "Monitor input", pins: [
-    { contact_id: "8", must_not_connect: true }, { contact_id: "20", level: { status: "unknown" } }, { contact_id: "7", level: { status: "known" } }] } }));
-  expect([...box.querySelectorAll("[data-contact]")].map((g) => [g.getAttribute("data-contact"), g.getAttribute("data-mark")]))
-    .toEqual([["8", "must-not-connect"], ["20", "unknown"], ["7", "signal"]]);
-  draw("connector_body", preview("connector_body", { interface: { contacts: [] } }));
-  expect(screen.getByText("no contacts recorded")).toBeTruthy();
+test("connector bodies, pinouts and ports draw their real face; pins colored by signal type", () => {
+  const contacts = [1, 2, 3, 4, 5].map((n) => ({ contact_id: String(n), label: String(n), physical_role: "contact" }));
+  const body = { kind: "connector_body", family: "5-pin DIN 180", geometry_key: "din-5-180", mating_role: "receptacle", contacts };
+  let box = draw("connector_body", preview("connector_body", { interface: body }));
+  expect(box.querySelector("svg[data-geometry]")?.getAttribute("data-geometry")).toBe("din-5-180-female");
+  cleanup();
+  const ref = (key: string) => ({ electrical: { signal_ref: { key, signal_set_revision_id: "s1" } } });
+  const pinout = { kind: "pinout", body_revision_id: "b1", assignments: [{ contact_id: "1", ...ref("red") }, { contact_id: "2", ...ref("gnd") }] };
+  box = draw("pinout", preview("pinout", { interface: pinout }, { body, signal_types: { "s1/red": "analog_video", "s1/gnd": "ground_return" } }));
+  const state = (id: string) => box.querySelector(`[data-pin="${id}"]`)?.getAttribute("data-state");
+  expect(state("1")).toBe("none");
+  expect(state("3")).toBe("unknown");
+  expect(box.querySelector('[data-pin="1"] title')?.textContent).toContain("analog video");
+  cleanup();
+  box = draw("port", preview("port", { interface: { kind: "port", pins: [{ contact_id: "4", must_not_connect: true }] } },
+    { body, pinout, signal_types: { "s1/red": "analog_video" } }));
+  expect(box.querySelector('[data-pin="4"]')?.getAttribute("data-state")).toBe("hazard");
+  cleanup();
+  draw("pinout", preview("pinout", { interface: pinout }));
+  expect(screen.getByText("body face unknown")).toBeTruthy();
 });
 
 test("oversized and unreadable previews say so", () => {

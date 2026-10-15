@@ -21,11 +21,14 @@ lenses, status line); there is no pre-project gate. The top bar's scope control 
 reachable at both scopes. Scope changes navigation and filtering only, never access.
 
 - The Library area opens on the **Library home**: summary cells (needs attention, failing
-  checks, unknowns, open questions, stale evidence, items), a **Needs attention** row, the
-  member's **Recent** edits and freezes, and **All items** as a visual gallery with search and
-  kind chips. Attention comes only from existing records (the latest recorded check of each
-  cable or interface assessment, staleness of that record, open intent questions, values
-  declared unknown); an item without a recorded check is never counted as passing.
+  checks, unknowns, open questions, stale evidence, items), a **Needs attention** row, a
+  collapsed **Unknown values** group, the member's **Recent** edits and freezes, and **All
+  items** as a visual gallery with search and kind chips. Attention comes only from existing
+  records: failing rows of the latest recorded check of each cable or interface assessment,
+  stale records and open intent questions. Items whose only reasons are unknowns (unknown
+  check rows, values declared unknown) are counted in the separate group. An item without a
+  recorded check is never counted as passing. **New…** picks a kind and opens its lens with
+  the New form. A link to an item (`/library/<object>`) opens it in its own lens.
 - At Library scope each lens lists its workspace collection as a paginated gallery of cards
   by default, with a remembered switch to the dense table (kind/role, name, latest frozen
   revision, and the projects that reference it) for scanning. A card draws the item from its

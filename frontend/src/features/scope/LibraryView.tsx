@@ -9,6 +9,7 @@ import { floatingKind, KNOWN_KINDS, type LibraryView as View } from "../shell/sc
 import { addReference, listLibrary, readProjectDetail, removeReference, type LibraryRecord, type Project } from "../workspace/api";
 import { ItemCard } from "../library-gallery/ItemCard";
 import { attentionById, useLibraryHome, usedInWords } from "../library-gallery/hooks";
+import { useNewRequest } from "../library-gallery/newRequest";
 import { ReferenceForm, type ReferenceChoice } from "./ReferenceForm";
 import type { EditorActions } from "./EditingLens";
 
@@ -141,6 +142,8 @@ export function LibraryView({ view, toolLabel, projectId, project, projects, pri
   const home = useLibraryHome(principalKey, gallery && drawn);
   const attention = useMemo(() => attentionById(home.data), [home.data]);
   const selectedRow = gallery ? rows.find((row) => row.record_id === selected) ?? null : null;
+  // "New…" on the Library home opens this list's New form, as its own New button does.
+  useNewRequest(view, !!editor && create.allowed, () => { setSelected(null); editor?.reveal(true, view.noun); });
   const openCard = (row: LibraryRecord) => {
     setSelected(row.record_id);
     editor?.reveal(false);

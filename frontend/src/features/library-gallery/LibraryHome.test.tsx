@@ -28,6 +28,9 @@ const HOME: Home = {
       reasons: [{ kind: "open_questions", count: 1, detail: "1 open question" }] },
   ],
   attention_total: 2,
+  unknowns: [{ ...item, record_id: "p1", kind: "port", label: "Monitor input", latest_revision: 1, status: "unknown",
+    reasons: [{ kind: "unknown_values", count: 2, detail: "2 declared values unknown" }] }],
+  unknowns_total: 1,
   recent: [{ ...item, record_id: "s1", kind: "wire_stock", label: "Pair stock", latest_revision: 1, activity: "frozen", at: new Date().toISOString() }],
   totals: { failing_checks: 2, unknown_checks: 0, open_questions: 1, stale_evidence: 1, unknown_values: 4 },
   kinds: [{ kind: "cable", count: 2 }, { kind: "wire_stock", count: 1 }],
@@ -38,9 +41,12 @@ const HOME: Home = {
 function serve(role = "viewer") {
   const library = [record("c1", "Swapped lead", { latest_revision: 2, used_in_total: 1 }), record("c2", "Loose lead"), record("s1", "Pair stock", { kind: "wire_stock", latest_revision: 1 })];
   return workspaceServer({ role, library }, (path, init) => {
+    if (path === "/api/v0/workspace/library/p1") return reply(record("p1", "Monitor input", { kind: "port" }));
+    if (path === "/api/v0/workspace/library/u1") return reply(record("u1", "Unit 7", { family: "physical_unit", kind: "built" }));
     if (path !== "/api/v0/operations") return undefined;
     const body = JSON.parse(String(init?.body)) as { operation: string; payload: { definition_ids?: string[] } };
     if (body.operation === "library.home") return reply({ result: HOME });
+    if (path === "/api/v0/operations") return undefined;
     if (body.operation === "library.previews") {
       return reply({ result: { workspace_id: "w1", previews: (body.payload.definition_ids ?? []).map((id) => ({ record_id: id, kind: id.startsWith("s") ? "wire_stock" : "cable",
         source: "revision", revision: 1, content: id === "i1" ? { interface: { rows: [{ question: {} }] } } : {}, truncated: false, stock: null })) } });
@@ -49,8 +55,8 @@ function serve(role = "viewer") {
   });
 }
 
-function show(role = "viewer") {
-  const history = createMemoryHistory({ initialEntries: ["/library"] });
+function show(role = "viewer", at = "/library") {
+  const history = createMemoryHistory({ initialEntries: [at] });
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MantineProvider><QueryClientProvider client={cache}><NavigationProvider history={history}><PermissionsProvider permissions={ROLE_PERMISSIONS[role]!}>
     <LibraryHome principalKey="7" /></PermissionsProvider></NavigationProvider></QueryClientProvider></MantineProvider>);
@@ -127,4 +133,45 @@ test("lens lists default to the gallery; the table stays one switch away and is 
   fireEvent.click(screen.getByRole("radio", { name: "Table" }));
   expect(await screen.findByRole("table")).toBeTruthy();
   expect(localStorage.getItem("specmate.library.layout")).toBe("table");
+});
+
+test("plain unknowns are a separate, collapsed group with counts", async () => {
+  serve();
+  show();
+  const attention = await screen.findByRole("list", { name: "Items needing attention" });
+  expect(within(attention).queryByText("Monitor input")).toBeNull();
+  const group = screen.getByText("Unknown values").closest("details")!;
+  expect(group.open).toBe(false);
+  expect(within(group).getByText("1 item · 4 unknown")).toBeTruthy();
+  group.open = true;
+  fireEvent(group, new Event("toggle"));
+  expect(await within(group).findByRole("button", { name: /Open Monitor input, port r1, 2 declared values unknown/ })).toBeTruthy();
+});
+
+test("a deep link to an item opens it in its own lens, not on the home", async () => {
+  serve();
+  const history = show("viewer", "/library/p1");
+  await waitFor(() => expect(`${history.location.pathname}${history.location.search}`).toBe("/library/p1?lens=ports"));
+  const units = show("viewer", "/library/u1");
+  await waitFor(() => expect(`${units.location.pathname}${units.location.search}`).toBe("/inventory/u1?lens=physical-units"));
+});
+
+test("New… opens the chosen lens and asks its list for the New form; viewers see it disabled", async () => {
+  serve("editor");
+  const history = show("editor");
+  fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Cable" }));
+  expect(`${history.location.pathname}${history.location.search}`).toBe("/design?lens=cables");
+  // The cables list, mounted later, picks the request up and reveals its New form.
+  const reveal = vi.fn();
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={ROLE_PERMISSIONS.editor!}><ProbeProvider probe={null} onProbe={vi.fn()}>
+    <LibraryView view={LIBRARY_VIEWS.cables!} toolLabel="Cables" projectId={null} project={null} projects={[]} principalKey="7" onOpenInProject={vi.fn()} editor={{ reveal }} />
+  </ProbeProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
+  await waitFor(() => expect(reveal).toHaveBeenCalledWith(true, "cable"));
+  cleanup();
+  serve("viewer");
+  show("viewer");
+  fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+  expect((await screen.findByRole("menuitem", { name: "Cable" })).hasAttribute("disabled") || (await screen.findByRole("menuitem", { name: "Cable" })).getAttribute("data-disabled") === "true").toBe(true);
 });

@@ -21,6 +21,9 @@ export type LibraryHome = {
   workspace_id: string;
   attention: AttentionItem[];
   attention_total: number;
+  /** Items whose only reasons are unknown check rows or unknown declared values. */
+  unknowns: AttentionItem[];
+  unknowns_total: number;
   recent: RecentItem[];
   totals: { failing_checks: number; unknown_checks: number; open_questions: number; stale_evidence: number; unknown_values: number };
   kinds: { kind: string; count: number }[];
@@ -35,6 +38,12 @@ export type LibraryPreview = {
   content: Record<string, unknown> | null;
   truncated: boolean;
   stock: Record<string, unknown> | null;
+  /** A pinout's or port's pinned connector body interface. */
+  body?: Record<string, unknown> | null;
+  /** A port's pinned pinout interface. */
+  pinout?: Record<string, unknown> | null;
+  /** Signal types used by the pinout, keyed "<signal set revision>/<key>". */
+  signal_types?: Record<string, string>;
 };
 
 export async function readLibraryHome(limit = 12): Promise<LibraryHome> {

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { displayColor, renderSectionSvg, sectionLayout } from "../../../../packages/section-layout/src";
 import type { Section, StockSpecification } from "../../../../packages/section-layout/src";
 import type { LibraryPreview } from "./api";
-import { ConnectorThumbPlaceholder, type ContactMark } from "./ConnectorThumbPlaceholder";
+import { ConnectorThumb } from "./ConnectorThumb";
 
 type Json = Record<string, unknown>;
 const obj = (value: unknown): Json => (value && typeof value === "object" && !Array.isArray(value) ? value as Json : {});
@@ -167,23 +167,6 @@ function SignalChips({ content, title }: { content: Json; title: string }) {
   </div>;
 }
 
-function contactsOf(kind: string, content: Json): { family: string | null; contacts: { contactId: string; label: string; mark: ContactMark }[] } {
-  const value = obj(content.interface);
-  if (kind === "connector_body") {
-    return { family: str(value.family), contacts: arr(value.contacts).map(obj).map((c) => ({
-      contactId: String(c.contact_id), label: str(c.label) ?? String(c.contact_id), mark: c.physical_role === "shell" ? "shell" : "plain" })) };
-  }
-  if (kind === "pinout") {
-    return { family: str(value.standard), contacts: arr(value.assignments).map(obj).map((a) => {
-      const role = str(obj(a.electrical).role);
-      return { contactId: String(a.contact_id), label: String(a.contact_id), mark: role === "signal" ? "signal" : role === "return" ? "return" : "unknown" };
-    }) };
-  }
-  return { family: str(value.device_label), contacts: arr(value.pins).map(obj).map((p) => ({
-    contactId: String(p.contact_id), label: String(p.contact_id),
-    mark: p.must_not_connect ? "must-not-connect" : countUnknown(p) > 0 ? "unknown" : "signal" })) };
-}
-
 const GLYPH: Record<string, string> = {
   part: "PART", assembly: "ASM", harness: "HAR", bom_plan: "BOM", material_plan: "MAT", option_set: "OPT", configuration: "CFG",
   workshop_profile: "PROF", preparation_profile: "PREP", end_preparation_profile: "END", cable_test_plan: "TEST", firmware: "FW",
@@ -215,10 +198,8 @@ export function ItemThumb({ kind, label, preview, recordId }: { kind: string; la
     case "end_assembly": return <EndStackThumb content={content} title={title} />;
     case "cable_intent": return <IntentThumb content={content} title={title} />;
     case "signal_set": return <SignalChips content={content} title={title} />;
-    case "connector_body": case "pinout": case "port": {
-      const { family, contacts } = contactsOf(kind, content);
-      return <ConnectorThumbPlaceholder family={family} contacts={contacts} title={title} />;
-    }
+    case "connector_body": case "pinout": case "port":
+      return <ConnectorThumb kind={kind} content={content} body={preview.body ?? null} pinout={preview.pinout ?? null} signalTypes={preview.signal_types ?? {}} title={title} />;
     default: return <Glyph kind={kind} title={title} />;
   }
 }
