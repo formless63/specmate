@@ -2,6 +2,7 @@ import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { emptyBoard } from "../boards/api";
 import { App } from "../../App";
 import { project, record, reply, workspaceServer } from "../../test/workspaceServer";
 
@@ -23,6 +24,9 @@ function serve() {
   return workspaceServer({ projects: [project("p1", "Bench")], library: [board, population, cableRecord] }, path => {
     const url = new URL(path, "http://test"); const match = /^\/api\/v0\/workspace\/library\/([^/]+)$/.exec(url.pathname);
     if (url.pathname === "/api/v0/workspace/history") return reply({ workspace_id: "w1", source: "retained", hint: "Retained changes only.", results: [], next_after: null, scan_limit_reached: false });
+    if (url.pathname === "/api/v0/catalog/definitions/b1") return reply({ definition_id: "b1", name: "Main board", kind: "board", drafts: [], revisions: [{ revision_id: "r1", number: 1 }, { revision_id: "r2", number: 2 }] });
+    if (url.pathname === "/api/v0/interfaces/revisions/r1" || url.pathname === "/api/v0/interfaces/revisions/r2") return reply({ revision_id: url.pathname.split('/').at(-1), interface: emptyBoard(), board: {} });
+    if (url.pathname.startsWith("/api/v0/catalog/revisions/r")) return reply({ variants: [], lots: [], representations: [], source_identifiers: [] });
     if (!match) return undefined;
     const found = [board, population, cableRecord].find(row => row.record_id === decodeURIComponent(match[1]!));
     return found ? reply(found) : reply({ error: { message: "Item not found." } }, 404);
@@ -39,28 +43,30 @@ const selection = () => screen.findByRole("region", { name: "Selection" });
 
 test("an old exact board link moves to Boards with the revision and path intact", async () => {
   const { fetchMock } = serve(); start("/design/b1@2/~/J1/3?lens=pcb");
-  const inspector = await selection(); expect(await within(inspector).findByText("Main board")).toBeTruthy();
-  expect(within(inspector).getByText("r2 exact")).toBeTruthy(); expect(within(inspector).getByText("J1 / 3")).toBeTruthy();
+  const frame = await screen.findByRole("region", { name: "Main board record" });
+  expect(await within(frame).findByText("Frozen r2")).toBeTruthy(); expect(within(frame).getByText(/Linked context: J1 \/ 3/)).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Boards" }).getAttribute("aria-selected")).toBe("true");
   expect(screen.getByRole("button", { name: "Library" }).getAttribute("aria-current")).toBe("page");
-  expect(await screen.findByRole("heading", { name: "Boards" })).toBeTruthy();
-  const row = screen.getByRole("button", { name: "Main board" }).closest("tr")!; expect(row.getAttribute("data-selected")).toBe("true");
-  const listed = fetchMock.mock.calls.map(([path]) => String(path)).find(path => path.startsWith("/api/v0/workspace/library-table?"))!;
-  expect(new URL(listed, "http://test").searchParams.getAll("kinds")).toEqual(["board", "pcb_population"]);
+  expect(within(frame).getByRole("heading", { name: "Main board" })).toBeTruthy();
+  expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
+  const calls = fetchMock.mock.calls.map(([path]) => String(path));
+  expect(calls).toContain("/api/v0/workspace/library/b1"); expect(calls).toContain("/api/v0/interfaces/revisions/r2");
+  expect(calls.some(path => path.endsWith("/interfaces/revisions/r1"))).toBe(false);
+  expect(calls.some(path => path.startsWith("/api/v0/workspace/library-table?"))).toBe(false);
   await at("/library/boards/b1@2/~/J1/3");
 });
 
 test("selection and rail changes remain browser history entries", async () => {
   serve(); start("/design?lens=pcb");
   fireEvent.click(await screen.findByRole("button", { name: "Main board" })); await at("/library/boards/b1");
-  expect(await within(await selection()).findByText("Main board")).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Main board" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "History" })); await at("/history");
   expect(await screen.findByRole("table", { name: "Workspace history" })).toBeTruthy();
   expect(screen.queryByRole("region", { name: "Selection" })).toBeNull();
-  window.history.back(); await at("/library/boards/b1"); expect(await within(await selection()).findByText("Main board")).toBeTruthy();
+  window.history.back(); await at("/library/boards/b1"); expect(await screen.findByRole("heading", { name: "Main board" })).toBeTruthy();
   window.history.back(); await at("/library/boards");
   await waitFor(() => expect(screen.queryByRole("region", { name: "Selection" })).toBeNull());
-  window.history.forward(); expect(await within(await selection()).findByText("Main board")).toBeTruthy();
+  window.history.forward(); expect(await screen.findByRole("heading", { name: "Main board" })).toBeTruthy();
 });
 
 test("unreadable and malformed targets render access-lost without naming them", async () => {
@@ -135,4 +141,13 @@ test("a denied retired document root has an explicit unavailable state and recor
   expect(screen.getByRole("button", { name: "Retry current record access" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Browse designs" })).toBeTruthy();
   expect(screen.queryByText("Opening document context…")).toBeNull();
+});
+
+
+test.each([['copper', 'more', 'More'], ['passive-passages', 'more', 'More'], ['pcb-disagreement', 'source-review', 'Source review']])('known exact board %s links use its record section without losing revision or path', async (tool, section, tab) => {
+  const { fetchMock } = serve(); start(`/design/b1@2/~/J1/3?lens=${tool}`);
+  const frame = await screen.findByRole('region', { name: 'Main board record' }); expect(await within(frame).findByText('Frozen r2')).toBeTruthy();
+  await at(`/library/boards/b1@2/~/J1/3?section=${section}`); expect(screen.getByRole('tab', { name: tab, selected: true })).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: 'Copper graph' })).toBeNull(); expect(screen.queryByLabelText('Assembly definition')).toBeNull();
+  expect(fetchMock.mock.calls.some(([path]) => String(path) === '/api/v0/interfaces/revisions/r2')).toBe(true);
 });

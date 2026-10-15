@@ -111,3 +111,13 @@ test("History source, actor, dates and kind survive a canonical URL reload", () 
   expect(parsed.filters).toEqual({ kind: "pinout", actor: "7", from: "2026-01-01", to: "2026-01-31", history_source: "current_drafts" });
   const canonical = formatLocation(parsed); expect(parseLocation("/history", canonical.slice(canonical.indexOf("?")))).toEqual(parsed);
 });
+
+
+test.each([['copper', 'more'], ['passive-passages', 'more'], ['pcb-disagreement', 'source-review']])('retired %s picker opens Boards while exact unknown-context IDs stay typed', (tool, section) => {
+  expect(formatLocation(parseLocation('/design', `?lens=${tool}`))).toBe(`/library/boards?section=${section}`);
+  expect(parseLocation('/design/opaque@2/~/J1/3', `?lens=${tool}`)).toMatchObject({ lens: tool, probe: { object: 'opaque', rev: 2, path: ['J1', '3'] } });
+});
+test('board inspector section and exact intake survive canonical reload', () => {
+  expect(formatLocation(parseLocation('/library/boards/b1@2', '?section=more'))).toBe('/library/boards/b1@2?section=more');
+  expect(formatLocation(parseLocation('/library/boards', '?view=intake&intake=source-intake'))).toBe('/library/boards?view=intake&intake=source-intake');
+});

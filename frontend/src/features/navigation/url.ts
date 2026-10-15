@@ -46,7 +46,8 @@ Object.assign(HOME_TOOLS, { "/designs": "designs", "/designs/new": "intents", "/
 const LEGACY_AREAS = new Set(["project", "design", "sources", "inventory", "evidence"]);
 const LEGACY_DEFAULTS: Record<string,string> = { project: "overview", design: "assemblies", sources: "sources", inventory: "inventory", evidence: "facts", make: "bom", library: "library-home" };
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source"];
+export const BOARD_RECORD_SECTIONS: Record<string, string> = { copper: "more", "passive-passages": "more", "pcb-disagreement": "source-review" };
+const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view", "release", "work_batch", "sheet", "actor", "history_source", "section", "intake"];
 export const HOME: WorkspaceLocation = { area: "designs", lens: DEFAULT_TOOL, project: null, probe: null, malformed: false };
 function decode(segment: string): string | null { try { return decodeURIComponent(segment); } catch { return null; } }
 function knownTool(tool: string | null): tool is string { return !!tool && AREAS.some(area => area.tools.some(item => item.id === tool)); }
@@ -95,6 +96,7 @@ export function parseLocation(pathname: string, search: string): WorkspaceLocati
   if (legacy && !probe && ["cables", "harnesses", "assemblies"].includes(lens)) lens = "designs";
   if (!probe && ["cables", "preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(lens)) lens = "designs";
   if (legacy && lens === "intents" && !probe) { lens = "new-cable"; filters.kind = "cable"; }
+  if (!probe && BOARD_RECORD_SECTIONS[lens]) { filters.section = BOARD_RECORD_SECTIONS[lens]!; lens = "pcb"; }
   if (lens === "discovery") filters.palette = "open";
   return { area: areaOfTool(lens).id, lens, project, probe, malformed, ...(Object.keys(filters).length ? { filters } : {}) };
 }
