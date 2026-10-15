@@ -163,3 +163,61 @@ def test_scan_bound_advances_without_materializing_receipt_json_or_hidden_totals
 def test_query_bounds(options):
     with pytest.raises(ValidationError):
         HistoryQuery(workspace_id=UUID(int=1), **options)
+
+
+def test_receipt_allowlist_contains_only_registered_operations():
+    from specmate.history.queries import RECEIPTS
+    from specmate.operations import registry
+
+    assert RECEIPTS <= set(registry)
+    assert {"preparation.create", "end_preparation.create", "cable_test_plan.create"} <= RECEIPTS
+
+
+@pytest.mark.parametrize("family", ["generic", "interface"])
+def test_actual_keyed_create_update_freeze_result_shapes_retain_safe_touched_identity(
+    users, workspace, family
+):
+    owner = users["owner"]
+    if family == "generic":
+        draft = op(
+            owner,
+            "definition.create",
+            {"workspace_id": workspace, "kind": "part", "name": "Synthetic history part"},
+            idempotency_key="shape-create",
+        )
+        updated = op(
+            owner,
+            "draft.update",
+            {"draft_id": draft["draft_id"], "changes": {"label": "Synthetic updated label"}},
+            expected_state=draft["state"],
+            idempotency_key="shape-update",
+        )
+        frozen = op(
+            owner,
+            "draft.freeze",
+            {"draft_id": draft["draft_id"]},
+            expected_state=updated["state"],
+            idempotency_key="shape-freeze",
+        )
+        expected = {"definition.create", "draft.update", "draft.freeze"}
+    else:
+        draft = create(owner, workspace, idempotency_key="shape-create")
+        value = {**draft["content"]["interface"], "family": "Synthetic history family"}
+        updated = op(
+            owner,
+            "interface.update",
+            {"draft_id": draft["draft_id"], "interface": value},
+            expected_state=draft["state"],
+            idempotency_key="shape-update",
+        )
+        frozen = freeze(owner, updated, idempotency_key="shape-freeze")
+        expected = {"interface.create", "interface.update", "interface.freeze"}
+    rows = history(users["viewer"], workspace, definition_id=draft["definition_id"])["results"]
+    receipts = [row for row in rows if row["evidence"] == "receipt"]
+    assert {row["operation"] for row in receipts} == expected
+    assert {row["touched"][0]["definition_id"] for row in rows} == {draft["definition_id"]}
+    updated_row = next(row for row in receipts if row["operation"].endswith("update"))
+    assert updated_row["touched"][0]["basis"] == "current_draft"
+    assert updated_row["touched"][0]["revision_id"] is None
+    frozen_row = next(row for row in receipts if row["operation"].endswith("freeze"))
+    assert frozen_row["touched"][0]["revision_id"] == frozen["revision_id"]

@@ -26,14 +26,12 @@ RECEIPTS = {"definition.create", "draft.update", "draft.freeze"} | {
         "cable",
         "harness",
         "assembly",
-        "board",
         "workshop_profile",
         "preparation",
         "end_preparation",
         "print_profile",
         "print_preparation",
-        "configuration",
-        "cable_test_intent",
+        "cable_test_plan",
     )
     for action in ("create", "update", "freeze")
 }
