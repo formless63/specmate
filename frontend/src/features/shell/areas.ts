@@ -28,6 +28,7 @@ export const AREAS: AreaDef[] = [
     { id: "ports", label: "Ports" },
     { id: "conventions", label: "Conventions" },
     { id: "end-assemblies", label: "End assemblies" },
+    { id: "intents", label: "Intents" },
     { id: "workshop-profiles", label: "Workshop profiles" },
   ] },
   { id: "design", label: "Design", key: "3", tools: [

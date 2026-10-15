@@ -34,6 +34,7 @@ const SignalSetPanel = lazy(() => import("./features/interfaces/SignalSetPanel")
 const InterfaceAssessmentPanel = lazy(() => import("./features/interfaces/InterfaceAssessmentPanel").then((module) => ({ default: module.InterfaceAssessmentPanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
 const PcbPanel = lazy(() => import("./features/pcb/PcbPanel").then((module) => ({ default: module.PcbPanel })));
+const IntentPanel = lazy(() => import("./features/intents/IntentPanel").then((module) => ({ default: module.IntentPanel })));
 const EndAssemblyPanel = lazy(() => import("./features/end-assemblies/EndAssemblyPanel").then((module) => ({ default: module.EndAssemblyPanel })));
 const BoardPanel = lazy(() => import("./features/boards/BoardPanel").then((module) => ({ default: module.BoardPanel })));
 const WireStockPanel = lazy(() => import("./features/wire-stock/WireStockPanel").then((module) => ({ default: module.WireStockPanel })));
@@ -247,6 +248,7 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "ports": return <PortPanel projectId={projectId} />;
     case "conventions": return <ConventionPanel projectId={projectId} />;
     case "end-assemblies": return <EndAssemblyPanel projectId={projectId} />;
+    case "intents": return <IntentPanel projectId={projectId} />;
     case "wire-stock": return <WireStockPanel projectId={projectId} workspaceId={workspaceId} />;
     case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
     case "assemblies": return <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />;
@@ -312,6 +314,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     {editing("ports")}
     {editing("conventions")}
     {editing("end-assemblies")}
+    {editing("intents")}
     {editing("wire-stock")}
     {editing("workshop-profiles")}
     {editing("material-accounting")}
