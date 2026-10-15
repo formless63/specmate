@@ -133,7 +133,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
 
   return <PermissionsProvider permissions={scope.permissions}><ProbeProvider probe={url.probe} onProbe={url.setProbe}>
     <SbShell projectName={scope.project?.name ?? "Library"} permissions={scope.permissions} role={scope.role} libraryScope={!scope.project}
-      activeTool={active} onToolChange={setActive} chrome={chrome} extraActions={scopeActions}
+      activeTool={active} onToolChange={setActive} chrome={chrome} extraActions={scopeActions} itemSearchKey={scope.principalKey}
       statusIndicator={scope.projectId ? <StatusIndicator workspaceId={scope.workspaceId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} /> : undefined}>
       {scope.project && scope.projectId
         ? <Fragment key={scopeKey}><RecordFocusContext.Provider value={activeFocus}>

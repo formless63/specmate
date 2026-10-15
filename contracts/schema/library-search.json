@@ -1,0 +1,146 @@
+{
+  "$defs": {
+    "SearchMatch": {
+      "properties": {
+        "field": {
+          "enum": [
+            "name",
+            "part_number",
+            "identifier",
+            "connector_family",
+            "kind"
+          ],
+          "title": "Field",
+          "type": "string"
+        },
+        "rank": {
+          "description": "0 exact, 1 prefix, 2 substring.",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "title": "Rank",
+          "type": "integer"
+        },
+        "text": {
+          "description": "The matched value as stored.",
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "text",
+        "rank"
+      ],
+      "title": "SearchMatch",
+      "type": "object"
+    },
+    "SearchResult": {
+      "properties": {
+        "changed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Latest draft change.",
+          "title": "Changed At"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "latest_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Highest frozen revision; null if none.",
+          "title": "Latest Revision"
+        },
+        "latest_revision_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Latest Revision Id"
+        },
+        "match": {
+          "$ref": "#/$defs/SearchMatch"
+        },
+        "record_id": {
+          "format": "uuid",
+          "title": "Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "kind",
+        "label",
+        "created_at",
+        "latest_revision",
+        "latest_revision_id",
+        "changed_at",
+        "match"
+      ],
+      "title": "SearchResult",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "query": {
+      "title": "Query",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/SearchResult"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "truncated": {
+      "description": "More items match than were returned or scanned.",
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "query",
+    "results",
+    "truncated"
+  ],
+  "title": "LibrarySearch",
+  "type": "object"
+}
