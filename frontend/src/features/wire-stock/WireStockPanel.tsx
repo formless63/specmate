@@ -19,6 +19,9 @@ import { blankSpec, exampleCoax, generate, illustrate, readBuilder, TEMPLATES } 
 import type { BuilderSpec } from './builder';
 import { ConstructionBuilder } from './ConstructionBuilder';
 import { FitFindings } from './FitFindings';
+import { TemplateStrip } from './TemplateStrip';
+import { fitOverlay } from './builder-visual';
+import { SectionCanvas } from './SectionCanvas';
 import { MmEntry } from './MmEntry';
 import './wire-stock.css';
 
@@ -166,23 +169,18 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
     <Title order={2}>Wire stock</Title>
     <Text>Describe reusable stock independently of finished cables. Unknown values remain unknown.</Text>
     {error && <Alert color="red" role="alert">{error}</Alert>}{message && <Alert color="green">{message}</Alert>}
+    <TemplateStrip onChoose={kind => {
+      const spec = blankSpec(kind);
+      setStock(generate(spec), spec); setName(`New ${TEMPLATES.find(t => t.value === kind)?.label.toLowerCase()}`);
+      setCurrent(null); setDirty(true); setMessage('');
+    }} />
+    <details className="sb-builder-advanced">
+      <summary>Synthetic examples</summary>
+      <Group gap="xs">{Object.keys(stockPresets).map(key => <Button key={key} size="xs" variant="light" {...edit.props} onClick={() => {
+        setStock(clone(stockPresets[key]!)); setName(`Synthetic ${key}`); setCurrent(null); setDirty(true); setMessage('');
+      }}>{key}</Button>)}</Group>
+    </details>
     <Group>
-      <Select label="Saved stock" data={stocks.map(item => ({ value: item.draft_id, label: item.in_project ? `${item.name} · in this project` : item.name }))} value={current?.draft_id ?? null} onChange={id => {
-        const record = stocks.find(item => item.draft_id === id); if (!record?.content.stock) return;
-        setCurrent(record); setDirty(false); setName(record.name); setStock(clone(record.content.stock)); setMessage('');
-      }} />
-      <Select label="New construction" value={null} placeholder="Choose a template" data={[
-        { group: 'Templates', items: TEMPLATES.map(t => ({ value: `template:${t.value}`, label: t.label })) },
-        { group: 'Synthetic examples', items: Object.keys(stockPresets).map(key => ({ value: `example:${key}`, label: key })) },
-      ]} onChange={key => {
-        if (!key) return;
-        const [kind, value] = key.split(':') as [string, string];
-        if (kind === 'template') {
-          const spec = blankSpec(value as BuilderSpec['template']);
-          setStock(generate(spec), spec); setName(`New ${TEMPLATES.find(t => t.value === value)?.label.toLowerCase()}`);
-        } else if (stockPresets[value]) { setStock(clone(stockPresets[value])); setName(`Synthetic ${value}`); }
-        setCurrent(null); setDirty(true); setMessage('');
-      }} />
       <TextInput label="Stock name" value={name} disabled={current !== null} onChange={e => setName(e.target.value)} />
       <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }, builder); setDirty(true); } }} />
     </Group>
@@ -201,22 +199,16 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
       } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     }}>Reload saved stock (discard local edits)</Button>
     <Title order={3}>Construction</Title>
-    <Group align="flex-start" wrap="wrap" gap="md">
-      <Stack style={{ flex: '3 1 520px', minWidth: 0 }}>
-        {builder
-          ? <ConstructionBuilder key={`${current?.draft_id ?? 'new'}:${builder.template}`} spec={builder} onChange={spec => { setStock(generate(spec, stock), spec); changed(); }} />
-          : <Alert color="yellow" title="Element-by-element construction">This construction was edited element by element, so the builder cannot regenerate it exactly. Edit it in the element editor below, or start again from a template.</Alert>}
-      </Stack>
-      <Stack gap="xs" style={{ flex: '2 1 360px', maxWidth: 460, minWidth: 0 }}>
-        <FitFindings report={fit} onSelect={selectFinding} acknowledged={acknowledged} onAcknowledge={setAcknowledged} canFreeze={freezeGate.allowed} />
-        {illustration
-          ? <>
-            <div className="sb-illustrative" role="note"><strong>Illustrative</strong> · placeholder proportions for unknown {illustration.substituted.join(', ')}; not dimensions.</div>
-            <StockSectionView section={illustration.section} title={`${name} (illustrative)`} label="Illustrative section drawing" />
-          </>
-          : <StockSectionView section={section} title={name} label="Stock section drawing" selected={selected} onSelect={setSelected} />}
-      </Stack>
-    </Group>
+    {builder
+      ? <ConstructionBuilder key={`${current?.draft_id ?? 'new'}:${builder.template}`} spec={builder} onChange={spec => { setStock(generate(spec, stock), spec); changed(); }}
+        view={{ stock, section, fit, name, illustration, selected, onSelect: setSelected, onSelectFinding: selectFinding, acknowledged, onAcknowledge: setAcknowledged, canFreeze: freezeGate.allowed }} />
+      : <Stack gap="xs">
+        <Alert color="yellow" title="Element-by-element construction">This construction was edited element by element, so the builder cannot regenerate it exactly. Edit it in the element editor below, or start again from a template.</Alert>
+        <div className="sb-stock-stage">
+          <SectionCanvas section={section} title={name} selected={selected} onSelect={setSelected} overlay={fitOverlay(section, fit)} editable={false} />
+          <FitFindings report={fit} onSelect={selectFinding} acknowledged={acknowledged} onAcknowledge={setAcknowledged} canFreeze={freezeGate.allowed} />
+        </div>
+      </Stack>}
     <Text>Section: {dimension(section.widthMm)} × {dimension(section.heightMm)} · {section.rows.length} material elements · view {section.viewedFrom}</Text>
     {section.unknown.length > 0 && <Alert color="yellow">Incomplete geometry: {section.unknown.join('; ')}</Alert>}
     <Group align="flex-start" grow>

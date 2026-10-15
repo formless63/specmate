@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { WireStockPanel } from './WireStockPanel';
 import { stockPresets } from './presets';
 import { PermissionsProvider } from '../../lib/permissions';
+import { ProbeProvider } from '../probe';
 import crossCheck from '../../../../tests/fixtures/wire-stock-placement.json';
 import type { StockSpecification } from '../../../../packages/section-layout/src';
 
@@ -110,8 +111,7 @@ const doubled = crossCheck.cases[0]!.stock as unknown as StockSpecification;
 test('a template opens the builder; unknown dimensions draw illustratively and entering them re-lays the cores', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('[]')));
   show();
-  fireEvent.click(screen.getByLabelText('New construction', { selector: 'input' }));
-  fireEvent.click(await screen.findByRole('option', { name: 'Multi-core round cable', hidden: true }));
+  fireEvent.click(screen.getByRole('button', { name: 'New Multi-core round cable' }));
   expect(screen.getByLabelText('Construction builder')).toBeTruthy();
   expect(screen.getByText(byContent(/^Illustrative · placeholder proportions for unknown insulation diameter, conductor diameter/))).toBeTruthy();
   expect(screen.getByLabelText('Illustrative section drawing').querySelectorAll('[data-element]').length).toBeGreaterThan(0);
@@ -136,9 +136,8 @@ test('fit problems are listed, saving warns, and freezing needs explicit acknowl
     return new Response(JSON.stringify([saved]));
   });
   vi.stubGlobal('fetch', fetchMock);
-  render(<MantineProvider><PermissionsProvider permissions={['workspace.read', 'item.create', 'design.edit', 'design.freeze']}><WireStockPanel /></PermissionsProvider></MantineProvider>);
-  fireEvent.click(screen.getByLabelText('Saved stock', { selector: 'input' }));
-  fireEvent.click(await screen.findByRole('option', { name: 'Synthetic double-placed', hidden: true }));
+  render(<MantineProvider><PermissionsProvider permissions={['workspace.read', 'item.create', 'design.edit', 'design.freeze']}><ProbeProvider probe={{ object: 'definition-1', rev: 1, path: [] }} onProbe={() => {}}><WireStockPanel /></ProbeProvider></PermissionsProvider></MantineProvider>);
+  await screen.findByText(/5 of 13 checks fail/);
   const findings = screen.getByLabelText('Fit findings');
   expect(findings.textContent).toContain('5 of 13 checks fail');
   expect(findings.textContent).toContain('stock.pair.c1 extends 0.700 mm beyond the bore of stock.screen.');
