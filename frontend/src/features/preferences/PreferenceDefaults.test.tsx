@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { BomPanel } from "../bom/BomPanel";
 import { CableEditor } from "../cables/CablePanel";
 import { initialCable } from "../cables/api";
+import { connectorStack } from "../end-assemblies/api";
 import { WireStockPanel } from "../wire-stock/WireStockPanel";
 import { stockPresets } from "../wire-stock/presets";
 import { PREFILL_TARGETS } from "./usePreferenceDefaults";
@@ -99,7 +100,7 @@ test("BOM: need quantity unit is pre-filled from the length unit, marked, cleara
 
 test("cables: connector family filter narrows body choices by name, is marked and clearable", async () => {
   const definitions = [{ definition_id: "a", name: "Alpha-6 body", kind: "connector_body" }, { definition_id: "b", name: "Beta body", kind: "connector_body" }] as never;
-  const cable = { ...initialCable(), endpoints: initialCable().endpoints.slice(0, 1) };
+  const cable = { ...initialCable(), endpoints: initialCable().endpoints.slice(0, 1).map(endpoint => ({ ...endpoint, stack: connectorStack() })) };
   render(wrap(<CableEditor workspaceId="ws" value={cable} onChange={() => {}} definitions={definitions} />));
   expect(await screen.findByLabelText("Clear connector family filter preference")).toBeTruthy();
   const open = () => { const input = screen.getByRole("combobox", { name: "Endpoint 1 body definition" }); fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" }); return document.querySelector<HTMLElement>(`[role="listbox"][aria-labelledby="${document.querySelector(`label[for="${input.id}"]`)?.id}"]`)!; };

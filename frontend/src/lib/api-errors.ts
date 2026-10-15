@@ -25,15 +25,21 @@ export function fieldLabel(loc: (string | number)[]): string {
 /** Map of dotted field path to the first message for that field. */
 export function fieldErrorMap(body: unknown): Record<string, string> {
   const map: Record<string, string> = {};
-  for (const issue of fieldIssues(body)) map[fieldPath(issue.loc)] ??= issue.msg;
+  for (const issue of fieldIssues(body)) map[fieldPath(issue.loc)] ??= plainIssueMessage(issue.msg);
   return map;
 }
 
 /** Error text from a response body: backend message plus a listed field summary. */
+/** Plain wording for the validator's stock messages, so a form never shows library jargon. */
+export function plainIssueMessage(msg: string): string {
+  if (/valid UUID/i.test(msg)) return "choose a revision (nothing is selected yet)";
+  return msg;
+}
+
 export function apiErrorMessage(body: unknown, fallback: string): string {
   const message = (body as { error?: { message?: unknown } } | null | undefined)?.error?.message;
   const base = typeof message === "string" && message ? message : fallback;
   const issues = fieldIssues(body);
   if (!issues.length) return base;
-  return `${base} ${issues.map((i) => `${fieldLabel(i.loc)}: ${i.msg}`).join("; ")}`;
+  return `${base} ${issues.map((i) => `${fieldLabel(i.loc)}: ${plainIssueMessage(i.msg)}`).join("; ")}`;
 }
