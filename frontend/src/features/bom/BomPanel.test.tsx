@@ -1,7 +1,7 @@
 import { byContent } from "../../test/text";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { BomInspector, BomPanel } from "./BomPanel";
 import { blankPlan } from "./api";
@@ -10,8 +10,8 @@ import { PermissionsProvider } from "../../lib/permissions";
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 async function choose(name: string, option: string) {
+  const input = await screen.findByLabelText(name, { selector: "input" });
   for (const details of document.querySelectorAll("details")) if (!details.open) fireEvent.click(details.querySelector("summary")!);
-  const input = screen.getByRole("combobox", { name });
   fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" });
   fireEvent.click(await within(screen.getByRole("listbox", { name, hidden: true })).findByText(option));
 }
@@ -170,4 +170,83 @@ test("a selected plan read denial stays visible outside collapsed version contro
   const error = await screen.findByText("Plan access unavailable.");
   expect(error.closest("details")).toBeNull();
   expect(screen.queryByRole("combobox", { name: "BOM draft" })).toBeNull();
+});
+
+
+test.each(["draft", "identity", "root", "tree"])("denied %s refetch hides retained draft values and recovery keeps edits and original CAS", async deniedRead => {
+  let denied = false; let restored = false;
+  const commands: { operation: string; expected_state: string }[] = [];
+  const plan = { ...blankPlan(), assembly_revision_id: "root-rev" };
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const keys: Record<string, unknown[]> = { draft: ["bom-draft", "d1"], identity: ["bom-identity", "plan", 0], root: ["bom-root", "root-rev"], tree: ["bom-tree", "root-snapshot"] };
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === "POST") {
+      commands.push(JSON.parse(String(options.body)));
+      return new Response(JSON.stringify({ error: { message: "Original token conflicts." } }), { status: 409 });
+    }
+    const kind = url.includes("bom/drafts/") ? "draft" : url.includes("catalog/definitions/plan") ? "identity" : url.includes("assemblies/snapshots/") ? "tree" : url.includes("revisions/root-rev") ? "root" : "list";
+    if (denied && kind === deniedRead) return new Response(JSON.stringify({ error: { message: "Retained read denied." } }), { status: 403 });
+    const body = kind === "draft" ? { definition_id: "plan", draft_id: "d1", state: restored ? "new-server-token" : "original-token", content: { bom: plan } }
+      : kind === "identity" ? { name: "Existing plan", revisions: [], drafts: [{ draft_id: "d1", state: "open" }] }
+      : kind === "tree" ? { occurrences: [] }
+      : kind === "root" ? { snapshot_id: "root-snapshot" }
+      : [{ definition_id: "plan", name: "Existing plan", kind: "bom_plan" }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(<MantineProvider><QueryClientProvider client={cache}><BomPanel /></QueryClientProvider></MantineProvider>);
+  await choose("Existing BOM plan", "Existing plan");
+  await choose("BOM draft", "d1 · open");
+  const save = await screen.findByRole("button", { name: "Save BOM draft" });
+  const editor = save.closest(".mantine-Card-root") as HTMLElement;
+  const basis = await within(editor).findByRole("textbox", { name: "Decision basis for Root assembly" });
+  fireEvent.change(basis, { target: { value: "Private unsaved basis" } });
+  denied = true;
+  await act(() => cache.refetchQueries({ queryKey: keys[deniedRead], exact: true }));
+  await screen.findByText("Retained read denied.");
+  expect(within(editor).queryByRole("textbox", { name: "Decision basis for Root assembly" })).toBeNull();
+  expect((save as HTMLButtonElement).disabled).toBe(true);
+  expect(commands).toHaveLength(0);
+  denied = false; restored = true;
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: deniedRead === "root" || deniedRead === "tree" ? "Refresh BOM sources" : "Refresh BOM access" }));
+    await cache.refetchQueries({ queryKey: ["bom-draft", "d1"], exact: true });
+  });
+  expect((await within(editor).findByRole("textbox", { name: "Decision basis for Root assembly" }) as HTMLInputElement).value).toBe("Private unsaved basis");
+  fireEvent.click(save);
+  await screen.findByText("Original token conflicts.");
+  expect(commands.at(-1)).toMatchObject({ operation: "bom.update", expected_state: "original-token" });
+});
+
+
+test("saving after freeze uses the returned draft token and retains the editor", async () => {
+  let state = "v1"; let saved = { ...blankPlan(), assembly_revision_id: "root-rev" };
+  const commands: { operation: string; expected_state: string }[] = [];
+  const draft = () => ({ definition_id: "plan", draft_id: "d1", state, content: { bom: saved } });
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    let body: unknown;
+    if (options?.method === "POST") {
+      const command = JSON.parse(String(options.body)); commands.push(command);
+      if (command.operation === "bom.freeze") { state = "v3"; body = { result: { revision_id: "frozen", draft: { draft_id: "d1", state } } }; }
+      else { saved = command.payload.bom; state = state === "v1" ? "v2" : "v4"; body = { result: draft() }; }
+    } else body = url.includes("bom/drafts/") ? draft()
+      : url.includes("catalog/definitions/plan") ? { name: "Existing plan", revisions: [], drafts: [{ draft_id: "d1", state: "open" }] }
+      : url.includes("assemblies/snapshots/") ? { occurrences: [] }
+      : url.includes("bom/revisions/frozen") ? { revision_id: "frozen", bom: saved, status: "unknown", rows: [], boundaries: [], unresolved: [], excluded_needs: [], limitations: [] }
+      : url.includes("revisions/root-rev") ? { snapshot_id: "root-snapshot" }
+      : [{ definition_id: "plan", name: "Existing plan", kind: "bom_plan" }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  }));
+  render(wrap(<BomPanel />)); await choose("Existing BOM plan", "Existing plan"); await choose("BOM draft", "d1 · open");
+  const save = await screen.findByRole("button", { name: "Save BOM draft" });
+  const editor = save.closest(".mantine-Card-root") as HTMLElement;
+  const field = await within(editor).findByRole("textbox", { name: "Decision basis for Root assembly" });
+  fireEvent.change(field, { target: { value: "First saved basis" } }); fireEvent.click(save);
+  const freeze = screen.getByRole("button", { name: "Freeze BOM revision" });
+  await waitFor(() => expect((freeze as HTMLButtonElement).disabled).toBe(false)); fireEvent.click(freeze);
+  await waitFor(() => expect(commands).toHaveLength(2));
+  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.change(field, { target: { value: "After frozen basis" } }); fireEvent.click(save);
+  await waitFor(() => expect(commands).toHaveLength(3));
+  expect(commands.map(command => [command.operation, command.expected_state])).toEqual([["bom.update", "v1"], ["bom.freeze", "v2"], ["bom.update", "v3"]]);
+  expect((field as HTMLInputElement).value).toBe("After frozen basis");
 });
