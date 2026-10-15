@@ -31,6 +31,7 @@ export const LIBRARY_VIEWS: Record<string, LibraryView> = {
   ports: definitions(["port"], "Ports", "port"),
   conventions: definitions(["conductor_convention"], "Conventions", "conductor convention"),
   "end-assemblies": definitions(["end_assembly"], "End assemblies", "end assembly"),
+  intents: definitions(["cable_intent"], "Cable intents", "cable intent"),
   "workshop-profiles": definitions(["workshop_profile"], "Workshop profiles", "workshop profile"),
   assemblies: definitions(["assembly"], "Assemblies", "assembly"),
   interfaces: definitions(["connector_body", "pinout", "interface_map", "interface_assessment"], "Interfaces", "interface record"),

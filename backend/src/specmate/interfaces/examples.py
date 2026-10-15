@@ -644,3 +644,31 @@ def av_demo_cable(stock_revision_id, end_a_revision_id, end_b_revision_id):
         "review": "reviewed",
         "review_basis": basis,
     }
+
+
+def console_to_monitor_intent(from_revision_id, to_revision_id, proposed_rows):
+    """The demo intent: proposed rows with each question answered by every offered contact.
+
+    For the Console A port and the RGB monitor input the only question is video ground,
+    declared on two monitor contacts; a synthetic reviewer keeps both.
+    """
+    rows = []
+    for row in proposed_rows:
+        row = dict(row)
+        if row["question"]:
+            row["to_contact_ids"] = [o["contact_id"] for o in row["question"]["options"]]
+            row["question"] = None
+            row["pairing"] = "answered"
+            row["basis"] = "Synthetic reviewer answer written for this example"
+        rows.append(row)
+    return {
+        "kind": "cable_intent",
+        "from_revision_id": from_revision_id,
+        "to_revision_id": to_revision_id,
+        "description": "Synthetic console RGB output to a monitor's RGB input",
+        "rows": rows,
+        "isolation": "no_unlisted_connections",
+        "shield": {"policy": "bond_from", "basis": "Synthetic shop habit for this example"},
+        "review": "reviewed",
+        "review_basis": "Synthetic review written for this example",
+    }

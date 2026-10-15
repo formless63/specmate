@@ -251,12 +251,27 @@ class Seeder:
         board = interface("Demo AV adapter board", examples.av_adapter_board(plug["revision_id"]))
         self.tally("board")
         rgb_plug = interface("Demo 21-pin RGB plug", examples.rgb_21_plug(rgb["revision_id"]))
+        ports = {}
         for variant in ("Console A AV", "Console B AV"):
             device = f"{variant} out"
-            interface(f"Demo {device}", examples.console_port(variants[variant], device))
+            ports[variant] = interface(
+                f"Demo {device}", examples.console_port(variants[variant], device)
+            )["revision_id"]
             self.tally("port")
-        interface("Demo RGB monitor 21-pin input", examples.rgb_monitor_port(roles["sink"]))
+        monitor = interface(
+            "Demo RGB monitor 21-pin input", examples.rgb_monitor_port(roles["sink"])
+        )["revision_id"]
         self.tally("port")
+        # What the console cable must connect, proposed from the two ports (CAB-006).
+        proposal = self.call(
+            "cable_intent.propose",
+            {"from_revision_id": ports["Console A AV"], "to_revision_id": monitor},
+        )
+        intent = interface(
+            "Demo Console A to RGB monitor intent",
+            examples.console_to_monitor_intent(ports["Console A AV"], monitor, proposal["rows"]),
+        )
+        self.tally("cable intent")
         # A six-coax stock whose conductors a shop convention maps to the AV signals.
         stock_draft = self.call(
             "wire_stock.create",
@@ -310,9 +325,12 @@ class Seeder:
             {
                 "workspace_id": self.ws,
                 "name": "Demo console to RGB monitor cable",
-                "cable": examples.av_demo_cable(
-                    stock["revision_id"], end_a["revision_id"], end_b["revision_id"]
-                ),
+                "cable": {
+                    **examples.av_demo_cable(
+                        stock["revision_id"], end_a["revision_id"], end_b["revision_id"]
+                    ),
+                    "intent_revision_id": intent["revision_id"],
+                },
             },
         )
         self.freeze("cable.freeze", cable)

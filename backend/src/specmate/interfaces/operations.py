@@ -22,11 +22,14 @@ from specmate.interfaces.contracts import (
     UpdateInterface,
 )
 from specmate.interfaces.end_assembly_contracts import ResolveEnd
+from specmate.interfaces.intent_contracts import CableIntent, ProposeIntent
+from specmate.interfaces.intents import require_answered
 from specmate.interfaces.queries import (
     authorize_content,
     dependency_revisions,
     inspect_revision,
     parse_content,
+    propose_intent,
     resolve_end,
     trace,
 )
@@ -96,8 +99,8 @@ def authorize_stored(ctx, stored):
     "interface.create",
     CreateInterface,
     summary=(
-        "Create a body, pinout, boundary mapping, port, board, end assembly or separated "
-        "assessment."
+        "Create a body, pinout, boundary mapping, port, board, end assembly, cable intent "
+        "or separated assessment."
     ),
     authorize_replay=replay,
     idempotency_scope=scope,
@@ -136,8 +139,11 @@ def update(ctx: Context, p: UpdateInterface):
 
 def capture_payload(ctx, p, permission):
     draft = interface_draft(ctx, p.draft_id, permission, lock=True)
-    if parse_content(draft.content, draft.definition.kind) is None:
+    value = parse_content(draft.content, draft.definition.kind)
+    if value is None:
         raise ValidationFailed("Typed interface content is required.")
+    if isinstance(value, CableIntent) and permission == Perm.DESIGN_FREEZE:
+        require_answered(value)
     return CaptureDraft(
         draft_id=p.draft_id,
         dependencies=dependency_revisions(ctx.user, draft.definition, draft.content),
@@ -223,3 +229,14 @@ def board_propose(ctx: Context, p: ProposeBoard):
 )
 def end_resolve(ctx: Context, p: ResolveEnd):
     return resolve_end(ctx.user, p)
+
+
+@operation(
+    "cable_intent.propose",
+    ProposeIntent,
+    summary="Propose cable intent signal rows between two ends, with explicit questions.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def intent_propose(ctx: Context, p: ProposeIntent):
+    return propose_intent(ctx.user, p)

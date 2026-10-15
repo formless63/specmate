@@ -13,6 +13,7 @@ import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
 import { CableOperationError, authorityDenied, command, read, initialCable, type Cable, type Endpoint, type Definition, type Draft, type Identity, type Inspection, type ResolvedTermination } from './api';
 import { RevisionPicker } from './RevisionPicker';
+import { NewIntent } from '../intents/IntentPanel';
 import { SbUnknown } from '../../components/sb';
 import { connectorStack, resolveDenied, splitKey, terminalKey, type ResolvedStack } from '../end-assemblies/api';
 import { SignalCell, StackDiagram, StackEditor, StackView, findTerminal, resolvedChips, targetOptions, useResolvedStacks } from '../end-assemblies/StackEditor';
@@ -94,6 +95,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     <Title order={2}>Cables</Title>
     <Text>A cable is a finished assembly: a wire stock cut to length with a connector and pinout at each end, and each conductor, shield and drain terminated to a contact. Review records declared terminations; continuity and physical qualification remain unevaluated.</Text>
     {authorityBlocked && <Alert color="red"><Stack><Text>Cable access must be rechecked before retained content can be shown.</Text><Button loading={checkingAuthority} onClick={() => void refreshAuthority()}>Refresh cable access</Button></Stack></Alert>}
+    {!authorityBlocked && <NewCableFromIntent projectId={projectId} definitions={currentDefinitions} onUse={intent_revision_id => setValue(current => ({ ...current, intent_revision_id }))} />}
     {!authorityBlocked && <Card withBorder><Stack>
       <Title order={3}>New cable</Title>
       <InspectionScope permission="item.create"><TextInput label="Cable name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
@@ -116,6 +118,15 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     {revisionId && shownAbove && !workspaceDenied && <Text role="status" data-testid="views-shown-above">Frozen cable views are shown above, in the selected library row.</Text>}
     {revisionId && !shownAbove && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
   </Stack>;
+}
+
+/** Steps 1-3 of a cable from intent: from end, to end, signal rows. The frozen intent then seeds the new cable below. */
+function NewCableFromIntent({ projectId, definitions, onUse }: { projectId: string | null; definitions: Definition[]; onUse: (intentRevisionId: string) => void }) {
+  const [open, setOpen] = useState(false);
+  if (!open) return <Group><Button variant="default" onClick={() => setOpen(true)}>New cable from intent</Button><Text size="xs" c="dimmed">Start from the two ends and the signals the cable must carry.</Text></Group>;
+  return <Stack gap="xs"><NewIntent title="New cable from intent" projectId={projectId} definitions={definitions} onFrozen={onUse} />
+    <Text size="xs" c="dimmed">Once frozen, the intent is pinned on the new cable below. Proposing the wiring from it comes later.</Text>
+    <Anchor component="button" type="button" size="xs" w="fit-content" onClick={() => setOpen(false)}>Close</Anchor></Stack>;
 }
 
 function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, onSaved, onAuthorityChange, onStateChange, onMutationError }: { workspaceId?: string | null; draft: Draft; committedDraft: Draft | null; hidden: boolean; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void; onStateChange: (state: string) => void; onMutationError: (error: Error) => void }) {
@@ -178,6 +189,11 @@ export function CableEditor({ value, onChange, definitions, onAuthorityChange, w
       <Text size="sm" c="dimmed">The wire material this cable is cut from.</Text>
       <RevisionPicker error={errors["cable.stock_revision_id"]} label="Stock" title="Stock" kind="wire_stock" value={value.stock_revision_id} onChange={setStock} definitions={definitions} />
       {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
+    </Stack>
+    <Stack gap="xs" aria-label="Intent">
+      <Title order={4}>Intent</Title>
+      <Text size="sm" c="dimmed">What this cable must connect, if stated. Checking the cable against it comes later; it never passes by itself.</Text>
+      <RevisionPicker label="Intent" title="Cable intent (optional)" kind="cable_intent" value={value.intent_revision_id ?? ''} onChange={intent => onChange({ ...value, intent_revision_id: intent || null })} definitions={definitions} />
     </Stack>
     {families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={v => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(v); }} />
       {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => { setFamilyTouched(true); setFamilyFromPreference(false); setFamily(null); }} />}</Group>}
@@ -275,6 +291,7 @@ export function CableInspector({ revisionId, revisions = [] }: { revisionId: str
     {data && !result.isError && <>
       <CableSummary cable={data.cable} elementCount={data.conductors.length} stacks={data.endpoints.map(e => e.resolved_stack)} />
       <Text>Review: {data.cable.review}; basis: {data.cable.review_basis ?? 'unknown'}</Text>
+      {data.intent && <Text size="sm">Intent: <RevisionLabel id={data.intent.revision_id} />; check against it: not evaluated.</Text>}
       <Text>Continuity: {data.continuity}. Compatibility: {data.compatibility}. Physical qualification: {data.physical_qualification}.</Text>
       {data.stored_schema_version === '0.1' && <Text size="xs" c="dimmed">Recorded before end stacks: each end reads as one connector layer, stock end unknown.</Text>}
       {data.lengths && <LengthInspection projection={data.lengths} />}
