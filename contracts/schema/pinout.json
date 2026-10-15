@@ -3,6 +3,14 @@
     "Assignment": {
       "additionalProperties": false,
       "properties": {
+        "alternatives": {
+          "items": {
+            "$ref": "#/$defs/ConditionalSignal"
+          },
+          "maxItems": 20,
+          "title": "Alternatives",
+          "type": "array"
+        },
         "contact_id": {
           "maxLength": 100,
           "minLength": 1,
@@ -18,6 +26,28 @@
         "contact_id"
       ],
       "title": "Assignment",
+      "type": "object"
+    },
+    "ConditionChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name"
+      ],
+      "title": "ConditionChoice",
       "type": "object"
     },
     "ConditionalRating": {
@@ -73,6 +103,74 @@
         "basis"
       ],
       "title": "ConditionalRating",
+      "type": "object"
+    },
+    "ConditionalSignal": {
+      "additionalProperties": false,
+      "description": "What one pin carries when a named condition takes one choice.",
+      "properties": {
+        "basis": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "choice": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Choice",
+          "type": "string"
+        },
+        "condition_key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Condition Key",
+          "type": "string"
+        },
+        "role": {
+          "default": "unknown",
+          "enum": [
+            "signal",
+            "power",
+            "return",
+            "shield",
+            "chassis",
+            "unused",
+            "unknown"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "signal": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signal"
+        },
+        "signal_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignalRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "condition_key",
+        "choice",
+        "basis"
+      ],
+      "title": "ConditionalSignal",
       "type": "object"
     },
     "ElectricalContract": {
@@ -208,6 +306,17 @@
           "default": null,
           "title": "Signal"
         },
+        "signal_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignalRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "voltage_max_v": {
           "anyOf": [
             {
@@ -339,6 +448,39 @@
       "title": "Orientation",
       "type": "object"
     },
+    "PinoutCondition": {
+      "additionalProperties": false,
+      "description": "A named device condition (for example a regional variant) that selects pin meanings.",
+      "properties": {
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/ConditionChoice"
+          },
+          "maxItems": 20,
+          "minItems": 2,
+          "title": "Choices",
+          "type": "array"
+        },
+        "key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "choices"
+      ],
+      "title": "PinoutCondition",
+      "type": "object"
+    },
     "RatingScope": {
       "additionalProperties": false,
       "properties": {
@@ -369,6 +511,28 @@
         }
       },
       "title": "RatingScope",
+      "type": "object"
+    },
+    "SignalRef": {
+      "additionalProperties": false,
+      "description": "Exact signal identity: one frozen signal set revision and a key inside it.",
+      "properties": {
+        "key": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,79}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "signal_set_revision_id": {
+          "format": "uuid",
+          "title": "Signal Set Revision Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "signal_set_revision_id",
+        "key"
+      ],
+      "title": "SignalRef",
       "type": "object"
     },
     "TemperatureEnvelope": {
@@ -406,6 +570,14 @@
       "title": "Body Revision Id",
       "type": "string"
     },
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/PinoutCondition"
+      },
+      "maxItems": 20,
+      "title": "Conditions",
+      "type": "array"
+    },
     "kind": {
       "const": "pinout",
       "default": "pinout",
@@ -438,11 +610,50 @@
       "default": null,
       "title": "Review Basis"
     },
+    "role": {
+      "default": "unknown",
+      "enum": [
+        "source",
+        "sink",
+        "bidirectional",
+        "unknown"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
     "schema_version": {
       "const": "0.1",
       "default": "0.1",
       "title": "Schema Version",
       "type": "string"
+    },
+    "standard": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Standard"
+    },
+    "variant_label": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Variant Label"
     }
   },
   "required": [

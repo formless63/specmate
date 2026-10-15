@@ -14,6 +14,7 @@ class InterfacesConfig(AppConfig):
             Pinout,
             TraceInterface,
         )
+        from specmate.interfaces.signal_contracts import SignalSet
 
         SCHEMAS.update(
             {
@@ -23,5 +24,6 @@ class InterfacesConfig(AppConfig):
                 "interface-trace": TraceInterface,
                 "interface-assessment": InterfaceAssessment,
                 "interface-assessment-result": AssessmentResult,
+                "signal-set": SignalSet,
             }
         )

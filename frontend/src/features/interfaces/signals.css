@@ -1,0 +1,14 @@
+/* Signal type chips: colour family from theme tokens only; unknown is hatched. */
+.sb-signal-type { display: inline-flex; align-items: center; gap: 4px; font-family: var(--sb-font-data); font-size: 11px; line-height: 1.4; padding: 0 6px; border: 1px solid var(--sb-border-control); border-left: 3px solid var(--sb-text-tertiary); color: var(--sb-text-secondary); white-space: nowrap; }
+.sb-signal-type[data-family="video"] { border-left-color: var(--sb-accent); }
+.sb-signal-type[data-family="audio"] { border-left-color: var(--sb-state); }
+.sb-signal-type[data-family="power"] { border-left-color: var(--sb-invalid); }
+.sb-signal-type[data-family="return"] { border-left-color: var(--sb-text-tertiary); }
+.sb-signal-type[data-family="data"] { border-left-color: var(--sb-focus); }
+.sb-signal-type[data-unknown] { background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 6px); color: var(--sb-text-tertiary); }
+.sb-signal-table td, .sb-signal-table th { font-size: 12px; }
+.sb-variant-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.sb-variant { border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-raised); padding: 6px 8px; }
+.sb-variant[aria-current="true"] { border-color: var(--sb-accent); }
+/* Signal names such as "+5 V" are names, not quantities: keep them left-aligned in the UI font. */
+html[data-mantine-color-scheme] .sb-signal-table td.sb-signal-name { text-align: left; font-family: var(--sb-font-ui); }

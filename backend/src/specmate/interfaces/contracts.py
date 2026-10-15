@@ -9,6 +9,7 @@ from specmate.assemblies.contracts import LocalId, Path, StrictModel
 from specmate.contracts import FiniteNumber
 from specmate.interfaces.assessment_contracts import InterfaceAssessment
 from specmate.interfaces.condition_contracts import ConditionalRating, Polarity
+from specmate.interfaces.signal_contracts import SignalRef, SignalSet
 
 ContactId = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S+$")]
 Text = Annotated[str, Field(min_length=1, max_length=200)]
@@ -53,14 +54,20 @@ class ConnectorBody(StrictModel):
         return self
 
 
+PinRole = Literal["signal", "power", "return", "shield", "chassis", "unused", "unknown"]
+ConditionKey = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_.-]{0,79}$")]
+
+
 class ElectricalContract(StrictModel):
     """Declared limits and roles, never measured compatibility or conductor identity."""
 
     polarity: Polarity = "unknown"
     polarity_basis: Text | None = None
     conditional_ratings: list[ConditionalRating] = Field(default_factory=list, max_length=100)
+    # Free-text display note; ``signal_ref`` is the exact typed signal identity.
     signal: Text | None = None
-    role: Literal["signal", "power", "return", "shield", "chassis", "unused", "unknown"] = "unknown"
+    signal_ref: SignalRef | None = None
+    role: PinRole = "unknown"
     direction: Literal["input", "output", "bidirectional", "passive", "unknown"] = "unknown"
     voltage_min_v: FiniteNumber | None = None
     voltage_max_v: FiniteNumber | None = None
@@ -80,15 +87,68 @@ class ElectricalContract(StrictModel):
         return self
 
 
+class ConditionChoice(StrictModel):
+    key: ConditionKey
+    name: Text
+
+
+class PinoutCondition(StrictModel):
+    """A named device condition (for example a regional variant) that selects pin meanings."""
+
+    key: ConditionKey
+    name: Text
+    choices: list[ConditionChoice] = Field(min_length=2, max_length=20)
+
+    @model_validator(mode="after")
+    def unique_choices(self):
+        unique([c.key for c in self.choices])
+        return self
+
+
+class ConditionalSignal(StrictModel):
+    """What one pin carries when a named condition takes one choice."""
+
+    condition_key: ConditionKey
+    choice: ConditionKey
+    signal_ref: SignalRef | None = None
+    signal: Text | None = None
+    role: PinRole = "unknown"
+    basis: Text
+
+    @model_validator(mode="after")
+    def names_something(self):
+        if self.signal_ref is None and self.signal is None and self.role == "unknown":
+            raise ValueError("A conditional pin meaning must name a signal or role.")
+        return self
+
+
 class Assignment(StrictModel):
     contact_id: ContactId
     electrical: ElectricalContract = Field(default_factory=ElectricalContract)
+    # Conditional meanings: without a selected choice the pin's signal is unknown.
+    alternatives: list[ConditionalSignal] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def one_condition(self):
+        if self.alternatives:
+            if len({a.condition_key for a in self.alternatives}) != 1:
+                raise ValueError("A conditional pin depends on exactly one named condition.")
+            unique([a.choice for a in self.alternatives])
+            if self.electrical.signal_ref is not None:
+                raise ValueError("A conditional pin has no unconditional typed signal.")
+        return self
 
 
 class Pinout(StrictModel):
     kind: Literal["pinout"] = "pinout"
     schema_version: Literal["0.1"] = "0.1"
     body_revision_id: UUID
+    # A named variant of the pinned body ("Console A AV"); several variants share one body.
+    variant_label: Text | None = None
+    # The application's role and standard live on the variant, not on the body.
+    role: Literal["source", "sink", "bidirectional", "unknown"] = "unknown"
+    standard: Text | None = None
+    conditions: list[PinoutCondition] = Field(default_factory=list, max_length=20)
     assignments: list[Assignment] = Field(default_factory=list, max_length=1000)
     review: Literal["unreviewed", "reviewed"] = "unreviewed"
     review_basis: Text | None = None
@@ -97,6 +157,12 @@ class Pinout(StrictModel):
     @model_validator(mode="after")
     def consistent(self):
         unique([a.contact_id for a in self.assignments])
+        unique([c.key for c in self.conditions])
+        choices = {c.key: {choice.key for choice in c.choices} for c in self.conditions}
+        for assignment in self.assignments:
+            for alternative in assignment.alternatives:
+                if alternative.choice not in choices.get(alternative.condition_key, ()):
+                    raise ValueError("A conditional pin must name a declared condition choice.")
         if self.review == "reviewed" and not self.review_basis:
             raise ValueError("Reviewed pinouts require a review basis.")
         return self
@@ -136,10 +202,11 @@ def unique(values):
 
 
 Interface = Annotated[
-    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment, Field(discriminator="kind")
+    ConnectorBody | Pinout | InterfaceMap | InterfaceAssessment | SignalSet,
+    Field(discriminator="kind"),
 ]
 INTERFACE_ADAPTER = TypeAdapter(Interface)
-KINDS = {"connector_body", "pinout", "interface_map", "interface_assessment"}
+KINDS = {"connector_body", "pinout", "interface_map", "interface_assessment", "signal_set"}
 
 
 class CreateInterface(StrictModel):

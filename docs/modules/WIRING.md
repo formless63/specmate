@@ -653,3 +653,28 @@ applicable declaration. Conditional-only dimensions with no applicable rating re
 unknown. No extrapolation, interpolation, measured derating curve or thermal qualification
 is inferred. Findings expose the exact declarations, operating assumptions, scope reasons,
 effective limits and source evidence independently of mating, correspondence and fit.
+
+## Signal sets, typed pin signals and named pinout variants
+
+A `signal_set` interface definition is a shared vocabulary of what travels through a
+contact (INT-001, LIB-001): each signal has a stable key, a display name unique within
+the set, a type (analog video, sync, analog or digital audio, power, ground/return,
+screen, chassis, data, control, other or unknown), an optional return relation (a
+ground, screen or chassis signal names the signals it is the return of) and optional
+differential partner. Level and impedance are declarations with a basis; an absent value
+is explicitly unknown, never zero. Signal identity is the exact set revision plus key:
+equal names in two sets are different signals, and nothing substitutes one for another.
+
+A pinout is a named variant of its pinned body. It carries a variant label, the
+application role (source, sink, bidirectional or unknown) and an optional standard name;
+per-contact expectations live on the variant, not on the body or a device. A contact's
+electrical contract may pin a typed `signal_ref`; the free-text `signal` remains a
+display note. The contact role must be able to carry the signal type (a return on a
+power role, or any signal on an unused contact, is rejected; an unknown role accepts any
+type). Pins may depend on a declared named condition with choices: such a contact lists
+one meaning per choice and has no unconditional typed signal, so it reads as
+`conditional` (its signal unknown) until a later consumer selects a choice. Frozen body
+inspection lists every frozen pinout variant of any revision of that body by name, role
+and standard, marking which pin the current body revision; frozen pinout inspection
+resolves each typed signal's name, type and exact set. Listing variants together never
+claims they are electrically interchangeable; compatibility stays `not_evaluated`.

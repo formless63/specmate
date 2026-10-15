@@ -230,9 +230,10 @@
       ],
       "kind": "scenario-specification",
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
-      "when": "Separate connector body, pinout, electrical contract, orientation and placement.",
+      "when": "Separate connector body, named pinout variants, typed pin signals, electrical contract, orientation and placement.",
       "expect": [
-        "One connector body supports two reviewed pinouts without claiming the two cables are electrically interchangeable."
+        "One connector body supports two reviewed pinouts without claiming the two cables are electrically interchangeable.",
+        "Two named pinout variants of one body that differ on one contact are listed together by name; a return signal on a power pin role is rejected; a signal set in another workspace reads as not found; equal signal names in two signal sets remain different signals."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -454,6 +455,23 @@
       "when": "Freeze cable revisions and reuse them in assemblies or independent packages.",
       "expect": [
         "A selected cable package remains understandable without access to its private parent device."
+      ],
+      "required_evidence": [
+        "focused tests for stated behavior",
+        "integrated operation/view or tool evidence where applicable"
+      ],
+      "physical_qualification": false
+    },
+    {
+      "id": "ACC-CAB-006",
+      "capabilities": [
+        "CAB-006"
+      ],
+      "kind": "scenario-specification",
+      "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
+      "when": "Declare port-to-port signal intent, propose cable wiring from conductor conventions and validate cables per signal.",
+      "expect": [
+        "Each required signal row reports pass, fail or unknown with its reason and declared path; an unknown level or unreviewed mating is never reported as pass; a convention deviation is flagged without changing the outcome; a proposal never invents joints, bonds or components."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

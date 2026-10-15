@@ -282,8 +282,8 @@
     {
       "id": "INT-001",
       "group": "INT",
-      "title": "Bodies pinouts and contracts",
-      "requirement": "Separate connector body, pinout, electrical contract, orientation and placement.",
+      "title": "Bodies, named pinout variants and contracts",
+      "requirement": "Separate connector body, named pinout variants (role, standard and typed per-pin signals from shared signal sets), electrical contract, orientation and placement.",
       "horizon": "baseline",
       "document": "docs/modules/WIRING.md",
       "acceptance_ids": [
@@ -431,6 +431,17 @@
       "document": "docs/modules/WIRING.md",
       "acceptance_ids": [
         "ACC-CAB-005"
+      ]
+    },
+    {
+      "id": "CAB-006",
+      "group": "CAB",
+      "title": "Cable intent: ports, signals and end stacks",
+      "requirement": "Declare port-to-port signal intent, propose cable wiring from conductor conventions and validate cables per signal with pass/fail/unknown reasons.",
+      "horizon": "baseline",
+      "document": "docs/modules/WIRING.md",
+      "acceptance_ids": [
+        "ACC-CAB-006"
       ]
     },
     {

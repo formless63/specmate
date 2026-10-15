@@ -19,7 +19,8 @@ from specmate.interfaces.contracts import (
     InterfaceMap,
     Pinout,
 )
-from specmate.operations import NotFound, ValidationFailed
+from specmate.interfaces.signal_contracts import SignalSet, role_accepts
+from specmate.operations import NotFound, PermissionDenied, ValidationFailed
 
 
 def parse_content(content, kind=None):
@@ -45,7 +46,7 @@ def references(value):
     if isinstance(value, InterfaceAssessment):
         return [value.left_pinout_revision_id, value.right_pinout_revision_id]
     if isinstance(value, Pinout):
-        return [value.body_revision_id]
+        return [value.body_revision_id, *signal_set_revisions(value)]
     if isinstance(value, InterfaceMap):
         return [
             value.assembly_revision_id,
@@ -53,6 +54,20 @@ def references(value):
             *(p.internal.revision_id for p in value.passages),
         ]
     return []
+
+
+def signal_refs(pinout):
+    """Every (role, signal_ref) a pinout declares, conditional meanings included."""
+    for assignment in pinout.assignments:
+        if assignment.electrical.signal_ref is not None:
+            yield assignment.electrical.role, assignment.electrical.signal_ref
+        for alternative in assignment.alternatives:
+            if alternative.signal_ref is not None:
+                yield alternative.role, alternative.signal_ref
+
+
+def signal_set_revisions(pinout):
+    return list(dict.fromkeys(ref.signal_set_revision_id for _, ref in signal_refs(pinout)))
 
 
 class Closure:
@@ -148,6 +163,10 @@ class Closure:
                     raise ValidationFailed(
                         "Pinout assignment must identify a physical contact or shell."
                     )
+            for role, ref in signal_refs(value):
+                signal = self.signal(ref)
+                if not role_accepts(role, signal.type):
+                    raise ValidationFailed(f"Pin role {role} cannot carry a {signal.type} signal.")
         if isinstance(value, InterfaceMap):
             pinout = self.values.get(value.external_pinout_revision_id)
             assembly = self.assemblies.get(value.assembly_revision_id)
@@ -161,6 +180,28 @@ class Closure:
                 if node is None or node.revision.id != passage.internal.revision_id:
                     raise ValidationFailed("Internal occurrence does not match the exact revision.")
                 self.feature_status(passage.internal.revision_id, passage.internal.feature_id)
+
+    def signal(self, ref):
+        signals = self.values.get(ref.signal_set_revision_id)
+        if not isinstance(signals, SignalSet):
+            raise ValidationFailed("A typed pin signal requires an exact signal set revision.")
+        for signal in signals.signals:
+            if signal.key == ref.key:
+                return signal
+        raise ValidationFailed("The signal is not declared in the pinned signal set.")
+
+    def describe(self, ref):
+        if ref is None:
+            return None
+        signal = self.signal(ref)
+        revision = self.revisions[ref.signal_set_revision_id]
+        return {
+            **ref.model_dump(mode="json"),
+            "name": signal.name,
+            "type": signal.type,
+            "set_name": revision.definition.name,
+            "set_revision_number": revision.number,
+        }
 
     def feature_status(self, rid, feature_id):
         value = self.values.get(rid)
@@ -243,7 +284,81 @@ def inspect_revision(user, revision_id):
             {**c.model_dump(mode="json"), "electrical": assignments.get(c.contact_id)}
             for c in body.contacts
         ]
+        result["signals"] = pin_signals(closure.root, closure)
+    if isinstance(closure.root, ConnectorBody):
+        result["pinout_variants"] = pinout_variants(user, revision)
     return result
+
+
+def pin_signals(pinout, closure):
+    """Resolved typed signal per contact; a conditional pin without a selection is unknown."""
+    rows = {}
+    for assignment in pinout.assignments:
+        alternatives = [
+            {
+                "condition_key": a.condition_key,
+                "choice": a.choice,
+                "role": a.role,
+                "signal": a.signal,
+                "signal_ref": closure.describe(a.signal_ref),
+            }
+            for a in assignment.alternatives
+        ]
+        typed = closure.describe(assignment.electrical.signal_ref)
+        if alternatives:
+            status = "conditional"
+        elif typed is not None:
+            status = "declared"
+        else:
+            status = "unknown"
+        rows[assignment.contact_id] = {
+            "status": status,
+            "signal": typed,
+            "alternatives": alternatives,
+        }
+    return rows
+
+
+def pinout_variants(user, body_revision):
+    """Frozen pinouts of any revision of this body, newest revision per pinout definition.
+
+    Exact pins stay inside the body's workspace, so the actor's read of the body covers them.
+    """
+    latest = {}
+    for revision in (
+        Revision.objects.select_related("definition", "snapshot")
+        .filter(
+            definition__kind="pinout",
+            definition__workspace_id=body_revision.definition.workspace_id,
+            snapshot__dependencies__revision__definition_id=body_revision.definition_id,
+        )
+        .order_by("definition_id", "-number")
+        .distinct()
+    ):
+        latest.setdefault(revision.definition_id, revision)
+    variants = []
+    for revision in latest.values():
+        try:
+            authorize_origin(user, revision.definition)
+        except (NotFound, PermissionDenied):
+            continue
+        content = json.loads(bytes(revision.snapshot.canonical))["content"]
+        value = parse_content(content, "pinout")
+        variants.append(
+            {
+                "definition_id": str(revision.definition_id),
+                "name": revision.definition.name,
+                "revision_id": str(revision.id),
+                "number": revision.number,
+                "variant_label": value.variant_label,
+                "role": value.role,
+                "standard": value.standard,
+                "body_revision_id": str(value.body_revision_id),
+                "same_body_revision": value.body_revision_id == body_revision.id,
+            }
+        )
+    variants.sort(key=lambda v: ((v["variant_label"] or v["name"]).casefold(), v["definition_id"]))
+    return variants
 
 
 def trace(user, revision_id, contact_id):

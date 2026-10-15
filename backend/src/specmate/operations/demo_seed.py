@@ -215,6 +215,33 @@ class Seeder:
         return bundle
 
     # -- sections ---------------------------------------------------------------------
+    def av_interfaces(self) -> None:
+        """Synthetic signal set, two bodies and their named pinout variants (INT-001)."""
+        from specmate.interfaces import examples
+
+        def interface(name: str, value: dict) -> dict:
+            draft = self.call(
+                "interface.create", {"workspace_id": self.ws, "name": name, "interface": value}
+            )
+            return self.freeze("interface.freeze", draft)
+
+        signals = interface("Demo workshop AV signals", examples.av_signal_set())["revision_id"]
+        self.tally("signal set")
+        din = interface("Demo 10-pin round DIN socket", examples.round_din_10_socket())
+        rgb = interface("Demo 21-pin RGB socket", examples.rgb_21_socket())
+        for variant in ("Console A AV", "Console B AV"):
+            interface(
+                f"Demo 10-pin socket {variant}",
+                examples.console_pinout(signals, din["revision_id"], variant),
+            )
+            self.tally("pinout variant")
+        for role in ("sink", "source"):
+            interface(
+                f"Demo 21-pin RGB {role}",
+                examples.rgb_pinout(signals, rgb["revision_id"], role),
+            )
+            self.tally("pinout variant")
+
     def library(self) -> dict:
         symbols = self.source(
             "Demo symbol and footprint files",
@@ -1048,6 +1075,7 @@ def seed(user, workspace: Workspace) -> dict[str, int]:
         raise SeedRefused("Demo data is already present; reset the installation to seed again.")
     s = Seeder(user, workspace)
     lib = s.library()
+    s.av_interfaces()
     made = s.cable_and_harness(lib)
     plans = s.assembly_and_plans(lib, made)
     cfg = s.configuration(lib, plans)

@@ -414,6 +414,7 @@ def build_package(user, p):
                 "connector_body",
                 "pinout",
                 "interface_map",
+                "signal_set",
                 "wire_stock",
                 "workshop_profile",
                 "end_preparation_profile",
