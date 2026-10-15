@@ -15,6 +15,7 @@ import { OperatingNumberInput } from "./declaration-inputs";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
 const kinds = [{ value: "connector_body", label: "Connector body" }, { value: "pinout", label: "Logical pinout" }, { value: "interface_map", label: "External / internal mapping" }];
 /** Library interface definitions. `projectId` is optional context: new items are then also referenced by that project. */
@@ -61,6 +62,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
       <Select label="Edit interface draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
+      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
       <Select label="Inspect frozen interface" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}

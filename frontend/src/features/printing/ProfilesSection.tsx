@@ -69,7 +69,7 @@ export function ProfilesSection({ projectId, specs, onChanged }: { projectId: st
         await freezeRecord('print_profile.freeze', { draft_id: saved.draft_id!, state: saved.state! });
       }
       setRecords(await listProfiles(projectId));
-      setNotice(`Created and froze printer, process and material profiles for ${set.label}. Declare further parameters by editing a profile.`); onChanged();
+      setNotice(`Created and froze printer, process and material profiles. Declare further parameters by editing a profile. Preset set: ${set.label}`); onChanged();
     } catch (e) { setError(message(e)); setRecords(await listProfiles(projectId).catch(() => records)); onChanged(); } finally { setQuickBusy(false); }
   };
   const start = () => {

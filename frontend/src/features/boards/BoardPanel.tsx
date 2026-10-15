@@ -6,6 +6,7 @@ import { RevisionLabel } from "../../lib/IdentityLabel";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import {
   COMPONENT_KINDS, SIDES, TERMINAL_KINDS, VIAS, command, emptyBoard, emptyComponent, pathSummary, proposalPath, read, terminalId,
   type Board, type BoardDraft, type BoardInspection, type BoardPath, type BoardProposal, type BoardTrace, type Definition, type Identity,
@@ -58,6 +59,7 @@ function Boards({ projectId }: { projectId: string | null }) {
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     <Group align="end">
       <Select label="Board" searchable placeholder={boards.length ? "Choose a board" : "No boards yet"} data={boards.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
+      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
       {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
     </Group>
