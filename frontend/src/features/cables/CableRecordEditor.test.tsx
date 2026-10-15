@@ -147,9 +147,15 @@ test("current authority failure removes the live schematic despite retained cach
   const api = server(); const { cache } = mount("/designs/c1@1?view=schematic");
   await screen.findByRole("group", { name: "Declared schematic of Synthetic cable" });
   api.deny(true); await act(async () => { await cache.invalidateQueries({ queryKey: ["cable-identity"] }); });
+  expect(cache.getQueryState(["cable-identity", "c1", 0])?.status).toBe("error");
+  expect(cache.getQueryData(["cable-identity", "c1", 0])).toMatchObject({ revisions: [{ revision_id: "r1", number: 1 }, { revision_id: "r2", number: 2 }] });
+  // The fetch promise settles before TanStack's scheduled observer notification commits.
+  await screen.findByRole("heading", { name: "Cable unavailable" });
   expect(screen.queryByRole("group", { name: /^Declared schematic/ })).toBeNull();
   expect(screen.queryByText("Synthetic board r1 · V")).toBeNull();
-  expect(screen.getByRole("heading", { name: "Cable unavailable" })).toBeTruthy();
+  api.deny(false); await act(async () => { await cache.invalidateQueries({ queryKey: ["cable-identity"] }); });
+  await screen.findByRole("group", { name: "Declared schematic of Synthetic cable" });
+  expect(screen.getByRole("button", { name: "Cable versions" }).textContent).toBe("r1");
 });
 
 test("CAS conflict retains working changes and token; successful retry saves with the same deliberate intent key", async () => {
