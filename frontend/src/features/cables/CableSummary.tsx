@@ -14,7 +14,7 @@ import { StackDiagram, resolvedChips } from '../end-assemblies/StackEditor';
 export const endName = (endpoint: Endpoint) => endpoint.label?.trim() || `End ${endpoint.local_id.toUpperCase()}`;
 
 /** The declared finished length, else the route length; unknown stays unknown. */
-function declaredLength(cable: Cable): { text: string; kind: string } | null {
+export function declaredLength(cable: Cable): { text: string; kind: string } | null {
   const finished = cable.lengths?.finished.declaration.amount_mm;
   if (finished) return { text: `${finished} mm`, kind: 'finished' };
   const route = cable.lengths?.route.amount_mm;

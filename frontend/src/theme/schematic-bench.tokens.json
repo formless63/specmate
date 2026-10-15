@@ -107,6 +107,15 @@
         "not_evaluated": "ink-500 ring",
         "change": "#EDEDED",
         "pass": "#4ADE80"
+      },
+      "signal": {
+        "video": "#5AA9FF",
+        "sync": "#C39BFF",
+        "audio": "#5BD38D",
+        "power": "#FF7A45",
+        "ground": "#A3A3AB",
+        "control": "#F472B6",
+        "data": "#2DD4BF"
       }
     },
     "light": {
@@ -142,6 +151,15 @@
         "not_evaluated": "paper-600 ring",
         "change": "#0C0C0D",
         "pass": "#1E7A3C"
+      },
+      "signal": {
+        "video": "#1F5FBF",
+        "sync": "#6B3FC0",
+        "audio": "#1E7F4A",
+        "power": "#B8461A",
+        "ground": "#5E5E66",
+        "control": "#B3266E",
+        "data": "#0F766E"
       }
     },
     "usage": {
@@ -167,7 +185,8 @@
       "status.unknown": "Unknown: hatched cell and dashes, never blank or 0",
       "status.not_evaluated": "Not evaluated: hollow ring + words",
       "status.change": "Revision cloud and delta marks: monochrome",
-      "status.pass": "A declared check passed (never used for unknown or not evaluated)"
+      "status.pass": "A declared check passed (never used for unknown or not evaluated)",
+      "signal.*": "Signal-type data palette (video, sync, audio, power, ground, control, data): pin fills, wire tags and type chips; never a status"
     }
   },
   "typography": {

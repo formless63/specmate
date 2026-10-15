@@ -29,7 +29,19 @@ function inspected(cable: Cable) {
     conductors: ['core', 'screen'].map(id => ({ element_path: `stock.${id}`, kind: id === 'core' ? 'conductor' : 'shield', ends: cable.endpoints.map(e => ({ endpoint_id: e.local_id, assignment: cable.assignments.find(a => a.element_path === `stock.${id}` && a.endpoint_id === e.local_id) ?? null })) })),
     endpoints: cable.endpoints.map(e => ({ ...e, body, pinout, body_revision_id: 'body-rev', pinout_revision_id: 'pinout-rev' })) };
 }
+// The workbench keeps detail forms in inspector tabs: open the tab that holds a field first.
+const benchEl = (mode?: string) => document.querySelector<HTMLElement>(mode ? `.cwb[data-mode="${mode}"]` : '.cwb[data-mode="new"], .cwb[data-mode="draft"]');
+function openTab(label: string, mode?: string) {
+  const bench = benchEl(mode);
+  if (bench) fireEvent.click(within(bench).getByRole('radio', { name: label }));
+}
+function tabFor(label: string) {
+  const end = /^Endpoint (\d+)/.exec(label);
+  if (end) openTab(`End ${'AB'[Number(end[1]) - 1]}`);
+  else if (/^(Stock|Intent)\b/.test(label)) openTab('Cable');
+}
 async function paste(label: string, value: string) {
+  tabFor(label);
   // A new cable starts with each end unchosen; the connector pickers appear once the end is built here.
   const end = /^Endpoint (\d+) (body|pinout)$/.exec(label);
   if (end && !screen.queryByRole('button', { name: `Advanced: paste exact revision ID for ${label}` })) fireEvent.click(screen.getAllByLabelText('Build this end here')[Number(end[1]) - 1]!);
@@ -37,6 +49,7 @@ async function paste(label: string, value: string) {
   fireEvent.change(await screen.findByLabelText(`${label} exact revision ID`), { target: { value } });
 }
 async function select(label: string, option: string) {
+  tabFor(label);
   const field = await screen.findByRole('combobox', { name: label });
   await waitFor(() => expect((field as HTMLInputElement).disabled).toBe(false));
   fireEvent.focus(field); fireEvent.keyDown(field, { key: 'ArrowDown' });
@@ -81,7 +94,7 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   fireEvent.change(screen.getByLabelText('Route declaration basis'), { target: { value: 'Synthetic route' } });
   fireEvent.click(screen.getByText('Create cable draft'));
   const heading = await screen.findByText('Edit draft');
-  const editor = within(heading.closest('.mantine-Card-root')! as HTMLElement);
+  const editor = within(heading.closest('.cwb')! as HTMLElement);
   fireEvent.change(editor.getByLabelText('Review basis'), { target: { value: 'Independent review' } });
   expect((editor.getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('1000.000001');
   fireEvent.change(editor.getByLabelText('Route declared mm'), { target: { value: '1100.000001' } });
@@ -141,7 +154,8 @@ async function openRetainedDraft(permissions?: string[]) {
   await select('Edit cable draft', 'draft · draft-v1');
   await screen.findByDisplayValue('Private assignment basis');
   const heading = screen.getByText('Edit draft');
-  const editor = within(heading.closest('.mantine-Card-root')! as HTMLElement);
+  const editor = within(heading.closest('.cwb')! as HTMLElement);
+  openTab('End A', 'draft');
   await waitFor(() => expect(cache.getQueriesData({ queryKey: ['cable-end-resolve'] }).some(([, data]) => !!data)).toBe(true));
   return { cache, editor, deny: (path: string) => { deniedPath = path; } };
 }
@@ -165,7 +179,9 @@ test.each([
     const definition = screen.getByRole('combobox', { name: 'Existing cable definition' }) as HTMLInputElement;
     expect(definition.disabled).toBe(true);
     expect(definition.value).toBe('');
-    expect((screen.getByRole('button', { name: 'Create cable draft' }) as HTMLButtonElement).disabled).toBe(true);
+    // Creating is reached through "New cable"; while a definition is open no create control is offered.
+    const create = screen.queryByRole('button', { name: 'Create cable draft' }) as HTMLButtonElement | null;
+    expect(!create || create.disabled).toBe(true);
   }
 });
 
@@ -256,14 +272,33 @@ test.each([
   fireEvent.click(screen.getByLabelText('Record independent cable lengths'));
   fireEvent.change(screen.getByLabelText('Route declared mm'), { target: { value: '1234' } });
   fireEvent.change(screen.getByLabelText('Route declaration basis'), { target: { value: 'Private route basis' } });
+  if (operation === 'cable.create') {
+    // The new cable's unsaved text is withheld while access is rechecked, then restored.
+    fireEvent.change(screen.getByLabelText('Route declared mm'), { target: { value: '888.000001' } });
+    denyMutation = true;
+    fireEvent.click(screen.getByRole('button', { name: button }));
+    const refresh = await screen.findByRole('button', { name: 'Refresh cable access' });
+    await waitFor(() => expect((refresh as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByDisplayValue('Private route basis')).toBeNull();
+    expect(screen.queryByDisplayValue('888.000001')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create cable draft' })).toBeNull();
+    cache.removeQueries({ queryKey: ['cable-stock', 'stock-rev'] });
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Refresh cable access' }) as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByDisplayValue('888.000001')).toBeNull();
+    sourceDenied = false; denyMutation = false;
+    fireEvent(window, new Event('focus'));
+    await screen.findByRole('button', { name: 'Create cable draft' });
+    expect((screen.getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('888.000001');
+    expect(commands.filter(c => c.operation === 'cable.create')).toHaveLength(1);
+    return;
+  }
   fireEvent.click(screen.getByText('Create cable draft'));
   await screen.findByText('Edit draft');
   fireEvent.click(screen.getByText('Freeze cable revision'));
   await screen.findAllByText('cable-rev', { selector: 'code' });
   await screen.findByText('saved-v2');
-  const createEditor = () => within(screen.getByText('New cable').closest('.mantine-Card-root')! as HTMLElement);
-  const draftEditor = () => within(screen.getByText('Edit draft').closest('.mantine-Card-root')! as HTMLElement);
-  fireEvent.change(createEditor().getByLabelText('Route declared mm'), { target: { value: '888.000001' } });
+  const draftEditor = () => within(screen.getByText('Edit draft').closest('.cwb')! as HTMLElement);
   fireEvent.change(draftEditor().getByLabelText('Route declared mm'), { target: { value: '777.000001' } });
   denyMutation = true;
   fireEvent.click(screen.getByRole('button', { name: button }));
@@ -283,7 +318,6 @@ test.each([
   sourceDenied = false; denyMutation = false; restored = true; state = 'server-newer';
   fireEvent(window, new Event('focus'));
   await screen.findByText('Edit draft');
-  expect((createEditor().getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('888.000001');
   expect((draftEditor().getByLabelText('Route declared mm') as HTMLInputElement).value).toBe('777.000001');
   expect(draftEditor().getByText('saved-v2')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Save cable draft' }));
@@ -301,9 +335,10 @@ test.each([
   const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled;
   expect(disabled('Save cable draft')).toBe(saveOff);
   expect(disabled('Freeze cable revision')).toBe(freezeOff);
-  expect(screen.getByRole('button', { name: 'Create cable draft' }).hasAttribute('data-readonly-reason')).toBe(saveOff);
   expect(screen.getByRole('button', { name: 'Save cable draft' }).getAttribute('title')).toBe(saveOff ? 'Read-only access: requires Edit' : null);
   expect(screen.queryAllByText(/Read-only access: requires Edit/).length > 0).toBe(saveOff);
+  fireEvent.click(screen.getByRole('button', { name: 'New cable' }));
+  expect((await screen.findByRole('button', { name: 'Create cable draft' })).hasAttribute('data-readonly-reason')).toBe(saveOff);
 });
 
 test('a probe on a cable revision selects that definition and shows its views once, in the library row', async () => {
