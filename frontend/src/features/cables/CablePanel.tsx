@@ -14,6 +14,7 @@ import type { Inspection as InterfaceInspection } from '../interfaces/api';
 import { CableOperationError, authorityDenied, command, read, initialCable, type Cable, type Endpoint, type Definition, type Draft, type Identity, type Inspection, type ResolvedTermination } from './api';
 import { RevisionPicker } from './RevisionPicker';
 import { NewIntent } from '../intents/IntentPanel';
+import { IntentCheckPanel } from '../intent-check/IntentCheckPanel';
 import { SbUnknown } from '../../components/sb';
 import { connectorStack, resolveDenied, splitKey, terminalKey, type ResolvedStack } from '../end-assemblies/api';
 import { SignalCell, StackDiagram, StackEditor, StackView, findTerminal, resolvedChips, targetOptions, useResolvedStacks } from '../end-assemblies/StackEditor';
@@ -144,7 +145,8 @@ function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, 
   const save = useMutation({ mutationFn: () => command<Draft>("cable.update", { draft_id: base.draft_id, cable: value }, base.state), onSuccess: async data => { setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }, onError: onMutationError });
   const saveErrors = save.error instanceof CableOperationError ? save.error.fieldErrors : undefined;
   if (hidden) return null;
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor errors={saveErrors} value={value} onChange={setValue} definitions={definitions} workspaceId={workspaceId} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}</Stack></Card>;
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor errors={saveErrors} value={value} onChange={setValue} definitions={definitions} workspaceId={workspaceId} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}
+    {!sourceDenied && <IntentCheckPanel key={base.state} draftId={base.draft_id} intentRevisionId={base.content.cable?.intent_revision_id ?? null} />}</Stack></Card>;
 }
 type Choice = { value: string; label: string; display: string; look: ReturnType<typeof appearanceOf> };
 /** Conductive elements of a stock: the stock's own label and recorded colour for display, the path kept for identity. */
@@ -291,7 +293,8 @@ export function CableInspector({ revisionId, revisions = [] }: { revisionId: str
     {data && !result.isError && <>
       <CableSummary cable={data.cable} elementCount={data.conductors.length} stacks={data.endpoints.map(e => e.resolved_stack)} />
       <Text>Review: {data.cable.review}; basis: {data.cable.review_basis ?? 'unknown'}</Text>
-      {data.intent && <Text size="sm">Intent: <RevisionLabel id={data.intent.revision_id} />; check against it: not evaluated.</Text>}
+      {data.intent && <Text size="sm">Intent: <RevisionLabel id={data.intent.revision_id} /></Text>}
+      <IntentCheckPanel revisionId={revisionId} intentRevisionId={data.cable.intent_revision_id ?? null} />
       <Text>Continuity: {data.continuity}. Compatibility: {data.compatibility}. Physical qualification: {data.physical_qualification}.</Text>
       {data.stored_schema_version === '0.1' && <Text size="xs" c="dimmed">Recorded before end stacks: each end reads as one connector layer, stock end unknown.</Text>}
       {data.lengths && <LengthInspection projection={data.lengths} />}
