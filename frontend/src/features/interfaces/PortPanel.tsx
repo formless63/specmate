@@ -10,15 +10,12 @@ import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import { CONDITIONING, command, initialInterface, read, unknownPortPin, type CableEnd, type DeclaredQuantity, type Definition, type Draft, type EndRow, type Identity, type Inspection, type Pinout, type PinoutRole, type Port, type PortPin } from "./api";
 import { DeclaredValue, SignalTypeChip } from "./SignalSetPanel";
 import "./signals.css";
+import { BEHAVIOR, COUPLING, NEED_LABELS, PortWorkbench, TERMINATION } from "../pinout-editor/PortWorkbench";
+import type { WorkbenchMode } from "../pinout-editor/PinoutWorkbench";
 
 const ROLES: { value: PinoutRole; label: string }[] = [
   { value: "unknown", label: "Role unknown" }, { value: "source", label: "Source" }, { value: "sink", label: "Sink" }, { value: "bidirectional", label: "Bidirectional" },
 ];
-const BEHAVIOR = [{ value: "unknown", label: "unknown" }, { value: "drives", label: "Drives" }, { value: "accepts", label: "Accepts" }, { value: "passes", label: "Passes" }, { value: "none", label: "None" }];
-const COUPLING = [{ value: "unknown", label: "unknown" }, { value: "dc", label: "DC" }, { value: "ac", label: "AC" }];
-const TERMINATION = [{ value: "unknown", label: "unknown" }, { value: "source_terminated", label: "Source terminated" }, { value: "load_terminated", label: "Load terminated" }, { value: "none", label: "None" }];
-const NEED_LABELS: Record<string, string> = { series_resistor: "Series resistor", series_capacitor: "Series capacitor", shunt_resistor: "Shunt resistor", attenuator: "Attenuator", other: "Other part" };
-
 /** Ports lens: device sockets and plugs, one port per pinout variant, with per-pin device facts. */
 export function PortPanel({ projectId }: { projectId: string | null }) {
   return <Ports key={projectId ?? "library"} projectId={projectId} />;
@@ -70,7 +67,7 @@ function Ports({ projectId }: { projectId: string | null }) {
       <Title order={3}>New port</Title>
       <InspectionScope permission="item.create">
         <TextInput label="Port name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
-        <PortEditor value={value} onChange={setValue} definitions={definitions.data ?? []} />
+        <PortEditor value={value} onChange={setValue} definitions={definitions.data ?? []} mode="create" />
       </InspectionScope>
       <Group><Button disabled={!name.trim() || !value.device_label.trim() || !value.pinout_revision_id} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create port draft</Button><ReadOnlyNote permission="item.create">Creating ports is unavailable.</ReadOnlyNote></Group>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
@@ -90,7 +87,7 @@ function PortDraft({ draft, definitions, onSaved }: { draft: Draft; definitions:
 }
 
 /** Port editor: device, pinout variant, condition choices and a dense per-contact facts table. */
-export function PortEditor({ value, onChange, definitions }: { value: Port; onChange: (v: Port) => void; definitions: Definition[] }) {
+export function PortEditor({ value, onChange, definitions, mode = "draft" }: { value: Port; onChange: (v: Port) => void; definitions: Definition[]; mode?: WorkbenchMode }) {
   const [variantDefinition, setVariantDefinition] = useState<string | null>(null);
   const identity = useQuery({ queryKey: ["port-variant-identity", variantDefinition], queryFn: () => read<Identity>(`catalog/definitions/${variantDefinition}`), enabled: !!variantDefinition });
   const variant = useQuery({ queryKey: ["interface-inspect", value.pinout_revision_id], queryFn: () => read<Inspection>(`interfaces/revisions/${value.pinout_revision_id}`), enabled: !!value.pinout_revision_id });
@@ -121,7 +118,7 @@ export function PortEditor({ value, onChange, definitions }: { value: Port; onCh
         if (choice) next[c.key] = choice; else delete next[c.key];
         onChange({ ...value, selected_conditions: next });
       }} />)}
-    {end.data && <Table.ScrollContainer minWidth={1100}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
+    {end.data && <PortWorkbench value={value} onChange={onChange} mode={mode} table={<Table.ScrollContainer minWidth={1100}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
       <Table.Thead><Table.Tr><Table.Th>Contact</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Device</Table.Th><Table.Th>Level</Table.Th><Table.Th>Unit</Table.Th><Table.Th>Impedance (ohm)</Table.Th><Table.Th>Coupling</Table.Th><Table.Th>Termination</Table.Th><Table.Th>Cable must add</Table.Th><Table.Th>Must not connect</Table.Th><Table.Th>Basis</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>{end.data.rows.map((row) => {
         const p = pin(row.contact_id) ?? unknownPortPin(row.contact_id);
@@ -147,7 +144,7 @@ export function PortEditor({ value, onChange, definitions }: { value: Port; onCh
           }} /></Table.Td>
         </Table.Tr>;
       })}</Table.Tbody>
-    </Table></Table.ScrollContainer>}
+    </Table></Table.ScrollContainer>} />}
     <Group><Select label="Port review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: (v ?? "unreviewed") as Port["review"] })} /><TextInput label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></Group>
   </Stack>;
 }
@@ -171,6 +168,11 @@ export function EndSignal({ row }: { row: EndRow }) {
   </Stack>;
 }
 
+/** A frozen end as a port value for the face view: its device facts per contact. */
+function frozenPort(end: CableEnd): Port {
+  return { kind: "port", device_label: end.device_label ?? "", pinout_revision_id: end.pinout_revision_id, role: end.role, selected_conditions: end.selected_conditions, pins: end.rows.flatMap((r) => (r.device ? [r.device] : [])), review: "unreviewed", review_basis: null };
+}
+
 function needText(pin: PortPin): string {
   return pin.needs_in_cable.map((n) => `${NEED_LABELS[n.conditioning]}${n.value ? ` ${n.value}` : ""}`).join(", ");
 }
@@ -189,7 +191,7 @@ export function CableEndInspector({ revisionId }: { revisionId: string }) {
         <Stack gap={0}><Text className="sb-silk">Standard</Text><Text size="sm">{data.standard ?? "not stated"}</Text></Stack>
         <Stack gap={0}><Text className="sb-silk">Compatibility</Text><Text size="sm">not evaluated</Text></Stack>
       </Group>
-      <Table.ScrollContainer minWidth={900}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
+      <PortWorkbench mode="frozen" value={frozenPort(data)} table={<Table.ScrollContainer minWidth={900}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
         <Table.Thead><Table.Tr><Table.Th>Contact</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Device</Table.Th><Table.Th>Level</Table.Th><Table.Th>Impedance</Table.Th><Table.Th>Coupling</Table.Th><Table.Th>Termination</Table.Th><Table.Th>Cable must add</Table.Th><Table.Th>Must not connect</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{data.rows.map((row) => {
           const d = row.device;
@@ -205,7 +207,7 @@ export function CableEndInspector({ revisionId }: { revisionId: string }) {
             <Table.Td>{d?.must_not_connect ? <Stack gap={2}><SbStatus led="failed" dimension="connect" value="must not" /><Text size="xs">{d.must_not_connect_reason}</Text></Stack> : d ? "Not stated" : <SbUnknown what="Restriction" />}</Table.Td>
           </Table.Tr>;
         })}</Table.Tbody>
-      </Table></Table.ScrollContainer>
+      </Table></Table.ScrollContainer>} />
     </>}
   </Stack></Card>;
 }

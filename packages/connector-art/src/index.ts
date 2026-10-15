@@ -1,4 +1,4 @@
-export { ConnectorFace, type ConnectorFacePin, type ConnectorFaceProps, type PinState } from './ConnectorFace';
+export { ConnectorFace, type ConnectorFacePin, type ConnectorFaceProps, type PinRing, type PinState } from './ConnectorFace';
 export {
   geometryForView,
   mirrorGeometry,

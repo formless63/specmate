@@ -4,19 +4,15 @@ import { useState } from "react";
 import { SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { revisionOptionLabel } from "../../lib/revision-labels";
-import { read, unknownElectrical, type Assignment, type Contact, type Definition, type Identity, type Inspection, type PinSignal, type Pinout, type PinoutRole, type PinoutVariant, type Signal, type SignalType } from "./api";
+import { read, unknownElectrical, type Assignment, type Contact, type Definition, type Identity, type Inspection, type PinSignal, type Pinout, type PinoutRole, type PinoutVariant, type Signal } from "./api";
 import { SignalTypeChip } from "./SignalSetPanel";
 import "./signals.css";
+import { SUGGESTED_ROLE } from "../pinout-editor/model";
 
 const ROLES: { value: PinoutRole; label: string }[] = [
   { value: "unknown", label: "Role unknown" }, { value: "source", label: "Source" }, { value: "sink", label: "Sink" }, { value: "bidirectional", label: "Bidirectional" },
 ];
 
-/** The pin role a signal type suggests when the pin role is still unknown; never overrides a declared role. */
-const SUGGESTED_ROLE: Partial<Record<SignalType, string>> = {
-  analog_video: "signal", sync: "signal", analog_audio: "signal", digital_audio: "signal", data: "signal", control: "signal",
-  power: "power", ground_return: "return", shield: "shield", chassis: "chassis",
-};
 
 /** Variant label, application role and standard: what makes a pinout a named variant of its body. */
 export function PinoutVariantFields({ value, onChange }: { value: Pinout; onChange: (v: Pinout) => void }) {
@@ -50,8 +46,8 @@ export function PinSignalCell({ row }: { row: PinSignal | undefined }) {
   return <Group gap={6} wrap="nowrap"><Text size="sm">{signal.name}</Text><SignalTypeChip type={signal.type} /><Text size="xs" c="dimmed">{signal.set_name} r{signal.set_revision_number}</Text></Group>;
 }
 
-function firstSetRevision(value: Pinout): string | null {
-  for (const a of value.assignments) {
+export function firstSetRevision(value: Pinout): string | null {
+  for (const a of value.assignments ?? []) {
     if (a.electrical.signal_ref) return a.electrical.signal_ref.signal_set_revision_id;
     for (const alt of a.alternatives ?? []) if (alt.signal_ref) return alt.signal_ref.signal_set_revision_id;
   }
@@ -62,9 +58,17 @@ function firstSetRevision(value: Pinout): string | null {
  * Pin table with signals picked by name from one exact frozen signal set. Each contact shows the
  * signal name and its type; contacts without a typed signal stay unknown.
  */
-export function PinoutSignalsEditor({ value, onChange, definitions, contacts }: { value: Pinout; onChange: (v: Pinout) => void; definitions: Definition[]; contacts: Contact[] }) {
+export function PinoutSignalsEditor({ value, onChange, definitions, contacts, setRevision: controlled, onSetRevision, selected, onSelect, hideConditions }: {
+  value: Pinout; onChange: (v: Pinout) => void; definitions: Definition[]; contacts: Contact[];
+  /** Optional controlled signal set revision (shared with the face editor). */
+  setRevision?: string | null; onSetRevision?: (id: string | null) => void;
+  /** Optional pin selection shared with an inspector: the contact cell becomes a button. */
+  selected?: string | null; onSelect?: (contactId: string | null) => void; hideConditions?: boolean;
+}) {
   const [setDefinition, setSetDefinition] = useState<string | null>(null);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [ownPick, setOwnPick] = useState<string | null>(null);
+  const picked = onSetRevision ? controlled ?? null : ownPick;
+  const setPicked = onSetRevision ?? setOwnPick;
   const setRevision = picked ?? firstSetRevision(value);
   const identity = useQuery({ queryKey: ["signal-set-identity", setDefinition], queryFn: () => read<Identity>(`catalog/definitions/${setDefinition}`), enabled: !!setDefinition });
   const set = useQuery({ queryKey: ["interface-inspect", setRevision], queryFn: () => read<Inspection>(`interfaces/revisions/${setRevision}`), enabled: !!setRevision });
@@ -95,7 +99,7 @@ export function PinoutSignalsEditor({ value, onChange, definitions, contacts }: 
       {setRevision && <Text size="xs"><RevisionLabel id={setRevision} role="Signals from" /></Text>}
     </Group>
     {set.isError && <Alert color="red">{set.error.message}</Alert>}
-    <ConditionsEditor value={value} onChange={onChange} />
+    {!hideConditions && <ConditionsEditor value={value} onChange={onChange} />}
     {pinContacts.length === 0 ? <Text size="sm" c="dimmed">Choose the physical body to list its contacts.</Text> : <Table.ScrollContainer minWidth={640}><Table withTableBorder verticalSpacing={4} className="sb-signal-table">
       <Table.Thead><Table.Tr><Table.Th>Contact</Table.Th><Table.Th>Label</Table.Th><Table.Th>Signal</Table.Th><Table.Th>Type</Table.Th><Table.Th>Pin role</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>{pinContacts.map((c) => {
@@ -104,8 +108,8 @@ export function PinoutSignalsEditor({ value, onChange, definitions, contacts }: 
         const signal = ref ? byKey.get(ref.key) : undefined;
         const foreign = ref && ref.signal_set_revision_id !== setRevision;
         const alternatives = a?.alternatives ?? [];
-        return <Table.Tr key={c.contact_id}>
-          <Table.Td className="sb-mono">{c.number ?? c.contact_id}</Table.Td>
+        return <Table.Tr key={c.contact_id} data-selected={selected === c.contact_id || undefined}>
+          <Table.Td className="sb-mono">{onSelect ? <button type="button" className="pwb-row-pick" aria-pressed={selected === c.contact_id} aria-label={`Select pin ${c.number ?? c.contact_id}`} onClick={() => onSelect(selected === c.contact_id ? null : c.contact_id)}>{c.number ?? c.contact_id}</button> : c.number ?? c.contact_id}</Table.Td>
           <Table.Td>{c.label || (c.physical_role === "shell" ? "Shell" : "—")}</Table.Td>
           <Table.Td>{alternatives.length > 0 ? <ConditionalCell assignment={a!} options={options} byKey={byKey} conditions={conditions} onChange={(next) => put(c.contact_id, () => next)} setRevision={setRevision} />
             : <Group gap={4} wrap="nowrap"><Select size="xs" searchable clearable aria-label={`Signal on contact ${c.number ?? c.contact_id}`} placeholder={setRevision ? "unknown" : "Choose a signal set"} disabled={!setRevision} value={foreign ? null : ref?.key ?? null} data={options} onChange={(key) => pick(c.contact_id, key)} />
@@ -135,7 +139,7 @@ function ConditionalCell({ assignment, options, byKey, conditions, onChange, set
 }
 
 /** Named device conditions (for example a regional variant) that conditional pins depend on. */
-function ConditionsEditor({ value, onChange }: { value: Pinout; onChange: (v: Pinout) => void }) {
+export function ConditionsEditor({ value, onChange }: { value: Pinout; onChange: (v: Pinout) => void }) {
   const [name, setName] = useState("");
   const [choices, setChoices] = useState("");
   const conditions = value.conditions ?? [];
