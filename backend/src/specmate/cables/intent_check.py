@@ -110,7 +110,7 @@ class Graph:
         for path, element in closure.elements.items():
             ends = [e.local_id for e in closure.cable.endpoints]
             for e in ends:
-                self.labels[("c", e, path)] = ("conductor", f"{element.label} ({path})")
+                self.labels[("c", e, path)] = ("conductor", f"{path} at end {e}")
             for a, b in pairwise(ends):
                 self.edge(
                     ("c", a, path),
