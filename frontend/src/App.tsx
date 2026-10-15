@@ -159,7 +159,8 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
     navigation?.navigate({ area: "designs", lens: tool, project: null, probe: null });
   };
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
-  const showProbe = !!url.probe || url.malformed;
+  // Cable record frames already name their exact state; keep the global summary for other tools.
+  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables");
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}

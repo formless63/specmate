@@ -218,7 +218,7 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
   const light = mixHex(jacket.startsWith("#") ? jacket : "#2a2a2f", "#ffffff", 0.22);
   const dark = mixHex(jacket.startsWith("#") ? jacket : "#2a2a2f", "#000000", 0.45);
 
-  const size = zoom === null ? { width: "100%", style: { minWidth: 720, height: "auto" } } : { width: drawing.width * zoom, height: drawing.height * zoom };
+  const size = zoom === null ? { width: "100%", style: { minWidth: 0, height: "auto" } } : { width: drawing.width * zoom, height: drawing.height * zoom };
   return <svg className="cwb-drawing" viewBox={`0 0 ${drawing.width} ${drawing.height}`} {...size}
     role="group" aria-label={title} onClick={() => onSelect(null)}
     onPointerMove={event => { if (drag && event.pointerId === drag.pointerId) setDrag({ ...drag, point: pointAt(event) }); }}
