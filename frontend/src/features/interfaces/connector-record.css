@@ -1,5 +1,7 @@
 .connector-record-drawing{padding:16px;min-height:320px;min-width:0;display:grid;align-content:start;gap:12px;border:1px solid var(--sb-border-subtle)}
 .connector-record-drawing>.pwb{min-width:0}.connector-record-drawing svg{max-width:100%;height:auto}
+/* Enlarge only the primary body drawing; embedded faces retain their own size. */
+.connector-record-drawing>.sb-body-face>svg{width:min(100%,560px);margin-inline:auto}
 .connector-relation{padding:8px 0;border-bottom:1px solid var(--sb-border-subtle)}
 .connector-relation button{height:auto;white-space:normal;overflow-wrap:anywhere}
 .connector-record-state{font-family:var(--sb-font-mono);font-size:12px;overflow-wrap:anywhere}
