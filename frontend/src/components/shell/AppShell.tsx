@@ -6,6 +6,7 @@ import { ItemSpotlight } from "../../features/item-search";
 import { breakpoints, rail, topBarHeight } from "../../theme/schematicBench";
 import "./shell.css";
 import { Brand } from "../brand/Brand";
+import { ThemeControl } from "./ThemeControl";
 import type { ShellChrome } from "../../features/workspace";
 import { AREAS, areaOfTool, describeAccess, primaryTools, toolLabel, type AreaDef } from "../../features/shell/areas";
 
@@ -83,7 +84,7 @@ export function AppShell({ projectName, recordName, permissions, role = null, li
     <MantineAppShell.Header className="sb-header" data-testid="sb-top-bar">
       <div className="sb-topbar">
         {narrow && <AreaMenu activeArea={area} onSelect={openArea} />}
-        {!narrow && <Brand />}
+        <Brand compact={narrow} onHome={() => (onAreaChange ?? onToolChange)("designs")} />
         <nav aria-label="Breadcrumb" className="sb-shell-breadcrumb"><span>{area.label}</span>{(recordName || activeTool !== area.tools[0]?.id) && <><span aria-hidden="true">/</span><span>{recordName ?? toolLabel(activeTool)}</span></>}</nav>
         {!narrow && chrome.projectMenu}
         <button type="button" className="sb-search" data-compact={compact} onClick={() => spotlight.open()} aria-label={itemSearchKey ? "Find an item or jump to a tool" : "Jump to a tool or area"} aria-keyshortcuts="Control+K">
@@ -98,6 +99,7 @@ export function AppShell({ projectName, recordName, permissions, role = null, li
           <span className="sb-led" data-state="not-evaluated" aria-hidden="true" />
           <span className="sb-silk">Status not evaluated</span>
         </span>)}
+        <ThemeControl />
         {chrome.accountMenu ? chrome.accountMenu : <Group gap={6} wrap="nowrap" aria-label="Account">
           <span className="sb-account" title={chrome.username}><VisuallyHidden>Signed in as {chrome.username}</VisuallyHidden><span aria-hidden="true">{chrome.username}</span></span>
           {chrome.signOutControl}
@@ -146,7 +148,7 @@ export function AppShell({ projectName, recordName, permissions, role = null, li
 function AreaMenu({ activeArea, onSelect }: { activeArea: AreaDef; onSelect: (area: AreaDef) => void }) {
   const [opened, setOpened] = useState(false);
   return <nav aria-label="Workspace"><Menu opened={opened} onChange={setOpened} position="bottom-start" withinPortal>
-    <Menu.Target><Button variant="quiet" aria-label="Workspace navigation">{activeArea.label}</Button></Menu.Target>
+    <Menu.Target><Button variant="quiet" aria-label="Workspace navigation" styles={{ label: { maxWidth: 76, overflow: "hidden", textOverflow: "ellipsis", display: "block" } }}>{activeArea.label}</Button></Menu.Target>
     <Menu.Dropdown>
       {AREAS.map((item) => <Menu.Item key={item.id} aria-current={item.id === activeArea.id ? "page" : undefined}
         rightSection={<span className="sb-silk">{item.key}</span>} onClick={() => onSelect(item)}

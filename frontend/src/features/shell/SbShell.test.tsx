@@ -16,7 +16,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const chrome = { username: "local-user", projectControl: <span>project control</span>, signOutControl: <button type="button">Sign out</button>, alert: null };
 function Harness() {
   const [active, setActive] = useState("identity"); const [visited, setVisited] = useState(() => new Set(["identity"]));
-  return <MantineProvider><SbShell projectName="Demo workshop" permissions={["workspace.read"]} activeTool={active} chrome={chrome}
+  return <MantineProvider env="test"><SbShell projectName="Demo workshop" permissions={["workspace.read"]} activeTool={active} chrome={chrome}
     onToolChange={id => { setActive(id); setVisited(current => new Set([...current, id])); }}>
     {AREAS.flatMap(area => area.tools).map(tool => <Tabs.Panel key={tool.id} value={tool.id}>{visited.has(tool.id) && <input aria-label={`draft ${tool.id}`} />}</Tabs.Panel>)}
   </SbShell></MantineProvider>;
@@ -68,4 +68,19 @@ test("read-only and unreported access retain their distinct meanings", () => {
   expect(isReadOnly(["workspace.read"])).toBe(true); expect(isReadOnly([])).toBe(false); expect(isReadOnly(undefined)).toBe(false);
   expect(isReadOnly(["workspace.read", "item.create"])).toBe(false);
   expect(describeAccess([]).known).toBe(false); expect(describeAccess(["workspace.read"]).label).toBe("Viewer");
+});
+
+test.each([1440, 390])("home link retains editors and theme choices are reachable at %i pixels", async (width) => {
+  stubViewport(width); render(<Harness />);
+  fireEvent.change(screen.getByLabelText("draft identity"), { target: { value: "keep this draft" } });
+  const home = screen.getByRole("link", { name: "Specmate home" });
+  expect(home.getAttribute("href")).toBe("/designs");
+  fireEvent.click(home);
+  expect(screen.getByLabelText("draft designs")).toBeTruthy();
+  expect((screen.getByLabelText("draft identity") as HTMLInputElement).value).toBe("keep this draft");
+  for (const theme of ["Dark", "Light", "System"]) {
+    fireEvent.click(screen.getByRole("button", { name: /^Theme:/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: theme }));
+    expect(screen.getByRole("button", { name: `Theme: ${theme}` })).toBeTruthy();
+  }
 });

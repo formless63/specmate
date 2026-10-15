@@ -3,6 +3,7 @@ import { Spotlight, spotlight, type SpotlightActionData } from "@mantine/spotlig
 import type { ReactNode } from "react";
 import { topBarHeight } from "../../theme/schematicBench";
 import { Brand } from "../../components/brand/Brand";
+import { ThemeControl } from "../../components/shell/ThemeControl";
 
 type HomeFrameProps = {
   /** Signed-in username; omitted before sign-in. */
@@ -26,6 +27,7 @@ export function HomeFrame({ username, signOutControl, actions = [], statusLabel,
           <span className="sb-keycap" aria-hidden="true">Ctrl K</span>
         </button>}
         <span style={{ flex: 1 }} />
+        <ThemeControl />
         {username && <Group gap={6} wrap="nowrap" aria-label="Account">
           <span className="sb-account" title={username}><VisuallyHidden>Signed in as {username}</VisuallyHidden><span aria-hidden="true">{username}</span></span>
           {signOutControl}

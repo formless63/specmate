@@ -3,4 +3,4 @@
 .sb-topbar > .sb-shell-breadcrumb { flex: 0 1 auto; }
 .sb-shell-tabs { flex-wrap: nowrap; overflow-x: auto; margin-inline: -16px; padding-inline: 16px; }
 .sb-shell-tabs button { flex-shrink: 0; }
-@media (max-width: 599px) { .sb-shell-breadcrumb { max-width: 100px; } .sb-shell-breadcrumb span:not(:first-child) { display: none; } .sb-topbar { gap: 5px; } .sb-shell-tabs { margin-inline: -12px; padding-inline: 12px; } }
+@media (max-width: 599px) { .sb-shell-breadcrumb { display: none; } .sb-topbar { gap: 5px; } .sb-shell-tabs { margin-inline: -12px; padding-inline: 12px; } }

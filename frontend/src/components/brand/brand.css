@@ -1,4 +1,5 @@
-.specmate-brand { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; white-space: nowrap; }
+.specmate-brand { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; white-space: nowrap; color: inherit; text-decoration: none; min-height: 30px; }
+.specmate-brand:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 3px; }
 .specmate-brand .sb-wordmark { letter-spacing: .12em; }
 .specmate-symbol { display: block; flex-shrink: 0; color: var(--sb-accent); }
 @media print { .specmate-symbol { color: currentColor; } }
