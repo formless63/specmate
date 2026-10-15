@@ -45,14 +45,14 @@ function RowDetail({ row }: { row: CheckRow }) {
  * dimensions; expand a row for the declared path chain and every reason. Frozen cables
  * can record the shown check as design evidence pinned to both exact revisions.
  */
-export function IntentCheckPanel({ revisionId = null, draftId = null, intentRevisionId = null }: { revisionId?: string | null; draftId?: string | null; intentRevisionId?: string | null }) {
+export function IntentCheckPanel({ revisionId = null, draftId = null, intentRevisionId = null, checkVersion = null, active = true }: { checkVersion?: string | null; active?: boolean; revisionId?: string | null; draftId?: string | null; intentRevisionId?: string | null }) {
   const recordGate = usePermission("item.create");
   const [open, setOpen] = useState<string | null>(null);
   const [key] = useState(randomUUID);
-  const result = useQuery({ queryKey: ["cable-intent-check", revisionId, draftId, intentRevisionId], queryFn: () => read<IntentCheck>(checkPath({ revisionId, draftId }, intentRevisionId)), enabled: !!intentRevisionId && !!(revisionId || draftId), retry: false });
+  const result = useQuery({ queryKey: ["cable-intent-check", revisionId, draftId, intentRevisionId, checkVersion], queryFn: () => read<IntentCheck>(checkPath({ revisionId, draftId }, intentRevisionId)), enabled: active && !!intentRevisionId && !!(revisionId || draftId), retry: false });
   const record = useMutation({ mutationFn: () => recordCableIntentCheck(revisionId!, result.data!.intent_revision_id, key) });
   if (!intentRevisionId) return <Card withBorder><Stack gap={4}><Title order={4}>Check against intent</Title><Text size="sm" c="dimmed">Pin a cable intent on this cable to check it signal by signal.</Text></Stack></Card>;
-  const data = result.data;
+  const data = result.isError ? undefined : result.data;
   return <Card withBorder aria-label="Check against intent"><Stack gap="xs">
     <Group justify="space-between"><Title order={4}>Check against intent</Title>
       {data && <Text size="xs" c="dimmed">{data.intent_name} r{data.intent_number} · {draftId ? "saved draft" : "frozen revision"} · declared topology, not continuity</Text>}</Group>

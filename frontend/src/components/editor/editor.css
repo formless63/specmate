@@ -1,0 +1,17 @@
+.engineering-editor { min-width: 0; }
+.engineering-editor-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 7px 0; border-bottom: 1px solid var(--sb-border-subtle); }
+.engineering-editor-toolbar h1 { margin: 0; margin-right: auto; }
+.engineering-workbench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 360px); gap: 8px; min-width: 0; padding-top: 8px; }
+.engineering-build { min-width: 0; }
+.engineering-build .cwb-viewport { min-height: min(57vh, 620px); max-height: 72vh; }
+.engineering-inspector { min-width: 0; max-height: calc(100dvh - 145px); overflow: auto; padding: 8px; border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-panel); }
+.engineering-inspector-tabs .mantine-Tabs-list { display: flex; flex-wrap: wrap; }
+.engineering-inspector-tabs .mantine-Tabs-tab { padding: 6px; font-size: 11px; }
+.engineering-inspector-trigger { grid-row: 1; }
+.engineering-issue { display: block; width: 100%; text-align: left; border: 1px solid var(--sb-border-subtle); padding: 6px; background: transparent; color: var(--sb-text-primary); cursor: pointer; font: inherit; font-size: 12px; }
+.engineering-view-unavailable { padding: 28px 8px; }
+@media(max-width: 799px) { .engineering-workbench { grid-template-columns: minmax(0, 1fr); } .engineering-inspector-trigger { grid-row: 1; } }
+
+.engineering-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+.engineering-editor-toolbar h1 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }

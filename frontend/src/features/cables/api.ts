@@ -27,12 +27,12 @@ export class CableOperationError extends Error {
 export const authorityDenied = (error: unknown) => error instanceof CableOperationError && [401, 403, 404].includes(error.status);
 
 // Retain HTTP authority status so the workspace can gate stale source-derived content.
-export async function command<T>(operation: string, payload: object, expectedState?: string): Promise<T> {
+export async function command<T>(operation: string, payload: object, expectedState?: string, idempotencyKey?: string): Promise<T> {
   const csrf = document.cookie.split('; ').find(cookie => cookie.startsWith('csrftoken='))?.split('=')[1];
   const response = await fetch('/api/v0/operations', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(csrf ?? '') },
-    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: randomUUID(), expected_state: expectedState }),
+    body: JSON.stringify({ operation, payload, request_id: randomUUID(), idempotency_key: idempotencyKey ?? randomUUID(), expected_state: expectedState }),
   });
   const body = await response.json();
   if (!response.ok) throw new CableOperationError(apiErrorMessage(body, `Operation failed (${response.status})`), response.status, fieldErrorMap(body));

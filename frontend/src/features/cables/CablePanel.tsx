@@ -163,7 +163,7 @@ function NewCableFromIntent({ projectId, definitions, onUse, onPropose }: { proj
 }
 
 /** Connector bodies of each end's resolved stack, for drawing their faces. */
-function useBodies(stacks: (ResolvedStack | undefined)[]): (Body | null | undefined)[] {
+export function useBodies(stacks: (ResolvedStack | undefined)[]): (Body | null | undefined)[] {
   const ids = stacks.map(s => s?.body_revision_id ?? null);
   const bodies = useQueries({ queries: ids.map(id => ({
     queryKey: ['cable-body', id], queryFn: () => read<InterfaceInspection>(`interfaces/revisions/${id}`), enabled: !!id, retry: false,
@@ -233,7 +233,7 @@ type Sources = ReturnType<typeof useCableSources>;
  * Everything a cable's pinned references resolve to, read under the cable's authority: the stock,
  * every connector/board layer revision and each end's resolved stack. A denial withdraws retained choices.
  */
-function useCableSources(value: Cable, workspaceId: string | null | undefined, onAuthorityChange?: (denied: boolean) => void) {
+export function useCableSources(value: Cable, workspaceId: string | null | undefined, onAuthorityChange?: (denied: boolean) => void) {
   const stock = useQuery({ queryKey: ['cable-stock', value.stock_revision_id], queryFn: () => loadFrozenStock(value.stock_revision_id), enabled: !!value.stock_revision_id });
   const references = [...new Map(value.endpoints.flatMap(endpoint => (endpoint.stack?.layers ?? []).flatMap(layer =>
     layer.kind === 'connector' ? [{ key: 'cable-body', id: layer.body_revision_id }] : layer.kind === 'board' ? [{ key: 'cable-board', id: layer.board_revision_id }] : [],
@@ -258,7 +258,7 @@ function useCableSources(value: Cable, workspaceId: string | null | undefined, o
 }
 
 /** The whole-cable fields: stock, intent, connector family filter, lengths and review. */
-function CableFields({ value, onChange, definitions, sources, errors = {} }: { value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; sources: Sources; errors?: Record<string, string> }) {
+export function CableFields({ value, onChange, definitions, sources, errors = {}, showReview = true }: { showReview?: boolean; value: Cable; onChange: (value: Cable) => void; definitions: Definition[]; sources: Sources; errors?: Record<string, string> }) {
   const setStock = useCallback((stock_revision_id: string) => onChange({ ...value, stock_revision_id }), [onChange, value]);
   const { stock, denied, choices, families, family, familyFromPreference, chooseFamily } = sources;
   return <Stack gap="sm">
@@ -276,11 +276,11 @@ function CableFields({ value, onChange, definitions, sources, errors = {} }: { v
     {families.length > 0 && <Group align="flex-end" gap="xs"><Select label="Connector family filter" description="Narrows connector body choices by name." clearable data={families} value={family} onChange={chooseFamily} />
       {familyFromPreference && family !== null && <FromPreference what="connector family filter" onClear={() => chooseFamily(null)} />}</Group>}
     {!denied && <LengthsEditor value={value.lengths} onChange={lengths => onChange({ ...value, lengths })} choices={choices} endpoints={value.endpoints.map(e => e.local_id)} />}
-    <Stack gap="xs" aria-label="Review">
+    {showReview && <Stack gap="xs" aria-label="Review">
       <Title order={4}>Review</Title>
       <Select label="Review status" data={['unreviewed', 'reviewed']} value={value.review} onChange={review => onChange({ ...value, review: review as Cable['review'] })} />
       <TextInput label="Review basis" description="Required once reviewed." value={value.review_basis ?? ''} onChange={event => onChange({ ...value, review_basis: event.currentTarget.value || null })} />
-    </Stack>
+    </Stack>}
   </Stack>;
 }
 
@@ -298,7 +298,7 @@ const HIDDEN_LABEL = { position: 'absolute', width: 1, height: 1, overflow: 'hid
 const DEFAULT_NOTE = 'Declared in the cable editor';
 const letter = (index: number) => String.fromCharCode(65 + index);
 const STOCK_ENDS = [{ value: 'unknown', label: 'Stock end unknown' }, { value: 'a', label: 'Stock end A' }, { value: 'b', label: 'Stock end B' }];
-function EndCard({ index, value, onChange, errors, family, definitions, choices, denied, resolved }: { index: number; value: Cable; onChange: (value: Cable) => void; errors: Record<string, string>; family: string | null; definitions: Definition[]; choices: Choice[]; denied: boolean; resolved: UseQueryResult<ResolvedStack> }) {
+export function EndCard({ index, value, onChange, errors, family, definitions, choices, denied, resolved }: { index: number; value: Cable; onChange: (value: Cable) => void; errors: Record<string, string>; family: string | null; definitions: Definition[]; choices: Choice[]; denied: boolean; resolved: UseQueryResult<ResolvedStack> }) {
   const endpoint = value.endpoints[index]!;
   const [showId, setShowId] = useState(false);
   const [showLayers, setShowLayers] = useState(false);

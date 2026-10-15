@@ -94,7 +94,7 @@ function LandingEditor({ cable, endpointId, path, resolved, onChange, armed, onA
     </Group>
     <InspectionScope permission="design.edit">
       <Select size="xs" clearable searchable label={`${name} target`} placeholder="unassigned" disabled={!resolved} data={[...groups, ...stale]}
-        value={current ? terminalKey(current) : null} onChange={(target) => onChange(assignLanding(cable, endpointId, path, target ? splitKey(target) : null, note))} />
+        value={current ? terminalKey(current) : null} onChange={(target) => { onChange(assignLanding(cable, endpointId, path, target ? splitKey(target) : null, note)); onArm(false); }} />
       <TextInput size="xs" label={`${name} termination basis`} placeholder={DEFAULT_NOTE} value={current ? current.basis : note}
         onChange={(event) => { const text = event.currentTarget.value; if (current) onChange({ ...cable, assignments: cable.assignments.map((a) => a === current ? { ...a, basis: text } : a) }); else setNote(text); }} />
     </InspectionScope>

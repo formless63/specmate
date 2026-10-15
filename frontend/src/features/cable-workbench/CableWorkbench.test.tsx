@@ -110,3 +110,23 @@ test("signal tiles are keyboard-navigable: arrows move focus, Enter probes", asy
   // The frozen view keeps Check against intent, disabled only for want of a pinned intent.
   expect(screen.getByRole("button", { name: "Check against intent" })).toBeTruthy();
 });
+
+test("record Signals withdraws successful rows and intent metadata when current access fails", async () => {
+  let denied = false;
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("intent-check")
+    ? denied ? new Response(JSON.stringify({ error: { message: "Check access withdrawn" } }), { status: 403 })
+      : new Response(JSON.stringify(check([row("video", "pass", [])])), { status: 200 })
+    : new Response("{}", { status: 200 })));
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={cache}>{bench({ editor: { dirty: false, notes: <div>Notes</div> } })}</QueryClientProvider></MantineProvider>);
+  fireEvent.click(screen.getByRole("tab", { name: "Signals" }));
+  await screen.findByRole("table", { name: "Intent check rows" });
+  expect(screen.getByText(/Synthetic intent r1/)).toBeTruthy();
+  denied = true;
+  await cache.invalidateQueries({ queryKey: ["cable-intent-check"] });
+  await waitFor(() => expect(screen.queryByRole("table", { name: "Intent check rows" })).toBeNull());
+  expect(screen.queryByText(/Synthetic intent r1/)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Video: pass" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Record this check as evidence" })).toBeNull();
+  expect(await screen.findByText("Check access withdrawn")).toBeTruthy();
+});

@@ -17,6 +17,9 @@ import { CableDrawing } from "./CableDrawing";
 import { STOCK_KEY, assignLanding, indexCheck, layoutDrawing, proposedKey, rowKey, splitTermKey, wireKey, type DrawingInput } from "./model";
 import { FAMILY_LABELS, STATUS_WORDS, familyColor, signalFamily, type SignalFamily } from "./palette";
 import { physicalGraph, relatedKeys } from "./relations";
+import { EditorInspector, type InspectorTab } from "../../components/editor";
+import { IntentCheckPanel } from "../intent-check/IntentCheckPanel";
+import { cableIssues } from "./issues";
 import { ProbeDetails } from "./WorkbenchInspector";
 import { landingWords } from "./chips";
 import "./cable-workbench.css";
@@ -44,6 +47,8 @@ export type WorkbenchProps = {
   /** Writes accepted proposal rows (draft update, or the new cable's value). */
   onAccept?: (cable: Cable) => Promise<void> | void;
   details?: ReactNode;
+  /** Record-hosted editor; the same drawing also serves smaller read-only embeds. */
+  editor?: { dirty: boolean; notes: ReactNode; recipe?: ReactNode; active?: boolean; onStatus?: (count: number, failed: boolean) => void };
 };
 
 type Tab = "probe" | "cable" | `end:${string}`;
@@ -77,20 +82,23 @@ export function CableWorkbench(props: WorkbenchProps) {
   const { mode, name, cable, onChange, stacks, bodies, stock, conductors, draftId = null, revisionId = null } = props;
   const editable = !!onChange;
   const edit = usePermission("design.edit");
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("issues");
   const [selection, setSelection] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(mode === "new" ? "cable" : "probe");
   const [armed, setArmed] = useState<{ endpointId: string; path: string } | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
   const [decided, setDecided] = useState<Set<string>>(new Set());
 
+  useEffect(() => { if (!editable || mode === "frozen") setArmed(null); }, [editable, mode]);
+
   const intentId = cable.intent_revision_id ?? null;
   const target = revisionId ? { revisionId } : draftId ? { draftId } : null;
   const check = useQuery({
     queryKey: ["cable-intent-check", revisionId, draftId, intentId, props.checkVersion ?? null],
     queryFn: () => read<IntentCheck>(checkPath(target!, intentId)),
-    enabled: !!intentId && !!target, retry: false,
+    enabled: !!intentId && !!target && props.editor?.active !== false, retry: false,
   });
-  const checkData = intentId && !check.isError ? check.data ?? null : null;
+  const checkData = intentId && !check.isError && !props.editor?.dirty ? check.data ?? null : null;
 
   const proposal = useMutation({
     mutationFn: () => requestProposal(draftId
@@ -98,7 +106,7 @@ export function CableWorkbench(props: WorkbenchProps) {
       : { intent_revision_id: intentId, stock_revision_id: cable.stock_revision_id, from_end: endChoice(cable, 0), to_end: endChoice(cable, 1) }),
     onSuccess: () => setDecided(new Set()),
   });
-  const canPropose = !!intentId && mode !== "frozen" && (!!draftId || (!!cable.stock_revision_id && !!endChoice(cable, 0) && !!endChoice(cable, 1)));
+  const canPropose = !check.isError && !!intentId && mode !== "frozen" && (!!draftId || (!!cable.stock_revision_id && !!endChoice(cable, 0) && !!endChoice(cable, 1)));
   const accept = useMutation({
     mutationFn: async (rowId: string) => { await props.onAccept?.(acceptRows(cable, proposal.data!, new Set([rowId]))); return rowId; },
     onSuccess: (rowId) => setDecided((current) => new Set([...current, rowId])),
@@ -106,7 +114,7 @@ export function CableWorkbench(props: WorkbenchProps) {
   const changes = new Map((proposal.data?.diff ?? []).map((d) => [`${d.endpoint_id}\u0000${d.element_path}`, d.change]));
   const pendingRows = (proposal.data?.rows ?? []).filter((row) => row.status === "proposed" && row.assignments.length > 0 && !decided.has(row.row_id)
     && row.assignments.some((a) => changes.get(`${a.endpoint_id}\u0000${a.element_path}`) !== "same"));
-  const shownProposal: Pick<Proposal, "rows" | "diff"> | null = proposal.data ? { rows: pendingRows, diff: proposal.data.diff } : null;
+  const shownProposal: Pick<Proposal, "rows" | "diff"> | null = proposal.data && !check.isError ? { rows: pendingRows, diff: proposal.data.diff } : null;
 
   const faces = useMemo(() => (bodies ?? []).map((body) => (body ? faceForBody(body) : null)), [bodies]);
   const drawing = useMemo(() => layoutDrawing({ cable, stacks, stock, conductors, check: checkData, proposal: shownProposal, faces }),
@@ -126,6 +134,7 @@ export function CableWorkbench(props: WorkbenchProps) {
   const select = (key: string | null) => {
     setSelection(key);
     if (!key) return;
+    if (props.editor) setInspectorTab(key.startsWith("e:") || key.startsWith("p:") ? "part" : key === STOCK_KEY ? "recipe" : "connection");
     if (key.startsWith("e:")) setTab(`end:${key.slice(2)}`);
     else if (key === STOCK_KEY) setTab("cable");
     else setTab("probe");
@@ -149,6 +158,80 @@ export function CableWorkbench(props: WorkbenchProps) {
   const tabs = [{ value: "probe", label: "Probe" }, { value: "cable", label: "Cable" },
     ...cable.endpoints.map((e, i) => ({ value: `end:${e.local_id}`, label: `End ${String.fromCharCode(65 + i)}` }))];
 
+  const stage = <>
+      <div className="cwb-stage">
+        <div className="cwb-viewport">
+          <CableDrawing drawing={drawing} lit={lit} selection={selection} onSelect={select} armedEnd={armed?.endpointId ?? null} onLand={land}
+            section={section} lengthText={length ? `${length.text} ${length.kind}` : null} showStatus={!!checkData} zoom={zoom}
+            onDragArm={editable && mode !== "frozen" ? setArmed : undefined}
+            onDragLanding={editable && mode !== "frozen" ? (endpointId, path, terminal) => {
+              const at = splitTermKey(terminal);
+              if (at && at.endpointId === endpointId) onChange?.(assignLanding(cable, endpointId, path, { layer_id: at.layerId, terminal_id: at.terminalId }));
+              setSelection(wireKey(path)); setInspectorTab("connection");
+            } : undefined}
+            title={`Cable drawing of ${name}: End A stack, stock and End B stack. Click a wire, pin, pad or part to probe it.`} />
+        </div>
+        {armed && <div className="cwb-armed" role="status">Choose where {armed.path} lands at {armedEndName}: click a pad, pin or lead of that end. <Button size="compact-xs" variant="default" onClick={() => setArmed(null)}>Cancel</Button></div>}
+        <div className="cwb-legend" aria-label="Legend">
+          {checkData && <>
+            <span><span className="sb-led" data-state="pass" aria-hidden="true" />pass</span>
+            <span><span className="sb-led" data-state="failed" aria-hidden="true" />fail</span>
+            <span><span className="sb-led" data-state="unknown" aria-hidden="true" />unknown</span>
+            <span><span className="sb-led" data-state="not-evaluated" aria-hidden="true" />not evaluated</span>
+          </>}
+          {pendingRows.length > 0 && <span><svg width="18" height="6" aria-hidden="true"><line x1="0" y1="3" x2="18" y2="3" className="cwb-proposal-line" /></svg>proposed</span>}
+          {families.map((f) => <span key={f}><span className="cwb-swatch" style={{ background: familyColor(f) }} aria-hidden="true" />{FAMILY_LABELS[f]}</span>)}
+          <span><span className="cwb-swatch sb-hatch" aria-hidden="true" />not recorded</span>
+          <div className="cwb-stage-tools" role="group" aria-label="Drawing zoom">
+          <ActionIcon size="sm" variant="default" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, Math.round(((z ?? 0.8) - 0.2) * 10) / 10))}>−</ActionIcon>
+          <Button size="compact-xs" variant={zoom === null ? "primary" : "default"} onClick={() => setZoom(null)}>Fit</Button>
+          <ActionIcon size="sm" variant="default" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(2.5, Math.round(((z ?? 0.8) + 0.2) * 10) / 10))}>+</ActionIcon>
+        </div>
+        </div>
+      </div>
+  </>;
+  const proposalView = <>
+      {proposal.isError && <Alert color="red">{proposal.error.message}</Alert>}
+      {check.isError && intentId && <Alert color="orange">{check.error.message}</Alert>}
+      {proposal.data && !check.isError && <section className="cwb-proposals" aria-label="Proposed wiring">
+        <Group justify="space-between" gap="xs"><Text fw={600} size="sm">Proposed wiring</Text>
+          <Text size="xs" c="dimmed">{pendingRows.length ? `${pendingRows.length} row${pendingRows.length === 1 ? " differs" : "s differ"} from the ${mode === "draft" ? "draft" : "cable"}. Nothing is saved until you accept.` : "Every proposed row matches or was decided."}</Text></Group>
+        {proposal.data.questions.length > 0 && <Alert color="yellow" title={`${proposal.data.questions.length} question${proposal.data.questions.length === 1 ? "" : "s"}`}>
+          <Stack gap={2}>{proposal.data.questions.map((q, i) => <Text key={i} size="xs">{q.row_id}: {q.text}{q.options ? ` Options: ${q.options.join(", ")}.` : ""}</Text>)}</Stack></Alert>}
+        {pendingRows.map((row) => <div key={row.row_id} className="cwb-proposal-row" data-selected={selection === proposedKey(row.row_id) || undefined}>
+          <UnstyledButton onClick={() => select(proposedKey(row.row_id))} style={{ minWidth: 0 }}>
+            <Text size="xs" fw={600} className="sb-mono">{row.row_id}</Text>
+            {row.assignments.map((a) => <Text key={`${a.endpoint_id}${a.element_path}`} size="xs" title={`${a.element_path} → ${a.layer_id} ${a.terminal_id}`}>End {a.endpoint_id.toUpperCase()}: {landingWords(drawing, a)}</Text>)}
+            {row.reason && <Text size="xs" c="dimmed">{row.reason}</Text>}
+          </UnstyledButton>
+          <Group gap={4} wrap="nowrap">
+            <Button size="compact-xs" {...edit.props} disabled={!props.onAccept || edit.props.disabled} loading={accept.isPending && accept.variables === row.row_id} onClick={() => accept.mutate(row.row_id)}>Accept {row.row_id}</Button>
+            <Button size="compact-xs" variant="default" onClick={() => setDecided((current) => new Set([...current, row.row_id]))}>Reject</Button>
+          </Group>
+        </div>)}
+        {accept.isError && <Alert color="red">{accept.error.message}</Alert>}
+        <ReadOnlyNote permission="design.edit">Accepting into a draft is unavailable.</ReadOnlyNote>
+      </section>}
+  </>;
+  const issues = cableIssues(cable, drawing, checkData, !!props.editor?.dirty, check.isError, stock);
+  const failed = issues.some(issue => issue.state === "fail");
+  useEffect(() => { props.editor?.onStatus?.(issues.length, failed); }, [issues.length, failed, props.editor?.onStatus]);
+  if (props.editor) {
+    const endIndex = selection?.startsWith("e:") ? cable.endpoints.findIndex(end => end.local_id === selection.slice(2)) : -1;
+    return <div className="engineering-workbench" data-mode={mode}>
+      <div className="engineering-build">{props.notices}{stage}</div>
+      <EditorInspector active={props.editor.active} tab={inspectorTab} onTab={setInspectorTab} issueCount={issues.length} tabs={{
+        issues: <Stack gap={6}><Text size="xs" c="dimmed">Declared landings, stock geometry and the applicable saved intent check. Measured continuity and physical qualification are not evaluated.</Text>{issues.length ? issues.map(issue => <button key={issue.key} type="button" className="engineering-issue" data-state={issue.state} onClick={() => { if (issue.selection) select(issue.selection); }}><span className="sb-led" data-state={issue.state === "fail" ? "failed" : issue.state === "unknown" ? "unknown" : "not-evaluated"} aria-hidden="true" /> {issue.text}</button>) : <Text size="sm">No issues found by the completed applicable checks. Physical qualification is not evaluated.</Text>}</Stack>,
+        connection: <ProbeDetails drawing={drawing} selection={selection} onSelect={select} cable={cable} stacks={stacks} check={checkData} index={index}
+          onChange={editable && mode !== "frozen" ? onChange : undefined} armed={armed} onArm={setArmed} proposalRows={pendingRows} />,
+        part: <Stack gap="xs"><Group>{cable.endpoints.map((end, index) => <Button key={end.local_id} size="compact-xs" variant="quiet" onClick={() => select(`e:${end.local_id}`)}>End {String.fromCharCode(65 + index)}</Button>)}</Group>
+          {endIndex >= 0 ? props.endForms?.[endIndex] ?? <Text size="sm">This end is read-only. Its exact stack is drawn.</Text> : <ProbeDetails drawing={drawing} selection={selection} onSelect={select} cable={cable} stacks={stacks} check={checkData} index={index} armed={null} onArm={() => {}} proposalRows={[]} />}</Stack>,
+        signals: <Stack gap="xs">{props.editor.dirty && <Alert color="yellow">The check below describes the saved draft. Unsaved working changes have not been checked.</Alert>}<SignalStrip drawing={drawing} checkRows={!check.isError ? check.data?.rows ?? [] : []} lit={lit} selection={selection} onSelect={select} /><IntentCheckPanel revisionId={revisionId} draftId={draftId} intentRevisionId={intentId} checkVersion={props.checkVersion} active={props.editor.active} /></Stack>,
+        notes: props.editor.notes,
+        recipe: <Stack gap="sm">{props.editor.recipe ?? props.cableForm}<Group><Button size="xs" disabled={!canPropose || (mode === "draft" && props.editor.dirty)} loading={proposal.isPending} onClick={() => proposal.mutate()}>Propose wiring</Button></Group>{proposalView}</Stack>,
+      }} />
+    </div>;
+  }
   return <div className="cwb" data-mode={mode}>
     <div className="cwb-main">
       <div className="cwb-titlebar">
@@ -176,52 +259,9 @@ export function CableWorkbench(props: WorkbenchProps) {
         </Cell>)}
         <Cell label="Revision" testId="cell-revision" sub={props.revision.sub}>{props.revision.value}</Cell>
       </dl>
-      <div className="cwb-stage">
-        <div className="cwb-viewport">
-          <CableDrawing drawing={drawing} lit={lit} selection={selection} onSelect={select} armedEnd={armed?.endpointId ?? null} onLand={land}
-            section={section} lengthText={length ? `${length.text} ${length.kind}` : null} showStatus={!!checkData} zoom={zoom}
-            title={`Cable drawing of ${name}: End A stack, stock and End B stack. Click a wire, pin, pad or part to probe it.`} />
-        </div>
-        {armed && <div className="cwb-armed" role="status">Choose where {armed.path} lands at {armedEndName}: click a pad, pin or lead of that end. <Button size="compact-xs" variant="default" onClick={() => setArmed(null)}>Cancel</Button></div>}
-        <div className="cwb-legend" aria-label="Legend">
-          {checkData && <>
-            <span><span className="sb-led" data-state="pass" aria-hidden="true" />pass</span>
-            <span><span className="sb-led" data-state="failed" aria-hidden="true" />fail</span>
-            <span><span className="sb-led" data-state="unknown" aria-hidden="true" />unknown</span>
-            <span><span className="sb-led" data-state="not-evaluated" aria-hidden="true" />not evaluated</span>
-          </>}
-          {pendingRows.length > 0 && <span><svg width="18" height="6" aria-hidden="true"><line x1="0" y1="3" x2="18" y2="3" className="cwb-proposal-line" /></svg>proposed</span>}
-          {families.map((f) => <span key={f}><span className="cwb-swatch" style={{ background: familyColor(f) }} aria-hidden="true" />{FAMILY_LABELS[f]}</span>)}
-          <span><span className="cwb-swatch sb-hatch" aria-hidden="true" />not recorded</span>
-          <div className="cwb-stage-tools" role="group" aria-label="Drawing zoom">
-          <ActionIcon size="sm" variant="default" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.5, Math.round(((z ?? 0.8) - 0.2) * 10) / 10))}>−</ActionIcon>
-          <Button size="compact-xs" variant={zoom === null ? "primary" : "default"} onClick={() => setZoom(null)}>Fit</Button>
-          <ActionIcon size="sm" variant="default" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(2.5, Math.round(((z ?? 0.8) + 0.2) * 10) / 10))}>+</ActionIcon>
-        </div>
-        </div>
-      </div>
+      {stage}
       <SignalStrip drawing={drawing} checkRows={rows} lit={lit} selection={selection} onSelect={select} />
-      {proposal.isError && <Alert color="red">{proposal.error.message}</Alert>}
-      {check.isError && intentId && <Alert color="orange">{check.error.message}</Alert>}
-      {proposal.data && <section className="cwb-proposals" aria-label="Proposed wiring">
-        <Group justify="space-between" gap="xs"><Text fw={600} size="sm">Proposed wiring</Text>
-          <Text size="xs" c="dimmed">{pendingRows.length ? `${pendingRows.length} row${pendingRows.length === 1 ? " differs" : "s differ"} from the ${mode === "draft" ? "draft" : "cable"}. Nothing is saved until you accept.` : "Every proposed row matches or was decided."}</Text></Group>
-        {proposal.data.questions.length > 0 && <Alert color="yellow" title={`${proposal.data.questions.length} question${proposal.data.questions.length === 1 ? "" : "s"}`}>
-          <Stack gap={2}>{proposal.data.questions.map((q, i) => <Text key={i} size="xs">{q.row_id}: {q.text}{q.options ? ` Options: ${q.options.join(", ")}.` : ""}</Text>)}</Stack></Alert>}
-        {pendingRows.map((row) => <div key={row.row_id} className="cwb-proposal-row" data-selected={selection === proposedKey(row.row_id) || undefined}>
-          <UnstyledButton onClick={() => select(proposedKey(row.row_id))} style={{ minWidth: 0 }}>
-            <Text size="xs" fw={600} className="sb-mono">{row.row_id}</Text>
-            {row.assignments.map((a) => <Text key={`${a.endpoint_id}${a.element_path}`} size="xs" title={`${a.element_path} → ${a.layer_id} ${a.terminal_id}`}>End {a.endpoint_id.toUpperCase()}: {landingWords(drawing, a)}</Text>)}
-            {row.reason && <Text size="xs" c="dimmed">{row.reason}</Text>}
-          </UnstyledButton>
-          <Group gap={4} wrap="nowrap">
-            <Button size="compact-xs" {...edit.props} disabled={!props.onAccept || edit.props.disabled} loading={accept.isPending && accept.variables === row.row_id} onClick={() => accept.mutate(row.row_id)}>Accept {row.row_id}</Button>
-            <Button size="compact-xs" variant="default" onClick={() => setDecided((current) => new Set([...current, row.row_id]))}>Reject</Button>
-          </Group>
-        </div>)}
-        {accept.isError && <Alert color="red">{accept.error.message}</Alert>}
-        <ReadOnlyNote permission="design.edit">Accepting into a draft is unavailable.</ReadOnlyNote>
-      </section>}
+      {proposalView}
       {props.details}
     </div>
     <aside className="cwb-inspector" aria-label="Inspector">

@@ -129,3 +129,7 @@
 .cwb-probe-head h3 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .cwb-facts { display: flex; flex-wrap: wrap; gap: 4px; }
 .cwb-land { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px; border: 1px solid var(--sb-border-subtle); }
+
+.cwb-drag-handle { fill: var(--sb-surface-panel); stroke: var(--sb-accent); stroke-width: 1.5; cursor: grab; }
+.cwb-drag-handle:active { cursor: grabbing; }
+.cwb-drag-preview { fill: none; stroke: var(--sb-accent); stroke-width: 3; stroke-dasharray: 5 3; }

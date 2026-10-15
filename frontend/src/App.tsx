@@ -49,6 +49,7 @@ const PreferencesPanel = lazy(() => import("./features/preferences/PreferencesPa
 const DiscoveryPanel = lazy(() => import("./features/discovery/DiscoveryPanel").then((module) => ({ default: module.DiscoveryPanel })));
 const PhysicalUnitsPanel = lazy(() => import("./features/physical-units/PhysicalUnitsPanel").then((module) => ({ default: module.PhysicalUnitsPanel })));
 const BomPanel = lazy(() => import("./features/bom/BomPanel").then((module) => ({ default: module.BomPanel })));
+const CableRecordHost = lazy(() => import("./features/cables/CableRecordEditor").then(module => ({ default: module.CableRecordHost })));
 const CablePanel = lazy(() => import("./features/cables/CablePanel").then((module) => ({ default: module.CablePanel })));
 const MatchingWorkspace = lazy(() => import("./features/catalog-matching/MatchingWorkspace").then((module) => ({ default: module.MatchingWorkspace })));
 const CatalogPacksWorkspace = lazy(() => import("./features/catalog-packs/CatalogPacksWorkspace").then((module) => ({ default: module.CatalogPacksWorkspace })));
@@ -226,7 +227,8 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
-  if (["cables", "harnesses", "assemblies"].includes(toolId)) return <Stack>
+  if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
+  if (["harnesses", "assemblies"].includes(toolId)) return <Stack>
     {record && ["cable", "harness"].includes(record.kind ?? "") && toolForKind(record.kind) === toolId && <SelectedDefinitionViews key={record.record_id} record={record} />}
     <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />
   </Stack>;
@@ -304,7 +306,7 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
     case "assemblies": return <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />;
     case "interfaces": return <Stack><InterfacePanel projectId={projectId} /><InterfaceAssessmentPanel projectId={projectId} principalKey={principalKey} active={active === "interfaces"} /></Stack>;
-    case "cables": return <CablePanel projectId={projectId} workspaceId={workspaceId} />;
+    case "cables": return <CablePanel projectId={null} workspaceId={workspaceId} />;
     case "harnesses": return <HarnessPanel projectId={projectId} />;
     case "passive-passages": return <PassivePassagesWorkspace projectId={projectId} />;
     // Board pads and paths edit "board" rows; intake and populations follow.

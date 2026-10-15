@@ -1,4 +1,4 @@
-import { useId, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { edgeColor, mixHex, renderSectionSvg, type Section } from "../../../../packages/section-layout/src";
 import { LAYER_LABELS } from "../end-assemblies/api";
 import { ConnectorFace, type ConnectorFacePin, type PinState } from "../../../../packages/connector-art/src";
@@ -22,6 +22,8 @@ export type DrawingProps = {
   /** Scale of the drawing; null fits the box width (never narrower than a readable minimum). */
   zoom?: number | null;
   title: string;
+  onDragLanding?: (endpointId: string, path: string, terminalKey: string) => void;
+  onDragArm?: (value: { endpointId: string; path: string } | null) => void;
 };
 
 const truncate = (text: string, chars: number) => (text.length > chars ? `${text.slice(0, Math.max(1, chars - 1))}…` : text);
@@ -66,7 +68,21 @@ function terminalTitle(t: DrawnTerminal): string {
  * curve from its End A landing to its End B landing, End B's stack. Selection dims everything
  * not related to the probe; proposed landings are dashed.
  */
-export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = null, onLand, section, lengthText, showStatus = false, zoom = null, title }: DrawingProps) {
+export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = null, onLand, section, lengthText, showStatus = false, zoom = null, title, onDragLanding, onDragArm }: DrawingProps) {
+  const [drag, setDrag] = useState<{ endpointId: string; path: string; pointerId: number; start: { x: number; y: number }; point: { x: number; y: number } } | null>(null);
+  const cancelDrag = () => { setDrag(null); onDragArm?.(null); };
+  useEffect(() => {
+    if (!drag) return;
+    const cancel = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); cancelDrag(); } };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [drag]);
+  const pointAt = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const matrix = event.currentTarget.getScreenCTM?.();
+    if (matrix) { const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()); return { x: point.x, y: point.y }; }
+    const rect = event.currentTarget.getBoundingClientRect();
+    return { x: (event.clientX - rect.left) * (rect.width ? drawing.width / rect.width : 1), y: (event.clientY - rect.top) * (rect.height ? drawing.height / rect.height : 1) };
+  };
   const clipId = `cwb-callout-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const dim = (key: string) => (armedEnd ? undefined : lit && !lit.has(key) ? true : undefined);
   const { stock, bodyTop, bodyHeight } = drawing;
@@ -116,6 +132,20 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
       {w.look?.stripe && <path d={w.d} style={{ stroke: w.look.stripe }} strokeWidth={width * 0.45} strokeDasharray="6 6" className="cwb-wire-core" />}
       {w.open.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3} className="cwb-open" style={{ fill: "url(#cwb-hatch)" }}><title>Not landed at this end</title></circle>)}
       {showStatus && w.status && w.b && <StatusMark x={w.b.x + (w.b.x > stock.jacketX1 ? -10 : 10)} y={w.b.y - 6} status={w.status} />}
+      {onDragLanding && drawing.ends.slice(0, 2).map((end, index) => {
+        const point = index === 0 ? w.a : w.b;
+        return point ? <circle key={end.endpointId} cx={point.x} cy={point.y} r={6} className="cwb-drag-handle" role="button" tabIndex={0}
+          aria-label={`Move ${w.display} landing at ${end.label}`} style={{ touchAction: "none" }}
+          onClick={event => event.stopPropagation()}
+          onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); onSelect(w.key); onDragArm?.({ endpointId: end.endpointId, path: w.path }); } }}
+          onPointerDown={event => {
+            if (event.button !== 0) return;
+            event.preventDefault(); event.stopPropagation();
+            event.currentTarget.ownerSVGElement?.setPointerCapture?.(event.pointerId);
+            setDrag({ endpointId: end.endpointId, path: w.path, pointerId: event.pointerId, start: point, point });
+            onSelect(w.key); onDragArm?.({ endpointId: end.endpointId, path: w.path });
+          }}><title>Drag to a terminal of this end, or press Enter and choose a landing target. Escape cancels.</title></circle> : null;
+      })}
       <title>{`${w.display}${signal}`}</title>
     </g>;
   };
@@ -190,7 +220,17 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
 
   const size = zoom === null ? { width: "100%", style: { minWidth: 720, height: "auto" } } : { width: drawing.width * zoom, height: drawing.height * zoom };
   return <svg className="cwb-drawing" viewBox={`0 0 ${drawing.width} ${drawing.height}`} {...size}
-    role="group" aria-label={title} onClick={() => onSelect(null)}>
+    role="group" aria-label={title} onClick={() => onSelect(null)}
+    onPointerMove={event => { if (drag && event.pointerId === drag.pointerId) setDrag({ ...drag, point: pointAt(event) }); }}
+    onPointerUp={event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const point = pointAt(event);
+      const target = [...drawing.terminals.values()].filter(terminal => terminal.endpointId === drag.endpointId && terminal.layerKind !== "unknown")
+        .map(terminal => ({ terminal, distance: Math.hypot(terminal.x - point.x, terminal.y - point.y) }))
+        .sort((a, b) => a.distance - b.distance)[0];
+      if (target && target.distance <= Math.max(12, target.terminal.halfWidth + 6)) onDragLanding?.(drag.endpointId, drag.path, target.terminal.key);
+      cancelDrag();
+    }} onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}>
     <defs>
       <pattern id="cwb-hatch" width={4} height={4} patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={4} className="cwb-hatch-line" /></pattern>
       <linearGradient id="cwb-jacket" x1={0} y1={0} x2={0} y2={1}>
@@ -237,5 +277,6 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
       <title>{`Proposed ${p.change}: ${p.path} → ${p.terminalLabel}`}</title>
     </g>)}
     {drawing.extraEnds > 0 && <text x={drawing.width - 14} y={drawing.height - 6} textAnchor="end" className="cwb-silk">{`${drawing.extraEnds} MORE END${drawing.extraEnds === 1 ? "" : "S"} NOT DRAWN`}</text>}
+    {drag && <path d={`M${drag.start.x} ${drag.start.y} L${drag.point.x} ${drag.point.y}`} className="cwb-drag-preview" pointerEvents="none" />}
   </svg>;
 }

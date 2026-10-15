@@ -15,6 +15,10 @@ vi.mock("../cables/CablePanel", async () => {
     return <input aria-label="Working cable name" value={name} onChange={event => setName(event.currentTarget.value)} />;
   } };
 });
+vi.mock("../cables/CableRecordEditor", async () => {
+  const { useState } = await import("react");
+  return { CableRecordHost: () => { const [name, setName] = useState(""); return <><div>Selected frozen drawing</div><input aria-label="Working cable name" value={name} onChange={event => setName(event.currentTarget.value)} /></>; } };
+});
 vi.mock("../cable-views/SelectedDefinitionViews", () => ({ SelectedDefinitionViews: () => <div>Selected frozen drawing</div> }));
 vi.mock("../designs/DesignList", () => ({ DesignList: ({ onOpen, onCreate }: { onOpen: (item: LibraryRecord) => void; onCreate: (kind: "cable") => void }) => <>
   <button onClick={() => onOpen(record("c1", "Synthetic lead", { kind: "cable" }))}>Open existing cable</button>
@@ -40,6 +44,7 @@ test("new design uses a separate retained form and cannot overwrite open record 
   fireEvent.change(name(), { target: { value: "Existing unsaved edits" } });
   designs(); fireEvent.click(screen.getByRole("button", { name: "New cable" }));
   await waitFor(() => expect(window.location.pathname).toBe("/designs/new"));
+  await screen.findByRole("textbox", { name: "Working cable name" });
   expect(name().value).toBe(""); fireEvent.change(name(), { target: { value: "New form edits" } });
   designs(); fireEvent.click(screen.getByRole("button", { name: "New cable" }));
   fireEvent.click(await screen.findByRole("button", { name: "Keep existing form" }));
