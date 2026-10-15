@@ -119,17 +119,8 @@ def connector_relations(user, revision_id: UUID, query: RelatedQuery):
         row.id: parse_content(json.loads(bytes(row.snapshot.canonical))["content"], "pinout")
         for row in Revision.objects.filter(id__in=pinout_ids).select_related("snapshot")
     }
-    ours = {
-        str(value)
-        for value in Revision.objects.filter(definition_id=selected.definition_id).values_list(
-            "id", flat=True
-        )
-    }
-    results = []
-    scanned = 0
-    for row in batch:
-        scanned += 1
-        value = values.get(row.id)
+    direct_pins = {}
+    for rid, value in values.items():
         pins = []
         if isinstance(value, Pinout):
             pins = [value.body_revision_id]
@@ -141,7 +132,19 @@ def connector_relations(user, revision_id: UUID, query: RelatedQuery):
             pins = [
                 layer.body_revision_id for layer in value.stack.layers if layer.kind == "connector"
             ]
-        pins = sorted({str(pin) for pin in pins if str(pin) in ours})
+        direct_pins[rid] = set(pins)
+    candidate_pins = {pin for pins in direct_pins.values() for pin in pins}
+    ours = {
+        str(value)
+        for value in Revision.objects.filter(
+            definition_id=selected.definition_id, id__in=candidate_pins
+        ).values_list("id", flat=True)
+    }
+    results = []
+    scanned = 0
+    for row in batch:
+        scanned += 1
+        pins = sorted(str(pin) for pin in direct_pins.get(row.id, ()) if str(pin) in ours)
         if not pins:
             continue  # A transitive mating dependency is not a direct body association.
         results.append(

@@ -261,3 +261,26 @@ def test_transitive_mating_dependency_is_not_a_direct_body_relation(users, works
     pins = variant(owner, workspace, other)
     assert relation(owner, body)["results"] == []
     assert relation(owner, other)["results"][0]["revision_id"] == pins["revision_id"]
+
+
+def test_body_membership_lookup_reads_only_bounded_direct_pins_not_body_history(users, workspace):
+    owner = users["owner"]
+    created = create(owner, workspace)
+    body = freeze(owner, created)
+    selected = body
+    for _ in range(8):
+        selected = freeze(owner, selected["draft"])
+    pins = variant(owner, workspace, body)
+    with CaptureQueriesContext(connection) as queries:
+        page = relation(users["viewer"], selected)
+    assert page["results"][0]["revision_id"] == pins["revision_id"]
+    membership_reads = [
+        row["sql"]
+        for row in queries
+        if row["sql"].startswith('SELECT "design_revision"."id" AS "id"')
+        and created["definition_id"] in row["sql"]
+    ]
+    assert len(membership_reads) == 1
+    assert '"design_revision"."id" IN (' in membership_reads[0]
+    assert body["revision_id"] in membership_reads[0]
+    assert selected["revision_id"] not in membership_reads[0]
