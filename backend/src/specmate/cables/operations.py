@@ -1,4 +1,5 @@
 from specmate.access.permissions import Perm
+from specmate.cables.connections import ConnectionsQuery, connections
 from specmate.cables.contracts import (
     CaptureCable,
     CheckIntent,
@@ -220,3 +221,14 @@ def propose_wiring(ctx: Context, p: ProposeCable):
 
     draft = cable_draft(ctx, p.draft_id, Perm.WORKSPACE_READ) if p.draft_id else None
     return propose_cable(ctx.user, p, draft)
+
+
+@operation(
+    "cable.connections",
+    ConnectionsQuery,
+    summary="List bounded frozen designs connecting two exact device ports.",
+    supports_idempotency=False,
+    access=Perm.WORKSPACE_READ,
+)
+def connecting_ports(ctx: Context, p: ConnectionsQuery):
+    return connections(ctx.user, p)

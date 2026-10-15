@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "anyOf": [
+        {
+          "maxLength": 3000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After"
+    },
+    "from_revision_id": {
+      "format": "uuid",
+      "title": "From Revision Id",
+      "type": "string"
+    },
+    "limit": {
+      "default": 20,
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "to_revision_id": {
+      "format": "uuid",
+      "title": "To Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "from_revision_id",
+    "to_revision_id"
+  ],
+  "title": "ConnectionsQuery",
+  "type": "object"
+}

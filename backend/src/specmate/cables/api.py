@@ -1,8 +1,10 @@
 from uuid import UUID
 
-from ninja import Router
+from django.http import JsonResponse
+from ninja import Query, Router
 
 from specmate.access.permissions import Perm
+from specmate.cables.connections import ConnectionsQuery, connections
 from specmate.cables.contracts import ProposeCable
 from specmate.cables.operations import cable_draft
 from specmate.cables.queries import inspect_revision, length_impact
@@ -69,3 +71,10 @@ def propose(request, payload: ProposeCable):
         else None
     )
     return propose_cable(request.user, payload, draft)
+
+
+@router.get("/connections")
+def connecting_ports(request, payload: Query[ConnectionsQuery]):
+    return JsonResponse(
+        connections(request.user, payload), headers={"Cache-Control": "private, no-store"}
+    )
