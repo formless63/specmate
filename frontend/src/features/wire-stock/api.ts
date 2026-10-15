@@ -1,6 +1,6 @@
 import { apiErrorMessage } from "../../lib/api-errors";
 import { randomUUID } from "../../lib/random-id";
-import type { StockSpecification } from '../../../../packages/section-layout/src';
+import type { FitReport, StockSpecification } from '../../../../packages/section-layout/src';
 
 export interface StockRecord {
   definition_id: string;
@@ -10,6 +10,8 @@ export interface StockRecord {
   name: string;
   state: string;
   content: { stock?: StockSpecification };
+  /** Server fit findings for the saved construction; null for a draft without stock. */
+  geometry?: FitReport | null;
 }
 const csrf = (): string => decodeURIComponent(document.cookie.split('; ').find(c => c.startsWith('csrftoken='))?.slice(10) ?? '');
 async function read<T>(url: string, options?: RequestInit): Promise<T> {
@@ -31,11 +33,12 @@ export async function saveStock(name: string, stock: StockSpecification, current
   });
   return result.result;
 }
-export async function freezeStock(current: StockRecord): Promise<{ number: number; draft: { state: string } }> {
+/** Freezing a construction with failing fit findings requires `acknowledge` (the server checks again). */
+export async function freezeStock(current: StockRecord, acknowledge = false): Promise<{ number: number; draft: { state: string } }> {
   const result = await read<{ result: { number: number; draft: { state: string } } }>('/api/v0/operations', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
     body: JSON.stringify({ operation: 'wire_stock.freeze', request_id: randomUUID(),
-      idempotency_key: randomUUID(), expected_state: current.state, payload: { draft_id: current.draft_id } }),
+      idempotency_key: randomUUID(), expected_state: current.state, payload: { draft_id: current.draft_id, ...(acknowledge ? { acknowledge_geometry_findings: true } : {}) } }),
   });
   return result.result;
 }

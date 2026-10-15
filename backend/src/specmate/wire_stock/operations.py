@@ -9,7 +9,7 @@ from specmate.catalog.scope import creation_workspace
 from specmate.design.models import Definition, Draft
 from specmate.design.operations import check_state, draft_state, scoped_draft
 from specmate.operations import Context, NotFound, operation
-from specmate.wire_stock.queries import stock_record
+from specmate.wire_stock.queries import stock_geometry, stock_record
 from specmate.wire_stock.schemas import StockSpecification, StrictModel
 
 
@@ -48,6 +48,7 @@ def create_stock(ctx: Context, p: CreateStock) -> dict:
         "workspace_id": str(workspace.id),
         "name": definition.name,
         **draft_state(draft),
+        "geometry": stock_geometry(draft.content),
     }
 
 
@@ -79,6 +80,8 @@ def update_stock(ctx: Context, p: UpdateStock) -> dict:
 
 class FreezeStock(StrictModel):
     draft_id: UUID
+    # Failing fit findings are warnings, not blocks: freezing them needs this explicit choice.
+    acknowledge_geometry_findings: bool = False
 
 
 @operation(
@@ -102,12 +105,20 @@ def freeze_stock(ctx: Context, p: FreezeStock) -> dict:
     if "stock" not in draft.content:
         raise ValidationFailed("Stock construction is required to freeze typed stock.")
     validate_stock_content(draft.content)
+    geometry = stock_geometry(draft.content)
+    if geometry["failed"] and not p.acknowledge_geometry_findings:
+        raise ValidationFailed(
+            f"Stock geometry has {geometry['failed']} fit problem(s); "
+            "review them and acknowledge to freeze anyway.",
+            details={"geometry": geometry},
+        )
     dependencies = (
         list(draft.base_revision.snapshot.dependencies.values_list("revision_id", flat=True))
         if draft.base_revision_id
         else []
     )
-    return freeze_draft(ctx, CaptureDraft(draft_id=p.draft_id, dependencies=dependencies))
+    frozen = freeze_draft(ctx, CaptureDraft(draft_id=p.draft_id, dependencies=dependencies))
+    return {**frozen, "geometry": geometry}
 
 
 def stock_scope(ctx, payload):

@@ -2,7 +2,7 @@ import { randomUUID } from "../../lib/random-id";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Checkbox, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { renderPreviewSvg, renderSectionSvg, sectionLayout, stockGeometry } from '../../../../packages/section-layout/src';
+import { evaluateFit, renderPreviewSvg, renderSectionSvg, sectionLayout, stockGeometry } from '../../../../packages/section-layout/src';
 import type { Fact, GroupElement, StockElement, StockSpecification } from '../../../../packages/section-layout/src';
 import { freezeStock, listStocks, saveStock } from './api';
 import type { StockRecord } from './api';
@@ -11,10 +11,18 @@ import { WirePreparationPreview } from './WirePreparationPreview';
 import { FrozenWirePreview } from './FrozenWirePreview';
 import { CableViews } from '../cable-views/CableViews';
 import { StockSectionView } from '../cable-views/StockSectionView';
-import { SbQuantity, SbQuantityField, SbUnknown } from '../../components/sb';
+import { SbQuantity, SbUnknown } from '../../components/sb';
 import { rowLook, Swatch } from '../cable-views/Swatch';
 import { FromPreference, usePreferenceDefaults } from '../preferences/usePreferenceDefaults';
 import { useOpenProbed } from '../scope/openProbed';
+import { blankSpec, exampleCoax, generate, illustrate, readBuilder, TEMPLATES } from './builder';
+import type { BuilderSpec } from './builder';
+import { ConstructionBuilder } from './ConstructionBuilder';
+import { FitFindings } from './FitFindings';
+import { MmEntry } from './MmEntry';
+import './wire-stock.css';
+
+export { MmEntry };
 
 /** Element kinds whose display colour a wire-colour preference may pre-fill. */
 const COLOUR_KINDS: StockElement['kind'][] = ['conductor', 'insulation', 'jacket'];
@@ -22,15 +30,7 @@ type Marks = Record<string, string>;
 
 const clone = <T,>(value: T): T => structuredClone(value);
 const dimension = (value: number | null) => <SbQuantity value={value === null ? null : Number(value.toFixed(4))} unit="mm" />;
-/** Editable millimetre entry. Keeps the raw text so a trailing decimal point survives; only valid numbers or a cleared field reach the draft. */
-export function MmEntry({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number | null) => void }) {
-  const [raw, setRaw] = useState(value === null ? '' : String(value));
-  const parsed = raw.trim() === '' ? null : Number(raw);
-  const invalid = parsed !== null && (!Number.isFinite(parsed) || parsed < 0);
-  if (!invalid && parsed !== value) setRaw(value === null ? '' : String(value));
-  return <SbQuantityField label={label} value={raw} unit="mm" state={invalid ? 'invalid' : raw.trim() === '' ? 'unknown' : 'known'} note="Enter a non-negative number."
-    onChange={next => { setRaw(next); const n = next.trim() === '' ? null : Number(next); if (n === null || (Number.isFinite(n) && n >= 0)) onChange(n); }} />;
-}
+const INITIAL = exampleCoax();
 function download(name: string, body: string, type: string): void {
   const url = URL.createObjectURL(new Blob([body], { type }));
   const link = document.createElement('a'); link.href = url; link.download = name; link.click();
@@ -56,15 +56,21 @@ function ElementEditor({ node, path, onChange, colour, marks, setMarks }: { node
   const [addKind, setAddKind] = useState<StockElement['kind']>('conductor');
   const structure = usePermission('item.create');
   const numberField = (label: string, key: string, value: number | null) => <MmEntry label={`${path} ${label}`} value={value} onChange={v => onChange(path, { [key]: v })} />;
-  return <Stack gap="xs" style={{ borderLeft: '2px solid #aaa', paddingLeft: 12 }}>
+  return <Stack gap="xs" style={{ borderLeft: '2px solid var(--sb-border-subtle)', paddingLeft: 12 }}>
     <Text fw={600}>{path} · {node.kind}</Text>
     <Group align="flex-end">
       <TextInput label={`${path} label`} value={node.label} onChange={e => onChange(path, { label: e.target.value })} />
       <TextInput label={`${path} material`} value={node.material ?? ''} placeholder="Unknown" onChange={e => onChange(path, { material: e.target.value || null })} />
       <TextInput label={`${path} source`} value={node.source ?? ''} placeholder="Unknown" onChange={e => onChange(path, { source: e.target.value || null })} />
-      <NumberInput label={`${path} x offset mm`} value={node.x_mm} onChange={v => typeof v === 'number' && onChange(path, { x_mm: v })} />
-      <NumberInput label={`${path} y offset mm`} value={node.y_mm} onChange={v => typeof v === 'number' && onChange(path, { y_mm: v })} />
     </Group>
+    <details className="sb-builder-advanced">
+      <summary>Advanced placement · {path}</summary>
+      <Text size="xs" c="dimmed">Offsets move this element from its parent's centre. Members of ring, linear and figure-eight groups are already placed by the group pitch; an offset adds to that. Blank is an unknown position.</Text>
+      <Group>
+        <NumberInput label={`${path} x offset mm`} value={node.x_mm ?? ''} onChange={v => onChange(path, { x_mm: typeof v === 'number' ? v : null })} />
+        <NumberInput label={`${path} y offset mm`} value={node.y_mm ?? ''} onChange={v => onChange(path, { y_mm: typeof v === 'number' ? v : null })} />
+      </Group>
+    </details>
     {node.kind === 'group' ? <>
       <Group><Select label={`${path} arrangement`} value={node.arrangement} data={['concentric', 'ring', 'linear', 'figure-eight']} onChange={v => v && onChange(path, { arrangement: v as GroupElement['arrangement'] })} />
         {node.arrangement !== 'concentric' && numberField('pitch mm', 'pitch_mm', node.pitch_mm)}
@@ -93,12 +99,15 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
   const [stocks, setStocks] = useState<StockRecord[]>([]);
   const [current, setCurrent] = useState<StockRecord | null>(null);
   const [name, setName] = useState('Synthetic coax');
-  const [stock, setStock] = useState<StockSpecification>(() => clone(stockPresets.coax!));
+  const [builder, setBuilder] = useState<BuilderSpec | null>(() => INITIAL);
+  const [stock, setStockState] = useState<StockSpecification>(() => generate(INITIAL, { viewed_from: stockPresets.coax!.viewed_from, facts: clone(stockPresets.coax!.facts) }));
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [dirty, setDirty] = useState(true);
   const [busy, setBusy] = useState(false);
   const [length, setLength] = useState(100);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
   const edit = usePermission('item.create');
   const [useHere, setUseHere] = useState(true);
   const freezeGate = usePermission('design.freeze');
@@ -106,6 +115,17 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
   const [marks, setMarks] = useState<Marks>({});
   const section = useMemo(() => sectionLayout(stock), [stock]);
   const geometry = useMemo(() => stockGeometry(section, length), [section, length]);
+  const fit = useMemo(() => evaluateFit(stock), [stock]);
+  // An incomplete builder construction is drawn with placeholder proportions, clearly labelled.
+  const illustration = useMemo(() => {
+    if (!builder || section.unknown.length === 0) return null;
+    const drawn = illustrate(builder);
+    return { section: sectionLayout(generate(drawn.spec, stock)), substituted: drawn.substituted };
+  }, [builder, section, stock]);
+  /** Replace the construction; the builder follows whenever the tree is one it can regenerate. */
+  const setStock = (next: StockSpecification, spec?: BuilderSpec | null) => {
+    setStockState(next); setBuilder(spec !== undefined ? spec : readBuilder(next)); setAcknowledged(false);
+  };
   useEffect(() => {
     let live = true;
     setCurrent(null); setStocks([]); setError(''); setMessage(''); setDirty(true);
@@ -119,14 +139,16 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
       const saved = await saveStock(name, stock, current, created && useHere ? projectId : null);
       setCurrent(saved); setDirty(false); setStock(clone(saved.content.stock!));
       setStocks(await listStocks(projectId));
-      setMessage(`Saved ${saved.name} (${saved.state}).`);
+      const failed = saved.geometry?.failed ?? 0;
+      setMessage(`Saved ${saved.name} (${saved.state}).${failed ? ` Fit: ${failed} problem${failed === 1 ? '' : 's'}; review them before freezing.` : ''}`);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
+  const needsAck = fit.failed > 0;
   const freeze = async () => {
-    if (!current || dirty) return;
+    if (!current || dirty || (needsAck && !acknowledged)) return;
     setBusy(true); setError('');
-    try { const result = await freezeStock(current); setMessage(`Frozen revision ${result.number}. Further edits create a new draft state.`); setCurrent({ ...current, state: result.draft.state }); }
+    try { const result = await freezeStock(current, needsAck && acknowledged); setMessage(`Frozen revision ${result.number}. Further edits create a new draft state.`); setCurrent({ ...current, state: result.draft.state }); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -135,6 +157,11 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
     const record = stocks.find(item => item.definition_id === id); if (!record?.content.stock) return;
     setCurrent(record); setDirty(false); setName(record.name); setStock(clone(record.content.stock)); setMessage('');
   });
+  const selectFinding = (path: string) => {
+    const inside = section.rows.filter(row => row.path === path || row.path.startsWith(`${path}.`));
+    setSelected(inside.at(-1)?.path ?? null);
+  };
+  const changed = (note = 'Unsaved changes.') => { setDirty(true); setMessage(note); };
   return <Stack>
     <Title order={2}>Wire stock</Title>
     <Text>Describe reusable stock independently of finished cables. Unknown values remain unknown.</Text>
@@ -144,14 +171,23 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
         const record = stocks.find(item => item.draft_id === id); if (!record?.content.stock) return;
         setCurrent(record); setDirty(false); setName(record.name); setStock(clone(record.content.stock)); setMessage('');
       }} />
-      <Select label="New construction" value={null} placeholder="Choose a synthetic starting point" data={Object.keys(stockPresets)} onChange={key => {
-        if (key && stockPresets[key]) { setStock(clone(stockPresets[key])); setName(`Synthetic ${key}`); setCurrent(null); setDirty(true); setMessage(''); }
+      <Select label="New construction" value={null} placeholder="Choose a template" data={[
+        { group: 'Templates', items: TEMPLATES.map(t => ({ value: `template:${t.value}`, label: t.label })) },
+        { group: 'Synthetic examples', items: Object.keys(stockPresets).map(key => ({ value: `example:${key}`, label: key })) },
+      ]} onChange={key => {
+        if (!key) return;
+        const [kind, value] = key.split(':') as [string, string];
+        if (kind === 'template') {
+          const spec = blankSpec(value as BuilderSpec['template']);
+          setStock(generate(spec), spec); setName(`New ${TEMPLATES.find(t => t.value === value)?.label.toLowerCase()}`);
+        } else if (stockPresets[value]) { setStock(clone(stockPresets[value])); setName(`Synthetic ${value}`); }
+        setCurrent(null); setDirty(true); setMessage('');
       }} />
       <TextInput label="Stock name" value={name} disabled={current !== null} onChange={e => setName(e.target.value)} />
-      <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }); setDirty(true); } }} />
+      <Select label="Viewed from" data={['a', 'b', 'unknown']} value={stock.viewed_from} onChange={v => { if (v) { setStock({ ...stock, viewed_from: v as StockSpecification['viewed_from'] }, builder); setDirty(true); } }} />
     </Group>
     {projectId && current === null && <Checkbox label="Use in this project" checked={useHere} onChange={e => setUseHere(e.currentTarget.checked)} />}
-    <Group><Button onClick={save} loading={busy} {...edit.props}>Save stock</Button><Button variant="light" onClick={freeze} disabled={!current || busy || dirty} {...freezeGate.props}>Freeze saved stock</Button>
+    <Group><Button onClick={save} loading={busy} {...edit.props}>Save stock</Button><Button variant="light" onClick={freeze} disabled={!current || busy || dirty || (needsAck && !acknowledged)} {...freezeGate.props}>Freeze saved stock</Button>
       <Button variant="light" onClick={() => download('stock.json', JSON.stringify({ name, stock, section, geometry }, null, 2), 'application/json')}>Export specification</Button>
       <Button variant="light" onClick={() => download('stock-section.svg', renderSectionSvg(section, name), 'image/svg+xml')}>Export section SVG</Button>
     </Group>
@@ -164,10 +200,27 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
         if (saved?.content.stock) { setCurrent(saved); setStock(clone(saved.content.stock)); setDirty(false); setMessage('Reloaded saved construction.'); }
       } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     }}>Reload saved stock (discard local edits)</Button>
+    <Title order={3}>Construction</Title>
+    <Group align="flex-start" wrap="wrap" gap="md">
+      <Stack style={{ flex: '3 1 520px', minWidth: 0 }}>
+        {builder
+          ? <ConstructionBuilder key={`${current?.draft_id ?? 'new'}:${builder.template}`} spec={builder} onChange={spec => { setStock(generate(spec, stock), spec); changed(); }} />
+          : <Alert color="yellow" title="Element-by-element construction">This construction was edited element by element, so the builder cannot regenerate it exactly. Edit it in the element editor below, or start again from a template.</Alert>}
+      </Stack>
+      <Stack gap="xs" style={{ flex: '2 1 360px', maxWidth: 460, minWidth: 0 }}>
+        <FitFindings report={fit} onSelect={selectFinding} acknowledged={acknowledged} onAcknowledge={setAcknowledged} canFreeze={freezeGate.allowed} />
+        {illustration
+          ? <>
+            <div className="sb-illustrative" role="note"><strong>Illustrative</strong> · placeholder proportions for unknown {illustration.substituted.join(', ')}; not dimensions.</div>
+            <StockSectionView section={illustration.section} title={`${name} (illustrative)`} label="Illustrative section drawing" />
+          </>
+          : <StockSectionView section={section} title={name} label="Stock section drawing" selected={selected} onSelect={setSelected} />}
+      </Stack>
+    </Group>
     <Text>Section: {dimension(section.widthMm)} × {dimension(section.heightMm)} · {section.rows.length} material elements · view {section.viewedFrom}</Text>
     {section.unknown.length > 0 && <Alert color="yellow">Incomplete geometry: {section.unknown.join('; ')}</Alert>}
     <Group align="flex-start" grow>
-      <StockSectionView section={section} title={name} label="Stock section drawing" />
+      {illustration && <StockSectionView section={section} title={name} label="Stock section drawing" selected={selected} onSelect={setSelected} />}
       <Stack style={{ maxWidth: 440 }}><NumberInput label="Preview extrusion length mm" value={length} min={1} onChange={v => typeof v === 'number' && v >= 1 && setLength(v)} />
         <div aria-label="Stock geometry preview" className="sb-viewer" style={{ color: 'var(--sb-text-primary)' }} dangerouslySetInnerHTML={{ __html: renderPreviewSvg(geometry, name) }} />
         <Text size="sm">Axial length is compressed in the preview. Display colors for unknown materials are illustrative.</Text>
@@ -186,12 +239,15 @@ export function WireStockPanel({ projectId, workspaceId }: { projectId?: string 
       <Text>{key}{fact.unit ? ` (${fact.unit})` : ''}</Text>
       <Select label={`${key} status`} value={fact.status} data={['unknown', 'documented', 'measured', 'inferred']} onChange={v => {
         if (!v) return; const status = v as Fact['status'];
-        setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, status, value: status === 'unknown' ? null : fact.value ?? '' } } }); setDirty(true);
+        setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, status, value: status === 'unknown' ? null : fact.value ?? '' } } }, builder); setDirty(true);
       }} />
-      <TextInput label={`${key} value`} disabled={fact.status === 'unknown'} value={fact.value ?? ''} onChange={e => { setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, value: e.target.value || null } } }); setDirty(true); }} />
-      <TextInput label={`${key} source`} value={fact.source ?? ''} onChange={e => { setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, source: e.target.value || null } } }); setDirty(true); }} />
+      <TextInput label={`${key} value`} disabled={fact.status === 'unknown'} value={fact.value ?? ''} onChange={e => { setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, value: e.target.value || null } } }, builder); setDirty(true); }} />
+      <TextInput label={`${key} source`} value={fact.source ?? ''} onChange={e => { setStock({ ...stock, facts: { ...stock.facts, [key]: { ...fact, source: e.target.value || null } } }, builder); setDirty(true); }} />
     </Group>)}
-    <Title order={3}>Construction editor</Title>
-    <ElementEditor colour={preferences.list('wire_colours')[0] ?? null} marks={marks} setMarks={setMarks} node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); setDirty(true); setMessage('Unsaved changes.'); }} />
+    <details className="sb-builder-elements" open={builder === null || undefined}>
+      <summary><Title order={3} component="span">Element editor (advanced)</Title></summary>
+      <Text size="sm" c="dimmed">Every stored element, including ones the builder computes. Editing here can take the construction out of the builder.</Text>
+      <ElementEditor colour={preferences.list('wire_colours')[0] ?? null} marks={marks} setMarks={setMarks} node={stock.structure} path={stock.structure.id} onChange={(path, patch) => { setStock({ ...stock, structure: editNode(stock.structure, path, patch) }); changed(); }} />
+    </details>
   </Stack>;
 }

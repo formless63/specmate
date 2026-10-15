@@ -58,8 +58,37 @@ Stock queries do not require connectors, devices, PCB sources or topology.
 Stable local element IDs form hierarchical paths. Groups declare concentric,
 ring, linear or figure-eight arrangements. Explicit pitches and offsets locate
 conductors, drains, and nested groups. Round material elements declare both inner
-and outer diameters; a web declares width and height. Null values remain unknown.
+and outer diameters; a web declares width and height. Null values remain unknown,
+including a null offset, which leaves that element's position unknown.
 Material/color/source tables retain elements whose geometry is unavailable.
+
+Placement has one definition: a node sits at its parent's position plus its own
+offset, and members (conductors and nested groups) of a ring, linear or figure-eight
+group also take the displacement from the group's pitch (rings start at 12 o'clock
+in the stated direction; linear rows are centred). An offset on an arranged member
+adds to that displacement. `specmate/wire_stock/geometry.py` and
+`packages/section-layout/src/placement.ts` implement it and are both tested against
+`tests/fixtures/wire-stock-placement.json`.
+
+Fit findings compare placed outer circles with the bores of enclosing layers (a
+tube in the same or an ancestor group) and with sibling elements, within 0.001 mm:
+`containment` (extends beyond a bore), `wall_overlap`, `outside` (beyond a group's
+outer layer) and `overlap` (siblings), plus an `offset_on_arranged` note. Webs are
+not compared with the legs they join. A check with an unknown dimension or position
+is `not_evaluated`, never a pass. Stock records carry the report as `geometry`.
+Failing findings do not block saving; `wire_stock.freeze` refuses them unless the
+request sets `acknowledge_geometry_findings`. Findings describe declared geometry
+only, not clearance, manufacturing or physical qualification.
+
+The stock panel's construction builder starts from templates (coax, multi-core
+round, twisted pairs, ribbon, figure-eight). The user enters real dimensions
+(conductor diameter, AWG or area; insulation, screen, drain and jacket values) and
+colours; the builder computes the centred lay-up, ring diameter, drain interstice and
+screen/jacket bores and writes the ordinary version 1 tree, so nothing new is stored.
+A saved stock reopens in the builder only when its read-back regenerates the stored
+tree exactly; otherwise the element editor remains, with offsets under "Advanced
+placement". An incomplete construction is drawn with labelled placeholder
+proportions; the stored values stay unknown.
 
 `packages/section-layout` keeps one section projection for dimensions, color
 tables, numbered drawing callouts, SVG export and straight stock geometry. The

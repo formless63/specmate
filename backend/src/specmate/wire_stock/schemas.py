@@ -44,8 +44,10 @@ class ElementBase(StrictModel):
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     source: str | None = Field(default=None, max_length=1000)
     # Explicit offsets locate interstitial elements without a hidden workshop rule.
-    x_mm: Coordinate = 0
-    y_mm: Coordinate = 0
+    # Null is an unknown offset (for example a drain whose lay-up is not yet known);
+    # it leaves the element's position unknown rather than at the parent's centre.
+    x_mm: Coordinate | None = 0
+    y_mm: Coordinate | None = 0
 
 
 class RoundElement(ElementBase):

@@ -6,8 +6,9 @@ export interface ElementBase {
   material: string | null;
   color: string | null;
   source: string | null;
-  x_mm: number;
-  y_mm: number;
+  /** Offset from the parent; null is unknown and leaves the position unknown. */
+  x_mm: number | null;
+  y_mm: number | null;
 }
 export interface RoundElement extends ElementBase {
   kind: Exclude<ElementKind, 'web' | 'group'>;

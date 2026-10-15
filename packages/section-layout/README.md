@@ -5,6 +5,10 @@ No catalog, font, browser, external tool, or preparation profile is required.
 The backend owns schema validation and engineering persistence. All projections
 consume the same version 1 section; missing dimensions/positions remain unknown.
 Axonometric previews compress axial length for display and are not fit evidence.
+`placement.ts` is the one placement rule (mirrored by the backend's
+`wire_stock/geometry.py`); `fit.ts` mirrors the backend's containment and overlap
+findings for live editor feedback. Both are cross-checked against
+`tests/fixtures/wire-stock-placement.json`; the server's report is authoritative.
 
 Geometry is adapted from WireHub at commit
 `cbf919edf30a9d906a791971d3a40e22cb78b67e`:
