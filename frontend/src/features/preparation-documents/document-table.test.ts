@@ -28,7 +28,8 @@ test("CSV preserves nullable quantities and escapes formula-like authored text a
 });
 
 test("XLSX carries explicit unknowns and formula-like text as inert strings with deterministic sheets", () => {
-  const table = { name: 'Landings/one', headers: ["Target", "Quantity"], rows: [["<pad>&", null], ["=SUM(9)", 0], ["Known", 2]] };
+  const terminal = "端子/β:07 🎛";
+  const table = { name: 'Landings/one', headers: ["Target", "Quantity"], rows: [["<pad>&", null], ["=SUM(9)", 0], [terminal, 2]] };
   const first = toXlsx([table, { ...table, name: 'Landings:one' }]);
   expect(first).toEqual(toXlsx([table, { ...table, name: 'Landings:one' }]));
   const files = entries(first), sheet = files.get("xl/worksheets/sheet1.xml")!;
@@ -36,6 +37,8 @@ test("XLSX carries explicit unknowns and formula-like text as inert strings with
   expect(files.get("xl/workbook.xml")).toContain('name="Landings-one"');
   expect(files.get("xl/workbook.xml")).toContain('name="Landings-one 2"');
   expect(sheet).toContain("&lt;pad&gt;&amp;");
+  expect(sheet).toContain(terminal);
+  expect(toCsv({ headers: ["Exact terminal ID"], rows: [[terminal]] })).toBe(`Exact terminal ID\r\n${terminal}\r\n`);
   expect(sheet).toContain('r="B2" t="inlineStr"><is><t xml:space="preserve">unknown</t>');
   expect(sheet).toContain('r="B3"><v>0</v>');
   expect(sheet).toContain('t="inlineStr"><is><t xml:space="preserve">=SUM(9)</t>');
