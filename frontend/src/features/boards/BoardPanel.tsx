@@ -1,9 +1,9 @@
 import { ActionIcon, Alert, Button, Card, Checkbox, Group, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { SbStatus, SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
+import { InspectionScope, ReadOnlyNote, usePermission, type PermissionName } from "../../lib/permissions";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
@@ -11,6 +11,8 @@ import {
   COMPONENT_KINDS, SIDES, TERMINAL_KINDS, VIAS, command, emptyBoard, emptyComponent, pathSummary, proposalPath, read, terminalId,
   type Board, type BoardDraft, type BoardInspection, type BoardPath, type BoardProposal, type BoardTrace, type Definition, type Identity,
 } from "./api";
+import { BoardDrawing } from "./BoardDrawing";
+import { layoutBoard, tracedPathIds } from "./board-layout";
 import "./boards.css";
 
 const KIND_LABELS: Record<string, string> = { solder_pad: "Solder pad", through_hole: "Through hole", connector_contact: "Connector contact", test_point: "Test point", unknown: "unknown" };
@@ -74,7 +76,7 @@ function Boards({ projectId }: { projectId: string | null }) {
       <InspectionScope permission="item.create">
         <TextInput label="Board name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
         <KicadProposal definitions={definitions.data ?? []} onUse={(board, label) => { setValue(board); setNewKey((k) => k + 1); if (!name.trim()) setName(label); }} />
-        <BoardEditor key={newKey} value={value} onChange={setValue} definitions={definitions.data ?? []} />
+        <BoardEditor key={newKey} value={value} onChange={setValue} definitions={definitions.data ?? []} permission="item.create" title={name.trim() || "New board"} />
       </InspectionScope>
       <Group><Button disabled={!name.trim()} loading={create.isPending} onClick={() => create.mutate()} {...createGate.props}>Create board draft</Button><ReadOnlyNote permission="item.create">Creating boards is unavailable.</ReadOnlyNote></Group>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
@@ -88,14 +90,14 @@ function BoardDraftEditor({ draft, definitions, onSaved }: { draft: BoardDraft; 
   const save = useMutation({ mutationFn: () => command("interface.update", { draft_id: draft.draft_id, interface: value }, draft.state), onSuccess: onSaved });
   return <Card withBorder><Stack gap="xs"><Title order={3}>Edit board draft</Title>
     {!draft.content.interface && <Text size="sm" c="dimmed">This board has no declared pads or paths yet. Saving declares them.</Text>}
-    <InspectionScope permission="design.edit"><BoardEditor value={value} onChange={setValue} definitions={definitions} /></InspectionScope>
+    <InspectionScope permission="design.edit"><BoardEditor value={value} onChange={setValue} definitions={definitions} title="Board draft" /></InspectionScope>
     <Group><Button loading={save.isPending} onClick={() => save.mutate()} {...editGate.props}>Save board draft</Button><ReadOnlyNote permission="design.edit">Saving boards is unavailable.</ReadOnlyNote></Group>
     {save.isError && <Alert color="red">{save.error.message}</Alert>}
   </Stack></Card>;
 }
 
-/** Pad table, carried connector correspondence, switch states and the path table. */
-export function BoardEditor({ value, onChange, definitions }: { value: Board; onChange: (v: Board) => void; definitions: Definition[] }) {
+/** Fallback table editor: pad table, carried connector correspondence and the path table. */
+function BoardTableEditor({ value, onChange, definitions }: { value: Board; onChange: (v: Board) => void; definitions: Definition[] }) {
   const [label, setLabel] = useState("");
   const [group, setGroup] = useState("");
   const labels = new Map(value.terminals.map((t) => [t.terminal_id, t.label]));
@@ -140,7 +142,6 @@ export function BoardEditor({ value, onChange, definitions }: { value: Board; on
       <Button size="xs" variant="default" disabled={!label.trim()} onClick={addTerminal}>Add pad</Button>
     </Group>
     <ConnectorEditor value={value} onChange={onChange} definitions={definitions} terminalOptions={terminalOptions} />
-    <ConditionEditor value={value} onChange={onChange} />
     <Title order={4}>Paths</Title>
     {value.paths.length === 0 && <Text size="sm" c="dimmed">No paths declared: every pad's connection is unknown.</Text>}
     {value.paths.length > 0 && <Table.ScrollContainer minWidth={1000}><Table withTableBorder verticalSpacing={4} className="sb-board-table">
@@ -159,7 +160,6 @@ export function BoardEditor({ value, onChange, definitions }: { value: Board; on
       })}</Table.Tbody>
     </Table></Table.ScrollContainer>}
     <Group><Button size="xs" variant="default" disabled={value.terminals.length < 2} onClick={addPath}>Add path</Button></Group>
-    <Group><Select label="Board review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: (v ?? "unreviewed") as Board["review"] })} /><TextInput label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} /></Group>
   </Stack>;
 }
 
@@ -290,66 +290,231 @@ function PathChip({ from, to, summary, native, unknown }: { from: string; to: st
   </span>;
 }
 
-/** A frozen board: pads with where they land, declared paths, and an on-demand path query. */
+/** Discrete facts over the drawing: pads, paths, unknown connections, what it carries, review. */
+function BoardCells({ board, carries, extra }: { board: Board; carries: string; extra?: ReactNode }) {
+  const connected = new Set(board.paths.flatMap((p) => [p.from_terminal, p.to_terminal]));
+  const unknown = board.terminals.filter((t) => !connected.has(t.terminal_id)).length;
+  const groups = new Set(board.terminals.map((t) => t.group ?? "Ungrouped")).size;
+  const native = board.paths.filter((p) => p.provenance !== "declared").length;
+  const parts = board.paths.filter((p) => p.via === "component");
+  return <dl className="bv-cells">
+    <div className="sb-cell"><dt className="sb-silk">Pads</dt><dd>{board.terminals.length}</dd><p className="bv-sub">{groups} group{groups === 1 ? "" : "s"}</p></div>
+    <div className="sb-cell"><dt className="sb-silk">Paths</dt><dd>{board.paths.length}</dd><p className="bv-sub">{native ? `${native} proposed from a native net` : "declared paths only · not continuity"}</p></div>
+    <div className={`sb-cell${unknown ? " sb-hatch" : ""}`}><dt className="sb-silk">Connection unknown</dt><dd>{unknown ? `${unknown} pad${unknown === 1 ? "" : "s"}` : "none"}</dd><p className="bv-sub">pads without a declared path</p></div>
+    <div className="sb-cell"><dt className="sb-silk">Parts</dt><dd>{parts.length ? parts.map((p) => [p.component?.reference, p.component?.value].filter(Boolean).join(" ") || "part").join(", ") : "none"}</dd><p className="bv-sub">on declared paths</p></div>
+    <div className="sb-cell"><dt className="sb-silk">Carries</dt><dd>{carries}</dd></div>
+    <div className="sb-cell"><dt className="sb-silk">Review</dt><dd><SbStatus led={board.review === "reviewed" ? "info" : "review"} dimension="board" value={board.review} /></dd></div>
+    {extra}
+  </dl>;
+}
+
+const nextPathId = (board: Board) => {
+  const ids = board.paths.map((p) => p.local_id);
+  let n = board.paths.length + 1;
+  while (ids.includes(`path-${n}`)) n += 1;
+  return `path-${n}`;
+};
+
+/**
+ * Board editor: the drawing first. Click a pad, then another, to declare straight copper between
+ * them; select a path to choose how it is joined in the inspector. The table editor stays below
+ * as a fallback and for the carried connector's contact landings.
+ */
+export function BoardEditor({ value, onChange, definitions, permission = "design.edit", title = "Board" }: { value: Board; onChange: (v: Board) => void; definitions: Definition[]; permission?: PermissionName; title?: string }) {
+  const gate = usePermission(permission);
+  const [armed, setArmed] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ pad: string } | { path: string } | null>(null);
+  const layout = useMemo(() => layoutBoard(value), [value]);
+  const labels = new Map(value.terminals.map((t) => [t.terminal_id, t.label]));
+  const onPad = (id: string) => {
+    if (!gate.allowed) { setSelection({ pad: id }); return; }
+    if (armed === null) { setArmed(id); setSelection({ pad: id }); return; }
+    if (armed === id) { setArmed(null); return; }
+    const local_id = nextPathId(value);
+    onChange({ ...value, paths: [...value.paths, { local_id, from_terminal: armed, to_terminal: id, via: "copper", component: null, switch: null, provenance: "declared", basis: "" }] });
+    setArmed(null); setSelection({ path: local_id });
+  };
+  const selectedPad = selection && "pad" in selection ? value.terminals.find((t) => t.terminal_id === selection.pad) ?? null : null;
+  const selectedPath = selection && "path" in selection ? value.paths.find((p) => p.local_id === selection.path) ?? null : null;
+  return <Stack gap="xs">
+    <Text size="sm">{value.origin === "kicad_derived" ? "Proposed from a KiCad import: review every pad and path before relying on it." : "Black-box board: pads and paths typed from its drawing or datasheet."}</Text>
+    <BoardCells board={value} carries={value.carried_connectors.length ? `${value.carried_connectors.length} connector${value.carried_connectors.length === 1 ? "" : "s"}` : "none declared"} />
+    <div className="bv-bench">
+      <div className="bv-stage">
+        <div className="bv-viewport">{value.terminals.length ? <BoardDrawing layout={layout} board={value} title={title} armedPad={armed} selectedPad={selectedPad?.terminal_id ?? null} selectedPath={selectedPath?.local_id ?? null}
+          onPad={onPad} onPath={(id) => { setArmed(null); setSelection({ path: id }); }} /> : <Text size="sm" c="dimmed">No pads declared: add the first pad in the inspector.</Text>}</div>
+        {armed ? <div className="bv-armed" role="status">Drawing a path from pad {labels.get(armed)}: click the pad it joins.<Button size="compact-xs" variant="subtle" onClick={() => setArmed(null)}>Cancel</Button></div>
+          : gate.allowed && value.terminals.length > 1 ? <div className="bv-hint">Click two pads to join them with copper; select a path to set its part or switch.</div> : null}
+      </div>
+      <aside className="bv-inspector" aria-label="Board inspector">
+        {selectedPath ? <PathInspector key={selectedPath.local_id} path={selectedPath} board={value} onChange={onChange} onDone={() => setSelection(null)} />
+          : selectedPad ? <PadInspector key={selectedPad.terminal_id} pad={selectedPad} board={value} onChange={onChange} onDone={() => { setSelection(null); setArmed(null); }} />
+          : <BoardDefaults value={value} onChange={onChange} />}
+      </aside>
+    </div>
+    <details className="bv-table-fallback">
+      <summary className="sb-silk">Table editor and carried connector</summary>
+      <BoardTableEditor value={value} onChange={onChange} definitions={definitions} />
+    </details>
+  </Stack>;
+}
+
+/** Nothing selected: add a pad, declare switch states, set the review. */
+function BoardDefaults({ value, onChange }: { value: Board; onChange: (v: Board) => void }) {
+  const [label, setLabel] = useState("");
+  const [group, setGroup] = useState(value.terminals[value.terminals.length - 1]?.group ?? "");
+  const groups = [...new Set(value.terminals.map((t) => t.group).filter((g): g is string => !!g))];
+  const add = () => {
+    onChange({ ...value, terminals: [...value.terminals, { terminal_id: terminalId(label, value.terminals.map((t) => t.terminal_id)), label: label.trim(), group: group.trim() || null, kind: "unknown", side: "unknown", native_pad_ids: [], note: null }] });
+    setLabel("");
+  };
+  return <Stack gap={6}>
+    <Text className="sb-silk">Add a pad</Text>
+    <Group gap={6} align="end" wrap="nowrap">
+      <TextInput size="xs" label="Pad label" placeholder="e.g. CS" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
+      <TextInput size="xs" label="Pad group" placeholder="e.g. Cable side" value={group} onChange={(e) => setGroup(e.currentTarget.value)} list="bv-groups" />
+    </Group>
+    <datalist id="bv-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist>
+    <Button size="compact-xs" variant="default" w="fit-content" disabled={!label.trim()} onClick={add}>Add pad to board</Button>
+    <ConditionEditor value={value} onChange={onChange} />
+    <Select size="xs" label="Board review" value={value.review} data={["unreviewed", "reviewed"]} onChange={(v) => onChange({ ...value, review: (v ?? "unreviewed") as Board["review"] })} />
+    <TextInput size="xs" label="Review basis" value={value.review_basis ?? ""} onChange={(e) => onChange({ ...value, review_basis: e.currentTarget.value || null })} />
+  </Stack>;
+}
+
+function PadInspector({ pad, board, onChange, onDone }: { pad: Board["terminals"][number]; board: Board; onChange: (v: Board) => void; onDone: () => void }) {
+  const set = (patch: Partial<Board["terminals"][number]>) => onChange({ ...board, terminals: board.terminals.map((t) => (t.terminal_id === pad.terminal_id ? { ...t, ...patch } : t)) });
+  const remove = () => {
+    onChange({ ...board, terminals: board.terminals.filter((t) => t.terminal_id !== pad.terminal_id), paths: board.paths.filter((p) => p.from_terminal !== pad.terminal_id && p.to_terminal !== pad.terminal_id),
+      carried_connectors: board.carried_connectors.map((c) => ({ ...c, correspondence: c.correspondence.filter((x) => x.terminal_id !== pad.terminal_id) })) });
+    onDone();
+  };
+  const joined = board.paths.filter((p) => p.from_terminal === pad.terminal_id || p.to_terminal === pad.terminal_id).length;
+  return <Stack gap={6}>
+    <Title order={4}>Pad {pad.label}</Title>
+    <Text size="xs" c="dimmed">{joined ? `${joined} declared path${joined === 1 ? "" : "s"}` : "No declared path: its connection is unknown."}{pad.note ? ` · ${pad.note}` : ""}</Text>
+    <TextInput size="xs" label="Pad label" value={pad.label} onChange={(e) => set({ label: e.currentTarget.value })} />
+    <TextInput size="xs" label="Pad group" placeholder="none" value={pad.group ?? ""} onChange={(e) => set({ group: e.currentTarget.value || null })} />
+    <Select size="xs" label="Pad kind" value={pad.kind} data={TERMINAL_KINDS.map((k) => ({ value: k, label: KIND_LABELS[k]! }))} onChange={(v) => set({ kind: (v ?? "unknown") as typeof pad.kind })} />
+    <Select size="xs" label="Pad side" value={pad.side} data={SIDES.map((x) => ({ value: x, label: x }))} onChange={(v) => set({ side: (v ?? "unknown") as typeof pad.side })} />
+    <Button size="compact-xs" variant="subtle" color="red" w="fit-content" onClick={remove}>Remove pad {pad.label}</Button>
+  </Stack>;
+}
+
+function PathInspector({ path, board, onChange, onDone }: { path: BoardPath; board: Board; onChange: (v: Board) => void; onDone: () => void }) {
+  const label = (id: string) => board.terminals.find((t) => t.terminal_id === id)?.label ?? id;
+  const set = (patch: Partial<BoardPath>) => onChange({ ...board, paths: board.paths.map((p) => (p.local_id === path.local_id ? { ...p, ...patch } : p)) });
+  const c = path.component;
+  const put = (patch: Partial<NonNullable<BoardPath["component"]>>) => set({ component: { ...(c ?? emptyComponent()), ...patch } });
+  const condition = path.switch ? board.conditions.find((x) => x.key === path.switch!.condition_key) : undefined;
+  return <Stack gap={6}>
+    <Title order={4}>{label(path.from_terminal)} to {label(path.to_terminal)}</Title>
+    <Text size="xs" c="dimmed">{pathSummary(path, board.conditions)}{path.provenance !== "declared" ? " · proposed from a native net, review it" : ""}</Text>
+    <Select size="xs" label="Path kind" value={path.via} disabled={path.provenance !== "declared"} data={VIAS.map((v) => ({ value: v, label: VIA_LABELS[v]! }))}
+      onChange={(v) => { const via = (v ?? "unknown") as BoardPath["via"]; set({ via, component: via === "component" ? path.component ?? emptyComponent() : null, switch: via === "switch" ? path.switch ?? { condition_key: board.conditions[0]?.key ?? "", closed_when: board.conditions[0]?.choices[0]?.key ?? "" } : null }); }} />
+    {path.via === "component" && c && <>
+      <Select size="xs" label="Part kind" value={c.kind} data={COMPONENT_KINDS.map((k) => ({ value: k, label: k }))} onChange={(v) => { const kind = (v ?? "unknown") as typeof c.kind; put({ kind, resistance_ohm: kind === "resistor" ? c.resistance_ohm : null, capacitance_f: kind === "capacitor" ? c.capacitance_f : null }); }} />
+      <Group gap={6} grow><TextInput size="xs" label="Reference" placeholder="R1" value={c.reference ?? ""} onChange={(e) => put({ reference: e.currentTarget.value || null })} />
+        <TextInput size="xs" label="Written value" placeholder="470R" value={c.value ?? ""} onChange={(e) => put({ value: e.currentTarget.value || null })} /></Group>
+      {c.kind === "resistor" && <TextInput size="xs" label="Resistance in ohm (blank = unknown)" placeholder="unknown" value={c.resistance_ohm ?? ""} onChange={(e) => put({ resistance_ohm: e.currentTarget.value.trim() || null })} />}
+      {c.kind === "capacitor" && <TextInput size="xs" label="Capacitance in farad (blank = unknown)" placeholder="unknown" value={c.capacitance_f ?? ""} onChange={(e) => put({ capacitance_f: e.currentTarget.value.trim() || null })} />}
+    </>}
+    {path.via === "switch" && path.switch && (board.conditions.length === 0 ? <Text size="xs" c="dimmed">Declare a switch or jumper first (clear the selection to see the switch form).</Text> : <>
+      <Select size="xs" label="Switch" value={path.switch.condition_key || null} data={board.conditions.map((x) => ({ value: x.key, label: x.name }))} onChange={(v) => set({ switch: { condition_key: v ?? "", closed_when: board.conditions.find((x) => x.key === v)?.choices[0]?.key ?? "" } })} />
+      <Select size="xs" label="Closed in state" value={path.switch.closed_when || null} data={(condition?.choices ?? []).map((x) => ({ value: x.key, label: `closed in ${x.name}` }))} onChange={(v) => set({ switch: { ...path.switch!, closed_when: v ?? "" } })} />
+    </>)}
+    {path.via === "unknown" && <SbUnknown what="Path" />}
+    <TextInput size="xs" label="Path basis" placeholder="Required" value={path.basis} onChange={(e) => set({ basis: e.currentTarget.value })} />
+    <Button size="compact-xs" variant="subtle" color="red" w="fit-content" onClick={() => { onChange({ ...board, paths: board.paths.filter((p) => p.local_id !== path.local_id) }); onDone(); }}>Delete path</Button>
+  </Stack>;
+}
+
+/** A frozen board drawn, with pads' landings, declared paths and an on-demand "Follow a path". */
 export function BoardInspector({ revisionId }: { revisionId: string }) {
   const inspection = useQuery({ queryKey: ["board-inspect", revisionId], queryFn: () => read<BoardInspection>(`interfaces/revisions/${revisionId}`) });
   const view = inspection.data?.board;
+  const board = inspection.data?.interface;
+  const [from, setFrom] = useState<string | null>(null);
+  const [to, setTo] = useState<string | null>(null);
+  const [states, setStates] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<BoardTrace | null>(null);
+  const [traceKey, setTraceKey] = useState(0);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const connectorName = view?.connectors[0]?.body_name;
+  const layout = useMemo(() => (board ? layoutBoard(board, connectorName) : null), [board, connectorName]);
+  const traced = result && board ? tracedPathIds(board.paths, result.paths.map((p) => p.terminal_ids)) : null;
+  const clear = () => { setResult(null); setSelectedPath(null); };
+  const onPad = (id: string) => {
+    clear();
+    if (!from || (from && to)) { setFrom(id); setTo(null); } else if (id !== from) setTo(id);
+  };
+  const onPath = (id: string) => {
+    const p = board?.paths.find((x) => x.local_id === id);
+    if (!p) return;
+    setResult(null); setSelectedPath(id); setFrom(p.from_terminal); setTo(p.to_terminal);
+  };
   return <Card withBorder><Stack gap="xs"><Title order={3}>Frozen board</Title>
     {inspection.isError && <Alert color="red">{inspection.error.message}</Alert>}
-    {view && <>
-      <Group gap="lg">
-        <Stack gap={0}><Text className="sb-silk">Origin</Text><Text size="sm">{view.origin === "kicad_derived" ? "From a KiCad import" : "Black box"}</Text></Stack>
-        <Stack gap={0}><Text className="sb-silk">Review</Text><SbStatus led={view.review === "reviewed" ? "info" : "review"} dimension="board" value={view.review} /></Stack>
-        <Stack gap={0}><Text className="sb-silk">Carries</Text><Text size="sm">{view.connectors.map((c) => c.body_name).join(", ") || "No connector declared"}</Text></Stack>
-        <Stack gap={0}><Text className="sb-silk">Continuity</Text><Text size="sm">not evaluated</Text></Stack>
-      </Group>
-      <Table.ScrollContainer minWidth={640}><Table withTableBorder verticalSpacing={4} className="sb-board-table">
-        <Table.Thead><Table.Tr><Table.Th>Pad</Table.Th><Table.Th>Group</Table.Th><Table.Th>Kind</Table.Th><Table.Th>Lands on</Table.Th><Table.Th>Paths</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>{view.terminals.map((t) => <Table.Tr key={t.terminal_id}>
-          <Table.Td className="sb-board-label">{t.label}</Table.Td>
-          <Table.Td>{t.group ?? "none"}</Table.Td>
-          <Table.Td>{t.kind === "unknown" ? <SbUnknown what="Kind" /> : KIND_LABELS[t.kind]}</Table.Td>
-          <Table.Td>{t.landings.length ? t.landings.map((l) => <Group key={`${l.connector_id}:${l.contact_id}`} gap={6} wrap="nowrap"><Text size="sm">{l.body_name} contact {l.number ?? l.contact_id}</Text>{l.status === "unknown" && <SbStatus led="review" dimension="landing" value="unreviewed, unknown" />}</Group>) : "none declared"}</Table.Td>
-          <Table.Td>{t.connection === "declared" ? `${t.path_ids.length} declared` : <SbUnknown what="Connection" />}</Table.Td>
-        </Table.Tr>)}</Table.Tbody>
-      </Table></Table.ScrollContainer>
-      <Title order={4}>Paths</Title>
-      {view.paths.length === 0 ? <SbUnknown what="Every path" /> : <div className="sb-board-paths">{view.paths.map((p) => <PathChip key={p.local_id} from={p.from_label} to={p.to_label} summary={p.summary} native={p.provenance !== "declared"} unknown={p.via === "unknown"} />)}</div>}
-      <TraceForm revisionId={revisionId} board={inspection.data!.interface} />
+    {view && board && layout && <>
+      <BoardCells board={board} carries={view.connectors.map((c) => c.body_name).join(", ") || "No connector declared"}
+        extra={<><div className="sb-cell"><dt className="sb-silk">Origin</dt><dd>{view.origin === "kicad_derived" ? "From a KiCad import" : "Black box"}</dd></div>
+          <div className="sb-cell"><dt className="sb-silk">Continuity</dt><dd><SbStatus led="not-evaluated" dimension="continuity" value="not evaluated" /></dd></div></>} />
+      <div className="bv-bench">
+        <div className="bv-stage">
+          <div className="bv-viewport"><BoardDrawing layout={layout} board={board} title={inspection.data!.revision_id ? "Board" : "Board"} litPads={new Set([from, to].filter((x): x is string => !!x))}
+            selectedPath={selectedPath} traced={traced} traceKey={traceKey} states={states} onPad={onPad} onPath={onPath} /></div>
+          <div className="bv-hint">Click a path, or two pads, then Follow. Declared paths only: this is not measured continuity.</div>
+        </div>
+        <aside className="bv-inspector" aria-label="Board inspector">
+          <TraceForm revisionId={revisionId} board={board} from={from} to={to} setFrom={(v) => { clear(); setFrom(v); }} setTo={(v) => { clear(); setTo(v); }}
+            states={states} setStates={(s) => { setResult(null); setStates(s); }} result={result} onResult={(r) => { setResult(r); setTraceKey((k) => k + 1); }} />
+        </aside>
+      </div>
+      <details className="bv-table-fallback">
+        <summary className="sb-silk">Pads and paths table</summary>
+        <Table.ScrollContainer minWidth={640}><Table withTableBorder verticalSpacing={4} className="sb-board-table">
+          <Table.Thead><Table.Tr><Table.Th>Pad</Table.Th><Table.Th>Group</Table.Th><Table.Th>Kind</Table.Th><Table.Th>Lands on</Table.Th><Table.Th>Paths</Table.Th></Table.Tr></Table.Thead>
+          <Table.Tbody>{view.terminals.map((t) => <Table.Tr key={t.terminal_id}>
+            <Table.Td className="sb-board-label">{t.label}</Table.Td>
+            <Table.Td>{t.group ?? "none"}</Table.Td>
+            <Table.Td>{t.kind === "unknown" ? <SbUnknown what="Kind" /> : KIND_LABELS[t.kind]}</Table.Td>
+            <Table.Td>{t.landings.length ? t.landings.map((l) => <Group key={`${l.connector_id}:${l.contact_id}`} gap={6} wrap="nowrap"><Text size="sm">{l.body_name} contact {l.number ?? l.contact_id}</Text>{l.status === "unknown" && <SbStatus led="review" dimension="landing" value="unreviewed, unknown" />}</Group>) : "none declared"}</Table.Td>
+            <Table.Td>{t.connection === "declared" ? `${t.path_ids.length} declared` : <SbUnknown what="Connection" />}</Table.Td>
+          </Table.Tr>)}</Table.Tbody>
+        </Table></Table.ScrollContainer>
+        {view.paths.length === 0 ? <SbUnknown what="Every path" /> : <div className="sb-board-paths">{view.paths.map((p) => <PathChip key={p.local_id} from={p.from_label} to={p.to_label} summary={p.summary} native={p.provenance !== "declared"} unknown={p.via === "unknown"} />)}</div>}
+      </details>
       <Text size="xs" c="dimmed"><RevisionLabel id={revisionId} /></Text>
     </>}
   </Stack></Card>;
 }
 
-function TraceForm({ revisionId, board }: { revisionId: string; board: Board }) {
-  const [from, setFrom] = useState<string | null>(null);
-  const [to, setTo] = useState<string | null>(null);
+function TraceForm({ revisionId, board, from, to, setFrom, setTo, states, setStates, result, onResult }: {
+  revisionId: string; board: Board; from: string | null; to: string | null; setFrom: (v: string | null) => void; setTo: (v: string | null) => void;
+  states: Record<string, string>; setStates: (s: Record<string, string>) => void; result: BoardTrace | null; onResult: (r: BoardTrace | null) => void;
+}) {
   const [query, setQuery] = useState("dc_continuity");
   const [ideal, setIdeal] = useState(true);
-  const [states, setStates] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<BoardTrace | null>(null);
   const [error, setError] = useState<string | null>(null);
   const options = board.terminals.map((t) => ({ value: t.terminal_id, label: t.group ? `${t.label} · ${t.group}` : t.label }));
   const run = async () => {
     const params = new URLSearchParams({ from_terminal_id: from!, to_terminal_id: to!, query, copper_assumption: ideal ? "ideal_zero_resistance" : "unspecified" });
     for (const [key, state] of Object.entries(states)) params.append("condition", `${key}=${state}`);
     setError(null);
-    try { setResult(await read<BoardTrace>(`interfaces/revisions/${revisionId}/board-trace?${params.toString()}`)); }
-    catch (reason) { setResult(null); setError(reason instanceof Error ? reason.message : String(reason)); }
+    try { onResult(await read<BoardTrace>(`interfaces/revisions/${revisionId}/board-trace?${params.toString()}`)); }
+    catch (reason) { onResult(null); setError(reason instanceof Error ? reason.message : String(reason)); }
   };
-  return <Stack gap={4}>
+  return <Stack gap={6}>
     <Title order={4}>Follow a path</Title>
-    <Group align="end">
-      <Select size="xs" label="From pad" searchable value={from} data={options} onChange={setFrom} />
-      <Select size="xs" label="To pad" searchable value={to} data={options} onChange={setTo} />
-      <Select size="xs" label="Question" value={query} data={QUERIES} onChange={(v) => setQuery(v ?? "dc_continuity")} />
-      {board.conditions.map((c) => <Select key={c.key} size="xs" label={c.name} clearable placeholder="Not selected (unknown)" value={states[c.key] ?? null} data={c.choices.map((x) => ({ value: x.key, label: x.name }))}
-        onChange={(v) => setStates((s) => { const next = { ...s }; if (v) next[c.key] = v; else delete next[c.key]; return next; })} />)}
-      <Checkbox size="xs" label="Assume ideal copper" checked={ideal} onChange={(e) => setIdeal(e.currentTarget.checked)} />
-      <Button size="xs" variant="default" disabled={!from || !to || from === to} onClick={() => void run()}>Follow</Button>
-    </Group>
+    <Select size="xs" label="From pad" searchable value={from} data={options} onChange={setFrom} />
+    <Select size="xs" label="To pad" searchable value={to} data={options} onChange={setTo} />
+    <Select size="xs" label="Question" value={query} data={QUERIES} onChange={(v) => { setQuery(v ?? "dc_continuity"); onResult(null); }} />
+    {board.conditions.map((c) => <Select key={c.key} size="xs" label={c.name} clearable placeholder="Not selected (unknown)" value={states[c.key] ?? null} data={c.choices.map((x) => ({ value: x.key, label: x.name }))}
+      onChange={(v) => { const next = { ...states }; if (v) next[c.key] = v; else delete next[c.key]; setStates(next); }} />)}
+    <Checkbox size="xs" label="Assume ideal copper" checked={ideal} onChange={(e) => setIdeal(e.currentTarget.checked)} />
+    <Button size="xs" variant="default" w="fit-content" disabled={!from || !to || from === to} onClick={() => void run()}>Follow</Button>
     {error && <Alert color="red">{error}</Alert>}
-    {result && <Stack gap={2}>
+    {result && <Stack gap={2} role="status" aria-label="Path result">
       {result.status === "unknown" ? <SbUnknown what="Result" /> : <SbStatus led={result.status === "modeled_blocked" ? "failed" : "info"} dimension="declared model" value={TRACE_WORDS[result.status] ?? result.status} />}
       {result.series_resistance_ohm !== null && <Text size="sm">Series resistance {result.series_resistance_ohm} ohm (declared values)</Text>}
       <Text size="xs" c="dimmed">{result.reason.replaceAll("_", " ")}</Text>

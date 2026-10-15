@@ -1,6 +1,6 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
@@ -114,4 +114,70 @@ test("a KiCad proposal lists components and only fills the new board when used",
   expect(onUse).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Use proposal in the new board" }));
   expect(onUse).toHaveBeenCalledWith(proposal.board, "Two-net board board");
+});
+
+const CARRYING: BoardInspection = { ...INSPECTION, interface: { ...ADAPTER, carried_connectors: [{ local_id: "plug", body_revision_id: "plug-r1", correspondence: [{ terminal_id: "din-1", contact_id: "1" }], review: "unreviewed", basis: null }] } };
+
+test("the frozen drawing: placeholder outline, unknown pads marked, and Follow a path lights the traced copper", async () => {
+  const fetch = vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("board-trace")
+    ? { status: "modeled_series_resistance", reason: "single_declared_model_path_only", series_resistance_ohm: "470", limited: false, paths: [{ terminal_ids: ["cs", "din-1"], terminal_labels: ["CS", "1"], status: "modeled_path", reasons: [], steps: [] }] }
+    : CARRYING)));
+  vi.stubGlobal("fetch", fetch);
+  render(wrap(<BoardInspector revisionId="board-r1" />));
+  const drawing = await screen.findByRole("group", { name: "Board drawing" });
+  // The board's shape is not declared: the outline is a labeled placeholder, never a guessed shape.
+  expect(within(drawing).getByText("OUTLINE NOT DECLARED · PLACEHOLDER")).toBeTruthy();
+  expect(drawing.querySelector("[data-placeholder='true']")).toBeTruthy();
+  expect(within(drawing).getByRole("button", { name: "Pad 5V, Cable side" }).getAttribute("data-unconnected")).toBe("true");
+  expect(within(drawing).getByText("R1 470R")).toBeTruthy();
+  expect(within(drawing).getByRole("img", { name: "Carried connector 10-pin plug" })).toBeTruthy();
+  const path = within(drawing).getByRole("button", { name: "Path CS to 1, R1 470R resistor" });
+  fireEvent.click(path);
+  expect((screen.getByRole("combobox", { name: "From pad" }) as HTMLInputElement).value).toBe("CS · Cable side");
+  expect((screen.getByRole("combobox", { name: "To pad" }) as HTMLInputElement).value).toBe("1 · Connector side");
+  fireEvent.click(screen.getByRole("button", { name: "Follow" }));
+  const result = await screen.findByRole("status", { name: "Path result" });
+  expect(within(result).getByText("declared model")).toBeTruthy();
+  expect(within(result).getByText("CS → 1")).toBeTruthy();
+  await waitFor(() => expect(path.getAttribute("data-traced")).toBe("true"));
+  expect(path.querySelector(".bv-follow")).toBeTruthy();
+});
+
+let edited: Board | null = null;
+function DrawingHarness({ start }: { start: Board }) {
+  const [value, setValue] = useState<Board>(start);
+  edited = value;
+  return <BoardEditor value={value} onChange={setValue} definitions={[]} title="Adapter" />;
+}
+
+test("click two pads to declare copper, then make it a series resistor in the inspector", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("[]")));
+  const start: Board = { ...emptyBoard(), terminals: ADAPTER.terminals.slice(0, 2) };
+  render(wrap(<DrawingHarness start={start} />));
+  const drawing = screen.getByRole("group", { name: "Adapter drawing" });
+  fireEvent.click(within(drawing).getByRole("button", { name: "Pad CS, Cable side" }));
+  expect(screen.getByRole("status").textContent).toContain("Drawing a path from pad CS");
+  fireEvent.click(within(drawing).getByRole("button", { name: "Pad 1, Connector side" }));
+  expect(edited?.paths).toEqual([{ local_id: "path-1", from_terminal: "cs", to_terminal: "din-1", via: "copper", component: null, switch: null, provenance: "declared", basis: "" }]);
+  const inspector = screen.getByRole("complementary", { name: "Board inspector" });
+  expect(within(inspector).getByRole("heading", { name: "CS to 1" })).toBeTruthy();
+  await select("Path kind", "Through a component");
+  await select("Part kind", "resistor");
+  fireEvent.change(within(inspector).getByLabelText("Reference"), { target: { value: "R1" } });
+  fireEvent.change(within(inspector).getByLabelText("Resistance in ohm (blank = unknown)"), { target: { value: "470" } });
+  fireEvent.change(within(inspector).getByLabelText("Path basis"), { target: { value: "Board drawing" } });
+  expect(edited?.paths[0]).toMatchObject({ via: "component", component: { kind: "resistor", reference: "R1", resistance_ohm: "470" }, basis: "Board drawing" });
+  // The part is drawn on its copper with what is known; the exact value stands in for a missing written one.
+  expect(within(drawing).getByText("R1 470")).toBeTruthy();
+});
+
+test("a viewer inspects pads on the drawing but cannot draw paths", () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("[]")));
+  const start: Board = { ...emptyBoard(), terminals: ADAPTER.terminals.slice(0, 2) };
+  render(wrap(<DrawingHarness start={start} />, ["workspace.read"]));
+  const drawing = screen.getByRole("group", { name: "Adapter drawing" });
+  fireEvent.click(within(drawing).getByRole("button", { name: "Pad CS, Cable side" }));
+  fireEvent.click(within(drawing).getByRole("button", { name: "Pad 1, Connector side" }));
+  expect(edited?.paths).toEqual([]);
+  expect(within(screen.getByRole("complementary", { name: "Board inspector" })).getByRole("heading", { name: "Pad 1" })).toBeTruthy();
 });
