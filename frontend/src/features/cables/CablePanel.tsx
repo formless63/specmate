@@ -6,7 +6,7 @@ import { useMutation, useQueries, useQuery, useQueryClient, type Query, type Use
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
 import { colourName } from '../wire-stock/builder';
-import { CableViews } from '../cable-views/CableViews';
+import { CableViews, type CableEnd } from '../cable-views/CableViews';
 import { useProbedSelection } from '../cable-views/useProbedSelection';
 import { useProbe } from '../probe';
 import type { StockElement } from '../../../../packages/section-layout/src';
@@ -306,6 +306,9 @@ export function CableInspector({ revisionId, revisions = [] }: { revisionId: str
   // Ends with an unknown stock end are not placed on a stock end face: every end's landing is listed.
   const terminationLabels = Object.fromEntries((data?.conductors ?? []).map(row => [row.element_path,
     row.ends.map(end => `${endLabel(end.endpoint_id)}: ${end.assignment ? targetText(end.assignment) : 'unassigned'}`).join('; ')]));
+  // Each cable end is drawn on the stock end face it records; its own landings label that face.
+  const cableEnds: CableEnd[] = (data?.endpoints ?? []).map(e => ({ endpointId: e.local_id, label: endName(e), stockEnd: e.stock_end ?? 'unknown',
+    terminations: Object.fromEntries((data?.conductors ?? []).flatMap(row => { const end = row.ends.find(x => x.endpoint_id === e.local_id); return end?.assignment ? [[row.element_path, targetText(end.assignment)]] : []; })) }));
   return <Card withBorder><Stack><Title order={3}>Frozen cable inspection</Title><Text><RevisionLabel id={revisionId} /></Text>
     {result.isError && <Alert color="red">{result.error.message}</Alert>}
     {data && !result.isError && <>
@@ -336,7 +339,7 @@ export function CableInspector({ revisionId, revisions = [] }: { revisionId: str
         <Text size="sm" c="dimmed">The wire material this cable is cut from. Its cross-section and end faces are the stock's, not the finished cable's.</Text>
         <StockLink revisionId={data.cable.stock_revision_id} />
         {stock.isError && <Alert color="red">{stock.error.message}</Alert>}
-        {stock.data && !stock.isError && <CableViews stock={stock.data} name={`Stock ${stockId}`} revisionId={stockId} terminationLabels={terminationLabels} choosePreparation />}
+        {stock.data && !stock.isError && <CableViews stock={stock.data} name={`Stock ${stockId}`} revisionId={stockId} terminationLabels={terminationLabels} cableEnds={cableEnds} choosePreparation />}
       </Stack></Card>
     </>}
   </Stack></Card>;

@@ -12,7 +12,7 @@ import { HarnessInspector } from '../harnesses/HarnessPanel';
 import { read as readHarness, type Draft as HarnessDraft } from '../harnesses/api';
 import { HarnessViews } from '../harness-views/HarnessViews';
 import { loadFrozenStock } from '../wire-stock/viewer-api';
-import { CableViews } from './CableViews';
+import { CableViews, type CableEnd } from './CableViews';
 
 const PAGE = 50;
 /** Revisions are listed oldest first, 50 to a page; this is the offset of the page that holds `number`. */
@@ -83,13 +83,17 @@ function CableDraftViews({ draftId, name }: { draftId: string; name: string }) {
   const draft = useQuery({ queryKey: ['cable-draft', draftId], queryFn: () => readIdentity<CableDraft>(`cables/drafts/${draftId}`), retry: false });
   const stockId = draft.data?.content.cable?.stock_revision_id || null;
   const stock = useQuery({ queryKey: ['cable-stock', stockId], queryFn: () => loadFrozenStock(stockId!), enabled: !!stockId, retry: false });
+  const cable = draft.data?.content.cable;
+  // A draft is not resolved here: landings show their layer and terminal IDs as saved.
+  const cableEnds: CableEnd[] | undefined = cable?.endpoints.map(e => ({ endpointId: e.local_id, label: e.label ?? `End ${e.local_id.toUpperCase()}`, stockEnd: e.stock_end ?? 'unknown',
+    terminations: Object.fromEntries(cable.assignments.filter(a => a.endpoint_id === e.local_id).map(a => [a.element_path, `${a.layer_id} ${a.terminal_id}`])) }));
   return <Stack gap="xs" aria-label="Cable draft views">
     {draft.isError && <Alert color="red" role="alert">{draft.error instanceof Error ? draft.error.message : 'The draft could not be read.'}</Alert>}
     {draft.data && <DraftNote state={draft.data.state} />}
     {draft.data?.content.cable && <CableSummary cable={draft.data.content.cable} />}
     {draft.data && !stockId && <Text role="status">No stock is chosen in this draft, so no section or 3D model can be drawn. <SbUnknown /></Text>}
     {stock.isError && <Alert color="red" role="alert">{stock.error instanceof Error ? stock.error.message : 'The stock could not be read.'}</Alert>}
-    {stock.data && !stock.isError && <Stack gap="xs"><Title order={4}>Stock used</Title><CableViews stock={stock.data} name={`${name} (draft)`} revisionId={null} /></Stack>}
+    {stock.data && !stock.isError && <Stack gap="xs"><Title order={4}>Stock used</Title><CableViews stock={stock.data} name={`${name} (draft)`} revisionId={null} cableEnds={cableEnds} /></Stack>}
   </Stack>;
 }
 

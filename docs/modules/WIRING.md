@@ -119,8 +119,11 @@ listed as unknown; nothing is guessed. Selection on an engineering view is a ret
 recorded `viewed_from` end; the other end is that drawing mirrored about the vertical axis,
 so each ring reads the opposite way round. Rotation is a viewing input. Every conducting
 element has a terminal marker. A stock whose viewed-from end is unknown has no end face.
-Each cable end records which stock end it uses (`a`, `b` or `unknown`); an unknown stock
-end is never guessed, so the inspector lists every end's termination for each element.
+Each cable end records which stock end it uses (`a`, `b` or `unknown`). In the cable
+inspection and the cable draft views, each stock end face names the cable end recorded on it
+and is labeled with that end's landings only. A cable end whose stock end is unknown is never
+placed on either face: it is shown as stock end unknown with its landings listed beside the
+faces, and a stock end no cable end records lists every end's landing.
 
 The wire viewer builds physically based materials from the same model with generated
 (code-only) surface textures, uses an image-based light when WebGL allows it, writes a
