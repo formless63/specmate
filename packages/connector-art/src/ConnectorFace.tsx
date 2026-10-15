@@ -13,11 +13,24 @@ import { fmt, geometryForView, shapeBounds, shapePath, type ConnectorGeometry, t
 
 export type PinState = 'pass' | 'fail' | 'unknown' | 'hazard' | 'selected' | 'dim';
 
+/**
+ * Extra outer rings, drawn in addition to the state: `must-not-connect` (thick dashed,
+ * invalid ink), `hazard` (dashed, review ink) and `differs` (dashed, compare ink, for a
+ * pin whose meaning changes between two compared pin tables).
+ */
+export type PinRing = 'must-not-connect' | 'hazard' | 'differs';
+
 export interface ConnectorFacePin {
   id: string;
   label?: string;
   fill?: string;
   state?: PinState;
+  rings?: readonly PinRing[];
+  /**
+   * A conditional pin: two or more fills drawn as a split marker, one segment per
+   * alternative meaning. The pin's own `fill` is ignored while a split is drawn.
+   */
+  split?: readonly string[];
 }
 
 export interface ConnectorFaceProps {
@@ -44,6 +57,17 @@ const SUBTLE = 'var(--sb-border-control, #3c4046)';
 const METAL = 'var(--sb-text-secondary, #b3b8bf)';
 const TEXT = 'var(--sb-text-primary, #e8eaed)';
 const ON_METAL = 'var(--sb-surface-canvas, #0b0c0d)';
+
+const RING_WORDS: Record<PinRing, string> = {
+  'must-not-connect': 'must not connect',
+  hazard: 'hazard',
+  differs: 'differs between compared pin tables',
+};
+const RING_STYLE: Record<PinRing, { color: string; scale: number; width: number }> = {
+  'must-not-connect': { color: 'var(--sb-invalid, #ff5a5a)', scale: 1.42, width: 2.6 },
+  hazard: { color: 'var(--sb-review, #e0b030)', scale: 1.42, width: 2 },
+  differs: { color: 'var(--sb-compare, #7ab8ff)', scale: 1.7, width: 1.8 },
+};
 
 const STATE_WORDS: Record<PinState, string> = {
   pass: 'passed',
@@ -105,7 +129,7 @@ export function ConnectorFace(props: ConnectorFaceProps): JSX.Element {
   const describe = (pin: PinGeometry, state: PinState | undefined): string => {
     const entry = byId.get(pin.id);
     const name = pin.role === 'shell' && !/^\d+$/.test(pin.id) ? pin.id : `Pin ${pin.id}`;
-    return [name, entry?.label, state ? STATE_WORDS[state] : undefined].filter(Boolean).join(', ');
+    return [name, entry?.label, state ? STATE_WORDS[state] : undefined, entry?.split && entry.split.length > 1 ? 'conditional' : undefined, ...(entry?.rings ?? []).map((ring) => RING_WORDS[ring])].filter(Boolean).join(', ');
   };
   const clickable = onPinClick !== undefined;
   const activate = (id: string) => (event: KeyboardEvent<SVGGElement>) => {
@@ -178,10 +202,16 @@ export function ConnectorFace(props: ConnectorFaceProps): JSX.Element {
           ) : state === 'hazard' ? (
             <circle cx={fmt(pin.at[0])} cy={fmt(pin.at[1])} r={fmt(haloRadius(pin, r) * 1.2)} fill="none" stroke="var(--sb-review, #e0b030)" strokeWidth={stroke * 2} strokeDasharray={`${fmt(stroke * 3)} ${fmt(stroke * 2)}`} />
           ) : null;
+        const rings = (entry?.rings ?? []).map((ring) => (
+          <circle key={ring} cx={fmt(pin.at[0])} cy={fmt(pin.at[1])} r={fmt(haloRadius(pin, r) * RING_STYLE[ring].scale)} fill="none" stroke={RING_STYLE[ring].color} strokeWidth={stroke * RING_STYLE[ring].width} strokeDasharray={`${fmt(stroke * 3.5)} ${fmt(stroke * 2.2)}`} data-ring={ring} />
+        ));
+        const split = entry?.split && entry.split.length > 1 && state !== 'unknown' ? splitMarker(pin, r, entry.split, stroke) : null;
         const body = (
-          <g data-pin={pin.id} data-state={state ?? 'none'} opacity={state === 'dim' ? 0.35 : undefined}>
+          <g data-pin={pin.id} data-state={state ?? 'none'} data-split={split ? entry?.split?.length : undefined} opacity={state === 'dim' ? 0.35 : undefined}>
+            {rings}
             {halo}
             {marker}
+            {split}
             {text}
             {!clickable && <title>{describe(pin, state)}</title>}
           </g>
@@ -204,6 +234,25 @@ export function ConnectorFace(props: ConnectorFaceProps): JSX.Element {
         );
       })}
     </svg>
+  );
+}
+
+/** A round or square marker cut into equal wedges, one per alternative meaning. */
+function splitMarker(pin: PinGeometry, r: number | undefined, fills: readonly string[], stroke: number): JSX.Element | null {
+  if (r === undefined || (pin.shape !== 'round' && pin.shape !== 'square')) return null;
+  const [x, y] = pin.at;
+  const n = fills.length;
+  const radius = pin.shape === 'square' ? r * 1.0 : r;
+  return (
+    <g aria-hidden="true" style={{ pointerEvents: 'none' }}>
+      {fills.map((fill, i) => {
+        const a0 = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+        const a1 = -Math.PI / 2 + ((i + 1) * 2 * Math.PI) / n;
+        const large = a1 - a0 > Math.PI ? 1 : 0;
+        const d = `M${fmt(x)} ${fmt(y)} L${fmt(x + radius * Math.cos(a0))} ${fmt(y + radius * Math.sin(a0))} A${fmt(radius)} ${fmt(radius)} 0 ${large} 1 ${fmt(x + radius * Math.cos(a1))} ${fmt(y + radius * Math.sin(a1))} Z`;
+        return <path key={i} d={d} fill={fill} stroke="var(--sb-surface-canvas, #0b0c0d)" strokeWidth={stroke * 1.2} />;
+      })}
+    </g>
   );
 }
 

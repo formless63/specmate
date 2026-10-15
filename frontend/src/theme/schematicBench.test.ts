@@ -36,6 +36,9 @@ test("variables resolve semantic roles for both color schemes with a non-accent 
     expect(values["--sb-focus"]).not.toBe(values["--sb-accent"]);
     expect(values["--sb-border-control"]).toBe(role.border.control);
     expect(values["--mantine-color-body"]).toBe(role.surface.canvas);
+    for (const family of ["video", "sync", "audio", "power", "ground", "control", "data"] as const) {
+      expect(values[`--sb-signal-${family}`]).toBe(role.signal[family]);
+    }
   }
 });
 

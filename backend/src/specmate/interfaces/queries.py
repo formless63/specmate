@@ -367,6 +367,7 @@ def inspect_revision(user, revision_id):
             for c in body.contacts
         ]
         result["signals"] = pin_signals(closure.root, closure)
+        result["ports"] = variant_ports(user, revision)
     if isinstance(closure.root, ConnectorBody):
         result["pinout_variants"] = pinout_variants(user, revision)
         result["mates_with"] = [
@@ -627,6 +628,60 @@ def pinout_variants(user, body_revision):
         )
     variants.sort(key=lambda v: ((v["variant_label"] or v["name"]).casefold(), v["definition_id"]))
     return variants
+
+
+def variant_ports(user, pinout_revision):
+    """Device ports built on any revision of this pinout, newest frozen revision per port.
+
+    Each lists the contacts its device says must not connect, with the stated reason, so a
+    pin table can show those hazards. Ports the actor cannot read are left out.
+    """
+    latest = {}
+    for revision in (
+        Revision.objects.select_related("definition", "snapshot")
+        .filter(
+            definition__kind="port",
+            definition__workspace_id=pinout_revision.definition.workspace_id,
+            snapshot__dependencies__revision__definition_id=pinout_revision.definition_id,
+        )
+        .order_by("definition_id", "-number")
+        .distinct()
+    ):
+        latest.setdefault(revision.definition_id, revision)
+    ours = {
+        str(rid)
+        for rid in Revision.objects.filter(definition_id=pinout_revision.definition_id).values_list(
+            "id", flat=True
+        )
+    }
+    ports = []
+    for revision in latest.values():
+        try:
+            authorize_origin(user, revision.definition)
+        except (NotFound, PermissionDenied):
+            continue
+        value = parse_content(json.loads(bytes(revision.snapshot.canonical))["content"], "port")
+        if str(value.pinout_revision_id) not in ours:
+            continue
+        ports.append(
+            {
+                "definition_id": str(revision.definition_id),
+                "name": revision.definition.name,
+                "revision_id": str(revision.id),
+                "number": revision.number,
+                "device_label": value.device_label,
+                "role": value.role,
+                "pinout_revision_id": str(value.pinout_revision_id),
+                "same_pinout_revision": str(value.pinout_revision_id) == str(pinout_revision.id),
+                "must_not_connect": [
+                    {"contact_id": pin.contact_id, "reason": pin.must_not_connect_reason}
+                    for pin in value.pins
+                    if pin.must_not_connect
+                ],
+            }
+        )
+    ports.sort(key=lambda p: (p["name"].casefold(), p["definition_id"]))
+    return ports
 
 
 def trace(user, revision_id, contact_id):

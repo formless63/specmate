@@ -188,6 +188,19 @@ describe('ConnectorFace', () => {
     expect(onPinClick.mock.calls).toEqual([['5'], ['3']]);
   });
 
+  test('outer rings and split conditional markers are drawn and named, not hue alone', () => {
+    const { container } = render(<ConnectorFace geometry={g('mini-din-10-female')} onPinClick={() => {}} pins={[
+      { id: '1', fill: 'var(--sb-signal-power)', rings: ['must-not-connect'], label: '+9 V' },
+      { id: '2', fill: 'var(--sb-signal-sync)', split: ['var(--sb-signal-sync)', 'var(--sb-signal-power)'], rings: ['hazard', 'differs'], label: 'Region A: sync / Region B: +9 V' },
+    ]} />);
+    expect(container.querySelector('[data-pin="1"] [data-ring="must-not-connect"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-pin="2"] [data-ring]')).toHaveLength(2);
+    expect(container.querySelector('[data-pin="2"]')?.getAttribute('data-split')).toBe('2');
+    expect(container.querySelectorAll('[data-pin="2"] path')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Pin 1, +9 V, must not connect' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Pin 2, .*, conditional, hazard, differs between compared pin tables$/ })).toBeTruthy();
+  });
+
   test('the solder view is labeled and mirrored', () => {
     const { container } = render(<ConnectorFace geometry={g('de-9-male')} view="solder" title="Rear" />);
     expect(screen.getByRole('img', { name: /^Rear, 9 positions/ }).getAttribute('data-view')).toBe('solder');

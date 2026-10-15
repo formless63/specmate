@@ -121,6 +121,26 @@ def test_variant_b_port_marks_its_supply_pin_must_not_connect(users, project, av
         create(owner, project, bad)
 
 
+def test_pinout_inspection_lists_ports_and_their_must_not_connect_pins(users, project, av):
+    owner = users["owner"]
+    variant_b = av["variants"]["Console B AV"]
+    assert inspect_revision(owner, variant_b)["ports"] == []
+    port_b = frozen(
+        owner, project, examples.console_port(variant_b, "Console B AV out"), "Console B AV out"
+    )
+    frozen(
+        owner,
+        project,
+        examples.console_port(av["variants"]["Console A AV"], "Console A AV out"),
+        "Console A AV out",
+    )
+    (listed,) = inspect_revision(users["viewer"], variant_b)["ports"]
+    assert (listed["revision_id"], listed["device_label"]) == (port_b, "Console B AV out")
+    assert listed["same_pinout_revision"] is True
+    assert [p["contact_id"] for p in listed["must_not_connect"]] == ["1"]
+    assert listed["must_not_connect"][0]["reason"]
+
+
 def test_unselected_condition_reports_pin_1_unknown_and_may_be_power(users, project, av):
     owner = users["owner"]
     port = examples.console_port(av["regional"], "Regional console AV out")
