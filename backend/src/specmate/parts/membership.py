@@ -3,6 +3,7 @@
 import json
 
 from django.core import signing
+from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -19,7 +20,7 @@ SALT = "catalog-kit-membership-v1"
 SCAN_LIMIT = 50
 
 
-def position(after, revision_id):
+def position(after, revision_id, user_id, workspace_id):
     if after is None:
         return timezone.now(), 0
     try:
@@ -29,6 +30,8 @@ def position(after, revision_id):
             type(cursor["version"]) is not int
             or cursor["version"] != 1
             or cursor["root"] != str(revision_id)
+            or cursor["actor"] != str(user_id)
+            or cursor["workspace"] != str(workspace_id)
             or anchor is None
             or timezone.is_naive(anchor)
             or anchor > timezone.now()
@@ -46,13 +49,17 @@ def kits_for_revision(user, revision_id, query):
     selected = get_revision(user, revision_id)
     if selected.definition.kind not in ITEM_KINDS:
         raise ValidationFailed("Kit membership requires an exact physical catalog design.")
-    anchor, offset = position(query.after, selected.id)
+    anchor, offset = position(query.after, selected.id, user.id, selected.definition.workspace_id)
+    latest = Revision.objects.filter(
+        definition_id=OuterRef("definition_id"), frozen_at__lte=anchor
+    ).order_by("-number")
     candidates = list(
         Revision.objects.filter(
             definition__workspace_id=selected.definition.workspace_id,
             definition__kind="kit",
             snapshot__dependencies__revision=selected,
             frozen_at__lte=anchor,
+            id=Subquery(latest.values("id")[:1]),
         )
         .select_related("definition", "snapshot__definition")
         .order_by("-frozen_at", "id")[offset : offset + SCAN_LIMIT + 1]
@@ -89,6 +96,8 @@ def kits_for_revision(user, revision_id, query):
             {
                 "version": 1,
                 "root": str(selected.id),
+                "actor": str(user.id),
+                "workspace": str(selected.definition.workspace_id),
                 "anchor": anchor.isoformat(),
                 "offset": offset + scanned,
             },
@@ -98,7 +107,7 @@ def kits_for_revision(user, revision_id, query):
         if len(candidates) > scanned
         else None,
         "semantics": "catalog_grouping",
-        "basis": "exact_declared_lines",
+        "basis": "latest_frozen_at_page_anchor_exact_declared_lines",
         "physical_assembly": "not_implied",
         "listing": "current_readable_page_no_hidden_total",
     }

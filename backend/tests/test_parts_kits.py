@@ -277,7 +277,7 @@ def test_membership_scans_are_signed_root_bound_hide_denied_candidates_and_resto
     first = membership.kits_for_revision(users["viewer"], target["revision_id"], KitPage(limit=2))
     assert [row["revision_id"] for row in first["results"]] == [newest["revision_id"]]
     cursor = signing.loads(first["next_after"], salt=membership.SALT)
-    assert set(cursor) == {"version", "root", "anchor", "offset"}
+    assert set(cursor) == {"version", "root", "actor", "workspace", "anchor", "offset"}
     assert hidden["revision_id"] not in json.dumps(cursor)
     from specmate.design.models import Revision
 
@@ -294,12 +294,18 @@ def test_membership_scans_are_signed_root_bound_hide_denied_candidates_and_resto
         first["next_after"] + "x",
         signing.dumps({**cursor, "version": 2}, salt=membership.SALT),
         signing.dumps({**cursor, "root": secret["revision_id"]}, salt=membership.SALT),
+        signing.dumps({**cursor, "actor": str(owner.id)}, salt=membership.SALT),
+        signing.dumps({**cursor, "workspace": "different"}, salt=membership.SALT),
     ):
         with pytest.raises(ValidationFailed):
             membership.kits_for_revision(
                 users["viewer"], target["revision_id"], KitPage(after=cursor_value)
             )
     blocked = False
+    with pytest.raises(ValidationFailed):
+        membership.kits_for_revision(
+            owner, target["revision_id"], KitPage(after=first["next_after"])
+        )
     restored = membership.kits_for_revision(
         users["viewer"], target["revision_id"], KitPage(limit=2)
     )
@@ -315,6 +321,40 @@ def test_membership_scans_are_signed_root_bound_hide_denied_candidates_and_resto
             "results"
         ]
         == restored["results"]
+    )
+
+
+def test_membership_uses_latest_kit_at_anchor_before_matching_exact_dependency(users, workspace):
+    owner = users["owner"]
+    target = frozen(owner, create(owner, workspace))
+    other = frozen(owner, create(owner, workspace))
+    grouping = create(owner, workspace, "kit", {"kit": kit(target)})
+    old = frozen(owner, grouping)
+    first = membership.kits_for_revision(users["viewer"], target["revision_id"], KitPage())
+    assert [row["revision_id"] for row in first["results"]] == [old["revision_id"]]
+    changed = op(
+        owner,
+        "draft.update",
+        {"draft_id": grouping["draft_id"], "changes": {"kit": kit(other)}},
+        expected_state=old["draft"]["state"],
+    )
+    current = frozen(owner, {**grouping, **changed})
+    assert (
+        membership.kits_for_revision(users["viewer"], target["revision_id"], KitPage())["results"]
+        == []
+    )
+    assert (
+        membership.kits_for_revision(users["viewer"], other["revision_id"], KitPage())["results"][
+            0
+        ]["revision_id"]
+        == current["revision_id"]
+    )
+    # Historical membership stays readable through its exact record, not the current list.
+    assert (
+        json.loads(bytes(get_revision(users["viewer"], old["revision_id"]).snapshot.canonical))[
+            "content"
+        ]["kit"]["lines"][0]["revision_id"]
+        == target["revision_id"]
     )
 
 

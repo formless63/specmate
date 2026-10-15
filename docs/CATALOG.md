@@ -67,11 +67,13 @@ Only the selected state's closure is authorized, so a different unavailable draf
 cannot block inspection of an otherwise readable historical revision.
 
 `GET /api/v0/catalog/revisions/{revision_id}/kits` and the read-only
-`catalog.kits_for_revision` operation list exact declared memberships, including
-historical kit revisions. Each page scans at most fifty candidate revisions and
+`catalog.kits_for_revision` operation list exact declared memberships in each kit's
+latest frozen revision at the page anchor. A later kit revision that removes a line
+removes that membership from a new listing; historical exact kit records stay readable.
+Each page scans at most fifty candidate revisions and
 returns at most fifty readable rows. Every candidate's snapshot/source closure is
 checked before its name or lines are disclosed. Signed cursors bind the selected
-root, listing cutoff and scan offset; they carry no denied candidate identity or
+root, current actor, workspace, listing cutoff and scan offset; they carry no denied candidate identity or
 creation time. No hidden totals are returned.
 
 ## Operations and reads
