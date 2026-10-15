@@ -28,7 +28,7 @@ its inputs. Creating a draft needs `item.create`; editing needs `design.edit` (c
 created). Reads need workspace read and use `/api/v0/mechanical-proposals/workspaces/{id}/...`.
 
 Every numeric declaration is nullable and nothing is defaulted. An unknown wall,
-clearance, boss or pilot diameter, standoff, lid hole, connector envelope, centreline
+clearance, boss or pilot diameter, standoff, lid hole, connector envelope, centerline
 offset, vertical reference (back-side components have none), vent pitch or margin, or
 cable diameter leaves exactly the dependent geometry null and lists the missing input in
 `unresolved`; the proposal status is `incomplete`. A zero is only a deliberate
@@ -36,12 +36,12 @@ declaration. Native non-plated drills are `candidate-not-reviewed`: a hole becom
 only through an explicit per-hole choice, and an undecided candidate stays unresolved.
 Components and holes are referenced by native UUID, never by reference label; an unknown
 identity is rejected rather than ignored. The component origin is not a connector
-centreline, so the lateral offset is a required declaration.
+centerline, so the lateral offset is a required declaration.
 
-Output is planar, in the native board frame (millimetres, x right, y down; west is minimum
+Output is planar, in the native board frame (millimeters, x right, y down; west is minimum
 x, north is minimum y), with the enclosure derived from the bounding rectangle of the
 native outline and an explicit note when the outline is not a single axis-aligned
-rectangle. Geometric checks (hole centre inside outline, boss clear of cutouts, boss within
+rectangle. Geometric checks (hole center inside outline, boss clear of cutouts, boss within
 cavity, pilot smaller than boss, boss overlap, opening within wall span, opening
 separation, guide span, guide clear of openings, vent slot survivors after boss keep-out)
 report `pass`, `fail` or `not_evaluated`. They are arithmetic on declared inputs. Status
@@ -110,14 +110,14 @@ resources do not merge contextual selection or repeated firmware assignments.
 Typed relationships retain their containing assembly context and original references.
 
 Canonical transforms are row-major 4×4 matrices acting on column vectors in
-millimetres, right-handed Z-up. The root defines the scene origin. World-from-local
+millimeters, right-handed Z-up. The root defines the scene origin. World-from-local
 is parent-world-from-local multiplied by the declared parent-from-local transform;
 quaternions retain the normalized XYZW assembly convention. Unknown local placement
 or any unknown ancestor produces an unknown world transform, never an identity or
 zero-position substitute. A feature without a complete declared frame/placement
 retains unknown feature transforms even when its containing occurrence is placed.
-Declared mechanical model units retain exact factors (metres 1000, inches 25.4,
-millimetres 1); absent units remain unknown. A unit factor does not establish a
+Declared mechanical model units retain exact factors (meters 1000, inches 25.4,
+millimeters 1); absent units remain unknown. A unit factor does not establish a
 model's target correspondence or convert an unextracted model into accepted geometry.
 
 Supported display primitives retain their restricted meaning. Accepted PCB reports
@@ -239,7 +239,7 @@ independent from this connected occurrence context.
 
 The Assemblies tool authors each directly owned occurrence's explicit canonical
 translation and X/Y/Z/W quaternion in the containing assembly's right-handed,
-Z-up millimetre frame. A known transform requires all three finite coordinates
+Z-up millimeter frame. A known transform requires all three finite coordinates
 and a unit quaternion. Empty coordinates remain missing, and a known origin or
 identity rotation is a deliberate input. The user can explicitly normalize a
 finite nonzero quaternion. Selecting unknown stores no translation or rotation.
@@ -343,10 +343,10 @@ Material specification and behavior, process method, parameters and behavior rem
 separate declarations. Missing behavior supplies no shrinkage, deformation or capability.
 
 Tolerance rows identify their dimension/feature, item/target and optional exact local
-model. Bounds are finite lower/upper deviations in millimetres, with lower no greater
+model. Bounds are finite lower/upper deviations in millimeters, with lower no greater
 than upper. Explicit zero bounds are valid declarations; unknowns retain null bounds.
 Connector rows identify a deliberately selected target and body, mated, installation
-or cable-route usage. Declared min/max XYZ bounds in millimetres need an explicit
+or cable-route usage. Declared min/max XYZ bounds in millimeters need an explicit
 frame and basis; they are not a computed solid or verified target correspondence.
 Unknown or not-applicable rows carry no guessed numeric geometry. A target with no
 connector scope remains unassessed: no reference label infers connector identity,
@@ -359,7 +359,7 @@ model tolerance scope, unassessed connector scope and unsuitable manufacturing f
 Purpose-transfer limits are informational: a clearance or illustration model is not
 inherently unsuitable for its own declared purpose and need not supply manufacturing geometry.
 Illustration geometry supplies no manufacturing/clearance evidence; a mesh or a recipe
-labelled manufacturing is not validated B-rep. Even a complete set of listed declarations
+labeled manufacturing is not validated B-rep. Even a complete set of listed declarations
 has only `declared_inputs_only` readiness with explicit scope coverage. Native validation,
 feature/frame correspondence, interactions of tolerances, operating envelopes and physical
 checks remain unevaluated. A closed, dimensionally correct illustration mesh cannot
@@ -388,7 +388,7 @@ inside the root's workspace; a non-member receives the same not-found response f
 the root, the drawing and every download.
 
 Renderer `scene-line-svg-v1` projects accepted planar PCB outlines and declared
-positive stock lengths as explicitly labelled stock axes. It provides top, front,
+positive stock lengths as explicitly labeled stock axes. It provides top, front,
 end and isometric orthographic illustrations, chosen branch opening/explosion and
 uncapped line clipping. Each instance retains an exact occurrence or feature
 address. Unknown canonical world placement remains unknown and undrawn. Features

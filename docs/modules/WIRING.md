@@ -65,7 +65,7 @@ Material/color/source tables retain elements whose geometry is unavailable.
 Placement has one definition: a node sits at its parent's position plus its own
 offset, and members (conductors and nested groups) of a ring, linear or figure-eight
 group also take the displacement from the group's pitch (rings start at 12 o'clock
-in the stated direction; linear rows are centred). An offset on an arranged member
+in the stated direction; linear rows are centerd). An offset on an arranged member
 adds to that displacement. `specmate/wire_stock/geometry.py` and
 `packages/section-layout/src/placement.ts` implement it and are both tested against
 `tests/fixtures/wire-stock-placement.json`.
@@ -83,11 +83,11 @@ only, not clearance, manufacturing or physical qualification.
 The stock panel's construction builder starts from templates (coax, multi-core
 round, twisted pairs, ribbon, figure-eight). The user enters real dimensions
 (conductor diameter, AWG or area; insulation, screen, drain and jacket values) and
-colours; the builder computes the centred lay-up, ring diameter, drain interstice and
+colors; the builder computes the centerd lay-up, ring diameter, drain interstice and
 screen/jacket bores and writes the ordinary version 1 tree, so nothing new is stored.
 A saved stock reopens in the builder only when its read-back regenerates the stored
 tree exactly; otherwise the element editor remains, with offsets under "Advanced
-placement". An incomplete construction is drawn with labelled placeholder
+placement". An incomplete construction is drawn with labeled placeholder
 proportions; the stored values stay unknown.
 
 `packages/section-layout` keeps one section projection for dimensions, color
@@ -104,15 +104,15 @@ and attribution; no upstream catalog, private design or font is bundled.
 
 ## Cable views: appearance, end faces, 3D and information
 
-`packages/section-layout/src/appearance.ts` is the one colour and material model for
-every cable view. A recorded `#rgb`/`#rrggbb` colour is drawn as recorded; a few
-conventional names and a `base/stripe` tracer form are accepted and labelled as
-conventional. Free-text materials are classified (copper and plated coppers, aluminium
+`packages/section-layout/src/appearance.ts` is the one color and material model for
+every cable view. A recorded `#rgb`/`#rrggbb` color is drawn as recorded; a few
+conventional names and a `base/stripe` tracer form are accepted and labeled as
+conventional. Free-text materials are classified (copper and plated coppers, aluminum
 and foil, PVC, polyethylene and foam, fluoropolymers, silicone, polyurethane, elastomers,
-film, paper, textile) into a finish (metallic, foil, gloss, satin, matt, foam, fibre) and a
-surface texture (strands, braid, spiral, tape, foil, foam, fibre). Bare metals with no
-recorded colour use the typical colour of that metal and say so. An unrecorded polymer
-colour, or an unrecorded or unrecognized material, is drawn neutral with a hatch and is
+film, paper, textile) into a finish (metallic, foil, gloss, satin, matt, foam, fiber) and a
+surface texture (strands, braid, spiral, tape, foil, foam, fiber). Bare metals with no
+recorded color use the typical color of that metal and say so. An unrecorded polymer
+color, or an unrecorded or unrecognized material, is drawn neutral with a hatch and is
 listed as unknown; nothing is guessed. Selection on an engineering view is a reticle, never a fill.
 
 `end-face.ts` shows one cut end looking into it. The section is drawn as seen from its
@@ -129,14 +129,14 @@ The wire viewer builds physically based materials from the same model with gener
 (code-only) surface textures, uses an image-based light when WebGL allows it, writes a
 plain-text description of what it draws, recovers from a restored WebGL context and
 renders only on events. The information view is a datasheet-style table of layers in their
-drawn colours with recorded facts. Views are mounted in the stock panel, the frozen stock
+drawn colors with recorded facts. Views are mounted in the stock panel, the frozen stock
 viewer and the frozen cable inspection; none of them evaluates continuity, fit, bonding
 or physical qualification.
 
 The frozen harness inspector also mounts `packages/harness-views`. The formboard draws
-each physical section as a bar at one length scale in its jacket's recorded colour,
+each physical section as a bar at one length scale in its jacket's recorded color,
 joined at breakouts. A section without a planned cut length is drawn dashed at a
-placeholder length and labelled unknown; legs that share their trunk's section are
+placeholder length and labeled unknown; legs that share their trunk's section are
 dashed stubs with no length. Placement implies no routing, bonding or fit. The build
 sheet derives a deterministic, self-contained, escaped HTML document with a page per
 stage (kit and cut with exact decimal totals, one page per endpoint listing declared
@@ -154,7 +154,7 @@ text are fixed-size drawing aids, and unknown-length sections stay dashed placeh
 states "1:1" only when the effective scale is exactly 1 and at least one length is recorded;
 fit-to-page and ratio plans state their true reduced ratio and say they are not full size.
 Pages have explicit paper, orientation, margin (warning below 5 mm) and tile overlap, name
-their row/column and overlapping neighbours, carry registration marks, and are limited to 64
+their row/column and overlapping neighbors, carry registration marks, and are limited to 64
 pages. Every page prints a 100 mm ruler. The user may enter the length measured on a first
 print; the plan then pre-compensates and every page states the factor (an implausible
 measurement is an error and is never silently ignored; without one the plan says it is
@@ -259,7 +259,7 @@ same named operations. Existing stock section and geometry projections are uncha
 
 An end stack is ordered from the wire outward and has at most one layer of each kind:
 
-- **board**: an exact `board` revision (labelled pads and declared paths). When the layer
+- **board**: an exact `board` revision (labeled pads and declared paths). When the layer
   names one of the board's carried connectors, that carried connector must be the stack's
   exact connector body, and the board's *reviewed* pad/contact correspondence joins the
   pads to the connector layer. An unreviewed correspondence reads `unknown`.
@@ -276,7 +276,7 @@ reusable `end_assembly` (an interface kind, edited in the Library's End assembli
 holds one stack and a review; cable ends pin its exact revision.
 
 `end_assembly.resolve` (and `POST /api/v0/interfaces/end-stacks/resolve`) returns a
-stack's layers, labelled terminals and joins. For pads and inline leads it lists the
+stack's layers, labeled terminals and joins. For pads and inline leads it lists the
 connector contacts each is declared to reach, naming every step (board path summary,
 landing, join) and the contact's typed signal; a step through an unreviewed landing or
 an unknown/switch path makes the reach `unknown`. Reaches are declared topology, never
@@ -338,7 +338,7 @@ the topology capability. Reads and captures check the full owning source closure
 and frozen revisions retain exact historical sections, endpoints and declarations.
 
 Planned cut amounts use exact decimal strings (or exact integer inputs) and the
-inventory quantity bounds for millimetres; floating-point inputs are rejected.
+inventory quantity bounds for millimeters; floating-point inputs are rejected.
 Positive length and representability checks follow complete source authorization.
 Section totals and quantity multiplication use the bounded exact decimal context;
 overflow or precision loss raises a validation error instead of rounding. The
@@ -367,11 +367,11 @@ stock groups create no additional links. Unknown breakout fates remain explicit;
 keying features are excluded from electrical terminals.
 
 Native PCB pad membership groups retain occurrence-scoped native net identities and
-are labelled `reported_net_membership`, separately from `declared_copper` evidence.
+are labeled `reported_net_membership`, separately from `declared_copper` evidence.
 They do not prove routed copper continuity. Resistor passages remain boundaries, so
 resistors between two native nets leave two components. Unspecified interface
 passages, assembly electrical/mating relationships, PCB port associations and
-unmodelled component behavior also remain boundaries with exact provenance. Even an
+unmodeled component behavior also remain boundaries with exact provenance. Even an
 accepted association does not assert electrical same-contact identity.
 
 The read-only operation and `/api/v0/copper/revisions/{revision_id}` recheck the full
@@ -428,7 +428,7 @@ operations against PostgreSQL; they do not execute or qualify a native tool.
 ## Independent cable length declarations
 
 A cable's optional length plan stores independent route, finished, planned stock-cut
-and conductive-feature cut declarations in exact millimetres. Every known value
+and conductive-feature cut declarations in exact millimeters. Every known value
 requires a human declaration and explanation; blank values remain unknown. Conductor
 cuts retain the cable's exact stock revision, conductive kind and full stable element
 path. A cut for a shield or drain is distinct from a core cut. These planned lengths
@@ -540,7 +540,7 @@ substitute for full hierarchical feature paths. Omitted instructions stay unknow
 workshop display rules, source-only drain practices and illustrative lead defaults
 never fill them.
 
-Each dimensional instruction retains exact nullable nominal millimetres, lower and
+Each dimensional instruction retains exact nullable nominal millimeters, lower and
 upper tolerance magnitudes, an explicit datum and a basis. Dimensions measured from
 the stock cut end are distinct from length along a finished lead. Zero must be
 entered deliberately; missing size or tolerance remains unresolved. Known dimensions
@@ -768,16 +768,16 @@ revision, and maps stock elements (conductors, screens and drains, by dot path) 
 a signal of the set, a signal type only, "return of" a signal, spare, or do not use. An
 element maps once, the path must exist as a conductor, screen or drain in the pinned
 revision, signal keys must exist in the pinned set, and a return is the return of a
-signal rather than of another return. A **colour code** pins no stock; a rule names a
-colour, optionally its exact display colour and element kind. A colour code applies to a
-stock only where an element's display colour equals a rule's exact colour; wire labels
+signal rather than of another return. A **color code** pins no stock; a rule names a
+color, optionally its exact display color and element kind. A color code applies to a
+stock only where an element's display color equals a rule's exact color; wire labels
 never establish a meaning.
 
 Frozen convention inspection returns rows by element label and signal name, and lists
 unmapped stock elements as unknown. `GET interfaces/stock-revisions/{id}/conventions`
 lists the frozen conventions that apply to one frozen stock revision: exact-pin
 conventions with their rows first, conventions pinned to another revision of the same
-stock without rows, and colour codes with their matching elements.
+stock without rows, and color codes with their matching elements.
 
 ## Cable intent
 
@@ -859,7 +859,7 @@ for an existing draft from its stock and ends. Nothing is stored: rows are accep
 draft through `cable.create`/`cable.update`. The rules are deterministic:
 
 - **Conductors** for signal rows meet the row's conductor requirement (coax, pair,
-  single) and are unused, ranked by the stock's exact conventions, then colour codes:
+  single) and are unused, ranked by the stock's exact conventions, then color codes:
   preferred, allowed, spare, unranked. A conductor kept for another signal, `avoid` and
   `do not use` are never chosen. Several best candidates are a `tie` question; none is a
   `no_conductor` question.

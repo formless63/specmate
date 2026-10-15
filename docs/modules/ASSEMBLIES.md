@@ -28,7 +28,7 @@ bundle-file linking and orderable manufacturer variants remain their respective 
 Definition equality alone is not a cycle: a new revision can document or contain its
 own older finite revision. Cycle detection follows exact resolved containment paths.
 
-Canonical placement uses explicit known/unknown status in a right-handed z-up millimetre
+Canonical placement uses explicit known/unknown status in a right-handed z-up millimeter
 frame. Known transforms require a translation and unit quaternion. Unknown placement has
 no guessed coordinates. The inspector's spread layout is browser view state, separate
 from canonical placement. Native geometry, collision evaluation, world-transform

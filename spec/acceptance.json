@@ -473,7 +473,7 @@
       "when": "Declare port-to-port signal intent, propose cable wiring from conductor conventions and validate cables per signal.",
       "expect": [
         "Each required signal row reports pass, fail or unknown with its reason and declared path; an unknown level or unreviewed mating is never reported as pass; a convention deviation is flagged without changing the outcome; a proposal never invents joints, bonds or components.",
-        "A stock conductor convention pins an exact stock and signal set revision, rejects a missing element or signal and a doubly mapped element, and lists unmapped conductors as unknown; a colour code matches only an exact display colour; a convention is a preference and never a pass."
+        "A stock conductor convention pins an exact stock and signal set revision, rejects a missing element or signal and a doubly mapped element, and lists unmapped conductors as unknown; a color code matches only an exact display color; a convention is a preference and never a pass."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -507,7 +507,7 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Interpret passive paths distinctly for DC continuity, resistance and signal queries.",
       "expect": [
-        "A capacitor candidate path is not DC continuity; a resistor path is labelled resistive rather than copper."
+        "A capacitor candidate path is not DC continuity; a resistor path is labeled resistive rather than copper."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -541,7 +541,7 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Explain exact features, boundaries, assumptions, query semantics and unsupported portions.",
       "expect": [
-        "A harness-to-PCB trace identifies occurrence/terminal/net and marks unmodelled active behavior as unknown."
+        "A harness-to-PCB trace identifies occurrence/terminal/net and marks unmodeled active behavior as unknown."
       ],
       "required_evidence": [
         "focused tests for stated behavior",
@@ -729,7 +729,7 @@
       "when": "Represent bought boards by declared ports and reuse board revisions independently.",
       "expect": [
         "A bought board participates in a device without an invented schematic or separate purchase of its internals.",
-        "A black-box board declares labelled pads, the connector it carries with reviewed pad-to-contact correspondence and pad-to-pad paths (straight copper, a series resistor, a switch state); the resistor stays a boundary in copper inspection and is interpreted only by the passive model; unreviewed correspondence and pads without a path read unknown; a KiCad-derived proposal keeps native pad identities and reported net membership and is never accepted without an explicit create."
+        "A black-box board declares labeled pads, the connector it carries with reviewed pad-to-contact correspondence and pad-to-pad paths (straight copper, a series resistor, a switch state); the resistor stays a boundary in copper inspection and is interpreted only by the passive model; unreviewed correspondence and pads without a path read unknown; a KiCad-derived proposal keeps native pad identities and reported net membership and is never accepted without an explicit create."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

@@ -10,7 +10,7 @@ stock facts, reservations, consumption, returns or preparation instructions.
 Each piece names one physical harness section, or null for the cable's one piece.
 Segments through a shared section are inspectable and do not multiply stock pieces.
 Omitted physical sections are unresolved. Installed length is an independent exact
-millimetre declaration with its own basis and optional registered evidence; route,
+millimeter declaration with its own basis and optional registered evidence; route,
 finished length and rendering cannot supply it.
 
 Select the saved stock-cut declaration or a reviewed whole-piece preparation

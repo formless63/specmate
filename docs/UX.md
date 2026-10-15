@@ -9,7 +9,7 @@ selection is the invariant; not every discipline must use the same renderer.
 
 A selected occurrence stays selected through filtering, grouping, view switches and
 exploded arrangements. A board definition view and a board occurrence view are different
-contexts, visibly labelled. A reusable cable can be opened without loading its parent device.
+contexts, visibly labeled. A reusable cable can be opened without loading its parent device.
 
 ## Library and project scope
 
@@ -106,7 +106,7 @@ matches, freezing, changing dependencies, releasing or publishing.
 Every edit has save/conflict/error feedback. A stale edit offers an inspectable comparison,
 not last-write-wins. Show what operation is running, its source snapshot, progress where
 known, and safe cancellation. Do not invent precise progress for opaque native tools.
-A completed build is labelled separately from check results and physical qualification.
+A completed build is labeled separately from check results and physical qualification.
 
 ## Entry journeys
 
@@ -142,7 +142,7 @@ and dispose unused buffers/workers. Lazy-load heavy viewers and detailed geometr
 ## Installation and diagnostics
 
 First use establishes ownership, not a demo pretending to be real hardware. Synthetic
-examples are labelled and optional. Tool capability cards show enabled/available/unavailable,
+examples are labeled and optional. Tool capability cards show enabled/available/unavailable,
 architecture and download requirements. Tool absence does not block unrelated library or
 review work. Storage, permission, job, stale-evidence and missing-tool failures have distinct
 recovery paths.

@@ -4,7 +4,7 @@ The `interfaces` module implements typed content on existing reusable Definition
 Drafts, Snapshots and Revisions. It introduces no second identity registry.
 
 - `connector_body` owns physical contacts, shell/key roles, family, mating role and
-  optional drawing coordinates in millimetres. A drawing's viewing side and optional
+  optional drawing coordinates in millimeters. A drawing's viewing side and optional
   datum/rotation are explicit. Assembly occurrence placement is independent.
 - `pinout` pins one exact body revision and assigns logical signal roles, directions,
   declared voltage/current limits, protocol and applicable conditions to contacts.
