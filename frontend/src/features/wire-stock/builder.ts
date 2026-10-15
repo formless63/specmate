@@ -11,9 +11,25 @@
 import type { Fact, GroupElement, RoundElement, StockElement, StockSpecification, WebElement } from '../../../../packages/section-layout/src';
 
 export type Known = number | null;
-export type TemplateKind = 'coax' | 'round' | 'pairs' | 'ribbon' | 'figure-eight';
+export type TemplateKind = 'coax' | 'round' | 'pairs' | 'ribbon' | 'figure-eight' | 'multicoax';
 export type ShieldKind = 'none' | 'foil' | 'braid' | 'foil+braid';
 export interface CoreLook { label: string; color: string | null }
+/** Multi-coax bundle: N identical coax units (centre material and colour come from `conductor`), plus optional plain `cores`. */
+export interface MultiCoax {
+  centre_mm: Known;
+  dielectric_od_mm: Known;
+  dielectric_material: string | null;
+  /** Each coax's own screen. */
+  screen: 'none' | 'foil' | 'braid';
+  screen_material: string | null;
+  screen_thickness_mm: Known;
+  /** Optional own jacket on each coax; its outer diameter, or null when unknown. */
+  jacket: boolean;
+  jacket_od_mm: Known;
+  jacket_material: string | null;
+  /** One per coax: label and identifying colour (own jacket colour, else dielectric colour). */
+  looks: CoreLook[];
+}
 export interface BuilderSpec {
   template: TemplateKind;
   /** Applied to every generated element; null is an unrecorded source. */
@@ -23,6 +39,8 @@ export interface BuilderSpec {
   insulation: { od_mm: Known; material: string | null };
   /** One per core: round N, pairs 2 per pair, ribbon N, figure-eight 2, coax 1. */
   cores: CoreLook[];
+  /** Used only by the multi-coax template. */
+  multi: MultiCoax;
   /** Ribbon and figure-eight centre spacing; null means touching cores. */
   spacing_mm: Known;
   web_thickness_mm: Known;
@@ -41,9 +59,10 @@ export const TEMPLATES: { value: TemplateKind; label: string; hint: string }[] =
   { value: 'round', label: 'Multi-core round cable', hint: 'N insulated cores, optional filler, screen and drain, jacket' },
   { value: 'pairs', label: 'Twisted pair(s)', hint: 'Pairs of insulated cores, optional screen and drain, jacket' },
   { value: 'ribbon', label: 'Ribbon', hint: 'N insulated cores side by side at a pitch, joined by a web' },
+  { value: 'multicoax', label: 'Multi-coax bundle', hint: 'N coax units (centre, dielectric, screen, optional own jacket) with optional plain cores, optional overall screen, jacket' },
   { value: 'figure-eight', label: 'Figure-eight', hint: 'Two insulated cores joined by a web' },
 ];
-export const hasJacket = (t: TemplateKind) => t === 'coax' || t === 'round' || t === 'pairs';
+export const hasJacket = (t: TemplateKind) => t === 'coax' || t === 'round' || t === 'pairs' || t === 'multicoax';
 export const hasDrain = (t: TemplateKind) => t === 'round' || t === 'pairs';
 export const hasWeb = (t: TemplateKind) => t === 'ribbon' || t === 'figure-eight';
 
@@ -66,12 +85,30 @@ export function coreLooks(template: TemplateKind, count: number, code: ColourCod
   return Array.from({ length: count }, (_, i) => ({ label: `Core ${i + 1}`, color: on ? CORE_COLOURS[i % CORE_COLOURS.length]! : null }));
 }
 
+export function coaxLooks(count: number, code: ColourCode = 'unknown'): CoreLook[] {
+  return Array.from({ length: count }, (_, i) => ({ label: `Coax ${i + 1}`, color: code === 'sequence' ? CORE_COLOURS[i % CORE_COLOURS.length]! : null }));
+}
+const blankMulti = (n = 2): MultiCoax => ({ centre_mm: null, dielectric_od_mm: null, dielectric_material: null, screen: 'braid', screen_material: null,
+  screen_thickness_mm: null, jacket: false, jacket_od_mm: null, jacket_material: null, looks: coaxLooks(n) });
+/** The name shown for a coax unit: its label and, when recorded, its colour. */
+export const coaxName = (look: CoreLook): string => look.color ? `${look.label} (${colourName(look.color)})` : look.label;
+/** Outer diameter of one coax unit as built: own jacket, else screened dielectric, else dielectric. */
+export function coaxOd(m: MultiCoax): Known {
+  if (m.jacket) return m.jacket_od_mm;
+  return m.screen === 'none' ? m.dielectric_od_mm : add(m.dielectric_od_mm, mul(m.screen_thickness_mm, 2));
+}
+/** Lay-up unit: the largest unit, so the ring is conservative when coax and plain cores differ in size. Unknown if any needed size is. */
+export function multiUnit(spec: BuilderSpec): Known {
+  const sizes = [coaxOd(spec.multi), ...(spec.cores.length ? [spec.insulation.od_mm] : [])];
+  return sizes.some(v => v === null) ? null : Math.max(...(sizes as number[]));
+}
+
 export function blankSpec(template: TemplateKind, count?: number): BuilderSpec {
-  const n = count ?? (template === 'round' ? 2 : template === 'pairs' ? 1 : template === 'ribbon' ? 4 : template === 'figure-eight' ? 2 : 1);
+  const n = count ?? (template === 'multicoax' ? 0 : template === 'round' ? 2 : template === 'pairs' ? 1 : template === 'ribbon' ? 4 : template === 'figure-eight' ? 2 : 1);
   return {
     template, source: null,
     conductor: { diameter_mm: null, area_mm2: null, construction: null, material: null, color: null },
-    insulation: { od_mm: null, material: null }, cores: coreLooks(template, n), spacing_mm: null, web_thickness_mm: null,
+    insulation: { od_mm: null, material: null }, cores: coreLooks(template, n), multi: blankMulti(2), spacing_mm: null, web_thickness_mm: null,
     filler: false, shield: template === 'coax' ? 'braid' : 'none', shield_material: null, foil_thickness_mm: null, braid_thickness_mm: null,
     drain: false, drain_diameter_mm: null,
     jacket: { od_mm: null, wall_mm: null, material: null, color: hasJacket(template) ? '#303030' : null },
@@ -204,6 +241,28 @@ export function generate(spec: BuilderSpec, keep?: Pick<StockSpecification, 'vie
     children.push(round(spec, 'dielectric', 'Dielectric', 'dielectric', spec.insulation.od_mm, c.diameter_mm, { material: spec.insulation.material, color: spec.cores[0]?.color ?? null }));
     const s = screens(spec, spec.insulation.od_mm);
     children.push(...s.layers, jacket(spec, s.outer));
+  } else if (t === 'multicoax') {
+    const m = spec.multi;
+    const coaxes = m.looks.map((look, i) => {
+      const name = coaxName(look);
+      const parts: RoundElement[] = [
+        round(spec, 'centre', `${name} centre`, 'conductor', m.centre_mm, 0, { material: spec.conductor.material, color: spec.conductor.color, construction: spec.conductor.construction, area_mm2: spec.conductor.area_mm2 }),
+        round(spec, 'dielectric', `${name} dielectric`, 'dielectric', m.dielectric_od_mm, m.centre_mm, { material: m.dielectric_material, color: m.jacket ? null : look.color }),
+      ];
+      let outer = m.dielectric_od_mm;
+      if (m.screen !== 'none') {
+        outer = add(outer, mul(m.screen_thickness_mm, 2));
+        parts.push(round(spec, 'screen', `${name} screen`, 'shield', outer, m.dielectric_od_mm, { construction: m.screen, material: m.screen_material }));
+      }
+      if (m.jacket) parts.push(round(spec, 'jacket', `${name} jacket`, 'jacket', m.jacket_od_mm, outer, { material: m.jacket_material, color: look.color }));
+      return group(spec, `coax-${i + 1}`, look.label, 'bundle', 'concentric', null, parts);
+    });
+    const plain = spec.cores.map((look, i) => core(spec, `core-${i + 1}`, look));
+    const units = [...coaxes, ...plain];
+    const lay = layup(multiUnit(spec), units.length);
+    children.push(group(spec, 'units', 'Units', 'bundle', lay.arrangement, lay.pitch, units));
+    const s = screens(spec, mul(lay.outerRadius, 2));
+    children.push(...s.layers, jacket(spec, s.outer));
   } else if (t === 'round' || t === 'pairs') {
     const pairs = t === 'pairs';
     const units: GroupElement[] = pairs
@@ -269,6 +328,7 @@ export function readBuilder(stock: StockSpecification): BuilderSpec | null {
   let template: TemplateKind;
   let cores: GroupElement[];
   if (ids.includes('center') && ids.includes('dielectric')) { template = 'coax'; cores = []; }
+  else if (ids.includes('units')) { template = 'multicoax'; cores = ((asGroup(child(root, 'units'))?.children ?? []) as GroupElement[]).filter(c => c.id.startsWith('core-')); }
   else if (ids.includes('leg-a')) { template = 'figure-eight'; cores = [asGroup(child(root, 'leg-a')), asGroup(child(root, 'leg-b'))].filter(Boolean) as GroupElement[]; }
   else if (stock.construction === 'ribbon') { template = 'ribbon'; cores = root.children.filter(c => c.kind === 'group') as GroupElement[]; }
   else if (ids.includes('cores')) { template = 'round'; cores = (asGroup(child(root, 'cores'))?.children ?? []) as GroupElement[]; }
@@ -277,9 +337,23 @@ export function readBuilder(stock: StockSpecification): BuilderSpec | null {
     const pairs = (ids.includes('pairs') ? asGroup(child(root, 'pairs'))?.children ?? [] : [child(root, 'pair-1')]) as GroupElement[];
     cores = pairs.flatMap(p => [asGroup(child(p, 'core-a')), asGroup(child(p, 'core-b'))]).filter(Boolean) as GroupElement[];
   } else return null;
-  const conductor = template === 'coax' ? asRound(child(root, 'center')) : asRound(child(cores[0], 'conductor'));
-  const insulation = template === 'coax' ? asRound(child(root, 'dielectric')) : asRound(child(cores[0], 'insulation'));
-  if (!conductor || !insulation || (template !== 'coax' && cores.length === 0)) return null;
+  const coaxGroups = template === 'multicoax' ? ((asGroup(child(root, 'units'))?.children ?? []) as GroupElement[]).filter(c => c.id.startsWith('coax-')) : [];
+  const c1 = coaxGroups[0];
+  const conductor = template === 'multicoax' ? (cores.length ? asRound(child(cores[0], 'conductor')) : asRound(child(c1, 'centre'))) : template === 'coax' ? asRound(child(root, 'center')) : asRound(child(cores[0], 'conductor'));
+  const insulation = template === 'multicoax' ? (cores.length ? asRound(child(cores[0], 'insulation')) : asRound(child(c1, 'dielectric')))
+    : template === 'coax' ? asRound(child(root, 'dielectric')) : asRound(child(cores[0], 'insulation'));
+  if (!conductor || !insulation || (template !== 'coax' && template !== 'multicoax' && cores.length === 0) || (template === 'multicoax' && coaxGroups.length === 0)) return null;
+  const cScreen = asRound(child(c1, 'screen')), cJacket = asRound(child(c1, 'jacket'));
+  const multi: MultiCoax = template === 'multicoax' ? {
+    centre_mm: asRound(child(c1, 'centre'))?.outer_diameter_mm ?? null,
+    dielectric_od_mm: asRound(child(c1, 'dielectric'))?.outer_diameter_mm ?? null,
+    dielectric_material: asRound(child(c1, 'dielectric'))?.material ?? null,
+    screen: cScreen?.construction === 'foil' ? 'foil' : cScreen ? 'braid' : 'none',
+    screen_material: cScreen?.material ?? null,
+    screen_thickness_mm: cScreen ? half(cScreen.outer_diameter_mm, cScreen.inner_diameter_mm) : null,
+    jacket: !!cJacket, jacket_od_mm: cJacket?.outer_diameter_mm ?? null, jacket_material: cJacket?.material ?? null,
+    looks: coaxGroups.map(g => ({ label: g.label, color: asRound(child(g, 'jacket'))?.color ?? asRound(child(g, 'dielectric'))?.color ?? null })),
+  } : blankMulti();
   const foil = asRound(child(root, 'foil')), braid = asRound(child(root, 'braid'));
   const drain = asRound(child(root, 'drain')), jacketNode = asRound(child(root, 'jacket'));
   const web = child(root, 'web');
@@ -288,7 +362,7 @@ export function readBuilder(stock: StockSpecification): BuilderSpec | null {
     conductor: { diameter_mm: conductor.outer_diameter_mm, area_mm2: conductor.area_mm2,
       construction: conductor.construction === 'solid' || conductor.construction === 'stranded' ? conductor.construction : null,
       material: conductor.material, color: conductor.color },
-    insulation: { od_mm: insulation.outer_diameter_mm, material: insulation.material },
+    insulation: { od_mm: insulation.outer_diameter_mm, material: insulation.material }, multi,
     cores: template === 'coax' ? [{ label: 'Centre', color: insulation.color }]
       : cores.map(c => ({ label: c.label, color: asRound(child(c, 'insulation'))?.color ?? null })),
     spacing_mm: hasWeb(template) && root.pitch_mm !== insulation.outer_diameter_mm ? root.pitch_mm : null,
@@ -322,6 +396,21 @@ export function illustrate(spec: BuilderSpec): { spec: BuilderSpec; substituted:
     substituted.push(what);
     return round4(placeholder);
   };
+  if (s.template === 'multicoax') {
+    const m = s.multi;
+    m.dielectric_od_mm = fill(m.dielectric_od_mm, 1.2, 'coax dielectric diameter');
+    m.centre_mm = fill(m.centre_mm, m.dielectric_od_mm * 0.4, 'coax centre diameter');
+    if (m.screen !== 'none') m.screen_thickness_mm = fill(m.screen_thickness_mm, m.dielectric_od_mm * 0.08, 'coax screen thickness');
+    if (m.jacket) m.jacket_od_mm = fill(m.jacket_od_mm, (add(m.dielectric_od_mm, mul(m.screen === 'none' ? 0 : m.screen_thickness_mm, 2)) ?? 1.4) * 1.2, 'coax jacket diameter');
+    if (s.cores.length) {
+      s.insulation.od_mm = fill(s.insulation.od_mm, 1, 'core insulation diameter');
+      s.conductor.diameter_mm = fill(s.conductor.diameter_mm, s.insulation.od_mm * 0.5, 'core conductor diameter');
+    }
+    if (s.shield === 'foil' || s.shield === 'foil+braid') s.foil_thickness_mm = fill(s.foil_thickness_mm, 0.05, 'foil thickness');
+    if (s.shield === 'braid' || s.shield === 'foil+braid') s.braid_thickness_mm = fill(s.braid_thickness_mm, 0.15, 'braid thickness');
+    if (s.jacket.od_mm === null && s.jacket.wall_mm === null) { s.jacket.wall_mm = 0.4; substituted.push('jacket wall'); }
+    return { spec: s, substituted };
+  }
   const d0 = s.conductor.diameter_mm, i0 = s.insulation.od_mm;
   const insulation = fill(i0, d0 !== null ? d0 * 1.8 : 1.2, s.template === 'coax' ? 'dielectric diameter' : 'insulation diameter');
   s.insulation.od_mm = insulation;
