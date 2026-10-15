@@ -7,6 +7,16 @@ identical root revision, snapshot, exact design/source pins, rights declarations
 configuration and generator/format identity. These are declared engineering
 information; generation never demonstrates physical continuity, fit or test success.
 
+The cable editor's Schematic view is a live declaration sheet over the currently
+viewed frozen cable or local working draft. Unsaved landing edits appear immediately;
+draft sheets are marked UNRELEASED. It reuses the cable drawing's authorized pinned
+stock and end inputs and the coordinated schematic's conductor/termination meaning.
+Missing stock membership, unreadable targets and unassigned ends remain explicit
+unknowns. It does not create a retained document set or assert physical continuity.
+Wire and terminal probes are shared with Build through the final `#` feature segment,
+preserving the record's exact revision and any existing occurrence path. Fit and
+explicit zoom use a bounded scrolling sheet; selecting a feature never saves it.
+
 A request pins a frozen root, nullable quantity, optional exact frozen BOM plan,
 standalone make/buy decision and basis, and bindings addressed by exact contextual
 occurrence paths. A binding may select exact cut profiles, end-preparation profiles

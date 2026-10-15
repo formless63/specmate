@@ -39,6 +39,9 @@ export type WorkbenchProps = {
   revisionId?: string | null;
   /** Server state token of the saved draft: a new token rereads its check. */
   checkVersion?: string | null;
+  /** Record views share a probe; smaller embeds retain their own local selection. */
+  selection?: string | null;
+  onSelect?: (key: string | null) => void;
   revision: { value: string; sub: string };
   actions?: ReactNode;
   notices?: ReactNode;
@@ -83,7 +86,8 @@ export function CableWorkbench(props: WorkbenchProps) {
   const editable = !!onChange;
   const edit = usePermission("design.edit");
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("issues");
-  const [selection, setSelection] = useState<string | null>(null);
+  const [localSelection, setLocalSelection] = useState<string | null>(null);
+  const selection = props.selection === undefined ? localSelection : props.selection;
   const [tab, setTab] = useState<Tab>(mode === "new" ? "cable" : "probe");
   const [armed, setArmed] = useState<{ endpointId: string; path: string } | null>(null);
   const [zoom, setZoom] = useState<number | null>(null);
@@ -131,21 +135,22 @@ export function CableWorkbench(props: WorkbenchProps) {
     return () => window.removeEventListener("keydown", cancel);
   }, [armed]);
 
-  const select = (key: string | null) => {
-    setSelection(key);
+  const revealSelection = (key: string | null) => {
     if (!key) return;
     if (props.editor) setInspectorTab(key.startsWith("e:") || key.startsWith("p:") ? "part" : key === STOCK_KEY ? "recipe" : "connection");
     if (key.startsWith("e:")) setTab(`end:${key.slice(2)}`);
     else if (key === STOCK_KEY) setTab("cable");
     else setTab("probe");
   };
+  useEffect(() => { if (props.selection !== undefined) revealSelection(props.selection); }, [props.selection]);
+  const select = (key: string | null) => { setLocalSelection(key); props.onSelect?.(key); revealSelection(key); };
   const land = (terminal: string) => {
     if (!armed || !onChange) return;
     const at = splitTermKey(terminal);
     if (!at || at.endpointId !== armed.endpointId) return;
     onChange(assignLanding(cable, armed.endpointId, armed.path, { layer_id: at.layerId, terminal_id: at.terminalId }));
     setArmed(null);
-    setSelection(wireKey(armed.path));
+    select(wireKey(armed.path));
   };
 
   const length = declaredLength(cable);
@@ -167,7 +172,7 @@ export function CableWorkbench(props: WorkbenchProps) {
             onDragLanding={editable && mode !== "frozen" ? (endpointId, path, terminal) => {
               const at = splitTermKey(terminal);
               if (at && at.endpointId === endpointId) onChange?.(assignLanding(cable, endpointId, path, { layer_id: at.layerId, terminal_id: at.terminalId }));
-              setSelection(wireKey(path)); setInspectorTab("connection");
+              select(wireKey(path)); setInspectorTab("connection");
             } : undefined}
             title={`Cable drawing of ${name}: End A stack, stock and End B stack. Click a wire, pin, pad or part to probe it.`} />
         </div>

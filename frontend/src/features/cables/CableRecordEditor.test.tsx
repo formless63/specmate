@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
 import { record as libraryRecord, reply } from "../../test/workspaceServer";
 import { NavigationProvider, useNavigation } from "../navigation";
+import { parseLocation } from "../navigation/url";
 import { ProbeProvider } from "../probe";
 import { CableRecordHost } from "./CableRecordEditor";
 import type { Cable, Draft } from "./api";
@@ -23,8 +24,16 @@ vi.mock("./CablePanel", async () => {
   };
 });
 vi.mock("../knowledge/KnowledgePanel", () => ({ KnowledgePanel: () => <textarea aria-label="Attached cable note" /> }));
-beforeEach(() => vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }));
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+const scrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+});
+afterEach(() => {
+  cleanup(); vi.unstubAllGlobals();
+  if (scrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", scrollIntoView);
+  else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+});
 function server() {
   let saved = cable(); let state = "v1"; let conflict = false; let deny = false; let failFreeze = false; let denySave = false;
   const deniedRecords = new Set<string>();
@@ -90,6 +99,57 @@ test("direct record is drawing first with Issues default and exact revision; vie
   await screen.findByRole("button", { name: "Cable versions" });
   act(() => history.push("/designs/c1"));
   await waitFor(() => expect((screen.getByLabelText("Working basis") as HTMLInputElement).value).toBe("Unsaved retained"));
+});
+
+test("Schematic probes the exact feature into Build and Back/Forward without losing revision or occurrence context", async () => {
+  server(); const { history } = mount("/designs/c1@1/~/second/unknown?project=p1&view=schematic");
+  await screen.findByRole("group", { name: "Declared schematic of Synthetic cable" });
+  fireEvent.click(screen.getByRole("button", { name: /^Probe wire Coax 1 center/ }));
+  const selected = () => parseLocation(history.location.pathname, history.location.search);
+  expect(selected()).toMatchObject({ project: "p1", probe: { object: "c1", rev: 1, path: ["second", "unknown", "#w:stock.core-1.center"] } });
+  fireEvent.click(screen.getByRole("radio", { name: "Build" }));
+  expect(screen.getByRole("button", { name: /^Wire Coax 1 center/ }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("tab", { name: "Connection" }).getAttribute("aria-selected")).toBe("true");
+  act(() => history.back());
+  await screen.findByRole("group", { name: "Declared schematic of Synthetic cable" });
+  expect(screen.getByRole("button", { name: /^Probe wire Coax 1 center/ }).getAttribute("aria-pressed")).toBe("true");
+  act(() => history.back());
+  await waitFor(() => expect(screen.getByRole("button", { name: /^Probe wire Coax 1 center/ }).getAttribute("aria-pressed")).toBe("false"));
+  act(() => history.forward());
+  await waitFor(() => expect(screen.getByRole("button", { name: /^Probe wire Coax 1 center/ }).getAttribute("aria-pressed")).toBe("true"));
+  const link = history.location.href;
+  cleanup(); mount(link, ["workspace.read"]);
+  await screen.findByRole("group", { name: "Declared schematic of Synthetic cable" });
+  expect(screen.getByRole("button", { name: /^Probe wire Coax 1 center/ }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByText("Exact frozen r1")).toBeTruthy();
+  expect(screen.queryByText("UNRELEASED")).toBeNull();
+});
+
+test("unsaved Build landing changes render live in Schematic and Undo restores them without a save", async () => {
+  const api = server(); mount(); await edit();
+  fireEvent.click(screen.getByRole("button", { name: /^Wire Coax 1 center/ }));
+  const selector = screen.getByRole("combobox", { name: "End B stock.core-1.center target" });
+  fireEvent.focus(selector); fireEvent.change(selector, { target: { value: "R2 · 1" } }); fireEvent.keyDown(selector, { key: "ArrowDown" }); fireEvent.keyDown(selector, { key: "Enter" });
+  fireEvent.click(screen.getByRole("radio", { name: "Schematic" }));
+  await screen.findByRole("button", { name: "Sink end: R2 · R2 · 1" });
+  expect(screen.getByText("UNRELEASED")).toBeTruthy();
+  expect(screen.getByRole("group", { name: "Declared schematic of Synthetic cable" }).textContent).toContain("Working draft · unsaved changes");
+  expect(api.commands).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: "Undo cable edit" }));
+  await screen.findByRole("button", { name: "Sink end: Synthetic socket r1 · 1" });
+  expect(screen.queryByRole("button", { name: "Sink end: R2 · R2 · 1" })).toBeNull();
+  fireEvent.click(screen.getByRole("radio", { name: "Build" }));
+  expect(screen.getByRole("button", { name: /^Wire Coax 1 center/ }).getAttribute("aria-pressed")).toBe("true");
+  expect(api.commands).toEqual([]);
+});
+
+test("current authority failure removes the live schematic despite retained cached source data", async () => {
+  const api = server(); const { cache } = mount("/designs/c1@1?view=schematic");
+  await screen.findByRole("group", { name: "Declared schematic of Synthetic cable" });
+  api.deny(true); await act(async () => { await cache.invalidateQueries({ queryKey: ["cable-identity"] }); });
+  expect(screen.queryByRole("group", { name: /^Declared schematic/ })).toBeNull();
+  expect(screen.queryByText("Synthetic board r1 · V")).toBeNull();
+  expect(screen.getByRole("heading", { name: "Cable unavailable" })).toBeTruthy();
 });
 
 test("CAS conflict retains working changes and token; successful retry saves with the same deliberate intent key", async () => {

@@ -6,6 +6,7 @@ import { InspectionScope, usePermission } from "../../lib/permissions";
 import { randomUUID } from "../../lib/random-id";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { CableWorkbench } from "../cable-workbench/CableWorkbench";
+import { cableSelection, withCableSelection } from "../cable-workbench/selection";
 import { useNavigation } from "../navigation";
 import { useProbe } from "../probe";
 import type { LibraryRecord } from "../workspace/api";
@@ -14,6 +15,7 @@ import { authorityDenied, cableProblems, command, initialCable, read, type Cable
 
 const revisionPageOffset = (number: number) => Math.floor((number - 1) / 50) * 50;
 const KnowledgePanel = lazy(() => import("../knowledge/KnowledgePanel").then(module => ({ default: module.KnowledgePanel })));
+const Schematic = lazy(() => import("../../components/editor/Schematic").then(module => ({ default: module.Schematic })));
 export type CableEditorSnapshot = {
   definitionId: string; revisionId: string | null; draftId: string | null;
   working: Cable; saved: Cable | null; dirty: boolean;
@@ -65,6 +67,13 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
   const [pendingRevision, setPendingRevision] = useState<number | null>(null);
   const [duplicateName, setDuplicateName] = useState<string | null>(null);
   const [compareRevision, setCompareRevision] = useState<string | null>(null);
+  const [localSelection, setLocalSelection] = useState<string | null>(null);
+  const selectedTarget = active && probe?.probe?.object === record.record_id ? probe.probe : null;
+  const selection = selectedTarget ? cableSelection(selectedTarget) : localSelection;
+  const select = (key: string | null) => {
+    setLocalSelection(key);
+    if (active && probe) probe.setProbe(withCableSelection(selectedTarget ?? { object: record.record_id, rev: requestedRevision, path: [] }, key));
+  };
   const intents = useRef(new Map<string, string>());
   const view = (navigation?.location.filters?.view ?? "build") as EditorView;
   const identity = useQuery({ queryKey: ["cable-identity", record.record_id, page], queryFn: () => read<Identity>(`catalog/definitions/${record.record_id}?offset=${page}`), retry: false });
@@ -191,13 +200,15 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
     {blocked && <Alert color="red">Current access must be confirmed before the cable or its retained edits can be shown. <Button size="xs" onClick={() => void refreshAuthority()}>Refresh cable access</Button></Alert>}
     {changedOnServer && editing && !blocked && <Alert color="yellow">The saved draft changed elsewhere. Your working changes and original save token are retained. Review or revert before retrying.</Alert>}
     {!blocked && !renderWorkbench && <Text role="status">{identity.isPending || frozen.isPending ? "Reading cable state…" : "The requested cable state is not available."}</Text>}
-    {renderWorkbench && <div hidden={view !== "build"}><CableWorkbench mode={editing ? "draft" : "frozen"} name={record.label} cable={cable} onChange={editing && editGate.allowed && !busy ? history.edit : undefined}
+    {renderWorkbench && <div hidden={view !== "build"}><CableWorkbench selection={selection} onSelect={select} mode={editing ? "draft" : "frozen"} name={record.label} cable={cable} onChange={editing && editGate.allowed && !busy ? history.edit : undefined}
       stacks={stacks} bodies={bodies} stock={sources.stock.data} conductors={!editing ? frozen.data?.conductors : undefined} draftId={editing ? draftId : null} revisionId={editing ? null : revisionId} checkVersion={base?.state}
       revision={{ value: editing ? "Draft" : `r${number}`, sub: editing ? "working state" : "frozen · immutable" }} onAccept={editing && editGate.allowed && !busy ? history.edit : undefined}
       editor={{ dirty, active: active && view === "build", onStatus: statusChanged, notes: <Suspense fallback={<Text>Reading attached notes…</Text>}><KnowledgePanel workspaceId={workspaceId} principalKey={principalKey} target={editing ? { kind: "definition", definition_id: record.record_id } : { kind: "revision", revision_id: revisionId! }} /></Suspense> }}
       cableForm={editing ? <fieldset disabled={busy} className="engineering-fields"><InspectionScope permission="design.edit"><CableFields value={cable} onChange={editWorking} definitions={definitions.data ?? []} sources={sources} showReview={false} /></InspectionScope></fieldset> : <Stack gap={4}><Text size="sm">Frozen recipe · exact r{number}</Text><RevisionLabel id={cable.stock_revision_id} /><Text size="sm">Review: {cable.review}</Text><Text size="sm">{cable.review_basis ?? "Review basis not declared."}</Text></Stack>}
       endForms={cable.endpoints.map((_end, index) => editing ? <fieldset disabled={busy} className="engineering-fields" key={index}><InspectionScope permission="design.edit"><EndCard index={index} value={cable} onChange={editWorking} errors={{}} family={sources.family} definitions={definitions.data ?? []} choices={sources.choices} denied={sources.denied} resolved={sources.resolved[index]!} /></InspectionScope></fieldset> : <Stack key={index}>{stacks[index]?.layers.map(layer => <Text key={layer.layer_id} size="sm">{layer.name ?? layer.kind}</Text>)}</Stack>)} /></div>}
-    {view !== "build" && renderWorkbench && <div className="engineering-view-unavailable">{viewSlots?.[view]?.(snapshot) ?? <Stack><Text>{view === "documents" ? "No document viewer is available for this cable." : "No schematic viewer is available for this cable."}</Text><Text size="xs">{editing ? dirty ? "Unreleased working state; unsaved changes are retained." : "Saved draft; no frozen revision selected." : `Viewing exact frozen r${number}.`}</Text><Button size="xs" variant="quiet" onClick={() => navigation?.navigate({ filters: { ...navigation.location.filters, view: "build" } })}>Return to Build</Button></Stack>}</div>}
+    {view === "schematic" && renderWorkbench && (viewSlots?.schematic?.(snapshot) ?? <Suspense fallback={<Text>Reading schematic viewer…</Text>}><Schematic name={record.label} cable={cable} stock={sources.stock.data} stacks={stacks} conductors={editing ? undefined : frozen.data?.conductors}
+      selection={selection} onSelect={select} unreleased={editing} state={editing ? dirty ? "Working draft · unsaved changes" : "Saved draft" : `Exact frozen r${number}`} /></Suspense>)}
+    {view === "documents" && renderWorkbench && (viewSlots?.documents?.(snapshot) ?? <div className="engineering-view-unavailable"><Stack><Text>No document viewer is available for this cable.</Text><Text size="xs">{editing ? dirty ? "Unreleased working state; unsaved changes are retained." : "Saved draft; no frozen revision selected." : `Viewing exact frozen r${number}.`}</Text><Button size="xs" variant="quiet" onClick={() => navigation?.navigate({ filters: { ...navigation.location.filters, view: "build" } })}>Return to Build</Button></Stack></div>)}
     <Drawer closeButtonProps={{ "aria-label": "Close cable versions" }} opened={versions && active} onClose={() => setVersions(false)} position="right" title="Cable versions" size="min(420px, 100vw)">{blocked ? <Text>Current access must be confirmed before versions can be shown.</Text> : <Stack gap="sm">
       <Text size="sm">{editing ? "Working draft" : `Viewing frozen r${number}`} · frozen revisions keep their exact pins.</Text>
       {!editing && base && <Button size="xs" {...editGate.props} onClick={() => { enterDraft.current = requestedRevision !== null; setEditing(true); probe?.setProbe({ object: record.record_id, rev: null, path: [] }); }}>Edit current draft</Button>}

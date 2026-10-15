@@ -1,0 +1,13 @@
+.editor-schematic { min-width: 0; padding-top: 8px; }
+.editor-schematic-toolbar { margin-bottom: 6px; }
+.editor-schematic-viewport { width: 100%; min-width: 0; max-height: calc(100dvh - 225px); overflow: auto; margin-top: 8px; border: 1px solid var(--sb-border-subtle); background: var(--sb-surface-panel); }
+.editor-schematic-sheet { display: block; max-width: none; }
+.editor-schematic-sheet text { fill: #20252b; font: 13px var(--sb-font-mono, monospace); }
+.editor-schematic-sheet .editor-schematic-title { font-size: 18px; font-weight: 600; }
+.editor-schematic-sheet .editor-schematic-sub { fill: #555e68; font-size: 11px; }
+.editor-schematic-sheet .editor-schematic-unreleased { fill: #9a3900; font-weight: 700; }
+.editor-schematic-landing rect, .editor-schematic-wire rect { stroke: #83909b; }
+.editor-schematic-wire path { fill: none; stroke: #3b4652; stroke-width: 2; }
+.editor-schematic-sheet [role=button] { cursor: pointer; outline: none; }
+.editor-schematic-row[data-selected] .editor-schematic-wire rect, .editor-schematic-landing[data-selected] rect, .editor-schematic-sheet [role=button]:focus rect { stroke: #9c5d00; stroke-width: 3; }
+@media(max-width: 799px) { .editor-schematic-viewport { max-height: calc(100dvh - 270px); } }
