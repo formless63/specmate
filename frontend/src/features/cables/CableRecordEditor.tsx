@@ -102,18 +102,33 @@ export function CableRecordEditor({ record, requestedRevision, workspaceId, prin
     intents.current.delete(fingerprint);
     return result;
   };
+  // Retained records share the cache; only this viewed state and its exact source
+  // closure can decide whether this buffer has recovered its current authority.
+  const authorityKeys = canonicalJson([
+    ["cable-identity", record.record_id, page], ["cable-identity", record.record_id, targetPage],
+    ["cable-editor-draft-list", record.record_id],
+    editing ? ["cable-draft", draftId] : ["cable-inspection", revisionId],
+    ["cable-stock", cable.stock_revision_id],
+    ...cable.endpoints.flatMap(end => [
+      ["cable-end-resolve", end.end_assembly_revision_id ? { end_assembly_revision_id: end.end_assembly_revision_id } : { stack: end.stack }],
+      ...(end.stack?.layers ?? []).flatMap(layer => layer.kind === "connector" ? [["cable-body", layer.body_revision_id]] : layer.kind === "board" ? [["cable-board", layer.board_revision_id]] : []),
+    ]),
+    ...sources.resolved.flatMap(result => result.data?.body_revision_id ? [["cable-body", result.data.body_revision_id]] : []),
+    ["cable-intent-check", editing ? null : revisionId, editing ? draftId : null, cable.intent_revision_id ?? null, base?.state ?? null],
+  ]);
   const refreshAuthority = useCallback(async () => {
     setMessage(null);
     try {
-      const queries = cache.getQueryCache().findAll({ type: "active" }).filter(query => String(query.queryKey[0]).startsWith("cable-") || String(query.queryKey[0]).startsWith("end-stack"));
+      const keys = new Set((JSON.parse(authorityKeys) as unknown[][]).map(canonicalJson));
+      const queries = cache.getQueryCache().findAll({ type: "active" }).filter(query => keys.has(canonicalJson(query.queryKey)));
       await Promise.all(queries.map(query => cache.fetchQuery({ queryKey: query.queryKey, queryFn: query.options.queryFn, staleTime: 0 })));
       setMutationDenied(false);
     } catch { setMessage("Current authority could not be confirmed. Retained edits remain hidden."); }
-  }, [cache]);
+  }, [cache, authorityKeys]);
   useEffect(() => {
-    const refresh = () => { if (blocked) void refreshAuthority(); };
+    const refresh = () => { if (active && blocked) void refreshAuthority(); };
     window.addEventListener("focus", refresh); return () => window.removeEventListener("focus", refresh);
-  }, [blocked, refreshAuthority]);
+  }, [active, blocked, refreshAuthority]);
   const act = async (work: () => Promise<void>) => {
     if (busy || blocked) return;
     setBusy(true); setMessage(null);

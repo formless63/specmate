@@ -26,19 +26,24 @@ vi.mock("../knowledge/KnowledgePanel", () => ({ KnowledgePanel: () => <textarea 
 beforeEach(() => vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function server() {
-  let saved = cable(); let state = "v1"; let conflict = false; let deny = false; let failFreeze = false;
+  let saved = cable(); let state = "v1"; let conflict = false; let deny = false; let failFreeze = false; let denySave = false;
+  const deniedRecords = new Set<string>();
   const commands: { operation: string; expected_state?: string; idempotency_key: string; payload: { cable?: Cable } }[] = [];
   const revisions = [{ revision_id: "r1", number: 1 }, { revision_id: "r2", number: 2 }];
   const draft = (): Draft => ({ definition_id: "c1", draft_id: "draft", state, content: { cable: saved } });
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
-    if (url.includes("catalog/definitions/")) return deny ? reply({ error: { message: "Access withdrawn" } }, 403) : reply({ drafts: [{ draft_id: "draft" }], revisions });
-    if (url.includes("cables/drafts/draft")) return reply(draft());
+    if (url.includes("catalog/definitions/")) {
+      const id = /definitions\/([^?]+)/.exec(url)![1]!;
+      return deny || deniedRecords.has(id) ? reply({ error: { message: "Access withdrawn" } }, 403) : reply({ drafts: [{ draft_id: id === "c2" ? "draft-c2" : "draft" }], revisions });
+    }
+    if (url.includes("cables/drafts/draft")) return reply({ ...draft(), draft_id: url.includes("draft-c2") ? "draft-c2" : "draft", definition_id: url.includes("draft-c2") ? "c2" : "c1" });
     if (url.includes("cables/revisions/")) return reply({ revision_id: url.includes("r1") ? "r1" : "r2", cable: { ...cable(), review_basis: url.includes("r1") ? "Frozen one" : "Frozen two" }, conductors: [], endpoints: [] });
     if (url.endsWith("/operations")) {
       const command = JSON.parse(String(init?.body)); commands.push(command);
       if (command.operation === "cable.update") {
+        if (denySave) return reply({ error: { message: "Save access withdrawn" } }, 403);
         if (conflict) return reply({ error: { message: "Saved draft changed elsewhere" } }, 409);
-        saved = JSON.parse(JSON.stringify(command.payload.cable, (_key, value) => value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).reverse()) : value)); state = "v2"; return reply({ result: draft() });
+        saved = JSON.parse(JSON.stringify(command.payload.cable, (_key, value) => value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).reverse()) : value)); state = "v2"; return reply({ result: { ...draft(), draft_id: command.payload.draft_id, definition_id: command.payload.draft_id === "draft-c2" ? "c2" : "c1" } });
       }
       if (command.operation === "cable.freeze") {
         if (failFreeze) return reply({ error: { message: "Response unavailable" } }, 503);
@@ -48,7 +53,7 @@ function server() {
     }
     return reply([]);
   }));
-  return { commands, conflict: (value: boolean) => { conflict = value; }, deny: (value: boolean) => { deny = value; }, failFreeze: (value: boolean) => { failFreeze = value; } };
+  return { commands, conflict: (value: boolean) => { conflict = value; }, deny: (value: boolean) => { deny = value; }, failFreeze: (value: boolean) => { failFreeze = value; }, denySave: (value: boolean) => { denySave = value; }, denyRecord: (id: string) => deniedRecords.add(id) };
 }
 function mount(path = "/designs/c1", permissions = ["workspace.read", "design.edit", "design.freeze", "item.create"]) {
   const history = createMemoryHistory({ initialEntries: [path] });
@@ -159,4 +164,28 @@ test("phone inspector portal follows the active record and hides on a rail or re
   act(() => history.push("/designs/c2@1"));
   await screen.findByRole("group", { name: /^Cable drawing/ });
   expect(screen.queryByRole("dialog", { name: "Cable inspector" })).toBeNull();
+});
+
+
+test("restored B access recovers its retained buffer while a hidden A remains denied", async () => {
+  const api = server(); const { history, cache } = mount("/designs/c1@1");
+  await screen.findByRole("group", { name: /^Cable drawing/ });
+  act(() => history.push("/designs/c2@2"));
+  const field = await edit(); fireEvent.change(field, { target: { value: "B retained working content" } });
+  api.denySave(true); fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText("Save access withdrawn");
+  expect(screen.queryByRole("group", { name: /^Cable drawing/ })).toBeNull();
+  api.denyRecord("c1");
+  await act(async () => { await cache.invalidateQueries({ queryKey: ["cable-identity", "c1"] }); });
+  api.denySave(false);
+  const fetcher = vi.mocked(fetch);
+  const aReads = () => fetcher.mock.calls.filter(([url]) => String(url).includes("catalog/definitions/c1")).length;
+  const before = aReads();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh cable access" }));
+  await screen.findByRole("group", { name: /^Cable drawing/ }); tab("Recipe");
+  expect((screen.getByLabelText("Working basis") as HTMLInputElement).value).toBe("B retained working content");
+  expect(aReads()).toBe(before);
+  expect(cache.getQueryState(["cable-identity", "c1", 0])?.status).toBe("error");
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true));
 });
