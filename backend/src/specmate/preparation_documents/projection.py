@@ -248,7 +248,7 @@ def project(user, configuration):
             )
     common = {
         "format": FORMAT,
-        "generator": "specmate.preparation-documents/3"
+        "generator": "specmate.preparation-documents/4"
         if configuration.document_settings
         else GENERATOR,
         "root": root_pin,

@@ -31,6 +31,8 @@ test("compact inspector portals close while a retained record is inactive", asyn
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   const tree = (active: boolean) => <MantineProvider env="test"><RecordPage active={active} identity={{ name: "Phone stock", kind: "wire_stock" }} state={{ kind: "new" }} views={[{ id: "section", label: "Section", content: <p>Central drawing</p> }]} view="section" onView={vi.fn()} inspector={[{ id: "facts", label: "Facts", content: () => <p>Phone facts</p> }]} /></MantineProvider>;
   const view = render(tree(true)); const trigger = await screen.findByRole('button', { name: 'Inspector · Facts' }); expect(trigger.closest('.record-head')).not.toBeNull(); fireEvent.click(trigger); expect(await screen.findByRole('dialog')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Close record inspector' })); expect(screen.queryByRole('dialog')).toBeNull();
+  fireEvent.click(trigger); expect(await screen.findByRole('dialog')).toBeTruthy();
   view.rerender(tree(false)); expect(screen.queryByRole('dialog')).toBeNull();
   const overlay = document.querySelector('.mantine-Drawer-overlay'); if (overlay) expect(getComputedStyle(overlay).display).toBe('none');
 });

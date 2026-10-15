@@ -123,3 +123,9 @@ editing incomplete mappings without replacing prepared quantities or completing 
 review. Obsolete derived rights labels are withheld. Explicit close/discard controls
 remain outside the display fence for recovery from invalid references. Project and
 principal replacement still dispose the entire workspace.
+
+Settings-bearing configurations use generator `/4`: their standalone build sheets
+explicitly select a light paper canvas and dark text, including under dark browser
+preferences. Retained `/3` receipts/downloads return their stored original bytes;
+no later generator rerenders them. Configurations without `document_settings` keep
+generator `/2` and its exact legacy outputs.

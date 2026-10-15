@@ -156,7 +156,11 @@ def title_block(inputs):
         f"<table>{cells}</table></section>"
     )
     paper = snapshot.get("paper")
-    style = f"@page{{size:{paper};}}" if paper else ""
+    # Captured settings opt into a versioned generator; legacy /2 bytes stay exact.
+    # Standalone HTML must remain paper-readable under dark browser preferences.
+    style = "html{color-scheme:light;background:#fff;color:#111}"
+    style += "body{background:#fff;color:#111}"
+    style += f"@page{{size:{paper};}}" if paper else ""
     if layout == "iso7200":
         style += ".document-title-block{margin-left:auto;max-width:32em}"
     elif layout == "ansi":

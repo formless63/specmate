@@ -102,7 +102,7 @@ test('explode slider is stepped under reduced motion, offsets apply without a re
   const raf = vi.spyOn(window, 'requestAnimationFrame');
   const section = sectionLayout(stockPresets.coax!);
   const view = render(<MantineProvider><WireViewport model={wireModel(section, 50, unpreparedProfile())} /></MantineProvider>);
-  const slider = screen.getByRole('slider');
+  const slider = screen.getByRole('slider', { name: 'Explode layers' });
   expect(slider.getAttribute('aria-valuemax')).toBe('1');
   const before = lifecycle.render.mock.calls.length;
   fireEvent.keyDown(slider, { key: 'ArrowRight' });
@@ -130,7 +130,7 @@ test('without reduced motion the slider is smooth and eases over the theme motio
   const { fireEvent, screen } = await import('@testing-library/react');
   try {
     render(<MantineProvider><WireViewport model={wireModel(sectionLayout(stockPresets.coax!), 50, unpreparedProfile())} /></MantineProvider>);
-    const slider = screen.getByRole('slider');
+    const slider = screen.getByRole('slider', { name: 'Explode layers' });
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
     expect(slider.getAttribute('aria-valuenow')).toBe('0.01');
     expect(screen.queryByText(/stepped/)).toBeNull();
@@ -170,4 +170,24 @@ test('camera controls work without pointer input and inactive record suppresses 
   for (const name of ['Reset view', 'Fit 3D view', 'Side view', 'Rotate camera left', 'Rotate camera right', 'Rotate camera up', 'Rotate camera down', 'Zoom camera in', 'Zoom camera out']) { const before = lifecycle.render.mock.calls.length; fireEvent.click(screen.getByRole('button', { name })); expect(lifecycle.render.mock.calls.length).toBeGreaterThan(before); }
   view.rerender(tree(false)); const hidden = lifecycle.render.mock.calls.length; fireEvent.click(screen.getByRole('button', { name: 'Rotate camera left' })); expect(lifecycle.render.mock.calls.length).toBe(hidden);
   view.rerender(tree(true)); expect(lifecycle.render.mock.calls.length).toBeGreaterThan(hidden);
+});
+
+
+test('compact stock view keeps Fit outside the collapsed optional controls and preserves keyboard access', async () => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  const { fireEvent, screen, waitFor } = await import('@testing-library/react');
+  const view = render(<MantineProvider><WireViewport compactControls displayControls={<input aria-label="Preview length" defaultValue="100" />} model={wireModel(sectionLayout(stockPresets.coax!), 50, unpreparedProfile())} /></MantineProvider>);
+  const disclosure = await screen.findByText('View controls');
+  const details = disclosure.closest('details')!;
+  expect(details.open).toBe(false);
+  expect(screen.getByRole('button', { name: 'Fit 3D view' }).closest('details')).toBeNull();
+  expect(view.container.querySelector('[aria-label="Preview length"]')?.closest('details')).toBe(details);
+  fireEvent.click(disclosure);
+  await waitFor(() => expect(details.open).toBe(true));
+  fireEvent.click(screen.getByRole('button', { name: 'Top view' }));
+  const slider = screen.getByRole('slider', { name: 'Explode layers' });
+  fireEvent.keyDown(slider, { key: 'ArrowRight' });
+  expect(Number(slider.getAttribute('aria-valuenow'))).toBeGreaterThan(0);
+  expect(lifecycle.construct).toHaveBeenCalledTimes(1);
 });
