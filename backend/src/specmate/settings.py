@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     "specmate.printing.apps.PrintingConfig",
     "specmate.passive_passages",
     "specmate.discovery.apps.DiscoveryConfig",
+    "specmate.history.apps.HistoryConfig",
     "specmate.preferences.apps.PreferencesConfig",
     "specmate.workspace_settings.apps.WorkspaceSettingsConfig",
     "specmate.configurations.apps.ConfigurationsConfig",

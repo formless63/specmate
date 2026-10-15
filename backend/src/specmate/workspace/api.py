@@ -6,8 +6,10 @@ references, membership) go through the shared operation endpoint.
 
 from uuid import UUID
 
+from django.http import JsonResponse
 from ninja import Query, Router
 
+from specmate.history.contracts import HistoryQuery
 from specmate.queries import list_definitions
 from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects, ResolveLibraryRecord
 from specmate.workspace.design_contracts import ListDesigns
@@ -56,3 +58,12 @@ def projects(request, payload: Query[ListWorkspaceProjects]):
 @router.get("/projects/{project_id}")
 def project(request, project_id: UUID, include_removed: bool = False):
     return project_detail(request.user, project_id, include_removed=include_removed)
+
+
+@router.get("/history")
+def history(request, payload: Query[HistoryQuery]):
+    from specmate.history.queries import list_history
+
+    return JsonResponse(
+        list_history(request.user, payload), headers={"Cache-Control": "private, no-store"}
+    )

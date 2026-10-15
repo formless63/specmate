@@ -1,0 +1,112 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "anyOf": [
+        {
+          "maximum": 9223372036854775807,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Actor Id"
+    },
+    "after": {
+      "anyOf": [
+        {
+          "maxLength": 3000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After"
+    },
+    "definition_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Definition Id"
+    },
+    "from_date": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "From Date"
+    },
+    "kind": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z][a-z0-9_]{0,49}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kind"
+    },
+    "limit": {
+      "default": 25,
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "source": {
+      "default": "retained",
+      "enum": [
+        "retained",
+        "receipts",
+        "revisions",
+        "current_drafts"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "to_date": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "To Date"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "HistoryQuery",
+  "type": "object"
+}
