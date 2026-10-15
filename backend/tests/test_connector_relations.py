@@ -284,3 +284,34 @@ def test_body_membership_lookup_reads_only_bounded_direct_pins_not_body_history(
     assert '"design_revision"."id" IN (' in membership_reads[0]
     assert body["revision_id"].replace("-", "") in membership_reads[0].replace("-", "")
     assert selected["revision_id"].replace("-", "") not in membership_reads[0].replace("-", "")
+
+
+def test_kind_filtered_pages_keep_port_picker_separate_and_bind_cursor(users, workspace):
+    owner = users["owner"]
+    body = freeze(owner, create(owner, workspace))
+    variants = [variant(owner, workspace, body) for _ in range(2)]
+    ports = [
+        freeze(
+            owner,
+            create(
+                owner,
+                workspace,
+                {
+                    "kind": "port",
+                    "device_label": f"Synthetic device {index}",
+                    "pinout_revision_id": pins["revision_id"],
+                },
+            ),
+        )
+        for index, pins in enumerate(variants)
+    ]
+    page = relation(owner, body, kind="port", limit=1)
+    assert page["kind"] == "port" and page["results"][0]["kind"] == "port"
+    with pytest.raises(ValidationFailed):
+        relation(owner, body, kind="pinout", after=page["next_after"])
+    second = relation(owner, body, kind="port", limit=1, after=page["next_after"])
+    assert {row["revision_id"] for row in page["results"] + second["results"]} == {
+        row["revision_id"] for row in ports
+    }
+    assert second["next_after"] is None
+    assert all(row["kind"] == "pinout" for row in relation(owner, body, kind="pinout")["results"])

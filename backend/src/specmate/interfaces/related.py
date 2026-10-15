@@ -1,6 +1,7 @@
 """Bounded, freshly authorized connector relations; exact pins never imply compatibility."""
 
 import json
+from typing import Literal
 from uuid import UUID
 
 from django.core import signing
@@ -23,6 +24,7 @@ SALT = "interface-related-page-v1"
 
 
 class RelatedQuery(StrictModel):
+    kind: Literal["pinout", "port", "end_assembly"] | None = None
     after: str | None = Field(default=None, max_length=2000)
     limit: int = Field(default=20, ge=1, le=50)
 
@@ -31,7 +33,7 @@ class ReadConnectorRelations(RelatedQuery):
     revision_id: UUID
 
 
-def _position(after, revision_id):
+def _position(after, revision_id, kind):
     if after is None:
         return timezone.now(), 0
     try:
@@ -40,6 +42,7 @@ def _position(after, revision_id):
         offset = cursor["offset"]
         if (
             cursor["body"] != str(revision_id)
+            or cursor["kind"] != kind
             or anchor is None
             or timezone.is_naive(anchor)
             or anchor > timezone.now()
@@ -79,7 +82,7 @@ def connector_relations(user, revision_id: UUID, query: RelatedQuery):
     selected, closure = read_revision(user, revision_id)
     if not isinstance(closure.root, ConnectorBody):
         raise ValidationFailed("Connector relations require an exact body revision.")
-    anchor, offset = _position(query.after, selected.id)
+    anchor, offset = _position(query.after, selected.id, query.kind)
     latest = (
         Revision.objects.filter(definition_id=OuterRef("definition_id"), frozen_at__lte=anchor)
         .order_by("-number")
@@ -100,6 +103,8 @@ def connector_relations(user, revision_id: UUID, query: RelatedQuery):
         .select_related("definition", "snapshot__definition")
         .order_by("definition__kind", "definition_id")
     )
+    if query.kind is not None:
+        candidates = candidates.filter(definition__kind=query.kind)
     page = list(candidates[offset : offset + SCAN_LIMIT + 1])
     batch = page[:SCAN_LIMIT]
     with closure_reads():
@@ -164,7 +169,12 @@ def connector_relations(user, revision_id: UUID, query: RelatedQuery):
     more = len(page) > scanned
     after = (
         signing.dumps(
-            {"body": str(selected.id), "anchor": anchor.isoformat(), "offset": offset + scanned},
+            {
+                "body": str(selected.id),
+                "kind": query.kind,
+                "anchor": anchor.isoformat(),
+                "offset": offset + scanned,
+            },
             salt=SALT,
             compress=True,
         )
@@ -175,6 +185,7 @@ def connector_relations(user, revision_id: UUID, query: RelatedQuery):
         "body_definition_id": str(selected.definition_id),
         "body_revision_id": str(selected.id),
         "body_revision_number": selected.number,
+        "kind": query.kind,
         "basis": "latest_frozen_at_page_anchor",
         "as_of": anchor.isoformat(),
         "results": results,

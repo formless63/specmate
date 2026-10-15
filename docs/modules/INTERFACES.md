@@ -55,4 +55,6 @@ ordered by kind and definition ID. The cursor preserves that anchor while every 
 rechecks current actor, workspace and complete dependency/source authority. Inaccessible
 relations are omitted; candidate scans and returned pages are bounded separately, with
 an explicit continuation/scan-limit flag and no hidden total or hidden IDs in cursors.
-A transitive mating dependency alone is not a direct connector association.
+An optional `kind` filter selects pinouts, ports or end stacks for their own
+record sections; signed cursors cannot transfer between filters. A transitive
+mating dependency alone is not a direct connector association.
