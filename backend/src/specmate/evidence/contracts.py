@@ -13,6 +13,7 @@ Source = Literal[
     "physical_units",
     "interface_assessment",
     "firmware_impact",
+    "cable_intent_check",
     "subject_tests",
 ]
 RecordedSource = Literal["interface_assessment", "firmware_impact", "cable_intent_check"]
