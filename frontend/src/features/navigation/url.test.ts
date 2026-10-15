@@ -27,6 +27,7 @@ const redirects: [string, string, string][] = [
   ["design", "cables", "/designs"], ["design", "harnesses", "/designs"],
   ["design", "assemblies", "/designs"], ["design", "interfaces", "/library/connectors"],
   ["design", "pcb", "/library/boards"], ["sources", "builds", "/jobs/builds"],
+  ["sources", "agent-runs", "/jobs/agent-runs"], ["sources", "runner", "/jobs/runner"],
   ["make", "bom", "/make/procurement"], ["make", "material-accounting", "/make/material"],
   ["make", "printing", "/make/printing"], ["inventory", "inventory", "/make/inventory"],
   ["inventory", "physical-units", "/make/units"], ["evidence", "evidence-kinds", "/library/vocabulary/evidence-kinds"],

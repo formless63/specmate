@@ -28,6 +28,7 @@ const BuildsPanel = lazy(() => import("./features/builds/BuildsPanel").then((mod
 const AssemblyPanel = lazy(() => import("./features/assemblies/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel })));
 const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/AgentCapabilitiesPanel").then((module) => ({ default: module.AgentCapabilitiesPanel })));
 const AgentRunsPanel = lazy(() => import("./features/agent-runs/AgentRunsPanel").then((module) => ({ default: module.AgentRunsPanel })));
+const RunnerPanel = lazy(() => import("./features/diagnostics/RunnerPanel").then(module => ({ default: module.RunnerPanel })));
 const DiagnosticsPanel = lazy(() => import("./features/diagnostics/DiagnosticsPanel").then((module) => ({ default: module.DiagnosticsPanel })));
 const ShareRecordsPanel = lazy(() => import("./features/project-access/ShareRecordsPanel").then((module) => ({ default: module.ShareRecordsPanel })));
 const IntegrationsPanel = lazy(() => import("./features/integrations/IntegrationsPanel").then((module) => ({ default: module.IntegrationsPanel })));
@@ -225,7 +226,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
     return <WorkspaceHome username={scope.username} role={scope.role} permissions={scope.permissions} projects={scope.projects} lastProjectId={scope.lastProjectId}
       busy={scope.busy} onOpen={(projectId) => onOpenInProject(projectId, toolId)} onCreate={scope.createProject} onChanged={scope.refresh} />;
   }
-  if (toolId === "runner") return <DiagnosticsPanel workspaceId={scope.workspaceId} active={lens.active === "runner"} onChanged={lens.onStatusChanged} />;
+  if (toolId === "runner") return <RunnerPanel onAccessLost={scope.refresh} workspaceId={scope.workspaceId} principalKey={scope.principalKey} active={lens.active === "runner"} />;
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
@@ -268,7 +269,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
   switch (toolId) {
     case "knowledge": return !projectId ? <ChooseProject toolLabel="Notes & files" projects={scope.projects} lastProjectId={scope.lastProjectId} onChoose={project => navigation?.navigate({ area: "projects", lens: "knowledge", project, probe: null, filters: {} })} /> : <Stack><KnowledgePanel target={{ kind: "project", project_id: projectId }} workspaceId={workspaceId} projectId={optional} principalKey={principalKey} onAccessLost={onAccessChanged} /><KnowledgeSearchPanel workspaceId={workspaceId} projectId={optional} principalKey={principalKey} active={active === "knowledge"} /><CollaborationPanel projectId={projectId} principalKey={principalKey} active={active === "knowledge"} onAccessLost={onAccessChanged} onOpenUpgrade={(id) => { setUpgradeProposalId(id); setActive("revision-upgrades"); }} /></Stack>;
     case "agent-capabilities": return <AgentCapabilitiesPanel workspaceId={workspaceId} projectId={projectId} />;
-    case "agent-runs": return <AgentRunsPanel workspaceId={workspaceId} projectId={projectId} username={scope.username} principalKey={principalKey} />;
+    case "agent-runs": return <AgentRunsPanel onAccessLost={onAccessChanged} active={active === "agent-runs"} workspaceId={workspaceId} projectId={projectId} username={scope.username} principalKey={principalKey} />;
     case "preferences": return <PreferencesPanel workspaceId={workspaceId} />;
     case "diagnostics": return <DiagnosticsPanel workspaceId={workspaceId} active={active === "diagnostics"} onChanged={onStatusChanged} />;
     case "discovery": return <DiscoveryPanel projectId={projectId} />;
@@ -277,7 +278,7 @@ function WorkspaceLens({ toolId, scope, projectId, active, setActive, onStatusCh
     case "catalog-packs": return <CatalogPacksWorkspace projectId={projectId} />;
     case "firmware-impact": return <FirmwareImpactPanel workspaceId={workspaceId} />;
     case "mechanical-proposals": return <MechanicalProposalsPanel workspaceId={workspaceId} principalKey={principalKey} />;
-    case "builds": return <BuildsPanel workspaceId={workspaceId} />;
+    case "builds": return <BuildsPanel onAccessLost={onAccessChanged} workspaceId={workspaceId} principalKey={principalKey} active={active === "builds"} />;
     case "evidence-kinds": return <EvidencePanel workspaceId={workspaceId} projectId={optional} />;
     case "shared-scene": return <SharedScenePanel projectId={projectId} />;
     case "context-selection": return <ContextualInspectionWorkspace projectId={projectId} principalKey={principalKey} />;
