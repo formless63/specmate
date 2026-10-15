@@ -1,94 +1,29 @@
 export type ToolDef = { id: string; label: string };
 export type AreaDef = { id: string; label: string; key: string; tools: ToolDef[] };
+const tool = (id: string, label: string): ToolDef => ({ id, label });
 
-/**
- * Every tool belongs to exactly one area. Keys 1-7 select areas from the keyboard; the
- * first tool listed is the area's default lens. Every area is reachable at Library scope
- * and at project scope; scope changes navigation and filtering, never access.
- */
+/** The fixed workspace rail. Existing tools remain reachable here during record migration. */
 export const AREAS: AreaDef[] = [
-  { id: "project", label: "Project", key: "1", tools: [
-    { id: "overview", label: "Overview" },
-    { id: "knowledge", label: "Notes & files" },
-    { id: "access", label: "Workspace access" },
-    { id: "integrations", label: "Integrations" },
-    { id: "preferences", label: "Preferences" },
-    { id: "agent-capabilities", label: "Agent access" },
-    { id: "agent-runs", label: "Agent runs" },
-    { id: "diagnostics", label: "Status & recovery" },
-  ] },
-  { id: "library", label: "Library", key: "2", tools: [
-    { id: "library-home", label: "Library home" },
-    { id: "identity", label: "Identities" },
-    { id: "discovery", label: "Discovery" },
-    { id: "revision-upgrades", label: "Revision upgrades" },
-    { id: "matching", label: "Reviewed matching" },
-    { id: "catalog-packs", label: "Catalog packs" },
-    { id: "wire-stock", label: "Wire stock" },
-    { id: "signals", label: "Signals" },
-    { id: "ports", label: "Ports" },
-    { id: "conventions", label: "Conventions" },
-    { id: "end-assemblies", label: "End assemblies" },
-    { id: "intents", label: "Intents" },
-    { id: "workshop-profiles", label: "Workshop profiles" },
-  ] },
-  { id: "design", label: "Design", key: "3", tools: [
-    { id: "assemblies", label: "Assemblies" },
-    { id: "interfaces", label: "Interfaces" },
-    { id: "cables", label: "Cables" },
-    { id: "harnesses", label: "Harness branches" },
-    { id: "copper", label: "Copper graph" },
-    { id: "passive-passages", label: "Passive models" },
-    { id: "pcb", label: "PCB intake" },
-    { id: "pcb-disagreement", label: "PCB source review" },
-    { id: "occurrence-firmware", label: "Board firmware" },
-    { id: "firmware-impact", label: "Firmware impact" },
-    { id: "configurations", label: "Options & choices" },
-    { id: "shared-scene", label: "Shared scene" },
-    { id: "context-selection", label: "Connected views" },
-    { id: "scene-drawings", label: "Scene drawings" },
-    { id: "mechanical-proposals", label: "Parametric proposals" },
-  ] },
-  { id: "sources", label: "Sources", key: "4", tools: [
-    { id: "sources", label: "Sources" },
-    { id: "mechanical-sources", label: "Mechanical sources" },
-    { id: "builds", label: "Builds" },
-  ] },
-  { id: "make", label: "Make", key: "5", tools: [
-    { id: "bom", label: "BOM planning" },
-    { id: "material-accounting", label: "Material accounting" },
-    { id: "preparation", label: "Cut preparation" },
-    { id: "end-preparation", label: "End preparation" },
-    { id: "preparation-documents", label: "Bench documents" },
-    { id: "selected-packages", label: "Selected packages" },
-    { id: "export-packages", label: "Export packages" },
-    { id: "printing", label: "Print preparation" },
-  ] },
-  { id: "inventory", label: "Inventory", key: "6", tools: [
-    { id: "inventory", label: "Inventory" },
-    { id: "physical-units", label: "Physical units" },
-  ] },
-  { id: "evidence", label: "Evidence", key: "7", tools: [
-    { id: "facts", label: "Facts" },
-    { id: "evidence-kinds", label: "Evidence kinds" },
-    { id: "cable-test-intent", label: "Cable test intent" },
-    { id: "releases", label: "Releases" },
-  ] },
+  { id: "designs", label: "Designs", key: "1", tools: [tool("designs", "All designs"), tool("new-cable", "New cable"), tool("new-harness", "New harness"), tool("new-assembly", "New device"), tool("cables", "Cables"), tool("harnesses", "Harnesses"), tool("assemblies", "Devices"), tool("intents", "Cable intents"), tool("occurrence-firmware", "Board firmware"), tool("firmware-impact", "Firmware impact"), tool("configurations", "Options & choices"), tool("shared-scene", "Shared scene"), tool("context-selection", "Connected views"), tool("scene-drawings", "Scene drawings"), tool("mechanical-proposals", "Enclosure proposals"), tool("preparation-documents", "Bench documents"), tool("cable-test-intent", "Cable test plans"), tool("selected-packages", "Selected packages"), tool("export-packages", "Export packages")] },
+  { id: "library", label: "Library", key: "2", tools: [tool("library-home", "Library home"), tool("interfaces", "Connectors"), tool("pcb", "Boards"), tool("wire-stock", "Wire stocks"), tool("identity", "Parts"), tool("hardware", "Shells & hardware"), tool("kits", "Kits"), tool("signals", "Vocabulary"), tool("ports", "Device ports"), tool("end-assemblies", "Saved end stacks"), tool("conventions", "Conductor conventions"), tool("workshop-profiles", "Workshop profiles"), tool("evidence-kinds", "Evidence kinds"), tool("discovery", "Where used"), tool("revision-upgrades", "Revision upgrades"), tool("matching", "Reviewed matching"), tool("pcb-disagreement", "Source review"), tool("passive-passages", "Paths and parts"), tool("copper", "Copper graph"), tool("mechanical-sources", "Mechanical sources"), tool("sources", "Source bundles"), tool("preparation", "Cut preparation"), tool("end-preparation", "End preparation"), tool("facts", "Facts")] },
+  { id: "make", label: "Make", key: "3", tools: [tool("inventory", "Inventory"), tool("physical-units", "Physical units"), tool("material-accounting", "Material plans"), tool("bom", "Procurement BOMs"), tool("printing", "3D printing")] },
+  { id: "jobs", label: "Jobs", key: "4", tools: [tool("builds", "Builds"), tool("agent-runs", "Agent runs"), tool("runner", "Runner")] },
+  { id: "history", label: "History", key: "5", tools: [tool("history", "History")] },
+  { id: "products", label: "Products & releases", key: "6", tools: [tool("releases", "Releases")] },
+  { id: "projects", label: "Projects", key: "7", tools: [tool("overview", "Projects"), tool("knowledge", "Notes & files")] },
+  { id: "extensions", label: "Extensions", key: "8", tools: [tool("catalog-packs", "Packs"), tool("integrations", "Integrations"), tool("agent-capabilities", "Agents")] },
+  { id: "settings", label: "Settings", key: "9", tools: [tool("access", "People"), tool("preferences", "Preferences"), tool("diagnostics", "System")] },
 ];
+export const DEFAULT_TOOL = "designs";
+export function areaOfTool(toolId: string): AreaDef { return AREAS.find(area => area.tools.some(tool => tool.id === toolId)) ?? AREAS[0]!; }
+export function toolLabel(toolId: string): string { return AREAS.flatMap(area => area.tools).find(tool => tool.id === toolId)?.label ?? toolId; }
 
-/** The shell opens on the Project area: the project list at Library scope, the overview in a project. */
-export const DEFAULT_TOOL = "overview";
-
-export function areaOfTool(toolId: string): AreaDef {
-  return AREAS.find((area) => area.tools.some((tool) => tool.id === toolId)) ?? (AREAS[0] as AreaDef);
-}
-
-export function toolLabel(toolId: string): string {
-  for (const area of AREAS) {
-    const tool = area.tools.find((item) => item.id === toolId);
-    if (tool) return tool.label;
-  }
-  return toolId;
+/** Fixed Library navigation; record-specific tools live in Advanced. */
+export const LIBRARY_TABS = ["interfaces", "pcb", "wire-stock", "identity", "hardware", "kits", "signals"];
+export function primaryTools(area: AreaDef): ToolDef[] {
+  if (area.id === "library") return area.tools.filter(tool => LIBRARY_TABS.includes(tool.id));
+  if (area.id === "designs" || area.id === "history") return [];
+  return area.tools;
 }
 
 const ROLE_LABELS: Record<string, string> = { viewer: "Viewer", contributor: "Contributor", editor: "Editor", admin: "Admin" };

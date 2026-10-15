@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { ProbeProvider } from "../probe";
 import { AssemblyInspector, AssemblyPanel } from "./AssemblyPanel";
 import { addressKey, relationship, type ProjectionNode } from "./api";
 
@@ -90,4 +92,29 @@ test("path keys and typed role fields preserve contextual meaning", () => {
   expect(relationship("containment", "contains", "", "a", "old-feature", "old-feature")).toMatchObject({ parent: { kind: "occurrence", path: [], feature_id: null }, child: { path: ["a"], feature_id: null } });
   expect(relationship("electrical", "wire", "left/board", "right/board", "pin-a", "pin-b")).toMatchObject({ a: { path: ["left", "board"], feature_id: "pin-a" }, b: { path: ["right", "board"], feature_id: "pin-b" } });
   expect(relationship("procurement", "order", "a", "exact-revision", "", "")).toMatchObject({ subject: { path: ["a"] }, orderable: { kind: "revision", revision_id: "exact-revision" } });
+});
+
+
+test("an exact design link opens its pinned assembly revision and follows revision changes", async () => {
+  const fetchMock = vi.fn(async (url: string) => {
+    let body: unknown;
+    if (url.includes("workspace/definitions")) body = [{ definition_id: "a1", name: "Synthetic device", kind: "assembly" }];
+    else if (url.includes("catalog/definitions/a1")) body = { definition_id: "a1", name: "Synthetic device", kind: "assembly", drafts: [], revisions: [{ revision_id: "rev-one", number: 1 }, { revision_id: "rev-two", number: 2 }] };
+    else if (url.includes("revisions/rev-one")) body = { snapshot_id: "snapshot-one" };
+    else if (url.includes("revisions/rev-two")) body = { snapshot_id: "snapshot-two" };
+    else if (url.includes("assemblies/snapshots/")) body = { snapshot_id: url.split("/").at(-1), definition_id: "a1", sha256: "synthetic", occurrences: [], relationships: [] };
+    else return new Response(JSON.stringify({ error: { message: "Unexpected read" } }), { status: 404 });
+    return new Response(JSON.stringify(body), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  function ExactLink() {
+    const [rev, setRev] = useState(1);
+    return <ProbeProvider probe={{ object: "a1", rev, path: [] }} onProbe={() => {}}><button onClick={() => setRev(2)}>Open exact second revision</button><AssemblyPanel /></ProbeProvider>;
+  }
+  render(wrap(<ExactLink />));
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Frozen assembly revision" }) as HTMLInputElement).value).toBe("Synthetic device · r1"));
+  expect(fetchMock.mock.calls.some(([url]) => url.includes("revisions/rev-two"))).toBe(false);
+  fireEvent.click(screen.getByText("Open exact second revision"));
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Frozen assembly revision" }) as HTMLInputElement).value).toBe("Synthetic device · r2"));
+  expect(fetchMock.mock.calls.some(([url]) => url.includes("revisions/rev-two"))).toBe(true);
 });

@@ -1,0 +1,120 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "anyOf": [
+        {
+          "maxLength": 300,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After"
+    },
+    "board": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Board",
+      "type": "string"
+    },
+    "from": {
+      "default": "",
+      "maxLength": 200,
+      "title": "From",
+      "type": "string"
+    },
+    "kind": {
+      "anyOf": [
+        {
+          "enum": [
+            "cable",
+            "harness",
+            "assembly"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kind"
+    },
+    "limit": {
+      "default": 50,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "q": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Q",
+      "type": "string"
+    },
+    "status": {
+      "anyOf": [
+        {
+          "enum": [
+            "draft",
+            "draft_only",
+            "frozen",
+            "reviewed",
+            "unreviewed",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Status"
+    },
+    "stock": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Stock",
+      "type": "string"
+    },
+    "to": {
+      "default": "",
+      "maxLength": 200,
+      "title": "To",
+      "type": "string"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
+    }
+  },
+  "title": "ListDesigns",
+  "type": "object"
+}

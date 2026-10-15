@@ -9,7 +9,9 @@ import { addressKey, command, read, relationship, type Assembly, type Definition
 import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
-import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { referenceFromProject } from "../scope/openProbed";
+import { useProbedSelection } from "../cable-views/useProbedSelection";
+import { useProbe } from "../probe";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
 /** Library assemblies. `projectId` is optional context: new assemblies are then also referenced by that project. */
@@ -118,8 +120,17 @@ function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string | nu
     await referenceFromProject(projectId, data.definition_id, "assembly");
   }, onError: accessLost });
   const pick = (id: string | null) => { generation.current++; clearDraftSession(); setDefinitionId(id); setDraftId(null); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); };
-  const openNewest = useOpenNewest(identity.data, setDraftId, setFrozenRevision);
-  useOpenProbed(accessError ? null : definitionIn(definitions.data, ["assembly"]), (id) => { pick(id); openNewest(id); });
+  const probe = useProbe()?.probe;
+  useEffect(() => {
+    if (probe?.object === definitionId && probe.rev !== null) {
+      setDraftId(null); setSnapshotId(null); setFrozenRevision(null);
+      setIdentityOffset(Math.floor((probe.rev - 1) / 50) * 50);
+    }
+  }, [probe?.object, probe?.rev, definitionId]);
+  useProbedSelection({ kind: "assembly", definitions: accessError ? undefined : definitions.data, definitionId,
+    revisions: identity.data?.definition_id === definitionId && identityOffset === (probe?.rev ? Math.floor((probe.rev - 1) / 50) * 50 : 0) ? identity.data.revisions : undefined,
+    drafts: identity.data?.definition_id === definitionId ? identity.data.drafts : undefined,
+    pickDefinition: pick, pickRevision: setFrozenRevision, pickDraft: setDraftId });
   const capture = useMutation({ mutationFn: (freeze: boolean) => {
     const operation = freeze ? "assembly.freeze" : "assembly.snapshot";
     const expectedState = captureState?.draft_id === draftId ? captureState.state : undefined;

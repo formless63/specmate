@@ -16,9 +16,9 @@ test('superseded retained set links to the newer frozen root revision in the sam
   expect(screen.getByText('Newer revision r2 exists')).toBeTruthy();
   expect(screen.getByText(/generated from Synthetic jumper r1/)).toBeTruthy();
   const link = screen.getByRole('link', { name: 'Open Synthetic jumper r2' });
-  expect(link.getAttribute('href')).toBe('/design/cable-def@2?lens=cables&project=p1');
+  expect(link.getAttribute('href')).toBe('/designs/cable-def@2?project=p1');
   fireEvent.click(link);
-  expect(`${history.location.pathname}${history.location.search}`).toBe('/design/cable-def@2?lens=cables&project=p1');
+  expect(`${history.location.pathname}${history.location.search}`).toBe('/designs/cable-def@2?project=p1');
 });
 
 test('latest or absent currency shows no notice', () => {

@@ -1,8 +1,13 @@
 import { PermissionsProvider } from "./lib/permissions";
-import { Alert, Button, Stack, Tabs, Text } from "@mantine/core";
+import { Alert, Button, Group, Modal, Stack, Tabs, Text } from "@mantine/core";
 import type { SpotlightActionGroupData } from "@mantine/spotlight";
-import { Component, Fragment, lazy, Suspense, useCallback, useMemo, useState, type ReactNode } from "react";
+import { Component, Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { useQuery } from "@tanstack/react-query";
+import { DesignList } from "./features/designs/DesignList";
+import { useNavigation } from "./features/navigation";
+import { toolForKind } from "./features/shell/scope";
+import { requestJson } from "./features/workspace/api";
 import { StatusIndicator } from "./features/diagnostics/StatusIndicator";
 import { WorkspaceHome } from "./features/home/WorkspaceHome";
 import { ProjectOverview } from "./features/overview/ProjectOverview";
@@ -12,10 +17,11 @@ import { EditingLens } from "./features/scope/EditingLens";
 import { LibraryView } from "./features/scope/LibraryView";
 import { NavigationProvider, useWorkspaceUrl } from "./features/navigation";
 import { ProbeInspector, ProbeProvider } from "./features/probe";
-import { AREAS, SbShell, toolLabel } from "./features/shell";
+import { AREAS, SbShell, areaOfTool } from "./features/shell";
 import { libraryView } from "./features/shell/scope";
-import { WorkspaceShell, type LibraryRecord, type Project, type ShellChrome, type WorkspaceScope } from "./features/workspace";
+import { WorkspaceShell, type LibraryRecord, type ShellChrome, type WorkspaceScope } from "./features/workspace";
 
+const SelectedDefinitionViews = lazy(() => import("./features/cable-views/SelectedDefinitionViews").then(module => ({ default: module.SelectedDefinitionViews })));
 const BuildsPanel = lazy(() => import("./features/builds/BuildsPanel").then((module) => ({ default: module.BuildsPanel })));
 const AssemblyPanel = lazy(() => import("./features/assemblies/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel })));
 const AgentCapabilitiesPanel = lazy(() => import("./features/agent-capabilities/AgentCapabilitiesPanel").then((module) => ({ default: module.AgentCapabilitiesPanel })));
@@ -96,8 +102,25 @@ const ALL_TOOLS = AREAS.flatMap((area) => area.tools);
  */
 function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const url = useWorkspaceUrl(scope);
-  const active = url.lens;
+  const navigation = useNavigation();
+  const selected = useQuery({ queryKey: ["workspace", "route-record", scope.principalKey, url.probe?.object],
+    queryFn: () => requestJson<LibraryRecord>(`/api/v0/workspace/library/${encodeURIComponent(url.probe!.object)}`),
+    enabled: !!url.probe, retry: false });
+  // Record URLs name the item, not its implementation panel. Resolve the kind using current authority.
+  const recordTool = !selected.isError && selected.data && url.probe?.object === selected.data.record_id
+    ? selected.data.family === "definition" ? toolForKind(selected.data.kind)
+      : ({ source_bundle: "sources", stock_account: "inventory", physical_unit: "physical-units", fact_subject: "facts" } as Record<string, string>)[selected.data.family] ?? "identity"
+    : null;
+  const active = url.probe && ["designs", "identity"].includes(url.lens) && recordTool ? recordTool : url.lens;
+  useEffect(() => {
+    if (url.lens === "identity" && recordTool && recordTool !== "identity") navigation?.navigate({ area: areaOfTool(recordTool).id, lens: recordTool }, { replace: true });
+  }, [url.lens, recordTool, navigation]);
+  useEffect(() => {
+    if (url.lens === "discovery") { void import("@mantine/spotlight").then(module => module.spotlight.open()); }
+  }, [url.lens]);
   const [focus, setFocus] = useState<RecordFocus | null>(null);
+  const [createKeys, setCreateKeys] = useState<Record<string, number>>({});
+  const [replaceCreate, setReplaceCreate] = useState<string | null>(null);
   const [statusTick, setStatusTick] = useState(0);
   const [upgradeProposalId, setUpgradeProposalId] = useState<string | null>(null);
   const scopeKey = `${scope.projectId ?? "library"}:${scope.role}:${scope.permissions.join(",")}`;
@@ -118,10 +141,15 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
     setFocus(record ? { projectId, toolId, record } : null);
     openUrlInProject(projectId, toolId, record?.record_id);
   }, [openUrlInProject]);
-  const scopeActions = useMemo<SpotlightActionGroupData[]>(() => [{ group: "Scope", actions: [
+  const scopeActions = useMemo<SpotlightActionGroupData[]>(() => [{ group: "Projects", actions: [
     { id: "scope:library", label: "Library", description: "Whole workspace library", onClick: () => changeScope(null) },
-    ...scope.projects.filter((project) => !project.archived).map((project) => ({ id: `scope:${project.project_id}`, label: project.name, description: "Open project", onClick: () => changeScope(project.project_id) })),
-  ] }], [scope.projects, changeScope]);
+    ...scope.projects.filter((project) => !project.archived).map((project) => ({ id: `scope:${project.project_id}`, label: project.name, description: "Open project", onClick: () => openUrlInProject(project.project_id, "overview") })),
+  ] }], [scope.projects, changeScope, openUrlInProject]);
+  const openCreate = (kind: "cable" | "harness" | "assembly") => {
+    const tool = `new-${kind}`;
+    if (tools.has(tool)) { setReplaceCreate(tool); return; }
+    navigation?.navigate({ area: "designs", lens: tool, probe: null });
+  };
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   const showProbe = !!url.probe || url.malformed;
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
@@ -132,20 +160,23 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   </> };
 
   return <PermissionsProvider permissions={scope.permissions}><ProbeProvider probe={url.probe} onProbe={url.setProbe}>
-    <SbShell projectName={scope.project?.name ?? "Library"} permissions={scope.permissions} role={scope.role} libraryScope={!scope.project}
-      activeTool={active} onToolChange={setActive} chrome={chrome} extraActions={scopeActions} itemSearchKey={scope.principalKey}
+    <SbShell recordName={!selected.isError && active === recordTool ? selected.data?.label : undefined} projectName={scope.project?.name ?? "Library"} permissions={scope.permissions} role={scope.role} libraryScope={!scope.project}
+      activeTool={active} onToolChange={setActive} onAreaChange={tool => navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, probe: null })} chrome={chrome} extraActions={scopeActions} itemSearchKey={scope.principalKey}
       statusIndicator={scope.projectId ? <StatusIndicator workspaceId={scope.workspaceId} refreshKey={statusTick} onOpen={() => setActive("diagnostics")} /> : undefined}>
-      {scope.project && scope.projectId
-        ? <Fragment key={scopeKey}><RecordFocusContext.Provider value={activeFocus}>
-          <ProjectTools scope={scope} projectId={scope.projectId} project={scope.project} active={active} visited={tools} setActive={setActive}
-            upgradeProposalId={upgradeProposalId} setUpgradeProposalId={setUpgradeProposalId}
-            onStatusChanged={() => setStatusTick((n) => n + 1)} onOpenInProject={openInProject} />
-        </RecordFocusContext.Provider></Fragment>
-        : <Fragment key={scopeKey}>{ALL_TOOLS.map((tool) => <ToolPanel key={tool.id} value={tool.id}>
-          {tools.has(tool.id) && <LibraryTool toolId={tool.id} toolLabel={tool.label} scope={scope} onOpenInProject={openInProject}
-            lens={{ scope, projectId: null, active, setActive, onStatusChanged: () => setStatusTick((n) => n + 1), upgradeProposalId, setUpgradeProposalId }} />}
-        </ToolPanel>)}</Fragment>}
+      <Fragment key={scopeKey}><RecordFocusContext.Provider value={activeFocus}>
+        <ToolPanel value="designs">{tools.has("designs") && (url.probe ? <Text role="status">{selected.isError ? "This design is not available." : "Opening design…"}</Text> : <DesignList active={active === "designs"} principalKey={scope.principalKey} projectId={scope.projectId} projects={scope.projects}
+          onOpen={record => navigation?.navigate({ area: "designs", lens: toolForKind(record.kind), probe: { object: record.record_id, rev: null, path: [] } })}
+          onCreate={openCreate} />)}</ToolPanel>
+        <ToolPanel value="history">{tools.has("history") && <Stack><Text component="h1" fw={600}>History</Text><Text>Workspace change history is not available yet. Open a record to inspect its retained revisions.</Text></Stack>}</ToolPanel>
+        {ALL_TOOLS.filter(tool => !["designs", "history"].includes(tool.id)).map(tool => <ToolPanel key={tool.id} value={tool.id}>
+          {tools.has(tool.id) && <LibraryTool key={createKeys[tool.id] ?? 0} toolId={tool.id} toolLabel={tool.label} record={selected.isError ? undefined : selected.data} scope={scope} onOpenInProject={openInProject}
+            lens={{ scope, projectId: scope.projectId, active, setActive, onStatusChanged: () => setStatusTick(n => n + 1), upgradeProposalId, setUpgradeProposalId }} />}
+        </ToolPanel>)}
+      </RecordFocusContext.Provider></Fragment>
     </SbShell>
+    <Modal opened={replaceCreate !== null} onClose={() => setReplaceCreate(null)} title="Start another design?" centered>
+      <Stack><Text>The existing creation form will be replaced. Keep it to preserve any unsaved changes.</Text><Group justify="flex-end"><Button variant="quiet" onClick={() => { if (replaceCreate) navigation?.navigate({ area: "designs", lens: replaceCreate, probe: null }); setReplaceCreate(null); }}>Keep existing form</Button><Button onClick={() => { if (replaceCreate) { setCreateKeys(current => ({ ...current, [replaceCreate]: (current[replaceCreate] ?? 0) + 1 })); navigation?.navigate({ area: "designs", lens: replaceCreate, probe: null }); } setReplaceCreate(null); }}>Start new</Button></Group></Stack>
+    </Modal>
   </ProbeProvider></PermissionsProvider>;
 }
 
@@ -169,31 +200,33 @@ function FocusNote({ focus, onDismiss }: { focus: RecordFocus; onDismiss: () => 
 }
 
 /** A lens at Library scope: the project list, workspace access, the lens's library, or an inline project chooser. */
-function LibraryTool({ toolId, toolLabel, scope, onOpenInProject, lens }: { toolId: string; toolLabel: string; scope: WorkspaceScope; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void; lens: LensContext }) {
+function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }: { record?: LibraryRecord; toolId: string; toolLabel: string; scope: WorkspaceScope; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void; lens: LensContext }) {
+  if (toolId.startsWith("new-")) return <ProbeProvider probe={null} onProbe={() => {}}><LensEditor toolId={{ "new-cable": "cables", "new-harness": "harnesses", "new-assembly": "assemblies" }[toolId] ?? "cables"} scope={scope} projectId={lens.projectId} active={lens.active} /></ProbeProvider>;
+  if (toolId === "overview" && scope.project && scope.projectId) return <ProjectOverview projectId={scope.projectId} projectName={scope.project.name} permissions={scope.permissions} role={scope.role} active={lens.active === "overview"} onOpenTool={lens.setActive} onAccessLost={scope.refresh} onProjectChanged={scope.refresh} onLeave={() => scope.selectProject(null)} />;
   if (toolId === "overview") {
     return <WorkspaceHome username={scope.username} role={scope.role} permissions={scope.permissions} projects={scope.projects} lastProjectId={scope.lastProjectId}
       busy={scope.busy} onOpen={(projectId) => onOpenInProject(projectId, toolId)} onCreate={scope.createProject} onChanged={scope.refresh} />;
   }
+  if (toolId === "hardware" || toolId === "kits") return <Stack><Text component="h1" fw={600}>{toolId === "hardware" ? "Shells & hardware" : "Kits"}</Text><Text>{toolId === "hardware" ? "Dedicated hardware records are being prepared. Existing hardware definitions are available in Parts." : "Kit editing is not available yet. Existing definitions remain available in Parts."}</Text><Button variant="quiet" onClick={() => lens.setActive("identity")}>Open Parts</Button></Stack>;
+  if (toolId === "runner") return <DiagnosticsPanel workspaceId={scope.workspaceId} active={lens.active === "runner"} onChanged={lens.onStatusChanged} />;
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
+  if (["cables", "harnesses", "assemblies"].includes(toolId)) return <Stack>
+    {record && ["cable", "harness"].includes(record.kind ?? "") && toolForKind(record.kind) === toolId && <SelectedDefinitionViews key={record.record_id} record={record} />}
+    <LensEditor toolId={toolId} scope={scope} projectId={lens.projectId} active={lens.active} />
+  </Stack>;
   const view = libraryView(toolId);
   // Workspace-level lenses work without a project: the workspace comes from the shell scope.
   if (!view && WORKSPACE_LENSES.has(toolId)) return <WorkspaceLens {...lens} toolId={toolId} />;
   // The Library is where items are created and edited: each collection lens mounts its editor without a project.
   if (view) {
-    return <Stack gap="lg"><EditingLens title={view.title} editor={<LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />}
-      list={(editor) => <LibraryView view={view} toolLabel={toolLabel} projectId={null} project={null} projects={scope.projects} principalKey={scope.principalKey}
+    return <Stack gap="lg"><EditingLens title={view.title} editor={<LensEditor toolId={toolId} scope={scope} projectId={lens.projectId} active={lens.active} />}
+      list={(editor) => <LibraryView view={view} toolLabel={toolLabel} projectId={lens.projectId} project={scope.project} projects={scope.projects} principalKey={scope.principalKey}
         onOpenInProject={(projectId, record) => onOpenInProject(projectId, toolId, record)} editor={editor} />} /></Stack>;
   }
   return <ChooseProject toolLabel={toolLabel} projects={scope.projects} lastProjectId={scope.lastProjectId} onChoose={(projectId) => onOpenInProject(projectId, toolId)} />;
 }
-
-type ProjectToolsProps = {
-  scope: WorkspaceScope; projectId: string; project: Project; active: string; visited: Set<string>; setActive: (value: string) => void;
-  onStatusChanged: () => void; onOpenInProject: (projectId: string, toolId: string, record?: LibraryRecord) => void;
-  upgradeProposalId: string | null; setUpgradeProposalId: (id: string | null) => void;
-};
 
 /** Lenses whose data lives in the workspace; a project is optional context, never a requirement. */
 const WORKSPACE_LENSES = new Set(["knowledge", "agent-capabilities", "agent-runs", "preferences", "diagnostics", "discovery", "revision-upgrades", "matching", "catalog-packs", "firmware-impact",
@@ -279,85 +312,6 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
   }
 }
 
-/**
- * Lenses at project scope. A lens with a library list first shows the items this project references
- * (with a switch to the whole library), then its tool. Panels receive the project as context only.
- */
-function ProjectTools({ scope, projectId, project, active, visited, setActive, onStatusChanged, onOpenInProject, upgradeProposalId, setUpgradeProposalId }: ProjectToolsProps) {
-  const lens = { scope, projectId, active, setActive, onStatusChanged, upgradeProposalId, setUpgradeProposalId };
-  const { permissions, principalKey, role, workspaceId } = scope;
-  const projectName = project.name;
-  const onAccessChanged = scope.refresh;
-  const onLeave = () => scope.selectProject(null);
-  const library = (toolId: string) => {
-    const view = libraryView(toolId);
-    return view && <LibraryView view={view} toolLabel={toolLabel(toolId)} projectId={projectId} project={project} projects={scope.projects}
-      principalKey={principalKey} onOpenInProject={(target, record) => onOpenInProject(target, toolId, record)} />;
-  };
-  // A collection lens: the project's list above the same editor the Library uses, with this project as context.
-  const editing = (toolId: string) => {
-    const view = libraryView(toolId)!;
-    return <ToolPanel value={toolId}>{visited.has(toolId) && <Stack gap="lg"><EditingLens title={view.title}
-      editor={<LensEditor toolId={toolId} scope={scope} projectId={projectId} active={active} />}
-      list={(editor) => <LibraryView view={view} toolLabel={toolLabel(toolId)} projectId={projectId} project={project} projects={scope.projects}
-        principalKey={principalKey} onOpenInProject={(target, record) => onOpenInProject(target, toolId, record)} editor={editor} />} /></Stack>}</ToolPanel>;
-  };
-  return <>
-    <ToolPanel value="overview" library={library("overview")}>{visited.has("overview") && <ProjectOverview projectId={projectId} projectName={projectName} permissions={permissions} role={role} active={active === "overview"} onOpenTool={setActive} onAccessLost={onAccessChanged} onProjectChanged={onAccessChanged} onLeave={onLeave} />}</ToolPanel>
-    <ToolPanel value="builds" library={library("builds")}>{visited.has("builds") && <WorkspaceLens {...lens} toolId="builds" />}</ToolPanel>
-    {editing("sources")}
-    <ToolPanel value="knowledge" library={library("knowledge")}>{visited.has("knowledge") && <WorkspaceLens {...lens} toolId="knowledge" />}</ToolPanel>
-    <ToolPanel value="library-home">{visited.has("library-home") && <LibraryHome principalKey={principalKey} />}</ToolPanel>
-    {editing("identity")}
-    <ToolPanel value="discovery" library={library("discovery")}>{visited.has("discovery") && <WorkspaceLens {...lens} toolId="discovery" />}</ToolPanel>
-    <ToolPanel value="revision-upgrades" library={library("revision-upgrades")}>{visited.has("revision-upgrades") && <WorkspaceLens {...lens} toolId="revision-upgrades" />}</ToolPanel>
-    <ToolPanel value="matching" library={library("matching")}>{visited.has("matching") && <WorkspaceLens {...lens} toolId="matching" />}</ToolPanel>
-    <ToolPanel value="catalog-packs" library={library("catalog-packs")}>{visited.has("catalog-packs") && <WorkspaceLens {...lens} toolId="catalog-packs" />}</ToolPanel>
-    {editing("signals")}
-    {editing("ports")}
-    {editing("conventions")}
-    {editing("end-assemblies")}
-    {editing("intents")}
-    {editing("wire-stock")}
-    {editing("workshop-profiles")}
-    {editing("material-accounting")}
-    {editing("preparation")}
-    {editing("end-preparation")}
-    <ToolPanel value="selected-packages" library={library("selected-packages")}>{visited.has("selected-packages") && <WorkspaceLens {...lens} toolId="selected-packages" />}</ToolPanel>
-    <ToolPanel value="export-packages" library={library("export-packages")}>{visited.has("export-packages") && <WorkspaceLens {...lens} toolId="export-packages" />}</ToolPanel>
-    <ToolPanel value="printing" library={library("printing")}>{visited.has("printing") && <WorkspaceLens {...lens} toolId="printing" />}</ToolPanel>
-    {editing("occurrence-firmware")}
-    <ToolPanel value="firmware-impact" library={library("firmware-impact")}>{visited.has("firmware-impact") && <WorkspaceLens {...lens} toolId="firmware-impact" />}</ToolPanel>
-    {editing("configurations")}
-    {editing("mechanical-sources")}
-    <ToolPanel value="shared-scene" library={library("shared-scene")}>{visited.has("shared-scene") && <WorkspaceLens {...lens} toolId="shared-scene" />}</ToolPanel>
-    <ToolPanel value="context-selection" library={library("context-selection")}>{visited.has("context-selection") && <WorkspaceLens {...lens} toolId="context-selection" />}</ToolPanel>
-    {editing("assemblies")}
-    {editing("facts")}
-    <ToolPanel value="evidence-kinds" library={library("evidence-kinds")}>{visited.has("evidence-kinds") && <WorkspaceLens {...lens} toolId="evidence-kinds" />}</ToolPanel>
-    <ToolPanel value="releases" library={library("releases")}>{visited.has("releases") && <WorkspaceLens {...lens} toolId="releases" />}</ToolPanel>
-    <ToolPanel value="mechanical-proposals" library={library("mechanical-proposals")}>{visited.has("mechanical-proposals") && <WorkspaceLens {...lens} toolId="mechanical-proposals" />}</ToolPanel>
-    <ToolPanel value="scene-drawings" library={library("scene-drawings")}>{visited.has("scene-drawings") && <WorkspaceLens {...lens} toolId="scene-drawings" />}</ToolPanel>
-    <ToolPanel value="preparation-documents" library={library("preparation-documents")}>{visited.has("preparation-documents") && <WorkspaceLens {...lens} toolId="preparation-documents" />}</ToolPanel>
-    {editing("interfaces")}
-    {editing("cables")}
-    {editing("cable-test-intent")}
-    {editing("harnesses")}
-    {editing("passive-passages")}
-    <ToolPanel value="copper" library={library("copper")}>{visited.has("copper") && <WorkspaceLens {...lens} toolId="copper" />}</ToolPanel>
-    {editing("pcb")}
-    {editing("pcb-disagreement")}
-    {editing("inventory")}
-    {editing("bom")}
-    {editing("physical-units")}
-    <ToolPanel value="agent-capabilities" library={library("agent-capabilities")}>{visited.has("agent-capabilities") && <WorkspaceLens {...lens} toolId="agent-capabilities" />}</ToolPanel>
-    <ToolPanel value="agent-runs" library={library("agent-runs")}>{visited.has("agent-runs") && <WorkspaceLens {...lens} toolId="agent-runs" />}</ToolPanel>
-    <ToolPanel value="preferences" library={library("preferences")}>{visited.has("preferences") && <WorkspaceLens {...lens} toolId="preferences" />}</ToolPanel>
-    <ToolPanel value="diagnostics" library={library("diagnostics")}>{visited.has("diagnostics") && <WorkspaceLens {...lens} toolId="diagnostics" />}</ToolPanel>
-    <ToolPanel value="integrations" library={library("integrations")}>{visited.has("integrations") && <IntegrationsPanel workspaceId={workspaceId} />}</ToolPanel>
-    <ToolPanel value="access" library={library("access")}>{visited.has("access") && <Stack><WorkspaceAccessPanel onAccessChanged={onAccessChanged} /><ShareRecordsPanel workspaceId={workspaceId} /></Stack>}</ToolPanel>
-  </>;
-}
 
 function ToolPanel({ value, library, children }: { value: string; /** Project-scope library list shown above the tool. */ library?: ReactNode; children: ReactNode }) {
   return <Tabs.Panel value={value} pt="lg"><ToolLoadingBoundary><Suspense fallback={<Text role="status">Loading tool…</Text>}>

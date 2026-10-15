@@ -10,9 +10,17 @@ from ninja import Query, Router
 
 from specmate.queries import list_definitions
 from specmate.workspace.contracts import ListLibrary, ListWorkspaceProjects, ResolveLibraryRecord
+from specmate.workspace.design_contracts import ListDesigns
 from specmate.workspace.queries import library_record, list_library, list_projects, project_detail
 
 router = Router(tags=["workspace"])
+
+
+@router.get("/designs")
+def designs(request, payload: Query[ListDesigns]):
+    from specmate.workspace.designs import list_designs
+
+    return list_designs(request.user, payload)
 
 
 @router.get("/library")

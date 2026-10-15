@@ -15,7 +15,7 @@ const choices = { assemblies: [{ snapshot_id: 'root-snapshot', revision_id: 'roo
 beforeEach(() => { vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }); Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-const area = (probe: ProbeTarget | null) => formatLocation({ area: 'design', lens: 'shared-scene', project: null, probe });
+const area = (probe: ProbeTarget | null) => formatLocation({ area: 'designs', lens: 'shared-scene', project: null, probe });
 
 function Host({ initial = null, registry }: { initial?: ProbeTarget | null; registry?: RelationRegistry }) {
   const [probe, setProbe] = useState<ProbeTarget | null>(initial);
@@ -66,20 +66,20 @@ test('selecting the second repeated board in a view updates the URL probe and ma
   install();
   const { unmount } = render(<Host />); await open();
   fireEvent.click(screen.getByRole('button', { name: /^Tree right\/board · J1/ }));
-  expect(address()).toBe('/design/root@1/~/right/board?lens=shared-scene');
+  expect(address()).toBe('/designs/root@1/~/right/board?tool=shared-scene');
   fireEvent.click(screen.getByRole('tab', { name: 'Context cable' }));
   const cable = within(screen.getByRole('region', { name: 'Context cable' }));
   const mark = cable.getByRole('button', { name: /^Cable right\/cable · J1/ });
   expect(mark.getAttribute('data-probe')).toBe('related');
   expect(cable.getByRole('button', { name: /^Cable left\/cable · J1/ }).getAttribute('data-probe')).toBeNull();
   fireEvent.click(mark);
-  expect(address()).toBe('/design/root@1/~/right/cable?lens=shared-scene');
+  expect(address()).toBe('/designs/root@1/~/right/cable?tool=shared-scene');
   fireEvent.click(screen.getByRole('tab', { name: 'Context board' }));
   fireEvent.click(screen.getByRole('button', { name: /^Board left\/board · J1/ }));
   fireEvent.click(await screen.findByRole('button', { name: 'Board marker component:one' }));
-  expect(address()).toBe('/design/root@1/~/left/board/%23component%3Aone?lens=shared-scene');
+  expect(address()).toBe('/designs/root@1/~/left/board/%23component%3Aone?tool=shared-scene');
   fireEvent.click(screen.getByRole('button', { name: 'Clear shared selection' }));
-  expect(address()).toBe('/design?lens=shared-scene');
+  expect(address()).toBe('/designs?tool=shared-scene');
   unmount();
 });
 
@@ -89,7 +89,7 @@ test('a link to a repeated use opens with exactly that use selected; clearing th
   await waitFor(() => expect(within(screen.getByRole('region', { name: 'Shared contextual selection' })).getByText('Stable feature: component:one')).toBeTruthy());
   expect(within(screen.getByRole('region', { name: 'Shared contextual selection' })).getByText('Selected occurrence: right/board')).toBeTruthy();
   expect(screen.getByRole('button', { name: /^Tree left\/board · J1/ }).getAttribute('aria-pressed')).toBe('false');
-  expect(address()).toBe('/design/root@1/~/right/board/%23component%3Aone?lens=shared-scene');
+  expect(address()).toBe('/designs/root@1/~/right/board/%23component%3Aone?tool=shared-scene');
 });
 
 test('the 3D viewport receives the related uses (not the selected one, not other repeated uses)', async () => {
@@ -104,7 +104,7 @@ test('an exact older root revision stays in the URL after selecting a use, and a
   install();
   const first = render(<Host />); await open();
   fireEvent.click(screen.getByRole('button', { name: /^Tree right\/board · J1/ }));
-  expect(address()).toBe('/design/root@1/~/right/board?lens=shared-scene');
+  expect(address()).toBe('/designs/root@1/~/right/board?tool=shared-scene');
   const url = address()!; first.unmount();
   const [path, search = ''] = url.split('?'); const location = parseLocation(path!, search ? '?' + search : '');
   render(<Host initial={location.probe} />);

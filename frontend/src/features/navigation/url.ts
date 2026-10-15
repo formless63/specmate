@@ -1,17 +1,9 @@
 import { AREAS, DEFAULT_TOOL, areaOfTool } from "../shell/areas";
 
 /**
- * Where the shell is, as one URL. Items are addressed in the workspace; a project is optional
- * navigation context. The scheme (see docs/UX.md, "Links and selection"):
- *
- *   /                                         Project area, Overview, Library scope
- *   /<area>                                   an area at its default lens
- *   /<area>/<object>                          the probe on a workspace item (latest)
- *   /<area>/<object>@<rev>                    the probe on an exact frozen revision
- *   /<area>/<object>@<rev>/~/<seg>/<seg>      the probe on a path inside that item
- *   ?lens=<tool>&project=<project id>         lens (when not the area default), project context
- *
- * A URL never grants or implies access: the server resolves every object for the signed-in member.
+ * Canonical workspace routes use a fixed rail and typed Library sections. Record addresses
+ * retain @<revision>/~/<path>; projects are optional context, never ownership or authority.
+ * Old area/lens links are interpreted here and rewritten by NavigationProvider.
  */
 export type ProbeTarget = {
   /** Workspace record id (a definition, source bundle, physical unit, …). */
@@ -23,6 +15,8 @@ export type ProbeTarget = {
 };
 
 export type WorkspaceLocation = {
+  /** List facets and editor view, retained when selecting a record. */
+  filters?: Record<string, string>;
   area: string;
   lens: string;
   project: string | null;
@@ -31,77 +25,97 @@ export type WorkspaceLocation = {
   malformed: boolean;
 };
 
-const DEFAULT_AREA = areaOfTool(DEFAULT_TOOL).id;
-/** Ids are opaque to the client (UUIDs today); the server decides what they name and who may read it. */
+/** Canonical homes for the existing tools while record editors are migrated. */
+export const TOOL_PATHS: Record<string, string> = {
+  "new-cable": "/designs/new", "new-harness": "/designs/new", "new-assembly": "/designs/new", designs: "/designs", cables: "/designs", harnesses: "/designs", assemblies: "/designs", intents: "/designs/new",
+  "library-home": "/library", interfaces: "/library/connectors", ports: "/library/connectors", "end-assemblies": "/library/connectors",
+  pcb: "/library/boards", "pcb-disagreement": "/library/boards", copper: "/library/boards", "passive-passages": "/library/boards", sources: "/library", "mechanical-sources": "/library",
+  "wire-stock": "/library/wire-stocks", preparation: "/library/wire-stocks", "end-preparation": "/library/wire-stocks",
+  identity: "/library/parts", hardware: "/library/hardware", kits: "/library/kits", signals: "/library/vocabulary", conventions: "/library/vocabulary/conventions", "workshop-profiles": "/library/vocabulary/workshop-profiles", "evidence-kinds": "/library/vocabulary/evidence-kinds",
+  discovery: "/library", "revision-upgrades": "/library", matching: "/library", facts: "/library",
+  inventory: "/make/inventory", "physical-units": "/make/units", "material-accounting": "/make/material", bom: "/make/procurement", printing: "/make/printing",
+  builds: "/jobs/builds", "agent-runs": "/jobs/agent-runs", runner: "/jobs/runner", history: "/history", releases: "/products/releases",
+  overview: "/projects", knowledge: "/projects/notes", "catalog-packs": "/extensions/packs", integrations: "/extensions/integrations", "agent-capabilities": "/extensions/agents",
+  "occurrence-firmware": "/designs", "firmware-impact": "/designs", configurations: "/designs", "shared-scene": "/designs", "context-selection": "/designs", "scene-drawings": "/designs", "mechanical-proposals": "/designs",
+  "preparation-documents": "/designs", "cable-test-intent": "/designs", "selected-packages": "/designs", "export-packages": "/designs",
+  access: "/settings/people", preferences: "/settings/preferences", diagnostics: "/settings/system",
+};
+const HOME_TOOLS: Record<string, string> = Object.fromEntries(Object.entries(TOOL_PATHS).reverse().map(([tool, path]) => [path, tool]));
+Object.assign(HOME_TOOLS, { "/designs": "designs", "/designs/new": "intents", "/library": "library-home", "/library/connectors": "interfaces", "/library/boards": "pcb", "/library/wire-stocks": "wire-stock" });
+const LEGACY_AREAS = new Set(["project", "design", "sources", "inventory", "evidence"]);
+const LEGACY_DEFAULTS: Record<string,string> = { project: "overview", design: "assemblies", sources: "sources", inventory: "inventory", evidence: "facts", make: "bom", library: "library-home" };
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const PATH_MARK = "~";
-
-export const HOME: WorkspaceLocation = { area: DEFAULT_AREA, lens: DEFAULT_TOOL, project: null, probe: null, malformed: false };
-
-function decode(segment: string): string | null {
-  try { return decodeURIComponent(segment); } catch { return null; }
-}
-
-function defaultLens(area: string): string {
-  return AREAS.find((item) => item.id === area)?.tools[0]?.id ?? DEFAULT_TOOL;
-}
-
-function lensBelongs(area: string, lens: string): boolean {
-  return AREAS.some((item) => item.id === area && item.tools.some((tool) => tool.id === lens));
-}
-
-/** Parse "<object>[@<rev>]" and the segments after "~". Null when not a workspace address. */
+const FILTERS = ["q", "kind", "status", "from", "to", "stock", "board", "layout", "view"];
+export const HOME: WorkspaceLocation = { area: "designs", lens: DEFAULT_TOOL, project: null, probe: null, malformed: false };
+function decode(segment: string): string | null { try { return decodeURIComponent(segment); } catch { return null; } }
+function knownTool(tool: string | null): tool is string { return !!tool && AREAS.some(area => area.tools.some(item => item.id === tool)); }
 function parseProbe(head: string, rest: string[]): ProbeTarget | null {
   const at = head.lastIndexOf("@");
   const object = at < 0 ? head : head.slice(0, at);
   const revText = at < 0 ? null : head.slice(at + 1);
-  if (!ID.test(object)) return null;
-  let rev: number | null = null;
-  if (revText !== null) {
-    if (!/^[1-9][0-9]{0,8}$/.test(revText)) return null;
-    rev = Number(revText);
-  }
-  if (rest.length > 0 && rest[0] !== PATH_MARK) return null;
-  const path = rest.slice(1).filter((segment) => segment !== "");
-  return { object, rev, path };
+  if (!ID.test(object) || (revText !== null && !/^[1-9][0-9]{0,8}$/.test(revText))) return null;
+  if (rest.length > 0 && rest[0] !== "~") return null;
+  return { object, rev: revText === null ? null : Number(revText), path: rest.slice(1).filter(Boolean) };
 }
 
-/** Read a location; unknown areas and lenses fall back to defaults, a lens selects its own area. */
+/** Old addresses are interpreted before canonical routing, retaining their exact selection. */
 export function parseLocation(pathname: string, search: string): WorkspaceLocation {
-  const raw = pathname.split("/").filter((segment) => segment !== "");
+  const raw = pathname.split("/").filter(Boolean);
   const segments = raw.map(decode);
   const params = new URLSearchParams(search);
-  const lensParam = params.get("lens");
-  const projectParam = params.get("project");
-  const areaParam = segments[0] ?? null;
-  let area = areaParam && AREAS.some((item) => item.id === areaParam) ? areaParam : DEFAULT_AREA;
-  let lens = defaultLens(area);
-  if (lensParam && AREAS.some((item) => item.tools.some((tool) => tool.id === lensParam))) {
-    lens = lensParam;
-    if (!lensBelongs(area, lens)) area = areaOfTool(lens).id;
-  }
+  let project = params.get("project");
+  let malformed = !!project && !ID.test(project);
+  if (malformed) project = null;
+  const filters = Object.fromEntries(FILTERS.flatMap(key => params.has(key) ? [[key, params.get(key)!]] : []));
+  let lens = DEFAULT_TOOL;
   let probe: ProbeTarget | null = null;
-  let malformed = false;
-  if (segments.length > 1) {
-    const [head, ...rest] = segments.slice(1);
-    probe = head && !rest.includes(null) ? parseProbe(head, rest as string[]) : null;
-    malformed = probe === null;
+  let consumed = 1;
+  const legacy = knownTool(params.get("lens")) || LEGACY_AREAS.has(segments[0] ?? "");
+  if (legacy) {
+    lens = knownTool(params.get("lens")) ? params.get("lens")! : LEGACY_DEFAULTS[segments[0] ?? ""] ?? DEFAULT_TOOL;
+    if (raw.length === 1 && segments[0] === "project" && !params.has("lens") && !project) lens = DEFAULT_TOOL;
+  } else {
+    const home = Object.keys(HOME_TOOLS).sort((a, b) => b.length - a.length).find(path => pathname === path || pathname.startsWith(`${path}/`));
+    if (home) { lens = HOME_TOOLS[home]!; consumed = home.split("/").filter(Boolean).length; }
+    else if (AREAS.some(area => area.id === segments[0])) lens = AREAS.find(area => area.id === segments[0])!.tools[0]!.id;
+    if (segments[0] === "library" && raw.length > 1 && consumed === 1) lens = "identity";
+    if (segments[0] === "projects" && raw.length > 1 && consumed === 1 && segments[1] && ID.test(segments[1])) {
+      project = segments[1]; consumed = 2;
+      if (segments[2] === "notes") { lens = "knowledge"; consumed = 3; } else lens = "overview";
+    }
+    if (pathname === "/designs/new" && ["cable", "harness", "assembly"].includes(params.get("kind") ?? "")) lens = `new-${params.get("kind")}`;
+    if (knownTool(params.get("tool"))) lens = params.get("tool")!;
   }
-  const project = projectParam && ID.test(projectParam) ? projectParam : null;
-  return { area, lens, project, probe, malformed: malformed || (!!projectParam && project === null) };
+  if (segments.length > consumed) {
+    const [head, ...rest] = segments.slice(consumed);
+    probe = head && !rest.includes(null) ? parseProbe(head, rest as string[]) : null;
+    malformed ||= probe === null;
+  }
+  if (legacy && !probe && ["cables", "harnesses", "assemblies"].includes(lens)) lens = "designs";
+  if (legacy && lens === "intents" && !probe) { lens = "new-cable"; filters.kind = "cable"; }
+  if (lens === "discovery") filters.palette = "open";
+  return { area: areaOfTool(lens).id, lens, project, probe, malformed, ...(Object.keys(filters).length ? { filters } : {}) };
 }
 
-/** The canonical href for a location. The default area at Library scope with nothing probed is "/". */
 export function formatLocation(location: Omit<WorkspaceLocation, "malformed">): string {
+  let path = TOOL_PATHS[location.lens] ?? "/designs";
   const params = new URLSearchParams();
-  if (location.lens !== defaultLens(location.area)) params.set("lens", location.lens);
-  if (location.project) params.set("project", location.project);
-  const query = params.toString() ? `?${params.toString()}` : "";
-  const { probe } = location;
-  if (!probe) return `${location.area === DEFAULT_AREA ? "/" : `/${location.area}`}${query}`;
-  const head = `${encodeURIComponent(probe.object)}${probe.rev !== null ? `@${probe.rev}` : ""}`;
-  const path = probe.path.length ? `/${PATH_MARK}/${probe.path.map(encodeURIComponent).join("/")}` : "";
-  return `/${location.area}/${head}${path}${query}`;
+  const designEditor = ["cables", "harnesses", "assemblies"].includes(location.lens);
+  if (location.probe && designEditor) path = "/designs";
+  const creating = location.lens.startsWith("new-");
+  const defaultTool = HOME_TOOLS[path];
+  if (location.lens !== defaultTool && !(designEditor && location.probe) && !creating) params.set("tool", location.lens);
+  if (creating) params.set("kind", location.lens.slice(4));
+  if (location.lens === "intents") params.set("tool", "intents");
+  if (["overview", "knowledge"].includes(location.lens) && location.project) {
+    path = `/projects/${encodeURIComponent(location.project)}${location.lens === "knowledge" ? "/notes" : ""}`;
+  } else if (location.project) params.set("project", location.project);
+  for (const [key, value] of Object.entries(location.filters ?? {})) if (FILTERS.includes(key) && value && !(creating && key === "kind")) params.set(key, value);
+  if (location.probe) {
+    const { object, rev, path: inside } = location.probe;
+    path += `/${encodeURIComponent(object)}${rev !== null ? `@${rev}` : ""}${inside.length ? `/~/${inside.map(encodeURIComponent).join("/")}` : ""}`;
+  }
+  return path + (params.size ? `?${params}` : "");
 }
 
 export function sameTarget(a: ProbeTarget | null, b: ProbeTarget | null): boolean {

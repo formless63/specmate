@@ -1,9 +1,9 @@
 import { Spotlight, type SpotlightActionData, type SpotlightActionGroupData } from "@mantine/spotlight";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLibraryHome } from "../library-gallery/hooks";
-import { useNavigation } from "../navigation";
+import { formatLocation, useNavigation } from "../navigation";
 import { areaOfTool } from "../shell/areas";
 import { toolForKind } from "../shell/scope";
 import { searchLibrary, type SearchField, type SearchItem } from "./api";
@@ -12,7 +12,7 @@ type SpotlightActions = SpotlightActionData | SpotlightActionGroupData;
 
 const DEBOUNCE_MS = 200;
 const RECENT_COUNT = 8;
-const ITEM_GROUPS = new Set(["Items", "Recent items"]);
+const ITEM_GROUPS = new Set(["Designs", "Items", "Recent items"]);
 const FIELD_NOTE: Record<SearchField, string> = { name: "", part_number: "part number", identifier: "identifier", connector_family: "connector family", kind: "kind" };
 
 const words = (value: string) => value.replaceAll("_", " ");
@@ -57,6 +57,12 @@ export function ItemSpotlight({ principalKey, toolActions, extraActions, placeho
 }) {
   const navigation = useNavigation();
   const [opened, setOpened] = useState(false);
+  const newTab = useRef(false);
+  useEffect(() => {
+    const enter = (event: KeyboardEvent) => { if (event.key === "Enter") newTab.current = event.ctrlKey || event.metaKey; };
+    window.addEventListener("keydown", enter, true);
+    return () => window.removeEventListener("keydown", enter, true);
+  }, []);
   const [query, setQuery] = useState("");
   const [debounced] = useDebouncedValue(query.trim(), DEBOUNCE_MS);
   const found = useQuery({ queryKey: ["workspace", "library-search", principalKey, debounced], queryFn: () => searchLibrary(debounced),
@@ -65,19 +71,21 @@ export function ItemSpotlight({ principalKey, toolActions, extraActions, placeho
 
   const open = (item: { record_id: string; kind: string }) => {
     const tool = toolForKind(item.kind);
-    navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, probe: { object: item.record_id, rev: null, path: [] } });
+    const target = { area: areaOfTool(tool).id, lens: tool, project: navigation?.location.project ?? null, probe: { object: item.record_id, rev: null, path: [] } };
+    if (newTab.current) window.open(formatLocation(target), "_blank", "noopener,noreferrer");
+    else navigation?.navigate(target);
+    newTab.current = false;
   };
   const searching = query.trim().length > 0;
   const settled = searching && debounced === query.trim() && found.isSuccess;
   const actions = useMemo<SpotlightActions[]>(() => {
     const items: SpotlightActionGroupData[] = [];
-    if (!searching && home.data && home.data.recent.length > 0) {
-      items.push({ group: "Recent items", actions: home.data.recent.slice(0, RECENT_COUNT).map((item) => itemAction(item, open)) });
-    }
-    if (searching && found.data && found.data.results.length > 0) {
-      items.push({ group: "Items", actions: found.data.results.map((item) => itemAction(item, open)) });
-    }
-    return [...items, ...toolActions, ...extraActions];
+    const rows = searching ? found.data?.results ?? [] : home.data?.recent.slice(0, RECENT_COUNT) ?? [];
+    const designs = rows.filter(item => ["cable", "harness", "assembly"].includes(item.kind));
+    const library = rows.filter(item => !["cable", "harness", "assembly"].includes(item.kind));
+    if (designs.length) items.push({ group: "Designs", actions: designs.map(item => itemAction(item, open)) });
+    if (library.length) items.push({ group: searching ? "Items" : "Recent items", actions: library.map(item => itemAction(item, open)) });
+    return [...items, ...extraActions, ...toolActions];
     // open only reads navigation, which changes with the location.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searching, home.data, found.data, toolActions, extraActions, navigation]);

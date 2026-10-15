@@ -104,15 +104,15 @@ test("kind chips filter the gallery and search is kept when nothing matches", as
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/workspace/library?family=definition&limit=48&kinds=wire_stock", expect.anything()));
 });
 
-test("selecting a card opens the item in its own lens with the item probed", async () => {
+test("selecting a card opens its canonical record route with the item probed", async () => {
   serve();
   const history = show();
   const attention = await screen.findByRole("list", { name: "Items needing attention" });
   fireEvent.click(within(attention).getByRole("button", { name: /Open Console to monitor/ }));
-  expect(history.location.pathname).toBe("/library/i1");
-  expect(history.location.search).toBe("?lens=intents");
+  expect(history.location.pathname).toBe("/designs/new/i1");
+  expect(history.location.search).toBe("?tool=intents");
   fireEvent.click(within(attention).getByRole("button", { name: /Open Swapped lead/ }));
-  expect(`${history.location.pathname}${history.location.search}`).toBe("/design/c1?lens=cables");
+  expect(`${history.location.pathname}${history.location.search}`).toBe("/designs/c1");
 });
 
 test("lens lists default to the gallery; the table stays one switch away and is remembered", async () => {
@@ -148,12 +148,14 @@ test("plain unknowns are a separate, collapsed group with counts", async () => {
   expect(await within(group).findByRole("button", { name: /Open Monitor input, port r1, 2 declared values unknown/ })).toBeTruthy();
 });
 
-test("a deep link to an item opens it in its own lens, not on the home", async () => {
+test("an unknown port card opens its canonical connector record", async () => {
   serve();
-  const history = show("viewer", "/library/p1");
-  await waitFor(() => expect(`${history.location.pathname}${history.location.search}`).toBe("/library/p1?lens=ports"));
-  const units = show("viewer", "/library/u1");
-  await waitFor(() => expect(`${units.location.pathname}${units.location.search}`).toBe("/inventory/u1?lens=physical-units"));
+  const history = show();
+  const group = (await screen.findByText("Unknown values")).closest("details")!;
+  group.open = true;
+  fireEvent(group, new Event("toggle"));
+  fireEvent.click(await within(group).findByRole("button", { name: /Open Monitor input/ }));
+  expect(`${history.location.pathname}${history.location.search}`).toBe("/library/connectors/p1?tool=ports");
 });
 
 test("New… opens the chosen lens and asks its list for the New form; viewers see it disabled", async () => {
@@ -161,7 +163,7 @@ test("New… opens the chosen lens and asks its list for the New form; viewers s
   const history = show("editor");
   fireEvent.click(await screen.findByRole("button", { name: "New…" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Cable" }));
-  expect(`${history.location.pathname}${history.location.search}`).toBe("/design?lens=cables");
+  expect(`${history.location.pathname}${history.location.search}`).toBe("/designs?tool=cables");
   // The cables list, mounted later, picks the request up and reveals its New form.
   const reveal = vi.fn();
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });

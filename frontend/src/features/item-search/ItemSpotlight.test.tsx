@@ -78,7 +78,7 @@ test("with no query the palette lists recent items, and Enter opens the chosen i
   fireEvent.click(screen.getByRole("button", { name: "Find an item or jump to a tool" }));
   const box = await screen.findByPlaceholderText(/Find an item/);
   await appears("Last cable");
-  expect(groupLabels()[0]).toBe("'Recent items'");
+  expect(groupLabels()[0]).toBe("'Designs'");
   expect(searches(fetchMock)).toHaveLength(0);
   fireEvent.change(box, { target: { value: "coax" } });
   await appears("Coax 75 ohm stock");
@@ -87,7 +87,7 @@ test("with no query the palette lists recent items, and Enter opens the chosen i
   await waitFor(() => expect(document.querySelector("[data-selected]")?.textContent).toContain("Coax 75 ohm stock"));
   fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
   await waitFor(() => expect(history.location.pathname).toContain("/s1"));
-  expect(history.location.search).toContain("lens=wire-stock");
+  expect(history.location.pathname).toBe("/library/wire-stocks/s1");
 });
 
 test("a query that matches no item still shows matching tools, and an empty result says so", async () => {
@@ -98,7 +98,7 @@ test("a query that matches no item still shows matching tools, and an empty resu
   fireEvent.change(box, { target: { value: "zzzz" } });
   await appears("No matching item, area or tool");
   fireEvent.change(box, { target: { value: "physical units" } });
-  await appears("Inventory area");
+  await appears("Make");
   expect(screen.queryByText("No matching item, area or tool")).toBeNull();
 });
 

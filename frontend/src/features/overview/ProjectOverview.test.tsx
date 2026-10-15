@@ -56,8 +56,8 @@ test("references are grouped by the area that opens them and counted as referenc
     ref("3", "Board sources", { kind: "source_bundle", item_kind: "original", definition_id: null, latest_revision: null })] } } });
   const { onOpenTool } = show();
   const table = await screen.findByRole("group", { name: "Project references" });
-  expect(within(table).getByLabelText("Design references")).toBeTruthy();
-  expect(within(table).getByLabelText("Sources references")).toBeTruthy();
+  expect(within(table).getByLabelText("Designs references")).toBeTruthy();
+  expect(within(table).getByLabelText("Library references")).toBeTruthy();
   expect(within(table).getByText("exact r1")).toBeTruthy();
   expect(within(screen.getByRole("region", { name: "Project summary" })).getByText("References").closest("div")?.textContent).toContain("3");
   fireEvent.click(within(table).getByRole("button", { name: "Open Main loom" }));

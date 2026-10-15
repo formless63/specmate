@@ -15,6 +15,7 @@ class WorkspaceConfig(AppConfig):
             ProjectDetail,
             WorkspaceProjectPage,
         )
+        from specmate.workspace.design_contracts import DesignPage, ListDesigns
         from specmate.workspace.gallery_contracts import (
             LibraryHome,
             LibraryPreviews,
@@ -26,6 +27,8 @@ class WorkspaceConfig(AppConfig):
 
         SCHEMAS.update(
             {
+                "workspace-designs": ListDesigns,
+                "workspace-designs-page": DesignPage,
                 "workspace-library": ListLibrary,
                 "workspace-library-page": LibraryPage,
                 "workspace-projects": ListWorkspaceProjects,
