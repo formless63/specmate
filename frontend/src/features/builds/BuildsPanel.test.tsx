@@ -24,6 +24,7 @@ const panel = (permissions?: string[]) => <MantineProvider env="test" theme={{ r
 const open = async () => { render(panel(['workspace.read', 'build.execute'])); fireEvent.click(await screen.findByRole('button', { name: 'Inspect build build-a' })); await screen.findByLabelText('Build history'); };
 
 beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.mocked(listBuilds).mockResolvedValue({ builds: [summary('build-a', 'running')], truncated: false });
   vi.mocked(readHistory).mockResolvedValue(history());
   vi.mocked(cancelBuild).mockResolvedValue({});
@@ -83,7 +84,7 @@ test('a reproducibility check needs build.execute and opens the new attempt', as
   await screen.findByText('Build build-r');
   expect(screen.getByText('Reproducibility check of build-a')).toBeTruthy();
 });
-afterEach(() => { cleanup(); vi.resetAllMocks(); });
+afterEach(() => { cleanup(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
 
 test('cancellation is requested with the exact state token and is not shown as cancelled', async () => {
   await open();
@@ -254,4 +255,15 @@ test('a deliberately resolved build names the person by username', async () => {
   }));
   await open();
   expect(screen.getByText(/Basis: Runner host retired\. · resolved by synthetic-owner/)).toBeTruthy();
+});
+
+test('Jobs table shows When Kind Job By State and opens receipts in a closable side panel', async () => {
+  vi.mocked(listBuilds).mockResolvedValue({ builds: [{ ...summary('build-a', 'running'), requested_by: 'synthetic-requester' }], truncated: false });
+  await open();
+  for (const name of ['When', 'Kind', 'Job', 'By', 'State']) expect(screen.getByRole('columnheader', { name })).toBeTruthy();
+  expect(screen.getByText('synthetic-requester')).toBeTruthy();
+  expect(screen.getByRole('dialog', { name: 'Build details' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Close build details' }));
+  await waitFor(() => expect(screen.queryByLabelText('Build history')).toBeNull());
+  expect(screen.getByRole('table', { name: 'Builds' })).toBeTruthy();
 });

@@ -21,7 +21,7 @@ export type ReproducibilityComparison = {
 };
 export type BuildSummary = {
   build_id: string; stage_id: string; state: string; state_token: string; terminal: boolean;
-  cancellation_requested: boolean; recipe_id: string; requested_at: string; retry_of: string | null; requested_by_viewer: boolean;
+  cancellation_requested: boolean; recipe_id: string; requested_at: string; retry_of: string | null; requested_by_viewer: boolean; requested_by?: string;
   reproduction_of?: string | null;
   /** Null until outputs are accepted. */
   reproducibility?: ReproducibilityLevel | null;
@@ -37,7 +37,7 @@ export type BuildReceipt = {
 export type BuildHistory = {
   build_id: string; state: string; state_token: string; receipt: BuildReceipt;
   recipe_id: string; source_revision_id: string; requested_at: string;
-  retry_of: string | null; retried_by: string | null; requested_by_viewer: boolean;
+  retry_of: string | null; retried_by: string | null; requested_by_viewer: boolean; requested_by?: string;
   lineage: { build_id: string; state: string; current: boolean }[];
   events: { kind: string; at: string; detail: Record<string, unknown> }[];
   outputs: { path: string; sha256: string; size: number; rights: string; accepted: boolean; reproducibility?: ReproducibilityLevel | null }[];

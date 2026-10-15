@@ -92,8 +92,10 @@ export function LibraryHome({ principalKey }: { principalKey: string }) {
     navigation?.navigate({ area: areaOfTool(tool).id, lens: tool, probe: linked }, { replace: true });
   }, [linked, target.data, navigation]);
   const startNew = (toolId: string, view: LibraryView) => {
-    navigation?.navigate({ area: areaOfTool(toolId).id, lens: toolId, probe: null });
-    requestNew(view);
+    const designForms: Record<string, string> = { cables: "new-cable", harnesses: "new-harness", assemblies: "new-assembly" };
+    const designForm = designForms[toolId];
+    navigation?.navigate({ area: areaOfTool(toolId).id, lens: designForm ?? toolId, probe: null });
+    if (!designForm) requestNew(view);
   };
   const data = home.data;
   const lowerBound = data?.scan_limit_reached ? "at least " : "";

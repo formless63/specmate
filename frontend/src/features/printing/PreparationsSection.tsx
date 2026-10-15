@@ -1,3 +1,4 @@
+import { RecordNavigation } from "../make/RecordNavigation";
 import { Alert, Anchor, Button, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { InspectionScope, ReadOnlyNote, useCan, usePermission } from '../../lib/permissions';
@@ -157,16 +158,18 @@ export function PreparationsSection({ workspaceId, projectId, refreshKey }: { wo
     {error && <Alert color="red" role="alert">{error}</Alert>}
     {notice && <Alert color="green" role="status">{notice}</Alert>}
     <Group align="end">
+      <RecordNavigation name={current?.name ?? "preparation"} selected={current?.definition_id ?? null}>
       <Select label="Saved preparation" placeholder="Select a preparation" data={records.map(r => ({ value: r.draft_id!, label: r.name }))}
         value={current?.draft_id ?? null} onChange={value => { const found = records.find(r => r.draft_id === value); if (found) void open(found); }} />
+      {revisions.length > 0 && <Select label="Frozen revision" placeholder="View or slice a revision" clearable data={newestFirst(revisions).map(r => ({ value: r.revision_id, label: `r${r.number}` }))}
+        value={frozen} onChange={value => void openRevision(value)} />}
+      </RecordNavigation>
       <InspectionScope permission="item.create">
         <Group align="end">
           <Button variant="light" onClick={() => { setCurrent(null); setRead(null); setRevisions([]); setPart(null); setFrozen(null); setSlicing(null); setDraft(blank('fdm')); setDirty(true); }} {...create.props}>Start new FDM preparation</Button>
           <Button variant="light" onClick={() => { setCurrent(null); setRead(null); setRevisions([]); setPart(null); setFrozen(null); setSlicing(null); setDraft(blank('resin')); setDirty(true); }} {...create.props}>Start new resin preparation</Button>
         </Group>
       </InspectionScope>
-      {revisions.length > 0 && <Select label="Frozen revision" placeholder="View or slice a revision" clearable data={newestFirst(revisions).map(r => ({ value: r.revision_id, label: `r${r.number}` }))}
-        value={frozen} onChange={value => void openRevision(value)} />}
     </Group>
     {draft && !frozen && <InspectionScope permission="item.create">
       <Stack gap="xs">

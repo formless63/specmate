@@ -1,11 +1,11 @@
-import { Alert, Button, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, Textarea, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Drawer, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SbProvenance, SbStatus, SbUnknown, type SbLed } from "../../components/sb";
 import { InspectionScope, ReadOnlyNote, useCan } from "../../lib/permissions";
-import { requestJson } from "../workspace/api";
+import { ApiError, requestJson } from "../workspace/api";
 import { BOUNDARY_PERMISSIONS, MESSAGING_OPERATIONS, listRuns, readPackage, readRun, runCommand, type FieldDiff, type PackageChange, type ReviewPackage, type RunStatus, type RunStep, type RunSummary } from "./api";
 
-type Props = { workspaceId: string; projectId?: string | null; username?: string; principalKey?: string };
+type Props = { workspaceId: string; projectId?: string | null; username?: string; principalKey?: string; active?: boolean; onAccessLost?: () => void };
 
 const STATUS_LED: Record<RunStatus, { led: SbLed; pulse?: "breathe" }> = {
   active: { led: "active", pulse: "breathe" }, paused: { led: "review" }, exhausted: { led: "stale" },
@@ -24,22 +24,24 @@ export function AgentRunsPanel(props: Props) {
   return <Runs key={`${props.workspaceId}:${props.projectId ?? "library"}:${props.principalKey ?? ""}`} {...props} />;
 }
 
-function Runs({ workspaceId, projectId = null, username }: Props) {
+function Runs({ workspaceId, projectId = null, username, active = true, onAccessLost }: Props) {
   const [status, setStatus] = useState<string | null>("all");
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authorityLost, setAuthorityLost] = useState(false);
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((n) => n + 1), []);
 
   useEffect(() => {
+    if (!active) return;
     let live = true;
     setError(null);
     void listRuns(workspaceId, projectId, status === "all" ? null : status)
-      .then((page) => { if (live) setRuns(page.runs); })
-      .catch((reason: unknown) => { if (live) { setRuns([]); setError(message(reason)); } });
+      .then((page) => { if (live) { setRuns(page.runs); setAuthorityLost(false); } })
+      .catch((reason: unknown) => { if (live) { setRuns([]); setSelected(null); setError(message(reason)); if (reason instanceof ApiError && [401, 403, 404].includes(reason.status)) { setAuthorityLost(true); onAccessLost?.(); } } });
     return () => { live = false; };
-  }, [workspaceId, projectId, status, tick]);
+  }, [workspaceId, projectId, status, tick, active, onAccessLost]);
 
   return <Stack className="sb-dash">
     <Title order={2}>Agent runs</Title>
@@ -50,7 +52,7 @@ function Runs({ workspaceId, projectId = null, username }: Props) {
       <Button variant="default" onClick={refresh}>Refresh runs</Button>
     </Group>
     {runs === null ? <Text role="status">Reading runs…</Text> : runs.length === 0 ? <Text>No agent runs{status !== "all" ? ` with status ${status}` : ""}.</Text> :
-      <Table highlightOnHover>
+      <Table.ScrollContainer minWidth={800}><Table highlightOnHover aria-label="Agent runs">
         <Table.Thead><Table.Tr><Table.Th>Run</Table.Th><Table.Th>Status</Table.Th><Table.Th>Agent</Table.Th><Table.Th>Sponsor</Table.Th><Table.Th>Actions used</Table.Th><Table.Th>Deadline</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>{runs.map((run) => <Table.Tr key={run.run_id} data-selected={run.run_id === selected || undefined}>
           <Table.Td><Button variant="subtle" size="compact-sm" onClick={() => setSelected(run.run_id)} aria-label={`Open run ${run.title}`}>{run.title}</Button></Table.Td>
@@ -59,9 +61,11 @@ function Runs({ workspaceId, projectId = null, username }: Props) {
           <Table.Td className="sb-mono">{run.budget.actions_used} of {run.budget.max_actions}</Table.Td>
           <Table.Td>{when(run.deadline)}</Table.Td>
         </Table.Tr>)}</Table.Tbody>
-      </Table>}
+      </Table></Table.ScrollContainer>}
+    <Drawer keepMounted transitionProps={{ duration: active ? 150 : 0 }} opened={!!selected && active} onClose={() => setSelected(null)} title="Agent run details" closeButtonProps={{ "aria-label": "Close agent run details" }} position="right" size="min(760px, 100vw)" styles={{ body: { overflowWrap: "anywhere" }, inner: { display: active ? undefined : "none" }, overlay: { display: active ? undefined : "none" } }}>
     {selected && <RunDetail key={`${selected}:${tick}`} runId={selected} username={username} onChanged={refresh} onClose={() => setSelected(null)} />}
-    <CreateRun workspaceId={workspaceId} projectId={projectId} onCreated={(id) => { setSelected(id); refresh(); }} />
+    </Drawer>
+    <div hidden={authorityLost}><CreateRun workspaceId={workspaceId} projectId={projectId} onCreated={(id) => { setSelected(id); refresh(); }} /></div>
   </Stack>;
 }
 

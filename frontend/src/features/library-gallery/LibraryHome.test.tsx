@@ -158,22 +158,28 @@ test("an unknown port card opens its canonical connector record", async () => {
   expect(`${history.location.pathname}${history.location.search}`).toBe("/library/connectors/p1?tool=ports");
 });
 
-test("New… opens the chosen lens and asks its list for the New form; viewers see it disabled", async () => {
+test("New… opens the cable creation route; viewers see it disabled", async () => {
   serve("editor");
   const history = show("editor");
   fireEvent.click(await screen.findByRole("button", { name: "New…" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Cable" }));
-  expect(`${history.location.pathname}${history.location.search}`).toBe("/designs?tool=cables");
-  // The cables list, mounted later, picks the request up and reveals its New form.
-  const reveal = vi.fn();
-  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={ROLE_PERMISSIONS.editor!}><ProbeProvider probe={null} onProbe={vi.fn()}>
-    <LibraryView view={LIBRARY_VIEWS.cables!} toolLabel="Cables" projectId={null} project={null} projects={[]} principalKey="7" onOpenInProject={vi.fn()} editor={{ reveal }} />
-  </ProbeProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
-  await waitFor(() => expect(reveal).toHaveBeenCalledWith(true, "cable"));
+  expect(`${history.location.pathname}${history.location.search}`).toBe("/designs/new?kind=cable");
   cleanup();
   serve("viewer");
   show("viewer");
   fireEvent.click(await screen.findByRole("button", { name: "New…" }));
   expect((await screen.findByRole("menuitem", { name: "Cable" })).hasAttribute("disabled") || (await screen.findByRole("menuitem", { name: "Cable" })).getAttribute("data-disabled") === "true").toBe(true);
+});
+
+test("New… still reveals the New form in a collection editor", async () => {
+  serve("editor");
+  show("editor");
+  fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Signal set" }));
+  const reveal = vi.fn();
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<MantineProvider><QueryClientProvider client={cache}><PermissionsProvider permissions={ROLE_PERMISSIONS.editor!}><ProbeProvider probe={null} onProbe={vi.fn()}>
+    <LibraryView view={LIBRARY_VIEWS.signals!} toolLabel="Signals" projectId={null} project={null} projects={[]} principalKey="7" onOpenInProject={vi.fn()} editor={{ reveal }} />
+  </ProbeProvider></PermissionsProvider></QueryClientProvider></MantineProvider>);
+  await waitFor(() => expect(reveal).toHaveBeenCalledWith(true, "signal set"));
 });

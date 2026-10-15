@@ -85,6 +85,7 @@ function server({ authenticated = false, denyInventory = false, role = "contribu
     if (path === "/api/v0/operations") {
       const envelope = JSON.parse(String(options?.body));
       if (envelope.operation === "workspace.settings.get") return reply({ result: { workspace_id: "w1", version: 0, state_token: "workspace-settings:w1:v0", values: { documents: {} } } });
+      if (envelope.operation === "library.home") return reply({ result: { workspace_id: "w1", attention: [], attention_total: 0, unknowns: [], unknowns_total: 0, recent: [], totals: { failing_checks: 0, unknown_checks: 0, open_questions: 0, stale_evidence: 0, unknown_values: 0 }, kinds: [], definitions_total: 0, scan_limit_reached: false } });
       if (["collaboration.list", "collaboration.inbox"].includes(envelope.operation)) return reply({ result: { results: [], next_after: null } });
     }
     if (path.startsWith("/api/v0/discovery/capabilities?")) return reply({ instance: { version: "0", registry_sha256: "0".repeat(64) }, transports: {}, scope: { project_id: null, role, permissions: ROLES[role] }, capabilities: { native_execution: { status: "unavailable", reasons: [], approved_recipes: 0 } }, notes: [], operations: [] });
@@ -301,10 +302,18 @@ test.each([
   expect((screen.getByRole("button", { name: "Create location" }) as HTMLButtonElement).title).toBe("Read-only access: requires Inventory management");
 });
 
-test("Library is the editing home: every collection lens mounts its editor without a project", async () => {
+const libraryFamilies = [
+  ["designs", ["cables", "harnesses", "assemblies", "intents", "end-assemblies", "configurations"]],
+  ["electrical", ["signals", "ports", "conventions", "interfaces", "passive-passages", "pcb", "pcb-disagreement"]],
+  ["parts and sources", ["identity", "wire-stock", "workshop-profiles", "occurrence-firmware", "mechanical-sources", "sources", "facts"]],
+  ["making", ["bom", "material-accounting", "preparation", "end-preparation", "cable-test-intent", "inventory", "physical-units"]],
+] as const;
+
+test.each(libraryFamilies)("Library %s editors mount without a project", async (_family, toolIds) => {
   server({ authenticated: true }); renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
-  for (const [toolId, view] of Object.entries(LIBRARY_VIEWS)) {
+  for (const toolId of toolIds) {
+    const view = LIBRARY_VIEWS[toolId]!;
     const tool = AREAS.flatMap((area) => area.tools).find((item) => item.id === toolId)!;
     if (toolId === "cables") {
       fireEvent.click(screen.getByRole("button", { name: "Designs" }));
@@ -316,12 +325,19 @@ test("Library is the editing home: every collection lens mounts its editor witho
       expect(await screen.findByRole("button", { name: create[toolId]! })).toBeTruthy();
       continue;
     }
+    const makeHeadings: Record<string, string> = { inventory: "Inventory", "physical-units": "Physical units", "material-accounting": "Preparation material accounting", bom: "Purpose-specific BOM planning" };
+    if (makeHeadings[toolId]) {
+      expect(await screen.findByRole("heading", { name: makeHeadings[toolId] })).toBeTruthy();
+      expect(screen.queryByRole("region", { name: `${view.title} in the library` })).toBeNull();
+      continue;
+    }
     const typed = TYPED_LIBRARY_VIEWS[toolId];
     expect(await screen.findByRole("region", { name: `${typed?.title ?? view.title} editor` })).toBeTruthy();
     const title = toolId === "interfaces" ? "Connector bodies" : typed?.title ?? `${view.title} in the library`;
     const list = await screen.findByRole("region", { name: title });
     const noun = toolId === "interfaces" ? "connector body" : typed?.noun ?? view.noun;
     expect(within(list).getByRole("button", { name: `New ${noun}` })).toBeTruthy();
+
   }
   expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
   expect(screen.queryByText(/This tool could not be opened/)).toBeNull();
@@ -376,6 +392,36 @@ test("workspace-level lenses open at Library scope without choosing a project, a
   await openTool("People");
   expect(await screen.findByRole("heading", { name: "Workspace access" })).toBeTruthy();
   expect(await screen.findByText("Workspace admins manage members, roles and grants.")).toBeTruthy();
+});
+
+test("Make hosts five functional panels without a second collection picker", async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
+  const tools = [
+    ["Inventory", "/make/inventory", "Create location"],
+    ["Physical units", "/make/units", "Register unit"],
+    ["Material plans", "/make/material", "Save material plan"],
+    ["Procurement BOMs", "/make/procurement", "Create BOM draft"],
+    ["3D printing", "/make/printing", "Start new FDM preparation"],
+  ];
+  for (const [label, href, action] of tools) {
+    await openTool(label!);
+    expect(await screen.findByRole("button", { name: action! })).toBeTruthy();
+    await waitFor(() => expect(window.location.pathname).toBe(href));
+    expect(screen.queryByRole("heading", { name: /in the library$/ })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
+  }
+});
+
+test("Library home creates cable, harness and assembly designs through their authoring forms", async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
+  for (const [noun, action] of [["Cable", "Create cable draft"], ["Harness", "Create harness draft"], ["Assembly", "Create assembly draft"]]) {
+    await openTool("Library home");
+    fireEvent.click(await screen.findByRole("button", { name: "New…" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: noun! }));
+    expect(await screen.findByRole("button", { name: action! })).toBeTruthy();
+  }
 });
 
 test('Settings tabs open explicit workspace pages without requiring a project', async () => {

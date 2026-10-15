@@ -64,8 +64,9 @@ the same compiler-consent hook as `build.request`, so firmware compiler builds s
 the first. The earlier attempt, its receipt and its events are never changed.
 `build.history` returns the retained events (without runner identities or fencing tokens),
 receipt, unaccepted partial outputs, retry lineage and which actions are available;
-`build.list` lists a workspace's latest generic builds, optionally filtered to one project context. The Builds tool in the Sources area
-uses these. Real container cancellation, restart reconciliation and lost-acknowledgment
+`build.list` lists a workspace's latest generic builds, optionally filtered to one project context. The Builds tab in Jobs uses these. List and history reads include the requester
+username after the same current workspace authorization; project context filters never
+grant access. Real container cancellation, restart reconciliation and lost-acknowledgment
 replay through the runner remain covered by the runner's isolated Docker cases and an
 orchestrated integration checkpoint; the application tests simulate the runner API.
 

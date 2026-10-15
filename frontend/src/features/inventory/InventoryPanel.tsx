@@ -1,3 +1,4 @@
+import { useNewFormRequest } from "../make/useNewFormRequest";
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { useOpenProbed } from "../scope/openProbed";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Switch, Table, Text, TextInput, Title } from "@mantine/core";
@@ -12,11 +13,11 @@ import { SourcingPanel } from "./SourcingPanel";
 const units: Record<string, string[]> = { count: ["ea"], length: ["m", "cm", "mm"], mass: ["kg", "g"] };
 
 /** Stock lives in the workspace; the optional project is only the context new work is filed under. */
-export function InventoryPanel({ workspaceId, projectId, initialWorkId = null }: { workspaceId: string; projectId?: string; initialWorkId?: string | null }) {
-  return <Workspace key={`${workspaceId}:${projectId ?? ""}`} workspaceId={workspaceId} projectId={projectId} initialWorkId={initialWorkId} />;
+export function InventoryPanel({ workspaceId, projectId, initialWorkId = null, active = true }: { workspaceId: string; projectId?: string; initialWorkId?: string | null; active?: boolean }) {
+  return <Workspace key={`${workspaceId}:${projectId ?? ""}`} workspaceId={workspaceId} projectId={projectId} initialWorkId={initialWorkId} active={active} />;
 }
 
-function Workspace({ workspaceId, projectId, initialWorkId }: { workspaceId: string; projectId?: string; initialWorkId: string | null }) {
+function Workspace({ workspaceId, projectId, initialWorkId, active }: { workspaceId: string; projectId?: string; initialWorkId: string | null; active: boolean }) {
   const cache = useQueryClient();
   const manageGate = usePermission("inventory.manage");
   const [offset, setOffset] = useState(0);
@@ -47,6 +48,7 @@ function Workspace({ workspaceId, projectId, initialWorkId }: { workspaceId: str
     const envelope = request(operation, payload, state);
     setPendingRequest(envelope); mutation.mutate(envelope);
   }
+  const newForm = useNewFormRequest("inventory", active && manageGate.allowed);
   const data = inventory.data;
   // A Library row or deep link opens its stock account on the listed page.
   useOpenProbed(inventory.data ? (id) => inventory.data.accounts.some((account) => account.account_id === id) : null, setSelected);
@@ -63,7 +65,7 @@ function Workspace({ workspaceId, projectId, initialWorkId }: { workspaceId: str
       </InspectionScope>
       <Button disabled={!name.trim()} loading={mutation.isPending} onClick={() => submit("inventory.create_location", { workspace_id: workspaceId, name })} {...manageGate.props}>Create location</Button><ReadOnlyNote permission="inventory.manage">Opening locations and accounts is unavailable.</ReadOnlyNote>
     </Stack></Card>
-    <Card withBorder><Stack>
+    <div ref={newForm}><Card withBorder><Stack>
       <Title order={3}>Open stock account</Title>
       <Text size="sm">Choose a registered physical lot and location. An unknown balance remains unavailable until an explicit quantity assertion is recorded.</Text>
       <InspectionScope permission="inventory.manage">
@@ -76,7 +78,7 @@ function Workspace({ workspaceId, projectId, initialWorkId }: { workspaceId: str
       <TextInput label="Opening assertion source" value={source} onChange={(event) => setSource(event.currentTarget.value)} />
       </InspectionScope>
       <Button disabled={!lot || !location || !reason.trim() || !source.trim() || (known === "known" && !amount.trim())} loading={mutation.isPending} onClick={() => submit("inventory.open_stock", { lot_id: lot, location_id: location, dimension, quantity: known === "known" ? { amount, unit } : null, reason, assertion_source: source, assertion_status: "declared" })} {...manageGate.props}>Open account</Button>
-    </Stack></Card>
+    </Stack></Card></div>
     {projectId && <Switch label="Only work filed under this project" checked={projectOnly} onChange={(event) => { setProjectOnly(event.currentTarget.checked); setOffset(0); }} />}
     <WorkPanel initialWorkId={initialWorkId} workspaceId={workspaceId} projectId={projectId} batches={data?.work_batches ?? []} pending={mutation.isPending} submit={submit} />
     <SourcingPanel workspaceId={workspaceId} />

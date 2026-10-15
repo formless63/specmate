@@ -1,3 +1,4 @@
+import { useNewFormRequest } from "../make/useNewFormRequest";
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { useOpenProbed } from "../scope/openProbed";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
@@ -22,7 +23,7 @@ type UnitDetail = { unit: Unit; work_link: { assertion_source: string; assertion
   usage: { entry_id: string; kind: string; amount: string; unit: string; reason: string }[] };
 
 /** Physical units exist once, in the workspace; there is no per-project list. */
-export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; projectId?: string }) {
+export function PhysicalUnitsPanel({ workspaceId, active = true }: { workspaceId: string; projectId?: string; active?: boolean }) {
   const cache = useQueryClient();
   const manageGate = usePermission('inventory.manage');
   const [offset, setOffset] = useState(0);
@@ -75,13 +76,14 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
   const failure = [definitions, identity, catalog, units, inventory, detail, workUnits].find((query) => query.isError);
   // A Library row or deep link opens its physical unit on the listed page.
   useOpenProbed(units.data ? (id) => units.data.units.some((unit) => unit.unit_id === id) : null, (id) => { setSelectedUnit(id); setUsageOffset(0); });
+  const newForm = useNewFormRequest("physical-units", active && manageGate.allowed);
   return <Stack>
     <Title order={2}>Physical units</Title>
     <Text>Record an actual obtained or assembled subject at one exact design revision. Its serial is unique within this project. A physical lot identifies an actual batch; a work link associates the unit with a plan. Neither record reports completion, changes stock, or qualifies the unit.</Text>
     {failure?.error && <Alert color="red">{failure.error.message}</Alert>}
     {mutation.isError && <Alert color="red"><Stack><Text>{mutation.error.message}</Text>{pendingRequest && <Button loading={mutation.isPending} onClick={() => mutation.mutate(pendingRequest)} {...manageGate.props}>Retry same request</Button>}</Stack></Alert>}
     {mutation.isSuccess && <Alert color="green">Physical record saved.</Alert>}
-    <Card withBorder><Stack>
+    <div ref={newForm}><Card withBorder><Stack>
       <Title order={3}>Register actual unit</Title>
       <InspectionScope permission="inventory.manage">
       <NativeSelect label="Definition" value={definitionId} onChange={(e) => { setDefinitionId(e.currentTarget.value); setRevisionId(""); setLotId(""); setVariantId(""); setRevisionOffset(0); }}
@@ -102,7 +104,7 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
         revision_id: revisionId, serial, origin, lot_id: lotId || null, variant_id: variantId || null,
         assertion_source: source, assertion_status: status,
       })} {...manageGate.props}>Register unit</Button><ReadOnlyNote permission="inventory.manage">Registering units and linking work are unavailable.</ReadOnlyNote>
-    </Stack></Card>
+    </Stack></Card></div>
     <Card withBorder><Stack>
       <Title order={3}>Actual subjects</Title>
       {(units.data?.units ?? []).map((unit) => <Group key={unit.unit_id}><Text><SbIdentityBadge kind="unit" /> {unit.serial} · {unit.origin} · <RevisionLabel id={unit.revision_id} /> · {unit.work_batch_id ? "linked to work" : "no work link"}</Text><Button size="xs" onClick={() => { setSelectedUnit(unit.unit_id); setSelectedWork(""); setUsageOffset(0); }}>Inspect</Button></Group>)}

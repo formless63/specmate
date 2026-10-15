@@ -27,6 +27,7 @@ const redirects: [string, string, string][] = [
   ["design", "cables", "/designs"], ["design", "harnesses", "/designs"],
   ["design", "assemblies", "/designs"], ["design", "interfaces", "/library/connectors"],
   ["design", "pcb", "/library/boards"], ["sources", "builds", "/jobs/builds"],
+  ["sources", "agent-runs", "/jobs/agent-runs"], ["sources", "runner", "/jobs/runner"],
   ["make", "bom", "/make/procurement"], ["make", "material-accounting", "/make/material"],
   ["make", "printing", "/make/printing"], ["inventory", "inventory", "/make/inventory"],
   ["inventory", "physical-units", "/make/units"], ["evidence", "evidence-kinds", "/library/vocabulary/evidence-kinds"],
@@ -77,6 +78,18 @@ test("targets compare by object, revision and path", () => {
   expect(targetKey(a)).not.toBe(targetKey({ ...a, path: ["J", "1"] }));
 });
 
+
+test.each([
+  ["inventory", "inventory", "/make/inventory"],
+  ["inventory", "physical-units", "/make/units"],
+  ["make", "material-accounting", "/make/material"],
+  ["make", "bom", "/make/procurement"],
+  ["make", "printing", "/make/printing"],
+])("old Make /%s lens %s preserves exact target under %s", (area, lens, home) => {
+  const location = parseLocation(`/${area}/record-a@2/~/left/end%20A`, `?lens=${lens}`);
+  expect(location.probe).toEqual({ object: "record-a", rev: 2, path: ["left", "end A"] });
+  expect(formatLocation(location)).toBe(`${home}/record-a@2/~/left/end%20A`);
+});
 
 test.each([
   ["settings-documents", "/settings/documents"], ["settings-engineering", "/settings/engineering"],

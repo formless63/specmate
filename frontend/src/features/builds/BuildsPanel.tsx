@@ -1,8 +1,9 @@
-import { Alert, Button, Card, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Drawer, Group, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { JOB_LED, SbJobCard, SbProvenance, SbStatus, type JobState, type SbLed } from '../../components/sb';
 import { randomUUID } from '../../lib/random-id';
 import { ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { SourceError } from "../sources/api";
 import { ReusableResultOffer } from './ReusableResultOffer';
 import { abandonBuild, cancelBuild, listBuilds, readHistory, reproduceBuild, retryBuild, type BuildHistory, type BuildList, type PinnedTool, type ReproducibilityLevel } from './api';
 
@@ -49,7 +50,7 @@ const attemptLabel = (lineage: { build_id: string }[], id: string | null) => {
   return index >= 0 ? `#${index + 1}` : null;
 };
 
-export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
+export function BuildsPanel({ workspaceId, principalKey, active = true, onAccessLost }: { workspaceId: string; principalKey?: string; active?: boolean; onAccessLost?: () => void }) {
   const execute = usePermission('build.execute');
   const [list, setList] = useState<BuildList>();
   const [detail, setDetail] = useState<BuildHistory>();
@@ -59,6 +60,8 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
   const selected = useRef<string | null>(null);
   const generation = useRef(0);
   const alive = useRef(true);
+  const activeRef = useRef(active); activeRef.current = active;
+  const previouslyActive = useRef(active);
   const keys = useRef(new Map<string, string>());
 
   const load = useCallback(async (buildId: string | null = selected.current) => {
@@ -72,15 +75,20 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       // A denied or failed read drops everything retained so removed access leaves nothing visible.
       if (!alive.current || token !== generation.current) return;
       selected.current = null; setError(reason instanceof Error ? reason.message : 'Build evidence unavailable.');
+      if (reason instanceof SourceError && [401, 403, 404].includes(reason.status)) onAccessLost?.();
     } finally { if (alive.current && token === generation.current) setBusy(false); }
-  }, [workspaceId]);
+  }, [workspaceId, onAccessLost]);
 
   useEffect(() => {
     alive.current = true; selected.current = null; keys.current.clear(); void load(null);
-    const focus = () => void load();
+    const focus = () => { if (activeRef.current) void load(); };
     window.addEventListener('focus', focus);
     return () => { alive.current = false; generation.current += 1; window.removeEventListener('focus', focus); };
-  }, [load]);
+  }, [load, principalKey]);
+  useEffect(() => {
+    if (active && !previouslyActive.current) void load();
+    previouslyActive.current = active;
+  }, [active, load]);
 
   // A retried request after a lost response reuses its key; a changed build state needs a new one.
   const keyFor = (action: string, id: string, state: string) => {
@@ -106,28 +114,33 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
       await load(next);
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'Build action failed.';
+      if (reason instanceof SourceError && [401, 403, 404].includes(reason.status)) onAccessLost?.();
       // The state may have moved; reread rather than act on a stale token, keeping the reason visible.
       await load(id);
       if (alive.current) setError(current => current || message);
     }
   }
 
-  return <Card withBorder><Stack>
-    <Title order={3}>Builds, cancellation and recovery</Title>
-    <Text size="sm">Cancellation is a request until the runner confirms the process stopped. Interrupted work is not final and is never rerun automatically: its original runner can still reconcile the same execution and report how it really ended, or a person resolves it deliberately. A retry is a new attempt over the same exact source revision and approved recipe.</Text>
+  return <Stack className="jobs-builds">
+    <Group justify="space-between"><Title order={2}>Builds</Title><Button variant="quiet" loading={busy} onClick={() => void load()}>Refresh builds</Button></Group>
+    <Text size="sm" c="dimmed">Requests, attempts and retained receipts. Closing this page does not stop work.</Text>
     <ReadOnlyNote permission="build.execute">Builds can be inspected but not changed</ReadOnlyNote>
-    <Group><Button variant="quiet" loading={busy} onClick={() => void load()}>Refresh builds</Button></Group>
+    {busy && !list && <Text role="status">Reading builds…</Text>}
     {error && <Alert color="red">{error}</Alert>}
-    {list && list.builds.length === 0 && <Text>No builds have been requested in this project.</Text>}
-    {list && list.builds.length > 0 && <Table><Table.Thead><Table.Tr><Table.Th>Build</Table.Th><Table.Th>State</Table.Th><Table.Th>Recipe</Table.Th><Table.Th>Reproducibility</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>
-      {list.builds.map(b => <Table.Tr key={b.build_id}>
-        <Table.Td><Text size="xs">{b.build_id}</Text>{b.retry_of && <Text size="xs">Retry of {b.retry_of}</Text>}</Table.Td>
-        <Table.Td><SbStatus dimension='build' value={pretty(b.state)} {...JOB_LED[jobState(b.state)]} /></Table.Td>
-        <Table.Td><Text size="xs">{b.recipe_id}</Text></Table.Td>
-        <Table.Td>{b.state === 'succeeded' ? <ReproLevel level={b.reproducibility} /> : <Text size="xs">no accepted outputs</Text>}</Table.Td>
-        <Table.Td><Button variant="quiet" disabled={busy} onClick={() => void load(b.build_id)}>Inspect build {b.build_id}</Button></Table.Td>
-      </Table.Tr>)}</Table.Tbody></Table>}
+    {list && list.builds.length === 0 && <Text>No builds have been requested in this workspace.</Text>}
+    {list && list.builds.length > 0 && <Table.ScrollContainer minWidth={760}><Table highlightOnHover aria-label="Builds">
+      <Table.Thead><Table.Tr>{['When', 'Kind', 'Job', 'By', 'State'].map(label => <Table.Th key={label}>{label}</Table.Th>)}</Table.Tr></Table.Thead>
+      <Table.Tbody>{list.builds.map(build => <Table.Tr key={build.build_id} tabIndex={0} aria-selected={selected.current === build.build_id}
+        onClick={() => { if (!busy) void load(build.build_id); }} onKeyDown={event => { if (event.target === event.currentTarget && event.key === 'Enter' && !busy) { event.preventDefault(); void load(build.build_id); } }}>
+        <Table.Td><time dateTime={build.requested_at}>{new Date(build.requested_at).toLocaleString()}</time></Table.Td>
+        <Table.Td>Build</Table.Td>
+        <Table.Td><Button size="compact-xs" variant="quiet" disabled={busy} aria-label={`Inspect build ${build.build_id}`} onClick={event => { event.stopPropagation(); void load(build.build_id); }}>{build.recipe_id}</Button><Text size="xs" c="dimmed" title={build.build_id}>{build.build_id.slice(0, 12)}</Text>{build.retry_of && <Text size="xs">Retry of {build.retry_of}</Text>}</Table.Td>
+        <Table.Td>{build.requested_by ?? (build.requested_by_viewer ? 'You' : 'Not reported')}</Table.Td>
+        <Table.Td><SbStatus dimension="build" value={pretty(build.state)} {...JOB_LED[jobState(build.state)]} /></Table.Td>
+      </Table.Tr>)}</Table.Tbody>
+    </Table></Table.ScrollContainer>}
     {list?.truncated && <Text size="xs">Showing the latest 100 builds; earlier history is retained.</Text>}
+    <Drawer keepMounted transitionProps={{ duration: active ? 150 : 0 }} opened={!!detail && active} onClose={() => { selected.current = null; setDetail(undefined); }} title="Build details" position="right" size="min(680px, 100vw)" closeButtonProps={{ "aria-label": "Close build details" }} styles={{ body: { overflowWrap: "anywhere" }, inner: { display: active ? undefined : "none" }, overlay: { display: active ? undefined : "none" } }}>
     {detail && <Stack aria-label="Build history">
       <Title order={4}>Build {detail.build_id}</Title>
       <SbJobCard title={detail.recipe_id} state={jobState(detail.state)} stateWords={pretty(detail.state)} dimension='build' detail={EXPLAIN[detail.state] ?? ''} />
@@ -174,7 +187,8 @@ export function BuildsPanel({ workspaceId }: { workspaceId: string }) {
         <Group><Button variant="risk" {...execute.props} disabled={!execute.allowed || busy || !basis.trim()} onClick={() => void act('abandon')}>Resolve as failed, termination unconfirmed</Button></Group>
       </Stack>}
     </Stack>}
-  </Stack></Card>;
+    </Drawer>
+  </Stack>;
 }
 
 export function Lineage({ lineage, retryOf }: { lineage: BuildHistory['lineage']; retryOf: string | null }) {
