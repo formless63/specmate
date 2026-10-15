@@ -71,7 +71,11 @@ test('source denial hides retained evidence and restores unsaved state without a
 
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 function start() { fireEvent.change(screen.getByLabelText('Material plan name'), { target: { value: 'Synthetic material sheet' } }); fireEvent.change(screen.getByLabelText('Material subject exact revision ID'), { target: { value: 'subject' } }); }
+function openRecordVersions() {
+  for (const details of document.querySelectorAll('details')) if (!details.open) fireEvent.click(details.querySelector('summary')!);
+}
 async function select(label: string, option: string) {
+  openRecordVersions();
   const field = await screen.findByRole('combobox', { name: label }); fireEvent.focus(field); fireEvent.keyDown(field, { key: 'ArrowDown' });
   fireEvent.click(await within(screen.getByRole('listbox', { name: label, hidden: true })).findByText(option));
 }
@@ -121,9 +125,9 @@ test('recovery reauthorizes selected identity before revealing its cached histor
     if (url.includes('catalog/definitions') && identityDenied) return response({ error: { message: 'Selected identity denied.' } }, 404);
     return response(readBody(url));
   }));
-  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await screen.findByRole('combobox', { name: 'Frozen material revision' });
+  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await screen.findByText(/^Choose record or version/); openRecordVersions(); await screen.findByRole('combobox', { name: 'Frozen material revision' });
   fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('Mutation source denied.'); identityDenied = true; fireEvent.click(screen.getByText('Refresh material accounting access')); await screen.findByText('Selected identity denied.');
-  expect(screen.queryByRole('combobox', { name: 'Frozen material revision' })).toBeNull(); expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); identityDenied = false; fireEvent.click(screen.getByText('Refresh material accounting access')); await screen.findByRole('combobox', { name: 'Frozen material revision' }); expect(screen.getByText('draft · original-token', { selector: 'p' })).toBeTruthy();
+  expect(screen.queryByRole('combobox', { name: 'Frozen material revision' })).toBeNull(); expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); identityDenied = false; fireEvent.click(screen.getByText('Refresh material accounting access')); await screen.findByText(/^Choose record or version/); openRecordVersions(); await screen.findByRole('combobox', { name: 'Frozen material revision' }); expect(screen.getByText('draft · original-token', { selector: 'p' })).toBeTruthy();
 });
 
 test.each([false, true])('detached frozen read denial is fenced only by genuine editor replacement=%s', async replacement => {

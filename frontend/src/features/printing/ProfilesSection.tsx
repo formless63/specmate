@@ -1,3 +1,4 @@
+import { RecordNavigation } from "../make/RecordNavigation";
 import { Alert, Button, Group, NumberInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useEffect, useMemo, useState } from 'react';
 import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
@@ -107,8 +108,10 @@ export function ProfilesSection({ projectId, specs, onChanged }: { projectId: st
     {error && <Alert color="red" role="alert">{error}</Alert>}
     {notice && <Alert color="green" role="status">{notice}</Alert>}
     <Group align="end">
+      <RecordNavigation name={current?.name ?? "profile"} selected={current?.definition_id ?? null}>
       <Select label="Saved profile" placeholder="Select a profile" data={records.map(r => ({ value: r.draft_id ?? r.definition_id, label: `${r.name}${r.content.print_profile ? ` · ${r.content.print_profile.technology} ${r.content.print_profile.role}` : ''}` }))}
         value={current?.draft_id ?? null} onChange={value => { const found = records.find(r => r.draft_id === value); if (found) void open(found); }} />
+      </RecordNavigation>
       <InspectionScope permission="item.create">
         <Group align="end">
           <Select label="New profile role" value={role} data={['printer', 'process', 'material']} onChange={value => value && setRole(value as Role)} />

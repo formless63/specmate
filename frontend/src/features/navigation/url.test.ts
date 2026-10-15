@@ -76,3 +76,16 @@ test("targets compare by object, revision and path", () => {
   expect(sameTarget(null, null)).toBe(true);
   expect(targetKey(a)).not.toBe(targetKey({ ...a, path: ["J", "1"] }));
 });
+
+
+test.each([
+  ["inventory", "inventory", "/make/inventory"],
+  ["inventory", "physical-units", "/make/units"],
+  ["make", "material-accounting", "/make/material"],
+  ["make", "bom", "/make/procurement"],
+  ["make", "printing", "/make/printing"],
+])("old Make /%s lens %s preserves exact target under %s", (area, lens, home) => {
+  const location = parseLocation(`/${area}/record-a@2/~/left/end%20A`, `?lens=${lens}`);
+  expect(location.probe).toEqual({ object: "record-a", rev: 2, path: ["left", "end A"] });
+  expect(formatLocation(location)).toBe(`${home}/record-a@2/~/left/end%20A`);
+});

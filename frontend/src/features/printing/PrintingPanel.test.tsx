@@ -65,6 +65,10 @@ async function openPreparation() {
   fireEvent.click(await screen.findByRole('combobox', { name: 'Saved preparation' }));
   fireEvent.click(await screen.findByRole('option', { name: 'FDM PETG' }));
   await screen.findByText(/Synthetic bracket r1/);
+  const versions = screen.getByText('Choose record or version · FDM PETG');
+  expect(versions.closest('details')?.open).toBe(false);
+  fireEvent.click(versions);
+  expect(versions.closest('details')?.open).toBe(true);
 }
 
 test('preparation shows part identity, parameter provenance and unknowns without printable claims', async () => {

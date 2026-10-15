@@ -1,3 +1,4 @@
+import { RecordNavigation } from "../make/RecordNavigation";
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Checkbox, Group, MultiSelect, NumberInput, Select, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,13 +39,16 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   return <Stack>
     <Title order={2}>Purpose-specific BOM planning</Title>
     <Text>Choose an exact assembly revision and make/buy decisions. Bought assemblies stop procurement expansion. Process needs are separate declarations; unknown choices and quantities remain unresolved.</Text>
-    <Card withBorder><Stack><Title order={3}>New BOM plan</Title>
+    <details open={!definitionId}><summary style={{ cursor: "pointer" }}>New BOM plan</summary>
+    <Card withBorder mt="xs"><Stack><Title order={3}>New BOM plan</Title>
       <InspectionScope permission="item.create"><TextInput label="BOM plan name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <PlanEditor value={plan} onChange={setPlan} definitions={definitions.data ?? []} workspaceId={workspaceId} /></InspectionScope>
       <Button loading={create.isPending} disabled={!name.trim() || !plan.assembly_revision_id} onClick={() => create.mutate()} {...createGate.props}>Create BOM draft</Button><ReadOnlyNote permission="item.create">Creating BOM drafts is unavailable.</ReadOnlyNote>
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
+    </details>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
+    <RecordNavigation name={(definitions.data ?? []).find(item => item.definition_id === definitionId)?.name ?? "BOM plan"} selected={definitionId}>
     <Select label="Existing BOM plan" value={definitionId} searchable data={(definitions.data ?? []).filter(d => d.kind === "bom_plan").map(d => ({ value: d.definition_id, label: d.name }))} onChange={pick} />
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
@@ -53,6 +57,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
       <Select label="Frozen BOM revision" value={revisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevisionId} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous BOM revisions</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next BOM revisions</Button></Group>
     </>}
+    </RecordNavigation>
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
     {draft.data && <DraftEditor key={`${draft.data.draft_id}:${draft.data.state}`} draft={draft.data} workspaceId={workspaceId} definitions={definitions.data ?? []} onSaved={async () => { await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); }} onFrozen={async id => { setRevisionId(id); await cache.invalidateQueries({ queryKey: ["bom-draft", draftId] }); await cache.invalidateQueries({ queryKey: ["bom-identity", definitionId] }); }} />}
     {revisionId && <BomInspector key={revisionId} revisionId={revisionId} />}

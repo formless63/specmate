@@ -10,6 +10,7 @@ import { PermissionsProvider } from "../../lib/permissions";
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 async function choose(name: string, option: string) {
+  for (const details of document.querySelectorAll("details")) if (!details.open) fireEvent.click(details.querySelector("summary")!);
   const input = screen.getByRole("combobox", { name });
   fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" });
   fireEvent.click(await within(screen.getByRole("listbox", { name, hidden: true })).findByText(option));
@@ -119,6 +120,7 @@ test.each([
   render(wrap(<PermissionsProvider permissions={[...permissions]}><BomPanel projectId="project" /></PermissionsProvider>));
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Existing BOM plan" })).toBeTruthy());
   await choose("Existing BOM plan", "Synthetic BOM");
+  for (const details of document.querySelectorAll("details")) if (!details.open) fireEvent.click(details.querySelector("summary")!);
   await waitFor(() => expect(screen.getByRole("combobox", { name: "BOM draft" })).toBeTruthy());
   await choose("BOM draft", "d1 · v1");
   const save = await screen.findByRole("button", { name: "Save BOM draft" }) as HTMLButtonElement;
@@ -144,6 +146,7 @@ test("an existing draft's new process need pre-fills the preferred length unit",
   }));
   render(wrap(<BomPanel projectId="project" workspaceId="ws" />));
   await choose("Existing BOM plan", "Existing plan");
+  for (const details of document.querySelectorAll("details")) if (!details.open) fireEvent.click(details.querySelector("summary")!);
   await screen.findByRole("combobox", { name: "BOM draft" });
   await choose("BOM draft", "d1 · open");
   const unit = await waitFor(() => {

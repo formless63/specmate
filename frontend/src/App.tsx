@@ -233,6 +233,8 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
     {record && ["cable", "harness"].includes(record.kind ?? "") && toolForKind(record.kind) === toolId && <SelectedDefinitionViews key={record.record_id} record={record} />}
     <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />
   </Stack>;
+  // Make panels own their lists and purpose-specific exact selections.
+  if (["inventory", "physical-units", "material-accounting", "bom"].includes(toolId)) return <LensEditor toolId={toolId} scope={scope} projectId={null} active={lens.active} />;
   const view = TYPED_LIBRARY_VIEWS[toolId] ?? libraryView(toolId);
   // Workspace-level lenses work without a project: the workspace comes from the shell scope.
   if (!view && WORKSPACE_LENSES.has(toolId)) return <Stack><LibrarySections toolId={toolId} /><WorkspaceLens {...lens} toolId={toolId} /></Stack>;

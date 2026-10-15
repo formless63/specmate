@@ -300,7 +300,7 @@ test.each([
   expect((screen.getByRole("button", { name: "Create location" }) as HTMLButtonElement).title).toBe("Read-only access: requires Inventory management");
 });
 
-test("Library is the editing home: every collection lens mounts its editor without a project", async () => {
+test("Library collections and Make tools mount their editors without a project", async () => {
   server({ authenticated: true }); renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   for (const [toolId, view] of Object.entries(LIBRARY_VIEWS)) {
@@ -315,12 +315,19 @@ test("Library is the editing home: every collection lens mounts its editor witho
       expect(await screen.findByRole("button", { name: create[toolId]! })).toBeTruthy();
       continue;
     }
+    const makeHeadings: Record<string, string> = { inventory: "Inventory", "physical-units": "Physical units", "material-accounting": "Preparation material accounting", bom: "Purpose-specific BOM planning" };
+    if (makeHeadings[toolId]) {
+      expect(await screen.findByRole("heading", { name: makeHeadings[toolId] })).toBeTruthy();
+      expect(screen.queryByRole("region", { name: `${view.title} in the library` })).toBeNull();
+      continue;
+    }
     const typed = TYPED_LIBRARY_VIEWS[toolId];
     expect(await screen.findByRole("region", { name: `${typed?.title ?? view.title} editor` })).toBeTruthy();
     const title = toolId === "interfaces" ? "Connector bodies" : typed?.title ?? `${view.title} in the library`;
     const list = await screen.findByRole("region", { name: title });
     const noun = toolId === "interfaces" ? "connector body" : typed?.noun ?? view.noun;
     expect(within(list).getByRole("button", { name: `New ${noun}` })).toBeTruthy();
+
   }
   expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
   expect(screen.queryByText(/This tool could not be opened/)).toBeNull();
@@ -375,4 +382,23 @@ test("workspace-level lenses open at Library scope without choosing a project, a
   await openTool("People");
   expect(await screen.findByRole("heading", { name: "Workspace access" })).toBeTruthy();
   expect(await screen.findByText("Workspace admins manage members, roles and grants.")).toBeTruthy();
+});
+
+test("Make hosts five functional panels without a second collection picker", async () => {
+  server({ authenticated: true }); renderApp();
+  await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
+  const tools = [
+    ["Inventory", "/make/inventory", "Create location"],
+    ["Physical units", "/make/units", "Register unit"],
+    ["Material plans", "/make/material", "Save material plan"],
+    ["Procurement BOMs", "/make/procurement", "Create BOM draft"],
+    ["3D printing", "/make/printing", "Start new FDM preparation"],
+  ];
+  for (const [label, href, action] of tools) {
+    await openTool(label!);
+    expect(await screen.findByRole("button", { name: action! })).toBeTruthy();
+    await waitFor(() => expect(window.location.pathname).toBe(href));
+    expect(screen.queryByRole("heading", { name: /in the library$/ })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
+  }
 });
