@@ -95,6 +95,7 @@ class LibraryPreview(BaseModel):
         description="Latest frozen revision first; a never-frozen item shows its newest draft."
     )
     revision: int | None
+    draft_version: int | None = None
     content: dict[str, Any] | None = Field(description="Null when absent or too large.")
     truncated: bool = Field(description="The content exceeded the preview size and is omitted.")
     stock: dict[str, Any] | None = Field(

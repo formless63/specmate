@@ -24,11 +24,14 @@ class WorkspaceConfig(AppConfig):
             ReadLibraryPreviews,
             SearchLibrary,
         )
+        from specmate.workspace.table_contracts import LibraryTablePage, ListLibraryTable
 
         SCHEMAS.update(
             {
                 "workspace-designs": ListDesigns,
                 "workspace-designs-page": DesignPage,
+                "workspace-library-table": ListLibraryTable,
+                "workspace-library-table-page": LibraryTablePage,
                 "workspace-library": ListLibrary,
                 "workspace-library-page": LibraryPage,
                 "workspace-projects": ListWorkspaceProjects,

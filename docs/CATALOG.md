@@ -78,3 +78,27 @@ files, cross-workspace rejection, concurrent registrations, replay, invalid payl
 API/jobs authorization. Component tests exercise the definition/freeze/lot flow and
 permission errors. These are application and component evidence; source-tool rendering,
 inventory accounting, browser deployment and physical qualification are separate checks.
+
+## Compact Library browsing
+
+`GET /api/v0/workspace/library-table` adds a definition-only compact projection to
+the existing workspace library read. Name, manufacturer part number, kind and
+project-reference filters run before cursor pagination. A project is a filter,
+not an ownership or permission boundary.
+
+Each row identifies its selected state: the latest frozen revision, otherwise the
+newest saved draft and its version. All manufacturer associations and typed fields
+use that state. Internal numbering is unassigned; no number is generated or inherited.
+Null fields are unknown. Connector reverse-association counts are not evaluated by
+this projection. Stock core counts exclude drains; jacket OD is a declared root
+jacket dimension, not a computed packing envelope.
+
+The typed Library lists keep the existing editors below the list. Comparison captures
+two saved projections of the same kind, with exact revision or draft/version labels;
+unsaved editor changes are excluded. A property difference is not a compatibility
+assessment. Import opens the existing source registration, KiCad intake and catalog
+pack tools. Kits remain browse-only until structured kit authoring is available.
+
+At most twenty manufacturer associations per row are returned; an explicit truncation
+flag marks additional associations. Search still covers all associations on the selected
+revision before pagination.

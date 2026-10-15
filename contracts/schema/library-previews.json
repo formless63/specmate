@@ -29,6 +29,18 @@
           "description": "Null when absent or too large.",
           "title": "Content"
         },
+        "draft_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Draft Version"
+        },
         "kind": {
           "title": "Kind",
           "type": "string"

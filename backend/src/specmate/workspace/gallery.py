@@ -431,12 +431,12 @@ def library_previews(user, payload: ReadLibraryPreviews) -> dict:
         .distinct("definition_id")
     }
     drafts = {
-        draft["definition_id"]: draft["content"]
+        draft["definition_id"]: draft
         for draft in Draft.objects.filter(definition_id__in=ids)
         .exclude(definition_id__in=list(revisions))
         .order_by("definition_id", "-updated_at", "-id")
         .distinct("definition_id")
-        .values("definition_id", "content")
+        .values("definition_id", "content", "version")
     }
     contents = {}
     for definition in definitions:
@@ -444,7 +444,7 @@ def library_previews(user, payload: ReadLibraryPreviews) -> dict:
             revision = revisions[definition.id]
             contents[definition.id] = ("revision", revision.number, _content(revision))
         elif definition.id in drafts:
-            contents[definition.id] = ("draft", None, drafts[definition.id])
+            contents[definition.id] = ("draft", None, drafts[definition.id]["content"])
         else:
             contents[definition.id] = ("none", None, None)
     stock_ids = {
@@ -475,6 +475,7 @@ def library_previews(user, payload: ReadLibraryPreviews) -> dict:
                 kind=definition.kind,
                 source=source,
                 revision=number,
+                draft_version=drafts[definition.id]["version"] if source == "draft" else None,
                 content=bounded,
                 truncated=truncated,
                 stock=stock,
