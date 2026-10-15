@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "description": "Explicit initial document configuration for one currently authorized frozen root.",
+  "properties": {
+    "root_revision_id": {
+      "format": "uuid",
+      "title": "Root Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_revision_id"
+  ],
+  "title": "Defaults",
+  "type": "object"
+}

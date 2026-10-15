@@ -10,6 +10,7 @@ from specmate.operations import Conflict, Context, NotFound, ValidationFailed, o
 from specmate.operations.models import IdempotencyRecord
 from specmate.preparation_documents.contracts import (
     Configuration,
+    Defaults,
     Download,
     InputAuthority,
     SetRef,
@@ -103,6 +104,42 @@ def review(ctx: Context, p: Configuration):
     projection = project(ctx.user, p)
     manifest, _ = render(projection)
     return {"manifest": manifest, "state": "document-inputs-" + projection["inputs_sha256"]}
+
+
+@operation(
+    "preparation_documents.defaults",
+    Defaults,
+    supports_idempotency=False,
+    summary="Read explicit document inputs and exact contexts without inferring rights.",
+    access=Perm.WORKSPACE_READ,
+)
+def defaults(ctx: Context, p: Defaults):
+    configuration = Configuration(root_revision_id=p.root_revision_id)
+    projection = project(ctx.user, configuration)
+    manifest, _ = render(projection)
+    return {
+        "configuration": configuration.model_dump(mode="json"),
+        "root": projection["inputs"]["root"],
+        "context_pins": manifest["context_pins"],
+        "rights_subjects": [row["subject"] for row in manifest["inputs"]["rights_reviews"]],
+    }
+
+
+@operation(
+    "preparation_documents.preview",
+    Configuration,
+    supports_idempotency=False,
+    summary="Preview authorized document rows without retaining files or changing state.",
+    access=Perm.WORKSPACE_READ,
+)
+def preview(ctx: Context, p: Configuration):
+    projection = project(ctx.user, p)
+    manifest, _ = render(projection)
+    return {
+        "manifest": manifest,
+        "state": "document-inputs-" + projection["inputs_sha256"],
+        "sections": projection["sections"],
+    }
 
 
 @operation(

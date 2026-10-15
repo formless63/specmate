@@ -120,3 +120,9 @@ class InputAuthority(StrictModel):
         ):
             raise ValueError("Supplementary pins must be unique and distinct from the root.")
         return self
+
+
+class Defaults(StrictModel):
+    """Explicit initial document configuration for one currently authorized frozen root."""
+
+    root_revision_id: UUID
