@@ -1,6 +1,6 @@
 import { Button, Card, MultiSelect, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useState } from 'react';
-import type { Harness, PhysicalEnd, Section } from './api';
+import { endpointSummary, type Harness, type PhysicalEnd, type Section } from './api';
 
 export function PhysicalEndsEditor({ section, segments, endpoints, hidden, onChange }: { section: Section; segments: Harness['segments']; endpoints: Harness['endpoints']; hidden: boolean; onChange: (ends: PhysicalEnd[]) => void }) {
   const [id, setId] = useState('');
@@ -12,7 +12,7 @@ export function PhysicalEndsEditor({ section, segments, endpoints, hidden, onCha
     {ends.map((end, i) => <Card withBorder key={end.local_id}><Stack><Text>Physical end {end.local_id}</Text>
       <TextInput label={`Physical end ${section.local_id}/${end.local_id} label`} value={end.label ?? ''} onChange={e => update(i, { label: e.currentTarget.value || null })} />
       <MultiSelect label={`Physical end ${section.local_id}/${end.local_id} segment ends`} data={choices} value={end.segment_ends.map(({ segment_id, end }) => JSON.stringify({ segment_id, end }))} onChange={values => update(i, { segment_ends: values.map(v => JSON.parse(v)) })} />
-      <Select clearable label={`Physical end ${section.local_id}/${end.local_id} endpoint association`} data={endpoints.map(e => ({ value: e.local_id, label: `${e.local_id} · body ${e.body_revision_id} · pinout ${e.pinout_revision_id}` }))} value={end.endpoint_id} onChange={endpoint_id => update(i, { endpoint_id })} />
+      <Select clearable label={`Physical end ${section.local_id}/${end.local_id} endpoint association`} data={endpoints.map(e => ({ value: e.local_id, label: `${e.label ?? e.local_id} · ${endpointSummary(e)}` }))} value={end.endpoint_id} onChange={endpoint_id => update(i, { endpoint_id })} />
       <TextInput label={`Physical end ${section.local_id}/${end.local_id} basis`} value={end.basis} onChange={e => update(i, { basis: e.currentTarget.value })} />
       <Select label={`Physical end ${section.local_id}/${end.local_id} review`} data={['unreviewed', 'reviewed']} value={end.review} onChange={review => update(i, { review: review as PhysicalEnd['review'] })} />
       <Button variant="subtle" onClick={() => onChange(ends.filter((_, index) => index !== i))}>Remove physical end {section.local_id}/{end.local_id}</Button>

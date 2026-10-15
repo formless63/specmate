@@ -91,7 +91,7 @@ describe('build sheet', () => {
       labels: { 'rev-1': 'Power harness r4', 'body-1': 'Header body r1', 'pin-1': 'Header pinout r2' } });
     const html = renderBuildSheetHtml(labelled);
     expect(html).toContain('Revision Power harness r4');
-    expect(html).toContain('Body Header body r1 · pinout Header pinout r2');
+    expect(html).toContain('Header body r1 · Header pinout r2');
     expect(html).not.toContain('Revision rev-1');
     expect(html).toContain('data-stage="pins"');
     expect(html).toContain('<td>Power harness r4</td><td>rev-1</td>');
@@ -105,11 +105,29 @@ describe('build sheet', () => {
     expect(model.pieceCount).toBe(9);
     expect(model.notes.join(' ')).toContain('no planned cut length');
   });
-  it('orders landings by contact identifier, numerically, from 1', () => {
+  it('orders landings by terminal identifier, numerically, from 1', () => {
     const header = model.ends.find(e => e.endpointId === 'EP1')!;
-    expect(header.landings.map(l => [l.number, l.contactId, l.elementLabel])).toEqual([[1, '2', 'wire'], [2, '10', 'wire']]);
+    expect(header.landings.map(l => [l.number, l.terminalId, l.elementLabel])).toEqual([[1, '2', 'wire'], [2, '10', 'wire']]);
+    // Without a resolved stack the signal is unknown, never blank.
+    expect(header.landings[0]!.signal).toBe('Signal unknown (end stack not resolved)');
     expect(header.landings[0]!.elementLook!.family).toBe('copper');
     expect(model.ends.find(e => e.endpointId === 'EP2')!.landings).toEqual([]);
+  });
+  it('names each landing\'s target, pin signal and parts from the resolved end stack', () => {
+    const ends = { EP1: { name: 'Header end assembly r1', terminals: {
+      'connector/10': { label: '10', layerKind: 'connector', signals: [{ label: '10', name: 'Composite sync', type: 'sync', status: 'declared' }], parts: [] },
+      'connector/2': { label: '2', layerKind: 'connector', signals: [{ label: '2', name: null, type: null, status: 'declared' }], parts: ['470 R resistor'] },
+    } } };
+    const named = buildSheetModel({ title: 'Synthetic harness', revisionId: 'rev-1', harness: harness(), stocks: stocks(), quantity: 1, ends });
+    const header = named.ends.find(e => e.endpointId === 'EP1')!;
+    expect(header.stackName).toBe('Header end assembly r1');
+    expect(header.landings.map(l => [l.target, l.signal, l.parts])).toEqual([
+      ['connector 2', '2: signal unknown', '470 R resistor'],
+      ['connector 10', '10: Composite sync (sync)', 'None declared'],
+    ]);
+    const html = renderBuildSheetHtml(named);
+    expect(html).toContain('<th>Pin and signal</th>');
+    expect(html).toContain('10: Composite sync (sync)');
   });
   it('lists non-termination joints and breakouts, and states stages with no data', () => {
     expect(model.otherJoints[0]).toMatchObject({ kind: 'shield_bond', members: 'trunk / A / stock.screen ↔ legA / A / stock.braid' });

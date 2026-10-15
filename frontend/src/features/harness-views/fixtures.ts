@@ -21,12 +21,12 @@ export const harness = (): HarnessView => ({
     { local_id: 'tap', section_id: 'S1', label: 'Tap <b>', element_paths: ['stock.drain'] },
   ],
   endpoints: [
-    { local_id: 'EP1', label: 'Header', body_revision_id: 'body-1', pinout_revision_id: 'pin-1' },
-    { local_id: 'EP2', label: null, body_revision_id: 'body-2', pinout_revision_id: 'pin-2' },
+    { local_id: 'EP1', label: 'Header', end_assembly_revision_id: null, stack: { layers: [{ kind: 'connector', layer_id: 'connector', body_revision_id: 'body-1', pinout_revision_id: 'pin-1' }] } },
+    { local_id: 'EP2', label: null, end_assembly_revision_id: null, stack: { layers: [{ kind: 'connector', layer_id: 'connector', body_revision_id: 'body-2', pinout_revision_id: 'pin-2' }] } },
   ],
   joints: [
-    { local_id: 'J1', kind: 'termination', basis: 'declared', members: [{ kind: 'segment', segment_id: 'trunk', end: 'a', element_path: 'stock.pair.core-a.wire' }, { kind: 'endpoint', endpoint_id: 'EP1', contact_id: '10' }] },
-    { local_id: 'J2', kind: 'termination', basis: 'declared', members: [{ kind: 'segment', segment_id: 'trunk', end: 'a', element_path: 'stock.pair.core-b.wire' }, { kind: 'endpoint', endpoint_id: 'EP1', contact_id: '2' }] },
+    { local_id: 'J1', kind: 'termination', basis: 'declared', members: [{ kind: 'segment', segment_id: 'trunk', end: 'a', element_path: 'stock.pair.core-a.wire' }, { kind: 'endpoint', endpoint_id: 'EP1', layer_id: 'connector', terminal_id: '10' }] },
+    { local_id: 'J2', kind: 'termination', basis: 'declared', members: [{ kind: 'segment', segment_id: 'trunk', end: 'a', element_path: 'stock.pair.core-b.wire' }, { kind: 'endpoint', endpoint_id: 'EP1', layer_id: 'connector', terminal_id: '2' }] },
     { local_id: 'J3', kind: 'shield_bond', basis: 'declared', members: [{ kind: 'segment', segment_id: 'trunk', end: 'a', element_path: 'stock.screen' }, { kind: 'segment', segment_id: 'legA', end: 'a', element_path: 'stock.braid' }] },
   ],
   breakouts: [

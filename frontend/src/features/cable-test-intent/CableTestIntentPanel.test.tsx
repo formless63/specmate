@@ -372,7 +372,7 @@ test('a proposal from the cable intent fills unsaved pairs and labels only when 
   expect(values).toHaveLength(0);
   fireEvent.click(screen.getByRole('button', { name: 'Use proposed pairs and labels' }));
   expect(values.at(-1)?.pairs[0]).toMatchObject({ local_id: 'c1', expected_resistance_ohm: 470 });
-  expect(values.at(-1)?.labels[0].text).toBe('1 · Composite sync');
+  expect(values.at(-1)?.labels[0]?.text).toBe('1 · Composite sync');
   expect(await screen.findByText('470 Ω')).toBeTruthy();
   expect(operations.filter(o => o.startsWith('cable_test_plan.create') || o.startsWith('cable_test_plan.update'))).toHaveLength(0);
 });

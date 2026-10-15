@@ -137,7 +137,9 @@ placeholder length and labelled unknown; legs that share their trunk's section a
 dashed stubs with no length. Placement implies no routing, bonding or fit. The build
 sheet derives a deterministic, self-contained, escaped HTML document with a page per
 stage (kit and cut with exact decimal totals, one page per endpoint listing declared
-terminations in contact order, assembly, test). Stages with no recorded data say so;
+terminations from the wire outward with each target's layer and label, the typed signal of
+the contacts it reaches and declared parts at that terminal, assembly, test). Without the
+server's resolved end stack a signal prints as unknown. Stages with no recorded data say so;
 no workshop procedure or soldering order is assumed.
 
 The same inspector offers full-scale and scaled print output of the formboard and fixed-size
@@ -340,8 +342,10 @@ overflow or precision loss raises a validation error instead of rounding. The
 original declared decimal amount and cut basis remain in the frozen harness.
 
 `HarnessPanel(projectId)` edits exact sections, spans, endpoints, joints and breakout
-fates through structured controls. Decimal cut text reaches the operation unchanged.
-Frozen inspection separates material counts from spans and displays explicit terminal
+fates through structured controls. Each endpoint picks an end assembly or builds its
+stack with the same stack editor as a cable end; joint members are chosen from the
+resolved stack's labeled terminals (layer, label and reached signal). Decimal cut text
+reaches the operation unchanged. Frozen inspection shows each endpoint's resolved stack and separates material counts from spans and displays explicit terminal
 relationships and unknown fates. Denied refreshes hide cached identity, draft and
 source-derived records and disable dependent mutations. HTTP reads are under
 `/api/v0/harnesses`; the shared operation API handles mutations.
