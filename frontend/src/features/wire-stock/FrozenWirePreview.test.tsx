@@ -28,6 +28,7 @@ function installApi(exactProfile = profileRevision(), frozenStock = stockPresets
       { definition_id: 'profile-definition', name: 'Synthetic profile', kind: 'workshop_profile' },
     ] }));
     if (url.includes('/catalog/definitions/')) return new Response(JSON.stringify({ kind: 'wire_stock', revisions: [{ revision_id: 'stock-r1', number: 1 }, { revision_id: 'stock-r2', number: 2 }] }));
+    if (url.includes('/interfaces/stock-revisions/')) return new Response(JSON.stringify({ stock_revision_id: 'stock', effect: 'preference', effect_note: 'Preference only.', conventions: [] }));
     if (url.endsWith('/snapshot')) return new Response(JSON.stringify({ content: { stock: url.includes('stock-r1') ? frozenStock : draft } }));
     if (url.includes('/workshop-profile-definitions/')) return new Response(JSON.stringify([profileRevision(), profileRevision('stock-r2', 'profile-r2')]));
     if (url.includes('/workshop-profile-revisions/')) return new Response(JSON.stringify(exactProfile));

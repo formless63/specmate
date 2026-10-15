@@ -7,6 +7,7 @@ from specmate.access.permissions import Perm
 from specmate.design.operations import draft_state
 from specmate.interfaces.board_contracts import ProposeBoard, TraceBoard
 from specmate.interfaces.boards import propose_board, trace_board
+from specmate.interfaces.conventions import stock_conventions
 from specmate.interfaces.operations import interface_draft
 from specmate.interfaces.queries import end_expectations, inspect_revision, trace
 from specmate.operations import Context, ValidationFailed
@@ -92,3 +93,9 @@ def parse(model, payload):
         return model.model_validate(payload)
     except ValidationError as exc:
         raise ValidationFailed("Invalid board query.") from exc
+
+
+@router.get("/stock-revisions/{revision_id}/conventions")
+def conventions_for_stock(request, revision_id: UUID):
+    """Frozen conductor conventions that apply to one frozen wire stock revision."""
+    return stock_conventions(request.user, revision_id)

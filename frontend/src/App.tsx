@@ -29,6 +29,7 @@ const FactsPanel = lazy(() => import("./features/facts/FactsPanel").then((module
 const EvidencePanel = lazy(() => import("./features/evidence/EvidencePanel").then((module) => ({ default: module.EvidencePanel })));
 const InterfacePanel = lazy(() => import("./features/interfaces/InterfacePanel").then((module) => ({ default: module.InterfacePanel })));
 const PortPanel = lazy(() => import("./features/interfaces/PortPanel").then((module) => ({ default: module.PortPanel })));
+const ConventionPanel = lazy(() => import("./features/interfaces/ConventionPanel").then((module) => ({ default: module.ConventionPanel })));
 const SignalSetPanel = lazy(() => import("./features/interfaces/SignalSetPanel").then((module) => ({ default: module.SignalSetPanel })));
 const InterfaceAssessmentPanel = lazy(() => import("./features/interfaces/InterfaceAssessmentPanel").then((module) => ({ default: module.InterfaceAssessmentPanel })));
 const InventoryPanel = lazy(() => import("./features/inventory/InventoryPanel").then((module) => ({ default: module.InventoryPanel })));
@@ -243,6 +244,7 @@ function LensEditor({ toolId, scope, projectId, active }: { toolId: string; scop
     case "identity": return <IdentityPanel projectId={projectId} />;
     case "signals": return <SignalSetPanel projectId={projectId} />;
     case "ports": return <PortPanel projectId={projectId} />;
+    case "conventions": return <ConventionPanel projectId={projectId} />;
     case "wire-stock": return <WireStockPanel projectId={projectId} workspaceId={workspaceId} />;
     case "workshop-profiles": return <WorkshopProfilePanel projectId={projectId} />;
     case "assemblies": return <AssemblyPanel projectId={projectId} onAccessLost={onAccessChanged} />;
@@ -306,6 +308,7 @@ function ProjectTools({ scope, projectId, project, active, visited, setActive, o
     <ToolPanel value="catalog-packs" library={library("catalog-packs")}>{visited.has("catalog-packs") && <WorkspaceLens {...lens} toolId="catalog-packs" />}</ToolPanel>
     {editing("signals")}
     {editing("ports")}
+    {editing("conventions")}
     {editing("wire-stock")}
     {editing("workshop-profiles")}
     {editing("material-accounting")}

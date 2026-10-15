@@ -363,3 +363,123 @@ def av_adapter_board(plug_revision_id):
         "review": "reviewed",
         "review_basis": "Synthetic board drawing written for this example",
     }
+
+
+# Six miniature coax cores in a ring under one jacket. The core colours are display colours
+# only; what each core carries is stated by a convention, never by its colour.
+COAX_CORES = (
+    ("red", "#c0392b", "video_red", "Red"),
+    ("green", "#2e8b57", "video_green", "Green"),
+    ("blue", "#2f5fb0", "video_blue", "Blue"),
+    ("yellow", "#d4b21a", "composite_sync", "Yellow"),
+    ("white", "#e8e8e8", "audio_left", "White"),
+    ("grey", "#8a8a8a", "audio_right", "Grey"),
+)
+
+
+def six_coax_stock():
+    """Synthetic six-coax AV stock; every core is a centre, dielectric and braid screen."""
+    source = "Synthetic example construction"
+
+    def element(identifier, label, kind, outer, inner, **extra):
+        return {
+            "id": identifier,
+            "label": label,
+            "kind": kind,
+            "outer_diameter_mm": outer,
+            "inner_diameter_mm": inner,
+            "source": source,
+            **extra,
+        }
+
+    cores = []
+    for number, (colour, hex_, _, _) in enumerate(COAX_CORES, start=1):
+        cores.append(
+            {
+                "id": f"core-{number}",
+                "label": f"Core {number} ({colour})",
+                "kind": "group",
+                "role": "coax",
+                "children": [
+                    element("center", "Centre", "conductor", 0.3, 0, color=hex_),
+                    element("dielectric", "Dielectric", "dielectric", 1.0, 0.3),
+                    element("screen", "Screen", "shield", 1.2, 1.0, construction="braid"),
+                ],
+            }
+        )
+    return {
+        "construction": "bundle",
+        "viewed_from": "a",
+        "structure": {
+            "id": "stock",
+            "label": "Synthetic six-coax AV stock",
+            "kind": "group",
+            "role": "stock",
+            "arrangement": "ring",
+            "pitch_mm": 2.4,
+            "children": [
+                *cores,
+                element("jacket", "Jacket", "jacket", 4.4, 3.6, color="#222222"),
+            ],
+        },
+        "facts": {},
+    }
+
+
+def av_coax_convention(signal_set_revision_id, stock_revision_id):
+    """Each coax centre carries its signal and its screen returns that same signal."""
+    rules = []
+    for number, (colour, _, signal, _) in enumerate(COAX_CORES, start=1):
+        base = f"stock.core-{number}"
+        rules.append(
+            {
+                "element_path": f"{base}.center",
+                "use": {"kind": "signal", "signal_key": signal},
+                "basis": f"Shop habit for the {colour} core",
+            }
+        )
+        rules.append(
+            {
+                "element_path": f"{base}.screen",
+                "use": {"kind": "return_of", "signal_key": signal},
+                "basis": f"Shop habit for the {colour} core",
+            }
+        )
+    return {
+        "kind": "conductor_convention",
+        "scope": "stock",
+        "stock_revision_id": stock_revision_id,
+        "signal_set_revision_id": signal_set_revision_id,
+        "description": "Synthetic habit for the six-coax AV stock",
+        "rules": rules,
+        "review": "reviewed",
+        "review_basis": "Synthetic convention written for this example",
+    }
+
+
+def av_colour_code(signal_set_revision_id):
+    """A general colour code: matches by exact display colour, never by wire label."""
+    return {
+        "kind": "conductor_convention",
+        "scope": "colour_code",
+        "signal_set_revision_id": signal_set_revision_id,
+        "description": "Synthetic AV colour habits",
+        "rules": [
+            {
+                "colour": "Red",
+                "colour_hex": "#c0392b",
+                "element_kind": "conductor",
+                "use": {"kind": "signal_type", "signal_type": "analog_video"},
+                "preference": "allowed",
+                "basis": "Synthetic habit",
+            },
+            {
+                "colour": "Grey",
+                "colour_hex": "#8a8a8a",
+                "element_kind": "conductor",
+                "use": {"kind": "spare"},
+                "preference": "avoid",
+                "basis": "Synthetic habit",
+            },
+        ],
+    }

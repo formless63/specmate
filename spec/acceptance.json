@@ -472,7 +472,8 @@
       "given": "A controlled synthetic fixture and authorized scope exercising this capability.",
       "when": "Declare port-to-port signal intent, propose cable wiring from conductor conventions and validate cables per signal.",
       "expect": [
-        "Each required signal row reports pass, fail or unknown with its reason and declared path; an unknown level or unreviewed mating is never reported as pass; a convention deviation is flagged without changing the outcome; a proposal never invents joints, bonds or components."
+        "Each required signal row reports pass, fail or unknown with its reason and declared path; an unknown level or unreviewed mating is never reported as pass; a convention deviation is flagged without changing the outcome; a proposal never invents joints, bonds or components.",
+        "A stock conductor convention pins an exact stock and signal set revision, rejects a missing element or signal and a doubly mapped element, and lists unmapped conductors as unknown; a colour code matches only an exact display colour; a convention is a preference and never a pass."
       ],
       "required_evidence": [
         "focused tests for stated behavior",

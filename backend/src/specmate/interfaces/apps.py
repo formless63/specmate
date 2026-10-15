@@ -16,6 +16,7 @@ class InterfacesConfig(AppConfig):
             Port,
             TraceInterface,
         )
+        from specmate.interfaces.convention_contracts import ConductorConvention
         from specmate.interfaces.signal_contracts import SignalSet
 
         SCHEMAS.update(
@@ -29,5 +30,6 @@ class InterfacesConfig(AppConfig):
                 "signal-set": SignalSet,
                 "port": Port,
                 "board": Board,
+                "conductor-convention": ConductorConvention,
             }
         )

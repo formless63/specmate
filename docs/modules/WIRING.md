@@ -702,3 +702,25 @@ plug/receptacle roles must be able to mate, and the correspondence must name con
 both bodies. Mating is never inferred from family names or labels. Body inspection lists
 the declared partners with their contact pairs and, in reverse, the bodies that declare
 mating with it; an unreviewed declaration reads `unknown`, never established.
+
+## Conductor conventions
+
+A `conductor_convention` records what a shop usually uses each conductor for (CAB-006). It
+is a preference: it ranks proposals and flags a later deviation, and it can never make a
+check pass. A conductor it does not mention stays unknown, never "spare".
+
+A **stock convention** pins one exact wire stock revision and one exact signal set
+revision, and maps stock elements (conductors, screens and drains, by dot path) to a use:
+a signal of the set, a signal type only, "return of" a signal, spare, or do not use. An
+element maps once, the path must exist as a conductor, screen or drain in the pinned
+revision, signal keys must exist in the pinned set, and a return is the return of a
+signal rather than of another return. A **colour code** pins no stock; a rule names a
+colour, optionally its exact display colour and element kind. A colour code applies to a
+stock only where an element's display colour equals a rule's exact colour; wire labels
+never establish a meaning.
+
+Frozen convention inspection returns rows by element label and signal name, and lists
+unmapped stock elements as unknown. `GET interfaces/stock-revisions/{id}/conventions`
+lists the frozen conventions that apply to one frozen stock revision: exact-pin
+conventions with their rows first, conventions pinned to another revision of the same
+stock without rows, and colour codes with their matching elements.
