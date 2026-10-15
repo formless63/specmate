@@ -231,3 +231,36 @@ def test_legacy_generator_two_output_hashes():
         "schematic.svg": "6d4c2e8cdc488a78014a56bb370aa4a13b07824061adde90fe2dc3c962e5049a",
         "build-sheet.html": "735bab0002f350c8d57b96f07abf2207ddbc0c1447f1f1efca3d820aba65d618",
     }
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_initial_settings_updates_share_one_version_zero_lock(users, workspace):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from django.db import close_old_connections, connection
+
+    state = get(users["owner"], workspace)["state_token"]
+    gate = Barrier(2)
+
+    def change(label):
+        close_old_connections()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_backend_pid()")
+                pid = cursor.fetchone()[0]
+            gate.wait(timeout=10)
+            try:
+                update(users["owner"], workspace, {"documents": {"organization": label}}, state)
+                return pid, "saved"
+            except Conflict:
+                return pid, "conflict"
+        finally:
+            connection.close()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(change, ["Synthetic workshop A", "Synthetic workshop B"]))
+    assert len({pid for pid, _ in results}) == 2
+    assert sorted(result for _, result in results) == ["conflict", "saved"]
+    assert WorkspaceSettings.objects.filter(workspace_id=workspace).count() == 1
+    assert get(users["owner"], workspace)["version"] == 1
