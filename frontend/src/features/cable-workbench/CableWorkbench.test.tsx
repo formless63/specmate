@@ -51,7 +51,7 @@ test("probing a wire lights its net and shows the row's ten dimensions; unrelate
   serve();
   render(wrap(bench()));
   await screen.findByText("1/1 pass");
-  fireEvent.click(screen.getByRole("button", { name: /^Wire Core 1 center \(red\) · Video/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^Wire Coax 1 center \(red\) · Video/ }));
   const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
   expect(inspector.getByRole("list", { name: "Dimensions of Video" }).children).toHaveLength(10);
   expect(inspector.getAllByText("Follows the stock convention.").length).toBeGreaterThan(0);
@@ -64,7 +64,7 @@ test("a landing is chosen by clicking a pad in the drawing", async () => {
   serve();
   const onChange = vi.fn();
   render(wrap(bench({ onChange })));
-  fireEvent.click(screen.getByRole("button", { name: /^Wire Core 2 center \(blue\)/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^Wire Coax 2 center \(blue\)/ }));
   const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
   fireEvent.click(inspector.getAllByRole("button", { name: "Choose in drawing" })[1]!);
   expect(screen.getByRole("status").textContent).toContain("End B");
@@ -92,7 +92,21 @@ test("without an intent there are no badges; a viewer gets no landing controls",
   render(wrap(bench({ cable: cable(), draftId: null, revisionId: "rev", mode: "frozen" }), ["workspace.read"]));
   expect(screen.getByTestId("cell-signals").textContent).toContain("No intent");
   expect(document.querySelector(".cwb-st")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: /^Wire Core 1 center \(red\)/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^Wire Coax 1 center \(red\)/ }));
   expect(screen.queryByRole("button", { name: "Choose in drawing" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Propose wiring" })).toBeNull();
+});
+
+test("signal tiles are keyboard-navigable: arrows move focus, Enter probes", async () => {
+  serve();
+  render(wrap(bench({ cable: cable(), draftId: null, revisionId: "rev", mode: "frozen" })));
+  const strip = screen.getByRole("group", { name: "Conductive elements" });
+  const tiles = within(strip).getAllByRole("button");
+  tiles[0]!.focus();
+  fireEvent.keyDown(tiles[0]!, { key: "ArrowRight" });
+  expect(document.activeElement).toBe(tiles[1]);
+  fireEvent.keyDown(tiles[1]!, { key: "End" });
+  expect(document.activeElement).toBe(tiles.at(-1));
+  // The frozen view keeps Check against intent, disabled only for want of a pinned intent.
+  expect(screen.getByRole("button", { name: "Check against intent" })).toBeTruthy();
 });

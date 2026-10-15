@@ -12,6 +12,7 @@ import type { ProposedRow } from "../intent-propose/ProposeWiring";
 import { REQUIREMENT_LABELS } from "../intents/api";
 import { DEFAULT_NOTE, assignLanding, landingOf, splitTermKey, type CheckIndex, type Drawing, type DrawnWire } from "./model";
 import { STATUS_WORDS, familyColor, signalFamily } from "./palette";
+import { landingWords, ohms, workshopChips } from "./chips";
 
 export type InspectorProps = {
   drawing: Drawing;
@@ -44,7 +45,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** One intent row: signal, type, requirement, outcome, path chain and the ten dimensions with reasons. */
-export function RowDetail({ row }: { row: CheckRow }) {
+export function RowDetail({ row, drawing, onSelect }: { row: CheckRow; drawing: Drawing; onSelect?: (key: string) => void }) {
   return <Stack gap="xs">
     <Group gap={6} wrap="wrap">
       <span className="sb-mono" style={{ fontSize: 12 }}>{row.signal?.name ?? "Signal unknown"}</span>
@@ -55,7 +56,8 @@ export function RowDetail({ row }: { row: CheckRow }) {
     <Text size="xs" className="sb-mono">{row.from_label ?? "none"} → {row.to_labels.join(", ") || (row.requirement === "must_not_connect" ? "must not connect" : "none")}</Text>
     <Section title="Path chain">
       {row.path.length ? <div className="sb-path-chain" role="list" aria-label="Declared path">
-        {row.path.map((chip, i) => <span key={i} role="listitem" className="sb-chain-chip" data-kind={chip.kind} data-unknown={chip.status === "unknown" || undefined}>{chip.label}</span>)}
+        {workshopChips(row.path, drawing).map((chip, i) => <span key={i} role="listitem" className="sb-chain-chip" data-kind={chip.kind} data-unknown={chip.unknown || undefined} title={chip.title}
+          onClick={chip.key && onSelect ? () => onSelect(chip.key!) : undefined} style={chip.key && onSelect ? { cursor: "pointer" } : undefined}>{chip.text}</span>)}
       </div> : <Text size="xs" c="dimmed">No declared path.</Text>}
       {row.note && <Text size="xs" mt={4}>{row.note}</Text>}
     </Section>
@@ -150,7 +152,7 @@ export function ProbeDetails(props: InspectorProps) {
       })}</Section>}
       {check && rows.length === 0 && <Text size="xs" c="dimmed">No intent row passes this element.</Text>}
       <RowsOf rows={rows} chosen={row?.row_id ?? null} onChoose={setChosenRow} />
-      {row && <RowDetail row={row} />}
+      {row && <RowDetail row={row} drawing={drawing} onSelect={onSelect} />}
       {onChange && <Section title="Landings">
         <Stack gap={6}>{cable.endpoints.slice(0, 2).map((e, i) => <LandingEditor key={e.local_id} cable={cable} endpointId={e.local_id} path={wire.path} resolved={stacks[i]} onChange={onChange}
           armed={armed?.endpointId === e.local_id && armed.path === wire.path} onArm={(on) => onArm(on ? { endpointId: e.local_id, path: wire.path } : null)} />)}</Stack>
@@ -173,7 +175,7 @@ export function ProbeDetails(props: InspectorProps) {
       {resolved ? <SignalCell terminal={resolved} /> : <SbUnknown what="Signal" />}
       <Section title="Landed here">{landed.length ? <Stack gap={2}>{landed.map((w) => <UnstyledButton key={w.key} onClick={() => onSelect(w.key)} className="cwb-chip" style={{ gridTemplateColumns: "auto minmax(0,1fr)" }}><Swatch wire={w} /><span className="cwb-chip-name">{w.display}</span></UnstyledButton>)}</Stack> : <Text size="xs" c="dimmed">No stock element lands here.</Text>}</Section>
       <RowsOf rows={rows} chosen={row?.row_id ?? null} onChoose={setChosenRow} />
-      {row && <RowDetail row={row} />}
+      {row && <RowDetail row={row} drawing={drawing} onSelect={onSelect} />}
     </Stack>;
   }
   if (selection.startsWith("r:")) {
@@ -182,7 +184,7 @@ export function ProbeDetails(props: InspectorProps) {
     const wires = drawing.wires.filter((w) => index.rowRefs.get(row.row_id)?.has(w.key));
     return <Stack gap="sm">
       <div className="cwb-probe-head"><span className="cwb-swatch" style={{ background: familyColor(signalFamily(row.signal?.type)) }} aria-hidden="true" /><h3>{row.signal?.name ?? row.row_id}</h3></div>
-      <RowDetail row={row} />
+      <RowDetail row={row} drawing={drawing} onSelect={onSelect} />
       <Section title="Conductors on this path">{wires.length ? <Stack gap={2}>{wires.map((w) => <UnstyledButton key={w.key} onClick={() => onSelect(w.key)} className="cwb-chip" style={{ gridTemplateColumns: "auto minmax(0,1fr)" }}><Swatch wire={w} /><span className="cwb-chip-name">{w.display}</span></UnstyledButton>)}</Stack> : <Text size="xs" c="dimmed">No conductor carries this row.</Text>}</Section>
     </Stack>;
   }
@@ -190,14 +192,14 @@ export function ProbeDetails(props: InspectorProps) {
     const rowId = selection.slice(2);
     const row = props.proposalRows.find((r) => r.row_id === rowId);
     if (!row) return <Text size="sm">This proposal row was already decided.</Text>;
-    return <ProposalDetail row={row} cable={cable} onAccept={props.onAcceptRow} onReject={props.onRejectRow} accepting={props.accepting} />;
+    return <ProposalDetail row={row} cable={cable} drawing={drawing} onAccept={props.onAcceptRow} onReject={props.onRejectRow} accepting={props.accepting} />;
   }
   if (selection.startsWith("p:")) {
     const part = drawing.ends.flatMap((e) => e.parts).find((p) => p.key === selection);
     const trace = drawing.ends.flatMap((e) => e.traces).find((p) => p.key === selection);
     return <Stack gap="xs">
       <div className="cwb-probe-head"><h3>{part ? part.name : trace ? "Board path" : "Part"}</h3></div>
-      <Text size="sm">{part?.summary ?? trace?.summary}</Text>
+      <Text size="sm">{ohms(part?.summary ?? trace?.summary ?? "")}</Text>
       {trace && <Text size="xs" c="dimmed">{trace.status === "unknown" ? <SbUnknown what="Path" /> : "Declared on the board revision."}</Text>}
       {part && <Text size="xs" c="dimmed">Lead 1 is where a conductor lands; lead 2 is joined on the connector side. Behavior is not evaluated here.</Text>}
     </Stack>;
@@ -205,12 +207,12 @@ export function ProbeDetails(props: InspectorProps) {
   return null;
 }
 
-export function ProposalDetail({ row, cable, onAccept, onReject, accepting }: { row: ProposedRow; cable: Cable; onAccept?: (id: string) => void; onReject?: (id: string) => void; accepting?: boolean }) {
+export function ProposalDetail({ row, cable, drawing, onAccept, onReject, accepting }: { row: ProposedRow; cable: Cable; drawing: Drawing; onAccept?: (id: string) => void; onReject?: (id: string) => void; accepting?: boolean }) {
   const edit = usePermission("design.edit");
   return <Stack gap="xs">
     <div className="cwb-probe-head"><h3>Proposed · {row.row_id}</h3></div>
     <Text size="xs">{row.reason ?? row.questions[0]?.text ?? "Proposed from the intent."}</Text>
-    <Stack gap={2}>{row.assignments.map((a) => <Text key={`${a.endpoint_id}${a.element_path}`} size="xs" className="sb-mono">{endLetter(cable, a.endpoint_id)}: {a.element_path.replace(/^stock\./, "")} → {a.terminal_label}</Text>)}</Stack>
+    <Stack gap={2}>{row.assignments.map((a) => <Text key={`${a.endpoint_id}${a.element_path}`} size="xs" title={`${a.element_path} → ${a.layer_id} ${a.terminal_id}`}>{endLetter(cable, a.endpoint_id)}: {landingWords(drawing, a)}</Text>)}</Stack>
     {onAccept && <Group gap="xs">
       <Button size="xs" loading={accepting} {...edit.props} disabled={edit.props.disabled || row.assignments.length === 0} onClick={() => onAccept(row.row_id)}>Accept {row.row_id}</Button>
       <Button size="xs" variant="default" onClick={() => onReject?.(row.row_id)}>Reject</Button>

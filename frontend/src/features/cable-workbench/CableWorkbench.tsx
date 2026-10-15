@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Button, Group, SegmentedControl, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { sectionLayout, type StockSpecification } from "../../../../packages/section-layout/src";
 import { SbUnknown } from "../../components/sb";
 import { ReadOnlyNote, usePermission } from "../../lib/permissions";
@@ -11,12 +11,14 @@ import { LAYER_LABELS, LAYER_ORDER, stackComplete, type ResolvedStack } from "..
 import { statusLed } from "../intent-check/IntentCheckPanel";
 import { checkPath, read, type IntentCheck, type Status } from "../intent-check/api";
 import type { Body } from "../interfaces/api";
+import { faceForBody } from "../interfaces/BodyFace";
 import { acceptRows, requestProposal, type Proposal } from "../intent-propose/ProposeWiring";
 import { CableDrawing } from "./CableDrawing";
 import { STOCK_KEY, assignLanding, indexCheck, layoutDrawing, proposedKey, rowKey, splitTermKey, wireKey, type DrawingInput } from "./model";
 import { FAMILY_LABELS, STATUS_WORDS, familyColor, signalFamily, type SignalFamily } from "./palette";
 import { physicalGraph, relatedKeys } from "./relations";
 import { ProbeDetails } from "./WorkbenchInspector";
+import { landingWords } from "./chips";
 import "./cable-workbench.css";
 
 export type WorkbenchMode = "new" | "draft" | "frozen";
@@ -106,8 +108,9 @@ export function CableWorkbench(props: WorkbenchProps) {
     && row.assignments.some((a) => changes.get(`${a.endpoint_id}\u0000${a.element_path}`) !== "same"));
   const shownProposal: Pick<Proposal, "rows" | "diff"> | null = proposal.data ? { rows: pendingRows, diff: proposal.data.diff } : null;
 
-  const drawing = useMemo(() => layoutDrawing({ cable, stacks, stock, conductors, check: checkData, proposal: shownProposal }),
-    [cable, stacks, stock, conductors, checkData, proposal.data, decided]);
+  const faces = useMemo(() => (bodies ?? []).map((body) => (body ? faceForBody(body) : null)), [bodies]);
+  const drawing = useMemo(() => layoutDrawing({ cable, stacks, stock, conductors, check: checkData, proposal: shownProposal, faces }),
+    [cable, stacks, stock, conductors, checkData, proposal.data, decided, faces]);
   const index = useMemo(() => indexCheck(checkData), [checkData]);
   const graph = useMemo(() => physicalGraph(drawing), [drawing]);
   const lit = useMemo(() => relatedKeys(drawing, graph, index, selection), [drawing, graph, index, selection]);
@@ -176,7 +179,7 @@ export function CableWorkbench(props: WorkbenchProps) {
       <div className="cwb-stage">
         <div className="cwb-viewport">
           <CableDrawing drawing={drawing} lit={lit} selection={selection} onSelect={select} armedEnd={armed?.endpointId ?? null} onLand={land}
-            bodies={bodies} section={section} lengthText={length ? `${length.text} ${length.kind}` : null} showStatus={!!checkData} zoom={zoom}
+            section={section} lengthText={length ? `${length.text} ${length.kind}` : null} showStatus={!!checkData} zoom={zoom}
             title={`Cable drawing of ${name}: End A stack, stock and End B stack. Click a wire, pin, pad or part to probe it.`} />
         </div>
         {armed && <div className="cwb-armed" role="status">Choose where {armed.path} lands at {armedEndName}: click a pad, pin or lead of that end. <Button size="compact-xs" variant="default" onClick={() => setArmed(null)}>Cancel</Button></div>}
@@ -208,7 +211,7 @@ export function CableWorkbench(props: WorkbenchProps) {
         {pendingRows.map((row) => <div key={row.row_id} className="cwb-proposal-row" data-selected={selection === proposedKey(row.row_id) || undefined}>
           <UnstyledButton onClick={() => select(proposedKey(row.row_id))} style={{ minWidth: 0 }}>
             <Text size="xs" fw={600} className="sb-mono">{row.row_id}</Text>
-            {row.assignments.map((a) => <Text key={`${a.endpoint_id}${a.element_path}`} size="xs" className="sb-mono">{a.endpoint_id.toUpperCase()}: {a.element_path.replace(/^stock\./, "")} → {a.terminal_label}</Text>)}
+            {row.assignments.map((a) => <Text key={`${a.endpoint_id}${a.element_path}`} size="xs" title={`${a.element_path} → ${a.layer_id} ${a.terminal_id}`}>End {a.endpoint_id.toUpperCase()}: {landingWords(drawing, a)}</Text>)}
             {row.reason && <Text size="xs" c="dimmed">{row.reason}</Text>}
           </UnstyledButton>
           <Group gap={4} wrap="nowrap">
@@ -236,10 +239,21 @@ export function CableWorkbench(props: WorkbenchProps) {
   </div>;
 }
 
+/** Arrow keys move between tiles (Home/End to the first and last); Enter or Space probes the focused one. */
+function moveFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+  if (step === undefined && event.key !== "Home" && event.key !== "End") return;
+  const tiles = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button")];
+  const at = tiles.indexOf(document.activeElement as HTMLButtonElement);
+  const next = event.key === "Home" ? 0 : event.key === "End" ? tiles.length - 1 : Math.min(tiles.length - 1, Math.max(0, (at < 0 ? 0 : at) + step!));
+  event.preventDefault();
+  tiles[next]?.focus();
+}
+
 /** One chip per intent row with its outcome, or per stock element when no intent is pinned. */
 function SignalStrip({ drawing, checkRows, lit, selection, onSelect }: { drawing: ReturnType<typeof layoutDrawing>; checkRows: IntentCheck["rows"]; lit: Set<string> | null; selection: string | null; onSelect: (key: string | null) => void }) {
   if (checkRows.length) {
-    return <div className="cwb-strip" role="group" aria-label="Signals">
+    return <div className="cwb-strip" role="group" aria-label="Signals" onKeyDown={moveFocus}>
       {checkRows.map((row) => {
         const key = rowKey(row.row_id);
         return <UnstyledButton key={row.row_id} className="cwb-chip" aria-pressed={selection === key} data-dim={lit && !lit.has(key) ? true : undefined}
@@ -252,7 +266,7 @@ function SignalStrip({ drawing, checkRows, lit, selection, onSelect }: { drawing
       })}
     </div>;
   }
-  return <div className="cwb-strip" role="group" aria-label="Conductive elements">
+  return <div className="cwb-strip" role="group" aria-label="Conductive elements" onKeyDown={moveFocus}>
     {drawing.wires.map((w) => {
       const color = w.look && w.look.fillSource !== "unknown" ? w.look.base : null;
       const at = (key: string | null) => { const t = key ? drawing.terminals.get(key) : null; return t ? t.label : "–"; };

@@ -89,24 +89,23 @@
 .cwb-st[data-status="unknown"] { stroke: var(--sb-review); stroke-width: 1; }
 .cwb-st[data-status="not_evaluated"] { fill: none; stroke: var(--sb-text-tertiary); stroke-width: 1; }
 .cwb-st[data-status="flagged"] { fill: var(--sb-info); }
-.cwb-proposal-line { fill: none; stroke: var(--sb-accent); stroke-width: 2; stroke-dasharray: 5 4; pointer-events: none; }
+.cwb-proposal-halo { fill: none; stroke: var(--sb-surface-canvas); stroke-width: 6; stroke-linecap: round; pointer-events: none; }
+.cwb-proposal-line { fill: none; stroke: var(--sb-accent); stroke-width: 2.4; stroke-dasharray: 6 4; pointer-events: none; }
+.cwb-proposal-end { fill: var(--sb-accent); stroke: var(--sb-surface-canvas); stroke-width: 1.5; pointer-events: none; }
+.cwb-legend .cwb-proposal-line { stroke-width: 2; }
 .cwb-proposal[data-change="changed"] .cwb-proposal-line { stroke: var(--sb-compare); }
 @media (prefers-reduced-motion: no-preference) {
   .cwb-proposal-line { animation: cwb-draw var(--sb-motion-settle) var(--sb-motion-ease) both; }
 }
 @keyframes cwb-draw { from { opacity: 0; } to { opacity: 1; } }
 
-/* Connector face (placeholder for packages/connector-art). */
-.cwb-face-body { fill: var(--sb-surface-sunken); stroke: var(--sb-border-control); stroke-width: .02; }
-.cwb-face-body[data-schematic] { stroke-dasharray: .06 .05; }
-.cwb-face-pin { cursor: pointer; }
-.cwb-face-num { font-family: var(--sb-font-data); font-weight: 600; fill: #050505; pointer-events: none; }
-.cwb-face-note { font-family: var(--sb-font-data); fill: var(--sb-text-tertiary); letter-spacing: .04em; }
+/* Connector faces come from packages/connector-art. */
 
 /* Signals strip: one chip per intent row (or per element without an intent). */
 .cwb-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px; }
 .cwb-chip { display: grid; grid-template-columns: auto 3px minmax(0, 1fr); gap: 2px 6px; align-items: center; text-align: left; padding: 4px 6px; border: 1px solid var(--sb-border-subtle); background: transparent; color: var(--sb-text-primary); font: inherit; font-size: 12px; cursor: pointer; border-radius: 0; min-width: 0; }
 .cwb-chip:hover { border-color: var(--sb-border-control); }
+.cwb-chip:focus-visible { outline: 2px solid var(--sb-focus); outline-offset: 1px; }
 .cwb-chip[aria-pressed="true"] { border-color: var(--sb-accent); background: var(--sb-accent-glow); }
 .cwb-chip[data-dim] { opacity: .45; }
 .cwb-chip-bar { width: 3px; height: 100%; min-height: 22px; }

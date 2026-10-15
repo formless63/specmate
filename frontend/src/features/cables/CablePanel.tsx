@@ -99,6 +99,10 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   const workspaceDenied = authorityBlocked || definitions.isError || identity.isError;
   const creating = !definitionId;
   const cableName = currentDefinitions.find(d => d.definition_id === definitionId)?.name ?? identity.data?.name ?? 'Cable';
+  // A draft and a frozen revision open together share one place: a toggle shows one at a time, both stay mounted.
+  const [shown, setShown] = useState<'draft' | 'frozen'>('draft');
+  const bothOpen = !!draft.data && !!draftId && !!revisionId && !shownAbove && !workspaceDenied && !draft.isError;
+  const frozenNumber = identity.data?.revisions.find(r => r.revision_id === revisionId)?.number;
   const freezeButton = draft.data && !draft.isError && !workspaceDenied
     ? <Button size="xs" disabled={draftSourceDenied || !draftToken} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate()}>Freeze cable revision</Button> : null;
   return <Stack>
@@ -125,10 +129,12 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
         <Button size="xs" disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => { setTried(true); if (cableProblems(value).length === 0) create.mutate(); }}>Create cable draft</Button>
       </>} notices={<>{tried && <Missing problems={cableProblems(value)} />}<ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>{create.isError && <Alert color="red">{create.error.message}</Alert>}</>} />}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
-    {draft.data && draftId && <DraftBench key={draft.data.draft_id} name={cableName} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} workspaceId={workspaceId} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied}
-      onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} freezeAction={freezeButton} freezeError={freeze.isError ? freeze.error.message : null} />}
+    {bothOpen && <SegmentedControl size="xs" w="fit-content" aria-label="Show the draft or the frozen revision" value={shown} onChange={v => setShown(v as 'draft' | 'frozen')}
+      data={[{ value: 'draft', label: 'Draft (editing)' }, { value: 'frozen', label: `Frozen ${frozenNumber ? `r${frozenNumber}` : 'revision'}` }]} />}
+    {draft.data && draftId && <div hidden={bothOpen && shown !== 'draft'}><DraftBench key={draft.data.draft_id} name={cableName} draft={draft.data} committedDraft={committedDraft} hidden={draft.isError || workspaceDenied} definitions={currentDefinitions} workspaceId={workspaceId} onStateChange={setDraftToken} onMutationError={mutationError} onAuthorityChange={setDraftSourceDenied}
+      onSaved={async () => { await cache.invalidateQueries({ queryKey: ["cable-draft", draftId] }); }} freezeAction={freezeButton} freezeError={freeze.isError ? freeze.error.message : null} /></div>}
     {revisionId && shownAbove && !workspaceDenied && <Text role="status" data-testid="views-shown-above">Frozen cable views are shown above, in the selected library row.</Text>}
-    {revisionId && !shownAbove && !workspaceDenied && !draft.isError && <CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} />}
+    {revisionId && !shownAbove && !workspaceDenied && !draft.isError && <div hidden={bothOpen && shown !== 'frozen'}><CableInspector key={revisionId} revisionId={revisionId} revisions={identity.data?.revisions ?? []} /></div>}
   </Stack>;
 }
 

@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
 import { boardEnd, cable, check, inlineEnd, row, stock } from "./fixtures";
+import { geometryByKey } from "../../../../packages/connector-art/src";
+import { workshopChips, ohms } from "./chips";
 import { assignLanding, indexCheck, layoutDrawing, splitTermKey, termKey, wireKey } from "./model";
 import { physicalGraph, relatedKeys } from "./relations";
 
@@ -116,4 +118,53 @@ test("landing by direct manipulation replaces one end's target and keeps its not
   expect(assignLanding(before, "a", "stock.core-2.center", { layer_id: "board", terminal_id: "v" }, "Bench note").assignments.at(-1)!.basis).toBe("Bench note");
   expect(assignLanding(before, "a", "stock.core-1.center", null).assignments.some((a) => a.endpoint_id === "a" && a.element_path === "stock.core-1.center")).toBe(false);
   expect(splitTermKey("t:b/inline/r2.1")).toEqual({ endpointId: "b", layerId: "inline", terminalId: "r2.1" });
+});
+
+test("a connector with a known face lands contacts on its drawn pins; others sit below the face", () => {
+  const din = geometryByKey("mini-din-10", "male")!;
+  const scart = geometryByKey("scart", "male")!;
+  const d = draw({ faces: [din, scart] });
+  const face = d.ends[1]!.connector!.face!;
+  expect(face.geometry.key).toBe(scart.key);
+  const one = d.terminals.get(termKey("b", "connector", "1"))!;
+  expect(one.onFace).toBe(true);
+  expect(one.x).toBeGreaterThan(face.x);
+  expect(one.x).toBeLessThan(face.x + face.width);
+  expect(one.y).toBeGreaterThan(face.y);
+  expect(one.y).toBeLessThan(face.y + face.height);
+  // The wire lands on the drawn pin.
+  const center = d.wires.find((w) => w.path === "stock.core-1.center")!;
+  expect(center.b!.y).toBeCloseTo(one.y, 5);
+  // The face is wider than tall for SCART and the column takes the face's width.
+  expect(face.width).toBeGreaterThan(face.height);
+  expect(d.ends[1]!.columns.find((c) => c.kind === "connector")!.width).toBe(face.width + 12);
+  // A contact the face has no position for is drawn below the face, not guessed onto it.
+  const a = boardEnd();
+  a.layers[1]!.terminals.push({ terminal_id: "aux", label: "aux", kind: "contact", reaches: [] });
+  const withAux = layoutDrawing({ cable: cable(), stacks: [a, inlineEnd()], stock: stock(), faces: [din, scart] });
+  const aux = withAux.terminals.get(termKey("a", "connector", "aux"))!;
+  const dinFace = withAux.ends[0]!.connector!.face!;
+  expect(aux.onFace).toBeFalsy();
+  expect(aux.y).toBeGreaterThan(dinFace.y + dinFace.height);
+  // A 21-position face keeps the end short: no row per contact.
+  expect(d.bodyHeight).toBeLessThan(21 * 15);
+});
+
+test("path chips read in workshop language with raw paths in titles", () => {
+  const d = draw();
+  const chips = workshopChips([
+    { kind: "port_pin", label: "Out 1 · Video" },
+    { kind: "contact", label: "connector 1", ref: { endpoint_id: "a", layer_id: "connector", terminal_id: "1" } },
+    { kind: "board_path", label: "R1 75R resistor", status: "declared" },
+    { kind: "board", label: "board V", ref: { endpoint_id: "a", layer_id: "board", terminal_id: "v" } },
+    { kind: "termination", label: "termination", status: "declared" },
+    { kind: "conductor", label: "stock.core-1.center at end a", ref: { endpoint_id: "a", element_path: "stock.core-1.center" } },
+    { kind: "conductor", label: "Center", status: "declared", ref: { element_path: "stock.core-1.center" } },
+    { kind: "conductor", label: "stock.core-1.center at end b", ref: { endpoint_id: "b", element_path: "stock.core-1.center" } },
+    { kind: "inline", label: "inline R2 · 1", ref: { endpoint_id: "b", layer_id: "inline", terminal_id: "r2.1" } },
+  ] as never, d);
+  expect(chips.map((c) => c.text)).toEqual(["Out 1 · Video", "Pin 1 · Video", "R1 75 Ω", "Board pad V", "landed", "Coax 1 center (red)", "R2 lead 1"]);
+  expect(chips[5]!.title).toBe("stock.core-1.center");
+  expect(ohms("4k7R")).toBe("4k7R");
+  expect(ohms("2.2kR")).toBe("2.2 kΩ");
 });

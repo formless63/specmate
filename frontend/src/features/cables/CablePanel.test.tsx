@@ -106,6 +106,13 @@ test('compose two ends, save with token, freeze and inspect unchanged conductor 
   expect(commands[1]).toMatchObject({ operation: 'cable.update', expected_state: 'draft-v1', payload: { cable: { lengths: { route: { amount_mm: '1100.000001' } } } } });
   expect(commands[2]).toMatchObject({ operation: 'cable.freeze', expected_state: 'draft-v2' });
   expect(await screen.findByText('stock.core · conductor')).toBeTruthy();
+  // The draft and the new frozen revision share one workbench with a toggle, not two stacked benches.
+  expect(screen.getByRole('radio', { name: 'Draft (editing)' })).toBeTruthy();
+  expect(screen.getAllByRole('heading', { name: 'Edit draft' })).toHaveLength(1);
+  expect(screen.queryByRole('heading', { name: 'Frozen cable' })).toBeNull();
+  fireEvent.click(screen.getByRole('radio', { name: 'Frozen r1' }));
+  expect((await screen.findAllByRole('heading', { name: 'Frozen cable' })).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('heading', { name: 'Edit draft' })).toBeNull();
   expect(screen.getAllByText('unknown / unassigned')).toHaveLength(2);
   expect(screen.getAllByText('unknown to unknown').length).toBeGreaterThan(0);
 });

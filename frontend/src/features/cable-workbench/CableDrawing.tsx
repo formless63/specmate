@@ -1,10 +1,10 @@
-import { useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useId, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { edgeColor, mixHex, renderSectionSvg, type Section } from "../../../../packages/section-layout/src";
 import { LAYER_LABELS } from "../end-assemblies/api";
-import type { Body } from "../interfaces/api";
-import { ConnectorFace, geometryForBody, type FacePin } from "./ConnectorFacePlaceholder";
-import { FACE, PITCH, STOCK_KEY, endKey, proposedKey, wireKey, type DrawnColumn, type DrawnEnd, type DrawnTerminal, type DrawnWire, type Drawing } from "./model";
+import { ConnectorFace, type ConnectorFacePin, type PinState } from "../../../../packages/connector-art/src";
+import { PITCH, STOCK_KEY, endKey, proposedKey, wireKey, type DrawnColumn, type DrawnEnd, type DrawnTerminal, type DrawnWire, type Drawing } from "./model";
 import { familyColor, signalFamily, STATUS_WORDS } from "./palette";
+import { ohms } from "./chips";
 
 export type DrawingProps = {
   drawing: Drawing;
@@ -15,7 +15,6 @@ export type DrawingProps = {
   /** While set, terminals of this end are landing targets: a click lands instead of probing. */
   armedEnd?: string | null;
   onLand?: (terminalKey: string) => void;
-  bodies?: (Body | null | undefined)[];
   section?: Section | null;
   lengthText?: string | null;
   /** Check outcomes are drawn only when an intent check is shown. */
@@ -42,7 +41,7 @@ function StatusMark({ x, y, status }: { x: number; y: number; status: string }) 
   return <circle cx={x} cy={y} r={3.4} className="cwb-st" data-status={status}><title>{STATUS_WORDS[status as keyof typeof STATUS_WORDS] ?? status}</title></circle>;
 }
 
-function ColumnBody({ column, top, height, side }: { column: DrawnColumn; top: number; height: number; side: "left" | "right" }) {
+function ColumnBody({ column, top, height, side, face }: { column: DrawnColumn; top: number; height: number; side: "left" | "right"; face: boolean }) {
   const { x, width, kind } = column;
   if (kind === "shell") {
     return <g className="cwb-shell" aria-hidden="true">
@@ -50,6 +49,7 @@ function ColumnBody({ column, top, height, side }: { column: DrawnColumn; top: n
       <ellipse cx={x + width / 2} cy={top + height / 2} rx={6} ry={height / 2 + 6} />
     </g>;
   }
+  if (kind === "connector" && face) return null;
   if (kind === "connector") return <rect x={x + width / 2 - 20} y={top - 4} width={40} height={height + 8} rx={3} className="cwb-connector-body" aria-hidden="true" />;
   if (kind === "board") return <rect x={x + 4} y={top - 4} width={width - 8} height={height + 8} rx={4} className="cwb-board" style={{ fill: "url(#cwb-pcb)" }} aria-hidden="true" />;
   if (kind === "inline") return null;
@@ -66,7 +66,8 @@ function terminalTitle(t: DrawnTerminal): string {
  * curve from its End A landing to its End B landing, End B's stack. Selection dims everything
  * not related to the probe; proposed landings are dashed.
  */
-export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = null, onLand, bodies = [], section, lengthText, showStatus = false, zoom = null, title }: DrawingProps) {
+export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = null, onLand, section, lengthText, showStatus = false, zoom = null, title }: DrawingProps) {
+  const clipId = `cwb-callout-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const dim = (key: string) => (armedEnd ? undefined : lit && !lit.has(key) ? true : undefined);
   const { stock, bodyTop, bodyHeight } = drawing;
   const jacket = stock.jacket?.base ?? "#2a2a2f";
@@ -74,25 +75,29 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
     if (!section) return null;
     const selected = selection?.startsWith("w:") ? selection.slice(2) : null;
     const svg = renderSectionSvg(section, "Stock cross-section", { selected, callouts: false, idPrefix: "cwbx" });
-    const r = stock.callout.r * 0.86;
+    // The section renderer pads its drawing generously; draw it larger and let the callout ring clip it.
+    const r = stock.callout.r * 1.45;
     return svg.replace("<svg ", `<svg x="${stock.callout.x - r}" y="${stock.callout.y - r}" width="${2 * r}" height="${2 * r}" `);
   }, [section, selection, stock.callout]);
 
-  const faces: ReactNode[] = drawing.ends.map((end, i) => {
-    if (!end.connector) return null;
-    const body = bodies[i] ?? null;
-    const contacts = end.terminals.filter((t) => t.layerKind === "connector");
-    const pins: FacePin[] = contacts.map((t) => ({ id: t.terminalId, label: shortLabel(t.label), fill: familyColor(signalFamily(t.signal?.type)), state: showStatus ? t.status ?? "none" : null }));
+  const faces: ReactNode[] = drawing.ends.map((end) => {
+    const face = end.connector?.face;
+    if (!face) return null;
+    const contacts = end.terminals.filter((t) => t.onFace);
+    const pinState = (t: DrawnTerminal): PinState | undefined => {
+      if (armedEnd === end.endpointId) return undefined;
+      if (lit && !lit.has(t.key)) return "dim";
+      if (!showStatus || !t.status) return undefined;
+      return t.status === "pass" ? "pass" : t.status === "fail" ? "fail" : t.status === "unknown" ? "unknown" : undefined;
+    };
+    const pins: ConnectorFacePin[] = contacts.map((t) => ({ id: t.terminalId, label: t.signal?.name, fill: t.signal ? familyColor(signalFamily(t.signal.type)) : undefined, state: pinState(t) }));
     const selectedPin = contacts.find((t) => t.key === selection)?.terminalId ?? null;
-    const x = end.connector.cx - FACE / 2;
-    const facing = contacts.find((t) => t.terminalId === selectedPin);
-    return <g key={`face-${end.endpointId}`} className="cwb-face-wrap" transform={`translate(${x} ${drawing.faceTop})`} data-end={end.endpointId}>
-      <ConnectorFace geometry={geometryForBody(body)} view="mating" pins={pins} selectedPinId={selectedPin} size={FACE}
-        title={`${end.label} connector face, mating side${end.connector.name ? `: ${end.connector.name}` : ""}`}
-        onPinClick={(id) => { const t = contacts.find((c) => c.terminalId === id); if (t) (armedEnd === end.endpointId && onLand ? onLand(t.key) : onSelect(t.key)); }} />
-      <line x1={FACE / 2} y1={FACE} x2={FACE / 2} y2={bodyTop - drawing.faceTop - 18} className="cwb-leader" />
-      {facing && <text x={FACE / 2} y={-4} textAnchor="middle" className="cwb-silk">pin {shortLabel(facing.label)}</text>}
-    </g>;
+    return <svg key={`face-${end.endpointId}`} x={face.x} y={face.y} width={face.width} height={face.height} viewBox={`0 0 ${face.width} ${face.height}`} overflow="visible"
+      className="cwb-face-wrap" data-end={end.endpointId} onClick={(event) => event.stopPropagation()}>
+      <ConnectorFace geometry={face.geometry} view="mating" pins={pins} selectedPinId={selectedPin} size={face.width}
+        title={`${end.label}: ${face.geometry.label} mating face${end.connector?.name ? `, ${end.connector.name}` : ""}`}
+        onPinClick={(id) => { const t = contacts.find((c) => c.terminalId === id); if (t) (armedEnd === end.endpointId && onLand ? onLand(t.key) : onSelect(selection === t.key ? null : t.key)); }} />
+    </svg>;
   });
 
   const wire = (w: DrawnWire) => {
@@ -124,7 +129,7 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
         {`END ${e.endpointId.toUpperCase()} · ${e.label}`.toUpperCase()}
       </text>
       {e.columns.map((c) => <g key={c.key}>
-        <ColumnBody column={c} top={top} height={height} side={e.side} />
+        <ColumnBody column={c} top={top} height={height} side={e.side} face={!!e.connector?.face} />
         <text x={c.x + c.width / 2} y={top - 12} textAnchor="middle" className="cwb-silk">{c.kind === "unknown" ? "STACK NOT RESOLVED" : LAYER_LABELS[c.kind].toUpperCase()}</text>
         {c.name && c.kind !== "shell" && <text x={c.x + c.width / 2} y={top + height + 18} textAnchor="middle" className="cwb-col-name"><title>{c.name}</title>{truncate(c.name, Math.floor(c.width / 5.6))}</text>}
         {c.kind === "shell" && c.name && <text x={c.x + c.width / 2} y={top + height + 18} textAnchor="middle" className="cwb-col-name"><title>{c.name}</title>shell</text>}
@@ -132,7 +137,7 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
       {e.joins.map((j) => <path key={j.key} d={j.d} className="cwb-join" data-kind={j.kind} data-status={j.status} data-dim={lit && !(lit.has(j.a) && lit.has(j.b)) ? true : undefined}><title>{`${j.kind} · ${j.basis}`}</title></path>)}
       {e.traces.map((t) => <g key={t.key} className="cwb-trace" data-key={t.key} data-status={t.status} data-dim={dim(t.key)} role="button" tabIndex={0} aria-label={`Board path ${t.summary}`} {...activate(() => onSelect(t.key))}>
         <path d={t.d} />
-        {t.via === "component" && <g transform={`translate(${t.mid.x} ${t.mid.y})`}><rect x={-9} y={-4} width={18} height={8} rx={1.5} className="cwb-smd" /><text y={-7} textAnchor="middle" className="cwb-part-label">{truncate(t.summary, 14)}</text></g>}
+        {t.via === "component" && <g transform={`translate(${t.mid.x} ${t.mid.y})`}><rect x={-9} y={-4} width={18} height={8} rx={1.5} className="cwb-smd" /><text y={-7} textAnchor="middle" className="cwb-part-label">{truncate(ohms(t.summary), 14)}</text></g>}
         <title>{t.summary}</title>
       </g>)}
       {e.parts.map((p) => <g key={p.key} className="cwb-part" data-key={p.key} data-dim={dim(p.key)} data-selected={selection === p.key || undefined} role="button" tabIndex={0}
@@ -141,7 +146,7 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
         {p.component === "capacitor"
           ? <g className="cwb-cap"><line x1={-3} x2={-3} y1={-8} y2={8} /><line x1={3} x2={3} y1={-8} y2={8} /></g>
           : <rect x={-14} y={-5} width={28} height={10} rx={4} className="cwb-resistor" />}
-        <text y={-11} textAnchor="middle" className="cwb-part-label">{truncate(p.summary || p.name, 20)}</text>
+        <text y={-11} textAnchor="middle" className="cwb-part-label">{truncate(ohms(p.summary || p.name), 20)}</text>
         <title>{`${p.name}: ${p.summary}`}</title>
       </g>)}
       {e.terminals.map((t) => {
@@ -149,6 +154,8 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
         const fill = familyColor(signalFamily(t.signal?.type));
         const pick = () => (candidate && onLand ? onLand(t.key) : onSelect(selection === t.key ? null : t.key));
         const labelRight = t.side === "connector" ? e.side === "right" : t.side === "cable" ? e.side === "left" : e.side === "left";
+        // Pins on a drawn face are the face's own buttons; only the landing hint is drawn over them.
+        if (t.onFace) return candidate ? <circle key={t.key} cx={t.x} cy={t.y} r={t.halfWidth + 3} className="cwb-candidate" pointerEvents="none" /> : null;
         return <g key={t.key} className="cwb-term" data-key={t.key} data-layer={t.layerKind} data-dim={armedEnd ? (candidate ? undefined : true) : dim(t.key)} data-candidate={candidate || undefined}
           data-selected={selection === t.key || undefined} role="button" tabIndex={0} aria-label={candidate ? `Land on ${terminalTitle(t)}` : terminalTitle(t)} aria-pressed={selection === t.key} {...activate(pick)}>
           {t.layerKind === "connector"
@@ -189,6 +196,7 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
       <linearGradient id="cwb-jacket" x1={0} y1={0} x2={0} y2={1}>
         <stop offset={0} stopColor={light} /><stop offset={0.35} stopColor={jacket} /><stop offset={0.75} stopColor={dark} /><stop offset={1} stopColor={jacket} />
       </linearGradient>
+      <clipPath id={clipId}><circle cx={stock.callout.x} cy={stock.callout.y} r={stock.callout.r - 1} /></clipPath>
       <linearGradient id="cwb-pcb" x1={0} y1={0} x2={1} y2={1}><stop offset={0} stopColor="#1A5A37" /><stop offset={1} stopColor="#0E3B24" /></linearGradient>
     </defs>
     <rect x={0} y={0} width={drawing.width} height={drawing.height} className="cwb-ground" />
@@ -217,14 +225,15 @@ export function CableDrawing({ drawing, lit, selection, onSelect, armedEnd = nul
         onClick={(event) => { const hit = (event.target as Element).closest("[data-element]"); if (hit) { event.stopPropagation(); onSelect(wireKey(hit.getAttribute("data-element")!)); } }}>
         <line x1={stock.callout.x} x2={stock.callout.x} y1={stock.callout.y + stock.callout.r} y2={jacketTop} className="cwb-leader" />
         <circle cx={stock.callout.x} cy={stock.callout.y} r={stock.callout.r} className="cwb-callout-ring" />
-        {sectionSvg ? <g dangerouslySetInnerHTML={{ __html: sectionSvg }} /> : <text x={stock.callout.x} y={stock.callout.y + 3} textAnchor="middle" className="cwb-silk">SECTION UNKNOWN</text>}
+        {sectionSvg ? <g clipPath={`url(#${clipId})`} dangerouslySetInnerHTML={{ __html: sectionSvg }} /> : <text x={stock.callout.x} y={stock.callout.y + 3} textAnchor="middle" className="cwb-silk">SECTION UNKNOWN</text>}
         <text x={stock.callout.x + stock.callout.r + 6} y={stock.callout.y - 4} className="cwb-silk">CROSS-SECTION</text>
       </g>
     </g>
     {drawing.proposals.map((p) => <g key={`${p.key}-${p.path}-${p.endpointId}`} className="cwb-proposal" data-key={proposedKey(p.rowId)} data-change={p.change}
       data-dim={lit && !lit.has(p.key) ? true : undefined} data-selected={selection === p.key || undefined} role="button" tabIndex={0}
       aria-label={`Proposed: ${p.path} to ${p.terminalLabel} at end ${p.endpointId.toUpperCase()}`} {...activate(() => onSelect(p.key))}>
-      <path d={p.d} className="cwb-wire-hit" /><path d={p.d} className="cwb-proposal-line" />
+      <path d={p.d} className="cwb-wire-hit" /><path d={p.d} className="cwb-proposal-halo" /><path d={p.d} className="cwb-proposal-line" />
+      <circle cx={p.to.x} cy={p.to.y} r={4} className="cwb-proposal-end" />
       <title>{`Proposed ${p.change}: ${p.path} → ${p.terminalLabel}`}</title>
     </g>)}
     {drawing.extraEnds > 0 && <text x={drawing.width - 14} y={drawing.height - 6} textAnchor="end" className="cwb-silk">{`${drawing.extraEnds} MORE END${drawing.extraEnds === 1 ? "" : "S"} NOT DRAWN`}</text>}

@@ -4,6 +4,7 @@
  * Pure functions over the cable declaration, resolved end stacks, the frozen stock and an
  * optional intent check; nothing here reads the network or invents a connection.
  */
+import { geometryForView, shapeBounds, type ConnectorGeometry, type PinGeometry } from "../../../../packages/connector-art/src";
 import { appearanceOf, type Appearance, type StockElement, type StockSpecification } from "../../../../packages/section-layout/src";
 import type { Assignment, Cable } from "../cables/api";
 import { LAYER_LABELS, LAYER_ORDER, type LayerKind, type ResolvedLayer, type ResolvedStack, type ResolvedTerminal, type SignalRef } from "../end-assemblies/api";
@@ -39,12 +40,18 @@ export type ConductiveKind = "conductor" | "shield" | "drain";
 export type ConductiveElement = { path: string; kind: ConductiveKind; label: string; display: string; look: Appearance; inStock: boolean };
 
 /** Conductive elements of a stock: label and recorded color for display, path for identity. */
+/** A group's workshop name: a coax core reads "Coax 1 (red)", other groups keep their label. */
+function groupName(node: Extract<StockElement, { kind: "group" }>): string {
+  const label = node.label?.trim() || node.id;
+  return node.role === "coax" ? label.replace(/^core\b/i, "Coax") : label;
+}
+
 export function conductiveElements(node: StockElement, prefix = "", coreColor: string | null = null, group: string | null = null): ConductiveElement[] {
   const path = prefix ? `${prefix}.${node.id}` : node.id;
   if (node.kind === "group") {
     // A core's identifying color is its insulation color; its conductor is bare metal.
     const insulation = node.children.find((c) => c.kind === "insulation")?.color ?? null;
-    return node.children.flatMap((child) => conductiveElements(child, path, insulation, prefix ? node.label?.trim() || node.id : null));
+    return node.children.flatMap((child) => conductiveElements(child, path, insulation, prefix ? groupName(node) : null));
   }
   if (node.kind !== "conductor" && node.kind !== "shield" && node.kind !== "drain") return [];
   const construction = "construction" in node ? node.construction : null;
@@ -106,20 +113,63 @@ export function indexCheck(check: IntentCheck | undefined | null): CheckIndex {
 
 // ---------------------------------------------------------------- layout
 
-export const PITCH = 18;
-export const FACE = 112;
-const WIDTHS: Record<LayerKind | "unknown", number> = { shell: 30, connector: 104, board: 160, inline: 96, unknown: 120 };
-const GAP = 30;
-const MARGIN = 14;
-const FAN = 64;
-const STOCK = 420;
-const TOP = 22;
+export const PITCH = 15;
+const WIDTHS: Record<LayerKind | "unknown", number> = { shell: 26, connector: 64, board: 150, inline: 92, unknown: 120 };
+const GAP = 26;
+const MARGIN = 12;
+const FAN = 60;
+const STOCK = 360;
+const CALLOUT = 66;
+
+/**
+ * Where a connector face is drawn: the same mating-face frame `ConnectorFace` uses (its
+ * bounds, 6% margin and the display radius of each marker), scaled to `width` pixels, so a
+ * wire can land on the drawn pin.
+ */
+export type FaceFrame = { geometry: ConnectorGeometry; width: number; height: number; pins: Map<string, { x: number; y: number; r: number }> };
+function displayRadii(pins: readonly PinGeometry[]): Map<string, number> {
+  const out = new Map<string, number>();
+  const markers = pins.filter((p) => p.role !== "shell" && (p.shape === "round" || p.shape === "square"));
+  let nearest = Infinity;
+  markers.forEach((a, i) => markers.slice(i + 1).forEach((b) => (nearest = Math.min(nearest, Math.hypot(a.at[0] - b.at[0], a.at[1] - b.at[1])))));
+  for (const pin of pins) {
+    if (pin.shape !== "round" && pin.shape !== "square") continue;
+    const real = (typeof pin.size === "number" ? pin.size : pin.size[1]) / 2;
+    out.set(pin.id, pin.role !== "shell" && Number.isFinite(nearest) ? Math.max(real, Math.min(nearest * 0.4, real * 1.7)) : real);
+  }
+  return out;
+}
+export function faceFrame(geometry: ConnectorGeometry, width?: number): FaceFrame {
+  const g = geometryForView(geometry, "mating");
+  const radii = displayRadii(g.pins);
+  const boxes = [shapeBounds(g.outline), ...g.layers.map((l) => shapeBounds(l.shape)), ...g.keyways.map((k) => shapeBounds(k.shape))];
+  for (const pin of g.pins) {
+    const rr = radii.get(pin.id) ?? (typeof pin.size === "number" ? pin.size : Math.max(...pin.size)) / 2;
+    boxes.push([pin.at[0] - rr, pin.at[1] - rr, pin.at[0] + rr, pin.at[1] + rr]);
+  }
+  const minX = Math.min(...boxes.map((b) => b[0])), minY = Math.min(...boxes.map((b) => b[1]));
+  const maxX = Math.max(...boxes.map((b) => b[2])), maxY = Math.max(...boxes.map((b) => b[3]));
+  const pad = Math.max(maxX - minX, maxY - minY) * 0.06;
+  const vb = [minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2] as const;
+  // Wide faces (SCART, D-sub) get more width; round faces stay compact.
+  const w = width ?? (vb[2] / vb[3] > 1.5 ? 216 : 128);
+  const height = Math.round((w * vb[3]) / vb[2]);
+  const scale = Math.min(w / vb[2], height / vb[3]);
+  const offX = (w - vb[2] * scale) / 2, offY = (height - vb[3] * scale) / 2;
+  const pins = new Map(g.pins.map((pin) => [pin.id, {
+    x: offX + (pin.at[0] - vb[0]) * scale, y: offY + (pin.at[1] - vb[1]) * scale,
+    r: (radii.get(pin.id) ?? (typeof pin.size === "number" ? pin.size : Math.min(...pin.size)) / 2) * scale,
+  }]));
+  return { geometry, width: w, height, pins };
+}
 
 export type Point = { x: number; y: number };
 export type DrawnTerminal = {
   key: string; endpointId: string; layerId: string; terminalId: string; layerKind: LayerKind | "unknown";
   label: string; kind: string; signal: SignalRef | null; signalStatus: string;
   x: number; y: number; halfWidth: number; status: Status | null; side: "connector" | "cable" | "middle";
+  /** Drawn by the connector face itself (a pin position), not as a separate mark. */
+  onFace?: boolean;
 };
 export type DrawnColumn = { key: string; endpointId: string; layerId: string; kind: LayerKind | "unknown"; name: string | null; detail: string | null; x: number; width: number };
 export type DrawnPart = { key: string; endpointId: string; layerId: string; name: string; summary: string; component: string; x: number; y: number; leads: string[] };
@@ -128,16 +178,16 @@ export type DrawnJoin = { key: string; endpointId: string; a: string; b: string;
 export type DrawnEnd = {
   endpointId: string; index: number; label: string; side: "left" | "right"; x0: number; x1: number; resolved: boolean;
   columns: DrawnColumn[]; terminals: DrawnTerminal[]; parts: DrawnPart[]; traces: DrawnTrace[]; joins: DrawnJoin[];
-  connector: { layerId: string; cx: number; bodyRevisionId: string | null; name: string | null } | null;
+  connector: { layerId: string; cx: number; bodyRevisionId: string | null; name: string | null; face: (FaceFrame & { x: number; y: number }) | null } | null;
 };
 export type DrawnWire = {
   key: string; path: string; kind: ConductiveKind; label: string; display: string; look: Appearance | null; inStock: boolean;
   lane: number; d: string; a: Point | null; b: Point | null; aTerminal: string | null; bTerminal: string | null;
   open: Point[]; status: Status | null; rows: string[]; signal: SignalRef | null;
 };
-export type DrawnProposal = { key: string; rowId: string; path: string; endpointId: string; terminal: string; terminalLabel: string; change: string; d: string };
+export type DrawnProposal = { key: string; rowId: string; path: string; endpointId: string; terminal: string; terminalLabel: string; change: string; d: string; to: Point };
 export type Drawing = {
-  width: number; height: number; bodyTop: number; bodyHeight: number; faceTop: number;
+  width: number; height: number; bodyTop: number; bodyHeight: number;
   ends: DrawnEnd[]; extraEnds: number; wires: DrawnWire[]; proposals: DrawnProposal[];
   terminals: Map<string, DrawnTerminal>;
   stock: { x0: number; x1: number; jacketX0: number; jacketX1: number; cy: number; height: number; breakX: number; dimY: number; callout: Point & { r: number }; jacket: Appearance | null };
@@ -151,6 +201,8 @@ export type DrawingInput = {
   conductors?: { element_path: string; kind: string; label: string }[];
   check?: IntentCheck | null;
   proposal?: Pick<Proposal, "rows" | "diff"> | null;
+  /** Each end's connector face geometry (from the body's face key), when known. */
+  faces?: (ConnectorGeometry | null | undefined)[];
 };
 
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
@@ -209,9 +261,12 @@ export function anchor(t: Pick<DrawnTerminal, "x" | "y" | "halfWidth">, toward: 
   return { x: toward >= t.x ? t.x + t.halfWidth : t.x - t.halfWidth, y: t.y };
 }
 
-type EndPlan = { endpointId: string; index: number; label: string; stack: ResolvedStack | undefined; layers: PlanLayer[]; width: number; rows: number };
+type EndPlan = { endpointId: string; index: number; label: string; stack: ResolvedStack | undefined; layers: PlanLayer[]; width: number; rows: number; face: FaceFrame | null };
 
-function planEnd(cable: Cable, index: number, stack: ResolvedStack | undefined): EndPlan {
+/** Width a layer column takes: a connector with a known face is as wide as its face. */
+const columnWidth = (kind: PlanLayer["kind"], face: FaceFrame | null) => kind === "connector" && face ? face.width + 12 : WIDTHS[kind];
+
+function planEnd(cable: Cable, index: number, stack: ResolvedStack | undefined, geometry: ConnectorGeometry | null | undefined): EndPlan {
   const endpoint = cable.endpoints[index]!;
   const label = endpoint.label?.trim() || `End ${endpoint.local_id.toUpperCase()}`;
   const layers: PlanLayer[] = stack
@@ -219,9 +274,11 @@ function planEnd(cable: Cable, index: number, stack: ResolvedStack | undefined):
     : [unresolvedLayer(cable, endpoint.local_id)];
   // The left end reads outward from the stock: shell outermost on the left.
   const ordered = index === 0 ? [...layers].reverse() : layers;
-  const width = ordered.reduce((sum, l) => sum + WIDTHS[l.kind], 0) + GAP * Math.max(0, ordered.length - 1);
-  const rowCount = Math.max(1, ...ordered.map((l) => l.kind === "unknown" ? l.layer.terminals.length : columnRows(l.layer, stack)));
-  return { endpointId: endpoint.local_id, index, label, stack, layers: ordered, width, rows: rowCount };
+  const face = geometry && !geometry.outlineOnly && stack?.layers.some((l) => l.kind === "connector") ? faceFrame(geometry) : null;
+  const width = ordered.reduce((sum, l) => sum + columnWidth(l.kind, face), 0) + GAP * Math.max(0, ordered.length - 1);
+  const rowCount = Math.max(1, ...ordered.map((l) => l.kind === "unknown" ? l.layer.terminals.length
+    : l.kind === "connector" && face ? Math.ceil((face.height + 2 * PITCH) / PITCH) : columnRows(l.layer, stack)));
+  return { endpointId: endpoint.local_id, index, label, stack, layers: ordered, width, rows: rowCount, face };
 }
 
 function layoutEnd(plan: EndPlan, x0: number, center: number, index: CheckIndex): DrawnEnd {
@@ -250,12 +307,23 @@ function layoutEnd(plan: EndPlan, x0: number, center: number, index: CheckIndex)
   let x = x0;
   for (const planned of plan.layers) {
     const { kind, layer } = planned;
-    const width = WIDTHS[kind];
+    const width = columnWidth(kind, plan.face);
     columns.push({ key: `${ep}/${layer.layer_id}`, endpointId: ep, layerId: layer.layer_id, kind, name: layer.name ?? null,
       detail: layer.kind === "connector" ? layer.variant_label ?? layer.pinout_name ?? null : null, x, width });
     const mid = x + width / 2;
-    if (kind === "connector") {
-      connector = { layerId: layer.layer_id, cx: mid, bodyRevisionId: plan.stack?.body_revision_id ?? null, name: layer.name ?? null };
+    if (kind === "connector" && plan.face) {
+      // Contacts land on the drawn face; contacts the face has no position for sit in a strip below it.
+      const face = plan.face;
+      const fx = mid - face.width / 2, fy = center - face.height / 2;
+      connector = { layerId: layer.layer_id, cx: mid, bodyRevisionId: plan.stack?.body_revision_id ?? null, name: layer.name ?? null, face: { ...face, x: fx, y: fy } };
+      const off = [...layer.terminals].sort(byLabel).filter((t) => !face.pins.has(t.terminal_id));
+      for (const t of layer.terminals) {
+        const pin = face.pins.get(t.terminal_id);
+        if (pin) terminal(planned, t, fx + pin.x, fy + pin.y, Math.max(2.5, pin.r), "middle").onFace = true;
+      }
+      off.forEach((t, i) => terminal(planned, t, mid + (i - (off.length - 1) / 2) * 24, fy + face.height + 12, 10, "middle"));
+    } else if (kind === "connector") {
+      connector = { layerId: layer.layer_id, cx: mid, bodyRevisionId: plan.stack?.body_revision_id ?? null, name: layer.name ?? null, face: null };
       const list = [...layer.terminals].sort(byLabel);
       rows(list.length, center).forEach((y, i) => terminal(planned, list[i]!, mid, y, 10, "middle"));
     } else if (kind === "board") {
@@ -331,11 +399,22 @@ function layoutEnd(plan: EndPlan, x0: number, center: number, index: CheckIndex)
 export function layoutDrawing(input: DrawingInput): Drawing {
   const { cable } = input;
   const index = indexCheck(input.check);
-  const plans = cable.endpoints.slice(0, 2).map((_, i) => planEnd(cable, i, input.stacks[i]));
+  const plans = cable.endpoints.slice(0, 2).map((_, i) => planEnd(cable, i, input.stacks[i], input.faces?.[i]));
   const rowCount = Math.max(6, ...plans.map((p) => p.rows));
-  const faceTop = TOP + 6;
-  const bodyTop = faceTop + FACE + 34;
   const bodyHeight = (rowCount + 1) * PITCH;
+  // Stock elements first: the jacket height sets where the cross-section callout sits.
+  const fromStock = input.stock ? conductiveElements(input.stock.structure) : (input.conductors ?? []).map((c) => ({
+    path: c.element_path, kind: (c.kind as ConductiveKind), label: c.label, display: c.label || c.element_path,
+    look: null as Appearance | null, inStock: true,
+  }));
+  const known = new Set(fromStock.map((e) => e.path));
+  const stray = [...new Set(cable.assignments.map((a) => a.element_path).filter((p) => !known.has(p)))]
+    .map((path) => ({ path, kind: "conductor" as ConductiveKind, label: path, display: `${path} (not in this stock)`, look: null as Appearance | null, inStock: false }));
+  const elements = [...fromStock, ...stray];
+  const n = elements.length;
+  const jacketHeight = Math.min(Math.max(n * 6 + 14, 30), bodyHeight * 0.7);
+  // The callout sits just above the jacket; the body moves down only as far as the callout needs.
+  const bodyTop = Math.max(44, 2 * CALLOUT + 30 + jacketHeight / 2 - bodyHeight / 2);
   const center = bodyTop + bodyHeight / 2;
   const left = plans[0];
   const right = plans[1];
@@ -349,16 +428,6 @@ export function layoutDrawing(input: DrawingInput): Drawing {
   if (right) ends.push(layoutEnd(right, x1, center, index));
   const terminals = new Map(ends.flatMap((e) => e.terminals.map((t) => [t.key, t] as const)));
 
-  // Stock elements: from the stock when readable, else the cable's own rows; landings outside the stock stay listed.
-  const fromStock = input.stock ? conductiveElements(input.stock.structure) : (input.conductors ?? []).map((c) => ({
-    path: c.element_path, kind: (c.kind as ConductiveKind), label: c.label, display: c.label || c.element_path,
-    look: null as Appearance | null, inStock: true,
-  }));
-  const known = new Set(fromStock.map((e) => e.path));
-  const stray = [...new Set(cable.assignments.map((a) => a.element_path).filter((p) => !known.has(p)))]
-    .map((path) => ({ path, kind: "conductor" as ConductiveKind, label: path, display: `${path} (not in this stock)`, look: null as Appearance | null, inStock: false }));
-  const elements = [...fromStock, ...stray];
-
   const landing = (endpointIndex: number, path: string): DrawnTerminal | null => {
     const endpoint = cable.endpoints[endpointIndex];
     const a = endpoint && cable.assignments.find((x) => x.endpoint_id === endpoint.local_id && x.element_path === path);
@@ -366,9 +435,7 @@ export function layoutDrawing(input: DrawingInput): Drawing {
   };
   const order = elements.map((element, i) => ({ element, i, a: landing(0, element.path) }))
     .sort((p, q) => (p.a?.y ?? Infinity) - (q.a?.y ?? Infinity) || p.i - q.i);
-  const n = order.length;
-  const jacketHeight = Math.min(Math.max(n * 7 + 16, 34), bodyHeight * 0.72);
-  const gap = n > 1 ? Math.min(7, Math.max(2.5, (jacketHeight - 12) / (n - 1))) : 0;
+  const gap = n > 1 ? Math.min(6, Math.max(2.5, (jacketHeight - 12) / (n - 1))) : 0;
   const lanes = Array.from({ length: n }, (_, i) => center + (i - (n - 1) / 2) * gap);
 
   const wires: DrawnWire[] = order.map(({ element }, i) => {
@@ -405,17 +472,18 @@ export function layoutDrawing(input: DrawingInput): Drawing {
       const lane = laneOf.get(a.element_path);
       if (!t || lane === undefined) continue;
       const left = cable.endpoints[0]?.local_id === a.endpoint_id;
-      const from = { x: left ? jacketX0 : jacketX1, y: lane };
+      // Proposals leave the jacket a little outside it, so they stay visible beside the current wires.
+      const from = { x: left ? jacketX0 - 6 : jacketX1 + 6, y: lane };
       const to = anchor(t, from.x);
-      proposals.push({ key: proposedKey(row.row_id), rowId: row.row_id, path: a.element_path, endpointId: a.endpoint_id, terminal: t.key, terminalLabel: a.terminal_label, change, d: left ? curve(to, from) : curve(from, to) });
+      proposals.push({ key: proposedKey(row.row_id), rowId: row.row_id, path: a.element_path, endpointId: a.endpoint_id, terminal: t.key, terminalLabel: a.terminal_label, change, d: left ? curve(to, from) : curve(from, to), to });
     }
   }
-  const height = bodyTop + bodyHeight + 46;
+  const height = bodyTop + bodyHeight + 40;
   return {
-    width, height, bodyTop, bodyHeight, faceTop, ends, extraEnds: Math.max(0, cable.endpoints.length - 2), wires, proposals, terminals,
+    width, height, bodyTop, bodyHeight, ends, extraEnds: Math.max(0, cable.endpoints.length - 2), wires, proposals, terminals,
     stock: {
-      x0, x1, jacketX0, jacketX1, cy: center, height: jacketHeight, breakX: (jacketX0 + jacketX1) / 2, dimY: bodyTop + bodyHeight + 24,
-      callout: { x: jacketX0 + STOCK * 0.28, y: faceTop + FACE / 2, r: FACE / 2 - 2 }, jacket: jacketLook(input.stock),
+      x0, x1, jacketX0, jacketX1, cy: center, height: jacketHeight, breakX: (jacketX0 + jacketX1) / 2, dimY: bodyTop + bodyHeight + 20,
+      callout: { x: jacketX0 + STOCK * 0.27, y: center - jacketHeight / 2 - 12 - CALLOUT, r: CALLOUT }, jacket: jacketLook(input.stock),
     },
   };
 }
