@@ -174,7 +174,10 @@ def test_titleblock_copy_is_reviewed_hashed_escaped_and_retained(users, workspac
     assert "&lt;Example workshop&gt;" in sheet and "<Example workshop>" not in sheet
     assert "Reviewed designer" in sheet and "Internal review text" in sheet
     assert "@page{size:A4;}" in sheet
-    assert reviewed["manifest"]["inputs"]["generator"] == "specmate.preparation-documents/3"
+    assert "html{color-scheme:light;background:#fff;color:#111}" in sheet
+    assert "body{background:#fff;color:#111}" in sheet
+    assert "color-scheme:light" not in old_bytes["build-sheet.html"][1].decode()
+    assert reviewed["manifest"]["inputs"]["generator"] == "specmate.preparation-documents/4"
     assert reviewed["manifest"]["inputs"]["configuration"]["output_rights"] == "unknown"
     assert reviewed["state"] != "document-inputs-" + old_projection["inputs_sha256"]
     update(

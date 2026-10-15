@@ -151,7 +151,8 @@ never facts or compatibility evidence (FND-006, FND-007, AGT-003).
 New coordinated document inputs may include `document_settings`: copied title-block
 fields and a declared `source_settings_version` (not verified settings history). The reviewer may edit the copied designer or
 other fields before review. These exact values participate in the reviewed input hash
-and the retained generator /3 output. A printed rights line grants no distribution
+and retained generator output. New settings-bearing documents use generator /4 with explicit
+paper colors; previously retained /3 sets keep their original bytes. A printed rights line grants no distribution
 rights; `rights_reviews` and `output_rights` retain their separate meaning. Existing
 configurations without this field keep their /2 serialization and bytes. Reading or
 printing a retained set never looks up current workspace settings (PRE-004).
