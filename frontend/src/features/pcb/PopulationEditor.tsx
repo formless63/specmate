@@ -7,7 +7,7 @@ import {
   type PopulationDraft, type PopulationOption, PcbRequestError,
 } from "./api";
 import { PopulationReviewPanel } from "./PopulationReview";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
 
@@ -173,7 +173,7 @@ export function PopulationEditor({ workspaceId, intake, drafts, onChanged, onAcc
       })}>Freeze reviewed population revision</Button>}
       {!!draft.revisions.length && <Stack>
         <Select label="Inspect frozen population revision" value={frozenRevision?.revision_id ?? null}
-          onChange={setRevisionId} data={draft.revisions.map((item) => ({ value: item.revision_id, label: revisionOptionLabel(draft.name, item.number) }))} />
+          onChange={setRevisionId} data={newestFirst(draft.revisions).map((item) => ({ value: item.revision_id, label: revisionOptionLabel(draft.name, item.number) }))} />
         {frozenRevision && <PopulationReviewPanel key={`revision:${frozenRevision.revision_id}`} kind="revision" id={frozenRevision.revision_id} onAccessLost={onAccessLost} />}
       </Stack>}
     </Stack>}

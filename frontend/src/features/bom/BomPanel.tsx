@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
 import type { Projection } from "../assemblies/api";
 import { blankPlan, command, read, unknownCount, unknownDemand, type DemandQuantity, type Waste, type Count, type Definition, type Draft, type Identity, type Inspection, type Need, type Plan, type Purpose } from "./api";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { SbQuantity } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
@@ -50,7 +50,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     {identity.data && <>
       <Select label="BOM draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} />
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      <Select label="Frozen BOM revision" value={revisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevisionId} />
+      <Select label="Frozen BOM revision" value={revisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevisionId} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous BOM revisions</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next BOM revisions</Button></Group>
     </>}
     {draft.isError && <Alert color="red">{draft.error.message}</Alert>}
@@ -79,7 +79,7 @@ function RevisionPicker({ title, definitions, value, onChange }: { title: string
   const [offset, setOffset] = useState(0);
   const identity = useQuery({ queryKey: ["bom-picker", definition, offset], queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${offset}`), enabled: !!definition });
   return <Stack gap="xs"><Select label={`${title} definition`} searchable value={definition} data={definitions.map(d => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} onChange={id => { setDefinition(id); setOffset(0); }} />
-    <Select label={`${title} exact revision`} value={value || null} data={(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))} onChange={id => { if (id) onChange(id); }} />
+    <Select label={`${title} exact revision`} value={value || null} data={newestFirst(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))} onChange={id => { if (id) onChange(id); }} />
     {value && <Text size="xs">Pinned: {value}</Text>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <Group><Button size="xs" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous {title} revisions</Button><Button size="xs" disabled={identity.data.revisions.length < 50} onClick={() => setOffset(offset + 50)}>Next {title} revisions</Button></Group>}

@@ -9,6 +9,7 @@ import { operation, type Adoption, type OccurrenceInspection, type Owner, type S
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { ReadOnlyNote, useCan } from "../../lib/permissions";
 
+import { newestFirst } from '../../lib/revision-labels';
 export function FirmwareOccurrencesPanel({ workspaceId }: { workspaceId: string }) {
   return <Workspace key={workspaceId} workspaceId={workspaceId} />;
 }
@@ -142,7 +143,7 @@ function OccurrenceWorkspace({ owner, firmware }: { owner: Owner; firmware: Firm
       </>}
       {owner.draft_id && <>
         <NativeSelect label="Exact board occurrence" value={path} data={[{ value: '', label: 'Select a board occurrence' }, ...inspection.occurrences.filter((item) => item.kind === 'pcb_population').map((item) => ({ value: JSON.stringify(item.path), label: `${item.path.join('/')} · ${item.display_ref || item.name}` }))]} onChange={(event) => { clear(); setPath(event.currentTarget.value); }} />
-        <NativeSelect label="Frozen firmware for this occurrence" value={candidate} data={[{ value: '', label: 'Explicitly unassigned' }, ...firmware.flatMap((item) => item.revisions.map((revision) => ({ value: revision.revision_id, label: `${item.name} revision ${revision.number}` })))]} onChange={(event) => { clear(); setCandidate(event.currentTarget.value); }} />
+        <NativeSelect label="Frozen firmware for this occurrence" value={candidate} data={[{ value: '', label: 'Explicitly unassigned' }, ...firmware.flatMap((item) => newestFirst(item.revisions).map((revision) => ({ value: revision.revision_id, label: `${item.name} revision ${revision.number}` })))]} onChange={(event) => { clear(); setCandidate(event.currentTarget.value); }} />
         <Button disabled={!path || busy} onClick={() => { void review(); }}>Review occurrence firmware selection</Button>
         {inspection.adoptions.map((item) => <Button key={item.adoption_id} variant="subtle" disabled={busy} onClick={() => { void inspectEvidence(item.adoption_id); }}>Inspect adoption {item.path.join('/')} · {item.basis}</Button>)}
         {inspection.history_truncated && <Text>Only the latest 100 adoption records are listed.</Text>}

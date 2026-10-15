@@ -11,7 +11,7 @@ import type { Basis, ElementPractice, EndPractice, LeadDisplay, ProfileRecord,
 import { addProjectReference } from '../identity/api';
 import { useOpenProbed } from '../scope/openProbed';
 import { WorkshopProfileProvenance } from './PracticeProvenance';
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
 const unknown = <T,>(): Suggestion<T> => ({ value: null, basis: 'unknown', source: null, note: null });
@@ -150,7 +150,7 @@ export function WorkshopProfilePanel({ projectId }: { projectId?: string | null 
     </Group>
     {current && <Group>
       <Select label="Frozen profile revision" placeholder="View an exact revision" clearable
-        data={revisions.map(row => ({ value: row.revision_id, label: revisionOptionLabel(current?.name ?? name, row.number) }))}
+        data={newestFirst(revisions).map(row => ({ value: row.revision_id, label: revisionOptionLabel(current?.name ?? name, row.number) }))}
         value={frozen?.revision_id ?? null} onChange={async id => {
           if (!id) {
             setFrozen(null);

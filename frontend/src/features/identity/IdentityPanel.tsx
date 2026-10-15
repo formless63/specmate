@@ -7,6 +7,7 @@ import { RepresentationsCard } from "./RepresentationsCard";
 import { IdentityLabel, RevisionLabel } from "../../lib/IdentityLabel";
 import { definitionIn, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 
+import { newestFirst } from '../../lib/revision-labels';
 /** Library identities. `projectId` is optional navigation context, never the item's owner. */
 export function IdentityPanel({ projectId }: { projectId?: string | null }) {
   return <IdentityWorkspace key={projectId ?? "library"} projectId={projectId ?? null} />;
@@ -61,7 +62,7 @@ function IdentityWorkspace({ projectId }: { projectId: string | null }) {
       {identity.data.drafts.map((draft) => <Group key={draft.draft_id}><Text size="sm">Draft {draft.draft_id} · {draft.state}</Text><Button size="xs" loading={freeze.isPending} onClick={() => freeze.mutate(draft)} {...freezeGate.props}>Freeze current draft</Button></Group>)}
       <Text size="sm" c="dimmed">Freezing records the current draft. It does not qualify a part for manufacture.</Text>
       {freeze.isError && <Alert color="red">{freeze.error.message}</Alert>}
-      <Select label="Exact revision" placeholder="Freeze a draft or choose a revision" data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: `Revision ${r.number}` }))} value={revisionId} onChange={setRevisionId} />
+      <Select label="Exact revision" placeholder="Freeze a draft or choose a revision" data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: `Revision ${r.number}` }))} value={revisionId} onChange={setRevisionId} />
       <Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous revisions</Button><Text>Revision page {identityOffset / 50 + 1}</Text><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next revisions</Button></Group>
     </>}
     {revisionId && <RevisionCatalog key={revisionId} revisionId={revisionId} workspaceId={definitions.data?.workspace_id ?? null} />}

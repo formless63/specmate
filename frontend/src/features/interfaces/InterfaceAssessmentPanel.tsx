@@ -13,6 +13,7 @@ import { RecordResult } from "../evidence/RecordResult";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 
+import { newestFirst } from '../../lib/revision-labels';
 const dimensions: { id: Dimension; label: string }[] = [
   { id: "mating", label: "Mating" }, { id: "pin_correspondence", label: "Pin correspondence" },
   { id: "polarity", label: "Polarity" }, { id: "levels", label: "Levels" }, { id: "current", label: "Current" }, { id: "protocol", label: "Protocol" },
@@ -96,7 +97,7 @@ function Workspace({ projectId, isActive }: { projectId: string | null; isActive
     {ready && identity.data && <Group>
       {canEdit && <Select label="Assessment draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: d.state }))} onChange={setDraftId} />}
       {canEdit && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
-      <Select label="Frozen assessment revision" value={revisionId} data={identity.data.revisions.map(r => ({ value: r.revision_id, label: `Revision ${r.number}` }))} onChange={setRevisionId} />
+      <Select label="Frozen assessment revision" value={revisionId} data={newestFirst(identity.data.revisions).map(r => ({ value: r.revision_id, label: `Revision ${r.number}` }))} onChange={setRevisionId} />
       <Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous assessment history</Button>
       <Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next assessment history</Button>
     </Group>}

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SbUnknown } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { read, unknownElectrical, type Assignment, type Contact, type Definition, type Identity, type Inspection, type PinSignal, type Pinout, type PinoutRole, type PinoutVariant, type Signal } from "./api";
 import { SignalTypeChip } from "./SignalSetPanel";
 import "./signals.css";
@@ -95,7 +95,7 @@ export function PinoutSignalsEditor({ value, onChange, definitions, contacts, se
     <Text className="sb-silk">Pin signals</Text>
     <Group align="end">
       <Select label="Signal set" searchable placeholder="Choose a signal set" value={setDefinition} data={definitions.filter((d) => d.kind === "signal_set").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(v) => { setSetDefinition(v); setPicked(null); }} />
-      {identity.data && <Select label="Signal set revision" value={picked} onChange={setPicked} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Signal set revision" value={picked} onChange={setPicked} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {setRevision && <Text size="xs"><RevisionLabel id={setRevision} role="Signals from" /></Text>}
     </Group>
     {set.isError && <Alert color="red">{set.error.message}</Alert>}

@@ -2,7 +2,7 @@ import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } fro
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import { command, emptyEndAssembly, read, type Definition, type EndAssembly, type EndAssemblyDraft, type EndAssemblyInspection, type Identity } from "./api";
@@ -50,7 +50,7 @@ function EndAssemblies({ projectId }: { projectId: string | null }) {
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
     <Group align="end">
       <Select label="End assembly" searchable placeholder={assemblies.length ? "Choose an end assembly" : "No end assemblies yet"} data={assemblies.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
-      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={(identity.data.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
+      {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={newestFirst(identity.data.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && (identity.data.drafts?.length ?? 0) > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={(identity.data.drafts ?? []).map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
     </Group>

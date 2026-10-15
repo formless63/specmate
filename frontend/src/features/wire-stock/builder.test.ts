@@ -4,6 +4,7 @@ import type { StockSpecification } from '../../../../packages/section-layout/src
 import { awgAreaMm2, awgDiameterMm, awgForArea, blankSpec, coaxLooks, colorName, coreLooks, drainPlacement, exampleCoax, generate, illustrate, layup, readBuilder } from './builder';
 import type { BuilderSpec } from './builder';
 import { stockPresets } from './presets';
+import { fitSummary } from './FitFindings';
 
 const positions = (stock: StockSpecification) => Object.fromEntries(placeStock(stock.structure).nodes
   .filter(n => n.type === 'leaf').map(n => [n.path, n.x === null || n.y === null ? null : [n.x, n.y]]));
@@ -102,7 +103,19 @@ describe('construction builder', () => {
   it('reports an entered jacket that is too small for the lay-up', () => {
     const fit = evaluateFit(generate({ ...shieldedTwoCore(), template: 'pairs', cores: blankSpec('pairs', 3).cores }));
     expect(fit.status).toBe('problems');
-    expect(fit.findings.every(f => f.code === 'containment' && f.paths[1] === 'stock.jacket')).toBe(true);
+    expect(fit.findings.every(f => ['containment', 'outside'].includes(f.code) && f.paths[1] === 'stock.jacket')).toBe(true);
+  });
+
+  it('never passes a jacket narrower than the screen when its wall is unknown', () => {
+    const spec = exampleCoax();
+    spec.jacket = { ...spec.jacket, od_mm: 2, wall_mm: null };
+    const stock = generate(spec);
+    const jacket = stock.structure.children.find(c => c.id === 'jacket');
+    expect(jacket).toMatchObject({ outer_diameter_mm: 2, inner_diameter_mm: null });
+    const fit = evaluateFit(stock);
+    expect(fit.status).toBe('problems');
+    expect(fit.findings.some(f => f.status === 'fail' && f.code === 'outside')).toBe(true);
+    expect(fitSummary(fit)).toMatch(/not evaluated/);
   });
 
   it('reads back only trees it can regenerate exactly', () => {

@@ -11,6 +11,7 @@ import {
 } from "./api";
 import "./end-assemblies.css";
 
+import { newestFirst } from '../../lib/revision-labels';
 type EndSource = { stack: EndStack | null; end_assembly_revision_id: string | null };
 function resolveBody(source: EndSource | null) {
   return !source ? null
@@ -85,7 +86,7 @@ function ConnectorFields({ layer, label, definitions, onChange, nameFilter }: { 
   return <Stack gap={4}>
     <RevisionPicker label={`${label} body`} title="Connector body" kind="connector_body" nameFilter={nameFilter} value={layer.body_revision_id} onChange={(id) => onChange({ ...layer, body_revision_id: id, pinout_revision_id: id === layer.body_revision_id ? layer.pinout_revision_id : "" })} definitions={definitions} />
     {variants.length > 0 && <Select size="xs" label="Pinout variant" aria-label={`${label} pinout variant`} placeholder="Choose the variant this end uses" value={variants.some((v) => v.revision_id === layer.pinout_revision_id) ? layer.pinout_revision_id : null}
-      data={variants.map((v) => ({ value: v.revision_id, label: `${v.variant_label ?? v.name} · r${v.number}${v.role !== "unknown" ? ` · ${v.role}` : ""}` }))} onChange={(id) => onChange({ ...layer, pinout_revision_id: id ?? "" })} />}
+      data={newestFirst(variants).map((v) => ({ value: v.revision_id, label: `${v.variant_label ?? v.name} · r${v.number}${v.role !== "unknown" ? ` · ${v.role}` : ""}` }))} onChange={(id) => onChange({ ...layer, pinout_revision_id: id ?? "" })} />}
     {layer.body_revision_id && body.data && variants.length === 0 && <Text size="xs" c="dimmed">No pinout variant of this exact body revision is frozen yet; pick one by name below.</Text>}
     {(variants.length === 0 || !variants.some((v) => v.revision_id === layer.pinout_revision_id)) && <RevisionPicker label={`${label} pinout`} title="Pinout" kind="pinout" value={layer.pinout_revision_id} onChange={(id) => onChange({ ...layer, pinout_revision_id: id })} definitions={definitions} />}
     {body.isError && <Alert color="red">{body.error.message}</Alert>}

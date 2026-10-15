@@ -8,7 +8,7 @@ import { coaxLooks, coaxName, areaDiameterMm, awgAreaMm2, awgDiameterMm, awgForA
 import type { BuilderSpec, Known, ShieldKind } from './builder';
 import { contentDiameter, derivedLayup, fitFixes, fitOverlay, jacketPath, stockMeters, OD_STEP_MM } from './builder-visual';
 import { DimRow, Stepper } from './BuilderParts';
-import { FitFindings } from './FitFindings';
+import { FitFindings, fitWord } from './FitFindings';
 import { SectionCanvas } from './SectionCanvas';
 
 const CONDUCTOR_MATERIALS = ['copper', 'tinned copper', 'silver-plated copper', 'aluminum', 'copper-clad aluminum', 'copper-clad steel (CCS)'];
@@ -21,7 +21,6 @@ const cell = (label: string, value: Known, note?: string, unit = 'mm') => <div c
   <dt className="sb-silk">{label}</dt><dd data-unknown={value === null}><SbQuantity value={shown(value)} unit={unit} />{note && <Text span size="xs" c="dimmed"> {note}</Text>}</dd>
 </div>;
 const FIT_LED = { problems: 'failed', incomplete: 'not-evaluated', ok: 'active', nothing_to_check: 'idle' } as const;
-const FIT_WORD = { problems: 'Problems', incomplete: 'Incomplete', ok: 'Fits', nothing_to_check: 'Nothing to check' } as const;
 
 function Color({ label, value, onChange, bare }: { label: string; value: string | null; onChange: (v: string | null) => void; bare?: boolean }) {
   // No preview swatch for an unknown color: an empty swatch would read as white.
@@ -201,7 +200,7 @@ export function ConstructionBuilder({ spec, onChange, view }: { spec: BuilderSpe
       {hasJacket(t) && cell('Jacket OD', meters.jacketOd)}
       {hasJacket(t) && cell('Fill', meters.fillPercent, undefined, '%')}
       <div className="sb-cell" key="fit"><dt className="sb-silk">Fit</dt>
-        <dd><span className="sb-led" data-state={FIT_LED[fit.status]} aria-hidden="true" /> {FIT_WORD[fit.status]}</dd></div>
+        <dd><span className="sb-led" data-state={FIT_LED[fit.status]} aria-hidden="true" /> {fitWord(fit)}</dd></div>
     </dl>
     <div className="sb-stock-grid">
       <div className="sb-stock-stage">

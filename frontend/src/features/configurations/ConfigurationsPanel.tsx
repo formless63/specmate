@@ -11,6 +11,7 @@ import { OptionSetAuthoring } from './OptionSetEditor';
 import { definitionIn, useOpenProbed } from '../scope/openProbed';
 import { operation, type BuildInput, type Decision, type DraftResolution, type Selection, type Submission } from './api';
 
+import { newestFirst } from '../../lib/revision-labels';
 const NONE = '__none__';
 /** Inspection text for a selection the viewer cannot change. */
 function selectionText(value: string, options?: { default_choice?: unknown; choices: { key: string; label: string }[] }) {
@@ -101,7 +102,7 @@ function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: 
     {note && <Alert color="yellow">{note}</Alert>}
     <Group align="end">
       <NativeSelect label="Option set" value={optionSet} data={[{ value: '', label: optionSets.length ? 'Select an option set' : 'No option sets in the library' }, ...optionSets.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setOptionSet(event.currentTarget.value)} />
-      <NativeSelect label="Frozen option-set revision" value={revision} data={[{ value: '', label: 'Select an exact revision' }, ...revisions.map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]} onChange={(event) => setRevision(event.currentTarget.value)} />
+      <NativeSelect label="Frozen option-set revision" value={revision} data={[{ value: '', label: 'Select an exact revision' }, ...newestFirst(revisions).map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]} onChange={(event) => setRevision(event.currentTarget.value)} />
       <TextInput label="Configuration name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
       {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />}
       <Button {...edit.props} disabled={!edit.allowed || !revision || !name.trim() || busy} onClick={() => { void create(); }}>Create configuration</Button>

@@ -53,10 +53,19 @@ const known = (...leaves: Leaf[]): boolean => leaves.every(l => l.x !== null && 
 type Outcome = null | ['pass' | 'fail', FitCode, number];
 
 function tubeOutcome(leaf: Leaf, tube: Leaf, outermost: boolean): Outcome {
-  if (!known(leaf, tube) || tube.rIn === null) return null;
+  if (!known(leaf, tube)) return null;
   const d = Math.hypot(leaf.x! - tube.x!, leaf.y! - tube.y!);
-  const rOut = leaf.rOut!, tOut = tube.rOut!, tIn = tube.rIn;
-  if (leaf.tube) {
+  const rOut = leaf.rOut!, tOut = tube.rOut!;
+  // A jacket is the outer layer of its group wherever its diameter sits among the tubes.
+  const jacket = tube.kind === 'jacket';
+  outermost = outermost || jacket;
+  if (tube.rIn === null) {
+    // Reaches past the outer edge of the outermost layer: no bore can contain it.
+    if (outermost && d + rOut > tOut + FIT_TOLERANCE_MM) return ['fail', 'outside', d + rOut - tOut];
+    return null;
+  }
+  const tIn = tube.rIn;
+  if (leaf.tube && !jacket) {
     if (leaf.rIn === null) {
       if (d + tOut <= rOut + FIT_TOLERANCE_MM) return null;
     } else if (leaf.rIn + FIT_TOLERANCE_MM >= d + tOut) return ['pass', 'containment', 0];

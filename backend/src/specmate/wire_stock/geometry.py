@@ -166,10 +166,18 @@ class _Checks:
 
 
 def _tube_outcome(leaf: Placed, tube: Placed, outermost: bool) -> tuple[str, str, float] | None:
-    if not _known(leaf, tube) or tube.r_in is None:
+    if not _known(leaf, tube):
         return None
     d = math.hypot(leaf.x - tube.x, leaf.y - tube.y)
-    if leaf.tube:
+    # A jacket is the outer layer of its group wherever its diameter sits among the tubes.
+    jacket = tube.kind == "jacket"
+    outermost = outermost or jacket
+    if tube.r_in is None:
+        if outermost and d + leaf.r_out > tube.r_out + TOLERANCE_MM:
+            # Reaches past the outer edge of the outermost layer: no bore can contain it.
+            return ("fail", "outside", d + leaf.r_out - tube.r_out)
+        return None
+    if leaf.tube and not jacket:
         if leaf.r_in is None:
             if d + tube.r_out <= leaf.r_out + TOLERANCE_MM:
                 return None  # could enclose the tube; its bore is unknown

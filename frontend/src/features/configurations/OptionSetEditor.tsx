@@ -6,6 +6,7 @@ import { definitionIn, useOpenProbed } from '../scope/openProbed';
 import { addProjectReference, command, libraryDefinitions, read, type Definition, type Identity } from '../identity/api';
 import { operation, type AuthoringContext, type Described } from './api';
 import { ConstraintEditor } from './ConstraintEditor';
+import { newestFirst } from '../../lib/revision-labels';
 import {
   blankChoice, blankConstraint, blankOption, DOMAIN_KINDS, DOMAINS, EXCLUDED_KINDS, OCCURRENCE_DOMAINS, parseOptionSet, REVISION_DOMAINS, serializeOptionSet, validateOptionSet,
   type ChoiceBody, type Domain, type OptionBody, type OptionSetBody,
@@ -175,7 +176,7 @@ function OptionSetDraftEditor({ draftId, definitions, onFrozen }: { draftId: str
       <NativeSelect label="Target assembly" disabled={busy} value={targetDefinition} data={[{ value: '', label: 'No target assembly' }, ...assemblies.map((item) => ({ value: item.definition_id, label: item.name }))]}
         onChange={(event) => { const value = event.currentTarget.value; setTargetDefinition(value); if (!value) void chooseTarget(''); }} />
       {targetDefinition && <NativeSelect label="Exact target revision" disabled={busy} value={body.target_revision_id ?? ''}
-        data={[{ value: '', label: 'Select a frozen revision' }, ...targetRevisions.map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]}
+        data={[{ value: '', label: 'Select a frozen revision' }, ...newestFirst(targetRevisions).map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]}
         onChange={(event) => { void chooseTarget(event.currentTarget.value); }} />}
     </Group>
     {body.options.map((option, index) => <OptionEditor key={index} option={option} disabled={busy} editable={edit.allowed} definitions={definitions} occurrences={context?.occurrences ?? []}
@@ -279,7 +280,7 @@ function ChoiceEditor({ option, choice, disabled, editable, candidates, at, desc
       <NativeSelect aria-label={`Definition for ${name}`} disabled={disabled} value={definition} data={[{ value: '', label: candidates.length ? 'Select a definition' : 'No matching definitions' }, ...candidates.map((item) => ({ value: item.definition_id, label: item.name }))]}
         onChange={(event) => { setDefinition(event.currentTarget.value); onChange({ ...choice, revision_id: null, population_option_id: null }); }} />
       <NativeSelect aria-label={`Revision for ${name}`} disabled={disabled || !definition} value={choice.revision_id ?? ''}
-        data={[{ value: '', label: 'Select a frozen revision' }, ...(pinned && !revisions.some((item) => item.revision_id === pinned.revision_id) ? [{ value: pinned.revision_id, label: `Revision ${pinned.number}` }] : []), ...revisions.map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]}
+        data={[{ value: '', label: 'Select a frozen revision' }, ...(pinned && !revisions.some((item) => item.revision_id === pinned.revision_id) ? [{ value: pinned.revision_id, label: `Revision ${pinned.number}` }] : []), ...newestFirst(revisions).map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]}
         onChange={(event) => { const value = event.currentTarget.value || null; onChange({ ...choice, revision_id: value, population_option_id: null }); if (value) onDescribe(value); }} />
       {option.domain === 'population' && <NativeSelect aria-label={`Population option for ${name}`} disabled={disabled || !pinned} value={choice.population_option_id ?? ''}
         data={[{ value: '', label: pinned ? 'Select a population option' : 'Pin a revision first' }, ...(pinned?.population_options ?? []).map((item) => ({ value: item.local_id, label: item.name }))]}

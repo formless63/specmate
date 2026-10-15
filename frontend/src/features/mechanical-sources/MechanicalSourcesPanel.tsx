@@ -9,6 +9,7 @@ import { useCan } from "../../lib/permissions";
 import { useProbe } from "../probe";
 import { useOpenProbed } from "../scope/openProbed";
 
+import { newestFirst } from '../../lib/revision-labels';
 const keyFor = (prefix: string, rows: { local_id: string }[]) => {
   let i = 1; while (rows.some(row => row.local_id === `${prefix}${i}`)) i += 1; return `${prefix}${i}`;
 };
@@ -252,7 +253,7 @@ export function MechanicalSourcesPanel({ workspaceId, onAccessLost }: { workspac
         {!read?.draft_id && <TextInput label="Mechanical source name" value={name} onChange={e => setName(e.currentTarget.value)} />}
         <Select label="Mechanical item role" value={form.item_role} data={['enclosure', 'part', 'hardware']} onChange={value => value && setForm({ ...form, item_role: value as MechanicalSource['item_role'] })} />
         <TextInput label="Exact source file path (optional)" description="Leave empty to pin all files in a bundle of up to 200 files. Set one package-relative path to add only that file." value={sourcePath} onChange={e => setSourcePath(e.currentTarget.value)} />
-        <Select label="Preserved source revision" data={sources.revisions.map(s => ({ value: s.revision_id, label: `${s.name} revision ${s.number} (${s.role})` }))} onChange={value => value && void addSource(value)} value={null} searchable />
+        <Select label="Preserved source revision" data={newestFirst(sources.revisions).map(s => ({ value: s.revision_id, label: `${s.name} revision ${s.number} (${s.role})` }))} onChange={value => value && void addSource(value)} value={null} searchable />
         {sources.next_after && <Button variant="subtle" onClick={() => void more('sources')}>More source revisions</Button>}
         <Group align="end"><TextInput label="Exact accessible source revision ID" value={sourceId} onChange={e => setSourceId(e.currentTarget.value)} /><Button disabled={!sourceId} onClick={() => void addSource(sourceId)}>Add exact source</Button></Group>
         {form.sources.map(source => <Card withBorder key={source.local_id}><Stack gap="xs"><Text>{source.local_id} · <RevisionLabel kind="source" id={source.source_revision_id} /> · manifest {source.source_manifest_sha256}</Text>

@@ -6,7 +6,7 @@ import { useState } from "react";
 import type { Catalog, Definition, Identity } from "../identity/api";
 import { read } from "../identity/api";
 import { command, request, type Command, type Inventory, type WorkBatch } from "../inventory/api";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { SbIdentityBadge, SbQuantity } from "../../components/sb";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 
@@ -87,7 +87,7 @@ export function PhysicalUnitsPanel({ workspaceId }: { workspaceId: string; proje
       <NativeSelect label="Definition" value={definitionId} onChange={(e) => { setDefinitionId(e.currentTarget.value); setRevisionId(""); setLotId(""); setVariantId(""); setRevisionOffset(0); }}
         data={[{ value: "", label: "Choose definition" }, ...(definitions.data ?? []).map((d) => ({ value: d.definition_id, label: d.name }))]} />
       <NativeSelect label="Exact frozen revision" value={revisionId} onChange={(e) => { setRevisionId(e.currentTarget.value); setLotId(""); setVariantId(""); }}
-        data={[{ value: "", label: "Choose revision" }, ...(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))]} />
+        data={[{ value: "", label: "Choose revision" }, ...newestFirst(identity.data?.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number) }))]} />
       {definitionId && <Group><Button disabled={revisionOffset === 0} onClick={() => setRevisionOffset(Math.max(0, revisionOffset - 50))}>Previous revisions</Button><Button disabled={(identity.data?.revisions.length ?? 0) < 50} onClick={() => setRevisionOffset(revisionOffset + 50)}>Next revisions</Button></Group>}
       <TextInput label="Unit serial" value={serial} onChange={(e) => setSerial(e.currentTarget.value)} />
       <NativeSelect label="Actual origin" value={origin} onChange={(e) => setOrigin(e.currentTarget.value)} data={["obtained", "assembled"]} />

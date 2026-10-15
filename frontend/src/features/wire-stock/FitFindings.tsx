@@ -9,10 +9,19 @@ const SUMMARY: Record<FitReport['status'], SbLed> = { problems: 'failed', incomp
 
 export function fitSummary(report: FitReport): string {
   const tol = `±${fitMm(report.tolerance_mm)} mm`;
-  if (report.status === 'problems') return `${report.failed} of ${report.checks} checks fail (${tol})`;
-  if (report.status === 'incomplete') return `${report.not_evaluated} of ${report.checks} checks not evaluated; unknown dimensions or positions`;
+  const unevaluated = report.not_evaluated > 0 ? ` · ${report.not_evaluated} not evaluated` : '';
+  if (report.status === 'problems') return `${report.failed} of ${report.checks} checks fail (${tol})${unevaluated}`;
+  if (report.status === 'incomplete') return `No conflicts found${unevaluated} (of ${report.checks} checks; unknown dimensions or positions)`;
   if (report.status === 'ok') return `all ${report.checks} checks fit within ${tol}`;
   return 'no nested or adjacent elements to check';
+}
+
+/** Short Fit-cell word. "Fits" only when every check was evaluated. */
+export function fitWord(report: FitReport): string {
+  const unevaluated = report.not_evaluated > 0 ? ` · ${report.not_evaluated} not evaluated` : '';
+  if (report.status === 'problems') return `Problems${unevaluated}`;
+  if (report.status === 'incomplete') return `No conflicts found${unevaluated}`;
+  return report.status === 'ok' ? 'Fits' : 'Nothing to check';
 }
 
 /**

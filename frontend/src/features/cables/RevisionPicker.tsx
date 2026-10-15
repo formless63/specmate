@@ -1,7 +1,7 @@
 import { Alert, Anchor, Button, Group, Select, Stack, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { revisionOptionLabel, useRevisionLabel as useLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, useRevisionLabel as useLabel, newestFirst } from "../../lib/revision-labels";
 import { read, type Definition, type Identity } from './api';
 
 /**
@@ -34,7 +34,7 @@ export function RevisionPicker({ label, title, kind, value, onChange, definition
         data={definitions.filter((d) => d.kind === kind && (!nameFilter || d.name.toLowerCase().includes(nameFilter.toLowerCase()))).map((d) => ({ value: d.definition_id, label: d.name }))}
         onChange={(v) => { setChosen(v); setOffset(0); autoPick.current = v; if (v !== definition) onChange(""); }} />
       <Select label={title ? 'Revision' : `${label} revision`} aria-label={`${label} revision`} value={identity.isError ? null : revisions.some(r => r.revision_id === value) ? value : null} disabled={identity.isError || !definition} error={error} onChange={(v) => onChange(v ?? "")}
-        data={revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number, r.revision_id === latestId ? 'latest' : undefined) }))} />
+        data={newestFirst(revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data?.name, r.number, r.revision_id === latestId ? 'latest' : undefined) }))} />
     </Group>
     {identity.data && !identity.isError && (offset > 0 || revisions.length >= 50) && <Group><Button size="xs" variant="subtle" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier {label} revisions</Button><Button size="xs" variant="subtle" disabled={revisions.length < 50} onClick={() => setOffset(offset + 50)}>Later {label} revisions</Button></Group>}
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}

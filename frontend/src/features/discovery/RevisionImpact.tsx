@@ -1,7 +1,7 @@
 import { Alert, Button, Group, NativeSelect, Stack, Text, Title } from "@mantine/core";
 import { useRef, useState } from "react";
 import { revisionImpact, type DefinitionRevisions, type ImpactPage } from "./api";
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { ExactPins } from "../../lib/IdentityLabel";
 
 export function RevisionImpact({ definition, projectId }: { definition: DefinitionRevisions; projectId?: string | null }) {
@@ -11,7 +11,7 @@ export function RevisionImpact({ definition, projectId }: { definition: Definiti
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
-  const options = [{ value: "", label: "Select exact revision" }, ...definition.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(definition.name, r.number) }))];
+  const options = [{ value: "", label: "Select exact revision" }, ...newestFirst(definition.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(definition.name, r.number) }))];
   function choose(set: (value: string) => void, value: string) {
     generation.current++; set(value); setReport(null); setError(""); setBusy(false);
   }

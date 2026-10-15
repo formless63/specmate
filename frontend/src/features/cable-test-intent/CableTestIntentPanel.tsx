@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../workspace/api';
 import { command, deriveFromIntent, initialPlan, inspectTarget, keyOf, read, terminalText, type Definition, type Derivation, type Draft, type Evidence, type Identity, type Inspection, type Label, type Pair, type TestPlan } from './api';
-import { revisionOptionLabel } from "../../lib/revision-labels";
+import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
 
@@ -96,7 +96,7 @@ export function CableTestIntentPanel({ projectId = null }: { projectId?: string 
     {!hidden && <Select label="Test-plan definition" disabled={create.isPending} searchable data={(definitions.data ?? []).filter(d => d.kind === 'cable_test_plan').map(d => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />}
     {!hidden && identity.data && <>
       <Select label="Test-plan draft" disabled={create.isPending} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setSaved(null); } }} />
-      <Select label="Frozen test plan" data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} value={revisionId} onChange={setRevisionId} />
+      <Select label="Frozen test plan" data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} value={revisionId} onChange={setRevisionId} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(n => Math.max(0, n - 50))}>Earlier plans</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(n => n + 50)}>Later plans</Button></Group>
     </>}
     {editorDraft && <DraftEditor key={`${projectId}:${editorDraft.draft_id}`} draft={editorDraft} committed={saved} hidden={hidden || draft.isFetching} refresh={refresh} onValueChange={v => { if (activeEditor.current.generation === editorGeneration && draftId) activePlan.current = { draftId, value: v }; }} onError={e => { if (activeEditor.current.generation === editorGeneration) error(e); }} onSaved={async d => { if (activeEditor.current.generation !== editorGeneration) return; setSaved(d); await cache.invalidateQueries({ queryKey: ['test-plan-draft', d.draft_id] }); }} onFrozen={async (r, d) => { if (activeEditor.current.generation !== editorGeneration) return; setRevisionId(r); setSaved(d); await cache.invalidateQueries({ queryKey: ['test-plan-draft', d.draft_id] }); await cache.invalidateQueries({ queryKey: ['test-plan-identity', definitionId] }); }} />}

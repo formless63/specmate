@@ -1,6 +1,6 @@
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PermissionsProvider } from "../../lib/permissions";
@@ -51,7 +51,8 @@ test("a port picks its variant, selects a condition and states per-contact devic
   stub();
   render(wrap(<Harness />));
   await select("Pinout variant", "Regional console");
-  await select("Pinout variant revision", /r1/);
+  // The latest frozen revision is selected by default once the variant is chosen.
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Pinout variant revision" }) as HTMLInputElement).value).toMatch(/1/));
   const row = (contact: string) => screen.getByRole("combobox", { name: `Device behavior at contact ${contact}` }).closest("tr") as HTMLElement;
   // Unselected condition: unknown, both possibilities named, flagged as possibly power.
   expect(within(await waitRow(row, "1")).getByText("Signal unknown")).toBeTruthy();
