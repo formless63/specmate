@@ -99,7 +99,7 @@ test("BOM: need quantity unit is pre-filled from the length unit, marked, cleara
 
 test("cables: connector family filter narrows body choices by name, is marked and clearable", async () => {
   const definitions = [{ definition_id: "a", name: "Alpha-6 body", kind: "connector_body" }, { definition_id: "b", name: "Beta body", kind: "connector_body" }] as never;
-  const cable = { ...initialCable(), endpoints: [{ local_id: "a", label: null, body_revision_id: "", pinout_revision_id: "" }] };
+  const cable = { ...initialCable(), endpoints: initialCable().endpoints.slice(0, 1) };
   render(wrap(<CableEditor workspaceId="ws" value={cable} onChange={() => {}} definitions={definitions} />));
   expect(await screen.findByLabelText("Clear connector family filter preference")).toBeTruthy();
   const open = () => { const input = screen.getByRole("combobox", { name: "Endpoint 1 body definition" }); fireEvent.focus(input); fireEvent.keyDown(input, { key: "ArrowDown" }); return document.querySelector<HTMLElement>(`[role="listbox"][aria-labelledby="${document.querySelector(`label[for="${input.id}"]`)?.id}"]`)!; };

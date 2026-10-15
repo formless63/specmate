@@ -16,9 +16,11 @@ export type Impact = { before_revision_id: string; after_revision_id: string; be
 export type ImpactSection = { section: string; status: 'changed' | 'uncomparable'; reviews: ('preparation' | 'documents')[]; summary: string; details: Record<string, unknown>[] };
 const shown = (value: unknown) => value == null ? 'none' : String(value);
 function sectionDetail(section: ImpactSection, detail: Record<string, unknown>): string {
-  if (section.section === 'terminations') return `${shown(detail.element_path)} at ${shown(detail.endpoint_id)}: contact ${shown(detail.before_contact_id)} → ${shown(detail.after_contact_id)}`;
+  // A landing reads by layer and terminal label; older details name only a contact.
+  const landing = (target: unknown, contact: unknown) => target != null ? String(target) : contact != null ? `contact ${String(contact)}` : 'none';
+  if (section.section === 'terminations') return `${shown(detail.element_path)} at ${shown(detail.endpoint_id)}: ${landing(detail.before_target, detail.before_contact_id)} → ${landing(detail.after_target, detail.after_contact_id)}`;
   if (section.section === 'labels') return `${shown(detail.endpoint_id)}: ${shown(detail.before)} → ${shown(detail.after)}`;
-  if (section.section === 'connectors') return `End ${shown(detail.endpoint_id)}: body or pinout pin changed`;
+  if (section.section === 'connectors') return `End ${shown(detail.endpoint_id)}: end stack or stock end changed`;
   if (section.section === 'lengths') return shown(detail.target);
   if ('field' in detail) return `Field ${shown(detail.field)}`;
   return '';

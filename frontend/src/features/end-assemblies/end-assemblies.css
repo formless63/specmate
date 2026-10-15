@@ -1,0 +1,14 @@
+/* End stacks: theme tokens only. Layer chips read wire-outward; unknown is hatched. */
+.sb-stack-row { display: inline-flex; flex-wrap: wrap; align-items: stretch; gap: 2px; }
+.sb-layer-chip { display: inline-flex; flex-direction: column; min-width: 0; max-width: 14rem; padding: 2px 6px; border: 1px solid var(--sb-border-control); border-top: 3px solid var(--sb-text-tertiary); background: var(--sb-surface-raised); font-size: 11px; line-height: 1.35; }
+.sb-layer-chip[data-kind="board"] { border-top-color: var(--sb-state); }
+.sb-layer-chip[data-kind="inline"] { border-top-color: var(--sb-focus); }
+.sb-layer-chip[data-kind="connector"] { border-top-color: var(--sb-accent); }
+.sb-layer-chip[data-kind="shell"] { border-top-style: dashed; }
+.sb-layer-chip[data-unknown] .sb-layer-name { background-image: repeating-linear-gradient(135deg, var(--sb-hatch) 0 1px, transparent 1px 6px); color: var(--sb-text-tertiary); }
+.sb-layer-kind { color: var(--sb-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; }
+.sb-layer-name { font-family: var(--sb-font-data); color: var(--sb-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-layer-flag { color: var(--sb-text-tertiary); font-size: 10px; }
+.sb-layer-card[data-kind="shell"] { border-style: dashed; }
+.sb-stack-table td, .sb-stack-table th { font-size: 12px; }
+.sb-stack-via { color: var(--sb-text-tertiary); }

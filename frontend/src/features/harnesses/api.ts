@@ -1,5 +1,5 @@
 import { apiErrorMessage } from "../../lib/api-errors";
-import type { Endpoint } from '../cables/api';
+import type { ConnectorEndpoint as Endpoint } from '../cables/api';
 export { type Definition, type Identity } from '../identity/api';
 export { command } from '../cables/api';
 import { CableOperationError } from '../cables/api';
