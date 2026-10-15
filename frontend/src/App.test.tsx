@@ -295,7 +295,8 @@ test.each([
     expect(screen.queryByRole("button", { name: "New wire stock" })).toBeNull();
     fireEvent.click(await screen.findByRole("button", { name: "Bench stock" }));
     fireEvent.click(await screen.findByRole("button", { name: "Draft" }));
-    await screen.findByLabelText("Stock name");
+    // The frozen frame stays mounted privately while the draft is reauthorized.
+    await screen.findByRole("textbox", { name: "Stock name" });
   } else {
     fireEvent.click(screen.getByRole("button", { name: "New wire stock" }));
     fireEvent.change(await screen.findByLabelText("Stock name"), { target: { value: "New bench stock" } });
