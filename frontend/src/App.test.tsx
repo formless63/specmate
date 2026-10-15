@@ -355,7 +355,7 @@ test.each(libraryFamilies)("Library %s editors mount without a project", async (
       expect(await screen.findByLabelText("Stock name")).toBeTruthy();
       continue;
     }
-    if (["interfaces", "ports", "end-assemblies"].includes(toolId)) {
+    if (["interfaces", "ports", "end-assemblies", "pcb"].includes(toolId)) {
       const list = await screen.findByRole("region", { name: toolId === "interfaces" ? "Connector bodies" : typed!.title });
       expect(within(list).getByRole("button", { name: `New ${toolId === "interfaces" ? "connector body" : typed!.noun}` })).toBeTruthy();
       expect(screen.queryByRole("region", { name: `${typed!.title} editor` })).toBeNull();

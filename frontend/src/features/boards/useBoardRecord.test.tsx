@@ -34,7 +34,7 @@ function server() {
     }
     return reply({});
   }));
-  return { posts, calls, get creates() { return creates; }, workingDenied: (value: boolean) => { denyWorking = value; }, remoteChange: () => { state = 'draft-v9'; content = board('Remote pad'); }, conflict: () => { conflict = true; }, lose: () => { loseResponse = true; }, hold: () => { held = new Promise(resolve => { release = resolve; }); }, release: () => { held = null; release(); } };
+  return { startPinned: () => { content = { ...board(), carried_connectors: [{ local_id: 'original-body', body_revision_id: sourceId, correspondence: [], review: 'unreviewed', basis: null }] }; }, posts, calls, get creates() { return creates; }, workingDenied: (value: boolean) => { denyWorking = value; }, remoteChange: () => { state = 'draft-v9'; content = board('Remote pad'); }, conflict: () => { conflict = true; }, lose: () => { loseResponse = true; }, hold: () => { held = new Promise(resolve => { release = resolve; }); }, release: () => { held = null; release(); } };
 }
 type Props = Parameters<typeof useBoardRecord>[0];
 let current!: ReturnType<typeof useBoardRecord>;
@@ -89,4 +89,11 @@ test('held freeze never selects the frozen revision over newer working edits', a
 test('direct method calls remain inert for inactive or read-only controllers', async () => {
   const api = server(); const view = setup({}, ['workspace.read']); await ready(); await waitFor(() => expect(current.current).not.toBeNull()); fireEvent.click(screen.getByText('Call save')); fireEvent.click(screen.getByText('Call freeze')); expect(api.posts).toHaveLength(0);
   view.rerender(view.tree({ active: false }, permissions)); fireEvent.click(screen.getByText('Call save')); fireEvent.click(screen.getByText('Call freeze')); expect(api.posts).toHaveLength(0);
+});
+
+test('an original working pin stays fenced after another session removes it from current saved content', async () => {
+  const api = server(); api.startPinned(); setup(); await ready(); await waitFor(() => expect(current.current?.state).toBe('draft-v4')); await ready();
+  act(() => current.change({ interface: { ...current.content!.interface!, review_basis: 'Retained local review text' } })); await ready(); api.remoteChange(); api.workingDenied(true); fireEvent(window, new Event('focus'));
+  await screen.findByText('Withdrawn'); expect(current.current?.state).toBe('draft-v4'); expect(current.content?.interface?.carried_connectors[0]?.body_revision_id).toBe(sourceId); fireEvent.click(screen.getByText('Call save')); expect(api.posts).toHaveLength(0);
+  api.workingDenied(false); fireEvent.click(screen.getByText('Refresh')); await ready(); expect(current.current?.state).toBe('draft-v4'); expect(current.content?.interface?.review_basis).toBe('Retained local review text');
 });

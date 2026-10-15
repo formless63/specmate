@@ -6,6 +6,7 @@ import { Component, Fragment, lazy, Suspense, useCallback, useEffect, useMemo, u
 
 import { useQuery } from "@tanstack/react-query";
 import { DesignList } from "./features/designs/DesignList";
+import { BOARD_RECORD_SECTIONS } from "./features/navigation/url";
 import { useNavigation } from "./features/navigation";
 import { toolForKind, toolForReference } from "./features/shell/scope";
 import { requestJson } from "./features/workspace/api";
@@ -123,7 +124,11 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
       : ({ source_bundle: "sources", stock_account: "inventory", physical_unit: "physical-units", fact_subject: "facts" } as Record<string, string>)[selected.data.family] ?? "identity"
     : null;
   const documentRoute = ["preparation-documents", "cable-test-intent", "selected-packages", "export-packages"].includes(url.lens) && !!selected.data && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data.kind ?? "");
-  const active = url.probe && (["designs", "identity"].includes(url.lens) || documentRoute) && recordTool ? recordTool : url.lens;
+  const boardRoute = !!BOARD_RECORD_SECTIONS[url.lens] && recordTool === "pcb";
+  const active = url.probe && (["designs", "identity"].includes(url.lens) || documentRoute || boardRoute) && recordTool ? recordTool : url.lens;
+  useEffect(() => {
+    if (boardRoute && !selected.isFetching) navigation?.navigate({ area: "library", lens: "pcb", filters: { ...navigation.location.filters, section: BOARD_RECORD_SECTIONS[url.lens]! } }, { replace: true });
+  }, [boardRoute, selected.isFetching, url.lens, navigation]);
   useEffect(() => {
     if (documentRoute && recordTool) navigation?.navigate({ area: "designs", lens: recordTool, filters: { ...navigation.location.filters, view: "documents", sheet: url.lens === "cable-test-intent" ? "continuity" : ["selected-packages", "export-packages"].includes(url.lens) ? "export" : "build" } }, { replace: true });
   }, [documentRoute, recordTool, url.lens, navigation]);
@@ -173,7 +178,7 @@ function ScopedWorkspace({ scope }: { scope: WorkspaceScope }) {
   const activeFocus = focus && focus.projectId === scope.projectId ? focus : null;
   // Record frames name their exact state; keep the global summary for other tools.
   const designDocuments = navigation?.location.filters?.view === "documents" && !selected.isError && ["cable", "harness", "assembly"].includes(selected.data?.kind ?? "");
-  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && !["interfaces", "ports", "end-assemblies"].includes(active) && !designDocuments);
+  const showProbe = url.malformed || (!!url.probe && recordTool !== "cables" && active !== "wire-stock" && active !== "pcb" && !["interfaces", "ports", "end-assemblies"].includes(active) && !designDocuments);
   const chrome: ShellChrome = !activeFocus && !url.projectLost && !showProbe ? scope.chrome : { ...scope.chrome, alert: <>
     {scope.chrome.alert}
     {url.projectLost && <ProjectLostNote onDismiss={url.dismissProjectLost} />}
@@ -247,6 +252,7 @@ function LibraryTool({ toolId, toolLabel, record, scope, onOpenInProject, lens }
   if (toolId === "library-home") return <LibraryHome principalKey={scope.principalKey} />;
   if (toolId === "access") return <Stack><WorkspaceAccessPanel onAccessChanged={scope.refresh} /><ShareRecordsPanel workspaceId={scope.workspaceId} /></Stack>;
   if (toolId === "integrations") return <IntegrationsPanel workspaceId={scope.workspaceId} />;
+  if (BOARD_RECORD_SECTIONS[toolId] && (!record || ["board", "pcb_population"].includes(record.kind ?? ""))) return <Text role="status">Opening the exact board section…</Text>;
   if (toolId === "pcb") return <BoardLibrary active={lens.active === "pcb"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "pcb", record)} />;
   if (toolId === "wire-stock") return <StockLibrary active={lens.active === "wire-stock"} principalKey={scope.principalKey} workspaceId={scope.workspaceId} projectFilterId={navigation?.location.project ?? null} projects={scope.projects} onOpenInProject={(projectId, record) => onOpenInProject(projectId, "wire-stock", record)} />;
   if (toolId === "cables") return <CableRecordHost principalKey={scope.principalKey} record={record?.kind === "cable" ? record : undefined} workspaceId={scope.workspaceId} active={lens.active === "cables"} />;
