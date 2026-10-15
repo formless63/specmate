@@ -12,6 +12,7 @@ import { useProbe } from '../probe';
 import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
 import { CableOperationError, authorityDenied, command, read, initialCable, type Cable, type Endpoint, type Definition, type Draft, type Identity, type Inspection, type ResolvedTermination } from './api';
+import { ContinueDraftButton } from '../scope/ContinueDraftButton';
 import { RevisionPicker } from './RevisionPicker';
 import { NewIntent } from '../intents/IntentPanel';
 import { IntentCheckPanel } from '../intent-check/IntentCheckPanel';
@@ -86,8 +87,10 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   }, onError: mutationError });
   const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
   const pickDefinition = useCallback((id: string) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setDraftToken(undefined); setCommittedDraft(null); setOffset(0); }, []);
+  const openDraft = useCallback((id: string) => { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); }, []);
   useProbedSelection({ kind: 'cable', definitions: definitions.isError ? undefined : definitions.data, definitionId,
-    revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined, pickDefinition, pickRevision: setRevisionId });
+    revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined,
+    drafts: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.drafts : undefined, pickDraft: openDraft, pickDefinition, pickRevision: setRevisionId });
   // The Library row for the probed definition already shows these views; show them once.
   const probedObject = useProbe()?.probe?.object ?? null;
   const shownAbove = !!definitionId && probedObject === definitionId;
@@ -110,6 +113,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && !workspaceDenied && <>
       <Select label="Edit cable draft" value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); } }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
+      <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={openDraft} />
       <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}

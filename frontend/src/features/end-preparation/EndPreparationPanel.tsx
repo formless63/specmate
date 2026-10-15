@@ -9,6 +9,7 @@ import { ApplyPreparation } from './ApplyPreparation';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
+import { ContinueDraftButton } from '../scope/ContinueDraftButton';
 
 type Denial = { profile?: Profile; application?: Request; harnessApplication?: HarnessRequest; revision?: string; draft?: string; definition?: string };
 /** Library end preparation profiles. `projectId` is optional context: new profiles are then also referenced by that project. */
@@ -45,8 +46,8 @@ function Workspace({ projectId }: { projectId: string | null }) {
       if (!accepted) await referenceFromProject(projectId, data.definition_id, 'end preparation profile');
     } catch (reason) { fail(reason, generation, { profile: submitted, draft: accepted?.draft_id }); } finally { if (active(generation)) setBusy(null); }
   }
-  async function load() {
-    const generation = scope.current; const selected = ++selection.current; const edit = edits.current; const submitted = draftId!; setBusy('load'); setError(null);
+  async function load(draft: string | null = draftId) {
+    const generation = scope.current; const selected = ++selection.current; const edit = edits.current; const submitted = draft!; setBusy('load'); setError(null);
     try {
       const data = await read<Draft>(`end-preparation/drafts/${submitted}`);
       if (!active(generation) || selected !== selection.current || edit !== edits.current) return;
@@ -104,7 +105,7 @@ function Workspace({ projectId }: { projectId: string | null }) {
       </InspectionScope>
       <Group><Button disabled={!!busy || !profile.stock_revision_id || (!current && !name.trim())} {...(current ? editGate : createGate).props} onClick={() => { void save(); }}>Save end preparation profile</Button>{current && <Button disabled={!!busy} {...freezeGate.props} onClick={() => { void freeze(); }}>Freeze end preparation profile</Button>}</Group><ReadOnlyNote permission={current ? "design.edit" : "item.create"}>Saving and freezing end preparation profiles are unavailable.</ReadOnlyNote>
     </Stack></Card><Select label="Existing end preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'end_preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={pick} />
-    {history.data && !history.isFetching && <><Select label="End preparation draft to load" data={history.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { selection.current += 1; setDraftId(id); }} /><Button disabled={!!busy || !draftId} onClick={() => { void load(); }}>Load end preparation draft</Button><Select label="Frozen end preparation revision" data={history.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(history.data.name, r.number) }))} value={revision} onChange={id => { selection.current += 1; setRevision(id); }} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous end preparation history</Button><Button disabled={Math.max(history.data.drafts.length, history.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next end preparation history</Button></Group></>}
+    {history.data && !history.isFetching && <><Select label="End preparation draft to load" data={history.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} value={draftId} onChange={id => { selection.current += 1; setDraftId(id); }} /><Button disabled={!!busy || !draftId} onClick={() => { void load(); }}>Load end preparation draft</Button><ContinueDraftButton drafts={history.data.drafts} revisionId={revision} draftId={current?.draft_id ?? null} onOpen={id => { selection.current += 1; setDraftId(id); void load(id); }} /><Select label="Frozen end preparation revision" data={history.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(history.data.name, r.number) }))} value={revision} onChange={id => { selection.current += 1; setRevision(id); }} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous end preparation history</Button><Button disabled={Math.max(history.data.drafts.length, history.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next end preparation history</Button></Group></>}
     {revision && <FrozenProfile key={revision} revisionId={revision} authorityScope={scope.current} onDenied={onDenied} />}
     </>}
     {hidden && <Text>Starting a new profile discards the retained unsaved editor and endpoint mapping.</Text>}
