@@ -157,3 +157,17 @@ test("an existing draft's new process need pre-fills the preferred length unit",
   await waitFor(() => expect(unit.value).toBe("cm"));
   expect(screen.getByText("from preference")).toBeTruthy();
 });
+
+
+test("a selected plan read denial stays visible outside collapsed version controls", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(
+    url.includes("catalog/definitions/") ? { error: { message: "Plan access unavailable." } }
+      : [{ definition_id: "plan", name: "Existing plan", kind: "bom_plan" }],
+  ), { status: url.includes("catalog/definitions/") ? 404 : 200 })));
+  render(wrap(<BomPanel />));
+  await screen.findByRole("combobox", { name: "Existing BOM plan" });
+  await choose("Existing BOM plan", "Existing plan");
+  const error = await screen.findByText("Plan access unavailable.");
+  expect(error.closest("details")).toBeNull();
+  expect(screen.queryByRole("combobox", { name: "BOM draft" })).toBeNull();
+});

@@ -48,10 +48,10 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     </Stack></Card>
     </details>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
+    {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     <RecordNavigation name={(definitions.data ?? []).find(item => item.definition_id === definitionId)?.name ?? "BOM plan"} selected={definitionId}>
     <Select label="Existing BOM plan" value={definitionId} searchable data={(definitions.data ?? []).filter(d => d.kind === "bom_plan").map(d => ({ value: d.definition_id, label: d.name }))} onChange={pick} />
-    {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
-    {identity.data && <>
+    {identity.data && !identity.isError && <>
       <Select label="BOM draft" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} />
       {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
       <Select label="Frozen BOM revision" value={revisionId} data={newestFirst(identity.data.revisions).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevisionId} />
