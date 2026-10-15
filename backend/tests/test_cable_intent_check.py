@@ -125,6 +125,11 @@ def test_correct_cable(users, project, demo):
     labels = [chip["label"] for chip in rows["from-4"]["path"]]
     assert labels[0] == "Console A AV out 4 · Red video" and labels[-1].endswith("15 · Red video")
     assert "Straight copper" in labels and "landing" in labels
+    # Each node and conductor step names what it is, so a drawing can light the path.
+    refs = [chip.get("ref") for chip in rows["from-4"]["path"]]
+    assert {"endpoint_id": "a", "layer_id": "board", "terminal_id": "r"} in refs
+    assert {"endpoint_id": "b", "layer_id": "connector", "terminal_id": "15"} in refs
+    assert {"element_path": "stock.core-1.center"} in refs
     sync = rows["from-1"]["dimensions"]
     assert sync["required_parts"]["status"] == "pass"
     assert "R1 470R" in sync["required_parts"]["reason"]
