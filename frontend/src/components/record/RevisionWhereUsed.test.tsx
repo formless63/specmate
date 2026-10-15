@@ -9,14 +9,15 @@ vi.mock('../../features/discovery/api', () => api);
 vi.mock('../../lib/IdentityLabel', () => ({ RevisionLabel: ({ id }: { id: string }) => <span>Selected child {id}</span>, ExactPins: ({ pins }: { pins: { label: string; value: string }[] }) => <span>{pins.map(pin => <button key={pin.label}>{pin.label}: {pin.value}</button>)}</span> }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const page = (label = 'Synthetic cable parent'): UsePage => ({ revision_id: 'exact-r1', workspace_id: 'workspace', project_id: null, next_after: 'snapshot-cursor', results: [{ record_id: 'snapshot-1', snapshot_id: 'snapshot-1', definition_id: 'parent-1', definition_kind: 'cable', workspace_id: 'workspace', relation: 'exact_revision_pin', label }], project_references: [{ reference_id: 'reference-1', project_id: 'project-1', project_name: 'Synthetic project', archived: false, kind: 'definition', relation: 'project_reference_floating', role: 'Reference', in_project: false }], project_references_truncated: false });
-function setup(active = true) {
+function setup(active = true, onOpenProject?: (id: string) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const tree = (enabled: boolean) => <MantineProvider env="test"><QueryClientProvider client={client}><RevisionWhereUsed revisionId="exact-r1" principalKey="principal" active={enabled} /></QueryClientProvider></MantineProvider>;
+  const tree = (enabled: boolean) => <MantineProvider env="test"><QueryClientProvider client={client}><RevisionWhereUsed revisionId="exact-r1" principalKey="principal" active={enabled} onOpenProject={onOpenProject} toolLabel="Wire stock" /></QueryClientProvider></MantineProvider>;
   return { ...render(tree(active)), tree };
 }
 test('exact captured snapshots and floating project references stay distinct while paging', async () => {
   api.whereUsed.mockResolvedValueOnce(page()).mockResolvedValueOnce({ ...page('Another captured parent'), next_after: null });
-  setup(); await screen.findByText('Synthetic cable parent');
+  const open = vi.fn(); setup(true, open); await screen.findByText('Synthetic cable parent');
+  fireEvent.click(screen.getByRole('button', { name: 'Open Wire stock in Synthetic project' })); expect(open).toHaveBeenCalledWith('project-1');
   expect(screen.getByRole('button', { name: 'Parent snapshot ID: snapshot-1' })).toBeTruthy();
   expect(screen.getByText(/Floating definition reference/)).toBeTruthy();
   expect(screen.queryByRole('link')).toBeNull();

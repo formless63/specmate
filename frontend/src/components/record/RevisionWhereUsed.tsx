@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import { ExactPins, RevisionLabel } from '../../lib/IdentityLabel';
 import { whereUsed } from '../../features/discovery/api';
 
-type Props = { revisionId: string; principalKey: string; active: boolean };
+type Props = { revisionId: string; principalKey: string; active: boolean; toolLabel?: string; onOpenProject?: (projectId: string) => void };
 /** Engineering parents are captured snapshots. Project references are a different relationship. */
 export function RevisionWhereUsed(props: Props) {
   return <SelectedUses key={`${props.principalKey}:${props.revisionId}`} {...props} />;
 }
-function SelectedUses({ revisionId, principalKey, active }: Props) {
+function SelectedUses({ revisionId, principalKey, active, toolLabel = 'record', onOpenProject }: Props) {
   const [after, setAfter] = useState<string | undefined>();
   const query = useQuery({ queryKey: ['record-where-used', principalKey, revisionId, after], enabled: active, retry: false, refetchOnWindowFocus: 'always',
     queryFn: () => whereUsed(revisionId, after) });
@@ -26,7 +26,7 @@ function SelectedUses({ revisionId, principalKey, active }: Props) {
     <Group gap="xs"><Button size="xs" variant="quiet" disabled={!after} onClick={() => setAfter(undefined)}>First parent page</Button><Button size="xs" variant="quiet" disabled={!page.next_after} onClick={() => setAfter(page.next_after ?? undefined)}>More parent snapshots</Button></Group>
     <Title order={4}>Project references</Title>
     {!page.project_references.length && <Text>No project references this revision or its definition.</Text>}
-    {page.project_references.map(reference => <Stack gap={0} key={reference.reference_id}><Text>{reference.project_name}{reference.archived ? ' · archived' : ''}</Text><Text size="xs">{reference.relation === 'project_reference_exact' ? 'Exact revision reference' : 'Floating definition reference'} · {reference.role || 'Role not declared'}</Text><ExactPins pins={[{ label: 'Project ID', value: reference.project_id }, { label: 'Project reference ID', value: reference.reference_id }]} /></Stack>)}
+    {page.project_references.map(reference => <Stack gap={0} key={reference.reference_id}><Text>{reference.project_name}{reference.archived ? ' · archived' : ''}</Text><Text size="xs">{reference.relation === 'project_reference_exact' ? 'Exact revision reference' : 'Floating definition reference'} · {reference.role || 'Role not declared'}</Text>{onOpenProject && <Button size="xs" variant="quiet" aria-label={`Open ${toolLabel} in ${reference.project_name}`} onClick={() => onOpenProject(reference.project_id)}>Open in project</Button>}<ExactPins pins={[{ label: 'Project ID', value: reference.project_id }, { label: 'Project reference ID', value: reference.reference_id }]} /></Stack>)}
     {page.project_references_truncated && <Text size="xs">Only the first project references are listed.</Text>}
     <Text size="xs">A project reference declares use; it is separate from a captured engineering pin.</Text>
     <Button size="xs" variant="quiet" onClick={() => void query.refetch()}>Refresh exact uses</Button>
