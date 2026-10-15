@@ -7,8 +7,11 @@ import { createModel, freezeModel, inspectDraft, inspectModel, inspectRoot, inte
 import type { ConditionDeclaration, Draft, Evidence, Graph, Inspection, Interpretation, Model, Passage } from "./api";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { ReadOnlyNote, useCan } from "../../lib/permissions";
+import { read, type Identity } from "../identity/api";
+import { referenceFromProject, useOpenProbed } from "../scope/openProbed";
 
-type Props = { projectId: string };
+/** `projectId` is optional context: new models are then also referenced by that project. */
+type Props = { projectId?: string | null };
 const readable = (value: string) => value.replaceAll("_", " ");
 const REVIEW_LED: Record<string, SbLed> = { accepted: "info", rejected: "failed", needs_evidence: "review" };
 const kinds: Passage["kind"][] = ["unknown", "resistor", "capacitor", "diode", "inductor", "transformer", "conditional", "active"];
@@ -28,7 +31,7 @@ function EvidenceEditor({ label, value, onChange, disabled }: { label: string; v
   </Stack>;
 }
 
-export function PassivePassagesWorkspace({ projectId }: Props) {
+export function PassivePassagesWorkspace({ projectId = null }: Props) {
   const canEdit = useCan("design.edit");
   const canFreeze = useCan("design.freeze");
   const [rootId, setRootId] = useState("");
@@ -66,6 +69,22 @@ export function PassivePassagesWorkspace({ projectId }: Props) {
     catch (e) { if (token !== generation.current) return; clear(); setError(e instanceof Error ? e.message : "Request failed."); }
     finally { if (token === generation.current) setBusy(false); }
   }
+  const [referenceError, setReferenceError] = useState("");
+  // A Library row or deep link opens its passive model: the newest draft for editors, else the latest frozen revision.
+  useOpenProbed(() => true, (object) => {
+    void read<Identity>(`catalog/definitions/${object}`).then((identity) => {
+      if (identity.kind !== "passage_model") return;
+      const open = canEdit ? identity.drafts.at(-1) : undefined;
+      const latest = identity.revisions.length < 50 ? identity.revisions.at(-1) : undefined;
+      if (open) {
+        clear(); setDraftId(open.draft_id);
+        void run(async () => { const value = await inspectDraft(open.draft_id); const root = await inspectRoot(value.content.passages.root_revision_id); return { value, root }; }, ({ value, root }) => showDraft(value, root));
+      } else if (latest) {
+        clear(); setRevisionId(latest.revision_id);
+        void run(() => inspectModel(latest.revision_id), showModel);
+      }
+    }, () => undefined);
+  });
   function clearQuery() { queryGeneration.current += 1; setResult(undefined); }
   function showModel(value: Inspection, preserve = false) { setInspection(value); setGraph(value.graph); setRootId(value.model.root_revision_id); setResult(undefined); if (!preserve) { setConditionAssignments({}); setReviewBasis(""); setReviewEvidence({ status: "unknown" }); } }
   function showDraft(value: Draft, root: Graph) { setDraft(value); setDraftId(value.draft_id); setGraph(root); setRootId(value.content.passages.root_revision_id); setPassages(value.content.passages.passages); setConditions(value.content.passages.conditions ?? []); setConditionAssignments({}); setIdealModel(true); setModelBasis(value.content.passages.model_basis); setInspection(undefined); setResult(undefined); }
@@ -107,6 +126,7 @@ export function PassivePassagesWorkspace({ projectId }: Props) {
     <Text>Declare and review an ideal circuit model for exact terminals. Copper reachability, native component candidates and physical measurements have separate meanings.</Text>
     <Alert color="yellow">Resistor paths are resistive; ideal capacitors block steady-state DC. Declared ideal contacts require explicit exclusive state assignments. Diode operating states, active behavior and transformer models remain unknown. Model review and path reachability establish no physical continuity, signal transfer or qualification.</Alert>
     <ReadOnlyNote permission="design.edit">Declaring, reviewing and freezing models is unavailable; frozen models can be inspected and queried.</ReadOnlyNote>
+    {referenceError && <Alert color="red">{referenceError}</Alert>}
     {error && <Alert color="red">{error} Cached model, graph and query results were cleared. Reload authorized state before continuing.</Alert>}
     <Group align="end"><TextInput label="Exact frozen passive model revision ID" value={revisionId} onChange={(e) => { clear(); setRevisionId(e.currentTarget.value); }} /><Button disabled={busy || !revisionId.trim()} onClick={() => void run(() => inspectModel(revisionId.trim()), showModel)}>Inspect frozen passive model</Button></Group>
     {canEdit && <Group align="end"><TextInput label="Existing passive draft ID" value={draftId} onChange={(e) => { clear(); setDraftId(e.currentTarget.value); }} /><Button disabled={busy || !canEdit || !draftId.trim()} onClick={() => void run(async () => { const value = await inspectDraft(draftId.trim()); const root = await inspectRoot(value.content.passages.root_revision_id); return { value, root }; }, ({ value, root }) => showDraft(value, root))}>Open passive draft</Button></Group>}
@@ -128,7 +148,9 @@ export function PassivePassagesWorkspace({ projectId }: Props) {
           {p.native_candidate_boundary_id && <Text size="sm">Native candidate link: {p.native_candidate_boundary_id}. Type and parameters are independent declarations.</Text>}
           <Button color="red" variant="light" disabled={!editable} onClick={() => setPassages((prior) => prior.filter((_, n) => n !== index))}>Remove declaration {index + 1}</Button>
         </Stack></Card>)}
-        <Group><Button disabled={!savable} onClick={() => void run(() => draft ? updateModel(draft, model()) : createModel(name, model()), (value) => { setDraft(value); setDraftId(value.draft_id); })}>{draft ? "Update passive model draft" : "Save new passive model draft"}</Button><Button disabled={busy || !canFreeze || !draft} onClick={() => void run(() => freezeModel(draft!), (value) => { setDraft(value.draft); setRevisionId(value.revision_id); setResult(undefined); })}>Freeze saved passive model</Button></Group>
+        <Group><Button disabled={!savable} onClick={() => void run(() => draft ? updateModel(draft, model()) : createModel(name, model()), (value) => {
+          if (!draft) { setReferenceError(""); void referenceFromProject(projectId, value.definition_id, "passive model").catch((e: Error) => setReferenceError(e.message)); }
+          setDraft(value); setDraftId(value.draft_id); })}>{draft ? "Update passive model draft" : "Save new passive model draft"}</Button><Button disabled={busy || !canFreeze || !draft} onClick={() => void run(() => freezeModel(draft!), (value) => { setDraft(value.draft); setRevisionId(value.revision_id); setResult(undefined); })}>Freeze saved passive model</Button></Group>
         {draft && <Text><SbIdentityBadge kind="draft" /> Saved draft {draft.draft_id} · {draft.state}. Freeze captures saved content; save local edits first. A frozen model still requires its own review.</Text>}
         <Title order={3}>Native and unresolved source boundaries</Title><Text>These are candidates and boundaries. Declaring a linked passage starts with unknown kind and parameters.</Text>
         {graph.boundaries.slice(boundaryPage * 50, boundaryPage * 50 + 50).map((b) => <Card withBorder key={b.id}><Text>{readable(b.kind)} · {readable(b.status)} · {b.reason}</Text><Text size="sm">{b.members.map(displayTerminal).join(" ↔ ")}</Text><Text size="xs">{b.id} · <RevisionLabel id={b.provenance.revision_id} role="owning" /></Text><Button disabled={!editable || b.members.length !== 2} onClick={() => setPassages((p) => [...p, { ...nextPassage(p), from_terminal_id: b.members[0] ?? "", to_terminal_id: b.members[1] ?? "", native_candidate_boundary_id: b.id }])}>Declare separate passage for {b.kind} candidate</Button></Card>)}

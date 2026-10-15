@@ -8,6 +8,8 @@ import {
 } from './api';
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
+import { useProbe } from "../probe";
+import { useOpenProbed } from "../scope/openProbed";
 
 const ROLES: SourceFileRole[] = ['application', 'library', 'configuration', 'board_support', 'lockfile', 'other'];
 const FAMILIES: Toolchain['family'][] = ['platformio', 'esp_idf', 'arduino_cli', 'zephyr', 'cmake_gcc', 'other'];
@@ -207,6 +209,15 @@ function FirmwareWorkspace({ workspaceId, onAccessLost }: FirmwarePanelProps) {
   const setPin = (index: number, patch: Partial<PinAssumption>) => form && update({ pins: form.pins.map((pin, i) => i === index ? { ...pin, ...patch } : pin) });
   const setConfig = (index: number, patch: Partial<ConfigEntry>) => form && update({ configuration: form.configuration.map((entry, i) => i === index ? { ...entry, ...patch } : entry) });
 
+  // A Library row or deep link opens its firmware: the list loads on demand, then the draft (or latest revision) opens.
+  const probed = useProbe()?.probe?.object ?? null;
+  useEffect(() => { if (probed && !shown && !busy) void refresh(); }, [probed]);
+  useOpenProbed(shown ? (id) => list.some(item => item.definition_id === id) : null, (id) => {
+    const item = list.find(row => row.definition_id === id);
+    const latest = item?.revisions.at(-1);
+    if (item?.draft_id) void open(`pcb/firmware-drafts/${item.draft_id}`);
+    else if (latest) void open(`pcb/firmware-revisions/${latest.revision_id}`);
+  });
   return <Card withBorder><Stack>
     <Title order={3}>Firmware dependencies and targets</Title>
     <Text size="sm">Pin exact firmware sources, configuration and a declared toolchain to one frozen board population and exact native pads. Declarations are not verified toolchain support, a compiled build, a flash or a working device. Labels never establish pin correspondence.</Text>

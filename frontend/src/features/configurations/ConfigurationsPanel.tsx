@@ -8,6 +8,7 @@ import { AdoptionReviewPanel } from './AdoptionReview';
 import { ConstraintResults, evaluation, OUTCOME_LABEL, OUTCOME_LED } from './ConstraintResults';
 import { DEVELOPMENT_LABEL, RuleProposals } from './DevelopmentProposals';
 import { OptionSetAuthoring } from './OptionSetEditor';
+import { definitionIn, useOpenProbed } from '../scope/openProbed';
 import { operation, type BuildInput, type Decision, type DraftResolution, type Selection, type Submission } from './api';
 
 const NONE = '__none__';
@@ -20,11 +21,12 @@ function selectionText(value: string, options?: { default_choice?: unknown; choi
 const STATUS_COLOR: Record<string, string> = { resolved: 'green', complete: 'green', none: 'blue', unresolved: 'yellow', incomplete: 'yellow', invalid: 'red' };
 const SOURCE: Record<Decision['source'], string> = { selected: 'Selected', default: 'Option-set default', explicit_none: 'Explicitly none', not_selected: 'Not selected' };
 
-export function ConfigurationsPanel({ projectId }: { projectId: string }) {
-  return <Workspace key={projectId} projectId={projectId} />;
+/** Library option sets and configurations. `projectId` is optional context, never the owner. */
+export function ConfigurationsPanel({ projectId = null }: { projectId?: string | null }) {
+  return <Workspace key={projectId ?? 'library'} projectId={projectId} />;
 }
 
-function Workspace({ projectId }: { projectId: string }) {
+function Workspace({ projectId }: { projectId: string | null }) {
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [definition, setDefinition] = useState('');
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -48,6 +50,8 @@ function Workspace({ projectId }: { projectId: string }) {
     return () => { active = false; };
   }, [definition]);
   const configurations = definitions.filter((item) => item.kind === 'configuration');
+  // A Library row or deep link opens its configuration here; option sets open in the authoring section.
+  useOpenProbed(definitions.length ? definitionIn(definitions, ['configuration']) : null, setDefinition);
   return <Card withBorder><Stack>
     <Title order={3}>Options and resolved choices</Title>
     <Text size="sm">A configuration pins one frozen option set. Resolution turns explicit selections and declared defaults into exact pinned choices; a build consumes only a captured resolved snapshot. Only constraints the option set declares are evaluated, each as valid, invalid, unknown or not evaluated with its reasons; missing facts stay unknown and other compatibility is not assumed.</Text>
@@ -60,7 +64,7 @@ function Workspace({ projectId }: { projectId: string }) {
   </Stack></Card>;
 }
 
-function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: string; optionSets: Definition[]; onCreated: (definitionId: string) => void }) {
+function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: string | null; optionSets: Definition[]; onCreated: (definitionId: string) => void }) {
   const edit = usePermission('design.edit');
   const [optionSet, setOptionSet] = useState('');
   const [revisions, setRevisions] = useState<Identity['revisions']>([]);
@@ -83,7 +87,7 @@ function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: 
       const { workspace_id } = await libraryDefinitions(projectId);
       const result = await command<{ definition_id: string }>('definition.create', { workspace_id, kind: 'configuration', name: name.trim(),
         content: { configuration: { option_set_revision_id: revision, selections: [] } } });
-      if (useHere) {
+      if (projectId && useHere) {
         try { await addProjectReference(projectId, 'definition', result.definition_id, 'configuration'); }
         catch (failure) { setNote(`Created in the library, but not added to this project: ${(failure as Error).message}`); }
       }
@@ -99,7 +103,7 @@ function CreateConfiguration({ projectId, optionSets, onCreated }: { projectId: 
       <NativeSelect label="Option set" value={optionSet} data={[{ value: '', label: optionSets.length ? 'Select an option set' : 'No option sets in the library' }, ...optionSets.map((item) => ({ value: item.definition_id, label: item.name }))]} onChange={(event) => setOptionSet(event.currentTarget.value)} />
       <NativeSelect label="Frozen option-set revision" value={revision} data={[{ value: '', label: 'Select an exact revision' }, ...revisions.map((item) => ({ value: item.revision_id, label: `Revision ${item.number}` }))]} onChange={(event) => setRevision(event.currentTarget.value)} />
       <TextInput label="Configuration name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
-      <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />
+      {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />}
       <Button {...edit.props} disabled={!edit.allowed || !revision || !name.trim() || busy} onClick={() => { void create(); }}>Create configuration</Button>
     </Group>
   </Stack>;
@@ -109,7 +113,7 @@ function selectionMap(selections: Selection[]): Record<string, string> {
   return Object.fromEntries(selections.map((item) => [item.option_key, item.choice_key ?? NONE]));
 }
 
-function DraftWorkspace({ draftId, projectId, needs }: { draftId: string; projectId: string; needs: Definition[] }) {
+function DraftWorkspace({ draftId, projectId, needs }: { draftId: string; projectId: string | null; needs: Definition[] }) {
   const edit = usePermission('design.edit');
   const generation = useRef(0);
   const [preview, setPreview] = useState<DraftResolution | null>(null);

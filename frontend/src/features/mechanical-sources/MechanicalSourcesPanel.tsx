@@ -6,6 +6,8 @@ import { MechanicalUncertaintyEditor, MechanicalUncertaintyRead } from './Mechan
 import type { MechanicalFile, MechanicalRead, MechanicalSource, MechanicalSourcePin, ModelChoice, ModelPin, RecordPage, TargetChoice, TargetPage, TargetPin } from './api';
 import { ExactPins, RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
+import { useProbe } from "../probe";
+import { useOpenProbed } from "../scope/openProbed";
 
 const keyFor = (prefix: string, rows: { local_id: string }[]) => {
   let i = 1; while (rows.some(row => row.local_id === `${prefix}${i}`)) i += 1; return `${prefix}${i}`;
@@ -219,6 +221,16 @@ export function MechanicalSourcesPanel({ workspaceId, onAccessLost }: { workspac
   const canCreate = useCan('item.create');
   function changeTarget(id: string, changes: Partial<TargetPin>) { setForm(prior => prior ? { ...prior, targets: prior.targets.map(t => t.local_id === id ? { ...t, ...changes } : t) } : prior); }
   function changeModel(id: string, changes: Partial<ModelPin>) { setForm(prior => prior ? { ...prior, models: prior.models.map(m => m.local_id === id ? { ...m, ...changes } : m) } : prior); }
+  // A Library row or deep link opens its mechanical source: records load on demand, then the draft (or latest revision) opens.
+  const probed = useProbe()?.probe?.object ?? null;
+  const loaded = useRef(false);
+  useEffect(() => { if (probed && !loaded.current && !busy) { loaded.current = true; void refresh(); } }, [probed]);
+  useOpenProbed(shown && records.records.length ? (id) => records.records.some(record => record.definition_id === id) : null, (id) => {
+    const record = records.records.find(row => row.definition_id === id);
+    const draft = record?.drafts.at(-1); const latest = record?.revisions.at(-1);
+    if (draft) void open(`mechanical-sources/drafts/${draft.draft_id}`);
+    else if (latest) void open(`mechanical-sources/revisions/${latest.revision_id}`);
+  });
   return <Stack>
     <Title order={3}>Mechanical sources</Title>
     <Text size="sm">Preserve native enclosure, part and hardware files in Sources, then pin exact originals or derivatives and board/component revisions here. File formats and model quality are declarations.</Text>

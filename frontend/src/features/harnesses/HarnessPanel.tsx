@@ -10,9 +10,11 @@ import { useProbe } from '../probe';
 import { command, read, initialHarness, terminalKey, terminalLabel, type Harness, type Definition, type Draft, type Identity, type Inspection } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { referenceFromProject } from "../scope/openProbed";
 
-export function HarnessPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+/** Library harnesses. `projectId` is optional context: new harnesses are then also referenced by that project. */
+export function HarnessPanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} />; }
+function Workspace({ projectId }: { projectId: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
@@ -50,6 +52,7 @@ function Workspace({ projectId }: { projectId: string }) {
     if (generation !== creationGeneration.current) return;
     replaceEditor(); setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["harness-definitions", projectId] });
+    await referenceFromProject(projectId, data.definition_id, "harness");
   }, onError: (reason, variables) => { if (variables.generation === creationGeneration.current && authorityDenied(reason)) { newDenialEpoch.current += 1; setNewBlocked(true); } } });
   const freeze = useMutation({ mutationFn: async ({ generation }: { generation: number }) => { const expected = draftControl?.state ?? draft.data?.state; const target = draftId!; const data = await command<{ revision_id: string; draft?: { state: string } }>("harness.freeze", { draft_id: target }, expected); return { data, generation, expected, target }; }, onSuccess: async ({ data, generation, expected, target }) => {
     if (generation !== editorGeneration.current) return;

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { command, read, targetLabel, valueLabel, type Definition, type Evidence, type Fact, type Facts, type Identity, type Method, type Purpose, type Role, type Status, type Subject, type Target, type Value } from "./api";
 import { revisionOptionLabel } from "../../lib/revision-labels";
+import { useOpenProbed } from "../scope/openProbed";
 
 /** Fact ledgers belong to the workspace; a project is only offered as one possible subject. */
 export function FactsPanel({ workspaceId, projectId }: { workspaceId: string; projectId?: string }) {
@@ -33,6 +34,8 @@ function FactWorkspace({ workspaceId, projectId }: { workspaceId: string; projec
     const target: Target = kind === "project" ? { kind, project_id: projectId! } : kind === "definition" ? { kind, definition_id: definitionId!, feature_id: featureId || null } : kind === "revision" ? { kind, revision_id: revisionId!, feature_id: featureId || null } : kind === "physical_unit" ? { kind, unit_id: unitId! } : { kind, snapshot_id: snapshotId, path: path.split("/"), feature_id: featureId || null };
     return command<Subject>("facts.register_subject", { target });
   }, onSuccess: async (data) => { setSubjectId(data.subject_id); await cache.invalidateQueries({ queryKey: ["fact-subjects", workspaceId] }); } });
+  // A Library row or deep link opens that fact subject's ledger when it is on the listed page.
+  useOpenProbed(subjects.data ? (id) => subjects.data.some((subject) => subject.subject_id === id) : null, setSubjectId);
   const missingTarget = kind === "project" ? !projectId : kind === "definition" ? !definitionId : kind === "revision" ? !revisionId : kind === "occurrence" ? !snapshotId || !path : kind === "physical_unit" ? !unitId : false;
   return <Stack>
     <Title order={2}>Facts and unknowns</Title>

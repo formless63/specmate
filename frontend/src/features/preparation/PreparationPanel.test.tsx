@@ -47,7 +47,7 @@ test.each(['preparation.create', 'preparation.update', 'preparation.freeze'])('%
     if (url.includes('catalog/definitions')) return response({ drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [] });
     return response([{ definition_id: 'profile', name: 'Synthetic profile', kind: 'preparation_profile' }]);
   }));
-  render(wrap(<PreparationPanel projectId="project" />));
+  render(wrap(<PreparationPanel />));
   fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } }); fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } }); fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance')); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20.000001' } });
   if (operation !== 'preparation.create') { fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' }); }
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 basis'), { target: { value: 'Unsaved synthetic basis' } }); denied = true; fireEvent.click(screen.getByText(operation === 'preparation.freeze' ? 'Freeze preparation profile' : 'Save preparation profile'));
@@ -70,7 +70,7 @@ test('saved formulas freeze exact history while later unsaved edits stay indepen
     if (url.includes('catalog/definitions')) return response({ drafts: [{ draft_id: 'draft', state: 'v1' }], revisions: [{ revision_id: 'profile-rev', number: 1 }] });
     return response([{ definition_id: 'profile', name: 'Synthetic profile', kind: 'preparation_profile' }]);
   }));
-  render(wrap(<PreparationPanel projectId="project" />));
+  render(wrap(<PreparationPanel />));
   fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Synthetic profile' } }); fireEvent.change(screen.getByLabelText('Preparation stock exact revision ID'), { target: { value: 'stock-rev' } }); fireEvent.click(screen.getByText('Add cut formula')); fireEvent.click(screen.getByText('Add Formula 1 allowance')); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '20' } }); fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 basis'), { target: { value: 'Saved synthetic basis' } }); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '999' } }); fireEvent.click(screen.getByText('Freeze preparation profile')); await screen.findByText(/frozen-formula-hash/);
   expect(screen.getByText(byContent('allowance-1: preparation 20 mm · whole_piece · Saved synthetic basis'))).toBeTruthy(); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('999'); expect(commands.at(-1)).toMatchObject({ operation: 'preparation.freeze', expected_state: 'v1' }); await screen.findByText('draft · v2', { selector: 'p' });
@@ -96,7 +96,7 @@ test('late save retains post-submit edits while advancing only the accepted CAS 
     if (commands.length === 1) return pending.promise;
     return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v2', content: { preparation_profile: cmd.payload.profile } } });
   }));
-  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile'));
+  render(wrap(<PreparationPanel />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile'));
   await waitFor(() => expect(commands).toHaveLength(1));
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } });
   await act(async () => { pending.resolve(response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: commands[0]!.payload.profile } } })); });
@@ -111,7 +111,7 @@ test.each(['save', 'load', 'freeze'])('late %s cannot reopen an editor replaced 
     if (url.includes('preparation/drafts/')) { waiting = true; return pending.promise; }
     return response(baseRead(url));
   }));
-  render(wrap(<PreparationPanel projectId="project" />)); startProfile();
+  render(wrap(<PreparationPanel />)); startProfile();
   if (action === 'load') { await select('Existing preparation definition', 'Synthetic profile'); await select('Preparation draft to load', 'draft · v1'); fireEvent.click(screen.getByText('Load preparation draft')); }
   else { fireEvent.click(screen.getByText('Save preparation profile')); if (action === 'freeze') { await screen.findByText('draft · v1', { selector: 'p' }); fireEvent.click(screen.getByText('Freeze preparation profile')); } }
   await waitFor(() => expect(waiting).toBe(true)); fireEvent.click(screen.getByRole('button', { name: 'New preparation profile' })); fireEvent.change(screen.getByLabelText('Preparation profile name'), { target: { value: 'Replacement profile' } });
@@ -130,7 +130,7 @@ test('computed denial gates sibling frozen/editor provenance and checks exact de
     if (url.includes('cable-rev/snapshot')) authorityReads.push(url);
     return response(baseRead(url));
   }));
-  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' }); fireEvent.click(screen.getByText('Freeze preparation profile')); await screen.findByText(/sibling-private-hash/);
+  render(wrap(<PreparationPanel />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' }); fireEvent.click(screen.getByText('Freeze preparation profile')); await screen.findByText(/sibling-private-hash/);
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } });
   fireEvent.change(screen.getByLabelText('Preparation subject exact revision ID'), { target: { value: 'cable-rev' } }); fireEvent.change(screen.getByLabelText('Application 1 profile exact revision ID'), { target: { value: 'profile-rev' } }); fireEvent.click(screen.getByText('Compute preparation cuts')); await screen.findByText(byContent(/1035 mm/));
   denied = true; fireEvent.click(screen.getByText('Refresh computed cut access')); await screen.findByText(/Preparation source access must be rechecked/);
@@ -156,7 +156,7 @@ test('browsing history while a save is pending does not discard same-editor auth
     if (url.includes('/definitions') && !url.includes('catalog/definitions')) return response([...baseRead(url) as object[], { definition_id: 'other', name: 'Other history', kind: 'preparation_profile' }]);
     return response(baseRead(url));
   }));
-  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
+  render(wrap(<PreparationPanel />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } }); fireEvent.click(screen.getByText('Save preparation profile')); await waitFor(() => expect(count).toBe(2));
   await select('Existing preparation definition', 'Other history'); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('25');
   await act(async () => { pending.resolve(response({ error: { message: 'Retained editor source denied.' } }, 403)); });
@@ -170,7 +170,7 @@ test('quantity edits cannot discard a pending computed denial affecting the reta
     if (url.endsWith('/compute')) { computations += 1; return computations === 1 ? response(computed) : pending.promise; }
     return response(baseRead(url));
   }));
-  render(wrap(<PreparationPanel projectId="project" />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
+  render(wrap(<PreparationPanel />)); startProfile(); fireEvent.click(screen.getByText('Save preparation profile')); await screen.findByText('draft · v1', { selector: 'p' });
   fireEvent.change(screen.getByLabelText('Formula 1 allowance 1 mm'), { target: { value: '25' } }); fireEvent.change(screen.getByLabelText('Preparation subject exact revision ID'), { target: { value: 'cable-rev' } }); fireEvent.change(screen.getByLabelText('Application 1 profile exact revision ID'), { target: { value: 'profile-rev' } }); fireEvent.click(screen.getByText('Compute preparation cuts')); await screen.findByText(byContent(/1035 mm/));
   fireEvent.click(screen.getByText('Refresh computed cut access')); await waitFor(() => expect(computations).toBe(2)); fireEvent.change(screen.getByLabelText('Requested units'), { target: { value: '3' } }); expect(screen.queryByText(byContent(/1035 mm/))).toBeNull(); expect((screen.getByLabelText('Formula 1 allowance 1 mm') as HTMLInputElement).value).toBe('25');
   await act(async () => { pending.resolve(response({ error: { message: 'Superseded read source denied.' } }, 403)); });
@@ -188,7 +188,7 @@ test.each([
     if (url.endsWith('/operations')) { const cmd = JSON.parse(String(options?.body)); saved = cmd.payload.profile ?? saved; return response({ result: { definition_id: 'profile', draft_id: 'draft', state: 'v1', content: { preparation_profile: saved } } }); }
     return response(baseRead(url));
   }));
-  render(wrap(<PermissionsProvider permissions={[...permissions]}><PreparationPanel projectId="project" /></PermissionsProvider>)); startProfile();
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><PreparationPanel /></PermissionsProvider>)); startProfile();
   const save = screen.getByRole('button', { name: 'Save preparation profile' }) as HTMLButtonElement;
   expect(save.disabled).toBe(saveOff);
   // A first save creates a workspace item, so it needs item.create.

@@ -7,9 +7,11 @@ import { PlanEditor } from './PlanEditor';
 import { referenceKey, type ReferenceSelections } from './ReferenceChoice';
 import { authorityDenied, checkAuthority, command, emptyPlan, read, type Definition, type Draft, type Identity, type Plan } from './api';
 import { revisionOptionLabel } from "../../lib/revision-labels";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
 
-export function MaterialAccountingPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+/** Library material plans. `projectId` is optional context: new plans are then also referenced by that project. */
+export function MaterialAccountingPanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} />; }
+function Workspace({ projectId }: { projectId: string | null }) {
   const editGate = usePermission('design.edit');
   // Saving a new profile or plan creates a workspace item (item.create); revising one needs design.edit.
   const createGate = usePermission('item.create');
@@ -42,10 +44,11 @@ function Workspace({ projectId }: { projectId: string }) {
     generation.current += 1; authorityEpoch.current += 1; setCurrent(data); setPlan(data.content.material_plan); setDefinition(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setReferences({}); setBlocked(false);
     save.reset(); freeze.reset(); refresh.reset(); cache.removeQueries({ queryKey: ['material-sheet'] });
   }, onError: (error, input) => fail(error, input.version) });
-  const save = useMutation({ mutationFn: ({ version, payload, draft }: { version: number; payload: Plan; draft: Draft | null }) => command<Draft>(draft ? 'material_plan.update' : 'material_plan.create', draft ? { draft_id: draft.draft_id, plan: payload } : { name, plan: payload }, draft?.state).then(data => ({ data, version })), onSuccess: ({ data, version }) => {
+  const save = useMutation({ mutationFn: ({ version, payload, draft }: { version: number; payload: Plan; draft: Draft | null }) => command<Draft>(draft ? 'material_plan.update' : 'material_plan.create', draft ? { draft_id: draft.draft_id, plan: payload } : { name, plan: payload }, draft?.state).then(data => ({ data, version })), onSuccess: async ({ data, version }, input) => {
     if (version !== generation.current) return;
     setCurrent(data); setDefinition(data.definition_id); setDraftId(data.draft_id);
     cache.invalidateQueries({ queryKey: ['material-definitions', projectId] }); cache.invalidateQueries({ queryKey: ['material-identity', data.definition_id] });
+    if (!input.draft) await referenceFromProject(projectId, data.definition_id, 'material plan');
   }, onError: (error, input) => fail(error, input.version) });
   const freeze = useMutation({ mutationFn: ({ draft, version }: { draft: Draft; version: number }) => command<{ revision_id: string; draft: Draft }>('material_plan.freeze', { draft_id: draft.draft_id }, draft.state).then(data => ({ data, version })), onSuccess: ({ data, version }) => {
     if (version !== generation.current) return;
@@ -70,6 +73,10 @@ function Workspace({ projectId }: { projectId: string }) {
   }, onError: (error, input) => fail(error, input.version) });
   // Errors from read promises are fenced inside their query functions, including detached reads.
   useEffect(() => { if (blocked) cache.removeQueries({ queryKey: ['material-sheet'] }); }, [blocked, cache]);
+  const pick = (id: string | null) => { setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); };
+  // Opening from the Library selects the newest draft to load (unsaved values stay until loaded) or the latest revision.
+  const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
+  useOpenProbed(definitionIn(definitions.isError ? undefined : definitions.data, ['material_plan']), (id) => { pick(id); openNewest(id); });
   const pending = load.isPending || save.isPending || freeze.isPending;
   const sheetGeneration = generation.current;
   const discard = () => {
@@ -85,7 +92,7 @@ function Workspace({ projectId }: { projectId: string }) {
         <InspectionScope permission={current ? 'design.edit' : 'item.create'}><PlanEditor references={references} onReference={(label, reference) => setReferences(previous => ({ ...previous, [label]: reference }))} generation={sheetGeneration} onDenied={() => denied(sheetGeneration)} value={plan} definitions={definitions.isError ? [] : definitions.data ?? []} onChange={next => { edits.current += 1; setPlan(next); }} /></InspectionScope>
         <Group><Button disabled={pending || !plan.subject_revision_id || (!current && !name.trim())} {...(current ? editGate : createGate).props} onClick={() => save.mutate({ version: generation.current, payload: plan, draft: current })}>Save material plan</Button><Button disabled={pending || !current} {...freezeGate.props} onClick={() => freeze.mutate({ draft: current!, version: generation.current })}>Freeze saved material plan</Button></Group><ReadOnlyNote permission={current ? "design.edit" : "item.create"}>Saving and freezing material plans are unavailable.</ReadOnlyNote><Text size="sm">Freeze captures the saved draft. Unsaved edits stay separate.</Text>
       </Stack></Card>
-      <Select label="Existing material plan" value={definition} data={(definitions.isError ? [] : definitions.data ?? []).filter(d => d.kind === 'material_plan').map(d => ({ value: d.definition_id, label: d.name }))} onChange={id => { setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
+      <Select label="Existing material plan" value={definition} data={(definitions.isError ? [] : definitions.data ?? []).filter(d => d.kind === 'material_plan').map(d => ({ value: d.definition_id, label: d.name }))} onChange={pick} />
       {identity.data && !identity.isError && <><Select label="Material draft to load" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={setDraftId} /><Button disabled={pending || !draftId} onClick={() => load.mutate({ id: draftId!, version: generation.current, edit: edits.current })}>Load material draft</Button><Select label="Frozen material revision" value={revisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={setRevisionId} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Earlier material history</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Later material history</Button></Group></>}
       {revisionId && <BuildSheet key={`${revisionId}:${sheetGeneration}`} revisionId={revisionId} editorGeneration={sheetGeneration} onDenied={() => denied(sheetGeneration)} />}
     </>}

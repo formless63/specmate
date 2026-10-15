@@ -5,6 +5,7 @@ import { useState } from "react";
 import { command, libraryDefinitions, read, type Catalog, type Identity } from "./api";
 import { RepresentationsCard } from "./RepresentationsCard";
 import { IdentityLabel, RevisionLabel } from "../../lib/IdentityLabel";
+import { definitionIn, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 
 /** Library identities. `projectId` is optional navigation context, never the item's owner. */
 export function IdentityPanel({ projectId }: { projectId?: string | null }) {
@@ -23,6 +24,9 @@ function IdentityWorkspace({ projectId }: { projectId: string | null }) {
   const [useHere, setUseHere] = useState(true);
   const definitions = useQuery({ queryKey: ["library-definitions", projectId], queryFn: () => libraryDefinitions(projectId) });
   const identity = useQuery({ queryKey: ["identity", definitionId, identityOffset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${identityOffset}`), enabled: !!definitionId });
+  // A Library row, deep link or other view opens its definition here.
+  const openNewest = useOpenNewest(identity.data, () => undefined, setRevisionId);
+  useOpenProbed(definitionIn(definitions.data?.results, []), (id) => { setDefinitionId(id); setRevisionId(null); setIdentityOffset(0); openNewest(id); });
   const create = useMutation({ mutationFn: async () => {
     // New items join the workspace library; "Use in this project" adds the reference in the same operation.
     const workspaceId = definitions.data?.workspace_id ?? (await libraryDefinitions(projectId)).workspace_id;

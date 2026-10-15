@@ -9,10 +9,12 @@ import { ContactDrawing, ContactPositionEditor, ElectricalConditionsEditor } fro
 import { OperatingNumberInput } from "./declaration-inputs";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 
 const kinds = [{ value: "connector_body", label: "Connector body" }, { value: "pinout", label: "Logical pinout" }, { value: "interface_map", label: "External / internal mapping" }];
-export function InterfacePanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+/** Library interface definitions. `projectId` is optional context: new items are then also referenced by that project. */
+export function InterfacePanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} />; }
+function Workspace({ projectId }: { projectId: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');
@@ -25,9 +27,13 @@ function Workspace({ projectId }: { projectId: string }) {
   const definitions = useQuery({ queryKey: ["interface-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["interface-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["interface-draft", draftId], queryFn: () => read<Draft>(`interfaces/drafts/${draftId}`), enabled: !!draftId });
+  const pick = (id: string | null) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); };
+  const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
+  useOpenProbed(definitionIn(definitions.data, kinds.map((k) => k.value)), (id) => { pick(id); openNewest(id); });
   const create = useMutation({ mutationFn: () => command<Draft>("interface.create", { name, interface: value }), onSuccess: async (data) => {
     setDefinitionId(data.definition_id); setDraftId(data.draft_id); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["interface-definitions", projectId] });
+    await referenceFromProject(projectId, data.definition_id, "interface");
   } });
   const freeze = useMutation({ mutationFn: () => command<{ revision_id: string }>("interface.freeze", { draft_id: draftId }, draft.data?.state), onSuccess: async (data) => {
     setRevisionId(data.revision_id);
@@ -46,7 +52,7 @@ function Workspace({ projectId }: { projectId: string }) {
       {create.isError && <Alert color="red">{create.error.message}</Alert>}
     </Stack></Card>
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    <Select label="Existing interface definition" searchable data={(definitions.data ?? []).filter((d) => kinds.some((k) => k.value === d.kind)).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitionId} onChange={(id) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
+    <Select label="Existing interface definition" searchable data={(definitions.data ?? []).filter((d) => kinds.some((k) => k.value === d.kind)).map((d) => ({ value: d.definition_id, label: `${d.name} (${d.kind})` }))} value={definitionId} onChange={pick} />
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && <>
       <Select label="Edit interface draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />

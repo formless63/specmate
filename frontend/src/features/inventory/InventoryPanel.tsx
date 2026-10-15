@@ -1,4 +1,5 @@
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
+import { useOpenProbed } from "../scope/openProbed";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Switch, Table, Text, TextInput, Title } from "@mantine/core";
 import { SbQuantity } from "../../components/sb";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +48,8 @@ function Workspace({ workspaceId, projectId }: { workspaceId: string; projectId?
     setPendingRequest(envelope); mutation.mutate(envelope);
   }
   const data = inventory.data;
+  // A Library row or deep link opens its stock account on the listed page.
+  useOpenProbed(inventory.data ? (id) => inventory.data.accounts.some((account) => account.account_id === id) : null, setSelected);
   return <Stack>
     <Title order={2}>Inventory</Title>
     <Text>Stock lots remain pinned to their exact design revision. Reservations hold availability while the physical balance stays on hand.</Text>

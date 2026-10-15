@@ -9,12 +9,14 @@ import { addressKey, command, read, relationship, type Assembly, type Definition
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { useCan } from "../../lib/permissions";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
 
-export function AssemblyPanel({ projectId, onAccessLost }: { projectId: string; onAccessLost?: () => void }) {
-  return <AssemblyWorkspace key={projectId} projectId={projectId} onAccessLost={onAccessLost} />;
+/** Library assemblies. `projectId` is optional context: new assemblies are then also referenced by that project. */
+export function AssemblyPanel({ projectId = null, onAccessLost }: { projectId?: string | null; onAccessLost?: () => void }) {
+  return <AssemblyWorkspace key={projectId ?? "library"} projectId={projectId} onAccessLost={onAccessLost} />;
 }
 
-function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string; onAccessLost?: () => void }) {
+function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string | null; onAccessLost?: () => void }) {
   const canEdit = useCan("design.edit");
   // Creating an assembly adds a workspace item (item.create); editing drafts needs design.edit.
   const canCreate = useCan("item.create");
@@ -112,7 +114,11 @@ function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string; onA
     if (token !== generation.current || !data) return;
     clearDraftSession(); setDefinitionId(data.definition_id); setDraftId(data.draft_id); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); setName("");
     await cache.invalidateQueries({ queryKey: ["assembly-definitions", projectId] });
+    await referenceFromProject(projectId, data.definition_id, "assembly");
   }, onError: accessLost });
+  const pick = (id: string | null) => { generation.current++; clearDraftSession(); setDefinitionId(id); setDraftId(null); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); };
+  const openNewest = useOpenNewest(identity.data, setDraftId, setFrozenRevision);
+  useOpenProbed(accessError ? null : definitionIn(definitions.data, ["assembly"]), (id) => { pick(id); openNewest(id); });
   const capture = useMutation({ mutationFn: (freeze: boolean) => {
     const operation = freeze ? "assembly.freeze" : "assembly.snapshot";
     const expectedState = captureState?.draft_id === draftId ? captureState.state : undefined;
@@ -134,7 +140,7 @@ function AssemblyWorkspace({ projectId, onAccessLost }: { projectId: string; onA
     <Button onClick={() => { void refreshAuthorized(); }}>Refresh authorized assemblies</Button>
     {!accessError && create.isError && <Alert color="red">{create.error.message}</Alert>}
     {!accessError && definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
-    {!accessError && <Select label="Assembly definition" searchable value={definitionId} data={(definitions.data ?? []).filter((d) => d.kind === "assembly").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={(id) => { generation.current++; clearDraftSession(); setDefinitionId(id); setDraftId(null); setSnapshotId(null); setFrozenRevision(null); setIdentityOffset(0); }} />}
+    {!accessError && <Select label="Assembly definition" searchable value={definitionId} data={(definitions.data ?? []).filter((d) => d.kind === "assembly").map((d) => ({ value: d.definition_id, label: d.name }))} onChange={pick} />}
     {!accessError && identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {!accessError && identity.data && <Select label="Assembly draft" value={draftId} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={(id) => { generation.current++; clearDraftSession(); setDraftId(id); setSnapshotId(null); }} />}
     {!accessError && identity.data && <><Select label="Frozen assembly revision" clearable value={frozenRevision} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={(id) => { generation.current++; setFrozenRevision(id); setSnapshotId(null); }} /><Group><Button disabled={identityOffset === 0} onClick={() => setIdentityOffset(Math.max(0, identityOffset - 50))}>Previous assembly revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setIdentityOffset(identityOffset + 50)}>Next assembly revisions</Button></Group></>}

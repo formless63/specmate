@@ -35,7 +35,7 @@ test('save and freeze preserve independent unsaved observations and exact editin
     if (url.includes('catalog/definitions')) return response({ drafts: [], revisions: [] });
     return response([]);
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />));
+  render(wrap(<MaterialAccountingPanel />));
   fireEvent.change(screen.getByLabelText('Material plan name'), { target: { value: 'Synthetic material sheet' } });
   fireEvent.change(screen.getByLabelText('Material subject exact revision ID'), { target: { value: 'subject' } });
   fireEvent.click(screen.getByText('Add physical material piece'));
@@ -59,7 +59,7 @@ test('source denial hides retained evidence and restores unsaved state without a
     if (url.includes('catalog/definitions')) return response({ drafts: [], revisions: [] });
     return response([]);
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />));
+  render(wrap(<MaterialAccountingPanel />));
   fireEvent.change(screen.getByLabelText('Material plan name'), { target: { value: 'Synthetic material sheet' } }); fireEvent.change(screen.getByLabelText('Material subject exact revision ID'), { target: { value: 'subject' } }); fireEvent.click(screen.getByText('Add physical material piece'));
   fireEvent.change(screen.getByLabelText('Piece 1 installed material mm per piece'), { target: { value: '1000.000001' } }); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
   denied = true; fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('Source revoked.'); expect(screen.queryByLabelText('Piece 1 installed material mm per piece')).toBeNull();
@@ -86,7 +86,7 @@ function readBody(url: string) {
 
 test('a denied malformed reference can be discarded from the authority gate', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/operations') ? response({ error: { message: 'Reference unavailable.' } }, 404) : response([])));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('Reference unavailable.');
+  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('Reference unavailable.');
   expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); fireEvent.click(screen.getByText('Discard unsaved material values and start new'));
   expect((await screen.findByLabelText('Material subject exact revision ID') as HTMLInputElement).value).toBe('');
 });
@@ -94,7 +94,7 @@ test('a denied malformed reference can be discarded from the authority gate', as
 test('late denied mutation from a replaced editor cannot hide the new editor', async () => {
   const pending = deferred<Response>();
   vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('/operations') ? pending.promise : response([])));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); fireEvent.click(screen.getByText('Discard unsaved material values and start new'));
+  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); fireEvent.click(screen.getByText('Discard unsaved material values and start new'));
   fireEvent.change(screen.getByLabelText('Material subject exact revision ID'), { target: { value: 'new-subject' } });
   await act(async () => { pending.resolve(response({ error: { message: 'Old editor source revoked.' } }, 403)); });
   expect((screen.getByLabelText('Material subject exact revision ID') as HTMLInputElement).value).toBe('new-subject'); expect(screen.queryByText('Refresh material accounting access')).toBeNull();
@@ -107,7 +107,7 @@ test('history browsing retains the same editor and cannot suppress its late deni
     if (url.includes('catalog/definitions')) return response({ ...identities, revisions: Array.from({ length: 50 }, (_, i) => ({ revision_id: `revision-${i}`, number: i + 1 })) });
     return response(readBody(url));
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
+  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
   await screen.findByText('Later material history'); fireEvent.click(screen.getByText('Save material plan')); fireEvent.click(screen.getByText('Later material history'));
   await act(async () => { pending.resolve(response({ error: { message: 'Same draft source revoked.' } }, 404)); });
   await screen.findByText('Same draft source revoked.'); expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); expect(screen.getByText('Refresh material accounting access')).toBeTruthy();
@@ -121,7 +121,7 @@ test('recovery reauthorizes selected identity before revealing its cached histor
     if (url.includes('catalog/definitions') && identityDenied) return response({ error: { message: 'Selected identity denied.' } }, 404);
     return response(readBody(url));
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await screen.findByRole('combobox', { name: 'Frozen material revision' });
+  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await screen.findByRole('combobox', { name: 'Frozen material revision' });
   fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('Mutation source denied.'); identityDenied = true; fireEvent.click(screen.getByText('Refresh material accounting access')); await screen.findByText('Selected identity denied.');
   expect(screen.queryByRole('combobox', { name: 'Frozen material revision' })).toBeNull(); expect(screen.queryByLabelText('Material subject exact revision ID')).toBeNull(); identityDenied = false; fireEvent.click(screen.getByText('Refresh material accounting access')); await screen.findByRole('combobox', { name: 'Frozen material revision' }); expect(screen.getByText('draft · original-token', { selector: 'p' })).toBeTruthy();
 });
@@ -133,7 +133,7 @@ test.each([false, true])('detached frozen read denial is fenced only by genuine 
     if (url.endsWith('/revisions/first')) { firstStarted = true; return first.promise; }
     return response(readBody(url));
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
+  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
   await select('Frozen material revision', 'Revision 1'); await waitFor(() => expect(firstStarted).toBe(true));
   if (replacement) fireEvent.click(screen.getByText('Discard unsaved material values and start new'));
   else { await select('Frozen material revision', 'Revision 2'); await screen.findAllByText('plan-rev', { selector: 'code' }); }
@@ -151,7 +151,7 @@ test('a later detached denial keeps recovery closed when an earlier refresh succ
     if (url.includes('catalog/definitions') && firstReads > 1) recoveredIdentity = true;
     return response(readBody(url));
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await select('Frozen material revision', 'Revision 1'); await waitFor(() => expect(firstStarted).toBe(true));
+  render(wrap(<MaterialAccountingPanel />)); start(); fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token'); await select('Frozen material revision', 'Revision 1'); await waitFor(() => expect(firstStarted).toBe(true));
   fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('Initial source denied.'); fireEvent.click(screen.getByText('Refresh material accounting access'));
   await act(async () => { first.resolve(response({ error: { message: 'Later source denied.' } }, 404)); recovery.resolve(response({ result: { authorized: true } })); });
   await waitFor(() => expect(recoveredIdentity).toBe(true));
@@ -172,7 +172,7 @@ test('reference-page denial hides retained material and recovery rechecks the se
     if (url.includes('/drafts/')) return response(draft);
     return response([{ definition_id: 'subject-definition', kind: 'cable', name: 'Exact subject identity' }]);
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start();
+  render(wrap(<MaterialAccountingPanel />)); start();
   fireEvent.click(screen.getByText('Save material plan')); await screen.findByText('draft · original-token');
   await select('Material subject definition', 'Exact subject identity');
   fireEvent.click(await screen.findByText('Later Material subject revisions'));
@@ -199,7 +199,7 @@ test.each([false, true])('detached reference denial is fenced only by genuine ed
     if (url.includes('catalog/definitions')) return response(identities);
     return response([{ definition_id: 'subject-definition', kind: 'cable', name: 'Exact subject identity' }, { definition_id: 'definition', kind: 'material_plan', name: 'Unrelated history choice' }]);
   }));
-  render(wrap(<MaterialAccountingPanel projectId="project" />)); start();
+  render(wrap(<MaterialAccountingPanel />)); start();
   await select('Material subject definition', 'Exact subject identity');
   await waitFor(() => expect(requested).toBe(true));
   if (replacement) fireEvent.click(screen.getByText('Discard unsaved material values and start new'));
@@ -227,7 +227,7 @@ test.each([
     if (url.includes('catalog/definitions')) return response({ drafts: [], revisions: [] });
     return response([]);
   }));
-  render(wrap(<PermissionsProvider permissions={[...permissions]}><MaterialAccountingPanel projectId="project" /></PermissionsProvider>));
+  render(wrap(<PermissionsProvider permissions={[...permissions]}><MaterialAccountingPanel /></PermissionsProvider>));
   fireEvent.change(screen.getByLabelText('Material plan name'), { target: { value: 'Synthetic material sheet' } });
   fireEvent.change(screen.getByLabelText('Material subject exact revision ID'), { target: { value: 'subject' } });
   const save = screen.getByRole('button', { name: 'Save material plan' }) as HTMLButtonElement;

@@ -15,8 +15,8 @@ import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
 import { FromPreference, usePreferenceDefaults } from "../preferences/usePreferenceDefaults";
 
-export function CablePanel({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) { return <Workspace key={projectId} projectId={projectId} workspaceId={workspaceId} />; }
-function Workspace({ projectId, workspaceId }: { projectId: string; workspaceId?: string | null }) {
+export function CablePanel({ projectId = null, workspaceId }: { projectId?: string | null; workspaceId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} workspaceId={workspaceId} />; }
+function Workspace({ projectId, workspaceId }: { projectId: string | null; workspaceId?: string | null }) {
   const cache = useQueryClient();
   const createGate = usePermission('item.create');
   const freezeGate = usePermission('design.freeze');

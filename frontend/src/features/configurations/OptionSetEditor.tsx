@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Checkbox, Group, NativeSelect, Stack, Table, Text
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from '../../lib/random-id';
 import { InspectionScope, ReadOnlyNote, usePermission } from '../../lib/permissions';
+import { definitionIn, useOpenProbed } from '../scope/openProbed';
 import { addProjectReference, command, libraryDefinitions, read, type Definition, type Identity } from '../identity/api';
 import { operation, type AuthoringContext, type Described } from './api';
 import { ConstraintEditor } from './ConstraintEditor';
@@ -14,7 +15,8 @@ type Revisions = Identity['revisions'];
 type Occurrence = NonNullable<AuthoringContext['target']>['occurrences'][number];
 
 /** Option-set authoring: declare options and their exact choices on a draft, then freeze it. */
-export function OptionSetAuthoring({ projectId, definitions, onCreated }: { projectId: string; definitions: Definition[]; onCreated: () => void }) {
+/** Option-set authoring. `projectId` is optional context: "Use in this project" is offered only with one. */
+export function OptionSetAuthoring({ projectId = null, definitions, onCreated }: { projectId?: string | null; definitions: Definition[]; onCreated: () => void }) {
   const create = usePermission('item.create');
   const [definition, setDefinition] = useState('');
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -40,7 +42,7 @@ export function OptionSetAuthoring({ projectId, definitions, onCreated }: { proj
       // New option sets join the workspace library; a project reference is optional context.
       const { workspace_id } = await libraryDefinitions(projectId);
       const result = await command<{ definition_id: string }>('definition.create', { workspace_id, kind: 'option_set', name: name.trim(), content: serializeOptionSet(parseOptionSet(null)) });
-      if (useHere) {
+      if (projectId && useHere) {
         try { await addProjectReference(projectId, 'definition', result.definition_id, 'option_set'); }
         catch (failure) { setNote(`Created in the library, but not added to this project: ${(failure as Error).message}`); }
       }
@@ -48,6 +50,7 @@ export function OptionSetAuthoring({ projectId, definitions, onCreated }: { proj
     } catch (failure) { setError((failure as Error).message); } finally { setBusy(false); }
   }
   const optionSets = definitions.filter((item) => item.kind === 'option_set');
+  useOpenProbed(definitions.length ? definitionIn(definitions, ['option_set']) : null, setDefinition);
   return <Stack gap="sm">
     <Title order={4}>Option sets</Title>
     <Text size="sm">Declare options for parts, board populations, firmware, materials, processes and requirements. Each choice pins one exact frozen revision or declares one value; occurrence options address a path of an exact target assembly revision. Freeze the option set before a configuration can pin it.</Text>
@@ -60,7 +63,7 @@ export function OptionSetAuthoring({ projectId, definitions, onCreated }: { proj
     </Group>
     <InspectionScope permission="item.create"><Group align="end">
       <TextInput label="New option set name" value={name} onChange={(event) => setName(event.currentTarget.value)} />
-      <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />
+      {projectId && <Checkbox label="Use in this project" checked={useHere} onChange={(event) => setUseHere(event.currentTarget.checked)} />}
       <Button {...create.props} disabled={!create.allowed || !name.trim() || busy} onClick={() => { void createSet(); }}>Create option set</Button>
     </Group></InspectionScope>
     <ReadOnlyNote permission="item.create" />

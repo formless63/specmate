@@ -9,9 +9,11 @@ import { RevisionChoice } from './RevisionChoice';
 import { CutCalculation } from './CutCalculation';
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { RevisionLabel } from "../../lib/IdentityLabel";
+import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from '../scope/openProbed';
 
-export function PreparationPanel({ projectId }: { projectId: string }) { return <Workspace key={projectId} projectId={projectId} />; }
-function Workspace({ projectId }: { projectId: string }) {
+/** Library cut preparation profiles. `projectId` is optional context: new profiles are then also referenced by that project. */
+export function PreparationPanel({ projectId = null }: { projectId?: string | null }) { return <Workspace key={projectId ?? "library"} projectId={projectId} />; }
+function Workspace({ projectId }: { projectId: string | null }) {
   const editGate = usePermission('design.edit');
   // Saving a new profile or plan creates a workspace item (item.create); revising one needs design.edit.
   const createGate = usePermission('item.create');
@@ -66,6 +68,7 @@ function Workspace({ projectId }: { projectId: string }) {
       setDefinition(data.definition_id); setDraftId(data.draft_id);
       await cache.invalidateQueries({ queryKey: ['preparation-definitions', projectId] });
       await cache.invalidateQueries({ queryKey: ['preparation-identity', data.definition_id] });
+      if (!submitted.current) await referenceFromProject(projectId, data.definition_id, 'preparation profile');
     },
     onError: (error, submitted) => { if (submitted.authorityGeneration === authorityGeneration.current) onError(error); },
   });
@@ -74,6 +77,10 @@ function Workspace({ projectId }: { projectId: string }) {
     onSuccess: async (data, submitted) => { if (submitted.generation !== generation.current) return; setRevisionId(data.revision_id); setCurrent(c => c ? { ...c, state: data.draft.state } : c); await cache.invalidateQueries({ queryKey: ['preparation-identity', submitted.current.definition_id] }); },
     onError: (error, submitted) => { if (submitted.authorityGeneration === authorityGeneration.current) onError(error); },
   });
+  const pick = (id: string | null) => { generation.current += 1; setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); };
+  // Opening from the Library selects the newest draft to load (unsaved values stay until loaded) or the latest revision.
+  const openNewest = useOpenNewest(identity.data, setDraftId, setRevisionId);
+  useOpenProbed(definitionIn(definitions.data, ['preparation_profile']), (id) => { pick(id); openNewest(id); });
   const denied = blocked || definitions.isError || identity.isError || stock.isError;
   return <Stack><Title order={2}>Preparation arithmetic</Title><Text>Freeze reviewed formulas separately from illustrative workshop practices. Exact applications compute suggestions without changing stock, cable or harness declarations. Prepend, physical clearance and qualification remain unevaluated.</Text>
     {[definitions.error, identity.error, stock.error, load.error, save.error, freeze.error, refresh.error].filter(Boolean).map((error, i) => <Alert key={i} color="red">{error!.message}</Alert>)}
@@ -86,7 +93,7 @@ function Workspace({ projectId }: { projectId: string }) {
       </InspectionScope>
       <Group><Button disabled={load.isPending || freeze.isPending || !profile.stock_revision_id || (!current && !name.trim())} loading={save.isPending} {...(current ? editGate : createGate).props} onClick={() => save.mutate({ current, profile, name, generation: generation.current, authorityGeneration: authorityGeneration.current, edits: edits.current })}>Save preparation profile</Button>{current && <Button disabled={save.isPending || load.isPending} loading={freeze.isPending} {...freezeGate.props} onClick={() => freeze.mutate({ current, generation: generation.current, authorityGeneration: authorityGeneration.current })}>Freeze preparation profile</Button>}<Button variant="subtle" onClick={() => { generation.current += 1; authorityGeneration.current += 1; setCurrent(null); changeProfile(emptyProfile()); setName(''); setDefinition(null); setDraftId(null); setRevisionId(null); }}>New preparation profile</Button></Group><ReadOnlyNote permission={current ? "design.edit" : "item.create"}>Saving and freezing preparation profiles are unavailable.</ReadOnlyNote>
     </Stack></Card>
-    <Select label="Existing preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={id => { generation.current += 1; setDefinition(id); setDraftId(null); setRevisionId(null); setOffset(0); }} />
+    <Select label="Existing preparation definition" data={(definitions.data ?? []).filter(d => d.kind === 'preparation_profile').map(d => ({ value: d.definition_id, label: d.name }))} value={definition} onChange={pick} />
     {identity.data && <><Select label="Preparation draft to load" value={draftId} data={identity.data.drafts.map(d => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} onChange={id => { generation.current += 1; setDraftId(id); }} /><Button disabled={!draftId} loading={load.isPending} onClick={() => { generation.current += 1; load.mutate({ draftId: draftId!, generation: generation.current, authorityGeneration: authorityGeneration.current, edits: edits.current }); }}>Load preparation draft</Button><Select label="Frozen preparation revision" value={revisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} onChange={id => { generation.current += 1; setRevisionId(id); }} /><Group><Button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous preparation history</Button><Button disabled={Math.max(identity.data.drafts.length, identity.data.revisions.length) < 50} onClick={() => setOffset(offset + 50)}>Next preparation history</Button></Group></>}
     {revisionId && <FrozenProfile key={revisionId} revisionId={revisionId} onDenied={() => setBlocked(true)} />}
     <CutCalculation key={authorityGeneration.current} definitions={definitions.data ?? []} onDenied={computationDenied} authorityScope={authorityGeneration.current} />
