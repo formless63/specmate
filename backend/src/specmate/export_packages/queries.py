@@ -1096,7 +1096,9 @@ def rights_section(scope, package):
             "id", "definition__name"
         )
     }
-    for rid in undeclared:
+    # Format 1 packages and releases must keep rebuilding byte-identically, so the explicit
+    # rows are emitted only from format 2; the acknowledgement gate applies to every format.
+    for rid in undeclared if package.format >= 2 else ():
         items.append(
             {
                 "subject": f"revision:{rid}",
@@ -1278,7 +1280,9 @@ def archive(ctx, p):
         raise ValidationFailed(
             "Included outputs cite different revisions or quantities; no package was produced."
         )
-    if manifest["rights"]["acknowledgement_required"] and not p.rights_acknowledged:
+    rights = manifest["rights"]
+    needs_ack = rights["acknowledgement_required"] or bool(rights["undeclared_revision_ids"])
+    if needs_ack and not p.rights_acknowledged:
         raise ValidationFailed(
             "Some declared rights are unknown or restricted; acknowledge them to download."
         )
