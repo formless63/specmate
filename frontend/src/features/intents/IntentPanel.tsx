@@ -8,6 +8,7 @@ import { RevisionPicker } from "../cables/RevisionPicker";
 import type { CableEnd } from "../interfaces/api";
 import { SignalTypeChip } from "../interfaces/SignalSetPanel";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import {
   CONDITIONING_LABELS, REQUIREMENT_LABELS, RETURN_LABELS, command, conductorText, contactText, emptyIntent, proposalPath, read,
   type CableIntent, type Definition, type Identity, type IntentDraft, type IntentInspection, type IntentRow, type Proposal, type Requirement,
@@ -207,6 +208,7 @@ function Intents({ projectId }: { projectId: string | null }) {
       <Select label="Cable intent" searchable placeholder={intents.length ? "Choose an intent" : "No intents yet"} data={intents.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
       {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && identity.data.drafts.length > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={identity.data.drafts.map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
+      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
     </Group>
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {revisionId && <IntentInspector key={revisionId} revisionId={revisionId} />}

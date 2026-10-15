@@ -45,7 +45,7 @@ test("new end assembly: layers are added in wire-outward order and create sends 
   const posts: { operation?: string; payload?: { interface?: { stack: { layers: { kind: string }[] } } } }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
     if (options?.method === "POST") { posts.push(JSON.parse(String(options.body))); return new Response(JSON.stringify({ result: { definition_id: "d", draft_id: "x", state: "draft-v1", kind: "end_assembly", content: {} } }), { status: 200 }); }
-    return new Response(JSON.stringify(url.endsWith("workspace/definitions") ? [] : {}), { status: 200 });
+    return new Response(JSON.stringify(url.endsWith("workspace/definitions") ? [] : url.includes("drafts/") ? { definition_id: "d", draft_id: "x", state: "draft-v1", content: {} } : {}), { status: 200 });
   }));
   render(wrap(<PermissionsProvider permissions={["workspace.read", "item.create", "design.edit"]}><EndAssemblyPanel projectId={null} /></PermissionsProvider>));
   fireEvent.change(screen.getByLabelText("End assembly name"), { target: { value: "Plug end" } });

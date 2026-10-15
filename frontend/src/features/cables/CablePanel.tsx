@@ -11,7 +11,8 @@ import { useProbedSelection } from '../cable-views/useProbedSelection';
 import { useProbe } from '../probe';
 import type { StockElement } from '../../../../packages/section-layout/src';
 import type { Inspection as InterfaceInspection } from '../interfaces/api';
-import { CableOperationError, authorityDenied, command, read, initialCable, type Cable, type Endpoint, type Definition, type Draft, type Identity, type Inspection, type ResolvedTermination } from './api';
+import { CableOperationError, authorityDenied, cableProblems, command, read, initialCable, type Cable, type Endpoint, type Definition, type Draft, type Identity, type Inspection, type ResolvedTermination } from './api';
+import { ContinueDraftButton } from '../scope/ContinueDraftButton';
 import { RevisionPicker } from './RevisionPicker';
 import { NewIntent } from '../intents/IntentPanel';
 import { IntentCheckPanel } from '../intent-check/IntentCheckPanel';
@@ -74,6 +75,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   const definitions = useQuery({ queryKey: ["cable-definitions", projectId], queryFn: () => read<Definition[]>('workspace/definitions') });
   const identity = useQuery({ queryKey: ["cable-identity", definitionId, offset], queryFn: () => read<Identity>(`catalog/definitions/${definitionId}?offset=${offset}`), enabled: !!definitionId });
   const draft = useQuery({ queryKey: ["cable-draft", draftId], queryFn: () => read<Draft>(`cables/drafts/${draftId}`), enabled: !!draftId });
+  const [tried, setTried] = useState(false);
   const create = useMutation({ mutationFn: () => command<Draft>("cable.create", { name, cable: value, ...(projectId ? { project_id: projectId } : {}) }), onSuccess: async (data) => {
     setDefinitionId(data.definition_id); setDraftId(data.draft_id); setDraftToken(data.state); setCommittedDraft(null); setRevisionId(null); setOffset(0);
     await cache.invalidateQueries({ queryKey: ["cable-definitions", projectId] });
@@ -86,8 +88,10 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
   }, onError: mutationError });
   const currentDefinitions = definitions.isError ? [] : definitions.data ?? [];
   const pickDefinition = useCallback((id: string) => { setDefinitionId(id); setDraftId(null); setRevisionId(null); setDraftToken(undefined); setCommittedDraft(null); setOffset(0); }, []);
+  const openDraft = useCallback((id: string) => { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); }, []);
   useProbedSelection({ kind: 'cable', definitions: definitions.isError ? undefined : definitions.data, definitionId,
-    revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined, pickDefinition, pickRevision: setRevisionId });
+    revisions: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.revisions : undefined,
+    drafts: identity.data?.definition_id === definitionId && offset === 0 ? identity.data.drafts : undefined, pickDraft: openDraft, pickDefinition, pickRevision: setRevisionId });
   // The Library row for the probed definition already shows these views; show them once.
   const probedObject = useProbe()?.probe?.object ?? null;
   const shownAbove = !!definitionId && probedObject === definitionId;
@@ -102,7 +106,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
       <Title order={3}>New cable</Title>
       <InspectionScope permission="item.create"><TextInput label="Cable name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
       <CableEditor errors={createErrors} value={value} onChange={setValue} definitions={currentDefinitions} workspaceId={workspaceId} onAuthorityChange={setCreateSourceDenied} /></InspectionScope>
-      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => create.mutate()}>Create cable draft</Button><ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
+      <Button disabled={!name.trim() || definitions.isError || createSourceDenied} loading={create.isPending} {...createGate.props} onClick={() => { setTried(true); if (cableProblems(value).length === 0) create.mutate(); }}>Create cable draft</Button>{tried && <Missing problems={cableProblems(value)} />}<ReadOnlyNote permission="item.create">Creating drafts is unavailable.</ReadOnlyNote>
     </Stack></Card>}
     {create.isError && <Alert color="red">{create.error.message}</Alert>}
     {definitions.isError && <Alert color="red">{definitions.error.message}</Alert>}
@@ -110,6 +114,7 @@ function Workspace({ projectId, workspaceId }: { projectId: string | null; works
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {identity.data && !workspaceDenied && <>
       <Select label="Edit cable draft" value={draftId} onChange={id => { if (id !== draftId) { setDraftId(id); setDraftToken(undefined); setCommittedDraft(null); } }} data={identity.data.drafts.map((d) => ({ value: d.draft_id, label: `${d.draft_id} · ${d.state}` }))} />
+      <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={openDraft} />
       <Select label="Inspect frozen cable" value={revisionId} onChange={setRevisionId} data={identity.data.revisions.map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />
       <Group><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous revisions</Button><Button disabled={Math.max(identity.data.revisions.length, identity.data.drafts.length) < 50} onClick={() => setOffset(offset + 50)}>Next revisions</Button></Group>
     </>}
@@ -148,6 +153,7 @@ function NewCableFromIntent({ projectId, definitions, onUse, onPropose }: { proj
 
 function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, onSaved, onAuthorityChange, onStateChange, onMutationError }: { workspaceId?: string | null; draft: Draft; committedDraft: Draft | null; hidden: boolean; definitions: Definition[]; onSaved: () => Promise<void>; onAuthorityChange: (denied: boolean) => void; onStateChange: (state: string) => void; onMutationError: (error: Error) => void }) {
   const [sourceDenied, setSourceDenied] = useState(false);
+  const [tried, setTried] = useState(false);
   const editGate = usePermission('design.edit');
   // Refocus/access refreshes may read a newer server state. Keep the editing baseline
   // and unsaved text together until this editor successfully saves or freezes.
@@ -161,10 +167,15 @@ function DraftEditor({ workspaceId, draft, committedDraft, hidden, definitions, 
   const save = useMutation({ mutationFn: () => command<Draft>("cable.update", { draft_id: base.draft_id, cable: value }, base.state), onSuccess: async data => { setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }, onError: onMutationError });
   const saveErrors = save.error instanceof CableOperationError ? save.error.fieldErrors : undefined;
   if (hidden) return null;
-  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor errors={saveErrors} value={value} onChange={setValue} definitions={definitions} workspaceId={workspaceId} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => save.mutate()}>Save cable draft</Button><ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}
+  return <Card withBorder><Stack><Title order={3}>Edit draft</Title><Text size="sm">{base.state}</Text><InspectionScope permission="design.edit"><CableEditor errors={saveErrors} value={value} onChange={setValue} definitions={definitions} workspaceId={workspaceId} onAuthorityChange={setSourceDenied} /></InspectionScope><Button disabled={sourceDenied} loading={save.isPending} {...editGate.props} onClick={() => { setTried(true); if (cableProblems(value).length === 0) save.mutate(); }}>Save cable draft</Button>{tried && <Missing problems={cableProblems(value)} />}<ReadOnlyNote permission="design.edit">Saving cable drafts is unavailable.</ReadOnlyNote>{save.isError && <Alert color="red">{save.error.message}</Alert>}
     {!sourceDenied && base.content.cable?.intent_revision_id && <ProposeWiring key={`propose:${base.state}`} intentRevisionId={base.content.cable.intent_revision_id} draftId={base.draft_id} current={value} acceptLabel="Accept into draft"
       onAccept={async cable => { const data = await command<Draft>("cable.update", { draft_id: base.draft_id, cable }, base.state); setBase(data); setValue(data.content.cable ?? initialCable()); await onSaved(); }} />}
     {!sourceDenied && <IntentCheckPanel key={base.state} draftId={base.draft_id} intentRevisionId={base.content.cable?.intent_revision_id ?? null} />}</Stack></Card>;
+}
+/** What a cable still needs before it can be saved, listed after a save was attempted. */
+function Missing({ problems }: { problems: string[] }) {
+  if (!problems.length) return null;
+  return <Alert color="orange" role="alert" title="Not saved yet"><Stack gap={2}>{problems.map(problem => <Text key={problem} size="sm">{problem}</Text>)}</Stack></Alert>;
 }
 type Choice = { value: string; label: string; display: string; look: ReturnType<typeof appearanceOf> };
 /** Conductive elements of a stock: the stock's own label and recorded colour for display, the path kept for identity. */
@@ -246,8 +257,9 @@ function EndCard({ index, value, onChange, errors, family, definitions, choices,
     </Group>
     <Anchor component="button" type="button" size="xs" w="fit-content" aria-expanded={showId} onClick={() => setShowId(open => !open)}>{showId ? '▾' : '▸'} Advanced: stable ID</Anchor>
     {showId && <TextInput label={`Endpoint ${index + 1} stable ID`} description="Renaming an ID retains its current assignments." value={endpoint.local_id} onChange={event => { const local_id = event.currentTarget.value; onChange({ ...value, endpoints: value.endpoints.map((e, i) => i === index ? { ...e, local_id } : e), assignments: value.assignments.map(a => a.endpoint_id === endpoint.local_id ? { ...a, endpoint_id: local_id } : a) }); }} />}
-    <SegmentedControl size="xs" w="fit-content" aria-label={`${name} end source`} value={fromAssembly ? 'assembly' : 'stack'} onChange={mode => patch(mode === 'assembly' ? { end_assembly_revision_id: '', stack: null } : { end_assembly_revision_id: null, stack: connectorStack() })}
+    <SegmentedControl size="xs" w="fit-content" aria-label={`${name} end source`} value={fromAssembly ? 'assembly' : endpoint.stack ? 'stack' : ''} onChange={mode => patch(mode === 'assembly' ? { end_assembly_revision_id: '', stack: null } : { end_assembly_revision_id: null, stack: connectorStack() })}
       data={[{ value: 'assembly', label: 'Reusable end assembly' }, { value: 'stack', label: 'Build this end here' }]} />
+    {!fromAssembly && !endpoint.stack && <Text size="sm" c="orange" role="status">Choose an end assembly or build this end.</Text>}
     {fromAssembly && <>
       <RevisionPicker error={errors[`cable.endpoints.${index}.end_assembly_revision_id`]} label={`${name} end assembly`} title="End assembly" kind="end_assembly" nameFilter={family} value={endpoint.end_assembly_revision_id ?? ''} onChange={end_assembly_revision_id => patch({ end_assembly_revision_id })} definitions={definitions} />
       {data && <><StackDiagram layers={resolvedChips(data)} label={`${name} stack`} />

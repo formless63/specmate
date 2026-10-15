@@ -4,6 +4,7 @@ import { useState } from "react";
 import { InspectionScope, ReadOnlyNote, usePermission } from "../../lib/permissions";
 import { revisionOptionLabel } from "../../lib/revision-labels";
 import { definitionIn, referenceFromProject, useOpenNewest, useOpenProbed } from "../scope/openProbed";
+import { ContinueDraftButton } from "../scope/ContinueDraftButton";
 import { command, emptyEndAssembly, read, type Definition, type EndAssembly, type EndAssemblyDraft, type EndAssemblyInspection, type Identity } from "./api";
 import { StackEditor, StackView, useResolvedStack } from "./StackEditor";
 
@@ -51,6 +52,7 @@ function EndAssemblies({ projectId }: { projectId: string | null }) {
       <Select label="End assembly" searchable placeholder={assemblies.length ? "Choose an end assembly" : "No end assemblies yet"} data={assemblies.map((d) => ({ value: d.definition_id, label: d.name }))} value={definitionId} onChange={pick} />
       {identity.data && <Select label="Frozen revision" value={revisionId} onChange={setRevisionId} data={(identity.data.revisions ?? []).map((r) => ({ value: r.revision_id, label: revisionOptionLabel(identity.data.name, r.number) }))} />}
       {identity.data && (identity.data.drafts?.length ?? 0) > 0 && <Select label="Draft" value={draftId} onChange={setDraftId} data={(identity.data.drafts ?? []).map((d, i) => ({ value: d.draft_id, label: `Draft ${i + 1}` }))} />}
+      {identity.data && <ContinueDraftButton drafts={identity.data.drafts} revisionId={revisionId} draftId={draftId} onOpen={setDraftId} />}
     </Group>
     {identity.isError && <Alert color="red">{identity.error.message}</Alert>}
     {revisionId && <Inspector key={revisionId} revisionId={revisionId} />}

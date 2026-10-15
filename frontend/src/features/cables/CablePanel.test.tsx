@@ -30,6 +30,9 @@ function inspected(cable: Cable) {
     endpoints: cable.endpoints.map(e => ({ ...e, body, pinout, body_revision_id: 'body-rev', pinout_revision_id: 'pinout-rev' })) };
 }
 async function paste(label: string, value: string) {
+  // A new cable starts with each end unchosen; the connector pickers appear once the end is built here.
+  const end = /^Endpoint (\d+) (body|pinout)$/.exec(label);
+  if (end && !screen.queryByRole('button', { name: `Advanced: paste exact revision ID for ${label}` })) fireEvent.click(screen.getAllByLabelText('Build this end here')[Number(end[1]) - 1]!);
   fireEvent.click(screen.getByRole('button', { name: `Advanced: paste exact revision ID for ${label}` }));
   fireEvent.change(await screen.findByLabelText(`${label} exact revision ID`), { target: { value } });
 }
@@ -326,14 +329,17 @@ test('a probe on a cable revision selects that definition and shows its views on
 
 test('validation details from a rejected create appear on the offending fields', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
-    if (options?.method === 'POST') return new Response(JSON.stringify({ error: { code: 'validation_failed', message: 'Invalid payload.', details: { errors: [{ loc: ['cable', 'stock_revision_id'], type: 'missing', msg: 'Field required' }] } } }), { status: 422 });
-    return new Response(JSON.stringify(String(url).endsWith('/definitions') ? [] : {}), { status: 200 });
+    if (options?.method === 'POST' && String(url).endsWith('/operations')) return new Response(JSON.stringify({ error: { code: 'validation_failed', message: 'Invalid payload.', details: { errors: [{ loc: ['cable', 'endpoints', 0, 'end_assembly_revision_id'], type: 'missing', msg: 'Field required' }] } } }), { status: 422 });
+    return new Response(JSON.stringify(isResolve(String(url)) ? resolvedStack() : String(url).includes('/snapshot') ? { content: { stock } } : String(url).endsWith('/definitions') ? [] : {}), { status: 200 });
   }));
   render(wrap(<PermissionsProvider permissions={['item.create']}><CablePanel projectId="project" /></PermissionsProvider>));
   fireEvent.change(await screen.findByLabelText('Cable name'), { target: { value: 'Lead' } });
+  await paste('Stock', 'stock-rev');
+  fireEvent.click(screen.getAllByLabelText('Reusable end assembly')[0]!); await paste('Endpoint 1 end assembly', 'assembly-a');
+  fireEvent.click(screen.getAllByLabelText('Reusable end assembly')[1]!); await paste('Endpoint 2 end assembly', 'assembly-b');
   fireEvent.click(screen.getByRole('button', { name: 'Create cable draft' }));
-  expect(await screen.findByText(/Invalid payload\. stock revision: Field required/)).toBeTruthy();
-  expect((await screen.findAllByText('Field required')).length).toBeGreaterThan(0);
+  expect(await screen.findByText(/Invalid payload\. endpoints #1 end assembly revision: Field required/)).toBeTruthy();
+  await waitFor(() => expect(screen.getByLabelText('Endpoint 1 end assembly exact revision ID').getAttribute('aria-invalid')).toBe('true'));
 });
 
 test('the editor leads with a cable summary: both ends, the stock and termination counts', async () => {
@@ -354,4 +360,21 @@ test('the editor leads with a cable summary: both ends, the stock and terminatio
   expect(within(summary).getByText('Stock end A')).toBeTruthy();
   expect(await within(summary).findByRole('list', { name: 'Plug layers' })).toBeTruthy();
   expect(screen.queryByLabelText('Stock exact revision ID')).toBeNull();
+});
+
+test('a new cable starts with both ends unchosen and names the missing piece instead of sending a raw UUID error', async () => {
+  const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify(String(url).endsWith('/definitions') ? [] : {}), { status: 200 }));
+  vi.stubGlobal('fetch', fetchMock);
+  render(wrap(<PermissionsProvider permissions={['item.create']}><CablePanel projectId="project" /></PermissionsProvider>));
+  fireEvent.change(await screen.findByLabelText('Cable name'), { target: { value: 'Lead' } });
+  expect(screen.getAllByText('Choose an end assembly or build this end.')).toHaveLength(2);
+  await paste('Stock', 'stock-rev');
+  fireEvent.click(screen.getByRole('button', { name: 'Create cable draft' }));
+  expect(await screen.findByText('End A: choose an end assembly or build this end.')).toBeTruthy();
+  expect(screen.getByText('End B: choose an end assembly or build this end.')).toBeTruthy();
+  expect(fetchMock.mock.calls.some(call => (call as unknown[])[1] && ((call as unknown[])[1] as RequestInit).method === 'POST')).toBe(false);
+  fireEvent.click(screen.getAllByLabelText('Build this end here')[1]!);
+  fireEvent.click(screen.getByRole('button', { name: 'Create cable draft' }));
+  expect(await screen.findByText('End B: choose a connector body.')).toBeTruthy();
+  expect(screen.getByText('End B: choose a connector pinout variant.')).toBeTruthy();
 });

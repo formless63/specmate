@@ -7,7 +7,7 @@ import { useProbe } from '../probe';
  * revision, or the latest when the probe names none. Each probe is applied once, so choosing
  * differently afterwards is never undone. Without a probe nothing happens.
  */
-export function useProbedSelection({ kind, definitions, definitionId, revisions, pickDefinition, pickRevision }: {
+export function useProbedSelection({ kind, definitions, definitionId, revisions, drafts, pickDefinition, pickRevision, pickDraft }: {
   kind: string;
   definitions: { definition_id: string; kind: string }[] | undefined;
   definitionId: string | null;
@@ -15,6 +15,9 @@ export function useProbedSelection({ kind, definitions, definitionId, revisions,
   revisions: { revision_id: string; number: number }[] | undefined;
   pickDefinition: (id: string) => void;
   pickRevision: (id: string) => void;
+  /** Optional: drafts of `definitionId`; a never-frozen item then opens its newest draft for editing. */
+  drafts?: { draft_id: string }[];
+  pickDraft?: (id: string) => void;
 }) {
   const probe = useProbe()?.probe ?? null;
   const object = probe?.object ?? null;
@@ -34,5 +37,6 @@ export function useProbedSelection({ kind, definitions, definitionId, revisions,
     const chosen = rev === null ? (revisions.length > 0 && revisions.length < 50 ? revisions[revisions.length - 1] : undefined) : revisions.find(r => r.number === rev);
     revisionApplied.current = key;
     if (chosen) pickRevision(chosen.revision_id);
-  }, [object, rev, definitionId, revisions, pickRevision]);
+    else if (rev === null && revisions.length === 0 && drafts && drafts.length > 0 && pickDraft) pickDraft(drafts[drafts.length - 1]!.draft_id);
+  }, [object, rev, definitionId, revisions, drafts, pickRevision, pickDraft]);
 }
