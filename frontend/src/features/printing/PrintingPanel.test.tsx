@@ -173,6 +173,19 @@ test('one action creates and freezes the printer, process and material profiles 
     ['Qidi Q1 Pro printer', 'printer', 'P'], ['Qidi Q1 Pro process', 'process', 'Q'], ['Qidi Q1 Pro material', 'material', 'M']]);
 });
 
+test('the quick-setup notice names the whole preset set label, including a decimal nozzle size', async () => {
+  const preset = (name: string) => ({ tool: 'orcaslicer-2.4.2' as const, vendor: 'Qidi', bundle_version: '1', name });
+  vi.mocked(api.listOrcaPresets).mockResolvedValue([{ key: 'q1', label: 'Qidi Q1 Pro, 0.4 mm nozzle, PLA', printer: preset('P'), process: preset('Q'), material: preset('M') }]);
+  vi.mocked(api.saveProfile).mockImplementation(async name => ({ ...base, definition_id: name, draft_id: `d-${name}`, name, state: 'draft-v1', content: {} }));
+  vi.mocked(api.freezeRecord).mockResolvedValue({ revision_id: 'r', number: 1, draft: { state: 'x' } });
+  render(panel(grants({ edit: true, freeze: true, register: true })));
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Printer preset set' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Qidi Q1 Pro, 0.4 mm nozzle, PLA' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create and freeze the three profiles' }));
+  const notice = await screen.findByRole('status');
+  expect(notice.textContent).toContain('Preset set: Qidi Q1 Pro, 0.4 mm nozzle, PLA');
+});
+
 test('a model file becomes a frozen mechanical part selected for the new preparation', async () => {
   vi.mocked(sources.registerBlob).mockResolvedValue('a'.repeat(64));
   vi.mocked(sources.command).mockImplementation((async (op: string) => op === 'source.create_original_bundle' ? { revision_id: 'src', manifest_sha256: 'm' }
