@@ -278,9 +278,9 @@ def test_body_membership_lookup_reads_only_bounded_direct_pins_not_body_history(
         row["sql"]
         for row in queries
         if row["sql"].startswith('SELECT "design_revision"."id" AS "id"')
-        and created["definition_id"] in row["sql"]
+        and created["definition_id"].replace("-", "") in row["sql"].replace("-", "")
     ]
     assert len(membership_reads) == 1
     assert '"design_revision"."id" IN (' in membership_reads[0]
-    assert body["revision_id"] in membership_reads[0]
-    assert selected["revision_id"] not in membership_reads[0]
+    assert body["revision_id"].replace("-", "") in membership_reads[0].replace("-", "")
+    assert selected["revision_id"].replace("-", "") not in membership_reads[0].replace("-", "")
