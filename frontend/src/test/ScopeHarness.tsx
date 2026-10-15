@@ -10,10 +10,10 @@ export function ScopeHarness({ children }: {
   children: (projectId: string, project: Project, refresh: () => Promise<void>, principalKey: string, chrome: ShellChrome, scope: WorkspaceScope) => ReactNode;
 }) {
   return <WorkspaceShell>{(scope) => scope.projectId && scope.project
-    // Keyed like the application keys its project subtree, so private component state is per project.
-    ? <Fragment key={scope.projectId}>{scope.chrome.alert}{children(scope.projectId, scope.project, scope.refresh, scope.principalKey, scope.chrome, scope)}</Fragment>
+    // Project-page state belongs to that page; workspace editor retention is tested in ProjectNavigation.
+    ? <Fragment key={scope.projectId}><button onClick={() => scope.selectProject(null)}>Back to projects</button>{scope.projects.filter(project => !project.archived).map(project => <button key={project.project_id} onClick={() => scope.selectProject(project.project_id)}>Open {project.name}</button>)}{scope.chrome.alert}{children(scope.projectId, scope.project, scope.refresh, scope.principalKey, scope.chrome, scope)}</Fragment>
     : <>
-      <span>Signed in as {scope.username}</span>{scope.chrome.projectControl}{scope.chrome.signOutControl}{scope.chrome.alert}
+      <span>Signed in as {scope.username}</span>{scope.chrome.signOutControl}{scope.chrome.alert}
       <WorkspaceHome username={scope.username} role={scope.role} permissions={scope.permissions} projects={scope.projects} lastProjectId={scope.lastProjectId}
         busy={scope.busy} onOpen={scope.selectProject} onCreate={scope.createProject} onChanged={scope.refresh} />
     </>}</WorkspaceShell>;

@@ -69,9 +69,9 @@ function fixture() {
   return calls;
 }
 
-function wrap(permissions?: string[], username: string | null = 'contributor') {
+function wrap(permissions?: string[], username: string | null = 'contributor', initialReleaseId: string | null = null) {
   return <MantineProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <PermissionsProvider permissions={permissions}><ReleasesPanel workspaceId="ws" projectId="project-1" username={username} /></PermissionsProvider>
+    <PermissionsProvider permissions={permissions}><ReleasesPanel workspaceId="ws" projectId="project-1" username={username} initialReleaseId={initialReleaseId} /></PermissionsProvider>
   </QueryClientProvider></MantineProvider>;
 }
 
@@ -188,4 +188,13 @@ test('withdraw is offered only to the warning author or a workspace admin', asyn
   fireEvent.change(screen.getByLabelText(/Acknowledgement reason/), { target: { value: 'Synthetic evaluation' } });
   fireEvent.click(screen.getByRole('button', { name: 'Acknowledge and release' }));
   await screen.findByRole('button', { name: 'Withdraw Synthetic advisory' });
+});
+
+
+test('an exact release reference opens its requested id even when absent from the first list page', async () => {
+  const calls = fixture();
+  render(wrap(['workspace.read'], 'viewer', 'release-1'));
+  expect(await screen.findByRole('heading', { name: 'Synthetic release' })).toBeTruthy();
+  expect(calls.some(call => call.operation === 'release.read' && call.payload.release_id === 'release-1')).toBe(true);
+  expect(calls.some(call => call.operation === 'release.create')).toBe(false);
 });

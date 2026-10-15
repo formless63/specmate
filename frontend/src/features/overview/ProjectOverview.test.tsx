@@ -29,11 +29,12 @@ function serve(state: Partial<WorkspaceState> = {}, routes: Routes = {}) {
 
 function show(role = "editor", extra: { active?: boolean; onAccessLost?: () => Promise<void>; onLeave?: () => void } = {}) {
   const onOpenTool = vi.fn();
+  const onOpenReference = vi.fn();
   const changed = vi.fn(async () => {});
   const view = (active: boolean) => <MantineProvider><PermissionsProvider permissions={ROLE_PERMISSIONS[role]!}><ProjectOverview projectId="p1" projectName="Demo" permissions={ROLE_PERMISSIONS[role]!} role={role}
-    active={active} onOpenTool={onOpenTool} onAccessLost={extra.onAccessLost} onProjectChanged={changed} onLeave={extra.onLeave} /></PermissionsProvider></MantineProvider>;
+    active={active} onOpenReference={onOpenReference} onOpenTool={onOpenTool} onAccessLost={extra.onAccessLost} onProjectChanged={changed} onLeave={extra.onLeave} /></PermissionsProvider></MantineProvider>;
   const rendered = render(view(extra.active ?? true));
-  return { onOpenTool, changed, rerender: (active: boolean) => rendered.rerender(view(active)) };
+  return { onOpenTool, onOpenReference, changed, rerender: (active: boolean) => rendered.rerender(view(active)) };
 }
 
 test("open work is built from real unread notifications and open reviews, and deep links open the owning tool", async () => {
@@ -51,19 +52,19 @@ test("open work is built from real unread notifications and open reviews, and de
   expect(within(summary).getByText("Open reviews").closest("div")?.textContent).toContain("1+");
 });
 
-test("references are grouped by the area that opens them and counted as references, not owned records", async () => {
+test("references are grouped by kind with exact pins and counted as references, not owned records", async () => {
   serve({ details: { p1: { references: [ref("1", "Patch lead"), ref("2", "Main loom", { item_kind: "harness", pin: "exact", revision: 1, kind: "revision" }),
     ref("3", "Board sources", { kind: "source_bundle", item_kind: "original", definition_id: null, latest_revision: null })] } } });
-  const { onOpenTool } = show();
+  const { onOpenReference } = show();
   const table = await screen.findByRole("group", { name: "Project references" });
-  expect(within(table).getByLabelText("Designs references")).toBeTruthy();
-  expect(within(table).getByLabelText("Library references")).toBeTruthy();
+  expect(within(table).getByLabelText("cable references")).toBeTruthy();
+  expect(within(table).getByLabelText("source bundle references")).toBeTruthy();
   expect(within(table).getByText("exact r1")).toBeTruthy();
   expect(within(screen.getByRole("region", { name: "Project summary" })).getByText("References").closest("div")?.textContent).toContain("3");
   fireEvent.click(within(table).getByRole("button", { name: "Open Main loom" }));
-  expect(onOpenTool).toHaveBeenLastCalledWith("harnesses");
+  expect(onOpenReference).toHaveBeenLastCalledWith(expect.objectContaining({ definition_id: "t-2", kind: "revision", pin: "exact", revision: 1 }));
   fireEvent.click(within(table).getByRole("button", { name: "Open Board sources" }));
-  expect(onOpenTool).toHaveBeenLastCalledWith("sources");
+  expect(onOpenReference).toHaveBeenLastCalledWith(expect.objectContaining({ target_id: "t-3", kind: "source_bundle", definition_id: null }));
 });
 
 test("adding from the library records a floating or explicitly pinned reference under the project state", async () => {

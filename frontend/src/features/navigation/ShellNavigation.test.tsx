@@ -67,7 +67,7 @@ test("an unavailable project falls back without exposing its identity", async ()
 
 test("project pages recover project context and sign-out clears the address", async () => {
   serve(); start("/project?project=p1");
-  await screen.findByRole("button", { name: "Scope Bench: switch" }); await at("/projects/p1");
+  await screen.findByRole("heading", { name: "Bench" }); await at("/projects/p1");
   fireEvent.click(screen.getByRole("button", { name: /^Account menu/ }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Sign out" })); await at("/designs");
 });

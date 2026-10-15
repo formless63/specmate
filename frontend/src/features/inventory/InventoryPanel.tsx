@@ -12,11 +12,11 @@ import { SourcingPanel } from "./SourcingPanel";
 const units: Record<string, string[]> = { count: ["ea"], length: ["m", "cm", "mm"], mass: ["kg", "g"] };
 
 /** Stock lives in the workspace; the optional project is only the context new work is filed under. */
-export function InventoryPanel({ workspaceId, projectId }: { workspaceId: string; projectId?: string }) {
-  return <Workspace key={`${workspaceId}:${projectId ?? ""}`} workspaceId={workspaceId} projectId={projectId} />;
+export function InventoryPanel({ workspaceId, projectId, initialWorkId = null }: { workspaceId: string; projectId?: string; initialWorkId?: string | null }) {
+  return <Workspace key={`${workspaceId}:${projectId ?? ""}`} workspaceId={workspaceId} projectId={projectId} initialWorkId={initialWorkId} />;
 }
 
-function Workspace({ workspaceId, projectId }: { workspaceId: string; projectId?: string }) {
+function Workspace({ workspaceId, projectId, initialWorkId }: { workspaceId: string; projectId?: string; initialWorkId: string | null }) {
   const cache = useQueryClient();
   const manageGate = usePermission("inventory.manage");
   const [offset, setOffset] = useState(0);
@@ -78,7 +78,7 @@ function Workspace({ workspaceId, projectId }: { workspaceId: string; projectId?
       <Button disabled={!lot || !location || !reason.trim() || !source.trim() || (known === "known" && !amount.trim())} loading={mutation.isPending} onClick={() => submit("inventory.open_stock", { lot_id: lot, location_id: location, dimension, quantity: known === "known" ? { amount, unit } : null, reason, assertion_source: source, assertion_status: "declared" })} {...manageGate.props}>Open account</Button>
     </Stack></Card>
     {projectId && <Switch label="Only work filed under this project" checked={projectOnly} onChange={(event) => { setProjectOnly(event.currentTarget.checked); setOffset(0); }} />}
-    <WorkPanel workspaceId={workspaceId} projectId={projectId} batches={data?.work_batches ?? []} pending={mutation.isPending} submit={submit} />
+    <WorkPanel initialWorkId={initialWorkId} workspaceId={workspaceId} projectId={projectId} batches={data?.work_batches ?? []} pending={mutation.isPending} submit={submit} />
     <SourcingPanel workspaceId={workspaceId} />
     <Title order={3}>Current stock</Title>
     <Table><Table.Thead><Table.Tr><Table.Th>Lot / location</Table.Th><Table.Th>Physical</Table.Th><Table.Th>Reserved</Table.Th><Table.Th>Available</Table.Th><Table.Th /></Table.Tr></Table.Thead><Table.Tbody>{data?.accounts.map((account) => <Table.Tr key={account.account_id}><Table.Td>{account.lot_label} / {account.location_name}</Table.Td><Table.Td><SbQuantity value={account.physical_quantity} unit={account.unit} /></Table.Td><Table.Td>{account.reserved_quantity} {account.unit}</Table.Td><Table.Td><SbQuantity value={account.available_quantity} unit={account.unit} /></Table.Td><Table.Td><Button size="xs" onClick={() => setSelected(account.account_id)}>Manage {account.lot_label}</Button></Table.Td></Table.Tr>)}</Table.Tbody></Table>

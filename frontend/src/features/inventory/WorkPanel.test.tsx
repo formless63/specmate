@@ -20,9 +20,9 @@ const batch: WorkBatch = {
 
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-function mount() {
+function mount(initialWorkId: string | null = null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<MantineProvider><QueryClientProvider client={client}><InventoryPanel workspaceId="ws-1" /></QueryClientProvider></MantineProvider>);
+  return render(<MantineProvider><QueryClientProvider client={client}><InventoryPanel workspaceId="ws-1" initialWorkId={initialWorkId} /></QueryClientProvider></MantineProvider>);
 }
 function server(fail = false) {
   const calls: Command[] = [];
@@ -146,4 +146,12 @@ test("attributes consumption to an explicitly selected linked unit", async () =>
   expect(calls[0]).toMatchObject({ operation: "inventory.consume", payload: {
     physical_unit_id: "unit-1", work_batch_id: "work-1",
   } });
+});
+
+
+test("a work reference inspects its exact batch id without selecting a library definition", async () => {
+  server(); mount("work-1");
+  expect(await screen.findByRole("heading", { name: "Work assertions" })).toBeTruthy();
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("inventory/work-batches/work-1?"))).toBe(true);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/workspace/library/work-1"))).toBe(false);
 });

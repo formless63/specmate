@@ -33,7 +33,7 @@ function show(at = "/designs", editable = true) {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<MantineProvider><QueryClientProvider client={cache}><NavigationProvider history={history}>
     <PermissionsProvider permissions={editable ? ["workspace.read", "item.create"] : ["workspace.read"]}>
-      <DesignList principalKey="member" projectId={null} projects={[]} onOpen={open} onCreate={create} onAccessLost={accessLost} />
+      <DesignList principalKey="member" projectFilterId={null} projects={[]} onOpen={open} onCreate={create} onAccessLost={accessLost} />
     </PermissionsProvider></NavigationProvider></QueryClientProvider></MantineProvider>);
   return { history, open, create, cache, accessLost };
 }

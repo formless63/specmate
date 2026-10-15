@@ -19,8 +19,9 @@ const CATEGORY = { quantity: 'Quantity', artifacts: 'Artifacts', configuration: 
 function message(e: unknown, fallback: string) { return e instanceof Error ? e.message : fallback; }
 
 /** Reviewed release closures: workspace items a project may reference (EVD-004). */
-export function ReleasesPanel({ workspaceId, projectId = null, username = null }: { workspaceId: string; projectId?: string | null; username?: string | null }) {
-  const [selected, setSelected] = useState<string | null>(null);
+export function ReleasesPanel({ workspaceId, projectId = null, username = null, initialReleaseId = null }: { workspaceId: string; projectId?: string | null; username?: string | null; initialReleaseId?: string | null }) {
+  const [selected, setSelected] = useState<string | null>(initialReleaseId);
+  useEffect(() => setSelected(initialReleaseId), [initialReleaseId]);
   const releases = useQuery({ queryKey: ['releases', workspaceId, projectId], queryFn: () => listReleases(workspaceId, projectId), staleTime: 0 });
   return <Stack gap="sm" key={projectId ?? 'library'}>
     <Title order={2}>Releases</Title>

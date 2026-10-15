@@ -28,9 +28,9 @@ function End({ end }: { end: DesignEnd }) {
   </span>;
 }
 
-export function DesignList({ principalKey, projectId, projects, onOpen, onCreate, onAccessLost, active = true }: {
+export function DesignList({ principalKey, projectFilterId, projects, onOpen, onCreate, onAccessLost, active = true }: {
   principalKey: string;
-  projectId: string | null;
+  projectFilterId: string | null;
   projects: Project[];
   onOpen: (record: LibraryRecord) => void;
   onCreate: (kind: DesignKind) => void;
@@ -46,8 +46,8 @@ export function DesignList({ principalKey, projectId, projects, onOpen, onCreate
   const create = usePermission("item.create");
   const layout = filters.layout === "gallery" ? "gallery" : "table";
   const records = useInfiniteQuery({
-    queryKey: ["workspace", "designs", principalKey, settled, projectId],
-    queryFn: ({ pageParam }) => listDesigns(settled, projectId, pageParam),
+    queryKey: ["workspace", "designs", principalKey, settled, projectFilterId],
+    queryFn: ({ pageParam }) => listDesigns(settled, projectFilterId, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.next_after,
     enabled: active,
@@ -89,8 +89,8 @@ export function DesignList({ principalKey, projectId, projects, onOpen, onCreate
         data={Object.entries(KIND_NAMES).map(([value, label]) => ({ value, label }))} onChange={(value) => setFilter("kind", value)} />
       <Select size="xs" aria-label="Design status" placeholder="Every status" clearable value={filters.status ?? null}
         data={Object.entries(STATUS_NAMES).map(([value, label]) => ({ value, label }))} onChange={(value) => setFilter("status", value)} />
-      <Select size="xs" aria-label="Project filter" placeholder="All projects" searchable clearable value={projectId}
-        data={projects.filter((project) => !project.archived || project.project_id === projectId).map((project) => ({ value: project.project_id, label: project.name }))}
+      <Select size="xs" aria-label="Project filter" placeholder="All projects" searchable clearable value={projectFilterId}
+        data={projects.filter((project) => !project.archived || project.project_id === projectFilterId).map((project) => ({ value: project.project_id, label: project.name }))}
         onChange={(value) => navigation?.navigate({ project: value })} />
       <Popover opened={filterMenu} onChange={setFilterMenu} position="bottom-end" width={270}><Popover.Target>
         <Button size="xs" variant="quiet" onClick={() => setFilterMenu(!filterMenu)}>More filters</Button>
@@ -98,15 +98,15 @@ export function DesignList({ principalKey, projectId, projects, onOpen, onCreate
         description={key === "from" || key === "to" ? "Port name or declared end label" : undefined}
         value={filters[key] ?? ""} onChange={(event) => setFilter(key, event.currentTarget.value)} />)}</Stack></Popover.Dropdown></Popover>
     </div>
-    {(activeFilters.length > 0 || projectId) && <Group gap={6} aria-label="Active design filters">
+    {(activeFilters.length > 0 || projectFilterId) && <Group gap={6} aria-label="Active design filters">
       {activeFilters.map(([key, value]) => <Button key={key} size="compact-xs" variant="quiet" aria-label={`Remove ${FILTER_NAMES[key]} filter`} onClick={() => setFilter(key, null)}>
         {FILTER_NAMES[key]}: {key === "kind" ? KIND_NAMES[value] ?? value : key === "status" ? STATUS_NAMES[value] ?? value : value} ×
       </Button>)}
-      {projectId && <Badge variant="outline">Project: {projects.find((project) => project.project_id === projectId)?.name ?? "Selected project"}</Badge>}
+      {projectFilterId && <Button size="compact-xs" variant="quiet" aria-label="Remove project filter" onClick={() => navigation?.navigate({ project: null })}>Project: {projects.find((project) => project.project_id === projectFilterId)?.name ?? "Selected project"} ×</Button>}
     </Group>}
     {records.isError && <Alert color="red" title="Designs could not be loaded" role="alert">{records.error.message}<Button size="xs" variant="quiet" onClick={() => void records.refetch()}>Try again</Button></Alert>}
     {records.isPending && <Text role="status" size="sm">Loading designs…</Text>}
-    {records.isSuccess && rows.length === 0 && <div className="sb-dash-empty" role="status">{activeFilters.length || projectId ? "No designs match these filters." : "No designs yet. Start with a cable, harness or device."}</div>}
+    {records.isSuccess && rows.length === 0 && <div className="sb-dash-empty" role="status">{activeFilters.length || projectFilterId ? "No designs match these filters." : "No designs yet. Start with a cable, harness or device."}</div>}
     {rows.length > 0 && layout === "table" && <Table.ScrollContainer minWidth={900} type="native"><Table className="design-table" highlightOnHover verticalSpacing={6}>
       <Table.Thead><Table.Tr>{["Name", "Kind", "From", "To", "Stock", "Revision", "Used in", "Status"].map((label) => <Table.Th key={label}>{label}</Table.Th>)}</Table.Tr></Table.Thead>
       <Table.Tbody>{rows.map((row) => <Table.Tr key={row.record_id} tabIndex={0} aria-label={`${row.label}, ${KIND_NAMES[row.kind ?? ""] ?? row.kind}`} aria-selected={selectedId === row.record_id}

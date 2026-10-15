@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { areaOfTool } from "../shell/areas";
 import { probeNavigateOptions, useNavigation } from "./NavigationProvider";
 import type { ProbeTarget } from "./url";
 
-type ScopeLike = { projectId: string | null; projects: { project_id: string }[]; selectProject: (projectId: string | null) => void };
+type ScopeLike = { projectId: string | null; projects: { project_id: string }[]; setProjectContext: (projectId: string | null) => void };
 
 export type WorkspaceUrl = {
   lens: string;
@@ -21,39 +21,33 @@ export type WorkspaceUrl = {
 
 /**
  * Keeps the shell (lens, project context, probe) and the URL in step. The URL is the source of
- * truth for lens and probe. Project context lives in the workspace shell, which validates it and
- * clears private reads on change, so the two are reconciled here in both directions.
+ * truth for lens and probe. Project filters never change workspace authority or editor identity.
  */
 export function useWorkspaceUrl(scope: ScopeLike): WorkspaceUrl {
   const navigation = useNavigation();
   if (!navigation) throw new Error("useWorkspaceUrl needs a NavigationProvider.");
   const { location, navigate } = navigation;
   const [projectLost, setProjectLost] = useState(false);
-  const { projectId, projects, selectProject } = scope;
-  const previous = useRef({ shell: projectId, url: location.project });
-
+  const { projectId, projects } = scope;
+  // Project query parameters filter lists. Only explicit project pages select a project context.
   useEffect(() => {
-    const shellChanged = projectId !== previous.current.shell;
-    const urlChanged = location.project !== previous.current.url;
-    previous.current = { shell: projectId, url: location.project };
-    if (location.project === projectId) return;
-    if (shellChanged && !urlChanged) {
-      // The shell changed scope itself (scope control, a new project, a removed project).
-      navigate({ project: projectId });
+    const explicitPage = ["overview", "knowledge"].includes(location.lens);
+    if (location.project && !projects.some((project) => project.project_id === location.project)) {
+      setProjectLost(true);
+      navigate({ project: null }, { replace: true });
       return;
     }
-    // The address changed (a link, reload, back/forward): follow it if the workspace has that project.
-    if (location.project === null || projects.some((project) => project.project_id === location.project)) {
-      selectProject(location.project);
-      return;
-    }
-    // Not a project of this workspace (or no longer one): Library scope, without naming it.
-    setProjectLost(true);
-    navigate({ project: null }, { replace: true });
-  }, [location.project, projectId, projects, selectProject, navigate]);
+    const next = explicitPage ? location.project : null;
+    if (projectId !== next) scope.setProjectContext(next);
+  }, [location.project, location.lens, projectId, projects, scope, navigate]);
 
   const probe = location.probe;
-  const openLens = useCallback((toolId: string) => navigate({ area: areaOfTool(toolId).id, lens: toolId }), [navigate]);
+  const openLens = useCallback((toolId: string) => {
+    const area = areaOfTool(toolId).id;
+    const projectPage = ["overview", "knowledge"].includes(location.lens) && ["overview", "knowledge"].includes(toolId);
+    const sameList = ["library", "designs"].includes(area) && location.area === area && !location.probe;
+    navigate({ area, lens: toolId, project: projectPage || sameList ? location.project : null });
+  }, [navigate, location.area, location.lens, location.project, location.probe]);
   const setProbe = useCallback((target: ProbeTarget | null) => navigate({ probe: target }, probeNavigateOptions(probe, target)), [navigate, probe]);
   const openInProject = useCallback((target: string, toolId: string, object?: string) => {
     setProjectLost(false);

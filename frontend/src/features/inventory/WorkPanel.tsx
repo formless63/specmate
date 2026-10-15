@@ -1,7 +1,7 @@
 import { ReadOnlyNote, usePermission, InspectionScope } from "../../lib/permissions";
 import { Alert, Button, Card, Group, NativeSelect, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Definition, Identity } from "../identity/api";
 import { read, type Detail, type Submit, type WorkBatch, type WorkDetail } from "./api";
 import { revisionOptionLabel, newestFirst } from "../../lib/revision-labels";
@@ -17,7 +17,7 @@ function useWork(id: string, offset = 0) {
     queryFn: () => read<WorkDetail>(`inventory/work-batches/${id}?offset=${offset}&limit=50`) });
 }
 
-export function WorkPanel({ workspaceId, projectId, batches, pending, submit }: { workspaceId: string; projectId?: string; batches: WorkBatch[]; pending: boolean; submit: Submit }) {
+export function WorkPanel({ workspaceId, projectId, batches, pending, submit, initialWorkId = null }: { initialWorkId?: string | null; workspaceId: string; projectId?: string; batches: WorkBatch[]; pending: boolean; submit: Submit }) {
   const manageGate = usePermission("inventory.manage");
   const [definition, setDefinition] = useState("");
   const [revision, setRevision] = useState("");
@@ -25,7 +25,8 @@ export function WorkPanel({ workspaceId, projectId, batches, pending, submit }: 
   const [kind, setKind] = useState("batch");
   const [label, setLabel] = useState("");
   const [planned, setPlanned] = useState("");
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(initialWorkId ?? "");
+  useEffect(() => setSelected(initialWorkId ?? ""), [initialWorkId]);
   const definitions = useQuery({ queryKey: ["identity-definitions", workspaceId], queryFn: () => read<Definition[]>(`workspaces/${workspaceId}/definitions`) });
   const identity = useQuery({ queryKey: ["identity", definition, revisionOffset], enabled: !!definition, queryFn: () => read<Identity>(`catalog/definitions/${definition}?offset=${revisionOffset}`) });
   return <Card withBorder><Stack>

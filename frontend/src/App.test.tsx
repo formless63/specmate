@@ -121,14 +121,11 @@ async function openTool(label: string) {
 async function openProject(name: string) {
   fireEvent.click(screen.getByRole("button", { name: "Projects" }));
   fireEvent.click(await screen.findByRole("button", { name: `Open ${name}` }));
-  await screen.findByRole("heading", { name: "Overview" });
+  await screen.findByRole("heading", { name: name === "Project A" ? "project-a" : name === "Project B" ? "project-b" : name });
 }
 
-/** Inside a project, switch with the top-bar project control. */
-async function selectProject(name: string) {
-  fireEvent.click(screen.getByRole("button", { name: /^Scope .*: switch$/ }));
-  fireEvent.click(await screen.findByRole("menuitem", { name }));
-}
+/** Project navigation uses the explicit Projects list, never a global scope switch. */
+async function selectProject(name: string) { await openProject(name); }
 
 async function openAuthenticatedProjectTools() {
   server({ authenticated: true }); renderApp();
@@ -152,7 +149,7 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   expect(screen.getByTestId("sb-top-bar")).toBeTruthy();
   expect(screen.getByRole("navigation", { name: "Workspace" })).toBeTruthy();
   expect(await screen.findByRole("region", { name: "Designs" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Scope Library: switch" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Scope .*: switch$/ })).toBeNull();
   expect(screen.queryByText("Select or create a project to begin.")).toBeNull();
   await openProject("Project A");
   expect(screen.getByRole("tablist", { name: "Projects sections" })).toBeTruthy();
@@ -160,15 +157,15 @@ test("sign-in opens scoped project tools and lazily mounts stock, intake and inv
   await openTool("Parts");
   await screen.findByRole("heading", { name: "Reusable identities" });
   expect(screen.getByRole("tablist", { name: "Library sections" })).toBeTruthy();
-  expect(fetchMock).toHaveBeenCalledWith("/api/v0/catalog/definitions?limit=100&project_id=project-a", expect.anything());
+  expect(fetchMock).toHaveBeenCalledWith("/api/v0/catalog/definitions?limit=100", expect.anything());
   expect(fetchMock.mock.calls.some(([path]) => path.includes("/stocks") || path.includes("/intakes") || path.includes("/inventory/"))).toBe(false);
   await openTool("Wire stocks");
   await screen.findByRole("heading", { name: "Wire stock" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/stocks?project_id=project-a", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/stocks", expect.anything()));
   expect(screen.queryByRole("heading", { name: "Reusable identities" })).toBeNull();
   await openTool("Boards");
   await screen.findByRole("heading", { name: "PCB intake" });
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/w1/intakes?project_id=project-a", expect.anything()));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v0/pcb/workspaces/w1/intakes", expect.anything()));
   expect(screen.getByRole("button", { name: "Preserve sources" })).toBeTruthy();
   await openTool("Inventory");
   await screen.findByRole("heading", { name: "Inventory" });
@@ -220,6 +217,7 @@ test("documents, interfaces and knowledge mount with scoped read controls", asyn
   await screen.findByRole("heading", { name: "Interface assessments" });
   expect(screen.queryByRole("button", { name: "New assessment" })).toBeNull();
   await openTool("Notes & files");
+  fireEvent.click(await screen.findByRole("button", { name: "Open Notes & files in Project A" }));
   await screen.findByRole("heading", { name: "Notes, decisions and attachments" });
   // knowledge.create needs item.create, which contributors hold.
   expect(await screen.findByRole("button", { name: "Create knowledge item" })).toBeTruthy();
@@ -228,7 +226,7 @@ test("documents, interfaces and knowledge mount with scoped read controls", asyn
   expect(screen.queryByRole("button", { name: "Open team review" })).toBeNull();
 });
 
-test("project changes reset panel state and selected tab, and sign-out removes private tools", async () => {
+test("project page navigation preserves workspace panel state; sign-out removes private tools", async () => {
   const fetchMock = server({ authenticated: true });
   const cache = renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
@@ -242,12 +240,13 @@ test("project changes reset panel state and selected tab, and sign-out removes p
   const inventoryReads = () => fetchMock.mock.calls.filter(([path]) => path === "/api/v0/inventory/workspaces/w1?offset=0&limit=50").length;
   const readsBefore = inventoryReads();
   await selectProject("Project B");
-  // The area and lens survive the scope change; the lens remounts empty for the new project.
+  // Visiting another project is ordinary navigation; returning to the editor keeps unsaved work.
+  await openTool("Inventory");
   expect(screen.getByRole("tab", { name: "Inventory" }).getAttribute("aria-selected")).toBe("true");
-  expect(cache.getQueryData(["private", "project-a"])).toBeUndefined();
-  expect((await screen.findByLabelText("New location name") as HTMLInputElement).value).toBe("");
-  // The inventory is the workspace's; the remounted lens reads it afresh for the new scope.
-  await waitFor(() => expect(inventoryReads()).toBeGreaterThan(readsBefore));
+  expect(cache.getQueryData(["private", "project-a"])).toBe("synthetic-private-data");
+  expect((await screen.findByLabelText("New location name") as HTMLInputElement).value).toBe("Private shelf draft");
+  // Project navigation does not invalidate the shared workspace inventory.
+  expect(inventoryReads()).toBe(readsBefore);
   fireEvent.click(screen.getByRole("button", { name: "Account menu, signed in as local-user" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Sign out" }));
   await screen.findByRole("heading", { name: "Sign in" });
@@ -335,8 +334,8 @@ test("Library scope lists the lens's collection with Used in, and opening a use 
   fireEvent.click(screen.getByRole("button", { name: "Open Wire stocks in Project B" }));
   expect(await screen.findByRole("heading", { name: "Wire stock in this project" })).toBeTruthy();
   expect(screen.getByRole("tab", { name: "Wire stocks" }).getAttribute("aria-selected")).toBe("true");
-  expect(screen.getByRole("button", { name: "Scope Project B: switch" })).toBeTruthy();
-  expect(screen.getByText("Opened from the library")).toBeTruthy();
+  expect(window.location.search).toContain("project=project-b");
+  expect(screen.queryByRole("button", { name: /^Scope .*: switch$/ })).toBeNull();
 });
 
 test("Inventory at Library scope also offers workspace-scoped Sourcing, with the plan picker listing workspace definitions", async () => {
@@ -353,9 +352,11 @@ test("workspace-level lenses open at Library scope without choosing a project, a
   const fetchMock = server({ authenticated: true }); renderApp();
   await screen.findByRole("button", { name: "Account menu, signed in as local-user" });
   await openTool("Notes & files");
+  expect(await screen.findByRole("heading", { name: "Choose a project" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Open Notes & files in Project A" }));
   expect(await screen.findByRole("heading", { name: "Notes, decisions and attachments" })).toBeTruthy();
-  expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();
-  expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith("/api/v0/knowledge/workspaces/w1"))).toBe(true);
+  expect(window.location.pathname).toBe("/projects/project-a/notes");
+  expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith("/api/v0/knowledge/workspaces/w1") && String(path).includes("project_id=project-a"))).toBe(true);
   await openTool("System");
   await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => String(path).startsWith("/api/v0/diagnostics/workspaces/w1"))).toBe(true));
   expect(screen.queryByRole("heading", { name: "Choose a project" })).toBeNull();

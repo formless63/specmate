@@ -1,4 +1,4 @@
-import { ApiError, readProjectDetail, requestJson, type ProjectDetail } from "../workspace/api";
+import { ApiError, readProjectDetail, requestJson, runOperation, type ProjectDetail } from "../workspace/api";
 
 export type Kind = { kind: string; count: number };
 export type NotificationRow = { notification_id: string; review_id: string; title: string; action: string; read_at: string | null };
@@ -48,4 +48,23 @@ export async function readProjectWork(projectId: string, includeRemoved = false)
     readOpenWork(projectId),
   ]);
   return { detail, ...open };
+}
+
+export type ProjectContextRead = {
+  decisions: WorkRead<import("../knowledge/api").ItemPage>;
+  releases: WorkRead<{ releases: import("../releases/api").ReleaseSummary[]; total: number }>;
+  members: WorkRead<{ role: string; members?: { username: string; role: string }[] }>;
+};
+
+/** Existing reads only: no project-specific membership or new ownership model. */
+export async function readProjectContext(workspaceId: string, projectId: string): Promise<ProjectContextRead> {
+  const [decisions, releases, members] = await Promise.all([
+    attempt(async () => {
+      const page = await requestJson<import("../knowledge/api").ItemPage>(`/api/v0/knowledge/workspaces/${idOf(workspaceId)}/items?project_id=${idOf(projectId)}&offset=0&limit=20`);
+      return { ...page, items: page.items.filter(item => item.kind === "decision") };
+    }),
+    attempt(async () => (await runOperation<{ releases: import("../releases/api").ReleaseSummary[]; total: number }>("release.list", { workspace_id: workspaceId, project_id: projectId })).result),
+    attempt(() => requestJson<{ role: string; members?: { username: string; role: string }[] }>("/api/v0/access/workspace")),
+  ]);
+  return { decisions, releases, members };
 }

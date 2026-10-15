@@ -23,7 +23,7 @@ function renderShell() {
 }
 function PrivatePanel({ projectId, chrome, refresh, role }: { projectId: string; chrome: ShellChrome; refresh: () => Promise<void>; role: string }) {
   const [value, setValue] = useState("");
-  return <>{chrome.projectControl}{chrome.signOutControl}<button type="button" onClick={() => void refresh()}>Re-read workspace</button><div>Private project {projectId}</div>
+  return <>{chrome.signOutControl}<button type="button" onClick={() => void refresh()}>Re-read workspace</button><div>Private project {projectId}</div>
     <div>Role {role}</div><input aria-label="Private note" value={value} onChange={(event) => setValue(event.currentTarget.value)} /></>;
 }
 const A = project("a", "Project A");
@@ -43,7 +43,7 @@ test("sign-in uses CSRF, lands at Library scope with the workspace role, and ope
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   await screen.findByText("Signed in as local-user");
   expect(screen.queryByLabelText(/^Password/)).toBeNull();
-  expect((screen.getByRole("combobox", { name: "Scope" }) as HTMLInputElement).value).toBe("Library");
+  expect(screen.queryByRole("combobox", { name: "Scope" })).toBeNull();
   expect(screen.queryByText(/^Private project/)).toBeNull();
   expect(fetchMock).toHaveBeenCalledWith("/api/v0/workspace/projects?include_archived=true&limit=200", expect.anything());
   fireEvent.click(await screen.findByRole("button", { name: "Open Project A" }));
@@ -68,33 +68,32 @@ test("setup uses existing owner endpoint and displays safe request errors", asyn
   expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe("");
 });
 
-test("scope changes reset private component state and query data; sign-out clears everything", async () => {
+test("project page changes retain workspace query data; sign-out clears everything", async () => {
   workspaceServer({ projects: [A, B] });
   const cache = renderShell();
   fireEvent.click(await screen.findByRole("button", { name: "Open Project A" }));
   fireEvent.change(screen.getByLabelText("Private note"), { target: { value: "private note" } });
   cache.setQueryData(["private", "a"], "private-data");
-  fireEvent.click(screen.getByRole("combobox", { name: "Scope" }));
-  fireEvent.click(await screen.findByRole("option", { name: "Project B", hidden: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Open Project B" }));
   expect((await screen.findByLabelText("Private note") as HTMLInputElement).value).toBe("");
-  expect(cache.getQueryData(["private", "a"])).toBeUndefined();
+  expect(cache.getQueryData(["private", "a"])).toBe("private-data");
   cache.setQueryData(["private", "b"], "private-data");
-  fireEvent.click(screen.getByRole("button", { name: "Switch to Library scope" }));
+  fireEvent.click(screen.getByRole("button", { name: "Back to projects" }));
   await screen.findByRole("button", { name: "Open Project A" });
-  expect(cache.getQueryData(["private", "b"])).toBeUndefined();
+  expect(cache.getQueryData(["private", "b"])).toBe("private-data");
   cache.setQueryData(["private", "library"], "private-data");
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await screen.findByRole("heading", { name: "Sign in" });
   expect(cache.getQueryData(["private", "library"])).toBeUndefined();
 });
 
-test("archived projects are left out of the scope switcher", async () => {
+test("archived projects remain discoverable in the explicit Projects list", async () => {
   workspaceServer({ projects: [A, project("z", "Old bench", { archived: true })] });
   renderShell();
   await screen.findByText("Signed in as local-user");
-  fireEvent.click(screen.getByRole("combobox", { name: "Scope" }));
-  expect(await screen.findByRole("option", { name: "Project A", hidden: true })).toBeTruthy();
-  expect(screen.queryByRole("option", { name: /Old bench/, hidden: true })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Open Old bench" })).toBeNull();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Show archived (1)" }));
+  expect(await screen.findByRole("button", { name: "Open Old bench" })).toBeTruthy();
 });
 
 test("project creation uses the shared operation with no ownership target and opens the new project", async () => {
@@ -113,10 +112,12 @@ test("a role change clears cached reads and says so; losing membership clears ev
   const cache = renderShell();
   fireEvent.click(await screen.findByRole("button", { name: "Open Project A" }));
   cache.setQueryData(["private", "a"], "private-data");
+  fireEvent.change(screen.getByLabelText("Private note"), { target: { value: "clear on authority change" } });
   state.role = "viewer";
   fireEvent.click(await screen.findByRole("button", { name: "Re-read workspace" }));
   expect(await screen.findByText("Role viewer")).toBeTruthy();
   expect(screen.getByText(/Your workspace role is now viewer/)).toBeTruthy();
+  expect((screen.getByLabelText("Private note") as HTMLInputElement).value).toBe("");
   expect(cache.getQueryData(["private", "a"])).toBeUndefined();
   cache.setQueryData(["private", "a"], "private-data");
   state.role = null;
@@ -157,4 +158,24 @@ test("multipart helper preserves browser boundary and fresh CSRF cookie", async 
   expect(new Headers(options.headers).get("X-CSRFToken")).toBe("rotated-csrf");
   expect(new Headers(options.headers).has("Content-Type")).toBe(false);
   expect(options.credentials).toBe("same-origin");
+});
+
+
+test("a changed signed-in principal withdraws prior project state before the new membership read completes", async () => {
+  let changed = false;
+  let resolveMembership: ((value: Response) => void) | undefined;
+  const { state } = workspaceServer({ projects: [A] });
+  const originalRead = fetch;
+  vi.stubGlobal("fetch", vi.fn(async (path: string, options?: RequestInit) => {
+    if (changed && path === "/api/v0/session") return reply({ user: { id: "8", username: "other-user" }, owner_setup_required: false });
+    if (changed && path.startsWith("/api/v0/workspace/projects?")) return new Promise<Response>(resolve => { resolveMembership = resolve; });
+    return originalRead(path, options);
+  }));
+  const cache = renderShell();fireEvent.click(await screen.findByRole("button", { name: "Open Project A" }));
+  fireEvent.change(screen.getByLabelText("Private note"), { target: { value: "Private to the prior account" } });cache.setQueryData(["private-account"], "private-data");
+  changed = true;fireEvent.click(screen.getByRole("button", { name: "Re-read workspace" }));
+  await waitFor(() => expect(resolveMembership).toBeDefined());
+  expect(screen.queryByLabelText("Private note")).toBeNull();expect(screen.queryByText("Private project a")).toBeNull();expect(cache.getQueryData(["private-account"])).toBeUndefined();
+  state.projects = [B];resolveMembership!(reply({ workspace_id: "w2", role: "editor", permissions: ["workspace.read"], results: state.projects, total: 1, next_after: null }));
+  expect(await screen.findByRole("button", { name: "Open Project B" })).toBeTruthy();expect(screen.queryByRole("button", { name: "Open Project A" })).toBeNull();
 });

@@ -6,14 +6,17 @@ import { DeleteControl } from "../home/WorkspaceHome";
 import { deleteBlocker, deleteProject, describeDependents, setArchived } from "../home/projectLifecycle";
 import { ReferenceForm, type ReferenceChoice } from "../scope/ReferenceForm";
 import { words } from "../scope/LibraryView";
-import { AREAS, describeAccess, isReadOnly } from "../shell/areas";
-import { areaForReference, floatingKind, toolForReference } from "../shell/scope";
+import { describeAccess, isReadOnly } from "../shell/areas";
+import { floatingKind, toolForReference } from "../shell/scope";
 import { addReference, listLibrary, removeReference, runOperation, type LibraryFamily, type LibraryRecord, type ProjectDetail, type ResolvedReference } from "../workspace/api";
+import { ProjectContext } from "./ProjectContext";
 import { readProjectWork, type ProjectWork, type WorkRead } from "./work";
 
 type Props = {
   projectId: string;
   projectName: string;
+  workspaceId?: string;
+  onOpenReference?: (reference: ResolvedReference) => void;
   /** Workspace permissions of the signed-in member. */
   permissions: string[];
   /** Workspace role, when the shell knows it. */
@@ -46,7 +49,7 @@ function value<T>(read: WorkRead<T> | undefined): T | null {
 
 /**
  * A project's overview: its purpose, open work and the library items it references, grouped by
- * the area that opens them. Counts are counts of references, not of owned records.
+ * kind with their floating or exact revision pins. Counts are counts of references, not of owned records.
  */
 function StartTile({ point, onOpenTool }: { point: (typeof START_POINTS)[number]; onOpenTool: (tool: string) => void }) {
   const gate = usePermission(point.permission);
@@ -56,7 +59,7 @@ function StartTile({ point, onOpenTool }: { point: (typeof START_POINTS)[number]
   </button>;
 }
 
-export function ProjectOverview({ projectId, projectName, permissions, role = null, active, onOpenTool, onAccessLost, onProjectChanged, onLeave }: Props) {
+export function ProjectOverview({ projectId, projectName, workspaceId, onOpenReference, permissions, role = null, active, onOpenTool, onAccessLost, onProjectChanged, onLeave }: Props) {
   const [work, setWork] = useState<ProjectWork | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
@@ -77,12 +80,12 @@ export function ProjectOverview({ projectId, projectName, permissions, role = nu
 
   useEffect(() => {
     let current = true;
-    setLoading(true); setFailed(null);
+    setLoading(true); setFailed(null); setWork(null);
     readProjectWork(projectId, showRemoved).then((result) => {
       if (!current) return;
       setWork(result); setLoading(false);
       const reads = [result.detail, result.unread, result.reviews];
-      if (reads.every((read) => read.status === "unavailable" && read.denied)) {
+      if ((result.detail.status === "unavailable" && result.detail.denied) || reads.every((read) => read.status === "unavailable" && read.denied)) {
         setWork(null);
         setFailed("This project is no longer available to you.");
         void onLost.current?.();
@@ -121,10 +124,10 @@ export function ProjectOverview({ projectId, projectName, permissions, role = nu
   }
 
   return <div className="sb-dash" aria-busy={loading}>
-    <Title order={2} className="sb-dash-title">Overview</Title>
+    <Title order={1} className="sb-dash-title">{failed ? "Project not available" : detail?.name ?? projectName}</Title>
     {failed && <Alert color="red" role="alert" title="Overview unavailable">{failed}</Alert>}
     <section aria-label="Project summary"><dl className="sb-context sb-context-4">
-      <Cell label="Project" value={detail?.name ?? projectName} />
+      <Cell label="Project" value={failed ? "Not available" : detail?.name ?? projectName} />
       <Cell label="References" value={detail ? String(activeReferences.length) : loading ? "Loading" : "Not reported"} unknown={!detail} />
       <Cell label="Status" value={detail ? (archived ? "Archived" : "Active") : "Not reported"} unknown={!detail} />
       <Cell label="Open reviews" value={reviews ? `${reviews.open.length}${more(reviews.more)}` : loading ? "Loading" : "Not reported"} unknown={!reviews} />
@@ -133,11 +136,13 @@ export function ProjectOverview({ projectId, projectName, permissions, role = nu
     {error && <Alert color="red" role="alert" title="Project not changed">{error}</Alert>}
     {notice && <Text role="status" className="sb-dash-note">{notice}</Text>}
 
+    {detail && <section aria-label="Project purpose"><h3 className="sb-dash-h">Purpose</h3><Text size="sm">{detail.purpose || "No purpose recorded."}</Text></section>}
+    {detail && workspaceId && <ProjectContext workspaceId={workspaceId} projectId={projectId} onOpenNotes={() => onOpenTool("knowledge")} onAccessLost={onAccessLost} />}
     <div className="sb-dash-grid">
       <div className="sb-dash-main">
         <h3 className="sb-dash-h">References <span className="sb-silk">library items this project uses</span></h3>
         {detail && <ReferenceTable detail={detail} busy={busy} editGate={editGate} showRemoved={showRemoved}
-          onOpen={(ref) => onOpenTool(toolForReference(ref.kind, ref.item_kind))}
+          onOpen={(ref) => onOpenReference ? onOpenReference(ref) : onOpenTool(toolForReference(ref.kind, ref.item_kind))}
           onRemove={(ref, reason) => void change(() => removeReference(detail, ref.reference_id, reason), `${ref.label} is no longer referenced. The item stays in the library.`)} />}
         <Group gap="xs" justify="space-between">
           {detail && <AddFromLibrary detail={detail} busy={busy} editGate={editGate}
@@ -219,9 +224,15 @@ function ReferenceTable({ detail, busy, editGate, showRemoved, onOpen, onRemove 
   detail: ProjectDetail; busy: boolean; editGate: EditGate; showRemoved: boolean;
   onOpen: (ref: ResolvedReference) => void; onRemove: (ref: ResolvedReference, reason: string) => void;
 }) {
-  const groups = useMemo(() => AREAS.map((area) => ({
-    area, rows: detail.references.filter((ref) => (showRemoved || !ref.removed) && areaForReference(ref.kind, ref.item_kind) === area.id),
-  })).filter((group) => group.rows.length > 0), [detail, showRemoved]);
+  const groups = useMemo(() => {
+    const grouped = new Map<string, ResolvedReference[]>();
+    for (const ref of detail.references) {
+      if (ref.removed && !showRemoved) continue;
+      const kind = ref.kind === "revision" || ref.kind === "definition" ? ref.item_kind ?? "definition" : ref.kind;
+      grouped.set(kind, [...(grouped.get(kind) ?? []), ref]);
+    }
+    return [...grouped].sort(([a], [b]) => a.localeCompare(b)).map(([kind, rows]) => ({ kind, rows }));
+  }, [detail, showRemoved]);
   if (groups.length === 0) return <div className="sb-dash-empty" role="status">
     <Text>This project references nothing yet.</Text>
     <Text className="sb-silk">Add items from the library below, or with Use in project in any library lens</Text>
@@ -229,8 +240,8 @@ function ReferenceTable({ detail, busy, editGate, showRemoved, onOpen, onRemove 
   return <div className="sb-ws-scroll" role="group" aria-label="Project references"><Table className="sb-ws-table" verticalSpacing={4} horizontalSpacing="sm">
     <Table.Thead><Table.Tr><Table.Th>Item</Table.Th><Table.Th>Kind</Table.Th><Table.Th>Pin</Table.Th><Table.Th>Role</Table.Th><Table.Th>Added by</Table.Th>
       <Table.Th><span className="sb-visually-hidden">Actions</span></Table.Th></Table.Tr></Table.Thead>
-    {groups.map(({ area, rows }) => <Table.Tbody key={area.id} aria-label={`${area.label} references`}>
-      <Table.Tr className="sb-ws-group"><Table.Th colSpan={6} scope="rowgroup">{area.label} <span className="sb-mono">{rows.length}</span></Table.Th></Table.Tr>
+    {groups.map(({ kind, rows }) => <Table.Tbody key={kind} aria-label={`${words(kind)} references`}>
+      <Table.Tr className="sb-ws-group"><Table.Th colSpan={6} scope="rowgroup">{words(kind)} <span className="sb-mono">{rows.length}</span></Table.Th></Table.Tr>
       {rows.map((ref) => <Table.Tr key={ref.reference_id} data-removed={ref.removed || undefined}>
         <Table.Td><button type="button" className="sb-ws-open" aria-label={`Open ${ref.label}`} onClick={() => onOpen(ref)}><span className="sb-home-name">{ref.label}</span></button></Table.Td>
         <Table.Td className="sb-mono">{words(ref.item_kind)}</Table.Td>

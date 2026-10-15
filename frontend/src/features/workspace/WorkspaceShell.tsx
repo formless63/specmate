@@ -1,5 +1,5 @@
 import { randomUUID } from "../../lib/random-id";
-import { Alert, Button, Group, Menu, PasswordInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Menu, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { HomeFrame } from "../home/HomeFrame";
@@ -10,8 +10,6 @@ import { ApiError, listWorkspaceProjects, requestJson, runOperation, type Operat
 /** Controls the shell places in its top bar: scope switching, account and request alerts. */
 export type ShellChrome = {
   username: string;
-  /** Scope control: Library or one project, searchable. */
-  projectControl: ReactNode;
   signOutControl: ReactNode;
   alert: ReactNode;
   /** Compact scope switcher for phone widths. */
@@ -26,6 +24,8 @@ export type WorkspaceScope = {
   username: string;
   /** Stable principal key for per-principal client caches. */
   principalKey: string;
+  /** Changes only when session/workspace authority changes, never for project navigation. */
+  authorityKey: string;
   workspaceId: string;
   /** The member's workspace role and permissions; they apply at every scope. */
   role: string;
@@ -39,6 +39,8 @@ export type WorkspaceScope = {
   lastProjectId: string | null;
   busy: boolean;
   selectProject: (projectId: string | null) => void;
+  /** Internal route synchronization; does not navigate or change authority. */
+  setProjectContext: (projectId: string | null) => void;
   createProject: (name: string, purpose?: string) => Promise<boolean>;
   refresh: () => Promise<void>;
   chrome: ShellChrome;
@@ -46,12 +48,11 @@ export type WorkspaceScope = {
 
 type Membership = { workspaceId: string; role: string; permissions: string[] };
 
-const LIBRARY = "__library__";
-
 /**
  * Owns the session, the workspace membership, the project list and the current scope. A signed-in
  * member always lands inside the shell at Library scope; nothing opens a project automatically.
- * Changing scope, signing out, losing membership or a role change clear private query data.
+ * Signing out, losing membership or changing workspace authority clears private query data.
+ * Project navigation does not change authority or discard workspace edits.
  */
 export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope) => ReactNode }) {
   const cache = useQueryClient();
@@ -68,11 +69,14 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
   const [notice, setNotice] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const generation = useRef(0);
+  const [authorityEpoch, setAuthorityEpoch] = useState(0);
   const known = useRef<Membership | null>(null);
+  const knownUser = useRef<string | null>(null);
   const navigation = useNavigation();
 
   const clearCache = useCallback(() => {
     generation.current += 1;
+    setAuthorityEpoch((value) => value + 1);
     void cache.cancelQueries();
     cache.clear();
   }, [cache]);
@@ -80,6 +84,7 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
   const clearPrivate = useCallback(() => {
     clearCache();
     known.current = null;
+    knownUser.current = null;
     setMembership(null);
     setNoMembership(false);
     setProjects([]);
@@ -88,9 +93,14 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
   }, [clearCache]);
 
   const refresh = useCallback(async () => {
-    const currentGeneration = generation.current;
+    let currentGeneration = generation.current;
     const state = await requestJson<SessionState>("/api/v0/session");
     if (currentGeneration !== generation.current) return;
+    if (state.user && knownUser.current && knownUser.current !== String(state.user.id)) {
+      clearPrivate();
+      currentGeneration = generation.current;
+    }
+    knownUser.current = state.user ? String(state.user.id) : null;
     setSession(state);
     if (!state.user) { clearPrivate(); return; }
     let page;
@@ -111,7 +121,7 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
     if (currentGeneration !== generation.current) return;
     const next: Membership = { workspaceId: page.workspace_id, role: page.role, permissions: page.permissions };
     const previous = known.current;
-    if (previous && (previous.role !== next.role || previous.permissions.join(",") !== next.permissions.join(","))) {
+    if (previous && (previous.workspaceId !== next.workspaceId || previous.role !== next.role || previous.permissions.join(",") !== next.permissions.join(","))) {
       // A role change refreshes cached reads and which actions are offered.
       clearCache();
       setNotice(`Your workspace role is now ${next.role}. The actions offered were refreshed.`);
@@ -125,8 +135,7 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
     if (remembered && !page.results.some((p) => p.project_id === remembered)) forgetLastProject(userId);
     setProjectId((selected) => {
       if (selected && !page.results.some((p) => p.project_id === selected)) {
-        void cache.cancelQueries(); cache.clear();
-        setNotice("The project you had open no longer exists. You are back in the Library.");
+        setNotice("The project you had open no longer exists. You are back at Projects.");
         return null;
       }
       return selected;
@@ -194,18 +203,13 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
   }
 
   const selectProject = useCallback((value: string | null) => {
-    setProjectId((current) => {
-      if (value === current) return current;
-      // Scope changes discard the previous scope's private reads.
-      generation.current += 1;
-      void cache.cancelQueries();
-      cache.clear();
-      return value;
-    });
+    // Projects are navigation context; changing one must not discard workspace editors or reads.
+    setProjectId(value);
+    navigation?.navigate({ area: "projects", lens: "overview", project: value, probe: null, filters: {} });
     setError(null);
     setNotice(null);
     if (value && session?.user) writeLastProject(String(session.user.id), value);
-  }, [cache, session]);
+  }, [navigation, session]);
 
   /** Resolves true only when the project was created, so the form keeps the name after a failure. */
   async function createProject(name: string, purpose = ""): Promise<boolean> {
@@ -233,24 +237,9 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
   if (session?.user && membership) {
     const user = session.user;
     const current = selectedProject;
-    // Archived projects stay reachable from the project list, not from the switcher.
-    const switchable = projects.filter((project) => !project.archived || project.project_id === projectId);
-    const scopeName = current ? current.name : "Library";
     const chrome: ShellChrome = {
       username: user.username,
-      projectControl: <Group gap={6} wrap="nowrap"><Select aria-label="Scope" size="xs" w={220} searchable nothingFoundMessage="No project matches"
-        data={[{ value: LIBRARY, label: "Library" }, ...switchable.map((project) => ({ value: project.project_id, label: project.archived ? `${project.name} (archived)` : project.name }))]}
-        value={current ? current.project_id : LIBRARY} onChange={(value) => selectProject(!value || value === LIBRARY ? null : value)} disabled={busy} allowDeselect={false} />
-        {current && <Button variant="quiet" aria-label="Switch to Library scope" onClick={() => selectProject(null)} disabled={busy}>Library</Button>}</Group>,
       signOutControl,
-      projectMenu: <Menu position="bottom-start" withinPortal>
-        <Menu.Target><button type="button" className="sb-project-button" aria-label={`Scope ${scopeName}: switch`} disabled={busy}><span className="sb-project-name">{scopeName}</span><span aria-hidden="true" className="sb-mono">▾</span></button></Menu.Target>
-        <Menu.Dropdown mah={360} style={{ overflowY: "auto" }}>
-          <Menu.Item aria-current={!current ? "true" : undefined} style={!current ? { color: "var(--sb-accent)" } : undefined} onClick={() => selectProject(null)}>Library</Menu.Item>
-          <Menu.Divider />
-          {switchable.map((project) => <Menu.Item key={project.project_id} aria-current={project.project_id === projectId ? "true" : undefined}
-            style={project.project_id === projectId ? { color: "var(--sb-accent)" } : undefined} onClick={() => selectProject(project.project_id)}>{project.name}</Menu.Item>)}
-        </Menu.Dropdown></Menu>,
       accountMenu: <Menu position="bottom-end" withinPortal>
         <Menu.Target><Button variant="quiet" aria-label={`Account menu, signed in as ${user.username}`} className="sb-account-button">{user.username}</Button></Menu.Target>
         <Menu.Dropdown>
@@ -261,11 +250,12 @@ export function WorkspaceShell({ children }: { children: (scope: WorkspaceScope)
     };
     const scope: WorkspaceScope = {
       userId: String(user.id), username: user.username, principalKey: String(user.id),
+      authorityKey: `${user.id}:${membership.workspaceId}:${authorityEpoch}:${membership.role}:${membership.permissions.join(",")}`,
       workspaceId: membership.workspaceId, role: membership.role, permissions: membership.permissions,
       projectId: current ? current.project_id : null, project: current, projects, lastProjectId, busy,
-      selectProject, createProject, refresh, chrome,
+      selectProject, setProjectContext: setProjectId, createProject, refresh, chrome,
     };
-    return <Fragment key={String(user.id)}>{children(scope)}</Fragment>;
+    return <Fragment key={scope.authorityKey}>{children(scope)}</Fragment>;
   }
 
   if (session?.user && noMembership) {
